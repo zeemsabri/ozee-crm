@@ -12,6 +12,7 @@ class Email extends Model
     protected $fillable = [
         'conversation_id',
         'sender_id',
+        'sender_type',
         'to',
         'subject',
         'body',
@@ -20,6 +21,7 @@ class Email extends Model
         'rejection_reason',
         'sent_at',
         'message_id',
+        'type'
     ];
 
     protected $casts = [
@@ -32,9 +34,30 @@ class Email extends Model
         return $this->belongsTo(Conversation::class);
     }
 
+    /**
+     * Get the sender model (polymorphic relationship).
+     * This can be a User or any other model that can send emails.
+     */
     public function sender()
     {
-        return $this->belongsTo(User::class, 'sender_id');
+        return $this->morphTo();
+    }
+
+    /**
+     * Set the sender_id attribute and automatically set sender_type to User
+     * when the email is created from the frontend.
+     *
+     * @param mixed $value
+     * @return void
+     */
+    public function setSenderIdAttribute($value)
+    {
+        $this->attributes['sender_id'] = $value;
+
+        // If sender_type is not set, default to User model
+        if (!isset($this->attributes['sender_type'])) {
+            $this->attributes['sender_type'] = 'App\\Models\\User';
+        }
     }
 
     public function approver()

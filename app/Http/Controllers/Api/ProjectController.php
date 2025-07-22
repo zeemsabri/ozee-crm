@@ -1693,4 +1693,22 @@ class ProjectController extends Controller
         ]);
     }
 
+    /**
+     * Get simplified projects data for dashboard
+     * Returns only id, name, and status fields
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getProjectsSimplified()
+    {
+        $user = Auth::user();
+
+        if ($user->isSuperAdmin() || $user->isManager()) {
+            $projects = Project::select('id', 'name', 'status')->get();
+        } else {
+            $projects = $user->projects()->select('projects.id', 'projects.name', 'projects.status')->get();
+        }
+
+        return response()->json($projects);
+    }
 }

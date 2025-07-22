@@ -31,6 +31,14 @@ class Conversation extends Model
         return $this->belongsTo(Client::class);
     }
 
+    /**
+     * Get the contractor associated with the conversation.
+     *
+     * Note: contractor_id can be nullable when a client sends an email and we receive it.
+     * In this case, the conversation is initiated by the client, not a contractor.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     */
     public function contractor()
     {
         return $this->belongsTo(User::class, 'contractor_id');

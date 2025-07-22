@@ -26,7 +26,7 @@ const fetchProjects = async () => {
     loading.value = true;
     error.value = '';
     try {
-        const response = await axios.get('/api/projects');
+        const response = await axios.get('/api/projects-simplified');
         projects.value = response.data;
     } catch (err) {
         error.value = 'Failed to load projects';

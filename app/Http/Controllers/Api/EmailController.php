@@ -222,7 +222,8 @@ class EmailController extends Controller
             return response()->json(['message' => 'Unauthorized to approve emails.'], 403);
         }
 
-        if ($email->status !== 'pending_approval') {
+
+        if (!in_array($email->status, ['pending_approval', 'pending_approval_received'])  ) {
             return response()->json(['message' => 'Email is not in pending approval status.'], 400);
         }
 
@@ -516,6 +517,53 @@ class EmailController extends Controller
     }
 
     /**
+     * Display a listing of emails pending approval with limited information.
+     * Only returns Project Name, Client Name, Subject, Sender, Submitted On
+     * Accessible by: Super Admin, Manager
+     */
+    public function pendingApprovalSimplified()
+    {
+        $user = Auth::user();
+
+        if (!$user->isSuperAdmin() && !$user->isManager()) {
+            return response()->json(['message' => 'Unauthorized to view pending approvals.'], 403);
+        }
+
+        $pendingEmails = Email::with([
+            'conversation.project:id,name',  // Load only project id and name
+            'conversation.client:id,name',   // Load only client id and name
+            'sender:id,name'                 // Load only sender id and name
+        ])
+            ->whereIn('status', ['pending_approval', 'pending_approval_received'])
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        // Transform the data to include only the required fields
+        $simplifiedEmails = $pendingEmails->map(function ($email) {
+            return [
+                'id' => $email->id,
+                'project' => $email->conversation->project ? [
+                    'id' => $email->conversation->project->id,
+                    'name' => $email->conversation->project->name
+                ] : null,
+                'client' => $email->conversation->client ? [
+                    'id' => $email->conversation->client->id,
+                    'name' => $email->conversation->client->name
+                ] : null,
+                'subject' => $email->subject,
+                'sender' => $email->sender ? [
+                    'id' => $email->sender->id,
+                    'name' => $email->sender->name
+                ] : null,
+                'created_at' => $email->created_at,
+                'body' => $email->body, // Include body for the modal
+            ];
+        });
+
+        return response()->json($simplifiedEmails);
+    }
+
+    /**
      * Display rejected emails with all details (legacy endpoint).
      */
     public function rejected()
@@ -599,6 +647,60 @@ class EmailController extends Controller
 
 
         return response()->json($emails);
+    }
+
+    /**
+     * Get emails for a specific project with simplified information.
+     * Only returns Subject, From, Date, Status
+     * Accessible by: Super Admin, Manager (all); Contractor (if assigned to project)
+     */
+    public function getProjectEmailsSimplified($projectId)
+    {
+        $user = Auth::user();
+        $role = $user->getRoleForProject($projectId);
+
+        $project = Project::findOrFail($projectId);
+
+        // Check if user has access to this project
+        if ($user->isContractor() && !$user->projects->contains($project->id)) {
+            return response()->json(['message' => 'Unauthorized to view emails for this project.'], 403);
+        }
+
+        // Get all conversations for this project
+        $conversations = $project->conversations;
+        $conversationIds = $conversations->pluck('id')->toArray();
+
+        // Get all emails for these conversations
+        $emails = Email::with(['sender:id,name'])
+            ->whereIn('status', ['approved', 'pending_approval', 'sent'])
+            ->whereIn('conversation_id', $conversationIds)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Transform the data to include only the required fields
+        $simplifiedEmails = $emails->map(function ($email) {
+            return [
+                'id' => $email->id,
+                'subject' => $email->subject,
+                'sender' => $email->sender ? [
+                    'id' => $email->sender->id,
+                    'name' => $email->sender->name
+                ] : null,
+                'created_at' => $email->created_at,
+                'status' => $email->status,
+                // Include body for the modal view
+                'body' => $email->body,
+                // Include additional fields needed for the modal view
+                'rejection_reason' => $email->rejection_reason,
+                'approver' => $email->approver ? [
+                    'id' => $email->approver->id,
+                    'name' => $email->approver->name
+                ] : null,
+                'sent_at' => $email->sent_at
+            ];
+        });
+
+        return response()->json($simplifiedEmails);
     }
 
     /**

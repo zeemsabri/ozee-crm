@@ -66,6 +66,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Project Management Routes (CRUD)
     Route::apiResource('projects', ProjectController::class);
+    Route::get('projects-simplified', [ProjectController::class, 'getProjectsSimplified']); // New route with limited information for dashboard
     Route::get('projects-for-email', [ProjectController::class, 'getProjectsForEmailComposer']);
     Route::post('projects/{project}/attach-users', [ProjectController::class, 'attachUsers'])->name('projects.attach-users');
     Route::post('projects/{project}/detach-users', [ProjectController::class, 'detachUsers'])->name('projects.detach-users');
@@ -97,10 +98,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Email Management & Approval Routes
 
-    Route::get('emails/pending-approval', [EmailController::class, 'pendingApproval']);
+    Route::get('emails/pending-approval', [EmailController::class, 'pendingApproval']); // Legacy route with full details
+    Route::get('emails/pending-approval-simplified', [EmailController::class, 'pendingApprovalSimplified']); // New route with limited information
     Route::get('emails/rejected', [EmailController::class, 'rejected']); // Legacy route with full details
     Route::get('emails/rejected-simplified', [EmailController::class, 'rejectedSimplified']); // New route with limited information
-    Route::get('projects/{project}/emails', [EmailController::class, 'getProjectEmails']); // Get all emails for a project
+    Route::get('projects/{project}/emails', [EmailController::class, 'getProjectEmails']); // Get all emails for a project (legacy endpoint)
+    Route::get('projects/{project}/emails-simplified', [EmailController::class, 'getProjectEmailsSimplified']); // Get simplified emails for a project
     Route::post('emails/{email}/approve', [EmailController::class, 'approve']);
     Route::post('emails/{email}/edit-and-approve', [EmailController::class, 'editAndApprove']);
     Route::post('emails/{email}/reject', [EmailController::class, 'reject']);

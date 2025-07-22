@@ -866,7 +866,7 @@ const fetchProjectEmails = async () => {
     emailError.value = '';
     try {
         const projectId = usePage().props.id;
-        const response = await window.axios.get(`/api/projects/${projectId}/emails`);
+        const response = await window.axios.get(`/api/projects/${projectId}/emails-simplified`);
         emails.value = response.data;
     } catch (error) {
         emailError.value = 'Failed to load email data.';
@@ -1027,7 +1027,7 @@ onMounted(async () => {
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                     <div class="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-shadow">
                         <h4 class="text-sm font-semibold text-gray-500 mb-1">Pending Tasks</h4>
-                        <p class="text-2xl font-bold text-indigo-600">{{ tasks.filter(t => t.status !== 'Completed').length }}</p>
+                        <p class="text-2xl font-bold text-indigo-600">{{ tasks.filter(t => t.status !== 'Done').length }}</p>
                     </div>
                     <div class="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-shadow">
                         <h4 class="text-sm font-semibold text-gray-500 mb-1">Unread Emails</h4>
@@ -1389,7 +1389,6 @@ onMounted(async () => {
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -1399,7 +1398,6 @@ onMounted(async () => {
                             <tr v-for="email in emails" :key="email.id" class="hover:bg-gray-50 transition-colors">
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ email.subject }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-700">{{ email.sender?.name || 'N/A' }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-700">{{ Array.isArray(email.to) ? email.to.join(', ') : email.to }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-700">{{ new Date(email.created_at).toLocaleDateString() }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-700">
                                     <span
@@ -1510,11 +1508,7 @@ onMounted(async () => {
                         <div class="grid grid-cols-2 gap-4 text-sm">
                             <div>
                                 <p class="text-gray-600">From: <span class="text-gray-900">{{ selectedEmail.sender?.name || 'N/A' }}</span></p>
-                                <p class="text-gray-600">To: <span class="text-gray-900">{{ Array.isArray(selectedEmail.to) ? selectedEmail.to.join(', ') : selectedEmail.to }}</span></p>
-                            </div>
-                            <div>
-                                <p class="text-gray-600">Date: <span class="text-gray-900">{{ new Date(selectedEmail.created_at).toLocaleString() }}</span></p>
-                                <p class="text-gray-600">Status:
+                                <p class="text-gray-600 mt-1">Status:
                                     <span
                                         :class="{
                                             'px-2 py-1 rounded-full text-xs font-medium': true,
@@ -1527,6 +1521,9 @@ onMounted(async () => {
                                         {{ selectedEmail.status.replace('_', ' ').toUpperCase() }}
                                     </span>
                                 </p>
+                            </div>
+                            <div>
+                                <p class="text-gray-600">Date: <span class="text-gray-900">{{ new Date(selectedEmail.created_at).toLocaleString() }}</span></p>
                             </div>
                         </div>
                     </div>

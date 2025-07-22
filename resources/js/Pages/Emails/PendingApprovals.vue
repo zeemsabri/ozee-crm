@@ -74,14 +74,13 @@ const fetchInitialData = async () => {
     loading.value = true;
     generalError.value = '';
     try {
-        const [projectsResponse, clientsResponse, emailsResponse] = await Promise.all([
-            window.axios.get('/api/projects'),
-            window.axios.get('/api/clients'),
-            window.axios.get('/api/emails/pending-approval'),
-        ]);
-        projects.value = projectsResponse.data;
-        clients.value = clientsResponse.data.data;
+        // Use the simplified endpoint that returns only the required fields
+        const emailsResponse = await window.axios.get('/api/emails/pending-approval-simplified');
         pendingEmails.value = emailsResponse.data;
+
+        // We still need to fetch projects for the edit modal
+        const projectsResponse = await window.axios.get('/api/projects');
+        projects.value = projectsResponse.data;
     } catch (error) {
         generalError.value = 'Failed to load data.';
         console.error('Error fetching initial data:', error);
@@ -96,8 +95,8 @@ const fetchInitialData = async () => {
 // Open edit modal
 const openEditModal = (email) => {
     currentEmail.value = email;
-    editForm.project_id = email.conversation.project_id;
-    editForm.client_id = email.conversation.client_id;
+    // With the simplified API, we need to handle the data differently
+    editForm.project_id = email.project?.id;
     editForm.subject = email.subject;
     editForm.body = email.body;
     editErrors.value = {};
@@ -111,7 +110,6 @@ const saveAndApproveEmail = async () => {
     try {
         const payload = {
             project_id: editForm.project_id,
-            client_id: editForm.client_id,
             subject: editForm.subject,
             body: editForm.body,
         };
@@ -207,32 +205,34 @@ onMounted(() => {
                         <div v-else-if="generalError" class="text-red-600">{{ generalError }}</div>
                         <div v-else-if="pendingEmails.length === 0" class="text-gray-600">No pending emails found.</div>
                         <div v-else>
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted On</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="email in pendingEmails" :key="email.id">
-                                    <td class="px-6 py-4 whitespace-nowrap">{{ email.conversation.project.name }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap">{{ email.conversation.client.name }}</td>
-                                    <td class="px-6 py-4 truncate max-w-xs">{{ email.subject }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap">{{ email.sender?.name }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap">{{ new Date(email.created_at).toLocaleString() }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                        <PrimaryButton @click="approveEmail(email)">Approve</PrimaryButton>
-                                        <PrimaryButton @click="openEditModal(email)">Edit & Approve</PrimaryButton>
-                                        <SecondaryButton @click="openRejectModal(email)">Reject</SecondaryButton>
-                                    </td>
-                                </tr>
-                                </tbody>
-                            </table>
+                            <div class="overflow-x-auto">
+                                <table class="w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted On</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                    <tr v-for="email in pendingEmails" :key="email.id">
+                                        <td class="px-4 py-4 whitespace-nowrap">{{ email.project?.name || 'N/A' }}</td>
+                                        <td class="px-4 py-4 whitespace-nowrap">{{ email.client?.name || 'N/A' }}</td>
+                                        <td class="px-4 py-4 truncate max-w-xs">{{ email.subject }}</td>
+                                        <td class="px-4 py-4 whitespace-nowrap">{{ email.sender?.name || 'N/A' }}</td>
+                                        <td class="px-4 py-4 whitespace-nowrap">{{ new Date(email.created_at).toLocaleString() }}</td>
+                                        <td class="px-4 py-4 whitespace-nowrap flex space-x-2">
+                                            <PrimaryButton @click="approveEmail(email)" class="text-xs px-2 py-1">Approve</PrimaryButton>
+                                            <PrimaryButton @click="openEditModal(email)" class="text-xs px-2 py-1">Edit & Approve</PrimaryButton>
+                                            <SecondaryButton @click="openRejectModal(email)" class="text-xs px-2 py-1">Reject</SecondaryButton>
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -245,21 +245,21 @@ onMounted(() => {
                 <div v-if="currentEmail">
                     <form @submit.prevent="saveAndApproveEmail">
                         <div class="mb-4">
-                            <InputLabel for="project_id" value="Select Project" />
+                            <InputLabel for="project_id" value="Project" />
                             <select id="project_id" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="editForm.project_id" required>
                                 <option value="" disabled>Select a Project</option>
                                 <option v-for="project in assignedProjects" :key="project.id" :value="project.id">
-                                    {{ project.name }} (Client: {{ project.client && project.client.name ? project.client.name : 'No Client Assigned' }})
+                                    {{ project.name }}
                                 </option>
                             </select>
                             <InputError :message="editErrors.project_id ? editErrors.project_id[0] : ''" class="mt-2" />
                         </div>
 
                         <div class="mb-4">
-                            <InputLabel for="to_client_email" value="To (Client Email)" />
-                            <TextInput id="to_client_email" type="email" class="mt-1 block w-full bg-gray-100"
-                                       :value="selectedProjectClient && selectedProjectClient.email ? selectedProjectClient.email : getRecipientEmail(currentEmail)" readonly />
-                            <InputError v-if="(!selectedProjectClient || !selectedProjectClient.email) && editForm.project_id" message="Selected project has no client or client email is missing." class="mt-2" />
+                            <InputLabel for="client_name" value="Client" />
+                            <div id="client_name" class="mt-1 p-2 border border-gray-300 rounded-md bg-gray-50">
+                                {{ currentEmail.client?.name || 'N/A' }}
+                            </div>
                         </div>
 
                         <div class="mb-4">
