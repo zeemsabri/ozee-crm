@@ -30,12 +30,10 @@ class GoogleAuthController extends Controller
             'email',             // To get the user's email address
             'profile',           // To get basic profile info
             Drive::DRIVE_FILE,
-            'https://www.googleapis.com/auth/chat.spaces',   // For creating and managing spaces
-            'https://www.googleapis.com/auth/chat.messages', // For sending messages
-            // If you need to manage memberships, you might need:
+            'https://www.googleapis.com/auth/chat.spaces',
+            'https://www.googleapis.com/auth/chat.messages',
             'https://www.googleapis.com/auth/chat.memberships',
-            // For full Google Tasks integration (if creating tasks directly in Google Tasks):
-            'https://www.googleapis.com/auth/tasks',
+
         ];
 
         return Socialite::driver('google')
