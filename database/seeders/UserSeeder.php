@@ -17,7 +17,7 @@ class UserSeeder extends Seeder
         // Check if roles exist, if not, run the RolePermissionSeeder first
         if (Role::count() === 0) {
             $this->command->info('No roles found. Running RolePermissionSeeder first...');
-            $this->call(RolePermissionSeeder::class);
+//            $this->call(RolePermissionSeeder::class);
         }
 
         // Get roles
