@@ -32,7 +32,7 @@ class GoogleAuthController extends Controller
             Drive::DRIVE_FILE,
             'https://www.googleapis.com/auth/chat.spaces',
             'https://www.googleapis.com/auth/chat.messages',
-//            'https://www.googleapis.com/auth/chat.memberships',
+            'https://www.googleapis.com/auth/chat.memberships',
 
         ];
 

@@ -669,17 +669,6 @@ const openAddTaskModal = async () => {
 // Open modal for editing an existing task
 const editTask = async (task) => {
     selectedTask.value = task;
-    taskFormData.value = {
-        name: task.title,
-        description: task.description || '',
-        assigned_to_user_id: task.assigned_to_id || null,
-        due_date: task.due_date || null,
-        status: task.status,
-        task_type_id: task.task_type_id || null,
-        milestone_id: task.milestone_id || null,
-        tags: task.tags || []
-    };
-    taskFormErrors.value = {};
 
     // Fetch task types and milestones if needed
     if (taskTypes.value.length === 0) {
@@ -688,6 +677,45 @@ const editTask = async (task) => {
     if (milestones.value.length === 0) {
         await fetchMilestones();
     }
+
+    // Find milestone ID based on milestone name
+    let milestoneId = null;
+    if (task.milestone) {
+        const foundMilestone = milestones.value.find(m => m.name === task.milestone);
+        if (foundMilestone) {
+            milestoneId = foundMilestone.id;
+        }
+    }
+
+    // Find task type ID based on task type name
+    let taskTypeId = null;
+    if (task.task_type) {
+        const foundTaskType = taskTypes.value.find(t => t.name === task.task_type);
+        if (foundTaskType) {
+            taskTypeId = foundTaskType.id;
+        }
+    }
+
+    // Find user ID based on assigned_to name
+    let assignedToUserId = null;
+    if (task.assigned_to && task.assigned_to !== 'Unassigned') {
+        const foundUser = project.value.users?.find(u => u.name === task.assigned_to);
+        if (foundUser) {
+            assignedToUserId = foundUser.id;
+        }
+    }
+
+    taskFormData.value = {
+        name: task.title,
+        description: task.description || '',
+        assigned_to_user_id: assignedToUserId || task.assigned_to_id || null,
+        due_date: task.due_date || null,
+        status: task.status,
+        task_type_id: taskTypeId || task.task_type_id || null,
+        milestone_id: milestoneId,
+        tags: task.tags || []
+    };
+    taskFormErrors.value = {};
 
     showTaskModal.value = true;
 };
@@ -1236,13 +1264,13 @@ onMounted(async () => {
                                         >
                                             Complete
                                         </button>
-                                        <button
-                                            v-if="canManageProjects"
-                                            @click="deleteTask(task)"
-                                            class="text-red-600 hover:text-red-800 text-sm font-medium"
-                                        >
-                                            Delete
-                                        </button>
+<!--                                        <button-->
+<!--                                            v-if="canManageProjects"-->
+<!--                                            @click="deleteTask(task)"-->
+<!--                                            class="text-red-600 hover:text-red-800 text-sm font-medium"-->
+<!--                                        >-->
+<!--                                            Delete-->
+<!--                                        </button>-->
                                     </div>
                                 </td>
                             </tr>
