@@ -410,6 +410,21 @@ const dueDateOptions = [
     { value: 'no_date', label: 'No Due Date' }
 ];
 
+// Computed property for sorted milestones
+const sortedMilestones = computed(() => {
+    if (!milestones.value || !milestones.value.length) return [];
+
+    // Sort milestones by completion_date
+    return [...milestones.value].sort((a, b) => {
+        // Handle null completion dates (put them at the end)
+        if (!a.completion_date) return 1;
+        if (!b.completion_date) return -1;
+
+        // Sort by completion_date (ascending)
+        return new Date(a.completion_date) - new Date(b.completion_date);
+    });
+});
+
 // Computed property for filtered tasks
 const filteredTasks = computed(() => {
     if (!tasks.value.length) return [];
@@ -1103,6 +1118,66 @@ onMounted(async () => {
                             >
                                 Add Task
                             </PrimaryButton>
+                        </div>
+                    </div>
+
+                    <!-- Milestone Timeline -->
+                    <div class="mb-6 overflow-x-auto">
+                        <div v-if="loadingMilestones" class="text-center text-gray-600 text-sm animate-pulse py-4">
+                            Loading milestones...
+                        </div>
+                        <div v-else-if="!sortedMilestones.length" class="text-center py-4">
+                            <p class="text-gray-400 text-sm">No milestones found for this project.</p>
+                        </div>
+                        <div v-else class="relative py-8">
+                            <!-- Timeline Line -->
+                            <div class="absolute h-1 bg-gray-200 top-1/2 left-0 right-0 transform -translate-y-1/2"></div>
+
+                            <!-- Milestone Markers -->
+                            <div class="relative flex justify-between">
+                                <div
+                                    v-for="(milestone, index) in sortedMilestones"
+                                    :key="milestone.id"
+                                    class="flex flex-col items-center relative z-10"
+                                    :class="{'ml-4': index === 0, 'mr-4': index === sortedMilestones.length - 1}"
+                                >
+                                    <!-- Milestone Marker -->
+                                    <div
+                                        class="w-6 h-6 rounded-full shadow-lg flex items-center justify-center"
+                                        :class="{
+                                            'bg-gray-300': milestone.status === 'Not Started',
+                                            'bg-blue-500': milestone.status === 'In Progress',
+                                            'bg-green-500': milestone.status === 'Completed',
+                                            'bg-red-500': milestone.status === 'Overdue'
+                                        }"
+                                    >
+                                        <svg v-if="milestone.status === 'Completed'" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        <svg v-else-if="milestone.status === 'In Progress'" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                        <svg v-else-if="milestone.status === 'Overdue'" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span v-else class="w-2 h-2 bg-white rounded-full"></span>
+                                    </div>
+
+                                    <!-- Milestone Name (above) -->
+                                    <div class="absolute -top-8 transform -translate-x-1/2 left-1/2 w-32">
+                                        <p class="text-xs font-medium text-gray-700 text-center truncate" :title="milestone.name">
+                                            {{ milestone.name }}
+                                        </p>
+                                    </div>
+
+                                    <!-- Milestone Date (below) -->
+                                    <div class="absolute top-8 transform -translate-x-1/2 left-1/2">
+                                        <p class="text-xs text-gray-500 whitespace-nowrap">
+                                            {{ milestone.completion_date ? new Date(milestone.completion_date).toLocaleDateString() : 'No date' }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

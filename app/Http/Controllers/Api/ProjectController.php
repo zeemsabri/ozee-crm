@@ -1639,68 +1639,58 @@ class ProjectController extends Controller
     {
         $user = Auth::user();
         $projects = collect();
+        $clients = collect();
 
-        // Load the user's global role with permissions
         $user->load(['role.permissions']);
-
-        // Check if user has global permission to compose emails
         $hasGlobalComposeEmailPermission = false;
         if ($user->role && $user->role->permissions) {
             $hasGlobalComposeEmailPermission = $user->role->permissions->contains('slug', 'compose_emails');
         }
 
-        // SuperAdmin always has access to all projects
         if ($user->isSuperAdmin()) {
             $projects = Project::with('clients:id,name')->get();
-        }
-        // If user has global compose_emails permission, get projects based on role
-//        elseif ($hasGlobalComposeEmailPermission) {
-//            if ($user->isManager() || $user->isEmployee()) {
-//                $projects = Project::with('client:id,name')->get();
-//            } elseif ($user->isContractor()) {
-//                $projects = $user->projects()->with('client:id,name')->get();
-//            }
-//        }
-        // If user doesn't have global permission, check project-specific permissions
-        else {
-            // Get all projects the user is assigned to
+            $clients = Client::select('id', 'name')->get();
+        } else {
             $userProjects = $user->projects()->with(['clients:id,name'])->get();
-
-            // Filter projects based on project-specific roles and permissions
             foreach ($userProjects as $project) {
-                // Get the user's project-specific role
                 $projectRole = null;
                 if (isset($project->pivot->role_id)) {
                     $projectRole = \App\Models\Role::with('permissions')->find($project->pivot->role_id);
                 }
-
-                // Check if the project-specific role has compose_emails permission
-                if ($projectRole && $projectRole->permissions->contains('slug', 'compose_emails')) {
+                if ($hasGlobalComposeEmailPermission || ($projectRole && $projectRole->permissions->contains('slug', 'compose_emails'))) {
                     $projects->push($project);
                 }
             }
+            $clients = Client::select('id', 'name')->whereHas('projects', function ($query) use ($user) {
+                $query->whereIn('projects.id', $user->projects()->pluck('projects.id'));
+            })->get();
         }
 
-        // Transform the projects to include only the necessary information
         $transformedProjects = $projects->map(function ($project) {
-
             return [
                 'id' => $project->id,
                 'name' => $project->name,
                 'status' => $project->status,
-                'client' => $project->clients ? [
-                    $project->clients->map(function ($client) {
-                        return [
-                            'id' => $client->id,
-                            'name' => $client->name,
-                        ];
-                    })
-
-                ] : null,
+                'clients' => $project->clients ? $project->clients->map(function ($client) {
+                    return [
+                        'id' => $client->id,
+                        'name' => $client->name,
+                    ];
+                })->toArray() : [],
             ];
         });
 
-        return response()->json($transformedProjects);
+        $transformedClients = $clients->map(function ($client) {
+            return [
+                'id' => $client->id,
+                'name' => $client->name,
+            ];
+        });
+
+        return response()->json([
+            'projects' => $transformedProjects,
+            'clients' => $transformedClients,
+        ]);
     }
 
 }

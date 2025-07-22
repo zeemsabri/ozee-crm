@@ -3,9 +3,21 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="OZEE CRM - Internal CRM for employees, contractors, and clients.">
+    <meta name="description" content="Task Management System - A comprehensive platform for managing projects, tasks, and team collaboration with email approval workflow.">
+    <meta name="keywords" content="task management, project management, email approval, team collaboration">
+    <meta name="author" content="OZEE CRM">
+    <meta name="theme-color" content="#4f46e5">
 
-    <title inertia>{{ config('app.name', '') }}</title>
+    <!-- Open Graph / Social Media Meta Tags -->
+    <meta property="og:title" content="Task Management System">
+    <meta property="og:description" content="Streamline your project management and team collaboration with our comprehensive task management system.">
+    <meta property="og:type" content="website">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+
+    <title inertia>{{ config('app.name', 'Task Management System') }}</title>
 
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />

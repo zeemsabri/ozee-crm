@@ -57,26 +57,31 @@ class EmailController extends Controller
     public function store(Request $request)
     {
         $user = Auth::user();
-        // Policy check for creating an email - only contractors can initiate for approval,
-        // Admins/Managers might be able to create drafts too. For MVP, assume contractor initiates.
-        // Or, we can allow managers/admins to create directly sent emails later.
-        if (!$user->isSuperAdmin() && !$user->isManager() && !$user->isContractor()) {
-            return response()->json(['message' => 'Unauthorized to create emails.'], 403);
-        }
 
-     try {
+        try {
             $validated = $request->validate([
                 'project_id' => 'required|exists:projects,id',
-                'client_id' => 'required|exists:clients,id', // Should match the project's client_id
+                'client_ids' => 'required|array|min:1', // Ensure at least one client is selected
+                'client_ids.*.id' => 'required|exists:clients,id', // Validate each client ID
                 'subject' => 'required|string|max:255',
                 'body' => 'required|string',
                 'status' => 'sometimes|in:draft,pending_approval', // Default to pending if submitted
             ]);
 
-            // Verify project-client relationship (prevent sending to wrong client for a project)
-            $project = Project::find($validated['project_id']);
-            if ($project->client_id !== (int)$validated['client_id']) {
-                throw ValidationException::withMessages(['client_id' => 'The selected client is not assigned to this project.']);
+            // Extract client IDs from the client_ids array of objects
+            $clientIds = array_map(function ($client) {
+                return $client['id'];
+            }, $validated['client_ids']);
+
+            // Verify project-client relationship for each client
+            $project = Project::with('clients')->find($validated['project_id']);
+            $projectClientIds = $project->clients->pluck('id')->toArray();
+            foreach ($clientIds as $clientId) {
+                if (!in_array($clientId, $projectClientIds)) {
+                    throw ValidationException::withMessages([
+                        'client_ids' => "Client ID {$clientId} is not assigned to this project.",
+                    ]);
+                }
             }
 
             // Verify if contractor is assigned to this project
@@ -84,21 +89,16 @@ class EmailController extends Controller
                 return response()->json(['message' => 'Unauthorized: You are not assigned to this project.'], 403);
             }
 
-            // Find or create a conversation for this project-client pair
+            // Create or update a conversation for this project-client(s) combination
             $conversation = Conversation::firstOrCreate(
                 [
                     'project_id' => $validated['project_id'],
-                    'client_id' => $validated['client_id'],
-                    // For MVP, if no existing conversation, set current contractor as primary
-                    // In future, you might specify the primary contractor on conversation creation.
+                    // For multiple clients, use project_id as the primary identifier
                 ],
                 [
                     'subject' => $validated['subject'], // Use email subject as conversation subject if new
-                    'contractor_id' => $user->isContractor() ? $user->id : (
-                        // If admin/manager creates, find an assigned contractor or set self if applicable.
-                        // For MVP, let's assume it's the contractor doing this for now.
-                        $project->users()->where('users.role', 'contractor')->first()->id ?? $user->id
-                    ),
+                    'contractor_id' => $user->id,
+                    'client_id' => $clientIds[0],
                     'last_activity_at' => now(),
                 ]
             );
@@ -109,15 +109,23 @@ class EmailController extends Controller
                 $conversation->save();
             }
 
+            // Retrieve client emails server-side
+            $clientEmails = Client::whereIn('id', $clientIds)
+                ->pluck('email')
+                ->toArray();
+
             // Create the email record
             $email = Email::create([
                 'conversation_id' => $conversation->id,
                 'sender_id' => $user->id, // The user who drafted/submitted the email
-                'to' => json_encode([Client::find($validated['client_id'])->email]), // Store recipient email
+                'to' => json_encode($clientEmails), // Store recipient emails as JSON array
                 'subject' => $validated['subject'],
                 'body' => $validated['body'],
                 'status' => $validated['status'] ?? 'pending_approval', // Default to pending
             ]);
+
+            // Attach clients to the conversation (if not already attached)
+            //$conversation->clients()->syncWithoutDetaching($clientIds);
 
             // Update last activity for conversation
             $conversation->update(['last_activity_at' => now()]);
@@ -220,7 +228,13 @@ class EmailController extends Controller
 
         try {
             // Get client's email from the linked conversation/client
-            $recipientClientEmail = $email->conversation->client->email;
+            $recipientClientEmail = $email->to;
+
+            // Convert JSON-encoded array to comma-separated string
+            if (is_string($recipientClientEmail) && $this->isJson($recipientClientEmail)) {
+                $emailArray = json_decode($recipientClientEmail, true);
+                $recipientClientEmail = implode(',', $emailArray);
+            }
 
             // Send email using GmailService
             $gmailMessageId = $this->gmailService->sendEmail(
@@ -502,7 +516,7 @@ class EmailController extends Controller
     }
 
     /**
-     * Display rejected emails.
+     * Display rejected emails with all details (legacy endpoint).
      */
     public function rejected()
     {
@@ -510,6 +524,32 @@ class EmailController extends Controller
             ? Email::where('sender_id', Auth::id())->where('status', '=', 'rejected')
             : Email::where('status', 'rejected');
         return $query->with(['conversation.project', 'conversation.client', 'sender'])->get();
+    }
+
+    /**
+     * Display rejected emails with limited information.
+     * Only returns subject, body, rejection_reason, created_at
+     */
+    public function rejectedSimplified()
+    {
+        $query = Auth::user()->isContractor()
+            ? Email::where('sender_id', Auth::id())->where('status', '=', 'rejected')
+            : Email::where('status', 'rejected');
+
+        $emails = $query->get();
+
+        // Transform the data to include only the required fields
+        $simplifiedEmails = $emails->map(function ($email) {
+            return [
+                'id' => $email->id,
+                'subject' => $email->subject,
+                'body' => $email->body,
+                'rejection_reason' => $email->rejection_reason,
+                'created_at' => $email->created_at,
+            ];
+        });
+
+        return response()->json($simplifiedEmails);
     }
 
     public function resubmit(Request $request, Email $email)
@@ -559,5 +599,16 @@ class EmailController extends Controller
 
 
         return response()->json($emails);
+    }
+
+    /**
+     * Check if a string is a valid JSON
+     *
+     * @param string $string
+     * @return bool
+     */
+    private function isJson($string) {
+        json_decode($string);
+        return (json_last_error() == JSON_ERROR_NONE);
     }
 }

@@ -9,6 +9,9 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import Modal from '@/Components/Modal.vue';
+import Multiselect from 'vue-multiselect';
+import RichTextEditor from '@/Components/RichTextEditor.vue';
+import 'vue-multiselect/dist/vue-multiselect.css';
 
 // Access authenticated user
 const authUser = computed(() => usePage().props.auth.user);
@@ -27,9 +30,9 @@ const currentEmail = ref(null);
 const editForm = reactive({
     project_id: '',
     client_id: '',
+    client_ids: [], // Array for multi-select
     subject: '',
     body: '',
-    to: '',
 });
 const editErrors = ref({});
 
@@ -45,16 +48,32 @@ const assignedProjects = computed(() => {
 
 const selectedProjectClient = computed(() => {
     const project = projects.value.find(p => p.id === editForm.project_id);
-    return project ? clients.value.find(c => c.id === project.client_id) : null;
+    // Add null check for clients.value to ensure it's an array before calling find()
+    return project && Array.isArray(clients.value) ? clients.value.find(c => c.id === project.client_id) : null;
+});
+
+// Filter clients based on selected project
+const filteredClients = computed(() => {
+    if (!editForm.project_id) {
+        return [];
+    }
+
+    const selectedProject = projects.value.find(p => p.id === editForm.project_id);
+    if (!selectedProject || !selectedProject.clients) {
+        return [];
+    }
+
+    const projectClientIds = selectedProject.clients.map(c => c.id);
+    return clients.value.filter(client => projectClientIds.includes(client.id));
 });
 
 // Parse the 'to' field, handling both plain strings, JSON-encoded arrays, and direct arrays
-const getRecipientEmail = (email) => {
-    if (!email || !email.to) return '';
+const getRecipientEmails = (email) => {
+    if (!email || !email.to) return [];
 
-    // If email.to is already an array, return the first element
+    // If email.to is already an array, return it
     if (Array.isArray(email.to)) {
-        return email.to[0] || '';
+        return email.to;
     }
 
     // If email.to is a string, try to parse it as JSON
@@ -62,14 +81,24 @@ const getRecipientEmail = (email) => {
         try {
             // Try parsing as JSON (e.g., "[\"email@example.com\"]")
             const parsed = JSON.parse(email.to);
-            return Array.isArray(parsed) ? parsed[0] || '' : email.to;
+            return Array.isArray(parsed) ? parsed : [email.to];
         } catch (e) {
             // If parsing fails, assume it's a plain email string
-            return email.to;
+            return [email.to];
         }
     }
 
-    return '';
+    return [];
+};
+
+// Find client objects based on email addresses
+const findClientsByEmails = (emailAddresses) => {
+    if (!Array.isArray(clients.value)) return [];
+
+    return emailAddresses.map(email => {
+        const client = clients.value.find(c => c.email === email);
+        return client ? client : null;
+    }).filter(client => client !== null);
 };
 
 // Fetch initial data
@@ -77,13 +106,8 @@ const fetchInitialData = async () => {
     loading.value = true;
     generalError.value = '';
     try {
-        const [projectsResponse, clientsResponse, emailsResponse] = await Promise.all([
-            window.axios.get('/api/projects'),
-            window.axios.get('/api/clients'),
-            window.axios.get('/api/emails/rejected'),
-        ]);
-        projects.value = projectsResponse.data;
-        clients.value = clientsResponse.data;
+        // Use the simplified endpoint that returns only the required fields
+        const emailsResponse = await window.axios.get('/api/emails/rejected-simplified');
         rejectedEmails.value = emailsResponse.data;
     } catch (error) {
         generalError.value = 'Failed to load data.';
@@ -99,11 +123,11 @@ const fetchInitialData = async () => {
 // Open edit modal
 const openEditModal = (email) => {
     currentEmail.value = email;
-    editForm.project_id = email.conversation.project_id;
-    editForm.client_id = email.conversation.client_id;
     editForm.subject = email.subject;
     editForm.body = email.body;
-    editForm.to = getRecipientEmail(email);
+
+    // With simplified data structure, we don't need to set project_id, client_id, or client_ids
+
     editErrors.value = {};
     showEditModal.value = true;
 };
@@ -112,13 +136,13 @@ const openEditModal = (email) => {
 const saveEditedEmail = async () => {
     editErrors.value = {};
     generalError.value = '';
+
     try {
+        // Only send subject and body in the payload
+        // Users should not be allowed to edit clients or email addresses during rejection edit and resubmit process
         const payload = {
-            project_id: editForm.project_id,
-            client_id: editForm.client_id,
             subject: editForm.subject,
             body: editForm.body,
-            to: editForm.to,
         };
         await window.axios.put(`/api/emails/${currentEmail.value.id}`, payload);
         successMessage.value = 'Email updated successfully! You can now resubmit it.';
@@ -140,6 +164,7 @@ const resubmitEmail = async () => {
     editErrors.value = {};
     generalError.value = '';
     try {
+        // The resubmit endpoint only needs the email ID, which we still have in currentEmail.value.id
         await window.axios.post(`/api/emails/${currentEmail.value.id}/resubmit`);
         successMessage.value = 'Email resubmitted for approval successfully!';
         showEditModal.value = false;
@@ -154,11 +179,10 @@ const resubmitEmail = async () => {
     }
 };
 
-// Watch for project selection change to update the email field
+// Watch for project selection change to clear selected clients
 watch(() => editForm.project_id, (newProjectId) => {
-    if (newProjectId && selectedProjectClient.value) {
-        editForm.to = selectedProjectClient.value.email;
-    }
+    // Always clear selected clients when project changes
+    editForm.client_ids = [];
 });
 
 // Lifecycle hook
@@ -191,8 +215,6 @@ onMounted(() => {
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
                                 <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rejection Reason</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted On</th>
@@ -201,8 +223,6 @@ onMounted(() => {
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                 <tr v-for="email in rejectedEmails" :key="email.id">
-                                    <td class="px-6 py-4 whitespace-nowrap">{{ email.conversation.project.name }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap">{{ email.conversation.client.name }}</td>
                                     <td class="px-6 py-4 truncate max-w-xs">{{ email.subject }}</td>
                                     <td class="px-6 py-4 truncate max-w-xs">{{ email.rejection_reason }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap">{{ new Date(email.created_at).toLocaleString() }}</td>
@@ -225,23 +245,8 @@ onMounted(() => {
                     <p class="mb-2"><strong>Rejection Reason:</strong> {{ currentEmail.rejection_reason }}</p>
                     <hr class="my-4">
                     <form @submit.prevent="saveEditedEmail">
-                        <div class="mb-4">
-                            <InputLabel for="project_id" value="Select Project" />
-                            <select id="project_id" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="editForm.project_id" required>
-                                <option value="" disabled>Select a Project</option>
-                                <option v-for="project in assignedProjects" :key="project.id" :value="project.id">
-                                    {{ project.name }} (Client: {{ project.client ? project.client.name : 'N/A' }})
-                                </option>
-                            </select>
-                            <InputError :message="editErrors.project_id ? editErrors.project_id[0] : ''" class="mt-2" />
-                        </div>
-
-                        <div class="mb-4">
-                            <InputLabel for="to_client_email" value="To (Client Email)" />
-                            <TextInput id="to_client_email" type="email" class="mt-1 block w-full bg-gray-100"
-                                       v-model="editForm.to" readonly />
-                            <InputError v-if="!selectedProjectClient && editForm.project_id" message="Selected project has no client or client email is missing." class="mt-2" />
-                        </div>
+                        <!-- Project and client selection fields removed as per requirements -->
+                        <!-- Users should not be allowed to edit clients or email addresses during rejection edit and resubmit process -->
 
                         <div class="mb-4">
                             <InputLabel for="subject" value="Subject" />
@@ -251,7 +256,12 @@ onMounted(() => {
 
                         <div class="mb-6">
                             <InputLabel for="body" value="Email Body" />
-                            <textarea id="body" rows="10" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="editForm.body" required></textarea>
+                            <RichTextEditor
+                                id="body"
+                                v-model="editForm.body"
+                                placeholder="Edit your email here..."
+                                height="300px"
+                            />
                             <InputError :message="editErrors.body ? editErrors.body[0] : ''" class="mt-2" />
                         </div>
 
@@ -266,3 +276,21 @@ onMounted(() => {
         </Modal>
     </AuthenticatedLayout>
 </template>
+
+<style>
+.multiselect {
+    min-height: 38px;
+}
+.multiselect__tags {
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+}
+.multiselect__tag {
+    background: #e5e7eb;
+    color: #374151;
+}
+.multiselect__tag-icon:after {
+    color: #6b7280;
+}
+</style>

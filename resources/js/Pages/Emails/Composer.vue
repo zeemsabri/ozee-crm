@@ -9,24 +9,23 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import RichTextEditor from '@/Components/RichTextEditor.vue';
+import Multiselect from 'vue-multiselect';
 import { useAuthUser, usePermissions, useGlobalPermissions, fetchGlobalPermissions } from '@/Directives/permissions';
+import 'vue-multiselect/dist/vue-multiselect.css';
 
 // Use the permission utilities
 const authUser = useAuthUser();
-
-// Use global permissions
 const { permissions: globalPermissions, loading: permissionsLoading, error: permissionsError } = useGlobalPermissions();
-
-// Set up permission checking functions
-const { canDo, canView, canManage } = usePermissions();
+const { canDo } = usePermissions();
 
 // Check if user can compose emails
 const canComposeEmails = computed(() => {
-    return canDo('compose_emails').value || true; // Default to true for backward compatibility
+    return canDo('compose_emails').value || true;
 });
 
 // Reactive state for data
 const projects = ref([]);
+const clients = ref([]);
 const loading = ref(true);
 const errors = ref({});
 const generalError = ref('');
@@ -35,35 +34,45 @@ const successMessage = ref('');
 // Email form state
 const emailForm = reactive({
     project_id: '',
-    client_id: '', // Will be derived from project selection
+    client_ids: [], // Changed to array for multi-select
     subject: '',
     body: '',
 });
 
 // Computed properties for UI/Logic
-// Projects are already filtered by the backend based on permissions
 const assignedProjects = computed(() => {
-    // Return all projects from the backend, which are already filtered
-    // based on user's permissions (both global and project-specific)
     return projects.value;
 });
 
-const selectedProjectClient = computed(() => {
-    const project = projects.value.find(p => p.id === emailForm.project_id);
-    return project ? project.client : null;
+const selectedClients = computed(() => {
+    return clients.value.filter(c => emailForm.client_ids.includes(c.id));
 });
 
-// --- Fetch Initial Data ---
+// Filter clients based on selected project
+const filteredClients = computed(() => {
+    if (!emailForm.project_id) {
+        return [];
+    }
+
+    const selectedProject = projects.value.find(p => p.id === emailForm.project_id);
+    if (!selectedProject || !selectedProject.clients) {
+        return [];
+    }
+
+    const projectClientIds = selectedProject.clients.map(c => c.id);
+    return clients.value.filter(client => projectClientIds.includes(client.id));
+});
+
+// Fetch initial data
 const fetchInitialData = async () => {
     loading.value = true;
     generalError.value = '';
     try {
-        // Use the new API endpoint that only returns necessary data for email composer
-        const projectsResponse = await window.axios.get('/api/projects-for-email');
-        projects.value = projectsResponse.data;
-
+        const response = await window.axios.get('/api/projects-for-email');
+        projects.value = response.data.projects;
+        clients.value = response.data.clients;
     } catch (error) {
-        generalError.value = 'Failed to load projects.';
+        generalError.value = 'Failed to load projects and clients.';
         console.error('Error fetching initial data:', error);
         if (error.response && (error.response.status === 401 || error.response.status === 403)) {
             generalError.value = 'You are not authorized to view this content or your session expired. Please log in.';
@@ -73,55 +82,54 @@ const fetchInitialData = async () => {
     }
 };
 
-// --- Watch for Project Selection Change ---
+// Watch for project selection change
 watch(() => emailForm.project_id, (newProjectId) => {
-    if (newProjectId) {
-        const project = projects.value.find(p => p.id === newProjectId);
-        if (project && project.client && project.client.id) {
-            emailForm.client_id = project.client.id;
-        }
-    } else {
-        emailForm.client_id = '';
-    }
+    // Always clear selected clients when project changes
+    emailForm.client_ids = [];
 });
 
-// --- Submit Email for Approval ---
+// Submit email for approval
 const submitEmailForApproval = async () => {
     errors.value = {};
     generalError.value = '';
     successMessage.value = '';
 
-    // Frontend validation for project selection
     if (!emailForm.project_id) {
         errors.value.project_id = ['Please select a project.'];
         return;
     }
-    if (!emailForm.client_id) {
-        generalError.value = 'Selected project does not have an associated client. Please select a different project.';
+    if (!emailForm.client_ids || emailForm.client_ids.length === 0) {
+        errors.value.client_ids = ['Please select at least one client.'];
         return;
     }
 
     try {
-        // Get the client's email from the server
-        const clientEmailResponse = await window.axios.get(`/api/clients/${emailForm.client_id}/email`);
-        const clientEmail = clientEmailResponse.data.email;
+        // Format client_ids as array of objects with id property
+        const formattedClientIds = emailForm.client_ids.map(clientId => {
+            // Check if clientId is already an object with an id property
+            if (typeof clientId === 'object' && clientId !== null) {
+                return { id: clientId.id };
+            }
+            // Otherwise, assume it's a simple ID value
+            return { id: clientId };
+        });
 
-        // Automatically set status to 'pending_approval' for submission
         const payload = {
-            ...emailForm,
+            project_id: emailForm.project_id,
+            client_ids: formattedClientIds,
+            subject: emailForm.subject,
+            body: emailForm.body,
             status: 'pending_approval',
-            client_email: clientEmail // Add the client's email to the payload
         };
 
         await window.axios.post('/api/emails', payload);
 
         successMessage.value = 'Email submitted for approval successfully!';
-        // Reset form after successful submission
         emailForm.project_id = '';
-        emailForm.client_id = '';
+        emailForm.client_ids = [];
         emailForm.subject = '';
         emailForm.body = '';
-        errors.value = {}; // Clear any previous errors
+        errors.value = {};
 
     } catch (error) {
         if (error.response && error.response.status === 422) {
@@ -135,21 +143,17 @@ const submitEmailForApproval = async () => {
     }
 };
 
-// --- Check for query parameters ---
+// Check for query parameters
 const checkQueryParams = () => {
-    // Get the URL query parameters
     const urlParams = new URLSearchParams(window.location.search);
     const projectId = urlParams.get('project_id');
-
-    // If project_id is in the URL, set it in the form
     if (projectId) {
         emailForm.project_id = projectId;
     }
 };
 
-// --- Lifecycle Hook ---
+// Lifecycle hook
 onMounted(async () => {
-    // Fetch global permissions first
     try {
         console.log('Fetching global permissions...');
         const permissions = await fetchGlobalPermissions();
@@ -158,13 +162,10 @@ onMounted(async () => {
         console.error('Error fetching global permissions:', error);
     }
 
-    // Proceed with loading data without redirection
     fetchInitialData().then(() => {
-        // After data is loaded, check for query parameters
         checkQueryParams();
     });
 
-    // Log permission status after all data is loaded
     console.log('All data loaded, permission status:');
     console.log('- Global permissions:', globalPermissions.value);
     console.log('- Permissions loading:', permissionsLoading.value);
@@ -208,18 +209,39 @@ onMounted(async () => {
                                     <select id="project_id" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="emailForm.project_id" required>
                                         <option value="" disabled>Select a Project</option>
                                         <option v-for="project in assignedProjects" :key="project.id" :value="project.id">
-                                            {{ project.name }} (Client: {{ project.client ? project.client.name : 'N/A' }})
+                                            {{ project.name }} (Clients: {{ project.clients.length ? project.clients.map(c => c.name).join(', ') : 'N/A' }})
                                         </option>
                                     </select>
                                     <InputError :message="errors.project_id ? errors.project_id[0] : ''" class="mt-2" />
                                 </div>
 
-                                <!-- Client email field is intentionally hidden from UI -->
                                 <div class="mb-4">
-                                    <InputLabel for="to_client_name" value="To (Client)" />
-                                    <TextInput id="to_client_name" type="text" class="mt-1 block w-full bg-gray-100"
-                                               :value="selectedProjectClient ? selectedProjectClient.name : ''" readonly />
-                                    <InputError v-if="!selectedProjectClient && emailForm.project_id" message="Selected project has no client." class="mt-2" />
+                                    <InputLabel for="client_ids" value="To (Clients)" />
+                                    <Multiselect
+                                        id="client_ids"
+                                        v-model="emailForm.client_ids"
+                                        :options="filteredClients"
+                                        :multiple="true"
+                                        :close-on-select="true"
+                                        :clear-on-select="false"
+                                        :preserve-search="true"
+                                        placeholder="Select one or more clients"
+                                        label="name"
+                                        track-by="id"
+                                        :searchable="true"
+                                        :allow-empty="true"
+                                    >
+                                        <template #option="{ option }">
+                                            {{ option.name }}
+                                        </template>
+                                        <template #tag="{ option, remove }">
+                                            <span class="multiselect__tag">
+                                                {{ option.name }}
+                                                <i class="multiselect__tag-icon" @click="remove(option)"></i>
+                                            </span>
+                                        </template>
+                                    </Multiselect>
+                                    <InputError :message="errors.client_ids ? errors.client_ids[0] : ''" class="mt-2" />
                                 </div>
 
                                 <div class="mb-4">
@@ -250,3 +272,21 @@ onMounted(async () => {
         </div>
     </AuthenticatedLayout>
 </template>
+
+<style>
+.multiselect {
+    min-height: 38px;
+}
+.multiselect__tags {
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+}
+.multiselect__tag {
+    background: #e5e7eb;
+    color: #374151;
+}
+.multiselect__tag-icon:after {
+    color: #6b7280;
+}
+</style>

@@ -98,7 +98,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Email Management & Approval Routes
 
     Route::get('emails/pending-approval', [EmailController::class, 'pendingApproval']);
-    Route::get('emails/rejected', [EmailController::class, 'rejected']); // New route
+    Route::get('emails/rejected', [EmailController::class, 'rejected']); // Legacy route with full details
+    Route::get('emails/rejected-simplified', [EmailController::class, 'rejectedSimplified']); // New route with limited information
     Route::get('projects/{project}/emails', [EmailController::class, 'getProjectEmails']); // Get all emails for a project
     Route::post('emails/{email}/approve', [EmailController::class, 'approve']);
     Route::post('emails/{email}/edit-and-approve', [EmailController::class, 'editAndApprove']);
