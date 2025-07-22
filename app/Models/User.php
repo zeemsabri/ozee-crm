@@ -1,0 +1,287 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Collection; // Import Collection for getClientsAttribute
+
+class User extends Authenticatable
+{
+    use HasApiTokens, HasFactory, Notifiable;
+
+    protected $fillable = [
+        'name',
+        'email',
+        'chat_name',
+        'password',
+        'google_id',
+        'google_access_token',
+        'google_refresh_token',
+        'google_expires_in',
+        'role_id', // Foreign key to roles table
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+        'google_access_token',
+        'google_refresh_token',
+    ];
+
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+        'role_id' => 'integer', // Cast role_id as integer
+    ];
+
+    protected $with = ['role']; // Always load the role relationship
+
+    protected $appends = ['role_data']; // Add role data to JSON
+
+    // --- Role Helper Methods ---
+    public function isSuperAdmin(): bool
+    {
+        // Get the role directly from the relationship to avoid using the accessor
+        return $this->app_role === 'super-admin';
+    }
+
+    public function isManager(): bool
+    {
+        // Get the role directly from the relationship to avoid using the accessor
+        return $this->app_role === 'manager';
+    }
+
+    public function isEmployee(): bool
+    {
+        // Get the role directly from the relationship to avoid using the accessor
+        return $this->app_role === 'employee';
+    }
+
+    public function isContractor(): bool
+    {
+        // Get the role directly from the relationship to avoid using the accessor
+        return $this->app_role === 'contractor';
+    }
+
+    /**
+     * Get the user's primary role.
+     */
+    public function role()
+    {
+        return $this->belongsTo(Role::class);
+    }
+
+    /**
+     * Get the app role string attribute
+     * This returns the role name as a string for use in places where we need to reference the role as a string
+     * @return string
+     */
+    public function getAppRoleAttribute()
+    {
+        return $this->role?->slug ?? 'employee';
+    }
+
+    /**
+     * Assign a role to the user.
+     *
+     * @param Role|int $role
+     * @return void
+     */
+    public function assignRole($role)
+    {
+        if (is_numeric($role)) {
+            $role = Role::findOrFail($role);
+        }
+
+        $this->role_id = $role->id;
+        $this->save();
+    }
+
+    /**
+     * Remove a role from the user.
+     *
+     * @param Role|int $role
+     * @return void
+     */
+    public function removeRole($role)
+    {
+        if (is_numeric($role)) {
+            $role = Role::findOrFail($role);
+        }
+
+        if ($this->role_id == $role->id) {
+            $this->role_id = null;
+            $this->save();
+        }
+    }
+
+    /**
+     * Check if the user has a specific permission through their primary role.
+     *
+     * @param string $permissionSlug
+     * @return bool
+     */
+    public function hasPermission($permissionSlug)
+    {
+        // First check if the user has a direct role_id relationship
+        if ($this->role_id && $this->role && $this->role->hasPermission($permissionSlug)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if the user has any of the given permissions through their primary role.
+     *
+     * @param array $permissionSlugs
+     * @return bool
+     */
+    public function hasAnyPermission(array $permissionSlugs)
+    {
+        // Check if the user has a direct role_id relationship
+        if ($this->role_id && $this->role) {
+            foreach ($permissionSlugs as $permissionSlug) {
+                if ($this->role->hasPermission($permissionSlug)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Get all permissions for the user through their primary role.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getAllPermissions()
+    {
+        $permissions = collect();
+
+        // Check if the user has a direct role_id relationship
+        if ($this->role_id && $this->role) {
+            $permissions = $permissions->merge($this->role->permissions);
+        }
+
+        return $permissions->unique('id');
+    }
+
+    // A user can be assigned to many projects (via pivot table)
+    public function projects()
+    {
+        return $this->belongsToMany(Project::class, 'project_user')->withPivot('role_id');
+    }
+
+    // Dynamic accessor to get clients associated with a user's projects
+    // Note: This is an accessor, accessed like $user->clients, not $user->clients()
+    public function getClientsAttribute()
+    {
+        // For a contractor, this gets clients only for their assigned projects.
+        // For other roles (Manager, Super Admin), it might include all clients
+        // based on policy/query, but this method reflects assigned projects' clients.
+        $clientIds = $this->projects->load('client')->pluck('client.id')->unique()->toArray();
+        return Client::whereIn('id', $clientIds)->get();
+    }
+
+    // Conversations where this user is the primary contractor
+    public function conversations()
+    {
+        return $this->hasMany(Conversation::class, 'contractor_id');
+    }
+
+    // Emails sent by this user
+    public function sentEmails()
+    {
+        return $this->hasMany(Email::class, 'sender_id');
+    }
+
+    // Emails approved by this user (if they are an Admin/Manager)
+    public function approvedEmails()
+    {
+        return $this->hasMany(Email::class, 'approved_by');
+    }
+
+    /**
+     * Get the tasks assigned to this user.
+     */
+    public function assignedTasks()
+    {
+        return $this->hasMany(Task::class, 'assigned_to_user_id');
+    }
+
+    /**
+     * Get the subtasks assigned to this user.
+     */
+    public function assignedSubtasks()
+    {
+        return $this->hasMany(Subtask::class, 'assigned_to_user_id');
+    }
+
+    /**
+     * Get the task types created by this user.
+     */
+    public function createdTaskTypes()
+    {
+        return $this->hasMany(TaskType::class, 'created_by_user_id');
+    }
+
+    /**
+     * Get the tags created by this user.
+     */
+    public function createdTags()
+    {
+        return $this->hasMany(Tag::class, 'created_by_user_id');
+    }
+
+    /**
+     * Scope to get user's role for a specific project
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param int $projectId
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeWithProjectRole($query, $projectId)
+    {
+        return $query->with(['projects' => function($query) use ($projectId) {
+            $query->where('projects.id', $projectId);
+        }])->whereHas('projects', function($query) use ($projectId) {
+            $query->where('projects.id', $projectId);
+        });
+    }
+
+    /**
+     * Get the user's role for a specific project
+     *
+     * @param int $projectId
+     * @return int|null
+     */
+    public function getRoleForProject($projectId)
+    {
+        $project = $this->projects()->where('projects.id', $projectId)->first();
+        return $project ? $project->pivot->role_id : null;
+    }
+
+    /**
+     * Get the role data for JSON serialization
+     *
+     * @return array
+     */
+    public function getRoleDataAttribute()
+    {
+
+        if ($this->role_id && $this->role) {
+            return [
+                'id' => $this->role->id,
+                'name' => $this->role->name,
+                'slug' => $this->role->slug,
+            ];
+        }
+
+    }
+}

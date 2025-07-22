@@ -1,0 +1,50 @@
+import '../css/app.css';
+import './bootstrap';
+
+import { createInertiaApp } from '@inertiajs/vue3';
+import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
+import { createApp, h } from 'vue';
+import { ZiggyVue } from '../../vendor/tightenco/ziggy';
+import { createPinia } from 'pinia';
+import { registerPermissionDirective, fetchGlobalPermissions, usePermissionStore } from './Directives/permissions';
+
+const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+
+createInertiaApp({
+    title: (title) => `${title} - ${appName}`,
+    resolve: (name) =>
+        resolvePageComponent(
+            `./Pages/${name}.vue`,
+            import.meta.glob('./Pages/**/*.vue'),
+        ),
+    setup({ el, App, props, plugin }) {
+        const app = createApp({ render: () => h(App, props) });
+
+        // Create and use Pinia store
+        const pinia = createPinia();
+        app.use(pinia);
+
+        // Use Inertia plugin and Ziggy
+        app.use(plugin);
+        app.use(ZiggyVue);
+
+        // Register the permission directive
+        registerPermissionDirective(app);
+
+        // Initialize the app
+        const mountedApp = app.mount(el);
+
+        // Fetch global permissions immediately after app initialization
+        // This ensures permissions are loaded as soon as the user logs in
+        if (props.initialPage.props.auth && props.initialPage.props.auth.user) {
+            fetchGlobalPermissions().catch(error => {
+                console.error('Failed to fetch global permissions:', error);
+            });
+        }
+
+        return mountedApp;
+    },
+    progress: {
+        color: '#4B5563',
+    },
+});
