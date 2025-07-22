@@ -392,6 +392,140 @@ const milestones = ref([]);
 const loadingTaskTypes = ref(false);
 const loadingMilestones = ref(false);
 
+// Task filters
+const taskFilters = ref({
+    status: '',
+    assigned_to_user_id: '',
+    milestone_id: '',
+    due_date_range: ''
+});
+
+// Due date filter options
+const dueDateOptions = [
+    { value: '', label: 'All Dates' },
+    { value: 'today', label: 'Due Today' },
+    { value: 'this_week', label: 'Due This Week' },
+    { value: 'next_week', label: 'Due Next Week' },
+    { value: 'overdue', label: 'Overdue' },
+    { value: 'no_date', label: 'No Due Date' }
+];
+
+// Computed property for filtered tasks
+const filteredTasks = computed(() => {
+    if (!tasks.value.length) return [];
+
+    return tasks.value.filter(task => {
+        // Status filter
+        if (taskFilters.value.status && task.status !== taskFilters.value.status) {
+            return false;
+        }
+
+        // Assigned user filter
+        if (taskFilters.value.assigned_to_user_id) {
+            const assignedUserId = parseInt(taskFilters.value.assigned_to_user_id);
+            // Handle the special case for unassigned tasks
+            if (assignedUserId === -1) {
+                if (task.assigned_to !== 'Unassigned') {
+                    return false;
+                }
+            } else {
+                // The task.assigned_to_id might not be directly available in the API response
+                // We need to check if the assigned_to matches the user name or if we have the ID
+                const assignedToUser = project.value.users?.find(u => u.id === assignedUserId);
+                if (assignedToUser && task.assigned_to !== assignedToUser.name) {
+                    return false;
+                }
+            }
+        }
+
+        // Milestone filter
+        if (taskFilters.value.milestone_id) {
+            const milestoneId = parseInt(taskFilters.value.milestone_id);
+            // Handle the special case for tasks without milestones
+            if (milestoneId === -1) {
+                if (task.milestone) {
+                    return false;
+                }
+            } else {
+                // Check if the milestone name matches or if we have the ID
+                const milestone = milestones.value.find(m => m.id === milestoneId);
+                if (milestone && task.milestone !== milestone.name && task.milestone_id !== milestoneId) {
+                    return false;
+                }
+            }
+        }
+
+        // Due date filter
+        if (taskFilters.value.due_date_range) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const taskDueDate = task.due_date ? new Date(task.due_date) : null;
+
+            switch (taskFilters.value.due_date_range) {
+                case 'today':
+                    if (!taskDueDate || taskDueDate.toDateString() !== today.toDateString()) {
+                        return false;
+                    }
+                    break;
+
+                case 'this_week': {
+                    if (!taskDueDate) return false;
+
+                    const endOfWeek = new Date(today);
+                    endOfWeek.setDate(today.getDate() + (6 - today.getDay())); // Sunday is 0, Saturday is 6
+
+                    if (taskDueDate < today || taskDueDate > endOfWeek) {
+                        return false;
+                    }
+                    break;
+                }
+
+                case 'next_week': {
+                    if (!taskDueDate) return false;
+
+                    const startOfNextWeek = new Date(today);
+                    startOfNextWeek.setDate(today.getDate() + (7 - today.getDay()));
+
+                    const endOfNextWeek = new Date(startOfNextWeek);
+                    endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
+
+                    if (taskDueDate < startOfNextWeek || taskDueDate > endOfNextWeek) {
+                        return false;
+                    }
+                    break;
+                }
+
+                case 'overdue': {
+                    if (!taskDueDate || taskDueDate >= today) {
+                        return false;
+                    }
+                    break;
+                }
+
+                case 'no_date': {
+                    if (taskDueDate) {
+                        return false;
+                    }
+                    break;
+                }
+            }
+        }
+
+        return true;
+    });
+});
+
+// Reset all filters
+const resetFilters = () => {
+    taskFilters.value = {
+        status: '',
+        assigned_to_user_id: '',
+        milestone_id: '',
+        due_date_range: ''
+    };
+};
+
 // Task note data
 const showTaskNoteModal = ref(false);
 const taskForNote = ref(null);
@@ -944,6 +1078,89 @@ onMounted(async () => {
                         </div>
                     </div>
 
+                    <!-- Task Filters -->
+                    <div class="mb-6 bg-gray-50 p-4 rounded-lg">
+                        <div class="flex flex-wrap items-center gap-4">
+                            <div class="flex-1 min-w-[200px]">
+                                <label for="status-filter" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                                <select
+                                    id="status-filter"
+                                    v-model="taskFilters.status"
+                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                >
+                                    <option value="">All Statuses</option>
+                                    <option value="To Do">To Do</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Done">Done</option>
+                                    <option value="Blocked">Blocked</option>
+                                    <option value="Archived">Archived</option>
+                                </select>
+                            </div>
+
+                            <div class="flex-1 min-w-[200px]">
+                                <label for="assigned-filter" class="block text-sm font-medium text-gray-700 mb-1">Assigned To</label>
+                                <select
+                                    id="assigned-filter"
+                                    v-model="taskFilters.assigned_to_user_id"
+                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                >
+                                    <option value="">All Users</option>
+                                    <option value="-1">Unassigned</option>
+                                    <option v-for="user in project.users" :key="user.id" :value="user.id">
+                                        {{ user.name }}
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="flex-1 min-w-[200px]">
+                                <label for="milestone-filter" class="block text-sm font-medium text-gray-700 mb-1">Milestone</label>
+                                <select
+                                    id="milestone-filter"
+                                    v-model="taskFilters.milestone_id"
+                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                >
+                                    <option value="">All Milestones</option>
+                                    <option value="-1">No Milestone</option>
+                                    <option v-for="milestone in milestones" :key="milestone.id" :value="milestone.id">
+                                        {{ milestone.name }}
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="flex-1 min-w-[200px]">
+                                <label for="due-date-filter" class="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                                <select
+                                    id="due-date-filter"
+                                    v-model="taskFilters.due_date_range"
+                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                >
+                                    <option v-for="option in dueDateOptions" :key="option.value" :value="option.value">
+                                        {{ option.label }}
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="flex items-end">
+                                <button
+                                    @click="resetFilters"
+                                    class="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                                >
+                                    Clear Filters
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Filter summary -->
+                        <div v-if="Object.values(taskFilters).some(v => v !== '')" class="mt-3 text-sm text-gray-600">
+                            <p>
+                                Showing {{ filteredTasks.length }} of {{ tasks.length }} tasks
+                                <span v-if="filteredTasks.length === 0" class="text-red-600 font-medium">
+                                    (No tasks match the current filters)
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+
                     <!-- Loading State -->
                     <div v-if="loadingTasks" class="text-center text-gray-600 text-sm animate-pulse py-4">
                         Loading tasks...
@@ -968,7 +1185,7 @@ onMounted(async () => {
                             </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
-                            <tr v-for="task in tasks" :key="task.id" class="hover:bg-gray-50 transition-colors">
+                            <tr v-for="task in filteredTasks" :key="task.id" class="hover:bg-gray-50 transition-colors">
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ task.title }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-700">
                                     <span

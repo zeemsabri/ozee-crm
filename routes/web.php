@@ -22,7 +22,7 @@ use App\Http\Controllers\GoogleAuthController; // Import our Google Auth control
 Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
+        // 'canRegister' removed - this is a closed system where only administrators can add users
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
     ]);

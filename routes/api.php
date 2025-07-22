@@ -22,9 +22,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // --- Public Authentication Routes (NO auth:sanctum middleware) ---
-// These routes must be accessible to unauthenticated users to perform login/registration
-Route::post('/register', [RegisteredUserController::class, 'store'])
-    ->middleware('guest');
+// These routes must be accessible to unauthenticated users to perform login
+// Registration route removed - this is a closed system where only administrators can add users
+// Route::post('/register', [RegisteredUserController::class, 'store'])
+//     ->middleware('guest');
 
 Route::post('/login', [AuthenticatedSessionController::class, 'store'])
     ->middleware(['guest', 'web']); // THIS IS THE CRUCIAL ROUTE FOR YOUR LOGIN.VUE

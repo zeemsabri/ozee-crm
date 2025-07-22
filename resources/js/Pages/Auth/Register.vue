@@ -1,4 +1,9 @@
 <script setup>
+/**
+ * NOTE: This component is no longer accessible via public routes.
+ * Registration has been disabled as this is a closed system where only administrators can add users.
+ * User creation should be done through the admin interface at /users.
+ */
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
