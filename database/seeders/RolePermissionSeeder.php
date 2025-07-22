@@ -253,10 +253,10 @@ class RolePermissionSeeder extends Seeder
         }
 
         // Assign Super Admin role to the first user (if exists)
-        $adminUser = User::where('email', 'admin@example.com')->first();
-        if (!$adminUser) {
-            $adminUser = User::where('role', 'super_admin')->first();
-        }
+        $adminUser = User::where('email', 'info@ozeeweb.com.au')->first();
+//        if (!$adminUser) {
+//            $adminUser = User::where('role', 'super_admin')->first();
+//        }
 
         if ($adminUser) {
             $adminUser->assignRole($superAdminRole);

@@ -34,9 +34,9 @@ class UserSeeder extends Seeder
 
         // Create Super Admin user
         $superAdmin = User::firstOrCreate(
-            ['email' => 'admin@example.com'],
+            ['email' => 'info@ozeeweb.com.au'],
             [
-                'name' => 'Admin User',
+                'name' => 'Zeeshan Sabri',
                 'password' => Hash::make('password'),
                 'role_id' => $superAdminRole->id,
             ]
@@ -44,9 +44,9 @@ class UserSeeder extends Seeder
 
         // Create Manager user
         $manager = User::firstOrCreate(
-            ['email' => 'manager@example.com'],
+            ['email' => 'usama@ezysoft.solutions'],
             [
-                'name' => 'Manager User',
+                'name' => 'Usama Saeed',
                 'password' => Hash::make('password'),
                 'role_id' => $managerRole->id,
             ]
@@ -54,7 +54,7 @@ class UserSeeder extends Seeder
 
         // Create Employee user
         $employee = User::firstOrCreate(
-            ['email' => 'employee@example.com'],
+            ['email' => 'dev1@ezysoft.solutions'],
             [
                 'name' => 'Employee User',
                 'password' => Hash::make('password'),
@@ -64,7 +64,7 @@ class UserSeeder extends Seeder
 
         // Create Contractor user
         $contractor = User::firstOrCreate(
-            ['email' => 'contractor@example.com'],
+            ['email' => 'dev2@ezysoft.solutions'],
             [
                 'name' => 'Contractor User',
                 'password' => Hash::make('password'),
@@ -72,12 +72,5 @@ class UserSeeder extends Seeder
             ]
         );
 
-
-        // Output information
-        $this->command->info('Users created successfully!');
-        $this->command->info('Super Admin: admin@example.com / password');
-        $this->command->info('Manager: manager@example.com / password');
-        $this->command->info('Employee: employee@example.com / password');
-        $this->command->info('Contractor: contractor@example.com / password');
     }
 }
