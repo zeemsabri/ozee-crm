@@ -551,7 +551,7 @@ onMounted(() => {
                                             <PrimaryButton v-permission="'manage_projects'" @click="openEditModal(project)">Edit</PrimaryButton>
                                             <PrimaryButton v-permission="'manage_project_transactions'" @click="openAddTransactionModal(project)">Add Transactions</PrimaryButton>
                                             <PrimaryButton v-permission="'add_project_notes'" @click="openAddNoteModal(project)">Add Note</PrimaryButton>
-                                            <PrimaryButton v-permission="'manage_project_services_and_payments'" @click="openConvertPaymentModal(project)">Convert Payment</PrimaryButton>
+<!--                                            <PrimaryButton v-permission="'manage_project_services_and_payments'" @click="openConvertPaymentModal(project)">Convert Payment</PrimaryButton>-->
                                             <DangerButton v-permission="'delete_projects'" @click="confirmProjectDeletion(project)">Delete</DangerButton>
                                         </div>
                                     </td>

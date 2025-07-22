@@ -96,10 +96,6 @@ const handleLogoutError = (error) => {
                                     Projects
                                 </NavLink>
 
-                                <NavLink v-if="hasManagementAccess" :href="route('task-types.index')" :active="route().current('task-types.index')">
-                                    Task Types
-                                </NavLink>
-
                                 <NavLink v-if="canComposeEmails" :href="route('emails.compose')" :active="route().current('emails.compose')">
                                     Compose Email
                                 </NavLink>
@@ -143,6 +139,10 @@ const handleLogoutError = (error) => {
 
                                             <DropdownLink v-if="canManageUsers" :href="route('users.index')" :active="route().current('users.index')">
                                                 Users
+                                            </DropdownLink>
+
+                                            <DropdownLink v-if="hasManagementAccess" :href="route('task-types.index')" :active="route().current('task-types.index')">
+                                                Task Types
                                             </DropdownLink>
 
                                             <DropdownLink :href="route('admin.roles.index')">
