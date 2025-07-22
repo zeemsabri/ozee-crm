@@ -17,9 +17,9 @@ class RolePermissionSeeder extends Seeder
     public function run(): void
     {
 
-        DB::table('permissions')->truncate();
-        DB::table('roles')->truncate();
-        DB::table('role_permission')->truncate();
+//        DB::table('permissions')->truncate();
+//        DB::table('roles')->truncate();
+//        DB::table('role_permission')->truncate();
 
         // Create application roles
         $superAdminRole = Role::create([
