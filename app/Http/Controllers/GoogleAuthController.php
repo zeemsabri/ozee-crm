@@ -30,9 +30,9 @@ class GoogleAuthController extends Controller
             'email',             // To get the user's email address
             'profile',           // To get basic profile info
             Drive::DRIVE_FILE,
-            'https://www.googleapis.com/auth/chat.spaces',
-            'https://www.googleapis.com/auth/chat.messages',
-            'https://www.googleapis.com/auth/chat.memberships',
+//            'https://www.googleapis.com/auth/chat.spaces',
+//            'https://www.googleapis.com/auth/chat.messages',
+//            'https://www.googleapis.com/auth/chat.memberships',
 
         ];
 
