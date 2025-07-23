@@ -44,6 +44,9 @@ const replyError = ref('');
 const noteReplies = ref([]);
 const loadingReplies = ref(false);
 
+// Track which service is currently expanded (null means all collapsed)
+const expandedServiceId = ref(null);
+
 // Function to open the add note modal
 const openAddNoteModal = () => {
     showAddNoteModal.value = true;
@@ -1333,19 +1336,46 @@ onMounted(async () => {
                             <p><strong class="text-gray-900">Payment Type:</strong> {{ project.payment_type.replace('_', ' ').toUpperCase() }}</p>
                             <div v-if="project.service_details && project.service_details.length">
                                 <strong class="text-gray-900">Service Details:</strong>
-                                <ul class="list-disc ml-5 mt-2 space-y-2">
-                                    <li v-for="service in project.service_details" :key="service.service_id">
-                                        {{ service.service_id }}: ${{ service.amount }} ({{ service.frequency }}) - Starts {{ service.start_date || 'N/A' }}
-                                        <div v-if="service.payment_breakdown" class="ml-4 mt-1">
-                                            <p class="text-xs font-medium text-gray-600">Payment Breakdown:</p>
-                                            <ul class="list-circle ml-5 text-xs text-gray-600">
-                                                <li>First: {{ service.payment_breakdown.first }}%</li>
-                                                <li>Second: {{ service.payment_breakdown.second }}%</li>
-                                                <li>Third: {{ service.payment_breakdown.third }}%</li>
-                                            </ul>
+                                <div class="mt-2 space-y-2">
+                                    <div v-for="service in project.service_details" :key="service.service_id" class="border border-gray-200 rounded-lg overflow-hidden">
+                                        <!-- Service Header (always visible) -->
+                                        <button
+                                            @click="expandedServiceId = expandedServiceId === service.service_id ? null : service.service_id"
+                                            class="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                                        >
+                                            <div class="font-medium text-gray-800">
+                                                {{ service.service_id }}: <span class="text-indigo-600">${{ service.amount }}</span>
+                                            </div>
+                                            <span class="text-gray-500">
+                                                <span v-if="expandedServiceId === service.service_id">▼</span>
+                                                <span v-else>▶</span>
+                                            </span>
+                                        </button>
+
+                                        <!-- Service Details (only visible when expanded) -->
+                                        <div v-if="expandedServiceId === service.service_id" class="p-3 bg-white">
+                                            <div class="text-sm text-gray-700">
+                                                <p><strong>Frequency:</strong> {{ service.frequency }}</p>
+                                                <p><strong>Start Date:</strong> {{ service.start_date || 'N/A' }}</p>
+
+                                                <div v-if="service.payment_breakdown" class="mt-2">
+                                                    <p class="font-medium text-gray-600">Payment Breakdown:</p>
+                                                    <ul class="list-disc ml-5 mt-1 text-xs text-gray-600">
+                                                        <!-- Legacy format display -->
+                                                        <template v-if="!Array.isArray(service.payment_breakdown)">
+                                                            <li>First: {{ service.payment_breakdown.first }}%</li>
+                                                            <li>Second: {{ service.payment_breakdown.second }}%</li>
+                                                            <li>Third: {{ service.payment_breakdown.third }}%</li>
+                                                        </template>
+                                                        <li v-else v-for="(payment, index) in service.payment_breakdown" :key="index">
+                                                            {{ payment.label }}: {{ payment.percentage }}%
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </li>
-                                </ul>
+                                    </div>
+                                </div>
                             </div>
                             <p v-else class="text-gray-400">No service details available.</p>
                         </div>

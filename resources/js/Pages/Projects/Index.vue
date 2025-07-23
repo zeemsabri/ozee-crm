@@ -515,10 +515,7 @@ onMounted(() => {
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Clients</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Departments</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Users</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Type</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                                 </thead>
@@ -537,13 +534,6 @@ onMounted(() => {
                                         <span v-else class="text-gray-400">None</span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap capitalize">{{ project.status.replace('_', ' ') }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap">{{ project.project_type || 'N/A' }}</td>
-                                    <td class="px-6 py-4">
-                                        <span v-if="project.departments && project.departments.length">
-                                            {{ project.departments.join(', ') }}
-                                        </span>
-                                        <span v-else class="text-gray-400">None</span>
-                                    </td>
                                     <td class="px-6 py-4">
                                         <span v-if="project.users && project.users.length">
                                             {{ project.users.map(user => {
@@ -555,7 +545,6 @@ onMounted(() => {
                                         </span>
                                         <span v-else class="text-gray-400">None</span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap capitalize">{{ project.payment_type.replace('_', ' ') }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div class="flex items-center space-x-2">
                                             <PrimaryButton v-permission="'manage_projects'" @click="openEditModal(project)">Edit</PrimaryButton>

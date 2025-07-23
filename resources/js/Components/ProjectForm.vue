@@ -102,6 +102,18 @@ const canViewProjectTransactions = canView('view_project_transactions', userProj
 // Tab management
 const activeTab = ref('basic');
 
+// Computed property for clients/users tab name based on permissions
+const clientsUsersTabName = computed(() => {
+    if (canViewProjectClients.value && canViewProjectUsers.value) {
+        return 'Clients and Users';
+    } else if (canViewProjectClients.value) {
+        return 'Clients';
+    } else if (canViewProjectUsers.value) {
+        return 'Users';
+    }
+    return 'Clients and Users'; // Fallback
+});
+
 // Function to switch tabs safely
 const switchTab = (tabName) => {
     // If trying to access documents tab but no project ID exists, don't switch
@@ -1072,7 +1084,7 @@ const uploadDocuments = async () => {
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     ]"
                 >
-                    Clients and Users
+                    {{ clientsUsersTabName }}
                 </button>
                 <button
                     v-if="(projectForm.id && (canManageProjectServicesAndPayments || canViewProjectServicesAndPayments))"
@@ -1415,18 +1427,23 @@ const uploadDocuments = async () => {
                 <div class="mb-4">
                     <InputLabel value="Notes" />
                     <div class="mt-2">
-                        <div v-for="(note, index) in projectForm.notes" :key="index" class="mb-4">
-                            <div class="flex items-start mb-2">
-                                <textarea
-                                    v-model="note.content"
-                                    :readonly="!canAddProjectNotes"
-                                    placeholder="Note Content"
-                                    class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full h-32"
-                                ></textarea>
+                        <div v-if="projectForm.notes && projectForm.notes.length > 0">
+                            <div v-for="(note, index) in projectForm.notes" :key="index" class="mb-4">
+                                <div class="flex items-start mb-2">
+                                    <textarea
+                                        v-model="note.content"
+                                        :readonly="!canAddProjectNotes"
+                                        placeholder="Note Content"
+                                        class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full h-32"
+                                    ></textarea>
+                                </div>
+<!--                                <div class="flex justify-end">-->
+<!--                                    <SecondaryButton  v-if="canAddProjectNotes"  @click="projectForm.notes.splice(index, 1)">Remove Note</SecondaryButton>-->
+<!--                                </div>-->
                             </div>
-<!--                            <div class="flex justify-end">-->
-<!--                                <SecondaryButton  v-if="canAddProjectNotes"  @click="projectForm.notes.splice(index, 1)">Remove Note</SecondaryButton>-->
-<!--                            </div>-->
+                        </div>
+                        <div v-else class="p-4 bg-gray-50 rounded-md text-gray-600 text-center">
+                            No notes found for this project.
                         </div>
 <!--                        <SecondaryButton  v-if="canAddProjectNotes"  @click="projectForm.notes.push({ content: '' })">Add Note</SecondaryButton>-->
                     </div>
