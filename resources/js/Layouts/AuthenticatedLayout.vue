@@ -32,6 +32,25 @@ const setAxiosAuthHeader = async () => {
     const token = localStorage.getItem('authToken');
     if (token) {
         window.axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+        // Verify that the token is still valid by making a request to the user endpoint
+        try {
+            await window.axios.get('/api/user');
+        } catch (error) {
+            // If we get a 401 Unauthorized error, the token is no longer valid
+            // This could happen if the session expired on the server
+            if (error.response && error.response.status === 401) {
+                console.log('Session expired, redirecting to login');
+                // Clear localStorage and redirect to login
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userRole');
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                localStorage.removeItem('remembered');
+                delete window.axios.defaults.headers.common['Authorization'];
+                window.location.href = '/login';
+            }
+        }
     } else {
         delete window.axios.defaults.headers.common['Authorization'];
     }

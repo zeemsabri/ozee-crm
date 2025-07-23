@@ -9,9 +9,11 @@ use App\Models\Client;
 use App\Models\User;
 use App\Models\Transaction;
 use App\Models\ProjectNote;
+use App\Models\Meeting;
 use App\Services\GmailService;
 use App\Services\GoogleDriveService;
 use App\Services\GoogleChatService;
+use App\Http\Controllers\Api\ProjectCalendarController;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
@@ -25,7 +27,8 @@ class ProjectController extends Controller
     public function __construct(
         protected GmailService $gmailService,
         protected GoogleDriveService $googleDriveService,
-        protected GoogleChatService $googleChatService
+        protected GoogleChatService $googleChatService,
+        protected ProjectCalendarController $projectCalendarController
     )
     {
 //        $this->authorizeResource(Project::class, 'project');
@@ -1065,6 +1068,13 @@ class ProjectController extends Controller
         }
     }
 
+    /**
+     * Attach users to a project and update Google Chat/Drive permissions.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @param \App\Models\Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function attachUsers(Request $request, Project $project)
     {
         $this->authorize('attachAnyUser', $project);
@@ -1094,15 +1104,13 @@ class ProjectController extends Controller
         $newUsers = $project->users;
         $newUserEmails = $newUsers->pluck('email')->toArray();
 
+        // Find added and removed users
+        $addedUserEmails = array_diff($newUserEmails, $currentUserEmails);
+        $removedUserEmails = array_diff($currentUserEmails, $newUserEmails);
+
         // Update Google Chat space members if the project has a Google Chat space
         if ($project->google_chat_id) {
             try {
-                // Find added users (in new list but not in old list)
-                $addedUserEmails = array_diff($newUserEmails, $currentUserEmails);
-
-                // Find removed users (in old list but not in new list)
-                $removedUserEmails = array_diff($currentUserEmails, $newUserEmails);
-
                 // Add new members to Google Chat space
                 if (!empty($addedUserEmails)) {
                     $responseArray = $this->googleChatService->addMembersToSpace($project->google_chat_id, $addedUserEmails);
@@ -1137,6 +1145,54 @@ class ProjectController extends Controller
                 Log::error('Failed to update Google Chat space members', [
                     'project_id' => $project->id,
                     'space_name' => $project->google_chat_id,
+                    'error' => $e->getMessage(),
+                    'exception' => $e
+                ]);
+            }
+        }
+
+        // Update Google Drive folder permissions if the project has a Google Drive folder
+        if ($project->google_drive_folder_id) {
+            try {
+                // Add new members to Google Drive
+                foreach ($addedUserEmails as $email) {
+                    try {
+                        // Assuming 'writer' role for added members
+                        $this->googleDriveService->addPermission($project->google_drive_folder_id, $email, 'writer');
+                    } catch (\Exception $e) {
+                        Log::error('Failed to add Google Drive permission for ' . $email, [
+                            'project_id' => $project->id,
+                            'folder_id' => $project->google_drive_folder_id,
+                            'email' => $email,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+
+                // Remove members from Google Drive
+                foreach ($removedUserEmails as $email) {
+                    try {
+                        $this->googleDriveService->removePermission($project->google_drive_folder_id, $email);
+                    } catch (\Exception $e) {
+                        Log::error('Failed to remove Google Drive permission for ' . $email, [
+                            'project_id' => $project->id,
+                            'folder_id' => $project->google_drive_folder_id,
+                            'email' => $email,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+                Log::info('Google Drive permissions updated for project', [
+                    'project_id' => $project->id,
+                    'folder_id' => $project->google_drive_folder_id,
+                    'added_emails' => $addedUserEmails,
+                    'removed_emails' => $removedUserEmails,
+                ]);
+
+            } catch (\Exception $e) {
+                Log::error('Failed to update Google Drive permissions for project', [
+                    'project_id' => $project->id,
+                    'folder_id' => $project->google_drive_folder_id,
                     'error' => $e->getMessage(),
                     'exception' => $e
                 ]);
@@ -1711,5 +1767,88 @@ class ProjectController extends Controller
         }
 
         return response()->json($projects);
+    }
+
+    /**
+     * Create a new meeting for a project.
+     *
+     * @param Request $request
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function createProjectMeeting(Request $request, Project $project)
+    {
+        // Delegate to the ProjectCalendarController
+        $response = $this->projectCalendarController->createProjectMeeting($request, $project);
+
+        // If the meeting was created successfully, save it to the database
+        if ($response->getStatusCode() === 201) {
+            $data = json_decode($response->getContent(), true);
+
+            // Create a new meeting record in the database
+            $meeting = new Meeting([
+                'project_id' => $project->id,
+                'created_by_user_id' => Auth::id(),
+                'google_event_id' => $data['event']['id'],
+                'google_event_link' => $data['event']['htmlLink'],
+                'google_meet_link' => $data['event']['hangoutLink'] ?? null,
+                'summary' => $request->input('summary'),
+                'description' => $request->input('description'),
+                'start_time' => $request->input('start_datetime'),
+                'end_time' => $request->input('end_datetime'),
+                'location' => $request->input('location'),
+            ]);
+
+            $meeting->save();
+
+            // Add the meeting ID to the response data
+            $data['meeting_id'] = $meeting->id;
+
+            // Return a new response with the updated data
+            return response()->json($data, 201);
+        }
+
+        // If there was an error, just return the original response
+        return $response;
+    }
+
+    /**
+     * Delete a meeting for a project.
+     *
+     * @param Request $request
+     * @param Project $project
+     * @param string $googleEventId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function deleteProjectMeeting(Request $request, Project $project, string $googleEventId)
+    {
+        // Find the meeting in the database
+        $meeting = $project->meetings()->where('google_event_id', $googleEventId)->first();
+
+        // Delegate to the ProjectCalendarController
+        $response = $this->projectCalendarController->deleteProjectMeeting($request, $project, $googleEventId);
+
+        // If the meeting was deleted successfully, delete it from the database
+        if ($response->getStatusCode() === 200 && $meeting) {
+            $meeting->delete();
+        }
+
+        return $response;
+    }
+
+    /**
+     * Get meetings for a project.
+     *
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getProjectMeetings(Project $project)
+    {
+        // Get all meetings for the project
+        $meetings = $project->meetings()
+            ->orderBy('start_time', 'asc')
+            ->get();
+
+        return response()->json($meetings);
     }
 }

@@ -42,6 +42,7 @@ const submit = async () => {
 
     try {
         // Send a POST request to your Laravel API login endpoint
+        // Include the remember flag from the form
         // Axios will handle sending Content-Type: application/json
         const response = await axios.post('/api/login', form);
 
@@ -54,6 +55,9 @@ const submit = async () => {
         localStorage.setItem('userRole', user.role); // Store user's role for frontend logic
         localStorage.setItem('userId', user.id);     // Store user's ID
         localStorage.setItem('userEmail', user.email); // Store user's email
+
+        // Also store whether this is a remembered session
+        localStorage.setItem('remembered', form.remember ? 'true' : 'false');
 
         // Set the Authorization header globally for all future Axios requests
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;

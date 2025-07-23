@@ -7,6 +7,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import ProjectForm from '@/Components/ProjectForm.vue';
 import Modal from '@/Components/Modal.vue';
 import NotesModal from '@/Components/NotesModal.vue';
+import MeetingModal from '@/Components/MeetingModal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
@@ -38,11 +39,16 @@ const generalError = ref('');
 const showEditModal = ref(false);
 const showAddNoteModal = ref(false);
 const showReplyModal = ref(false);
+const showMeetingModal = ref(false);
 const selectedNote = ref(null);
 const replyContent = ref('');
 const replyError = ref('');
 const noteReplies = ref([]);
 const loadingReplies = ref(false);
+
+// Meetings state
+const meetings = ref([]);
+const loadingMeetings = ref(false);
 
 // Track which service is currently expanded (null means all collapsed)
 const expandedServiceId = ref(null);
@@ -1009,6 +1015,46 @@ const fetchProjectEmails = async () => {
     }
 };
 
+// Fetch meetings for the project
+const fetchProjectMeetings = async () => {
+    loadingMeetings.value = true;
+    try {
+        const projectId = usePage().props.id;
+        const response = await window.axios.get(`/api/projects/${projectId}/meetings`);
+        meetings.value = response.data;
+    } catch (error) {
+        console.error('Error fetching project meetings:', error);
+    } finally {
+        loadingMeetings.value = false;
+    }
+};
+
+// Open the meeting modal
+const openMeetingModal = () => {
+    showMeetingModal.value = true;
+};
+
+// Handle meeting saved event
+const handleMeetingSaved = (meetingData) => {
+    fetchProjectMeetings(); // Refresh meetings list
+};
+
+// Delete a meeting
+const deleteMeeting = async (googleEventId) => {
+    if (!confirm('Are you sure you want to delete this meeting?')) {
+        return;
+    }
+
+    try {
+        const projectId = usePage().props.id;
+        await window.axios.delete(`/api/projects/${projectId}/meetings/${googleEventId}`);
+        fetchProjectMeetings(); // Refresh meetings list
+    } catch (error) {
+        console.error('Error deleting meeting:', error);
+        alert('Failed to delete meeting. Please try again.');
+    }
+};
+
 // View email details
 const viewEmail = (email) => {
     selectedEmail.value = email;
@@ -1182,6 +1228,7 @@ onMounted(async () => {
     await fetchProjectData();
     await fetchProjectEmails();
     await fetchProjectTasks();
+    await fetchProjectMeetings();
 
     // Fetch task types and milestones for task management
     try {
@@ -1225,49 +1272,17 @@ onMounted(async () => {
                         <h4 class="text-lg font-semibold text-gray-900">General Information</h4>
                         <div v-if="canManageProjects || isSuperAdmin" class="flex gap-3">
                             <PrimaryButton
-                                class="bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                                class="bg-indigo-600 hover:bg-indigo-700 transition-colors mr-2"
                                 @click="openEditModal"
                             >
                                 Edit Project
                             </PrimaryButton>
-                            <!-- Debug info -->
-<!--                            <div class="text-xs text-gray-500 mt-2 p-2 bg-gray-100 rounded">-->
-<!--                                <div class="font-bold">Permission Debug Info:</div>-->
-<!--                                <div>{{ userProjectRole ? 'Project Role: ' + (userProjectRole.value?.name || 'None') : 'No Project Role' }}</div>-->
-
-<!--                                &lt;!&ndash; Global Permissions &ndash;&gt;-->
-<!--                                <div class="mt-1">-->
-<!--                                    <div class="font-semibold">Global Permissions:</div>-->
-<!--                                    <div v-if="permissionsLoading">Loading global permissions...</div>-->
-<!--                                    <div v-else-if="permissionsError">Error loading global permissions</div>-->
-<!--                                    <div v-else-if="globalPermissions">-->
-<!--                                        Count: {{ globalPermissions.permissions ? globalPermissions.permissions.length : 0 }}-->
-<!--                                    </div>-->
-<!--                                </div>-->
-
-<!--                                &lt;!&ndash; Project Permissions &ndash;&gt;-->
-<!--                                <div class="mt-1">-->
-<!--                                    <div class="font-semibold">Project Permissions:</div>-->
-<!--                                    <div v-if="projectPermissionsLoading">Loading project permissions...</div>-->
-<!--                                    <div v-else-if="projectPermissionsError">Error loading project permissions</div>-->
-<!--                                    <div v-else-if="projectPermissions">-->
-<!--                                        Count: {{ projectPermissions.permissions ? projectPermissions.permissions.length : 0 }}-->
-<!--                                        <div v-if="projectPermissions.permissions && projectPermissions.permissions.length > 0">-->
-<!--                                            <div class="font-semibold">Permissions:</div>-->
-<!--                                            <ul class="list-disc ml-4">-->
-<!--                                                <li v-for="perm in projectPermissions.permissions.slice(0, 5)" :key="perm.slug">-->
-<!--                                                    {{ perm.name }} ({{ perm.source }})-->
-<!--                                                </li>-->
-<!--                                                <li v-if="projectPermissions.permissions.length > 5">-->
-<!--                                                    ... and {{ projectPermissions.permissions.length - 5 }} more-->
-<!--                                                </li>-->
-<!--                                            </ul>-->
-<!--                                        </div>-->
-<!--                                    </div>-->
-<!--                                </div>-->
-
-<!--                                <div class="mt-1">Can manage projects: {{ canManageProjects ? 'Yes' : 'No' }}</div>-->
-<!--                            </div>-->
+                            <PrimaryButton
+                                class="bg-green-600 hover:bg-green-700 transition-colors"
+                                @click="openMeetingModal"
+                            >
+                                Schedule Meeting
+                            </PrimaryButton>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1301,6 +1316,53 @@ onMounted(async () => {
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
                                 </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upcoming Meetings Section -->
+                <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
+                    <h4 class="text-md font-semibold text-gray-900 mb-2">Upcoming Meetings</h4>
+                    <div v-if="loadingMeetings" class="text-sm text-gray-500">
+                        Loading meetings...
+                    </div>
+                    <div v-else-if="meetings.length === 0" class="text-sm text-gray-500">
+                        No upcoming meetings scheduled.
+                    </div>
+                    <div v-else class="space-y-3">
+                        <div v-for="meeting in meetings" :key="meeting.id"
+                             class="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h5 class="font-medium text-gray-900">{{ meeting.summary }}</h5>
+                                    <p class="text-sm text-gray-600">
+                                        {{ new Date(meeting.start_time).toLocaleString() }} - {{ new Date(meeting.end_time).toLocaleTimeString() }}
+                                    </p>
+                                    <p v-if="meeting.location" class="text-sm text-gray-600 mt-1">
+                                        <span class="font-medium">Location:</span> {{ meeting.location }}
+                                    </p>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <a :href="meeting.google_event_link" target="_blank"
+                                       class="text-blue-600 hover:text-blue-800" title="View in Google Calendar">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                    </a>
+                                    <a v-if="meeting.google_meet_link" :href="meeting.google_meet_link" target="_blank"
+                                       class="text-green-600 hover:text-green-800" title="Join Google Meet">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                    </a>
+                                    <button @click="deleteMeeting(meeting.google_event_id)"
+                                            class="text-red-600 hover:text-red-800" title="Delete Meeting">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2348,6 +2410,15 @@ onMounted(async () => {
                 </div>
             </div>
         </Modal>
+
+        <!-- Meeting Modal -->
+        <MeetingModal
+            :show="showMeetingModal"
+            @close="showMeetingModal = false"
+            @saved="handleMeetingSaved"
+            :projectId="project.id"
+            :projectUsers="project.users || []"
+        />
     </AuthenticatedLayout>
 </template>
 

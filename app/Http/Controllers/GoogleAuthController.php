@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Google\Service\Calendar;
 use Google\Service\Drive;
 use Illuminate\Http\Request;
 use Laravel\Socialite\Facades\Socialite;
@@ -27,9 +28,10 @@ class GoogleAuthController extends Controller
         $scopes = [
             Gmail::GMAIL_SEND,
             Gmail::GMAIL_MODIFY, // Provides access for reading/modifying labels, which is helpful for receiving.
+            Calendar::CALENDAR_EVENTS,
             'email',             // To get the user's email address
             'profile',           // To get basic profile info
-            Drive::DRIVE_FILE,
+            Drive::DRIVE_FILE,// NEW: Scope for managing calendar events
             'https://www.googleapis.com/auth/chat.spaces',
             'https://www.googleapis.com/auth/chat.messages',
             'https://www.googleapis.com/auth/chat.memberships',

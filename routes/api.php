@@ -90,6 +90,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('projects/{project}/users', [ProjectSectionController::class, 'getProjectUsers']);
     Route::get('projects/{project}/clients', [ProjectSectionController::class, 'getProjectClients']);
     Route::get('projects/{project}/contract-details', [ProjectSectionController::class, 'getContractDetails']);
+    Route::get('/projects/{project}/meetings', [ProjectController::class, 'getProjectMeetings']);
+    Route::post('/projects/{project}/meetings', [ProjectController::class, 'createProjectMeeting']);
+    Route::delete('/projects/{project}/meetings/{googleEventId}', [ProjectController::class, 'deleteProjectMeeting']);
 
     // Project Section Update Routes
     Route::put('projects/{project}/sections/basic', [ProjectSectionController::class, 'updateBasicInfo']);

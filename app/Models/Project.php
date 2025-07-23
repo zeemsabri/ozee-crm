@@ -78,4 +78,12 @@ class Project extends Model
     {
         return $this->hasMany(Milestone::class);
     }
+
+    /**
+     * Get the meetings for this project.
+     */
+    public function meetings()
+    {
+        return $this->hasMany(Meeting::class);
+    }
 }
