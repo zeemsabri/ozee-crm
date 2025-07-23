@@ -19,7 +19,7 @@ const roleName = computed(() => user.value.role_data?.name || '');
 const { canDo } = usePermissions();
 
 // Global permission checks for menu items
-const canAccessProjects = canDo('access_projects');
+const canAccessProjects = canDo('manage_projects');
 const canComposeEmails = canDo('compose_emails');
 const canApproveEmails = canDo('approve_emails');
 const canManageUsers = canDo('manage_users');

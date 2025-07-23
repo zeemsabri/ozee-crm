@@ -15,6 +15,92 @@ use Illuminate\Support\Facades\Log;
 class TaskController extends Controller
 {
     /**
+     * Get task statistics for dashboard
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getTaskStatistics()
+    {
+        // Get the authenticated user
+        $user = Auth::user();
+
+        // Get current date for "due today" calculations
+        $today = now()->startOfDay();
+
+        // Initialize statistics
+        $statistics = [
+            'total_due_tasks' => 0,
+            'projects' => []
+        ];
+
+        // Get all projects the user has access to
+        $projects = [];
+
+        if ($user->isSuperAdmin() || $user->isManager()) {
+            // Super admins and managers can see all projects
+            $projects = \App\Models\Project::select('id', 'name', 'status')->get();
+        } else {
+            // Other users can only see projects they're assigned to
+            $projects = $user->projects()->select('projects.id', 'projects.name', 'projects.status')->get();
+        }
+
+        // For each project, get task statistics
+        foreach ($projects as $project) {
+            // Get all milestones for this project
+            $milestoneIds = \App\Models\Milestone::where('project_id', $project->id)->pluck('id')->toArray();
+
+            if (empty($milestoneIds)) {
+                // Skip projects with no milestones
+                continue;
+            }
+
+            // Get tasks for these milestones
+            $tasks = \App\Models\Task::whereIn('milestone_id', $milestoneIds)
+                ->where(function($query) {
+                    // Only include tasks that are not completed or archived
+                    $query->where('status', '!=', 'Done')
+                          ->where('status', '!=', 'Archived');
+                })
+                ->get();
+
+            if ($tasks->isEmpty()) {
+                // Skip projects with no active tasks
+                continue;
+            }
+
+            // Count due tasks
+            $dueTasks = $tasks->filter(function($task) {
+                return $task->due_date !== null;
+            })->count();
+
+            // Count tasks due today
+            $dueToday = $tasks->filter(function($task) use ($today) {
+                return $task->due_date !== null && $task->due_date->startOfDay()->equalTo($today);
+            })->count();
+
+            // Count tasks assigned to current user
+            $assignedToMe = $tasks->filter(function($task) use ($user) {
+                return $task->assigned_to_user_id === $user->id;
+            })->count();
+
+            // Only include projects with due tasks
+            if ($dueTasks > 0) {
+                $statistics['projects'][] = [
+                    'id' => $project->id,
+                    'name' => $project->name,
+                    'due_tasks' => $dueTasks,
+                    'due_today' => $dueToday,
+                    'assigned_to_me' => $assignedToMe
+                ];
+
+                // Add to total due tasks
+                $statistics['total_due_tasks'] += $dueTasks;
+            }
+        }
+
+        return response()->json($statistics);
+    }
+    /**
      * Display a listing of the resource.
      *
      * @param Request $request

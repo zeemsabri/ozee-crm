@@ -142,6 +142,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->name('roles.updatePermissions');
 
     // Task Management Routes
+    Route::get('task-statistics', [TaskController::class, 'getTaskStatistics']);
     Route::apiResource('tasks', TaskController::class);
     Route::post('tasks/{task}/notes', [TaskController::class, 'addNote']);
     Route::post('tasks/{task}/complete', [TaskController::class, 'markAsCompleted']);

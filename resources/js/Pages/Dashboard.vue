@@ -17,6 +17,15 @@ const loading = ref(true);
 const error = ref('');
 const expandProjects = ref(false);
 
+// Task statistics state
+const taskStats = ref({
+    total_due_tasks: 0,
+    projects: []
+});
+const loadingTasks = ref(false);
+const taskError = ref('');
+const expandTasks = ref(false);
+
 // Notes modal state
 const showNotesModal = ref(false);
 const selectedProjectId = ref(null);
@@ -36,11 +45,34 @@ const fetchProjects = async () => {
     }
 };
 
+// Fetch task statistics
+const fetchTaskStatistics = async () => {
+    loadingTasks.value = true;
+    taskError.value = '';
+    try {
+        const response = await axios.get('/api/task-statistics');
+        taskStats.value = response.data;
+    } catch (err) {
+        taskError.value = 'Failed to load task statistics';
+        console.error('Error fetching task statistics:', err);
+    } finally {
+        loadingTasks.value = false;
+    }
+};
+
 // Toggle projects section
 const toggleProjects = () => {
     expandProjects.value = !expandProjects.value;
     if (expandProjects.value && projects.value.length === 0) {
         fetchProjects();
+    }
+};
+
+// Toggle tasks section
+const toggleTasks = () => {
+    expandTasks.value = !expandTasks.value;
+    if (expandTasks.value && taskStats.value.projects.length === 0) {
+        fetchTaskStatistics();
     }
 };
 
@@ -58,6 +90,9 @@ const handleNoteAdded = () => {
 
 onMounted(() => {
     // We don't fetch projects initially, only when the user expands the section
+
+    // Fetch task statistics to display the total count
+    fetchTaskStatistics();
 });
 </script>
 
@@ -143,10 +178,53 @@ onMounted(() => {
                 <!-- Due Tasks Card -->
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                     <div class="p-6 text-gray-900">
-                        <h3 class="text-lg font-medium text-gray-900">Due Tasks</h3>
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg font-medium text-gray-900">Due Tasks</h3>
+                            <button
+                                @click="toggleTasks"
+                                class="text-sm text-blue-600 hover:text-blue-800"
+                            >
+                                {{ expandTasks ? 'Collapse' : 'Expand' }}
+                            </button>
+                        </div>
                         <p class="mt-1 text-sm text-gray-600">
-                            You have 0 tasks due soon.
+                            You have <span class="font-bold">{{ taskStats.total_due_tasks }}</span> task(s) due.
                         </p>
+
+                        <!-- Expandable Tasks List -->
+                        <div v-if="expandTasks" class="mt-4">
+                            <div v-if="loadingTasks" class="text-sm text-gray-500">Loading tasks...</div>
+                            <div v-else-if="taskError" class="text-sm text-red-500">{{ taskError }}</div>
+                            <div v-else-if="taskStats.projects.length === 0" class="text-sm text-gray-500">No due tasks found.</div>
+                            <div v-else class="mt-3">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Name</th>
+                                            <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Tasks</th>
+                                            <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Today</th>
+                                            <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Me</th>
+                                            <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <tr v-for="project in taskStats.projects" :key="project.id">
+                                            <td class="px-3 py-2 whitespace-nowrap text-sm">{{ project.name }}</td>
+                                            <td class="px-3 py-2 whitespace-nowrap text-sm">{{ project.due_tasks }}</td>
+                                            <td class="px-3 py-2 whitespace-nowrap text-sm">{{ project.due_today }}</td>
+                                            <td class="px-3 py-2 whitespace-nowrap text-sm">{{ project.assigned_to_me }}</td>
+                                            <td class="px-3 py-2 whitespace-nowrap text-sm">
+                                                <div class="flex space-x-2">
+                                                    <Link :href="`/projects/${project.id}`" class="text-xs bg-blue-500 hover:bg-blue-700 text-white py-1 px-2 rounded">
+                                                        View
+                                                    </Link>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
