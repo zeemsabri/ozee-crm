@@ -1327,7 +1327,7 @@ onMounted(async () => {
                 </div>
 
                 <!-- Three Column Section: Financial, Clients, Team -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                <div class="grid grid-cols-3 sm:grid-cols-3 gap-4 mb-6">
                     <!-- Financial Information Card -->
                     <div v-if="canViewProjectFinancial" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
                         <h4 class="text-lg font-semibold text-gray-900 mb-4">Financial Information</h4>
@@ -1386,11 +1386,7 @@ onMounted(async () => {
                         <h4 class="text-lg font-semibold text-gray-900 mb-4">Clients</h4>
                         <div v-if="project.clients && project.clients.length" class="space-y-3 text-sm text-gray-700">
                             <div v-for="client in project.clients" :key="client.id" class="border-l-4 border-indigo-500 pl-3">
-                                <p><strong class="text-gray-900">{{ client.name }}</strong></p>
-                                <p>Email: <a :href="`mailto:${client.email}`" class="text-indigo-600 hover:underline">{{ client.email }}</a></p>
-                                <p>Phone: {{ client.phone || 'N/A' }}</p>
-                                <p>Address: {{ client.address || 'N/A' }}</p>
-                            </div>
+                                <p><strong class="text-gray-900">{{ client.name }}</strong></p></div>
                         </div>
                         <p v-else class="text-gray-400 text-sm">No clients assigned.</p>
                     </div>
@@ -1401,7 +1397,6 @@ onMounted(async () => {
                         <div v-if="project.users && project.users.length" class="space-y-3 text-sm text-gray-700">
                             <div v-for="user in project.users" :key="user.id" class="border-l-4 border-blue-500 pl-3">
                                 <p><strong class="text-gray-900">{{ user.name }}</strong> ({{ user.pivot.role }})</p>
-                                <p>Email: <a :href="`mailto:${user.email}`" class="text-indigo-600 hover:underline">{{ user.email }}</a></p>
                             </div>
                         </div>
                         <p v-else class="text-gray-400 text-sm">No team members assigned.</p>
