@@ -13,7 +13,7 @@ class StoreProjectRequest extends FormRequest
     public function authorize(): bool
     {
         // Check if the user can manage projects
-        return Auth::user()->can('manage_projects');
+        return Auth::user()->hasPermission('create_projects');
     }
 
     /**
