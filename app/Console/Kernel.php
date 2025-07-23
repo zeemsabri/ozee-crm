@@ -31,9 +31,7 @@ class Kernel extends ConsoleKernel
         // Run the emails:fetch command every 5 minutes using cron expression
 //        $schedule->command('emails:fetch')->cron('*/5 * * * *');
 
-        $schedule->command(FetchEmails::class)
-            ->everyFiveMinutes()
-            ->withoutOverlapping();
+//        $schedule->command(FetchEmails::class);
     }
 
     /**
