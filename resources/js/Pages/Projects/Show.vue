@@ -290,44 +290,120 @@ const fetchProjectData = async () => {
         const projectId = usePage().props.id; // Get project ID from Inertia props
         console.log('Fetching project data for ID:', projectId);
 
-        const response = await window.axios.get(`/api/projects/${projectId}`);
-        console.log('Project data received:', response.data);
+        // Fetch basic project information
+        const basicResponse = await window.axios.get(`/api/projects/${projectId}/sections/basic`);
+        console.log('Basic project data received:', basicResponse.data);
 
-        // Check if users are included and have permissions
-        if (response.data.users) {
-            console.log('Project users:', response.data.users.length);
+        // Initialize project with basic information
+        project.value = basicResponse.data;
 
-            // Check the first user to see the structure
-            if (response.data.users.length > 0) {
-                const firstUser = response.data.users[0];
-                console.log('First user structure:', {
-                    id: firstUser.id,
-                    name: firstUser.name,
-                    hasPivot: !!firstUser.pivot,
-                    pivotData: firstUser.pivot ? {
-                        hasRoleId: !!firstUser.pivot.role_id,
-                        hasRoleData: !!firstUser.pivot.role_data,
-                        roleDataStructure: firstUser.pivot.role_data
-                    } : 'No pivot data'
-                });
+        // Fetch clients and users if user has permission
+        try {
+            const clientsUsersResponse = await window.axios.get(`/api/projects/${projectId}/sections/clients-users`);
+            console.log('Clients and users data received:', clientsUsersResponse.data);
 
-                // Check if current user is in the project
-                const currentUser = response.data.users.find(u => u.id === authUser.value.id);
-                console.log('Current user in project:', currentUser ? {
-                    name: currentUser.name,
-                    hasPivot: !!currentUser.pivot,
-                    pivotData: currentUser.pivot ? {
-                        hasRoleId: !!currentUser.pivot.role_id,
-                        hasRoleData: !!currentUser.pivot.role_data,
-                        roleDataStructure: currentUser.pivot.role_data
-                    } : 'No pivot data'
-                } : 'Not found');
+            // Add clients and users to project data if available
+            if (clientsUsersResponse.data.clients) {
+                project.value.clients = clientsUsersResponse.data.clients;
             }
-        } else {
-            console.log('No users array in project data');
+
+            if (clientsUsersResponse.data.users) {
+                project.value.users = clientsUsersResponse.data.users;
+
+                // Check if users are included and have permissions
+                console.log('Project users:', project.value.users.length);
+
+                // Check the first user to see the structure
+                if (project.value.users.length > 0) {
+                    const firstUser = project.value.users[0];
+                    console.log('First user structure:', {
+                        id: firstUser.id,
+                        name: firstUser.name,
+                        hasPivot: !!firstUser.pivot,
+                        pivotData: firstUser.pivot ? {
+                            hasRoleId: !!firstUser.pivot.role_id,
+                            hasRoleData: !!firstUser.pivot.role_data,
+                            roleDataStructure: firstUser.pivot.role_data
+                        } : 'No pivot data'
+                    });
+
+                    // Check if current user is in the project
+                    const currentUser = project.value.users.find(u => u.id === authUser.value.id);
+                    console.log('Current user in project:', currentUser ? {
+                        name: currentUser.name,
+                        hasPivot: !!currentUser.pivot,
+                        pivotData: currentUser.pivot ? {
+                            hasRoleId: !!currentUser.pivot.role_id,
+                            hasRoleData: !!currentUser.pivot.role_data,
+                            roleDataStructure: currentUser.pivot.role_data
+                        } : 'No pivot data'
+                    } : 'Not found');
+                }
+            } else {
+                console.log('No users array in project data');
+            }
+        } catch (error) {
+            console.error('Error fetching clients and users:', error);
+            // Non-critical error, continue with other sections
         }
 
-        project.value = response.data;
+        // Fetch financial information if user has permission
+        if (canViewProjectFinancial.value) {
+            try {
+                const financialResponse = await window.axios.get(`/api/projects/${projectId}/sections/services-payment`);
+                console.log('Financial data received:', financialResponse.data);
+
+                // Add financial information to project data
+                project.value.services = financialResponse.data.services;
+                project.value.service_details = financialResponse.data.service_details;
+                project.value.total_amount = financialResponse.data.total_amount;
+                project.value.payment_type = financialResponse.data.payment_type;
+            } catch (error) {
+                console.error('Error fetching financial information:', error);
+                // Non-critical error, continue with other sections
+            }
+        }
+
+        // Fetch transactions if user has permission
+        if (canViewProjectTransactions.value) {
+            try {
+                const transactionsResponse = await window.axios.get(`/api/projects/${projectId}/sections/transactions`);
+                console.log('Transactions data received:', transactionsResponse.data);
+
+                // Add transactions to project data
+                project.value.transactions = transactionsResponse.data;
+            } catch (error) {
+                console.error('Error fetching transactions:', error);
+                // Non-critical error, continue with other sections
+            }
+        }
+
+        // Fetch documents if user has permission
+        try {
+            const documentsResponse = await window.axios.get(`/api/projects/${projectId}/sections/documents`);
+            console.log('Documents data received:', documentsResponse.data);
+
+            // Add documents to project data
+            project.value.documents = documentsResponse.data;
+        } catch (error) {
+            console.error('Error fetching documents:', error);
+            // Non-critical error, continue with other sections
+        }
+
+        // Fetch contract details if user has permission
+        if (canViewClientFinancial.value) {
+            try {
+                const contractResponse = await window.axios.get(`/api/projects/${projectId}/contract-details`);
+                console.log('Contract details received:', contractResponse.data);
+
+                // Add contract details to project data
+                project.value.contract_details = contractResponse.data;
+            } catch (error) {
+                console.error('Error fetching contract details:', error);
+                // Non-critical error, continue with other sections
+            }
+        }
+
         console.log('Project value after assignment:', project.value);
 
         // Log the userProjectRole after project is set

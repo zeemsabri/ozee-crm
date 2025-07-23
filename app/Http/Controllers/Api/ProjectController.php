@@ -1639,7 +1639,6 @@ class ProjectController extends Controller
     {
         $user = Auth::user();
         $projects = collect();
-        $clients = collect();
 
         $user->load(['role.permissions']);
         $hasGlobalComposeEmailPermission = false;
@@ -1649,7 +1648,6 @@ class ProjectController extends Controller
 
         if ($user->isSuperAdmin()) {
             $projects = Project::with('clients:id,name')->get();
-            $clients = Client::select('id', 'name')->get();
         } else {
             $userProjects = $user->projects()->with(['clients:id,name'])->get();
             foreach ($userProjects as $project) {
@@ -1661,9 +1659,6 @@ class ProjectController extends Controller
                     $projects->push($project);
                 }
             }
-            $clients = Client::select('id', 'name')->whereHas('projects', function ($query) use ($user) {
-                $query->whereIn('projects.id', $user->projects()->pluck('projects.id'));
-            })->get();
         }
 
         $transformedProjects = $projects->map(function ($project) {
@@ -1680,16 +1675,8 @@ class ProjectController extends Controller
             ];
         });
 
-        $transformedClients = $clients->map(function ($client) {
-            return [
-                'id' => $client->id,
-                'name' => $client->name,
-            ];
-        });
-
         return response()->json([
             'projects' => $transformedProjects,
-            'clients' => $transformedClients,
         ]);
     }
 

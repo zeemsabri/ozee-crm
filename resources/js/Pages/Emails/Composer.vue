@@ -70,9 +70,20 @@ const fetchInitialData = async () => {
     try {
         const response = await window.axios.get('/api/projects-for-email');
         projects.value = response.data.projects;
-        clients.value = response.data.clients;
+
+        // Extract unique clients from projects
+        const uniqueClients = new Map();
+        projects.value.forEach(project => {
+            if (project.clients && project.clients.length > 0) {
+                project.clients.forEach(client => {
+                    uniqueClients.set(client.id, client);
+                });
+            }
+        });
+        clients.value = Array.from(uniqueClients.values());
+
     } catch (error) {
-        generalError.value = 'Failed to load projects and clients.';
+        generalError.value = 'Failed to load projects.';
         console.error('Error fetching initial data:', error);
         if (error.response && (error.response.status === 401 || error.response.status === 403)) {
             generalError.value = 'You are not authorized to view this content or your session expired. Please log in.';
