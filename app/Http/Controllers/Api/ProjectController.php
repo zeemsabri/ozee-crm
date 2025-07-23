@@ -1377,7 +1377,7 @@ class ProjectController extends Controller
      */
     public function getNoteReplies(Project $project, ProjectNote $note)
     {
-        $this->authorize('addNotes', $project);
+        $this->authorize('viewNotes', $project);
 
         // Check if the note belongs to the project
         if ($note->project_id !== $project->id) {

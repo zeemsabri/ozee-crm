@@ -138,6 +138,17 @@ class ProjectPolicy
         return $this->userHasProjectPermission($user, 'add_project_notes', $project->id);
     }
 
+    public function viewNotes(User $user, Project $project): bool
+    {
+        // Check if user has global permission
+        if ($user->hasPermission('view_project_notes')) {
+            return true;
+        }
+
+        // Check project-specific permission
+        return $this->userHasProjectPermission($user, 'view_project_notes', $project->id);
+    }
+
     // restore and forceDelete can be left as false/not implemented for MVP
     public function restore(User $user, Project $project): bool { return false; }
     public function forceDelete(User $user, Project $project): bool { return false; }

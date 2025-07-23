@@ -7,6 +7,7 @@ import NavLink from '@/Components/NavLink.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { router } from '@inertiajs/vue3';
+import { usePermissions, useGlobalPermissions } from '@/Directives/permissions';
 
 const showingNavigationDropdown = ref(false);
 
@@ -14,31 +15,17 @@ const user = computed(() => usePage().props.auth.user);
 // Get role name from role_data (new system)
 const roleName = computed(() => user.value.role_data?.name || '');
 
-// Check role using role_data.slug (new system)
-const isSuperAdmin = computed(() => {
-    return user.value.role_data?.slug === 'super-admin';
-});
+// Use the permissions system instead of hardcoded role checks
+const { canDo } = usePermissions();
 
-const isManager = computed(() => {
-    if (!user.value) return false;
-    return user.value.role_data?.slug === 'manager';
-});
-
-const isEmployee = computed(() => {
-    if (!user.value) return false;
-    return user.value.role_data?.slug === 'employee';
-});
-
-const isContractor = computed(() => {
-    if (!user.value) return false;
-    return user.value.role_data?.slug === 'contractor';
-});
-
-const hasManagementAccess = computed(() => isSuperAdmin.value || isManager.value);
-const canComposeEmails = computed(() => isSuperAdmin.value || isManager.value || isContractor.value);
-const canApproveEmails = computed(() => isSuperAdmin.value || isManager.value);
-const canManageUsers = computed(() => isSuperAdmin.value || isManager.value); // New computed property for Users link
-const canManageRoles = computed(() => isSuperAdmin.value); // Only super admins can manage roles and permissions
+// Global permission checks for menu items
+const canAccessProjects = canDo('access_projects');
+const canComposeEmails = canDo('compose_emails');
+const canApproveEmails = canDo('approve_emails');
+const canManageUsers = canDo('manage_users');
+const canManageRoles = canDo('manage_roles');
+const canManageTaskTypes = canDo('manage_task_types');
+const canAccessClients = canDo('access_clients');
 
 
 const setAxiosAuthHeader = async () => {
@@ -92,7 +79,7 @@ const handleLogoutError = (error) => {
 
 
 
-                                <NavLink v-if="hasManagementAccess || isEmployee" :href="route('projects.index')" :active="route().current('projects.index')">
+                                <NavLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')">
                                     Projects
                                 </NavLink>
 
@@ -133,7 +120,7 @@ const handleLogoutError = (error) => {
 
                                         <template #content>
 
-                                            <DropdownLink v-if="hasManagementAccess || isEmployee" :href="route('clients.index')" :active="route().current('clients.index')">
+                                            <DropdownLink v-if="canAccessClients" :href="route('clients.index')" :active="route().current('clients.index')">
                                                 Clients
                                             </DropdownLink>
 
@@ -141,7 +128,7 @@ const handleLogoutError = (error) => {
                                                 Users
                                             </DropdownLink>
 
-                                            <DropdownLink v-if="hasManagementAccess" :href="route('task-types.index')" :active="route().current('task-types.index')">
+                                            <DropdownLink v-if="canManageTaskTypes" :href="route('task-types.index')" :active="route().current('task-types.index')">
                                                 Task Types
                                             </DropdownLink>
 
@@ -230,11 +217,11 @@ const handleLogoutError = (error) => {
                             Dashboard
                         </ResponsiveNavLink>
 
-                        <ResponsiveNavLink v-if="hasManagementAccess || isEmployee" :href="route('clients.index')" :active="route().current('clients.index')">
+                        <ResponsiveNavLink v-if="canAccessClients" :href="route('clients.index')" :active="route().current('clients.index')">
                             Clients
                         </ResponsiveNavLink>
 
-                        <ResponsiveNavLink v-if="hasManagementAccess || isEmployee" :href="route('projects.index')" :active="route().current('projects.index')">
+                        <ResponsiveNavLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')">
                             Projects
                         </ResponsiveNavLink>
 
