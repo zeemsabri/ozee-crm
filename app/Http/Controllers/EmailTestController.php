@@ -109,7 +109,7 @@ class EmailTestController extends Controller
             // You might need to adjust your GmailService's listMessages to accept a query string directly
             // and potentially a limit if you want to cap the number of emails fetched in one go (e.g., 200)
             // if you expect a very large backlog, to avoid hitting memory limits or API rate limits.
-            $messageIds = $this->gmailService->listMessages(10, $query); // Pass null for limit to fetch all matching
+            $messageIds = $this->gmailService->listMessages(50, $query); // Pass null for limit to fetch all matching
 
 
             if (empty($messageIds)) {
