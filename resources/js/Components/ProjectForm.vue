@@ -1,5 +1,21 @@
 <script setup>
 import { ref, reactive, watch, computed, onMounted } from 'vue';
+import ServicesAndPaymentForm from '@/Components/ServicesAndPaymentForm.vue';
+/**
+ * Debounce utility function to delay execution of a function
+ * This helps improve user experience by preventing rapid, repeated function calls
+ *
+ * @param {Function} fn - The function to debounce
+ * @param {number} delay - The delay in milliseconds
+ * @returns {Function} - A debounced version of the function
+ */
+const debounce = (fn, delay) => {
+    let timeoutId;
+    return (...args) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => fn(...args), delay);
+    };
+};
 import { usePage } from '@inertiajs/vue3';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
@@ -668,28 +684,6 @@ const updateBasicInfo = async () => {
     }
 };
 
-// Function to update services and payment
-const updateServicesAndPayment = async () => {
-    errors.value = {};
-    generalError.value = '';
-    try {
-        // Create a clean copy of the form data with only services and payment information
-        const formData = {
-            services: projectForm.services,
-            service_details: projectForm.service_details,
-            total_amount: projectForm.total_amount,
-            payment_type: projectForm.payment_type,
-        };
-
-        // Update the project
-        const response = await window.axios.put(`/api/projects/${projectForm.id}/sections/services-payment`, formData);
-
-        // Show success message
-        alert('Services and payment information updated successfully!');
-    } catch (error) {
-        handleError(error, 'Failed to update services and payment information.');
-    }
-};
 
 // Function to update transactions
 const updateTransactions = async () => {
@@ -762,7 +756,8 @@ const submitForm = async () => {
                 await updateBasicInfo();
                 break;
             case 'services':
-                await updateServicesAndPayment();
+                // Services & Payment is now handled by the ServicesAndPaymentForm component
+                alert('Please use the Update Services & Payment button in the Services tab.');
                 break;
             case 'transactions':
                 await updateTransactions();
@@ -778,49 +773,13 @@ const submitForm = async () => {
     }
 };
 
-const handleServiceSelection = (serviceId, isSelected) => {
-    if (isSelected) {
-        // Add service to service_details if it doesn't exist
-        if (!projectForm.service_details.some(detail => detail.service_id === serviceId)) {
-            projectForm.service_details.push({
-                service_id: serviceId,
-                amount: '',
-                frequency: 'one_off',
-                start_date: '',
-                payment_breakdown: {
-                    first: 30,
-                    second: 30,
-                    third: 40
-                }
-            });
-        }
-    } else {
-        // Remove service from service_details
-        projectForm.service_details = projectForm.service_details.filter(
-            detail => detail.service_id !== serviceId
-        );
-    }
-};
 
-const getServiceDetail = (serviceId) => {
-    // Find existing detail or create a new one
-    let detail = projectForm.service_details.find(detail => detail.service_id === serviceId);
-    if (!detail) {
-        detail = {
-            service_id: serviceId,
-            amount: '',
-            frequency: 'one_off',
-            start_date: '',
-            payment_breakdown: {
-                first: 30,
-                second: 30,
-                third: 40
-            }
-        };
-        projectForm.service_details.push(detail);
-    }
-    return detail;
-};
+
+
+
+
+
+
 
 // Track if form has been modified
 const formModified = ref(false);
@@ -1295,153 +1254,14 @@ const uploadDocuments = async () => {
 
             <!-- Tab 3: Services & Payment -->
             <div v-if="activeTab === 'services'">
-                <div class="mb-4">
-                    <InputLabel for="total_amount" value="Total Amount" />
-                    <TextInput id="total_amount" type="number" step="0.01" class="mt-1 block w-full" v-model="projectForm.total_amount" :disabled="!canManageProjectServicesAndPayments" />
-                    <InputError :message="errors.total_amount ? errors.total_amount[0] : ''" class="mt-2" />
-                </div>
-                <div class="mb-4">
-                    <InputLabel for="payment_type" value="Payment Type" />
-                    <select id="payment_type" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="projectForm.payment_type" required :disabled="!canManageProjectServicesAndPayments">
-                        <option v-for="option in paymentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                    </select>
-                    <InputError :message="errors.payment_type ? errors.payment_type[0] : ''" class="mt-2" />
-                </div>
-                <div class="mb-4">
-                    <InputLabel for="services" value="Services" />
-                    <div class="mt-2">
-                        <div v-for="option in departmentOptions" :key="option.value" class="border p-3 mb-3 rounded">
-                            <div class="flex items-center mb-2">
-                                <Checkbox
-                                    :id="`service_${option.value}`"
-                                    :value="option.value"
-                                    v-model:checked="projectForm.services"
-                                    @update:checked="value => handleServiceSelection(option.value, value)"
-                                    :disabled="!canManageProjectServicesAndPayments"
-                                />
-                                <label :for="`service_${option.value}`" class="ms-2 text-sm font-medium text-gray-700">{{ option.label }}</label>
-                            </div>
-
-                            <div v-if="(projectForm.services || []).includes(option.value)" class="pl-6">
-                                <div class="grid grid-cols-2 gap-4 mb-2">
-                                    <div>
-                                        <InputLabel :for="`service_amount_${option.value}`" value="Amount" class="text-xs" />
-                                        <TextInput
-                                            :id="`service_amount_${option.value}`"
-                                            type="number"
-                                            step="0.01"
-                                            placeholder="Amount"
-                                            class="w-full"
-                                            v-model="getServiceDetail(option.value).amount"
-                                            :disabled="!canManageProjectServicesAndPayments"
-                                        />
-                                    </div>
-                                    <div>
-                                        <InputLabel :for="`service_frequency_${option.value}`" value="Frequency" class="text-xs" />
-                                        <select
-                                            :id="`service_frequency_${option.value}`"
-                                            class="border-gray-300 rounded-md w-full"
-                                            v-model="getServiceDetail(option.value).frequency"
-                                            :disabled="!canManageProjectServicesAndPayments"
-                                        >
-                                            <option value="monthly">Monthly</option>
-                                            <option value="one_off">One off</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="mb-2">
-                                    <InputLabel :for="`service_start_date_${option.value}`" value="Start Date" class="text-xs" />
-                                    <TextInput
-                                        :id="`service_start_date_${option.value}`"
-                                        type="date"
-                                        class="w-full"
-                                        v-model="getServiceDetail(option.value).start_date"
-                                        :disabled="!canManageProjectServicesAndPayments"
-                                    />
-                                </div>
-                                <div>
-                                    <InputLabel value="Payment Breakdown (%)" class="text-xs mb-1" />
-                                    <div class="grid grid-cols-3 gap-2">
-                                        <div>
-                                            <InputLabel :for="`service_payment_first_${option.value}`" value="First" class="text-xs" />
-                                            <TextInput
-                                                :id="`service_payment_first_${option.value}`"
-                                                type="text"
-                                                min="0"
-                                                max="100"
-                                                class="w-full"
-                                                :value="getServiceDetail(option.value).payment_breakdown?.first || 0"
-                                                @input="e => {
-                                                    if (canManageProjectServicesAndPayments) {
-                                                        const detail = getServiceDetail(option.value);
-                                                        if (!detail.payment_breakdown) detail.payment_breakdown = {};
-                                                        detail.payment_breakdown.first = e.target.value;
-                                                    }
-                                                }"
-                                                :disabled="!canManageProjectServicesAndPayments"
-                                            />
-                                        </div>
-                                        <div>
-                                            <InputLabel :for="`service_payment_second_${option.value}`" value="Second" class="text-xs" />
-                                            <TextInput
-                                                :id="`service_payment_second_${option.value}`"
-                                                type="text"
-                                                min="0"
-                                                max="100"
-                                                class="w-full"
-                                                :value="getServiceDetail(option.value).payment_breakdown?.second || 0"
-                                                @input="e => {
-                                                    if (canManageProjectServicesAndPayments) {
-                                                        const detail = getServiceDetail(option.value);
-                                                        if (!detail.payment_breakdown) detail.payment_breakdown = {};
-                                                        detail.payment_breakdown.second = e.target.value;
-                                                    }
-                                                }"
-                                                :disabled="!canManageProjectServicesAndPayments"
-                                            />
-                                        </div>
-                                        <div>
-                                            <InputLabel :for="`service_payment_third_${option.value}`" value="Third" class="text-xs" />
-                                            <TextInput
-                                                :id="`service_payment_third_${option.value}`"
-                                                type="text"
-                                                min="0"
-                                                max="100"
-                                                class="w-full"
-                                                :value="getServiceDetail(option.value).payment_breakdown?.third || 0"
-                                                @input="e => {
-                                                    if (canManageProjectServicesAndPayments) {
-                                                        const detail = getServiceDetail(option.value);
-                                                        if (!detail.payment_breakdown) detail.payment_breakdown = {};
-                                                        detail.payment_breakdown.third = e.target.value;
-                                                    }
-                                                }"
-                                                :disabled="!canManageProjectServicesAndPayments"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div class="text-xs text-gray-500 mt-1">
-                                        Total: {{
-                                            parseInt(getServiceDetail(option.value).payment_breakdown?.first || 0) +
-                                            parseInt(getServiceDetail(option.value).payment_breakdown?.second || 0) +
-                                            parseInt(getServiceDetail(option.value).payment_breakdown?.third || 0)
-                                        }}%
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <InputError :message="errors.services ? errors.services[0] : ''" class="mt-2" />
-                </div>
-
-                <div v-if="canManageProjectServicesAndPayments" class="mt-6 flex justify-end">
-                    <PrimaryButton
-                        @click="updateServicesAndPayment"
-                        :disabled="!projectForm.id || !canManageProjectServicesAndPayments"
-                    >
-                        Update Services & Payment
-                    </PrimaryButton>
-                </div>
+                <ServicesAndPaymentForm
+                    :projectId="projectForm.id"
+                    :departmentOptions="departmentOptions"
+                    :paymentTypeOptions="paymentTypeOptions"
+                    :canManageProjectServicesAndPayments="canManageProjectServicesAndPayments"
+                    :canViewProjectServicesAndPayments="canViewProjectServicesAndPayments"
+                    @updated="fetchServicesAndPaymentData(projectForm.id)"
+                />
             </div>
 
             <!-- Tab 4: Transactions -->

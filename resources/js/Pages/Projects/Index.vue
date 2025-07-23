@@ -527,7 +527,12 @@ onMounted(() => {
                                     <td class="px-6 py-4 whitespace-nowrap">{{ project.name }}</td>
                                     <td class="px-6 py-4">
                                         <span v-if="project.clients && project.clients.length">
-                                            {{ project.clients.map(client => `${client.name} (${client.pivot.role})`).join(', ') }}
+                                            {{ project.clients.map(client => {
+                                                const roleId = client.pivot.role_id;
+                                                const roleOption = clientRoleOptions.find(option => option.value === roleId);
+                                                const roleName = roleOption ? roleOption.label : 'Unknown Role';
+                                                return `${client.name} (${roleName})`;
+                                            }).join(', ') }}
                                         </span>
                                         <span v-else class="text-gray-400">None</span>
                                     </td>
@@ -541,7 +546,12 @@ onMounted(() => {
                                     </td>
                                     <td class="px-6 py-4">
                                         <span v-if="project.users && project.users.length">
-                                            {{ project.users.map(user => `${user.name} (${user.pivot.role})`).join(', ') }}
+                                            {{ project.users.map(user => {
+                                                const roleId = user.pivot.role_id;
+                                                const roleOption = userRoleOptions.find(option => option.value === roleId);
+                                                const roleName = roleOption ? roleOption.label : 'Unknown Role';
+                                                return `${user.name} (${roleName})`;
+                                            }).join(', ') }}
                                         </span>
                                         <span v-else class="text-gray-400">None</span>
                                     </td>
@@ -607,7 +617,12 @@ onMounted(() => {
                 <div v-if="projectToDelete" class="mt-4 text-gray-800">
                     <strong>Project:</strong> {{ projectToDelete.name }}
                     <span v-if="projectToDelete.clients && projectToDelete.clients.length">
-                        (Clients: {{ projectToDelete.clients.map(client => `${client.name} (${client.pivot.role})`).join(', ') }})
+                        (Clients: {{ projectToDelete.clients.map(client => {
+                            const roleId = client.pivot.role_id;
+                            const roleOption = clientRoleOptions.find(option => option.value === roleId);
+                            const roleName = roleOption ? roleOption.label : 'Unknown Role';
+                            return `${client.name} (${roleName})`;
+                        }).join(', ') }})
                     </span>
                 </div>
                 <div v-if="generalError" class="text-red-600 text-sm mb-4">{{ generalError }}</div>

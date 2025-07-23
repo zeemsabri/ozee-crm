@@ -73,6 +73,52 @@ class ProjectSectionController extends Controller
     }
 
     /**
+     * Update project services and payment information
+     *
+     * @param Request $request
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function updateServicesAndPayment(Request $request, Project $project)
+    {
+        $user = Auth::user();
+
+        // Check if user has access to the project
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
+        }
+
+        // Check if user has permission to manage project services and payments
+        if (!$this->canManageProjectServicesAndPayments($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to manage financial information.'], 403);
+        }
+
+        // Validate the request data
+        $validatedData = $request->validate([
+            'services' => 'nullable|array',
+            'service_details' => 'nullable|array',
+            'total_amount' => 'nullable|numeric',
+            'payment_type' => 'nullable|string|in:one_off,monthly',
+        ]);
+
+        // Update the project with the validated data
+        $project->services = $validatedData['services'] ?? $project->services;
+        $project->service_details = $validatedData['service_details'] ?? $project->service_details;
+        $project->total_amount = $validatedData['total_amount'] ?? $project->total_amount;
+        $project->payment_type = $validatedData['payment_type'] ?? $project->payment_type;
+        $project->save();
+
+        // Return the updated project data
+        return response()->json([
+            'message' => 'Services and payment information updated successfully',
+            'services' => $project->services,
+            'service_details' => $project->service_details,
+            'total_amount' => $project->total_amount,
+            'payment_type' => $project->payment_type,
+        ]);
+    }
+
+    /**
      * Get project transactions
      *
      * @param Project $project
@@ -656,5 +702,32 @@ class ProjectSectionController extends Controller
 
         // Check global permissions
         return $user->hasPermission('view_project_notes');
+    }
+
+    /**
+     * Check if user has permission to manage project services and payments
+     *
+     * @param \App\Models\User $user
+     * @param \App\Models\Project $project
+     * @return bool
+     */
+    private function canManageProjectServicesAndPayments($user, $project)
+    {
+        // Check for super admin role
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        // Get the user's project-specific role
+        $projectUser = $project->users()->where('users.id', $user->id)->first();
+        if ($projectUser && isset($projectUser->pivot->role_id)) {
+            $projectRole = \App\Models\Role::with('permissions')->find($projectUser->pivot->role_id);
+            if ($projectRole && $projectRole->permissions->contains('slug', 'manage_project_financial')) {
+                return true;
+            }
+        }
+
+        // Check global permissions
+        return $user->hasPermission('manage_project_financial');
     }
 }
