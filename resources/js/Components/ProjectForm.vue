@@ -66,6 +66,7 @@ const { canDo, canView, canManage } = usePermissions(projectId);
 
 // Permission-based checks using the permission utilities
 const canManageProjects = canDo('manage_projects', userProjectRole);
+const canCreateProjects = canDo('create_projects', userProjectRole);
 const canUploadProjectDocuments = canDo('upload_project_documents', userProjectRole);
 const canManageProjectExpenses = canManage('project_expenses', userProjectRole);
 const canManageProjectIncome = canManage('project_income', userProjectRole);
@@ -215,8 +216,13 @@ const fetchClients = async () => {
 // Fetch users from the database
 const fetchUsers = async () => {
     try {
-        // If we have a project ID, use the project-specific endpoint
-        if (projectId.value) {
+        // If user has create_projects permission, always fetch all users
+        if (canCreateProjects.value) {
+            const response = await window.axios.get('/api/users');
+            users.value = response.data;
+        }
+        // Otherwise, if we have a project ID, use the project-specific endpoint
+        else if (projectId.value) {
             const response = await window.axios.get(`/api/projects/${projectId.value}/users`);
             users.value = response.data;
         } else {
