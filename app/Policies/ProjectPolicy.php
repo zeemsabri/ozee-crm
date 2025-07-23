@@ -87,6 +87,17 @@ class ProjectPolicy
         return $this->userHasProjectPermission($user, 'manage_project_users', $project->id);
     }
 
+    public function attachAnyClient(User $user, Project $project): bool
+    {
+        // Check if user has global permission
+        if ($user->hasPermission('manage_project_clients')) {
+            return true;
+        }
+
+        // Check project-specific permission
+        return $this->userHasProjectPermission($user, 'manage_project_clients', $project->id);
+    }
+
     /**
      * Check if the user has a project-specific permission
      *
