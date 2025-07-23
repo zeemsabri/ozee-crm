@@ -10,10 +10,13 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import {usePermissions} from "@/Directives/permissions.js";
 // No specific SelectInput component needed if using native <select> for simplicity
 
 // Access authenticated user
 const authUser = computed(() => usePage().props.auth.user);
+const { canDo, canView, canManage } = usePermissions();
+
 
 // Reactive state
 const users = ref([]);
@@ -81,9 +84,9 @@ const isManager = computed(() => {
            authUser.value.role === 'manager-role' ||
            authUser.value.role === 'manager_role';
 });
-const canCreateUsers = computed(() => isSuperAdmin.value || isManager.value);
-const canDeleteUsers = computed(() => isSuperAdmin.value);
 
+const canDeleteUsers = computed(() => isSuperAdmin.value);
+const canCreateUsers = canDo('create_users');
 
 // --- Fetch Users ---
 const fetchUsers = async () => {
@@ -392,7 +395,7 @@ onMounted(() => {
                     <div class="mb-4">
                         <InputLabel for="edit_role" value="Role" />
                         <select id="edit_role" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="userForm.role_id" @change="updateRoleString"
-                                :disabled="!isSuperAdmin && userForm.id !== authUser.id">
+                                :disabled="!isSuperAdmin && userForm.id === authUser.id">
                             <option v-for="option in roleOptions" :key="option.value" :value="option.value"
                                     :disabled="!isSuperAdmin && (option.slug === 'super_admin' || option.slug === 'manager') && userForm.id !== authUser.id">
                                 {{ option.label }}

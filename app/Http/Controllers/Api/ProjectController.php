@@ -155,6 +155,20 @@ class ProjectController extends Controller
             // Create the project with basic information
             $project = Project::create($projectData);
 
+            // Attach users if provided
+            if ($request->has('user_ids') && is_array($request->user_ids)) {
+                $userIds = [];
+                foreach ($request->user_ids as $userData) {
+                    if (isset($userData['id'])) {
+                        $roleId = isset($userData['role_id']) ? $userData['role_id'] : 2; // Default to role_id 2 if not provided
+                        $userIds[$userData['id']] = ['role_id' => $roleId];
+                    }
+                }
+                if (!empty($userIds)) {
+                    $project->users()->attach($userIds);
+                }
+            }
+
             $project->load(['clients', 'users' => function ($query) {
                 $query->withPivot('role_id');
             }, 'transactions', 'notes']);

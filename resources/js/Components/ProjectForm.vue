@@ -86,8 +86,8 @@ const activeTab = ref('basic');
 
 // Function to switch tabs safely
 const switchTab = (tabName) => {
-    // If trying to access documents or client tab but no project ID exists, don't switch
-    if ((tabName === 'documents' || tabName === 'client') && !projectForm.id) {
+    // If trying to access documents tab but no project ID exists, don't switch
+    if (tabName === 'documents' && !projectForm.id) {
         return;
     }
 
@@ -574,7 +574,7 @@ const createProject = async () => {
     errors.value = {};
     generalError.value = '';
     try {
-        // Create a clean copy of the form data with only basic information
+        // Create a clean copy of the form data with basic information and user_ids
         const formData = {
             name: projectForm.name,
             description: projectForm.description,
@@ -586,6 +586,7 @@ const createProject = async () => {
             project_type: projectForm.project_type,
             source: projectForm.source,
             google_drive_link: projectForm.google_drive_link,
+            user_ids: projectForm.user_ids,
         };
 
         // Store the current logo value
@@ -1091,7 +1092,7 @@ const uploadDocuments = async () => {
                     Basic Information
                 </button>
                 <button
-                    v-if="projectForm.id && (canViewProjectClients || canViewProjectUsers)"
+                    v-if="canViewProjectClients || canViewProjectUsers"
                     @click="switchTab('client')"
                     :class="[
                         'py-2 px-4 text-center border-b-2 font-medium text-sm',

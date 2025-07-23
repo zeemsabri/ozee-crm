@@ -45,6 +45,9 @@ class StoreProjectRequest extends FormRequest
             'source' => 'nullable|string|max:255',
             'google_drive_link' => 'nullable|url',
 //            'payment_type' => 'required|in:one_off,monthly',
+            'user_ids' => 'nullable|array',
+            'user_ids.*.id' => 'nullable|exists:users,id',
+            'user_ids.*.role_id' => 'nullable|exists:roles,id',
         ];
 
         // Add file validation rules only for non-JSON requests
