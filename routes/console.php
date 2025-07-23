@@ -9,4 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 
-Schedule::call(\App\Console\Commands\FetchEmails::class)->everyFiveMinutes();
+Schedule::command(\App\Console\Commands\FetchEmails::class)->everyFiveMinutes();
