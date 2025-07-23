@@ -2,6 +2,7 @@
 
 namespace App\Console;
 
+use App\Console\Commands\FetchEmails;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -28,7 +29,11 @@ class Kernel extends ConsoleKernel
         \Illuminate\Support\Facades\Log::info('Schedule method called in Console/Kernel.php');
 
         // Run the emails:fetch command every 5 minutes using cron expression
-        $schedule->command('emails:fetch')->cron('*/5 * * * *');
+//        $schedule->command('emails:fetch')->cron('*/5 * * * *');
+
+        $schedule->command(FetchEmails::class)
+            ->everyFiveMinutes()
+            ->withoutOverlapping();
     }
 
     /**
