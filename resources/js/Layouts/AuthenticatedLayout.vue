@@ -22,10 +22,10 @@ const { canDo } = usePermissions();
 const canAccessProjects = canDo('manage_projects');
 const canComposeEmails = canDo('compose_emails');
 const canApproveEmails = canDo('approve_emails');
-const canManageUsers = canDo('manage_users');
+const canManageUsers = canDo('create_users');
 const canManageRoles = canDo('manage_roles');
 const canManageTaskTypes = canDo('manage_task_types');
-const canAccessClients = canDo('access_clients');
+const canAccessClients = canDo('create_clients');
 
 
 const setAxiosAuthHeader = async () => {
