@@ -183,6 +183,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/test/user-project-role', [\App\Http\Controllers\TestController::class, 'testUserProjectRole'])
         ->name('test.user-project-role');
 
+    // Availability Calendar Page
+    Route::get('/availability', function () {
+        return Inertia::render('Availability/Index');
+    })->name('availability.index');
+
 });
 
 // Require your existing authentication routes (login, register, logout, etc.)

@@ -6,6 +6,7 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
 import NotificationContainer from '@/Components/NotificationContainer.vue';
+import AvailabilityBlocker from '@/Components/Availability/AvailabilityBlocker.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { router } from '@inertiajs/vue3';
 import { usePermissions, useGlobalPermissions } from '@/Directives/permissions';
@@ -96,6 +97,9 @@ onMounted(() => {
         <!-- Notification Container -->
         <NotificationContainer ref="notificationContainerRef" />
 
+        <!-- Availability Blocker -->
+        <AvailabilityBlocker />
+
         <div class="min-h-screen bg-gray-100">
             <nav class="border-b border-gray-100 bg-white">
                 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -128,6 +132,10 @@ onMounted(() => {
 
                                 <NavLink v-if="canComposeEmails" :href="route('emails.rejected')" :active="route().current('emails.rejected')">
                                     Rejected Emails
+                                </NavLink>
+
+                                <NavLink :href="route('availability.index')" :active="route().current('availability.index')">
+                                    Weekly Availability
                                 </NavLink>
 
                                 <!-- Admin dropdown for roles and permissions -->
@@ -274,6 +282,10 @@ onMounted(() => {
 
                         <ResponsiveNavLink v-if="canComposeEmails" :href="route('emails.rejected')" :active="route().current('emails.rejected')">
                             Rejected Emails
+                        </ResponsiveNavLink>
+
+                        <ResponsiveNavLink :href="route('availability.index')" :active="route().current('availability.index')">
+                            Weekly Availability
                         </ResponsiveNavLink>
 
                         <!-- Admin section for mobile -->

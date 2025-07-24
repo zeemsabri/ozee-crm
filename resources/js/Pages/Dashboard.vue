@@ -5,6 +5,7 @@ import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import NotesModal from '@/Components/NotesModal.vue';
+import AvailabilityPrompt from '@/Components/Availability/AvailabilityPrompt.vue';
 
 // Props
 const props = defineProps({
@@ -110,6 +111,9 @@ onMounted(() => {
 
         <div class="py-12">
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8 space-y-6">
+                <!-- Availability Prompt (shown on Thursdays) -->
+                <AvailabilityPrompt />
+
                 <!-- Projects Card -->
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                     <div class="p-6 text-gray-900">

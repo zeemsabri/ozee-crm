@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\TaskController; // Import for task management
 use App\Http\Controllers\Api\SubtaskController; // Import for subtask management
 use App\Http\Controllers\Api\MilestoneController; // Import for milestone management
 use App\Http\Controllers\Api\TaskTypeController; // Import for task type management
+use App\Http\Controllers\Api\AvailabilityController; // Import for availability management
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -172,5 +173,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Task Type Routes
     Route::apiResource('task-types', TaskTypeController::class);
+
+    // Availability Management Routes
+    Route::apiResource('availabilities', AvailabilityController::class);
+    Route::post('availabilities/batch', [AvailabilityController::class, 'batch']);
+    Route::get('weekly-availabilities', [AvailabilityController::class, 'getWeeklyAvailabilities']);
+    Route::get('availability-prompt', [AvailabilityController::class, 'shouldShowPrompt']);
 
 });

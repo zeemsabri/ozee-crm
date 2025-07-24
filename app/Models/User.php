@@ -284,4 +284,14 @@ class User extends Authenticatable
         }
 
     }
+
+    /**
+     * Get the availabilities for the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function availabilities()
+    {
+        return $this->hasMany(UserAvailability::class);
+    }
 }
