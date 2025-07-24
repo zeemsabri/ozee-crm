@@ -8,6 +8,7 @@ import ProjectForm from '@/Components/ProjectForm.vue';
 import Modal from '@/Components/Modal.vue';
 import NotesModal from '@/Components/NotesModal.vue';
 import MeetingModal from '@/Components/MeetingModal.vue';
+import StandupModal from '@/Components/StandupModal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
@@ -40,6 +41,7 @@ const showEditModal = ref(false);
 const showAddNoteModal = ref(false);
 const showReplyModal = ref(false);
 const showMeetingModal = ref(false);
+const showStandupModal = ref(false);
 const selectedNote = ref(null);
 const replyContent = ref('');
 const replyError = ref('');
@@ -52,6 +54,86 @@ const loadingMeetings = ref(false);
 
 // Track which service is currently expanded (null means all collapsed)
 const expandedServiceId = ref(null);
+
+// Track which tab is currently selected (null means main overview)
+const selectedTab = ref(null);
+
+// Computed properties for limited data display on main page
+const regularNotes = computed(() => {
+    if (!project.value.notes) return [];
+    return project.value.notes.filter(note => note.type === 'note' || !note.type);
+});
+
+const standupNotes = computed(() => {
+    if (!project.value.notes) return [];
+    return project.value.notes.filter(note => note.type === 'standup');
+});
+
+const latestNotes = computed(() => {
+    if (!regularNotes.value) return [];
+    return [...regularNotes.value].slice(0, 3);
+});
+
+const latestStandups = computed(() => {
+    if (!standupNotes.value) return [];
+    return [...standupNotes.value].slice(0, 3);
+});
+
+// Parse standup content into structured format
+const parseStandupContent = (content) => {
+    if (!content || content === '[Encrypted content could not be decrypted]') {
+        return {
+            title: 'Daily Standup',
+            date: new Date().toLocaleDateString(),
+            yesterday: 'N/A',
+            today: 'N/A',
+            blockers: 'N/A',
+            isDecrypted: false
+        };
+    }
+
+    // Extract the title and date
+    const titleMatch = content.match(/\*\*Daily Standup - ([^*]+)\*\*/);
+    const date = titleMatch ? titleMatch[1].trim() : new Date().toLocaleDateString();
+
+    // Extract yesterday's work
+    const yesterdayMatch = content.match(/\*\*Yesterday:\*\* ([^\n]+)/);
+    const yesterday = yesterdayMatch ? yesterdayMatch[1].trim() : 'Nothing';
+
+    // Extract today's work
+    const todayMatch = content.match(/\*\*Today:\*\* ([^\n]+)/);
+    const today = todayMatch ? todayMatch[1].trim() : 'Nothing';
+
+    // Extract blockers
+    const blockersMatch = content.match(/\*\*Blockers:\*\* ([^\n]+)/);
+    const blockers = blockersMatch ? blockersMatch[1].trim() : 'None';
+
+    return {
+        title: 'Daily Standup',
+        date: date,
+        yesterday: yesterday,
+        today: today,
+        blockers: blockers,
+        isDecrypted: true
+    };
+};
+
+const lastEmails = computed(() => {
+    if (!emails.value) return [];
+    return [...emails.value].slice(0, 3);
+});
+
+const tasksDueToday = computed(() => {
+    if (!tasks.value) return [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return tasks.value.filter(task => {
+        if (!task.due_date) return false;
+        const taskDueDate = new Date(task.due_date);
+        return taskDueDate.toDateString() === today.toDateString();
+    });
+});
 
 // Function to open the add note modal
 const openAddNoteModal = () => {
@@ -309,6 +391,68 @@ const canAddNotes = computed (() => {
     return canDo('project_notes', userProjectRole).value || false;
 })
 
+// Notes filters
+const noteFilters = reactive({
+    startDate: '',
+    endDate: '',
+    search: '',
+});
+
+// Fetch project notes with filters
+const fetchProjectNotes = async () => {
+    try {
+        const projectId = usePage().props.id;
+
+        // Build query parameters for filters
+        const params = new URLSearchParams();
+
+        if (noteFilters.startDate) {
+            params.append('start_date', noteFilters.startDate);
+        }
+
+        if (noteFilters.endDate) {
+            params.append('end_date', noteFilters.endDate);
+        }
+
+        if (noteFilters.search) {
+            params.append('search', noteFilters.search);
+        }
+
+        // Append query parameters to the URL if any filters are applied
+        const queryString = params.toString();
+        const url = `/api/projects/${projectId}/sections/notes${queryString ? `?${queryString}` : ''}`;
+
+        const response = await window.axios.get(url);
+        project.value.notes = response.data;
+    } catch (error) {
+        console.error('Error fetching project notes:', error);
+    }
+};
+
+// Apply note filters
+const applyNoteFilters = () => {
+    fetchProjectNotes();
+};
+
+// Reset all note filters
+const resetNoteFilters = () => {
+    noteFilters.startDate = '';
+    noteFilters.endDate = '';
+    noteFilters.search = '';
+    fetchProjectNotes();
+};
+
+// Debounce timer for note search
+let noteSearchDebounceTimer = null;
+
+// Debounce note search to avoid too many API calls
+const debounceNoteSearch = () => {
+    clearTimeout(noteSearchDebounceTimer);
+    noteSearchDebounceTimer = setTimeout(() => {
+        applyNoteFilters();
+    }, 500); // Wait 500ms after user stops typing
+};
+
 // Fetch project data
 const fetchProjectData = async () => {
     loading.value = true;
@@ -431,17 +575,7 @@ const fetchProjectData = async () => {
             }
         }
 
-        // Fetch notes
-        try {
-            const notesResponse = await window.axios.get(`/api/projects/${projectId}/sections/notes`);
-            console.log('Notes data received:', notesResponse.data);
-
-            // Add notes to project data
-            project.value.notes = notesResponse.data;
-        } catch (error) {
-            console.error('Error fetching notes:', error);
-            // Non-critical error, continue with other sections
-        }
+        // Notes will be loaded separately via fetchProjectNotes()
 
         console.log('Project value after assignment:', project.value);
 
@@ -975,6 +1109,39 @@ const emailError = ref('');
 const selectedEmail = ref(null);
 const showEmailModal = ref(false);
 
+// Email filters
+const emailFilters = reactive({
+    type: '',
+    startDate: '',
+    endDate: '',
+    search: '',
+});
+
+// Debounce timer for search
+let searchDebounceTimer = null;
+
+// Apply filters to emails
+const applyFilters = () => {
+    fetchProjectEmails();
+};
+
+// Reset all email filters
+const resetEmailFilters = () => {
+    emailFilters.type = '';
+    emailFilters.startDate = '';
+    emailFilters.endDate = '';
+    emailFilters.search = '';
+    fetchProjectEmails();
+};
+
+// Debounce search to avoid too many API calls
+const debounceSearch = () => {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+        applyFilters();
+    }, 500); // Wait 500ms after user stops typing
+};
+
 // Email approval data - Added for in-page email approval functionality
 const showEditEmailModal = ref(false);
 const showRejectEmailModal = ref(false);
@@ -1005,7 +1172,31 @@ const fetchProjectEmails = async () => {
     emailError.value = '';
     try {
         const projectId = usePage().props.id;
-        const response = await window.axios.get(`/api/projects/${projectId}/emails-simplified`);
+
+        // Build query parameters for filters
+        const params = new URLSearchParams();
+
+        if (emailFilters.type) {
+            params.append('type', emailFilters.type);
+        }
+
+        if (emailFilters.startDate) {
+            params.append('start_date', emailFilters.startDate);
+        }
+
+        if (emailFilters.endDate) {
+            params.append('end_date', emailFilters.endDate);
+        }
+
+        if (emailFilters.search) {
+            params.append('search', emailFilters.search);
+        }
+
+        // Append query parameters to the URL if any filters are applied
+        const queryString = params.toString();
+        const url = `/api/projects/${projectId}/emails-simplified${queryString ? `?${queryString}` : ''}`;
+
+        const response = await window.axios.get(url);
         emails.value = response.data;
     } catch (error) {
         emailError.value = 'Failed to load email data.';
@@ -1032,6 +1223,11 @@ const fetchProjectMeetings = async () => {
 // Open the meeting modal
 const openMeetingModal = () => {
     showMeetingModal.value = true;
+};
+
+// Open the standup modal
+const openStandupModal = () => {
+    showStandupModal.value = true;
 };
 
 // Handle meeting saved event
@@ -1226,6 +1422,7 @@ onMounted(async () => {
 
     // Then fetch project data
     await fetchProjectData();
+    await fetchProjectNotes();
     await fetchProjectEmails();
     await fetchProjectTasks();
     await fetchProjectMeetings();
@@ -1266,18 +1463,27 @@ onMounted(async () => {
                 {{ generalError }}
             </div>
             <div v-else class="space-y-8">
+
                 <!-- General Information Card with Two Columns -->
                 <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
                     <div class="flex justify-between items-center mb-4">
                         <h4 class="text-lg font-semibold text-gray-900">General Information</h4>
-                        <div v-if="canManageProjects || isSuperAdmin" class="flex gap-3">
+                        <div class="flex gap-3">
                             <PrimaryButton
+                                class="bg-blue-600 hover:bg-blue-700 transition-colors mr-2"
+                                @click="openStandupModal"
+                            >
+                                Daily Standup
+                            </PrimaryButton>
+                            <PrimaryButton
+                                v-if="canManageProjects || isSuperAdmin"
                                 class="bg-indigo-600 hover:bg-indigo-700 transition-colors mr-2"
                                 @click="openEditModal"
                             >
                                 Edit Project
                             </PrimaryButton>
                             <PrimaryButton
+                                v-if="canManageProjects || isSuperAdmin"
                                 class="bg-green-600 hover:bg-green-700 transition-colors"
                                 @click="openMeetingModal"
                             >
@@ -1375,8 +1581,8 @@ onMounted(async () => {
                         <p class="text-2xl font-bold text-indigo-600">{{ tasks.filter(t => t.status !== 'Done').length }}</p>
                     </div>
                     <div class="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-shadow">
-                        <h4 class="text-sm font-semibold text-gray-500 mb-1">Unread Emails</h4>
-                        <p class="text-2xl font-bold text-indigo-600">{{ emails.filter(e => e.status === 'Received').length }}</p>
+                        <h4 class="text-sm font-semibold text-gray-500 mb-1">Received Emails</h4>
+                        <p class="text-2xl font-bold text-indigo-600">{{ emails.filter(e => e.type === 'received').length }}</p>
                     </div>
                     <div class="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-shadow">
                         <h4 class="text-sm font-semibold text-gray-500 mb-1">Last Email Received</h4>
@@ -1388,85 +1594,330 @@ onMounted(async () => {
                     </div>
                 </div>
 
-                <!-- Three Column Section: Financial, Clients, Team -->
-                <div class="grid grid-cols-3 sm:grid-cols-3 gap-4 mb-6">
-                    <!-- Financial Information Card -->
-                    <div v-if="canViewProjectFinancial" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
-                        <h4 class="text-lg font-semibold text-gray-900 mb-4">Financial Information</h4>
-                        <div class="space-y-3 text-sm text-gray-700">
-                            <p><strong class="text-gray-900">Total Amount:</strong> ${{ project.total_amount || '0.00' }}</p>
-                            <p><strong class="text-gray-900">Payment Type:</strong> {{ project.payment_type.replace('_', ' ').toUpperCase() }}</p>
-                            <div v-if="project.service_details && project.service_details.length">
-                                <strong class="text-gray-900">Service Details:</strong>
-                                <div class="mt-2 space-y-2">
-                                    <div v-for="service in project.service_details" :key="service.service_id" class="border border-gray-200 rounded-lg overflow-hidden">
-                                        <!-- Service Header (always visible) -->
-                                        <button
-                                            @click="expandedServiceId = expandedServiceId === service.service_id ? null : service.service_id"
-                                            class="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+
+
+
+                <!-- Tab Navigation -->
+                <div class="bg-white p-4 rounded-xl shadow-md mb-6">
+                    <div class="border-b border-gray-200">
+                        <nav class="-mb-px flex space-x-8">
+                            <button
+                                @click="selectedTab = null"
+                                :class="[
+                                    selectedTab === null
+                                        ? 'border-indigo-500 text-indigo-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                                    'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm'
+                                ]"
+                            >
+                                Overview
+                            </button>
+                            <button
+                                @click="selectedTab = 'tasks'"
+                                :class="[
+                                    selectedTab === 'tasks'
+                                        ? 'border-indigo-500 text-indigo-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                                    'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm'
+                                ]"
+                            >
+                                Project Tasks
+                            </button>
+                            <button
+                                v-if="canViewEmails"
+                                @click="selectedTab = 'emails'"
+                                :class="[
+                                    selectedTab === 'emails'
+                                        ? 'border-indigo-500 text-indigo-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                                    'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm'
+                                ]"
+                            >
+                                Email Communication
+                            </button>
+                            <button
+                                v-if="canViewNotes"
+                                @click="selectedTab = 'notes'"
+                                :class="[
+                                    selectedTab === 'notes'
+                                        ? 'border-indigo-500 text-indigo-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                                    'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm'
+                                ]"
+                            >
+                                Notes
+                            </button>
+                        </nav>
+                    </div>
+                </div>
+
+
+
+                <div v-if="selectedTab === null">
+
+                    <!-- Tasks Due Today Section -->
+                    <div v-if="tasksDueToday.length > 0" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="text-lg font-semibold text-gray-900">Tasks Due Today</h4>
+                            <button
+                                @click="selectedTab = 'tasks'"
+                                class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                            >
+                                View All Tasks →
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                <tr v-for="task in tasksDueToday" :key="task.id" class="hover:bg-gray-50 transition-colors">
+                                    <td class="px-4 py-3 text-sm text-gray-900">{{ task.title }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">
+                                        <span
+                                            :class="{
+                                                'px-2 py-1 rounded-full text-xs font-medium': true,
+                                                'bg-yellow-100 text-yellow-800': task.status === 'To Do',
+                                                'bg-blue-100 text-blue-800': task.status === 'In Progress',
+                                                'bg-green-100 text-green-800': task.status === 'Done',
+                                                'bg-red-100 text-red-800': task.status === 'Blocked',
+                                                'bg-gray-100 text-gray-800': task.status === 'Archived'
+                                            }"
                                         >
-                                            <div class="font-medium text-gray-800">
-                                                {{ service.service_id }}: <span class="text-indigo-600">${{ service.amount }}</span>
-                                            </div>
-                                            <span class="text-gray-500">
-                                                <span v-if="expandedServiceId === service.service_id">▼</span>
-                                                <span v-else>▶</span>
+                                            {{ task.status }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ task.assigned_to }}</td>
+                                    <td class="px-4 py-3 text-right">
+                                        <div class="flex justify-end space-x-2">
+                                            <button
+                                                @click="editTask(task)"
+                                                class="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                @click="openAddTaskNoteModal(task)"
+                                                class="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                            >
+                                                Add Note
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div v-else class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="text-lg font-semibold text-gray-900">Tasks Due Today</h4>
+                            <button
+                                @click="selectedTab = 'tasks'"
+                                class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                            >
+                                View All Tasks →
+                            </button>
+                        </div>
+                        <p class="text-gray-400 text-sm">No tasks due today.</p>
+                    </div>
+
+                    <!-- Latest Emails Section -->
+                    <div v-if="canViewEmails" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="text-lg font-semibold text-gray-900">Latest Emails</h4>
+                            <button
+                                @click="selectedTab = 'emails'"
+                                class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                            >
+                                View All Emails →
+                            </button>
+                        </div>
+                        <div v-if="loadingEmails" class="text-center text-gray-600 text-sm animate-pulse py-4">
+                            Loading email data...
+                        </div>
+                        <div v-else-if="emailError" class="text-center text-red-600 text-sm font-medium py-4">
+                            {{ emailError }}
+                        </div>
+                        <div v-else-if="lastEmails.length" class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                <tr v-for="email in lastEmails" :key="email.id" class="hover:bg-gray-50 transition-colors">
+                                    <td class="px-4 py-3 text-sm text-gray-900">{{ email.subject }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ email.sender?.name || 'N/A' }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ new Date(email.created_at).toLocaleDateString() }}</td>
+                                    <td class="px-4 py-3 text-right">
+                                        <SecondaryButton
+                                            class="text-indigo-600 hover:text-indigo-800"
+                                            @click="viewEmail(email)"
+                                        >
+                                            View
+                                        </SecondaryButton>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p v-else class="text-gray-400 text-sm">No email communication found.</p>
+                    </div>
+
+                    <!-- Latest Notes Section -->
+                    <div v-if="canViewNotes" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="text-lg font-semibold text-gray-900">Latest Notes</h4>
+                            <div class="flex items-center gap-4">
+                                <button
+                                    @click="selectedTab = 'notes'"
+                                    class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                                >
+                                    View All Notes →
+                                </button>
+                                <div v-if="canDo('add_project_notes').value">
+                                    <PrimaryButton
+                                        class="bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                                        @click="openAddNoteModal"
+                                    >
+                                        Add Note
+                                    </PrimaryButton>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-if="latestNotes.length" class="space-y-4">
+                            <div v-for="note in latestNotes" :key="note.id" class="p-4 bg-gray-50 rounded-md shadow-sm hover:bg-gray-100 transition-colors">
+                                <div class="flex justify-between">
+                                    <div class="flex-grow">
+                                        <p class="text-sm" :class="{'text-gray-700': note.content !== '[Encrypted content could not be decrypted]', 'text-red-500 italic': note.content === '[Encrypted content could not be decrypted]'}">
+                                            {{ note.content }}
+                                            <span v-if="note.content === '[Encrypted content could not be decrypted]'" class="text-xs text-red-400 block mt-1">
+                                                (There was an issue decrypting this note. Please contact an administrator.)
                                             </span>
-                                        </button>
+                                        </p>
+                                        <div class="flex items-center mt-1">
+                                            <p class="text-xs text-gray-500">Added by {{ note.user?.name || 'Unknown' }} on {{ new Date(note.created_at).toLocaleDateString() }}</p>
+                                            <span v-if="note.reply_count > 0" class="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-800 text-xs rounded-full">
+                                                {{ note.reply_count }} {{ note.reply_count === 1 ? 'reply' : 'replies' }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div v-if="canViewNotes && note.chat_message_id && project.google_chat_id">
+                                        <SecondaryButton
+                                            class="text-sm text-indigo-600 hover:text-indigo-800"
+                                            @click="replyToNote(note)"
+                                        >
+                                            View
+                                        </SecondaryButton>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <p v-else class="text-gray-400 text-sm">No notes available.</p>
+                    </div>
 
-                                        <!-- Service Details (only visible when expanded) -->
-                                        <div v-if="expandedServiceId === service.service_id" class="p-3 bg-white">
-                                            <div class="text-sm text-gray-700">
-                                                <p><strong>Frequency:</strong> {{ service.frequency }}</p>
-                                                <p><strong>Start Date:</strong> {{ service.start_date || 'N/A' }}</p>
+                    <!-- Latest Standups Section -->
+                    <div v-if="canViewNotes && standupNotes.length > 0" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="text-lg font-semibold text-gray-900">Daily Standups</h4>
+                            <div class="flex items-center gap-4">
+                                <button
+                                    @click="selectedTab = 'notes'"
+                                    class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                                >
+                                    View All Standups →
+                                </button>
+                                <div v-if="canManageProjects || isSuperAdmin">
+                                    <PrimaryButton
+                                        class="bg-blue-600 hover:bg-blue-700 transition-colors"
+                                        @click="openStandupModal"
+                                    >
+                                        Submit Standup
+                                    </PrimaryButton>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            <div v-for="standup in latestStandups" :key="standup.id" class="p-4 bg-blue-50 rounded-md shadow-sm hover:bg-blue-100 transition-colors border-l-4 border-blue-500">
+                                <div v-if="standup.content === '[Encrypted content could not be decrypted]'" class="flex justify-between">
+                                    <div class="flex-grow">
+                                        <p class="text-sm text-red-500 italic">
+                                            {{ standup.content }}
+                                            <span class="text-xs text-red-400 block mt-1">
+                                                (There was an issue decrypting this standup. Please contact an administrator.)
+                                            </span>
+                                        </p>
+                                        <div class="flex items-center mt-1">
+                                            <p class="text-xs text-gray-500">Submitted by {{ standup.user?.name || 'Unknown' }} on {{ new Date(standup.created_at).toLocaleDateString() }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-else>
+                                    <!-- Parsed standup content -->
+                                    <div class="flex-grow">
+                                        <!-- Header with date -->
+                                        <div class="flex justify-between items-center mb-3">
+                                            <h3 class="text-md font-bold text-gray-800">Daily Standup</h3>
+                                            <span class="text-sm text-gray-600 bg-blue-100 px-2 py-1 rounded-full">{{ parseStandupContent(standup.content).date }}</span>
+                                        </div>
 
-                                                <div v-if="service.payment_breakdown" class="mt-2">
-                                                    <p class="font-medium text-gray-600">Payment Breakdown:</p>
-                                                    <ul class="list-disc ml-5 mt-1 text-xs text-gray-600">
-                                                        <!-- Legacy format display -->
-                                                        <template v-if="!Array.isArray(service.payment_breakdown)">
-                                                            <li>First: {{ service.payment_breakdown.first }}%</li>
-                                                            <li>Second: {{ service.payment_breakdown.second }}%</li>
-                                                            <li>Third: {{ service.payment_breakdown.third }}%</li>
-                                                        </template>
-                                                        <li v-else v-for="(payment, index) in service.payment_breakdown" :key="index">
-                                                            {{ payment.label }}: {{ payment.percentage }}%
-                                                        </li>
-                                                    </ul>
-                                                </div>
+                                        <!-- Yesterday section -->
+                                        <div class="mb-3">
+                                            <div class="flex items-center mb-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span class="font-semibold text-sm text-gray-700">Yesterday:</span>
                                             </div>
+                                            <p class="text-sm text-gray-700 ml-6">{{ parseStandupContent(standup.content).yesterday }}</p>
+                                        </div>
+
+                                        <!-- Today section -->
+                                        <div class="mb-3">
+                                            <div class="flex items-center mb-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                                </svg>
+                                                <span class="font-semibold text-sm text-gray-700">Today:</span>
+                                            </div>
+                                            <p class="text-sm text-gray-700 ml-6">{{ parseStandupContent(standup.content).today }}</p>
+                                        </div>
+
+                                        <!-- Blockers section -->
+                                        <div class="mb-2">
+                                            <div class="flex items-center mb-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                </svg>
+                                                <span class="font-semibold text-sm text-gray-700">Blockers:</span>
+                                            </div>
+                                            <p class="text-sm text-gray-700 ml-6">{{ parseStandupContent(standup.content).blockers }}</p>
+                                        </div>
+
+                                        <!-- Footer with user info -->
+                                        <div class="flex items-center mt-3 pt-2 border-t border-blue-200">
+                                            <p class="text-xs text-gray-500">Submitted by {{ standup.user?.name || 'Unknown' }} on {{ new Date(standup.created_at).toLocaleDateString() }}</p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <p v-else class="text-gray-400">No service details available.</p>
                         </div>
-                    </div>
-
-                    <!-- Clients Card -->
-                    <div v-if="canViewClientContacts" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
-                        <h4 class="text-lg font-semibold text-gray-900 mb-4">Clients</h4>
-                        <div v-if="project.clients && project.clients.length" class="space-y-3 text-sm text-gray-700">
-                            <div v-for="client in project.clients" :key="client.id" class="border-l-4 border-indigo-500 pl-3">
-                                <p><strong class="text-gray-900">{{ client.name }}</strong></p></div>
-                        </div>
-                        <p v-else class="text-gray-400 text-sm">No clients assigned.</p>
-                    </div>
-
-                    <!-- Assigned Team Card -->
-                    <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
-                        <h4 class="text-lg font-semibold text-gray-900 mb-4">Assigned Team</h4>
-                        <div v-if="project.users && project.users.length" class="space-y-3 text-sm text-gray-700">
-                            <div v-for="user in project.users" :key="user.id" class="border-l-4 border-blue-500 pl-3">
-                                <p><strong class="text-gray-900">{{ user.name }}</strong> ({{ user.pivot.role }})</p>
-                            </div>
-                        </div>
-                        <p v-else class="text-gray-400 text-sm">No team members assigned.</p>
                     </div>
                 </div>
 
                 <!-- Tasks Section -->
-                <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
+                <div v-if="selectedTab === 'tasks'" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
                     <div class="flex justify-between items-center mb-4">
                         <h4 class="text-lg font-semibold text-gray-900">Project Tasks</h4>
                         <div class="flex gap-2">
@@ -1730,7 +2181,7 @@ onMounted(async () => {
                 </div>
 
                 <!-- Email Communication Section -->
-                <div v-if="canViewEmails" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
+                <div v-if="canViewEmails && selectedTab === 'emails'" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
                     <div class="flex justify-between items-center mb-4">
                         <h4 class="text-lg font-semibold text-gray-900">Email Communication</h4>
                         <div v-if="canComposeEmails" class="flex gap-3">
@@ -1743,6 +2194,79 @@ onMounted(async () => {
                         </div>
                         <div v-if="emailSuccessMessage" class="mt-2 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded relative" role="alert">
                             <span class="block sm:inline">{{ emailSuccessMessage }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Email Filters -->
+                    <div class="mb-4 bg-gray-50 p-4 rounded-lg">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <!-- Type Filter -->
+                            <div>
+                                <label for="typeFilter" class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                                <select
+                                    id="typeFilter"
+                                    v-model="emailFilters.type"
+                                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                                    @change="applyFilters"
+                                >
+                                    <option value="">All Types</option>
+                                    <option value="sent">Sent</option>
+                                    <option value="received">Received</option>
+                                </select>
+                            </div>
+
+                            <!-- Date Range Filter -->
+                            <div>
+                                <label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                                <input
+                                    type="date"
+                                    id="startDate"
+                                    v-model="emailFilters.startDate"
+                                    class="mt-1 block w-full border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                                    @change="applyFilters"
+                                />
+                            </div>
+                            <div>
+                                <label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                                <input
+                                    type="date"
+                                    id="endDate"
+                                    v-model="emailFilters.endDate"
+                                    class="mt-1 block w-full border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                                    @change="applyFilters"
+                                />
+                            </div>
+
+                            <!-- Search Filter -->
+                            <div>
+                                <label for="searchFilter" class="block text-sm font-medium text-gray-700 mb-1">Search Content</label>
+                                <div class="mt-1 relative rounded-md shadow-sm">
+                                    <input
+                                        type="text"
+                                        id="searchFilter"
+                                        v-model="emailFilters.search"
+                                        class="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-10 sm:text-sm border-gray-300 rounded-md"
+                                        placeholder="Search in email content..."
+                                        @input="debounceSearch"
+                                    />
+                                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Reset Filters Button -->
+                        <div class="mt-3 flex justify-end">
+                            <button
+                                type="button"
+                                class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                @click="resetEmailFilters"
+                            >
+                                Reset Filters
+                            </button>
                         </div>
                     </div>
 
@@ -1760,6 +2284,7 @@ onMounted(async () => {
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
@@ -1769,6 +2294,17 @@ onMounted(async () => {
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ email.subject }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-700">{{ email.sender?.name || 'N/A' }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-700">{{ new Date(email.created_at).toLocaleDateString() }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-700">
+                                    <span
+                                        :class="{
+                                            'px-2 py-1 rounded-full text-xs font-medium': true,
+                                            'bg-blue-100 text-blue-800': email.type === 'sent',
+                                            'bg-purple-100 text-purple-800': email.type === 'received'
+                                        }"
+                                    >
+                                        {{ email.type ? email.type.toUpperCase() : 'N/A' }}
+                                    </span>
+                                </td>
                                 <td class="px-4 py-3 text-sm text-gray-700">
                                     <span
                                         :class="{
@@ -1798,11 +2334,19 @@ onMounted(async () => {
                 </div>
 
                 <!-- Notes Section -->
-                <div v-if="canViewNotes" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
+                <div v-if="canViewNotes && selectedTab === 'notes'" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
                     <div class="flex justify-between items-center mb-4">
-                        <h4 class="text-lg font-semibold text-gray-900">Notes</h4>
-                        <div v-if="canDo('add_project_notes').value">
+                        <h4 class="text-lg font-semibold text-gray-900">Project Notes</h4>
+                        <div class="flex gap-3">
                             <PrimaryButton
+                                v-if="canManageProjects || isSuperAdmin"
+                                class="bg-blue-600 hover:bg-blue-700 transition-colors"
+                                @click="openStandupModal"
+                            >
+                                Submit Standup
+                            </PrimaryButton>
+                            <PrimaryButton
+                                v-if="canDo('add_project_notes').value"
                                 class="bg-indigo-600 hover:bg-indigo-700 transition-colors"
                                 @click="openAddNoteModal"
                             >
@@ -1810,35 +2354,168 @@ onMounted(async () => {
                             </PrimaryButton>
                         </div>
                     </div>
-                    <div v-if="project.notes && project.notes.length" class="space-y-4">
-                        <div v-for="note in project.notes" :key="note.id" class="p-4 bg-gray-50 rounded-md shadow-sm hover:bg-gray-100 transition-colors">
-                            <div class="flex justify-between">
-                                <div class="flex-grow">
-                                    <p class="text-sm" :class="{'text-gray-700': note.content !== '[Encrypted content could not be decrypted]', 'text-red-500 italic': note.content === '[Encrypted content could not be decrypted]'}">
-                                        {{ note.content }}
-                                        <span v-if="note.content === '[Encrypted content could not be decrypted]'" class="text-xs text-red-400 block mt-1">
-                                            (There was an issue decrypting this note. Please contact an administrator.)
-                                        </span>
-                                    </p>
-                                    <div class="flex items-center mt-1">
-                                        <p class="text-xs text-gray-500">Added by {{ note.user?.name || 'Unknown' }} on {{ new Date(note.created_at).toLocaleDateString() }}</p>
-                                        <span v-if="note.reply_count > 0" class="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-800 text-xs rounded-full">
-                                            {{ note.reply_count }} {{ note.reply_count === 1 ? 'reply' : 'replies' }}
-                                        </span>
+
+                    <!-- Notes Filters -->
+                    <div class="mb-4 bg-gray-50 p-4 rounded-lg">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <!-- Date Range Filter -->
+                            <div>
+                                <label for="noteStartDate" class="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                                <input
+                                    type="date"
+                                    id="noteStartDate"
+                                    v-model="noteFilters.startDate"
+                                    class="mt-1 block w-full border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                                    @change="applyNoteFilters"
+                                />
+                            </div>
+                            <div>
+                                <label for="noteEndDate" class="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                                <input
+                                    type="date"
+                                    id="noteEndDate"
+                                    v-model="noteFilters.endDate"
+                                    class="mt-1 block w-full border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                                    @change="applyNoteFilters"
+                                />
+                            </div>
+
+                            <!-- Search Filter -->
+                            <div>
+                                <label for="noteSearchFilter" class="block text-sm font-medium text-gray-700 mb-1">Search Content</label>
+                                <div class="mt-1 relative rounded-md shadow-sm">
+                                    <input
+                                        type="text"
+                                        id="noteSearchFilter"
+                                        v-model="noteFilters.search"
+                                        class="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-10 sm:text-sm border-gray-300 rounded-md"
+                                        placeholder="Search in note content..."
+                                        @input="debounceNoteSearch"
+                                    />
+                                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                                        </svg>
                                     </div>
                                 </div>
-                                <div v-if="canViewNotes && note.chat_message_id && project.google_chat_id">
-                                    <SecondaryButton
-                                        class="text-sm text-indigo-600 hover:text-indigo-800"
-                                        @click="replyToNote(note)"
-                                    >
-                                        View
-                                    </SecondaryButton>
+                            </div>
+                        </div>
+
+                        <!-- Reset Filters Button -->
+                        <div class="mt-3 flex justify-end">
+                            <button
+                                type="button"
+                                class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                @click="resetNoteFilters"
+                            >
+                                Reset Filters
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Daily Standups Section -->
+                    <div v-if="standupNotes.length > 0" class="mb-8">
+                        <h5 class="text-md font-semibold text-gray-900 mb-4 border-b pb-2">Daily Standups</h5>
+                        <div class="space-y-4">
+                            <div v-for="standup in standupNotes" :key="standup.id" class="p-4 bg-blue-50 rounded-md shadow-sm hover:bg-blue-100 transition-colors border-l-4 border-blue-500">
+                                <div v-if="standup.content === '[Encrypted content could not be decrypted]'" class="flex justify-between">
+                                    <div class="flex-grow">
+                                        <p class="text-sm text-red-500 italic">
+                                            {{ standup.content }}
+                                            <span class="text-xs text-red-400 block mt-1">
+                                                (There was an issue decrypting this standup. Please contact an administrator.)
+                                            </span>
+                                        </p>
+                                        <div class="flex items-center mt-1">
+                                            <p class="text-xs text-gray-500">Submitted by {{ standup.user?.name || 'Unknown' }} on {{ new Date(standup.created_at).toLocaleDateString() }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-else>
+                                    <!-- Parsed standup content -->
+                                    <div class="flex-grow">
+                                        <!-- Header with date -->
+                                        <div class="flex justify-between items-center mb-3">
+                                            <h3 class="text-md font-bold text-gray-800">Daily Standup</h3>
+                                            <span class="text-sm text-gray-600 bg-blue-100 px-2 py-1 rounded-full">{{ parseStandupContent(standup.content).date }}</span>
+                                        </div>
+
+                                        <!-- Yesterday section -->
+                                        <div class="mb-3">
+                                            <div class="flex items-center mb-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span class="font-semibold text-sm text-gray-700">Yesterday:</span>
+                                            </div>
+                                            <p class="text-sm text-gray-700 ml-6">{{ parseStandupContent(standup.content).yesterday }}</p>
+                                        </div>
+
+                                        <!-- Today section -->
+                                        <div class="mb-3">
+                                            <div class="flex items-center mb-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                                </svg>
+                                                <span class="font-semibold text-sm text-gray-700">Today:</span>
+                                            </div>
+                                            <p class="text-sm text-gray-700 ml-6">{{ parseStandupContent(standup.content).today }}</p>
+                                        </div>
+
+                                        <!-- Blockers section -->
+                                        <div class="mb-2">
+                                            <div class="flex items-center mb-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                </svg>
+                                                <span class="font-semibold text-sm text-gray-700">Blockers:</span>
+                                            </div>
+                                            <p class="text-sm text-gray-700 ml-6">{{ parseStandupContent(standup.content).blockers }}</p>
+                                        </div>
+
+                                        <!-- Footer with user info -->
+                                        <div class="flex items-center mt-3 pt-2 border-t border-blue-200">
+                                            <p class="text-xs text-gray-500">Submitted by {{ standup.user?.name || 'Unknown' }} on {{ new Date(standup.created_at).toLocaleDateString() }}</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <p v-else class="text-gray-400 text-sm">No notes available.</p>
+
+                    <!-- Regular Notes Section -->
+                    <div>
+                        <h5 class="text-md font-semibold text-gray-900 mb-4 border-b pb-2">Notes</h5>
+                        <div v-if="regularNotes.length" class="space-y-4">
+                            <div v-for="note in regularNotes" :key="note.id" class="p-4 bg-gray-50 rounded-md shadow-sm hover:bg-gray-100 transition-colors">
+                                <div class="flex justify-between">
+                                    <div class="flex-grow">
+                                        <p class="text-sm" :class="{'text-gray-700': note.content !== '[Encrypted content could not be decrypted]', 'text-red-500 italic': note.content === '[Encrypted content could not be decrypted]'}">
+                                            {{ note.content }}
+                                            <span v-if="note.content === '[Encrypted content could not be decrypted]'" class="text-xs text-red-400 block mt-1">
+                                                (There was an issue decrypting this note. Please contact an administrator.)
+                                            </span>
+                                        </p>
+                                        <div class="flex items-center mt-1">
+                                            <p class="text-xs text-gray-500">Added by {{ note.user?.name || 'Unknown' }} on {{ new Date(note.created_at).toLocaleDateString() }}</p>
+                                            <span v-if="note.reply_count > 0" class="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-800 text-xs rounded-full">
+                                                {{ note.reply_count }} {{ note.reply_count === 1 ? 'reply' : 'replies' }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div v-if="note.chat_message_id && project.google_chat_id">
+                                        <SecondaryButton
+                                            class="text-sm text-indigo-600 hover:text-indigo-800"
+                                            @click="replyToNote(note)"
+                                        >
+                                            View
+                                        </SecondaryButton>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <p v-else class="text-gray-400 text-sm">No notes available.</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2418,6 +3095,14 @@ onMounted(async () => {
             @saved="handleMeetingSaved"
             :projectId="project.id"
             :projectUsers="project.users || []"
+        />
+
+        <!-- Standup Modal -->
+        <StandupModal
+            :show="showStandupModal"
+            @close="showStandupModal = false"
+            @standupAdded="fetchProjectNotes"
+            :projectId="project.id"
         />
     </AuthenticatedLayout>
 </template>

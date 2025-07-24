@@ -149,9 +149,9 @@ onMounted(() => {
                                                     <Link :href="`/projects/${project.id}`" class="text-xs bg-blue-500 hover:bg-blue-700 text-white py-1 px-2 rounded">
                                                         View
                                                     </Link>
-                                                    <Link :href="`/emails/compose?project_id=${project.id}`" class="text-xs bg-green-500 hover:bg-green-700 text-white py-1 px-2 rounded">
-                                                        Email
-                                                    </Link>
+<!--                                                    <Link :href="`/emails/compose?project_id=${project.id}`" class="text-xs bg-green-500 hover:bg-green-700 text-white py-1 px-2 rounded">-->
+<!--                                                        Email-->
+<!--                                                    </Link>-->
                                                     <button @click="openNotesModal(project.id)" class="text-xs bg-purple-500 hover:bg-purple-700 text-white py-1 px-2 rounded">
                                                         Notes
                                                     </button>
@@ -166,14 +166,14 @@ onMounted(() => {
                 </div>
 
                 <!-- Unread Email Card -->
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                    <div class="p-6 text-gray-900">
-                        <h3 class="text-lg font-medium text-gray-900">Unread Email</h3>
-                        <p class="mt-1 text-sm text-gray-600">
-                            You have 0 unread emails.
-                        </p>
-                    </div>
-                </div>
+<!--                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">-->
+<!--                    <div class="p-6 text-gray-900">-->
+<!--                        <h3 class="text-lg font-medium text-gray-900">Unread Email</h3>-->
+<!--                        <p class="mt-1 text-sm text-gray-600">-->
+<!--                            You have 0 unread emails.-->
+<!--                        </p>-->
+<!--                    </div>-->
+<!--                </div>-->
 
                 <!-- Due Tasks Card -->
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">

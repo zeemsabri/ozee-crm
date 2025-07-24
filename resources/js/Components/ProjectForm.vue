@@ -27,6 +27,7 @@ import SelectDropdown from '@/Components/SelectDropdown.vue';
 import MultiSelectWithRoles from '@/Components/MultiSelectWithRoles.vue';
 import axios from 'axios';
 import { useAuthUser, useProjectRole, usePermissions, useProjectPermissions, fetchProjectPermissions } from '@/Directives/permissions';
+import { success, error, warning, info } from '@/Utils/notification';
 
 // Use the permission utilities
 const authUser = useAuthUser();
@@ -690,7 +691,7 @@ const updateBasicInfo = async () => {
         }
 
         // Show success message
-        alert('Basic information updated successfully!');
+        success('Basic information updated successfully!');
     } catch (error) {
         handleError(error, 'Failed to update basic information.');
     }
@@ -719,7 +720,7 @@ const updateTransactions = async () => {
         const response = await window.axios.put(`/api/projects/${projectForm.id}/sections/transactions`, formData);
 
         // Show success message
-        alert('Transactions updated successfully!');
+        success('Transactions updated successfully!');
     } catch (error) {
         handleError(error, 'Failed to update transactions.');
     }
@@ -739,7 +740,7 @@ const updateNotes = async () => {
         const response = await window.axios.put(`/api/projects/${projectForm.id}/sections/notes`, formData);
 
         // Show success message
-        alert('Notes updated successfully!');
+        success('Notes updated successfully!');
     } catch (error) {
         handleError(error, 'Failed to update notes.');
     }
@@ -769,7 +770,7 @@ const submitForm = async () => {
                 break;
             case 'services':
                 // Services & Payment is now handled by the ServicesAndPaymentForm component
-                alert('Please use the Update Services & Payment button in the Services tab.');
+                warning('Please use the Update Services & Payment button in the Services tab.');
                 break;
             case 'transactions':
                 await updateTransactions();

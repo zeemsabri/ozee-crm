@@ -13,6 +13,7 @@ import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import NotesModal from '@/Components/NotesModal.vue';
 import { useAuthUser, usePermissions, useProjectRole, vPermission, registerPermissionDirective } from '@/Directives/permissions';
+import { success, error, warning, info } from '@/Utils/notification';
 
 // Access user from permissions utility
 const authUser = useAuthUser();
@@ -204,7 +205,7 @@ const fetchInitialData = async () => {
 const openCreateModal = () => {
     // Check if user has permission to create projects
     if (!canDo('create_projects').value) {
-        alert('You do not have permission to create projects.');
+        error('You do not have permission to create projects.');
         return;
     }
 
@@ -216,7 +217,7 @@ const openCreateModal = () => {
 const openEditModal = (project) => {
     // Check if user has permission to manage projects (using global permissions)
     if (!canDo('manage_projects').value) {
-        alert('You do not have permission to edit this project.');
+        error('You do not have permission to edit this project.');
         return;
     }
 
@@ -234,7 +235,7 @@ const handleProjectSubmit = (project) => {
     }
     showCreateModal.value = false;
     showEditModal.value = false;
-    alert(project.id ? 'Project updated successfully!' : 'Project created successfully!');
+    success(project.id ? 'Project updated successfully!' : 'Project created successfully!');
     fetchInitialData();
 };
 
@@ -242,7 +243,7 @@ const handleProjectSubmit = (project) => {
 const confirmProjectDeletion = (project) => {
     // Check if user has permission to delete projects (using global permissions)
     if (!canDo('delete_projects').value) {
-        alert('You do not have permission to delete this project.');
+        error('You do not have permission to delete this project.');
         return;
     }
 
@@ -271,7 +272,7 @@ const deleteProject = async () => {
         projects.value = projects.value.filter(p => p.id !== projectId);
         showDeleteModal.value = false;
         projectToDelete.value = null;
-        alert('Project deleted successfully!');
+        success('Project deleted successfully!');
     } catch (error) {
         generalError.value = 'Failed to delete project.';
         if (error.response && error.response.data.message) {
@@ -285,7 +286,7 @@ const deleteProject = async () => {
 const openAddTransactionModal = async (project) => {
     // Check if user has permission to manage transactions (using global permissions)
     if (!canDo('manage_project_transactions').value) {
-        alert('You do not have permission to add transactions to this project.');
+        error('You do not have permission to add transactions to this project.');
         return;
     }
 
@@ -337,7 +338,7 @@ const addTransaction = async () => {
     try {
         await window.axios.post(`/api/projects/${projectId}/expenses`, { expenses: [transactionForm] });
         showAddTransactionModal.value = false;
-        alert('Transaction added successfully!');
+        success('Transaction added successfully!');
         fetchInitialData();
     } catch (error) {
         if (error.response && error.response.status === 422) {
@@ -355,7 +356,7 @@ const addTransaction = async () => {
 const openAddNoteModal = (project) => {
     // Check if user has permission to add notes (using global permissions)
     if (!canDo('add_project_notes').value) {
-        alert('You do not have permission to add notes to this project.');
+        error('You do not have permission to add notes to this project.');
         return;
     }
 
@@ -393,7 +394,7 @@ const addNote = async () => {
     try {
         await window.axios.post(`/api/projects/${projectId}/notes`, { notes: [{ content: noteForm.content }] });
         showAddNoteModal.value = false;
-        alert('Note added successfully!');
+        success('Note added successfully!');
         fetchInitialData();
     } catch (error) {
         if (error.response && error.response.status === 422) {
@@ -411,7 +412,7 @@ const addNote = async () => {
 const openConvertPaymentModal = (project) => {
     // Check if user has permission to manage services and payments (using global permissions)
     if (!canDo('manage_project_services_and_payments').value) {
-        alert('You do not have permission to convert payment type for this project.');
+        error('You do not have permission to convert payment type for this project.');
         return;
     }
 
@@ -454,7 +455,7 @@ const convertPaymentType = async () => {
         }
         showConvertPaymentModal.value = false;
         projectToConvert.value = null;
-        alert('Payment type converted successfully!');
+        success('Payment type converted successfully!');
         fetchInitialData();
     } catch (error) {
         generalError.value = 'Failed to convert payment type.';

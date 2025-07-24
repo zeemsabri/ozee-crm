@@ -15,6 +15,7 @@ class ProjectNote extends Model
         'user_id',
         'chat_message_id',
         'parent_id',
+        'type',
     ];
 
     public function project()

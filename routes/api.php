@@ -87,6 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('projects/{project}/sections/transactions', [ProjectSectionController::class, 'getTransactions']);
     Route::get('projects/{project}/sections/documents', [ProjectSectionController::class, 'getDocuments']);
     Route::get('projects/{project}/sections/notes', [ProjectSectionController::class, 'getNotes']);
+    Route::post('projects/{project}/standup', [ProjectSectionController::class, 'addStandup']);
     Route::get('projects/{project}/users', [ProjectSectionController::class, 'getProjectUsers']);
     Route::get('projects/{project}/clients', [ProjectSectionController::class, 'getProjectClients']);
     Route::get('projects/{project}/contract-details', [ProjectSectionController::class, 'getContractDetails']);

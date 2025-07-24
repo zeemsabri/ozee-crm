@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\ProjectNote;
+use App\Services\GoogleChatService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
@@ -12,6 +13,12 @@ use Illuminate\Support\Facades\Log;
 
 class ProjectSectionController extends Controller
 {
+    protected $googleChatService;
+
+    public function __construct(GoogleChatService $googleChatService)
+    {
+        $this->googleChatService = $googleChatService;
+    }
     /**
      * Get basic project information
      *
@@ -399,9 +406,10 @@ class ProjectSectionController extends Controller
      * Get project notes
      *
      * @param Project $project
+     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function getNotes(Project $project)
+    public function getNotes(Project $project, Request $request)
     {
         $user = Auth::user();
 
@@ -415,13 +423,26 @@ class ProjectSectionController extends Controller
             return response()->json(['message' => 'Unauthorized. You do not have permission to view notes.'], 403);
         }
 
-        // Load only parent notes (where parent_id is null)
-        $project->load(['notes' => function($query) {
-            $query->whereNull('parent_id');
-        }]);
+        // Build query for notes
+        $notesQuery = $project->notes()->with('user')->whereNull('parent_id');
+
+        // Apply date range filters if provided
+        if ($request->has('start_date') && !empty($request->start_date)) {
+            $notesQuery->whereDate('created_at', '>=', $request->start_date);
+        }
+
+        if ($request->has('end_date') && !empty($request->end_date)) {
+            $notesQuery->whereDate('created_at', '<=', $request->end_date);
+        }
+
+        // Order by creation date (newest first)
+        $notesQuery->orderBy('created_at', 'desc');
+
+        // Get the notes with their associated users
+        $notes = $notesQuery->get();
 
         // Decrypt note content and add reply count
-        $project->notes->each(function ($note) {
+        $notes->each(function ($note) {
             try {
                 $note->content = Crypt::decryptString($note->content);
             } catch (\Exception $e) {
@@ -434,7 +455,22 @@ class ProjectSectionController extends Controller
             $note->reply_count = $note->replyCount();
         });
 
-        return response()->json($project->notes);
+        // Apply search filter if provided (after decryption)
+        if ($request->has('search') && !empty($request->search)) {
+            $searchTerm = strtolower($request->search);
+            $notes = $notes->filter(function($note) use ($searchTerm) {
+
+                // Skip notes that couldn't be decrypted
+                if ($note->content === '[Encrypted content could not be decrypted]') {
+                    return false;
+                }
+                return str_contains(strtolower($note->content), $searchTerm);
+            });
+
+            $notes = $notes->values();
+        }
+
+        return response()->json($notes);
     }
 
     /**
@@ -729,5 +765,85 @@ class ProjectSectionController extends Controller
 
         // Check global permissions
         return $user->hasPermission('manage_project_financial');
+    }
+
+    /**
+     * Add a daily standup note to the project and send it to Google Space
+     *
+     * @param Request $request
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function addStandup(Request $request, Project $project)
+    {
+        $user = Auth::user();
+
+        // Check if user has access to the project
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
+        }
+
+        // Check if user has permission to add project notes
+        if (!$this->canViewProjectNotes($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to add notes.'], 403);
+        }
+
+        // Validate the request data
+        $validated = $request->validate([
+            'yesterday' => 'required|string',
+            'today' => 'required|string',
+            'blockers' => 'nullable|string',
+        ]);
+
+        // Format the standup content
+        $formattedContent = "**Daily Standup - " . date('F j, Y') . "**\n\n";
+        $formattedContent .= "**Yesterday:** " . $validated['yesterday'] . "\n\n";
+        $formattedContent .= "**Today:** " . $validated['today'] . "\n\n";
+        $formattedContent .= "**Blockers:** " . ($validated['blockers'] ?? 'None');
+
+        // Create the note with type 'standup'
+        $note = $project->notes()->create([
+            'content' => Crypt::encryptString($formattedContent),
+            'user_id' => $user->id,
+            'type' => 'standup',
+        ]);
+
+        // Send notification to Google Chat space if the project has one
+        if ($project->google_chat_id) {
+            try {
+                // Format the message for Google Chat
+                $messageText = "🏃‍♂️ *Daily Standup from {$user->name} - " . date('F j, Y') . "*\n\n";
+                $messageText .= "💼 *Yesterday:* " . $validated['yesterday'] . "\n\n";
+                $messageText .= "📝 *Today:* " . $validated['today'] . "\n\n";
+                $messageText .= "🚧 *Blockers:* " . ($validated['blockers'] ?? 'None');
+
+                $response = $this->googleChatService->sendMessage($project->google_chat_id, $messageText);
+
+                // Save the message ID to the note
+                $note->chat_message_id = $response['name'] ?? null;
+                $note->save();
+
+                Log::info('Sent standup notification to Google Chat space', [
+                    'project_id' => $project->id,
+                    'space_name' => $project->google_chat_id,
+                    'user_id' => $user->id,
+                    'chat_message_id' => $response['name'] ?? null
+                ]);
+            } catch (\Exception $e) {
+                // Log the error but don't fail the note creation
+                Log::error('Failed to send standup notification to Google Chat space', [
+                    'project_id' => $project->id,
+                    'space_name' => $project->google_chat_id,
+                    'error' => $e->getMessage(),
+                    'exception' => $e
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Standup submitted successfully',
+            'note' => $note
+        ], 201);
     }
 }

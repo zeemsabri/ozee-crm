@@ -7,6 +7,7 @@ import InputError from '@/Components/InputError.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import axios from 'axios';
+import { success, error } from '@/Utils/notification';
 
 const props = defineProps({
     show: Boolean,
@@ -46,6 +47,7 @@ const addNote = async () => {
     generalError.value = '';
     try {
         await window.axios.post(`/api/projects/${noteForm.project_id}/notes`, { notes: [{ content: noteForm.content }] });
+        success('Note added successfully!');
         emit('noteAdded');
         emit('close');
     } catch (error) {
@@ -53,8 +55,10 @@ const addNote = async () => {
             errors.value = error.response.data.errors;
         } else if (error.response && error.response.data.message) {
             generalError.value = error.response.data.message;
+            error(error.response.data.message);
         } else {
             generalError.value = 'Failed to add note.';
+            error('Failed to add note.');
             console.error('Error adding note:', error);
         }
     }

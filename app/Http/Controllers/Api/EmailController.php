@@ -269,7 +269,7 @@ class EmailController extends Controller
 
         $user = Auth::user();
 
-        if ($email->status !== 'pending_approval') {
+        if (!in_array($email->status, ['pending_approval', 'pending_approval_received'])  ) {
             return response()->json(['message' => 'Email is not in pending approval status.'], 400);
         }
 
@@ -282,16 +282,19 @@ class EmailController extends Controller
             ]);
 
             if (isset($validated['project_id'], $validated['client_id'])) {
+
                 $project = Project::findOrFail($validated['project_id']);
+
                 if ($project->client_id !== (int)$validated['client_id']) {
                     throw ValidationException::withMessages(['client_id' => 'The selected client is not assigned to this project.']);
                 }
+
                 $conversation = Conversation::firstOrCreate(
                     [
-                        'project_id' => $validated['project_id'],
                         'client_id' => $validated['client_id'],
                     ],
                     [
+                        'project_id' => $validated['project_id'],
                         'subject' => $validated['subject'] ?? $email->subject,
                         'contractor_id' => $email->conversation->contractor_id,
                         'last_activity_at' => now(),
@@ -303,24 +306,32 @@ class EmailController extends Controller
 
             $email->update($validated);
             $recipientClientEmail = $email->conversation->client->email;
-            $gmailMessageId = $this->gmailService->sendEmail(
-                $recipientClientEmail,
-                $email->subject,
-                $email->body
-            );
 
-            $email->update([
-                'status' => 'sent',
-                'approved_by' => $user->id,
-                'sent_at' => now(),
-                'message_id' => $gmailMessageId,
-            ]);
+            if($email->type === 'sent') {
+                $gmailMessageId = $this->gmailService->sendEmail(
+                    $recipientClientEmail,
+                    $email->subject,
+                    $email->body
+                );
 
-            Log::info('Email edited and approved', [
-                'email_id' => $email->id,
-                'gmail_message_id' => $gmailMessageId,
-                'approved_by' => $user->id,
-            ]);
+                $email->update([
+                    'status' => 'sent',
+                    'approved_by' => $user->id,
+                    'sent_at' => now(),
+                    'message_id' => $gmailMessageId,
+                ]);
+
+                Log::info('Email edited and approved', [
+                    'email_id' => $email->id,
+                    'gmail_message_id' => $gmailMessageId,
+                    'approved_by' => $user->id,
+                ]);
+            }
+
+
+
+
+
             return response()->json(['message' => 'Email updated and approved successfully!', 'email' => $email->load('approver')]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -654,7 +665,7 @@ class EmailController extends Controller
      * Only returns Subject, From, Date, Status
      * Accessible by: Super Admin, Manager (all); Contractor (if assigned to project)
      */
-    public function getProjectEmailsSimplified($projectId)
+    public function getProjectEmailsSimplified($projectId, Request $request)
     {
         $user = Auth::user();
         $role = $user->getRoleForProject($projectId);
@@ -671,11 +682,35 @@ class EmailController extends Controller
         $conversationIds = $conversations->pluck('id')->toArray();
 
         // Get all emails for these conversations
-        $emails = Email::with(['sender:id,name'])
+        $query = Email::with(['sender:id,name'])
             ->whereIn('status', ['approved', 'pending_approval', 'sent'])
-            ->whereIn('conversation_id', $conversationIds)
-            ->orderBy('created_at', 'desc')
-            ->get();
+            ->whereIn('conversation_id', $conversationIds);
+
+        // Apply type filter if provided
+        if ($request->has('type') && !empty($request->type)) {
+            $query->where('type', $request->type);
+        }
+
+        // Apply date range filters if provided
+        if ($request->has('start_date') && !empty($request->start_date)) {
+            $query->whereDate('created_at', '>=', $request->start_date);
+        }
+
+        if ($request->has('end_date') && !empty($request->end_date)) {
+            $query->whereDate('created_at', '<=', $request->end_date);
+        }
+
+        // Apply search filter if provided
+        if ($request->has('search') && !empty($request->search)) {
+            $searchTerm = $request->search;
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('subject', 'like', "%{$searchTerm}%")
+                  ->orWhere('body', 'like', "%{$searchTerm}%");
+            });
+        }
+
+        // Get the filtered emails
+        $emails = $query->orderBy('created_at', 'desc')->get();
 
         // Transform the data to include only the required fields
         $simplifiedEmails = $emails->map(function ($email) {
@@ -688,6 +723,7 @@ class EmailController extends Controller
                 ] : null,
                 'created_at' => $email->created_at,
                 'status' => $email->status,
+                'type'  => $email->type,
                 // Include body for the modal view
                 'body' => $email->body,
                 // Include additional fields needed for the modal view
