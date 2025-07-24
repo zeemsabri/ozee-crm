@@ -1,5 +1,6 @@
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import AvailabilityModal from '@/Components/Availability/AvailabilityModal.vue';
 import axios from 'axios';
@@ -9,6 +10,11 @@ const shouldBlock = ref(false);
 const loading = ref(true);
 const showAvailabilityModal = ref(false);
 const nextWeekDates = ref([]);
+
+// Get current user ID from auth
+const currentUserId = computed(() => {
+    return usePage().props.auth.user?.id || null;
+});
 
 // Ensure authentication headers are set
 const ensureAuthHeaders = () => {
@@ -163,6 +169,7 @@ onUnmounted(() => {
                 :show="showAvailabilityModal"
                 :next-week-dates="nextWeekDates"
                 :date="nextWeekDates.length > 0 ? nextWeekDates[0].value : ''"
+                :userId="currentUserId"
                 @close="showAvailabilityModal = false"
                 @availability-saved="handleAvailabilitySaved"
             />

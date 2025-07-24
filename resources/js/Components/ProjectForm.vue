@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, watch, computed, onMounted } from 'vue';
 import ServicesAndPaymentForm from '@/Components/ServicesAndPaymentForm.vue';
+import ProjectTransactions from '@/Components/ProjectTransactions.vue';
 /**
  * Debounce utility function to delay execution of a function
  * This helps improve user experience by preventing rapid, repeated function calls
@@ -99,7 +100,7 @@ const canViewProjectServicesAndPayments = canView('project_services_and_payments
 const canViewProjectNotes = canView('project_notes', userProjectRole);
 const canViewProjectUsers = canView('project_users', userProjectRole);
 const canViewProjectClients = canView('project_clients', userProjectRole);
-const canViewProjectTransactions = canView('view_project_transactions', userProjectRole);
+const canViewProjectTransactions = canView('project_transactions', userProjectRole);
 // Tab management
 const activeTab = ref('basic');
 
@@ -157,13 +158,8 @@ const switchTab = (tabName) => {
                 }
                 break;
             case 'transactions':
-                if (canManageProjectExpenses.value || canManageProjectIncome.value) {
-                    fetchTransactionsData(projectForm.id).finally(() => {
-                        loading.value = false;
-                    });
-                } else {
-                    loading.value = false;
-                }
+                // Transactions are now handled by the ProjectTransactions component
+                loading.value = false;
                 break;
             case 'documents':
                 if (canViewProjectDocuments.value) {
@@ -363,28 +359,6 @@ const fetchServicesAndPaymentData = async (projectId) => {
     }
 };
 
-// Function to fetch transactions data
-const fetchTransactionsData = async (projectId) => {
-    try {
-        const response = await window.axios.get(`/api/projects/${projectId}/sections/transactions`);
-        const transactions = response.data;
-
-        // Update transactions
-        projectForm.transactions = transactions.map(transaction => ({
-            description: transaction.description,
-            amount: transaction.amount,
-            user_id: transaction.user_id,
-            hours_spent: transaction.hours_spent,
-            type: transaction.type || 'expense',
-        }));
-
-        return transactions;
-    } catch (error) {
-        console.error('Error fetching transactions data:', error);
-        generalError.value = 'Failed to fetch transactions data.';
-        return null;
-    }
-};
 
 // Function to fetch documents data
 const fetchDocumentsData = async (projectId) => {
@@ -440,9 +414,7 @@ const fetchProjectData = async (projectId) => {
                 }
                 break;
             case 'transactions':
-                if (canManageProjectExpenses.value || canManageProjectIncome.value) {
-                    await fetchTransactionsData(projectId);
-                }
+                // Transactions are now handled by the ProjectTransactions component
                 break;
             case 'documents':
                 if (canViewProjectDocuments.value) {
@@ -540,7 +512,7 @@ const projectForm = reactive({
     google_drive_link: '',
     payment_type: 'one_off',
     user_ids: [],
-    transactions: [], // Renamed from expenses
+    transactions: [], // Now handled by ProjectTransactions component
     notes: [],
 });
 
@@ -598,9 +570,12 @@ watch(() => props.project, (newProject) => {
     // We'll fetch this data when the client tab is opened
     projectForm.user_ids = [];
 
+    // Transactions are now handled by the ProjectTransactions component
+    // Keep this for backward compatibility
     projectForm.transactions = newProject.transactions ? newProject.transactions.map(transaction => ({
         description: transaction.description,
         amount: transaction.amount,
+        currency: transaction.currency || 'USD',
         user_id: transaction.user_id,
         hours_spent: transaction.hours_spent,
         type: transaction.type || 'expense',
@@ -698,33 +673,6 @@ const updateBasicInfo = async () => {
 };
 
 
-// Function to update transactions
-const updateTransactions = async () => {
-    errors.value = {};
-    generalError.value = '';
-    try {
-        // Create a clean copy of the form data with only transactions
-        const formData = {
-            transactions: projectForm.transactions,
-        };
-
-        // Filter transactions based on permissions
-        if (!canManageProjectExpenses.value) {
-            formData.transactions = formData.transactions.filter(t => t.type !== 'expense');
-        }
-        if (!canManageProjectIncome.value) {
-            formData.transactions = formData.transactions.filter(t => t.type !== 'income');
-        }
-
-        // Update the project
-        const response = await window.axios.put(`/api/projects/${projectForm.id}/sections/transactions`, formData);
-
-        // Show success message
-        success('Transactions updated successfully!');
-    } catch (error) {
-        handleError(error, 'Failed to update transactions.');
-    }
-};
 
 // Function to update notes
 const updateNotes = async () => {
@@ -773,7 +721,8 @@ const submitForm = async () => {
                 warning('Please use the Update Services & Payment button in the Services tab.');
                 break;
             case 'transactions':
-                await updateTransactions();
+                // Transactions are now handled by the ProjectTransactions component
+                warning('Please use the Update Transactions button in the Transactions tab.');
                 break;
             case 'notes':
                 await updateNotes();
@@ -1279,80 +1228,10 @@ const uploadDocuments = async () => {
 
             <!-- Tab 4: Transactions -->
             <div v-if="activeTab === 'transactions' && canViewProjectTransactions">
-                <div class="mb-4">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-medium">Transactions</h3>
-                        <div class="text-right">
-                            <div class="text-lg font-medium">
-                                Total Income: ${{
-                                    projectForm.transactions
-                                        .filter(t => t.type === 'income')
-                                        .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0)
-                                        .toFixed(2)
-                                }}
-                            </div>
-                            <div class="text-lg font-medium">
-                                Total Expenses: ${{
-                                    projectForm.transactions
-                                        .filter(t => t.type === 'expense')
-                                        .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0)
-                                        .toFixed(2)
-                                }}
-                            </div>
-                            <div class="text-xl font-bold mt-1">
-                                Net: ${{
-                                    (
-                                        projectForm.transactions
-                                            .filter(t => t.type === 'income')
-                                            .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0) -
-                                        projectForm.transactions
-                                            .filter(t => t.type === 'expense')
-                                            .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0)
-                                    ).toFixed(2)
-                                }}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-4" v-if="canViewProjectTransactions">
-                        <div v-for="(transaction, index) in projectForm.transactions" :key="index" class="flex items-center mb-2 p-2 border rounded">
-                            <select v-model="transaction.type" class="mr-2 border-gray-300 rounded-md">
-                                <option  v-if="canManageProjectIncome"  value="income">Income</option>
-                                <option v-if="canManageProjectExpenses" value="expense">Expense</option>
-                            </select>
-                            <TextInput v-model="transaction.description" placeholder="Description" class="mr-2 flex-grow" />
-                            <TextInput v-model.number="transaction.amount" type="number" step="0.01" placeholder="Amount" class="mr-2 w-24" />
-                            <select v-if="transaction.type === 'expense'" v-model="transaction.user_id" class="mr-2 border-gray-300 rounded-md">
-                                <option value="" disabled>Select User (Optional)</option>
-                                <option v-for="user in (Array.isArray(users) ? users.filter(u => {
-                                            // Check if user is in projectForm.user_ids
-                                            return projectForm.user_ids.some(selectedUser => selectedUser.id === u.id);
-                                        }) : [])"
-                                        :key="user.id"
-                                        :value="user.id">{{ user.name }}</option>
-                            </select>
-                            <TextInput v-if="transaction.type === 'expense'" v-model.number="transaction.hours_spent" type="number" step="0.01" placeholder="Hours" class="mr-2 w-20" />
-                            <button type="button" class="text-red-600" @click="projectForm.transactions.splice(index, 1)">
-                                Remove
-                            </button>
-                        </div>
-                        <div class="flex mt-2">
-                            <SecondaryButton @click="projectForm.transactions.push({ description: '', amount: '', user_id: null, hours_spent: '', type: 'expense' })">
-                                Add Transaction
-                            </SecondaryButton>
-                        </div>
-                    </div>
-                    <InputError :message="errors.transactions ? errors.transactions[0] : ''" class="mt-2" />
-                </div>
-
-                <div v-if="canManageProjectExpenses || canManageProjectIncome" class="mt-6 flex justify-end">
-                    <PrimaryButton
-                        @click="updateTransactions"
-                        :disabled="!projectForm.id || (!canManageProjectExpenses && !canManageProjectIncome)"
-                    >
-                        Update Transactions
-                    </PrimaryButton>
-                </div>
+                <ProjectTransactions
+                    :projectId="projectForm.id"
+                    :userProjectRole="userProjectRole.value"
+                />
             </div>
 
             <!-- Tab 5: Documents -->

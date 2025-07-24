@@ -363,6 +363,7 @@ watch(() => props.userId, (newValue) => {
         <AvailabilityModal
             :show="showAvailabilityModal"
             :date="selectedDate"
+            :userId="selectedUserId"
             @close="showAvailabilityModal = false"
             @availability-saved="handleAvailabilitySaved"
         />

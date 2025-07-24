@@ -164,6 +164,79 @@ class ProjectSectionController extends Controller
     }
 
     /**
+     * Update project transactions
+     *
+     * @param Request $request
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function updateTransactions(Request $request, Project $project)
+    {
+        $user = Auth::user();
+
+        // Check if user has access to the project
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
+        }
+
+        // Check if user has permission to manage project expenses or income
+        if (!$this->canManageProjectExpenses($user, $project) && !$this->canManageProjectIncome($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to manage transactions.'], 403);
+        }
+
+        // Validate the request data
+        $validatedData = $request->validate([
+            'transactions' => 'required|array',
+            'transactions.*.description' => 'required|string',
+            'transactions.*.amount' => 'required|numeric',
+            'transactions.*.currency' => 'nullable|string',
+            'transactions.*.user_id' => 'nullable|exists:users,id',
+            'transactions.*.hours_spent' => 'nullable|numeric',
+            'transactions.*.type' => 'required|in:expense,income',
+        ]);
+
+        // Get the transactions from the validated data
+        $transactions = $validatedData['transactions'];
+
+        // Filter transactions based on user permissions
+        if (!$this->canManageProjectExpenses($user, $project)) {
+            $transactions = array_filter($transactions, function ($transaction) {
+                return $transaction['type'] !== 'expense';
+            });
+        }
+        if (!$this->canManageProjectIncome($user, $project)) {
+            $transactions = array_filter($transactions, function ($transaction) {
+                return $transaction['type'] !== 'income';
+            });
+        }
+
+        // Delete existing transactions
+        $project->transactions()->delete();
+
+        // Create new transactions
+        foreach ($transactions as $transaction) {
+            $project->transactions()->create([
+                'description' => $transaction['description'],
+                'amount' => $transaction['amount'],
+                'user_id' => $transaction['user_id'] ?? null,
+                'hours_spent' => $transaction['hours_spent'] ?? null,
+                'type' => $transaction['type'],
+                // Include currency if it's in the transaction data
+                'currency' => $transaction['currency'] ?? null,
+            ]);
+        }
+
+        // Load the updated transactions
+        $project->load('transactions');
+
+        // Return the updated transactions
+        return response()->json([
+            'message' => 'Transactions updated successfully',
+            'transactions' => $project->transactions,
+        ]);
+    }
+
+    /**
      * Get project clients
      *
      * @param Project $project

@@ -34,6 +34,11 @@ const props = defineProps({
     nextWeekDates: {
         type: Array,
         default: () => []
+    },
+    // User ID to fetch availabilities for
+    userId: {
+        type: Number,
+        default: null
     }
 });
 
@@ -107,11 +112,12 @@ const fetchExistingAvailabilities = async () => {
         const startDate = nextWeekDatesComputed.value[0].value;
         const endDate = nextWeekDatesComputed.value[nextWeekDatesComputed.value.length - 1].value;
 
-        // Fetch existing availabilities for the date range
+        // Fetch existing availabilities for the date range for a specific user
         const response = await axios.get('/api/availabilities', {
             params: {
                 start_date: startDate,
-                end_date: endDate
+                end_date: endDate,
+                user_id: props.userId // This will ensure we only fetch availabilities for the specified user
             }
         });
 
