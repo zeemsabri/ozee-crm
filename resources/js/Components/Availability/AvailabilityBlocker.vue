@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import AvailabilityModal from '@/Components/Availability/AvailabilityModal.vue';
 import axios from 'axios';
@@ -94,15 +94,41 @@ const handleAvailabilityStatusUpdated = (event) => {
     shouldBlock.value = event.detail.shouldBlockUser && !event.detail.allWeekdaysCovered;
 };
 
+// Handle visibility change - check blocking status when page becomes visible
+const handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+        // When the page becomes visible, check if we should block
+        nextTick(() => {
+            checkShouldBlock();
+        });
+    }
+};
+
+// Handle storage changes from other tabs/windows
+const handleStorageChange = (event) => {
+    if (event.key === 'shouldBlockUser' || event.key === 'allWeekdaysCovered') {
+        // When localStorage changes, check if we should block
+        nextTick(() => {
+            checkShouldBlock();
+        });
+    }
+};
+
 // Initialize component
 onMounted(() => {
     checkShouldBlock();
     window.addEventListener('availability-status-updated', handleAvailabilityStatusUpdated);
+
+    // Add event listeners for visibility and storage changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('storage', handleStorageChange);
 });
 
-// Clean up event listener
+// Clean up event listeners
 onUnmounted(() => {
     window.removeEventListener('availability-status-updated', handleAvailabilityStatusUpdated);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('storage', handleStorageChange);
 });
 </script>
 

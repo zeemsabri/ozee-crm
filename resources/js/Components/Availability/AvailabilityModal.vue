@@ -291,6 +291,32 @@ const submitForm = async () => {
 
         successMessage.value = 'Availability saved successfully!';
 
+        // Check if we need to update the blocking status
+        try {
+            // Make a direct API call to get the latest availability status
+            const statusResponse = await axios.get('/api/availability-prompt');
+
+            // Update localStorage with the latest values
+            localStorage.setItem('shouldBlockUser', statusResponse.data.should_block_user);
+            localStorage.setItem('allWeekdaysCovered', statusResponse.data.all_weekdays_covered);
+
+            // Dispatch a custom event to notify other components
+            const event = new CustomEvent('availability-status-updated', {
+                detail: {
+                    shouldBlockUser: statusResponse.data.should_block_user,
+                    allWeekdaysCovered: statusResponse.data.all_weekdays_covered
+                }
+            });
+            window.dispatchEvent(event);
+
+            console.log('Availability status updated from modal:', {
+                shouldBlockUser: statusResponse.data.should_block_user,
+                allWeekdaysCovered: statusResponse.data.all_weekdays_covered
+            });
+        } catch (statusError) {
+            console.error('Error updating availability status:', statusError);
+        }
+
         // Emit event to parent, potentially with all saved availabilities
         emit('availability-saved', response.data.availabilities);
 

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import axios from 'axios';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import AvailabilityModal from '@/Components/Availability/AvailabilityModal.vue';
@@ -101,9 +101,39 @@ const handleAvailabilitySaved = () => {
     checkShouldShowPrompt();
 };
 
+// Handle visibility change - check prompt status when page becomes visible
+const handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+        // When the page becomes visible, check if we should show the prompt
+        nextTick(() => {
+            checkShouldShowPrompt();
+        });
+    }
+};
+
+// Handle storage changes from other tabs/windows
+const handleStorageChange = (event) => {
+    if (event.key === 'shouldBlockUser' || event.key === 'allWeekdaysCovered') {
+        // When localStorage changes, check if we should show the prompt
+        nextTick(() => {
+            checkShouldShowPrompt();
+        });
+    }
+};
+
 // Initialize component
 onMounted(() => {
     checkShouldShowPrompt();
+
+    // Add event listeners for visibility and storage changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('storage', handleStorageChange);
+});
+
+// Clean up event listeners
+onUnmounted(() => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('storage', handleStorageChange);
 });
 </script>
 
