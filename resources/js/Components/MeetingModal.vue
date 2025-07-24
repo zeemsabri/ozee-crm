@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -26,6 +26,29 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'saved']);
 
+// Get user's timezone
+const getUserTimezone = () => {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+};
+
+// List of common timezones
+const timezones = ref([
+    'Africa/Cairo', 'Africa/Johannesburg', 'Africa/Lagos',
+    'America/Anchorage', 'America/Bogota', 'America/Chicago', 'America/Denver',
+    'America/Los_Angeles', 'America/Mexico_City', 'America/New_York', 'America/Phoenix',
+    'America/Sao_Paulo', 'America/Toronto', 'America/Vancouver',
+    'Asia/Dubai', 'Asia/Hong_Kong', 'Asia/Jerusalem', 'Asia/Kolkata', 'Asia/Seoul',
+    'Asia/Shanghai', 'Asia/Singapore', 'Asia/Tokyo',
+    'Australia/Melbourne', 'Australia/Perth', 'Australia/Sydney',
+    'Europe/Amsterdam', 'Europe/Berlin', 'Europe/Dublin', 'Europe/Istanbul',
+    'Europe/London', 'Europe/Madrid', 'Europe/Moscow', 'Europe/Paris', 'Europe/Rome',
+    'Pacific/Auckland', 'Pacific/Honolulu',
+    'UTC'
+]);
+
+// User's detected timezone
+const userTimezone = ref(getUserTimezone());
+
 // Form data
 const form = ref({
     summary: '',
@@ -35,6 +58,8 @@ const form = ref({
     attendee_user_ids: [],
     location: '',
     with_google_meet: true,
+    timezone: userTimezone.value, // Default to user's timezone
+    enable_recording: false, // New field for recording
 });
 
 // Form errors
@@ -52,8 +77,14 @@ watch(() => props.show, (value) => {
 // Format date for datetime-local input
 const formatDateForInput = (date) => {
     const d = new Date(date);
-    // Format as YYYY-MM-DDThh:mm
-    return d.toISOString().slice(0, 16);
+    // Format as YYYY-MM-DDThh:mm while preserving local timezone
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
 // Set default start and end times (now + 1 hour, now + 2 hours)
@@ -76,6 +107,8 @@ const resetForm = () => {
         attendee_user_ids: [],
         location: '',
         with_google_meet: true,
+        timezone: userTimezone.value, // Default to user's timezone
+        enable_recording: false, // Default recording to off
     };
     setDefaultTimes();
     errors.value = {};
@@ -103,7 +136,7 @@ const submit = async () => {
         // Create a copy of the form data to avoid modifying the original
         const formData = { ...form.value };
 
-        // Format dates for backend
+        // Format dates for backend without changing the time values
         formData.start_datetime = formatDateForBackend(formData.start_datetime);
         formData.end_datetime = formatDateForBackend(formData.end_datetime);
 
@@ -231,6 +264,21 @@ const close = () => {
                     <InputError :message="errors.location ? errors.location[0] : ''" class="mt-2" />
                 </div>
 
+                <div>
+                    <InputLabel for="timezone" value="Timezone" />
+                    <select
+                        id="timezone"
+                        v-model="form.timezone"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    >
+                        <option v-for="tz in timezones" :key="tz" :value="tz">{{ tz }}</option>
+                    </select>
+                    <p class="mt-1 text-sm text-gray-500">
+                        Select your timezone for this meeting
+                    </p>
+                    <InputError :message="errors.timezone ? errors.timezone[0] : ''" class="mt-2" />
+                </div>
+
                 <div class="flex items-center">
                     <input
                         id="with_google_meet"
@@ -240,6 +288,18 @@ const close = () => {
                     />
                     <label for="with_google_meet" class="ml-2 block text-sm text-gray-900">
                         Create Google Meet video conference
+                    </label>
+                </div>
+
+                <div class="flex items-center">
+                    <input
+                        id="enable_recording"
+                        v-model="form.enable_recording"
+                        type="checkbox"
+                        class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <label for="enable_recording" class="ml-2 block text-sm text-gray-900">
+                        Enable recording and transcript
                     </label>
                 </div>
 

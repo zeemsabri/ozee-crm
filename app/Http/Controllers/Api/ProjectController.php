@@ -1785,6 +1785,17 @@ class ProjectController extends Controller
         if ($response->getStatusCode() === 201) {
             $data = json_decode($response->getContent(), true);
 
+            // Get the timezone from the request or use the default app timezone
+            $timezone = $request->input('timezone') ?? config('app.timezone');
+
+            // Convert start and end times to UTC for storage
+            $startTime = $request->input('start_datetime');
+            $endTime = $request->input('end_datetime');
+
+            // Use Carbon to parse the datetime strings with the specified timezone and convert to UTC
+            $startTimeUtc = \Carbon\Carbon::parse($startTime, $timezone)->setTimezone('UTC');
+            $endTimeUtc = \Carbon\Carbon::parse($endTime, $timezone)->setTimezone('UTC');
+
             // Create a new meeting record in the database
             $meeting = new Meeting([
                 'project_id' => $project->id,
@@ -1794,9 +1805,13 @@ class ProjectController extends Controller
                 'google_meet_link' => $data['event']['hangoutLink'] ?? null,
                 'summary' => $request->input('summary'),
                 'description' => $request->input('description'),
-                'start_time' => $request->input('start_datetime'),
-                'end_time' => $request->input('end_datetime'),
+                'start_time' => $startTimeUtc->format('Y-m-d H:i:s'),
+                'end_time' => $endTimeUtc->format('Y-m-d H:i:s'),
                 'location' => $request->input('location'),
+                'timezone' => $timezone,
+                'enable_recording' => $request->input('enable_recording', false),
+                // Flag to indicate that times are stored in UTC
+                'is_utc' => true,
             ]);
 
             $meeting->save();

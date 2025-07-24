@@ -35,6 +35,11 @@ class ProfileController extends Controller
             $request->user()->email_verified_at = null;
         }
 
+        // Unset the global_permissions attribute before saving to prevent SQL error
+        if (isset($request->user()->global_permissions)) {
+            unset($request->user()->global_permissions);
+        }
+
         $request->user()->save();
 
         return Redirect::route('profile.edit');

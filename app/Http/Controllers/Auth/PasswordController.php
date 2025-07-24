@@ -20,7 +20,15 @@ class PasswordController extends Controller
             'password' => ['required', Password::defaults(), 'confirmed'],
         ]);
 
-        $request->user()->update([
+        // Get the user instance
+        $user = $request->user();
+
+        // Unset the global_permissions attribute before updating to prevent SQL error
+        if (isset($user->global_permissions)) {
+            unset($user->global_permissions);
+        }
+
+        $user->update([
             'password' => Hash::make($validated['password']),
         ]);
 

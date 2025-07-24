@@ -22,6 +22,9 @@ class Meeting extends Model
         'start_time',
         'end_time',
         'location',
+        'timezone',
+        'enable_recording',
+        'is_utc',
     ];
 
     /**
@@ -32,6 +35,8 @@ class Meeting extends Model
     protected $casts = [
         'start_time' => 'datetime',
         'end_time' => 'datetime',
+        'enable_recording' => 'boolean',
+        'is_utc' => 'boolean',
     ];
 
     /**

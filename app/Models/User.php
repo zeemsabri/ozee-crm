@@ -25,6 +25,15 @@ class User extends Authenticatable
         'role_id', // Foreign key to roles table
     ];
 
+    /**
+     * The attributes that are not mass assignable.
+     *
+     * @var array<int, string>
+     */
+    protected $guarded = [
+        'global_permissions',
+    ];
+
     protected $hidden = [
         'password',
         'remember_token',

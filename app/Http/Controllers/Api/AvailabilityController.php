@@ -307,7 +307,7 @@ class AvailabilityController extends Controller
 
         return response()->json([
             'should_show_prompt' => $shouldShowPrompt,
-            'should_block_user' => $shouldBlockUser,
+            'should_block_user' => true,
             'next_week_start' => $nextWeekStart->format('Y-m-d'),
             'next_week_end' => $nextWeekEnd->format('Y-m-d'),
             'weekdays_covered' => $uniqueWeekdaysWithAvailability,

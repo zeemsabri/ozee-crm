@@ -47,6 +47,8 @@ class ProjectCalendarController extends Controller
             'attendee_user_ids.*' => 'exists:users,id',
             'location' => 'nullable|string|max:255',
             'with_google_meet' => 'boolean',
+            'timezone' => 'nullable|string|max:100', // Timezone string (e.g., 'America/New_York')
+            'enable_recording' => 'boolean', // Whether to enable recording for Google Meet
         ]);
 
         try {
@@ -72,6 +74,8 @@ class ProjectCalendarController extends Controller
             $endDateTime = $validated['end_datetime'];
             $location = $validated['location'] ?? null;
             $withGoogleMeet = $validated['with_google_meet'] ?? true;
+            $timezone = $validated['timezone'] ?? null;
+            $enableRecording = $validated['enable_recording'] ?? false;
 
             $eventData = $this->googleCalendarService->createEvent(
                 $summary,
@@ -80,7 +84,9 @@ class ProjectCalendarController extends Controller
                 $endDateTime,
                 $attendeeEmails,
                 $location,
-                $withGoogleMeet
+                $withGoogleMeet,
+                $timezone,
+                $enableRecording
             );
 
             // You might want to save the Google Calendar Event ID and Link
