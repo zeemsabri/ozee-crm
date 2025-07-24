@@ -73,8 +73,8 @@ class AvailabilityController extends Controller
             'is_available' => 'required|boolean',
             'reason' => 'required_if:is_available,false|nullable|string',
             'time_slots' => 'required_if:is_available,true|nullable|array',
-            'time_slots.*.start_time' => 'required_with:time_slots|string|regex:/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/',
-            'time_slots.*.end_time' => 'required_with:time_slots|string|regex:/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/',
+            'time_slots.*.start_time' => 'required_with:time_slots|string|date_format:H:i',
+            'time_slots.*.end_time' => 'required_with:time_slots|string|date_format:H:i',
         ]);
 
         if ($validator->fails()) {
@@ -150,8 +150,8 @@ class AvailabilityController extends Controller
             'is_available' => 'sometimes|boolean',
             'reason' => 'required_if:is_available,false|nullable|string',
             'time_slots' => 'required_if:is_available,true|nullable|array',
-            'time_slots.*.start_time' => 'required_with:time_slots|string|regex:/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/',
-            'time_slots.*.end_time' => 'required_with:time_slots|string|regex:/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/',
+            'time_slots.*.start_time' => 'required_with:time_slots|string|date_format:H:i',
+            'time_slots.*.end_time' => 'required_with:time_slots|string|date_format:H:i',
         ]);
 
         if ($validator->fails()) {
