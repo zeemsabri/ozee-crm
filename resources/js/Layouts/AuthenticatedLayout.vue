@@ -175,6 +175,10 @@ onMounted(() => {
                                                 Task Types
                                             </DropdownLink>
 
+                                            <DropdownLink :href="route('bonus-configuration.index')" :active="route().current('bonus-configuration.index')">
+                                                Bonus Configuration
+                                            </DropdownLink>
+
                                             <DropdownLink :href="route('admin.roles.index')">
                                                 Manage Roles
                                             </DropdownLink>

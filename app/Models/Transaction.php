@@ -17,6 +17,8 @@ class Transaction extends Model
         'user_id',
         'hours_spent',
         'type',
+        'curency',
+        'is_paid'
     ];
 
     protected $casts = [

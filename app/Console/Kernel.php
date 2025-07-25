@@ -15,6 +15,7 @@ class Kernel extends ConsoleKernel
      */
     protected $commands = [
         \App\Console\Commands\FetchEmails::class,
+        \App\Console\Commands\CheckMissedBonusesCommand::class,
     ];
 
     /**
@@ -32,6 +33,11 @@ class Kernel extends ConsoleKernel
 //        $schedule->command('emails:fetch')->cron('*/5 * * * *');
 
 //        $schedule->command(FetchEmails::class);
+
+        // Run the check-missed-bonuses command daily at 1:00 AM
+        $schedule->command('app:check-missed-bonuses')
+            ->dailyAt('01:00')
+            ->appendOutputTo(storage_path('logs/check-missed-bonuses.log'));
     }
 
     /**

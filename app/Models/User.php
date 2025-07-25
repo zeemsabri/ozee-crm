@@ -303,4 +303,166 @@ class User extends Authenticatable
     {
         return $this->hasMany(UserAvailability::class);
     }
+
+    /**
+     * Get the bonus transactions for the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function bonusTransactions()
+    {
+        return $this->hasMany(BonusTransaction::class);
+    }
+
+    /**
+     * Get all bonus transactions of a specific type.
+     *
+     * @param string $type The transaction type (bonus/penalty)
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getBonusTransactionsByType($type)
+    {
+        return $this->bonusTransactions()->where('type', $type)->get();
+    }
+
+    /**
+     * Calculate the total bonus amount for the user.
+     *
+     * @param \DateTime|null $startDate Optional start date for filtering
+     * @param \DateTime|null $endDate Optional end date for filtering
+     * @param int|null $projectId Optional project ID for filtering
+     * @return float The total bonus amount
+     */
+    public function calculateTotalBonus(?\DateTime $startDate = null, ?\DateTime $endDate = null, ?int $projectId = null)
+    {
+        $query = $this->bonusTransactions()
+            ->where('type', 'bonus')
+            ->where('status', 'processed');
+
+        if ($projectId) {
+            $query->where('project_id', $projectId);
+        }
+
+        if ($startDate) {
+            $query->whereDate('created_at', '>=', $startDate->format('Y-m-d'));
+        }
+
+        if ($endDate) {
+            $query->whereDate('created_at', '<=', $endDate->format('Y-m-d'));
+        }
+
+        return $query->sum('amount');
+    }
+
+    /**
+     * Calculate the total penalty amount for the user.
+     *
+     * @param \DateTime|null $startDate Optional start date for filtering
+     * @param \DateTime|null $endDate Optional end date for filtering
+     * @param int|null $projectId Optional project ID for filtering
+     * @return float The total penalty amount
+     */
+    public function calculateTotalPenalty(?\DateTime $startDate = null, ?\DateTime $endDate = null, ?int $projectId = null)
+    {
+        $query = $this->bonusTransactions()
+            ->where('type', 'penalty')
+            ->where('status', 'processed');
+
+        if ($projectId) {
+            $query->where('project_id', $projectId);
+        }
+
+        if ($startDate) {
+            $query->whereDate('created_at', '>=', $startDate->format('Y-m-d'));
+        }
+
+        if ($endDate) {
+            $query->whereDate('created_at', '<=', $endDate->format('Y-m-d'));
+        }
+
+        return $query->sum('amount');
+    }
+
+    /**
+     * Calculate the net bonus amount (bonuses minus penalties) for the user.
+     *
+     * @param \DateTime|null $startDate Optional start date for filtering
+     * @param \DateTime|null $endDate Optional end date for filtering
+     * @param int|null $projectId Optional project ID for filtering
+     * @return float The net bonus amount
+     */
+    public function calculateNetBonus(?\DateTime $startDate = null, ?\DateTime $endDate = null, ?int $projectId = null)
+    {
+        $totalBonus = $this->calculateTotalBonus($startDate, $endDate, $projectId);
+        $totalPenalty = $this->calculateTotalPenalty($startDate, $endDate, $projectId);
+
+        return $totalBonus - $totalPenalty;
+    }
+
+    /**
+     * Get a summary of bonus/penalty transactions for the user.
+     *
+     * @param \DateTime|null $startDate Optional start date for filtering
+     * @param \DateTime|null $endDate Optional end date for filtering
+     * @return array The summary data
+     */
+    public function getBonusSummary(?\DateTime $startDate = null, ?\DateTime $endDate = null)
+    {
+        $query = $this->bonusTransactions()
+            ->where('status', 'processed');
+
+        if ($startDate) {
+            $query->whereDate('created_at', '>=', $startDate->format('Y-m-d'));
+        }
+
+        if ($endDate) {
+            $query->whereDate('created_at', '<=', $endDate->format('Y-m-d'));
+        }
+
+        $transactions = $query->with('project')->get();
+
+        $bonusTransactions = $transactions->where('type', 'bonus');
+        $penaltyTransactions = $transactions->where('type', 'penalty');
+
+        $totalBonus = $bonusTransactions->sum('amount');
+        $totalPenalty = $penaltyTransactions->sum('amount');
+        $netBonus = $totalBonus - $totalPenalty;
+
+        // Group by project
+        $projectSummaries = [];
+        foreach ($transactions as $transaction) {
+            $projectId = $transaction->project_id;
+            if (!isset($projectSummaries[$projectId])) {
+                $projectSummaries[$projectId] = [
+                    'project_id' => $projectId,
+                    'project_name' => $transaction->project->name,
+                    'total_bonus' => 0,
+                    'total_penalty' => 0,
+                    'net_bonus' => 0,
+                    'bonus_count' => 0,
+                    'penalty_count' => 0,
+                ];
+            }
+
+            if ($transaction->type === 'bonus') {
+                $projectSummaries[$projectId]['total_bonus'] += $transaction->amount;
+                $projectSummaries[$projectId]['bonus_count']++;
+            } else {
+                $projectSummaries[$projectId]['total_penalty'] += $transaction->amount;
+                $projectSummaries[$projectId]['penalty_count']++;
+            }
+
+            $projectSummaries[$projectId]['net_bonus'] = $projectSummaries[$projectId]['total_bonus'] - $projectSummaries[$projectId]['total_penalty'];
+        }
+
+        return [
+            'total_bonus' => $totalBonus,
+            'total_penalty' => $totalPenalty,
+            'net_bonus' => $netBonus,
+            'bonus_count' => $bonusTransactions->count(),
+            'penalty_count' => $penaltyTransactions->count(),
+            'project_summaries' => array_values($projectSummaries),
+            'transactions' => $transactions,
+        ];
+    }
 }

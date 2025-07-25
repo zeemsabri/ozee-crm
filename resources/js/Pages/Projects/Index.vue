@@ -12,6 +12,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import NotesModal from '@/Components/NotesModal.vue';
+import BonusConfigurationGroupModal from '@/Components/BonusConfiguration/BonusConfigurationGroupModal.vue';
 import { useAuthUser, usePermissions, useProjectRole, vPermission, registerPermissionDirective } from '@/Directives/permissions';
 import { success, error, warning, info } from '@/Utils/notification';
 
@@ -34,6 +35,7 @@ const showDeleteModal = ref(false);
 const showAddTransactionModal = ref(false);
 const showAddNoteModal = ref(false);
 const showConvertPaymentModal = ref(false);
+const showBonusConfigModal = ref(false);
 
 // Form state for editing project (passed to ProjectForm)
 const selectedProject = ref({});
@@ -466,6 +468,31 @@ const convertPaymentType = async () => {
     }
 };
 
+// --- Bonus Configuration Groups ---
+const openBonusConfigModal = (project) => {
+    // Check if user has permission to manage projects (using global permissions)
+    if (!canDo('manage_projects').value) {
+        error('You do not have permission to manage bonus configurations for this project.');
+        return;
+    }
+
+    // Check if project is valid
+    const projectId = project.id;
+    if (!projectId) {
+        console.error('No project ID found in project object:', project);
+        return;
+    }
+
+    selectedProject.value = project;
+    showBonusConfigModal.value = true;
+};
+
+const handleBonusGroupAttached = () => {
+    // Refresh the projects list
+    fetchInitialData();
+    success('Bonus configuration group attached successfully!');
+};
+
 // --- Lifecycle Hook ---
 onMounted(() => {
     // Check if user has access to projects page
@@ -549,8 +576,9 @@ onMounted(() => {
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div class="flex items-center space-x-2">
                                             <PrimaryButton v-permission="'manage_projects'" @click="openEditModal(project)">Edit</PrimaryButton>
-                                            <PrimaryButton v-permission="'manage_project_transactions'" @click="openAddTransactionModal(project)">Add Transactions</PrimaryButton>
+<!--                                            <PrimaryButton v-permission="'manage_project_transactions'" @click="openAddTransactionModal(project)">Add Transactions</PrimaryButton>-->
                                             <PrimaryButton v-permission="'add_project_notes'" @click="openAddNoteModal(project)">Add Note</PrimaryButton>
+<!--                                            <PrimaryButton v-permission="'manage_projects'" @click="openBonusConfigModal(project)">Bonus Config</PrimaryButton>-->
 <!--                                            <PrimaryButton v-permission="'manage_project_services_and_payments'" @click="openConvertPaymentModal(project)">Convert Payment</PrimaryButton>-->
                                             <DangerButton v-permission="'delete_projects'" @click="confirmProjectDeletion(project)">Delete</DangerButton>
                                         </div>
@@ -693,5 +721,12 @@ onMounted(() => {
                 </form>
             </div>
         </Modal>
+
+        <BonusConfigurationGroupModal
+            :show="showBonusConfigModal"
+            :project-id="selectedProject?.id"
+            @close="showBonusConfigModal = false"
+            @group-attached="handleBonusGroupAttached"
+        />
     </AuthenticatedLayout>
 </template>

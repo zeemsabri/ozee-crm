@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, usePage, router } from '@inertiajs/vue3';
-import { ref, onMounted, computed, reactive, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, reactive, watch } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import ProjectForm from '@/Components/ProjectForm.vue';
@@ -9,11 +9,13 @@ import Modal from '@/Components/Modal.vue';
 import NotesModal from '@/Components/NotesModal.vue';
 import MeetingModal from '@/Components/MeetingModal.vue';
 import StandupModal from '@/Components/StandupModal.vue';
+import ResourceModal from '@/Components/ResourceModal.vue';
 import ProjectMeetingsList from '@/Components/ProjectMeetingsList.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import RichTextEditor from '@/Components/RichTextEditor.vue';
+import DailyStandups from '@/Components/DailyStandups/DailyStandups.vue';
 import Multiselect from 'vue-multiselect';
 import 'vue-multiselect/dist/vue-multiselect.css';
 import { useAuthUser, useProjectRole, usePermissions, useGlobalPermissions, fetchGlobalPermissions, useProjectPermissions, fetchProjectPermissions } from '@/Directives/permissions';
@@ -43,11 +45,26 @@ const showAddNoteModal = ref(false);
 const showReplyModal = ref(false);
 const showMeetingModal = ref(false);
 const showStandupModal = ref(false);
+const showResourceModal = ref(false);
+const showMagicLinkModal = ref(false);
 const selectedNote = ref(null);
+const selectedResource = ref(null);
 const replyContent = ref('');
 const replyError = ref('');
 const noteReplies = ref([]);
 const loadingReplies = ref(false);
+
+// Magic link state
+const sendingMagicLink = ref(false);
+const selectedClientEmail = ref('');
+const magicLinkSuccess = ref('');
+const magicLinkError = ref('');
+
+
+// Resources state
+const resources = ref([]);
+const loadingResources = ref(false);
+const activeTooltipId = ref(null);
 
 // Reference to the meetings list component
 const meetingsListComponent = ref(null);
@@ -64,59 +81,17 @@ const regularNotes = computed(() => {
     return project.value.notes.filter(note => note.type === 'note' || !note.type);
 });
 
-const standupNotes = computed(() => {
-    if (!project.value.notes) return [];
-    return project.value.notes.filter(note => note.type === 'standup');
-});
+
+
+
+
 
 const latestNotes = computed(() => {
     if (!regularNotes.value) return [];
     return [...regularNotes.value].slice(0, 3);
 });
 
-const latestStandups = computed(() => {
-    if (!standupNotes.value) return [];
-    return [...standupNotes.value].slice(0, 3);
-});
 
-// Parse standup content into structured format
-const parseStandupContent = (content) => {
-    if (!content || content === '[Encrypted content could not be decrypted]') {
-        return {
-            title: 'Daily Standup',
-            date: new Date().toLocaleDateString(),
-            yesterday: 'N/A',
-            today: 'N/A',
-            blockers: 'N/A',
-            isDecrypted: false
-        };
-    }
-
-    // Extract the title and date
-    const titleMatch = content.match(/\*\*Daily Standup - ([^*]+)\*\*/);
-    const date = titleMatch ? titleMatch[1].trim() : new Date().toLocaleDateString();
-
-    // Extract yesterday's work
-    const yesterdayMatch = content.match(/\*\*Yesterday:\*\* ([^\n]+)/);
-    const yesterday = yesterdayMatch ? yesterdayMatch[1].trim() : 'Nothing';
-
-    // Extract today's work
-    const todayMatch = content.match(/\*\*Today:\*\* ([^\n]+)/);
-    const today = todayMatch ? todayMatch[1].trim() : 'Nothing';
-
-    // Extract blockers
-    const blockersMatch = content.match(/\*\*Blockers:\*\* ([^\n]+)/);
-    const blockers = blockersMatch ? blockersMatch[1].trim() : 'None';
-
-    return {
-        title: 'Daily Standup',
-        date: date,
-        yesterday: yesterday,
-        today: today,
-        blockers: blockers,
-        isDecrypted: true
-    };
-};
 
 const lastEmails = computed(() => {
     if (!emails.value) return [];
@@ -138,6 +113,47 @@ const tasksDueToday = computed(() => {
 // Function to open the add note modal
 const openAddNoteModal = () => {
     showAddNoteModal.value = true;
+};
+
+// Function to open the magic link modal
+const openMagicLinkModal = () => {
+    // Reset state
+    selectedClientEmail.value = '';
+    magicLinkSuccess.value = '';
+    magicLinkError.value = '';
+    showMagicLinkModal.value = true;
+};
+
+// Function to send a magic link to the selected client
+const sendMagicLink = async () => {
+    if (!selectedClientEmail.value) {
+        magicLinkError.value = 'Please select a client email';
+        return;
+    }
+
+    sendingMagicLink.value = true;
+    magicLinkSuccess.value = '';
+    magicLinkError.value = '';
+
+    try {
+        const response = await window.axios.post(
+            `/api/projects/${project.value.id}/magic-link`,
+            { email: selectedClientEmail.value }
+        );
+
+        if (response.data.success) {
+            magicLinkSuccess.value = response.data.message;
+            // Reset selected client after successful send
+            selectedClientEmail.value = '';
+        } else {
+            magicLinkError.value = response.data.message || 'Failed to send magic link';
+        }
+    } catch (error) {
+        console.error('Error sending magic link:', error);
+        magicLinkError.value = error.response?.data?.message || 'An error occurred while sending the magic link';
+    } finally {
+        sendingMagicLink.value = false;
+    }
 };
 
 // Function to open the reply modal and fetch replies
@@ -398,6 +414,7 @@ const noteFilters = reactive({
     search: '',
 });
 
+
 // Fetch project notes with filters
 const fetchProjectNotes = async () => {
     try {
@@ -451,6 +468,102 @@ const debounceNoteSearch = () => {
     noteSearchDebounceTimer = setTimeout(() => {
         applyNoteFilters();
     }, 500); // Wait 500ms after user stops typing
+};
+
+
+// Fetch resources for the project
+const fetchResources = async () => {
+    loadingResources.value = true;
+    try {
+        const projectId = usePage().props.id;
+        const response = await window.axios.get(`/api/projects/${projectId}/resources`);
+
+        if (response.data.success) {
+            resources.value = response.data.resources;
+        } else {
+            console.error('Failed to fetch resources:', response.data.message);
+        }
+    } catch (error) {
+        console.error('Error fetching resources:', error);
+    } finally {
+        loadingResources.value = false;
+    }
+};
+
+// Open the resource modal for adding a new resource
+const openAddResourceModal = () => {
+    selectedResource.value = null;
+    showResourceModal.value = true;
+};
+
+// Open the resource modal for editing an existing resource
+const editResource = (resource) => {
+    selectedResource.value = resource;
+    showResourceModal.value = true;
+};
+
+// Delete a resource
+const deleteResource = async (resourceId) => {
+    if (!confirm('Are you sure you want to delete this resource?')) {
+        return;
+    }
+
+    try {
+        const projectId = usePage().props.id;
+        const response = await window.axios.delete(`/api/projects/${projectId}/resources/${resourceId}`);
+
+        if (response.data.success) {
+            // Remove the resource from the list
+            resources.value = resources.value.filter(r => r.id !== resourceId);
+        } else {
+            console.error('Failed to delete resource:', response.data.message);
+        }
+    } catch (error) {
+        console.error('Error deleting resource:', error);
+    }
+};
+
+// Handle resource saved event from the modal
+const handleResourceSaved = (resource) => {
+    // If editing an existing resource, update it in the list
+    if (selectedResource.value) {
+        const index = resources.value.findIndex(r => r.id === resource.id);
+        if (index !== -1) {
+            resources.value[index] = resource;
+        }
+    } else {
+        // If adding a new resource, add it to the list
+        resources.value.push(resource);
+    }
+};
+
+// Toggle tooltip visibility
+const toggleTooltip = (resourceId) => {
+    if (activeTooltipId.value === resourceId) {
+        // If clicking on the same resource, do nothing (keep tooltip open)
+        return;
+    }
+    // Set the active tooltip to this resource
+    activeTooltipId.value = resourceId;
+};
+
+// Close tooltip
+const closeTooltip = () => {
+    activeTooltipId.value = null;
+};
+
+// Close tooltip when clicking outside
+const handleClickOutside = (event) => {
+    // If clicking outside any tooltip container, close the active tooltip
+    if (activeTooltipId.value !== null) {
+        // Check if the click was inside a tooltip or resource button
+        const isTooltipClick = event.target.closest('.resource-tooltip');
+        const isResourceButtonClick = event.target.closest('.resource-button');
+
+        if (!isTooltipClick && !isResourceButtonClick) {
+            closeTooltip();
+        }
+    }
 };
 
 // Fetch project data
@@ -1382,6 +1495,7 @@ const submitEmailForApproval = async () => {
     }
 };
 
+
 onMounted(async () => {
     console.log('Component mounted, fetching data...');
 
@@ -1400,6 +1514,7 @@ onMounted(async () => {
     await fetchProjectNotes();
     await fetchProjectEmails();
     await fetchProjectTasks();
+    await fetchResources();
 
     // Fetch task types and milestones for task management
     try {
@@ -1409,6 +1524,9 @@ onMounted(async () => {
     } catch (error) {
         console.error('Error fetching task types or milestones:', error);
     }
+
+    // Add event listener for click outside
+    document.addEventListener('click', handleClickOutside);
 
     // Log permission status after all data is loaded
     console.log('All data loaded, permission status:');
@@ -1420,6 +1538,11 @@ onMounted(async () => {
     console.log('- Project permissions error:', projectPermissionsError.value);
     console.log('- User project role:', userProjectRole.value);
     console.log('- Can manage projects:', canManageProjects.value);
+});
+
+// Remove event listener when component is unmounted
+onBeforeUnmount(() => {
+    document.removeEventListener('click', handleClickOutside);
 });
 </script>
 
@@ -1458,11 +1581,19 @@ onMounted(async () => {
                             </PrimaryButton>
                             <PrimaryButton
                                 v-if="canManageProjects || isSuperAdmin"
-                                class="bg-green-600 hover:bg-green-700 transition-colors"
+                                class="bg-green-600 hover:bg-green-700 transition-colors mr-2"
                                 @click="openMeetingModal"
                             >
                                 Schedule Meeting
                             </PrimaryButton>
+<!--                            <PrimaryButton-->
+<!--                                v-if="canManageProjects || isSuperAdmin"-->
+<!--                                class="bg-purple-600 hover:bg-purple-700 transition-colors"-->
+<!--                                @click="openMagicLinkModal"-->
+<!--                                :disabled="sendingMagicLink"-->
+<!--                            >-->
+<!--                                {{ sendingMagicLink ? 'Sending...' : 'Send Magic Link' }}-->
+<!--                            </PrimaryButton>-->
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1474,7 +1605,20 @@ onMounted(async () => {
                             <p><strong class="text-gray-900">Status:</strong> {{ project.status.replace('_', ' ').toUpperCase() }}</p>
                             <p><strong class="text-gray-900">Project Type:</strong> {{ project.project_type || 'N/A' }}</p>
                             <p><strong class="text-gray-900">Source:</strong> {{ project.source || 'N/A' }}</p>
-                            <div class="flex space-x-4 mt-2">
+                            <!-- Links and Resources -->
+                            <div class="flex flex-wrap gap-2 mt-2 items-center">
+                                <!-- Add Resource Button -->
+                                <button
+                                    @click="openAddResourceModal"
+                                    class="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
+                                    title="Add Resource"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                </button>
+
+                                <!-- Website Link -->
                                 <a v-if="project.website" :href="project.website" target="_blank"
                                    class="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
                                    title="Visit Website">
@@ -1482,6 +1626,8 @@ onMounted(async () => {
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                                     </svg>
                                 </a>
+
+                                <!-- Social Media Link -->
                                 <a v-if="project.social_media_link" :href="project.social_media_link" target="_blank"
                                    class="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
                                    title="Social Media">
@@ -1489,6 +1635,8 @@ onMounted(async () => {
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                                     </svg>
                                 </a>
+
+                                <!-- Google Drive Link -->
                                 <a v-if="project.google_drive_link" :href="project.google_drive_link" target="_blank"
                                    class="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
                                    title="Google Drive">
@@ -1496,6 +1644,70 @@ onMounted(async () => {
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
                                 </a>
+
+                                <!-- Loading Resources -->
+                                <div v-if="loadingResources" class="text-gray-500 text-sm">
+                                    Loading resources...
+                                </div>
+
+                                <!-- Dynamic Resources -->
+                                <template v-else>
+                                    <div v-for="resource in resources" :key="resource.id" class="relative">
+                                        <div class="relative">
+                                            <!-- Resource Link with Icon -->
+                                            <button @click.prevent="toggleTooltip(resource.id)"
+                                                   class="resource-button p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors block">
+                                                <!-- Icon based on resource type -->
+                                                <svg v-if="resource.type === 'link'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
+                                                </svg>
+                                                <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                            </button>
+
+                                            <!-- Tooltip with resource info (visible when active) -->
+                                            <div v-if="activeTooltipId === resource.id" class="resource-tooltip absolute left-0 bottom-full mb-2 w-48 z-10">
+                                                <div class="bg-white rounded-md shadow-lg p-3 text-sm border border-gray-200">
+                                                    <div class="flex justify-between items-center mb-2">
+                                                        <h4 class="font-medium text-gray-900">{{ resource.name }}</h4>
+                                                        <button @click.prevent="closeTooltip" class="text-gray-400 hover:text-gray-600">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                    <p v-if="resource.description" class="text-gray-600 text-xs mb-2">{{ resource.description }}</p>
+
+                                                    <div class="flex justify-between mt-2 pt-2 border-t border-gray-100">
+                                                        <a :href="resource.url" target="_blank"
+                                                           class="text-xs text-indigo-600 hover:text-indigo-800">
+                                                            Open Link
+                                                        </a>
+                                                        <div class="flex space-x-2">
+                                                            <button @click.prevent="editResource(resource)"
+                                                                    class="p-1 text-gray-500 hover:text-indigo-600"
+                                                                    title="Edit">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                </svg>
+                                                            </button>
+                                                            <button @click.prevent="deleteResource(resource.id)"
+                                                                    class="p-1 text-gray-500 hover:text-red-600"
+                                                                    title="Delete">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="absolute left-5 bottom-0 transform translate-y-1/2 rotate-45 w-2 h-2 bg-white border-r border-b border-gray-200"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </div>
@@ -1579,6 +1791,18 @@ onMounted(async () => {
                                 ]"
                             >
                                 Notes
+                            </button>
+                            <button
+                                v-if="canViewNotes"
+                                @click="selectedTab = 'standups'"
+                                :class="[
+                                    selectedTab === 'standups'
+                                        ? 'border-indigo-500 text-indigo-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                                    'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm'
+                                ]"
+                            >
+                                Daily Standups
                             </button>
                         </nav>
                     </div>
@@ -1719,7 +1943,7 @@ onMounted(async () => {
                                 >
                                     View All Notes →
                                 </button>
-                                <div v-if="canDo('add_project_notes').value">
+                                <div v-if="canDo('add_project_notes')">
                                     <PrimaryButton
                                         class="bg-indigo-600 hover:bg-indigo-700 transition-colors"
                                         @click="openAddNoteModal"
@@ -1760,93 +1984,6 @@ onMounted(async () => {
                         <p v-else class="text-gray-400 text-sm">No notes available.</p>
                     </div>
 
-                    <!-- Latest Standups Section -->
-                    <div v-if="canViewNotes && standupNotes.length > 0" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
-                        <div class="flex justify-between items-center mb-4">
-                            <h4 class="text-lg font-semibold text-gray-900">Daily Standups</h4>
-                            <div class="flex items-center gap-4">
-                                <button
-                                    @click="selectedTab = 'notes'"
-                                    class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-                                >
-                                    View All Standups →
-                                </button>
-                                <div v-if="canManageProjects || isSuperAdmin">
-                                    <PrimaryButton
-                                        class="bg-blue-600 hover:bg-blue-700 transition-colors"
-                                        @click="openStandupModal"
-                                    >
-                                        Submit Standup
-                                    </PrimaryButton>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="space-y-4">
-                            <div v-for="standup in latestStandups" :key="standup.id" class="p-4 bg-blue-50 rounded-md shadow-sm hover:bg-blue-100 transition-colors border-l-4 border-blue-500">
-                                <div v-if="standup.content === '[Encrypted content could not be decrypted]'" class="flex justify-between">
-                                    <div class="flex-grow">
-                                        <p class="text-sm text-red-500 italic">
-                                            {{ standup.content }}
-                                            <span class="text-xs text-red-400 block mt-1">
-                                                (There was an issue decrypting this standup. Please contact an administrator.)
-                                            </span>
-                                        </p>
-                                        <div class="flex items-center mt-1">
-                                            <p class="text-xs text-gray-500">Submitted by {{ standup.user?.name || 'Unknown' }} on {{ new Date(standup.created_at).toLocaleDateString() }}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div v-else>
-                                    <!-- Parsed standup content -->
-                                    <div class="flex-grow">
-                                        <!-- Header with date -->
-                                        <div class="flex justify-between items-center mb-3">
-                                            <h3 class="text-md font-bold text-gray-800">Daily Standup</h3>
-                                            <span class="text-sm text-gray-600 bg-blue-100 px-2 py-1 rounded-full">{{ parseStandupContent(standup.content).date }}</span>
-                                        </div>
-
-                                        <!-- Yesterday section -->
-                                        <div class="mb-3">
-                                            <div class="flex items-center mb-1">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                                <span class="font-semibold text-sm text-gray-700">Yesterday:</span>
-                                            </div>
-                                            <p class="text-sm text-gray-700 ml-6">{{ parseStandupContent(standup.content).yesterday }}</p>
-                                        </div>
-
-                                        <!-- Today section -->
-                                        <div class="mb-3">
-                                            <div class="flex items-center mb-1">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                                </svg>
-                                                <span class="font-semibold text-sm text-gray-700">Today:</span>
-                                            </div>
-                                            <p class="text-sm text-gray-700 ml-6">{{ parseStandupContent(standup.content).today }}</p>
-                                        </div>
-
-                                        <!-- Blockers section -->
-                                        <div class="mb-2">
-                                            <div class="flex items-center mb-1">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                                </svg>
-                                                <span class="font-semibold text-sm text-gray-700">Blockers:</span>
-                                            </div>
-                                            <p class="text-sm text-gray-700 ml-6">{{ parseStandupContent(standup.content).blockers }}</p>
-                                        </div>
-
-                                        <!-- Footer with user info -->
-                                        <div class="flex items-center mt-3 pt-2 border-t border-blue-200">
-                                            <p class="text-xs text-gray-500">Submitted by {{ standup.user?.name || 'Unknown' }} on {{ new Date(standup.created_at).toLocaleDateString() }}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Tasks Section -->
@@ -2266,20 +2403,22 @@ onMounted(async () => {
                     <p v-else class="text-gray-400 text-sm">No email communication found.</p>
                 </div>
 
+                <!-- Daily Standups Section -->
+                <div v-if="canViewNotes && selectedTab === 'standups'">
+                    <DailyStandups
+                        :projectId="projectId"
+                        :users="project.users || []"
+                        @standupAdded="fetchProjectData"
+                    />
+                </div>
+
                 <!-- Notes Section -->
                 <div v-if="canViewNotes && selectedTab === 'notes'" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
                     <div class="flex justify-between items-center mb-4">
                         <h4 class="text-lg font-semibold text-gray-900">Project Notes</h4>
                         <div class="flex gap-3">
                             <PrimaryButton
-                                v-if="canManageProjects || isSuperAdmin"
-                                class="bg-blue-600 hover:bg-blue-700 transition-colors"
-                                @click="openStandupModal"
-                            >
-                                Submit Standup
-                            </PrimaryButton>
-                            <PrimaryButton
-                                v-if="canDo('add_project_notes').value"
+                                v-if="canDo('add_project_notes')"
                                 class="bg-indigo-600 hover:bg-indigo-700 transition-colors"
                                 @click="openAddNoteModal"
                             >
@@ -2346,73 +2485,21 @@ onMounted(async () => {
                         </div>
                     </div>
 
-                    <!-- Daily Standups Section -->
-                    <div v-if="standupNotes.length > 0" class="mb-8">
-                        <h5 class="text-md font-semibold text-gray-900 mb-4 border-b pb-2">Daily Standups</h5>
-                        <div class="space-y-4">
-                            <div v-for="standup in standupNotes" :key="standup.id" class="p-4 bg-blue-50 rounded-md shadow-sm hover:bg-blue-100 transition-colors border-l-4 border-blue-500">
-                                <div v-if="standup.content === '[Encrypted content could not be decrypted]'" class="flex justify-between">
-                                    <div class="flex-grow">
-                                        <p class="text-sm text-red-500 italic">
-                                            {{ standup.content }}
-                                            <span class="text-xs text-red-400 block mt-1">
-                                                (There was an issue decrypting this standup. Please contact an administrator.)
-                                            </span>
-                                        </p>
-                                        <div class="flex items-center mt-1">
-                                            <p class="text-xs text-gray-500">Submitted by {{ standup.user?.name || 'Unknown' }} on {{ new Date(standup.created_at).toLocaleDateString() }}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div v-else>
-                                    <!-- Parsed standup content -->
-                                    <div class="flex-grow">
-                                        <!-- Header with date -->
-                                        <div class="flex justify-between items-center mb-3">
-                                            <h3 class="text-md font-bold text-gray-800">Daily Standup</h3>
-                                            <span class="text-sm text-gray-600 bg-blue-100 px-2 py-1 rounded-full">{{ parseStandupContent(standup.content).date }}</span>
-                                        </div>
-
-                                        <!-- Yesterday section -->
-                                        <div class="mb-3">
-                                            <div class="flex items-center mb-1">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                                <span class="font-semibold text-sm text-gray-700">Yesterday:</span>
-                                            </div>
-                                            <p class="text-sm text-gray-700 ml-6">{{ parseStandupContent(standup.content).yesterday }}</p>
-                                        </div>
-
-                                        <!-- Today section -->
-                                        <div class="mb-3">
-                                            <div class="flex items-center mb-1">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                                </svg>
-                                                <span class="font-semibold text-sm text-gray-700">Today:</span>
-                                            </div>
-                                            <p class="text-sm text-gray-700 ml-6">{{ parseStandupContent(standup.content).today }}</p>
-                                        </div>
-
-                                        <!-- Blockers section -->
-                                        <div class="mb-2">
-                                            <div class="flex items-center mb-1">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                                </svg>
-                                                <span class="font-semibold text-sm text-gray-700">Blockers:</span>
-                                            </div>
-                                            <p class="text-sm text-gray-700 ml-6">{{ parseStandupContent(standup.content).blockers }}</p>
-                                        </div>
-
-                                        <!-- Footer with user info -->
-                                        <div class="flex items-center mt-3 pt-2 border-t border-blue-200">
-                                            <p class="text-xs text-gray-500">Submitted by {{ standup.user?.name || 'Unknown' }} on {{ new Date(standup.created_at).toLocaleDateString() }}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                    <!-- Note about Daily Standups -->
+                    <div class="mb-8 p-4 bg-blue-50 rounded-md">
+                        <div class="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p class="text-sm text-blue-800">
+                                Daily Standups are now available in their own dedicated tab.
+                                <button
+                                    @click="selectedTab = 'standups'"
+                                    class="text-blue-600 hover:text-blue-800 font-medium underline"
+                                >
+                                    Click here to view Daily Standups
+                                </button>
+                            </p>
                         </div>
                     </div>
 
@@ -2632,6 +2719,15 @@ onMounted(async () => {
                 </div>
             </div>
         </Modal>
+
+        <!-- Resource Modal -->
+        <ResourceModal
+            :show="showResourceModal"
+            :project-id="project.id"
+            :resource="selectedResource"
+            @close="showResourceModal = false"
+            @saved="handleResourceSaved"
+        />
 
         <!-- Compose Email Modal -->
         <Modal :show="showComposeEmailModal" @close="showComposeEmailModal = false" max-width="3xl">
@@ -3037,6 +3133,60 @@ onMounted(async () => {
             @standupAdded="fetchProjectNotes"
             :projectId="project.id"
         />
+
+        <!-- Magic Link Modal -->
+        <Modal :show="showMagicLinkModal" @close="showMagicLinkModal = false">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Send Magic Link to Client</h3>
+                    <button @click="showMagicLinkModal = false" class="text-gray-400 hover:text-gray-500">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Success Message -->
+                <div v-if="magicLinkSuccess" class="mb-4 p-3 bg-green-100 text-green-800 rounded-md">
+                    {{ magicLinkSuccess }}
+                </div>
+
+                <!-- Error Message -->
+                <div v-if="magicLinkError" class="mb-4 p-3 bg-red-100 text-red-800 rounded-md">
+                    {{ magicLinkError }}
+                </div>
+
+                <div class="mb-4">
+                    <label for="client-email" class="block text-sm font-medium text-gray-700 mb-1">Select Client</label>
+                    <select
+                        id="client-email"
+                        v-model="selectedClientEmail"
+                        class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full"
+                    >
+                        <option value="">Select a client</option>
+                        <option v-for="client in project.clients" :key="client.id" :value="client.email">
+                            {{ client.name }} ({{ client.email }})
+                        </option>
+                    </select>
+                    <p class="mt-2 text-sm text-gray-500">
+                        The magic link will be sent to the selected client's email address.
+                    </p>
+                </div>
+
+                <div class="mt-6 flex justify-end space-x-3">
+                    <SecondaryButton @click="showMagicLinkModal = false" type="button">
+                        Cancel
+                    </SecondaryButton>
+                    <PrimaryButton
+                        @click="sendMagicLink"
+                        :disabled="sendingMagicLink || !selectedClientEmail"
+                        class="bg-purple-600 hover:bg-purple-700"
+                    >
+                        {{ sendingMagicLink ? 'Sending...' : 'Send Magic Link' }}
+                    </PrimaryButton>
+                </div>
+            </div>
+        </Modal>
     </AuthenticatedLayout>
 </template>
 

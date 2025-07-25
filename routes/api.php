@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\BonusConfigurationGroupController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\GoogleAuthController; // Our Google Auth controller
 use App\Http\Controllers\Api\ClientController; // Import
+use App\Http\Controllers\Api\CommentController; // Import for comment management
 use App\Http\Controllers\Api\EmailController;
 use App\Http\Controllers\Api\ProjectController; // Import
 use App\Http\Controllers\Api\ProjectSectionController; // Import for section-based project data
@@ -19,6 +21,9 @@ use App\Http\Controllers\Api\SubtaskController; // Import for subtask management
 use App\Http\Controllers\Api\MilestoneController; // Import for milestone management
 use App\Http\Controllers\Api\TaskTypeController; // Import for task type management
 use App\Http\Controllers\Api\AvailabilityController; // Import for availability management
+use App\Http\Controllers\Api\BonusConfigurationController; // Import for bonus configuration management
+use App\Http\Controllers\Api\ResourceController; // Import for resource management
+use App\Http\Controllers\Api\MagicLinkController; // Import for magic link functionality
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -73,7 +78,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('projects/{project}/detach-users', [ProjectController::class, 'detachUsers'])->name('projects.detach-users');
     Route::post('projects/{project}/attach-clients', [ProjectController::class, 'attachClients'])->name('projects.attach-clients');
     Route::post('projects/{project}/detach-clients', [ProjectController::class, 'detachClients'])->name('projects.detach-clients');
-    Route::post('projects/{project}/expenses', [ProjectController::class, 'addTransactions']);
+    Route::post('projects/{project}/transactions', [\App\Http\Controllers\Api\TransactionsController::class, 'addTransactions']);
+    Route::patch('projects/{project}/transactions/{transaction}/process-payment', [\App\Http\Controllers\Api\TransactionsController::class, 'processPayment']);
     Route::post('projects/{project}/notes', [ProjectController::class, 'addNotes']);
     Route::get('projects/{project}/notes', [ProjectController::class, 'getNotes']);
     Route::post('projects/{project}/notes/{note}/reply', [ProjectController::class, 'replyToNote']);
@@ -101,6 +107,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('projects/{project}/sections/services-payment', [ProjectSectionController::class, 'updateServicesAndPayment']);
     Route::put('projects/{project}/sections/transactions', [ProjectSectionController::class, 'updateTransactions']);
     Route::put('projects/{project}/sections/notes', [ProjectSectionController::class, 'updateNotes']);
+
+    // Resource Management Routes
+    Route::get('projects/{project}/resources', [ResourceController::class, 'index']);
+    Route::post('projects/{project}/resources', [ResourceController::class, 'store']);
+    Route::get('projects/{project}/resources/{resource}', [ResourceController::class, 'show']);
+    Route::put('projects/{project}/resources/{resource}', [ResourceController::class, 'update']);
+    Route::delete('projects/{project}/resources/{resource}', [ResourceController::class, 'destroy']);
+
+    // Comment Management Routes
+    Route::get('resources/{resource}/comments', [CommentController::class, 'index']);
+    Route::post('resources/{resource}/comments', [CommentController::class, 'store']);
+    Route::put('comments/{comment}', [CommentController::class, 'update']);
+    Route::delete('comments/{comment}', [CommentController::class, 'destroy']);
+    Route::post('resources/{resource}/approve', [CommentController::class, 'approveResource']);
+    Route::post('resources/{resource}/toggle-visibility', [CommentController::class, 'toggleVisibility']);
 
     // Email Management & Approval Routes
 
@@ -179,5 +200,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('availabilities/batch', [AvailabilityController::class, 'batch']);
     Route::get('weekly-availabilities', [AvailabilityController::class, 'getWeeklyAvailabilities']);
     Route::get('availability-prompt', [AvailabilityController::class, 'shouldShowPrompt']);
+
+    // Bonus Configuration Management Routes
+    Route::apiResource('bonus-configurations', BonusConfigurationController::class);
+
+    // Bonus Configuration Group Management Routes
+    Route::apiResource('bonus-configuration-groups', BonusConfigurationGroupController::class);
+    Route::post('bonus-configuration-groups/{id}/duplicate', [BonusConfigurationGroupController::class, 'duplicate']);
+    Route::post('projects/{projectId}/attach-bonus-configuration-group', [BonusConfigurationGroupController::class, 'attachToProject']);
+    Route::post('projects/{projectId}/detach-bonus-configuration-group', [BonusConfigurationGroupController::class, 'detachFromProject']);
+
+    // Magic Link Routes
+    Route::post('projects/{projectId}/magic-link', [MagicLinkController::class, 'sendMagicLink']);
 
 });

@@ -499,6 +499,21 @@ class ProjectSectionController extends Controller
         // Build query for notes
         $notesQuery = $project->notes()->with('user')->whereNull('parent_id');
 
+        // Filter by note type if specified
+        if ($request->has('type') && !empty($request->type)) {
+            $notesQuery->where('type', $request->type);
+        }
+
+        // Filter by user_id if specified
+        if ($request->has('user_id') && !empty($request->user_id)) {
+            Log::info('Filtering notes by user_id', [
+                'project_id' => $project->id,
+                'user_id' => $request->user_id,
+                'request_params' => $request->all()
+            ]);
+            $notesQuery->where('user_id', $request->user_id);
+        }
+
         // Apply date range filters if provided
         if ($request->has('start_date') && !empty($request->start_date)) {
             $notesQuery->whereDate('created_at', '>=', $request->start_date);
@@ -513,6 +528,13 @@ class ProjectSectionController extends Controller
 
         // Get the notes with their associated users
         $notes = $notesQuery->get();
+
+        // Log the number of notes found after filtering
+        Log::info('Notes found after filtering', [
+            'project_id' => $project->id,
+            'count' => $notes->count(),
+            'filters' => $request->all()
+        ]);
 
         // Decrypt note content and add reply count
         $notes->each(function ($note) {

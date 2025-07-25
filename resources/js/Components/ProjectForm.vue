@@ -74,9 +74,9 @@ const isProjectManager = computed(() => {
     const roleSlug = userProjectRole.value.slug;
 
     return roleName === 'Manager' ||
-           roleName === 'Project Manager' ||
-           roleSlug === 'manager' ||
-           roleSlug === 'project-manager';
+        roleName === 'Project Manager' ||
+        roleSlug === 'manager' ||
+        roleSlug === 'project-manager';
 });
 
 // Set up permission checking functions with project ID
@@ -101,6 +101,7 @@ const canViewProjectNotes = canView('project_notes', userProjectRole);
 const canViewProjectUsers = canView('project_users', userProjectRole);
 const canViewProjectClients = canView('project_clients', userProjectRole);
 const canViewProjectTransactions = canView('project_transactions', userProjectRole);
+
 // Tab management
 const activeTab = ref('basic');
 
@@ -158,7 +159,7 @@ const switchTab = (tabName) => {
                 }
                 break;
             case 'transactions':
-                // Transactions are now handled by the ProjectTransactions component
+                // Transactions are handled by ProjectTransactions component
                 loading.value = false;
                 break;
             case 'documents':
@@ -359,7 +360,6 @@ const fetchServicesAndPaymentData = async (projectId) => {
     }
 };
 
-
 // Function to fetch documents data
 const fetchDocumentsData = async (projectId) => {
     try {
@@ -412,9 +412,6 @@ const fetchProjectData = async (projectId) => {
                 if (canViewProjectServicesAndPayments.value || canManageProjectServicesAndPayments.value) {
                     await fetchServicesAndPaymentData(projectId);
                 }
-                break;
-            case 'transactions':
-                // Transactions are now handled by the ProjectTransactions component
                 break;
             case 'documents':
                 if (canViewProjectDocuments.value) {
@@ -486,11 +483,6 @@ const userSaving = ref(false);
 const userSaveSuccess = ref(false);
 const userSaveError = ref('');
 
-// These arrays are no longer needed with the MultiSelectWithRoles component
-// const selectedClientIds = ref([]);
-// const selectedUserIds = ref([]);
-
-
 const projectForm = reactive({
     id: null,
     name: '',
@@ -504,15 +496,14 @@ const projectForm = reactive({
     client_ids: [],
     status: 'active',
     project_type: '',
-    services: [], // Array of service IDs (renamed from departments)
-    service_details: [], // Array of objects with service_id, amount, frequency, start_date, and payment_breakdown
+    services: [],
+    service_details: [],
     source: '',
     total_amount: '',
     contract_details: '',
     google_drive_link: '',
     payment_type: 'one_off',
     user_ids: [],
-    transactions: [], // Now handled by ProjectTransactions component
     notes: [],
 });
 
@@ -529,8 +520,6 @@ watch(() => props.show, (isVisible) => {
         }
     }
 }, { immediate: true });
-
-
 
 // Initialize form with project data
 watch(() => props.project, (newProject) => {
@@ -570,16 +559,6 @@ watch(() => props.project, (newProject) => {
     // We'll fetch this data when the client tab is opened
     projectForm.user_ids = [];
 
-    // Transactions are now handled by the ProjectTransactions component
-    // Keep this for backward compatibility
-    projectForm.transactions = newProject.transactions ? newProject.transactions.map(transaction => ({
-        description: transaction.description,
-        amount: transaction.amount,
-        currency: transaction.currency || 'USD',
-        user_id: transaction.user_id,
-        hours_spent: transaction.hours_spent,
-        type: transaction.type || 'expense',
-    })) : [];
     projectForm.notes = newProject.notes ? newProject.notes.map(note => ({ content: note.content })) : [];
     errors.value = {};
     generalError.value = '';
@@ -672,8 +651,6 @@ const updateBasicInfo = async () => {
     }
 };
 
-
-
 // Function to update notes
 const updateNotes = async () => {
     errors.value = {};
@@ -720,10 +697,6 @@ const submitForm = async () => {
                 // Services & Payment is now handled by the ServicesAndPaymentForm component
                 warning('Please use the Update Services & Payment button in the Services tab.');
                 break;
-            case 'transactions':
-                // Transactions are now handled by the ProjectTransactions component
-                warning('Please use the Update Transactions button in the Transactions tab.');
-                break;
             case 'notes':
                 await updateNotes();
                 break;
@@ -734,14 +707,6 @@ const submitForm = async () => {
         }
     }
 };
-
-
-
-
-
-
-
-
 
 // Track if form has been modified
 const formModified = ref(false);
@@ -850,15 +815,12 @@ const saveClients = async () => {
 };
 
 const saveUsers = async () => {
-    console.log('saveUsers called, projectForm.user_ids:', projectForm.user_ids);
-
     if (!projectForm.id) {
         userSaveError.value = 'Please save the project first before saving users.';
         return;
     }
 
     if (!projectForm.user_ids || projectForm.user_ids.length === 0) {
-        console.log('No users selected, projectForm.user_ids is empty or null');
         userSaveError.value = 'Please select at least one user to save.';
         return;
     }
@@ -868,8 +830,6 @@ const saveUsers = async () => {
     userSaveError.value = '';
 
     try {
-        console.log('Sending user_ids to API:', JSON.stringify(projectForm.user_ids));
-
         // Call the attach-users API endpoint
         const response = await window.axios.post(
             `/api/projects/${projectForm.id}/attach-users`,
@@ -929,7 +889,6 @@ const uploadDocuments = async () => {
         );
 
         // Update the documents in the form with the response from the server
-        // We assume the server response includes all documents associated with the project
         projectForm.documents = response.data.documents || [];
 
         // Clear the file input to allow selecting the same files again if needed
@@ -939,7 +898,6 @@ const uploadDocuments = async () => {
         alert('Documents uploaded successfully!');
 
         // Don't mark the form as modified since document uploads are separate
-        // This ensures document uploads don't affect the rest of the project form
         const currentFormState = JSON.parse(JSON.stringify(projectForm));
         originalForm.value = currentFormState;
         formModified.value = false;
@@ -970,16 +928,6 @@ const uploadDocuments = async () => {
 
         <!-- Debug Information (Collapsible) -->
         <div v-if="projectId" class="mb-4">
-<!--            <button-->
-<!--                @click="showDebugInfo = !showDebugInfo"-->
-<!--                class="text-xs text-gray-500 flex items-center"-->
-<!--                type="button"-->
-<!--            >-->
-<!--                <span v-if="showDebugInfo">▼</span>-->
-<!--                <span v-else>▶</span>-->
-<!--                <span class="ml-1">Permission Debug Info</span>-->
-<!--            </button>-->
-
             <div v-if="showDebugInfo" class="text-xs text-gray-500 mt-2 p-2 bg-gray-100 rounded">
                 <div class="font-bold">Project ID: {{ projectId }}</div>
                 <div>{{ userProjectRole ? 'Project Role: ' + (userProjectRole.value?.name || 'None') : 'No Project Role' }}</div>
@@ -1105,11 +1053,6 @@ const uploadDocuments = async () => {
                     <TextInput id="website" type="url" class="mt-1 block w-full" v-model="projectForm.website" :disabled="!canManageProjects" />
                     <InputError :message="errors.website ? errors.website[0] : ''" class="mt-2" />
                 </div>
-<!--                <div class="mb-4">-->
-<!--                    <InputLabel for="social_media_link" value="Social Media Link" />-->
-<!--                    <TextInput id="social_media_link" type="url" class="mt-1 block w-full" v-model="projectForm.social_media_link" :disabled="!canManageProjects" />-->
-<!--                    <InputError :message="errors.social_media_link ? errors.social_media_link[0] : ''" class="mt-2" />-->
-<!--                </div>-->
                 <div class="mb-4">
                     <InputLabel for="preferred_keywords" value="Client Preferred Keywords" />
                     <TextInput id="preferred_keywords" type="text" class="mt-1 block w-full" v-model="projectForm.preferred_keywords" :disabled="!canManageProjects" />
@@ -1122,11 +1065,6 @@ const uploadDocuments = async () => {
                     </select>
                     <InputError :message="errors.status ? errors.status[0] : ''" class="mt-2" />
                 </div>
-<!--                <div class="mb-4">-->
-<!--                    <InputLabel for="project_type" value="Project Type" />-->
-<!--                    <TextInput id="project_type" type="text" class="mt-1 block w-full" v-model="projectForm.project_type" :disabled="!canManageProjects" />-->
-<!--                    <InputError :message="errors.project_type ? errors.project_type[0] : ''" class="mt-2" />-->
-<!--                </div>-->
                 <div class="mb-4">
                     <InputLabel for="source" value="Source" />
                     <select id="source" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="projectForm.source" :disabled="!canManageProjects">
@@ -1135,11 +1073,6 @@ const uploadDocuments = async () => {
                     </select>
                     <InputError :message="errors.source ? errors.source[0] : ''" class="mt-2" />
                 </div>
-<!--                <div class="mb-4">-->
-<!--                    <InputLabel for="google_drive_link" value="Google Drive Link" />-->
-<!--                    <TextInput id="google_drive_link" type="url" class="mt-1 block w-full" v-model="projectForm.google_drive_link" :disabled="!canManageProjects" />-->
-<!--                    <InputError :message="errors.google_drive_link ? errors.google_drive_link[0] : ''" class="mt-2" />-->
-<!--                </div>-->
 
                 <div v-if="canManageProjects" class="mt-6 flex justify-end">
                     <PrimaryButton
@@ -1153,8 +1086,6 @@ const uploadDocuments = async () => {
             </div>
 
             <!-- Tab 2: Client, Contract Details, and Contractors -->
-
-            <!-- Client and User Selection Tab -->
             <div v-if="activeTab === 'client'">
                 <div class="mb-4" v-if="canViewProjectClients">
                     <MultiSelectWithRoles
@@ -1272,7 +1203,6 @@ const uploadDocuments = async () => {
                             </div>
                         </div>
 
-
                         <div v-if="projectForm.documents && projectForm.documents.length > 0 && typeof projectForm.documents[0] === 'object' && 'path' in projectForm.documents[0]" class="mt-4">
                             <h3 class="font-medium text-gray-700 mb-2">Existing Documents</h3>
                             <div v-for="(doc, index) in projectForm.documents" :key="index" class="flex items-center mb-2 p-2 border rounded">
@@ -1317,27 +1247,14 @@ const uploadDocuments = async () => {
                                         class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full h-32"
                                     ></textarea>
                                 </div>
-<!--                                <div class="flex justify-end">-->
-<!--                                    <SecondaryButton  v-if="canAddProjectNotes"  @click="projectForm.notes.splice(index, 1)">Remove Note</SecondaryButton>-->
-<!--                                </div>-->
                             </div>
                         </div>
                         <div v-else class="p-4 bg-gray-50 rounded-md text-gray-600 text-center">
                             No notes found for this project.
                         </div>
-<!--                        <SecondaryButton  v-if="canAddProjectNotes"  @click="projectForm.notes.push({ content: '' })">Add Note</SecondaryButton>-->
                     </div>
                     <InputError :message="errors.notes ? errors.notes[0] : ''" class="mt-2" />
                 </div>
-
-<!--                <div v-if="canAddProjectNotes" class="mt-6 flex justify-end">
-                    <PrimaryButton
-                        @click="updateNotes"
-                        :disabled="!projectForm.id || !canAddProjectNotes"
-                    >
-                        Update Notes
-                    </PrimaryButton>
-                </div>-->
             </div>
 
             <div class="mt-6 flex justify-end">

@@ -86,4 +86,168 @@ class Project extends Model
     {
         return $this->hasMany(Meeting::class);
     }
+
+    /**
+     * Get the resources for this project.
+     */
+    public function resources()
+    {
+        return $this->morphMany(Resource::class, 'resourceable');
+    }
+
+    /**
+     * Get the bonus configuration groups associated with this project.
+     */
+    public function bonusConfigurationGroups()
+    {
+        return $this->belongsToMany(BonusConfigurationGroup::class, 'project_bonus_configuration_group', 'project_id', 'group_id')
+            ->withTimestamps();
+    }
+
+    /**
+     * Get all active bonus configurations for this project.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getActiveBonusConfigurations()
+    {
+        $configs = collect();
+
+        $groups = $this->bonusConfigurationGroups()->where('is_active', true)->get();
+
+        foreach ($groups as $group) {
+            $groupConfigs = $group->bonusConfigurations()
+                ->where('isActive', true)
+                ->get();
+
+            $configs = $configs->merge($groupConfigs);
+        }
+
+        return $configs->unique('id');
+    }
+
+    /**
+     * Get all active bonus configurations for a specific source type.
+     *
+     * @param string $sourceType The source type (standup, task, milestone, etc.)
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getBonusConfigurationsForSourceType($sourceType)
+    {
+        $configs = collect();
+
+        $groups = $this->bonusConfigurationGroups()->where('is_active', true)->get();
+
+        foreach ($groups as $group) {
+            $groupConfigs = $group->bonusConfigurations()
+                ->where('isActive', true)
+                ->where('appliesTo', $sourceType)
+                ->get();
+
+            $configs = $configs->merge($groupConfigs);
+        }
+
+        return $configs->unique('id');
+    }
+
+    /**
+     * Get all active bonus configurations of a specific type.
+     *
+     * @param string $type The configuration type (bonus/penalty)
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getBonusConfigurationsByType($type)
+    {
+        $configs = collect();
+
+        $groups = $this->bonusConfigurationGroups()->where('is_active', true)->get();
+
+        foreach ($groups as $group) {
+            $groupConfigs = $group->bonusConfigurations()
+                ->where('isActive', true)
+                ->where('type', $type)
+                ->get();
+
+            $configs = $configs->merge($groupConfigs);
+        }
+
+        return $configs->unique('id');
+    }
+
+    /**
+     * Get all bonus transactions for this project.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function bonusTransactions()
+    {
+        return $this->hasMany(BonusTransaction::class);
+    }
+
+    /**
+     * Get a summary of bonus/penalty transactions for this project.
+     *
+     * @param \DateTime|null $startDate Optional start date for filtering
+     * @param \DateTime|null $endDate Optional end date for filtering
+     * @return array The summary data
+     */
+    public function getBonusSummary(?\DateTime $startDate = null, ?\DateTime $endDate = null)
+    {
+        $query = $this->bonusTransactions()
+            ->where('status', 'processed');
+
+        if ($startDate) {
+            $query->whereDate('created_at', '>=', $startDate->format('Y-m-d'));
+        }
+
+        if ($endDate) {
+            $query->whereDate('created_at', '<=', $endDate->format('Y-m-d'));
+        }
+
+        $transactions = $query->get();
+
+        $bonusTransactions = $transactions->where('type', 'bonus');
+        $penaltyTransactions = $transactions->where('type', 'penalty');
+
+        $totalBonus = $bonusTransactions->sum('amount');
+        $totalPenalty = $penaltyTransactions->sum('amount');
+        $netBonus = $totalBonus - $totalPenalty;
+
+        // Group by user
+        $userSummaries = [];
+        foreach ($transactions as $transaction) {
+            $userId = $transaction->user_id;
+            if (!isset($userSummaries[$userId])) {
+                $userSummaries[$userId] = [
+                    'user_id' => $userId,
+                    'user_name' => $transaction->user->name,
+                    'total_bonus' => 0,
+                    'total_penalty' => 0,
+                    'net_bonus' => 0,
+                    'bonus_count' => 0,
+                    'penalty_count' => 0,
+                ];
+            }
+
+            if ($transaction->type === 'bonus') {
+                $userSummaries[$userId]['total_bonus'] += $transaction->amount;
+                $userSummaries[$userId]['bonus_count']++;
+            } else {
+                $userSummaries[$userId]['total_penalty'] += $transaction->amount;
+                $userSummaries[$userId]['penalty_count']++;
+            }
+
+            $userSummaries[$userId]['net_bonus'] = $userSummaries[$userId]['total_bonus'] - $userSummaries[$userId]['total_penalty'];
+        }
+
+        return [
+            'total_bonus' => $totalBonus,
+            'total_penalty' => $totalPenalty,
+            'net_bonus' => $netBonus,
+            'bonus_count' => $bonusTransactions->count(),
+            'penalty_count' => $penaltyTransactions->count(),
+            'user_summaries' => array_values($userSummaries),
+            'transactions' => $transactions,
+        ];
+    }
 }

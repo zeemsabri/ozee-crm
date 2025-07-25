@@ -1,11 +1,14 @@
 <?php
 
+use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\EmailTestController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\GoogleAuthController; // Import our Google Auth controller (for web routes)
+use App\Http\Controllers\Api\MagicLinkController; // Import for magic link functionality
 
 /*
 |--------------------------------------------------------------------------
@@ -18,8 +21,16 @@ use App\Http\Controllers\GoogleAuthController; // Import our Google Auth control
 |
 */
 
-// Default welcome page or redirect to login/dashboard
-Route::get('/', function () {
+// Default welcome page or client dashboard if token is present
+Route::get('/', function (Request $request) {
+    // Check if token parameter is present in the URL
+    $token = $request->query('token');
+    if ($token) {
+        // If token is present, serve the client dashboard view with the token
+        return view('client_dashboard', ['token' => $token]);
+    }
+
+    // Otherwise, serve the default welcome page
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         // 'canRegister' removed - this is a closed system where only administrators can add users
@@ -40,6 +51,12 @@ Route::get('/google/redirect', [GoogleAuthController::class, 'redirectToGoogle']
 Route::get('/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])->name('google.callback');
 
 Route::get('/receive-test-emails', [EmailTestController::class, 'receiveTestEmails'])->name('receive-test-email');
+
+// Magic Link Route - accessible without authentication
+Route::get('/magic-link', [MagicLinkController::class, 'handleMagicLink'])->name('client.magic-link');
+
+// Client Dashboard Route - accessible without authentication
+Route::get('/client/dashboard', [ClientDashboardController::class, 'index'])->name('client.dashboard');
 // Authenticated routes group for Inertia pages that require a logged-in user
 // The 'verified' middleware ensures the user's email is verified (optional, remove if not needed for MVP)
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -187,6 +204,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/availability', function () {
         return Inertia::render('Availability/Index');
     })->name('availability.index');
+
+    // Bonus Configuration Page
+    Route::get('/bonus-configuration', function () {
+        return Inertia::render('BonusConfiguration/Index');
+    })->name('bonus-configuration.index');
 
 });
 

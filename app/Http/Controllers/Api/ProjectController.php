@@ -1277,38 +1277,6 @@ class ProjectController extends Controller
         return response()->json($project->clients);
     }
 
-    public function addTransactions(Request $request, Project $project)
-    {
-        $this->authorize('addTransactions', $project);
-
-        // Check if data is coming as 'expenses' or 'transactions'
-        $transactionsKey = $request->has('expenses') ? 'expenses' : 'transactions';
-
-        $validationRules = [
-            $transactionsKey => 'required|array',
-            $transactionsKey.'.*.description' => 'required|string|max:255',
-            $transactionsKey.'.*.amount' => 'required|numeric|min:0',
-            $transactionsKey.'.*.user_id' => 'nullable|exists:users,id',
-            $transactionsKey.'.*.hours_spent' => 'nullable|numeric|min:0',
-            $transactionsKey.'.*.type' => 'required|in:income,expense',
-        ];
-
-        $validated = $request->validate($validationRules);
-
-        $transactions = [];
-        foreach ($validated[$transactionsKey] as $transaction) {
-            $transactions[] = $project->transactions()->create([
-                'description' => $transaction['description'],
-                'amount' => $transaction['amount'],
-                'user_id' => $transaction['user_id'] ?? null,
-                'hours_spent' => $transaction['hours_spent'] ?? null,
-                'type' => $transaction['type'],
-            ]);
-        }
-
-        return response()->json($transactions, 201);
-    }
-
     public function addNotes(Request $request, Project $project)
     {
         $this->authorize('addNotes', $project);
