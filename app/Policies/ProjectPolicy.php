@@ -167,7 +167,7 @@ class ProjectPolicy
     public function manageTransaction(User $user, Project $project)
     {
         // Check if user has global permission
-        if ($user->hasPermission('manage_project_inancial')) {
+        if ($user->hasPermission('manage_project_financial')) {
             return true;
         }
 
