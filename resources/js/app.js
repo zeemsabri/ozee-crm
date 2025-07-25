@@ -31,6 +31,23 @@ createInertiaApp({
         // Register the permission directive
         registerPermissionDirective(app);
 
+        // Register the v-click-outside directive
+        app.directive('click-outside', {
+            mounted(el, binding) {
+                el.__ClickOutsideHandler__ = (event) => {
+                    // Check if the clicked element is outside the directive's element
+                    if (!(el === event.target || el.contains(event.target))) {
+                        binding.value(event);
+                    }
+                };
+                document.addEventListener('click', el.__ClickOutsideHandler__);
+            },
+            unmounted(el) {
+                // Remove the event listener when the element is unmounted
+                document.removeEventListener('click', el.__ClickOutsideHandler__);
+            },
+        });
+
         // Initialize the app
         const mountedApp = app.mount(el);
 

@@ -1196,9 +1196,6 @@ const uploadDocuments = async () => {
                                         ? projectForm.documents.filter(doc => typeof doc === 'object' && 'path' in doc)
                                         : [];
                                     projectForm.documents = [...existingDocs, ...files];
-                                    console.log('Files selected:', files);
-                                    console.log('Are files File objects?', files.some(f => typeof f === 'object' && f !== null && 'name' in f && 'size' in f && 'type' in f));
-                                    console.log('Updated documents array:', projectForm.documents);
                                 }
                             }" class="mt-1 block w-full" multiple accept=".pdf,.doc,.docx,.jpg,.png" />
                             <p class="text-sm text-gray-500 mt-1">Supported formats: PDF, DOC, DOCX, JPG, PNG</p>

@@ -1,24 +1,25 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, usePage, router } from '@inertiajs/vue3';
-import { ref, onMounted, onBeforeUnmount, computed, reactive, watch } from 'vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import SecondaryButton from '@/Components/SecondaryButton.vue';
+import { Head, usePage } from '@inertiajs/vue3';
+import { ref, onMounted, computed } from 'vue';
 import ProjectForm from '@/Components/ProjectForm.vue';
 import Modal from '@/Components/Modal.vue';
-import NotesModal from '@/Components/NotesModal.vue';
+import ProjectMeetingsList from '@/Components/ProjectMeetingsList.vue';
+import DailyStandups from '@/Components/DailyStandups/DailyStandups.vue';
 import MeetingModal from '@/Components/MeetingModal.vue';
 import StandupModal from '@/Components/StandupModal.vue';
-import ResourceModal from '@/Components/ResourceModal.vue';
-import ProjectMeetingsList from '@/Components/ProjectMeetingsList.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import TextInput from '@/Components/TextInput.vue';
-import InputError from '@/Components/InputError.vue';
-import RichTextEditor from '@/Components/RichTextEditor.vue';
-import DailyStandups from '@/Components/DailyStandups/DailyStandups.vue';
-import Multiselect from 'vue-multiselect';
-import 'vue-multiselect/dist/vue-multiselect.css';
-import { useAuthUser, useProjectRole, usePermissions, useGlobalPermissions, fetchGlobalPermissions, useProjectPermissions, fetchProjectPermissions } from '@/Directives/permissions';
+import NotesModal from '@/Components/NotesModal.vue'; // For adding standalone notes
+import ProjectMagicLinkModal from '@/Components/ProjectMagicLinkModal.vue'; // New component
+// Imported new components
+import ProjectGeneralInfoCard from '@/Components/ProjectGeneralInfoCard.vue';
+import ProjectStatsCards from '@/Components/ProjectStatsCards.vue';
+import ProjectTabsNavigation from '@/Components/ProjectTabsNavigation.vue';
+import ProjectTasksTab from '@/Components/ProjectTasksTab.vue';
+import ProjectEmailsTab from '@/Components/ProjectEmailsTab.vue';
+import ProjectNotesTab from '@/Components/ProjectNotesTab.vue';
+
+import { useAuthUser, useProjectRole, usePermissions, fetchProjectPermissions } from '@/Directives/permissions';
+import PrimaryButton from "@/Components/PrimaryButton.vue";
 
 // Use the permission utilities
 const authUser = useAuthUser();
@@ -26,210 +27,25 @@ const authUser = useAuthUser();
 // Get project ID from Inertia page props
 const projectId = usePage().props.id;
 
-// Use global permissions
-const { permissions: globalPermissions, loading: permissionsLoading, error: permissionsError } = useGlobalPermissions();
-
-// Use project-specific permissions
-const { permissions: projectPermissions, loading: projectPermissionsLoading, error: projectPermissionsError } = useProjectPermissions(projectId);
-
 // Project data
-const project = ref({});
-const clients = ref([]);
-const contractors = ref([]);
+const project = ref({
+    clients: [],
+    users: [],
+    notes: [],
+    transactions: [],
+    documents: [],
+    meetings: [], // Ensure meetings is initialized for ProjectMeetingsList
+});
 const loading = ref(true);
 const generalError = ref('');
 
-// Modal state
+// Modals managed by Show.vue or passed down
 const showEditModal = ref(false);
-const showAddNoteModal = ref(false);
-const showReplyModal = ref(false);
 const showMeetingModal = ref(false);
 const showStandupModal = ref(false);
-const showResourceModal = ref(false);
-const showMagicLinkModal = ref(false);
-const selectedNote = ref(null);
-const selectedResource = ref(null);
-const replyContent = ref('');
-const replyError = ref('');
-const noteReplies = ref([]);
-const loadingReplies = ref(false);
+const showAddNoteModal = ref(false); // For adding a note from the overview/notes tab
+const showMagicLinkModal = ref(false); // New magic link modal state
 
-// Magic link state
-const sendingMagicLink = ref(false);
-const selectedClientEmail = ref('');
-const magicLinkSuccess = ref('');
-const magicLinkError = ref('');
-
-
-// Resources state
-const resources = ref([]);
-const loadingResources = ref(false);
-const activeTooltipId = ref(null);
-
-// Reference to the meetings list component
-const meetingsListComponent = ref(null);
-
-// Track which service is currently expanded (null means all collapsed)
-const expandedServiceId = ref(null);
-
-// Track which tab is currently selected (null means main overview)
-const selectedTab = ref(null);
-
-// Computed properties for limited data display on main page
-const regularNotes = computed(() => {
-    if (!project.value.notes) return [];
-    return project.value.notes.filter(note => note.type === 'note' || !note.type);
-});
-
-
-
-
-
-
-const latestNotes = computed(() => {
-    if (!regularNotes.value) return [];
-    return [...regularNotes.value].slice(0, 3);
-});
-
-
-
-const lastEmails = computed(() => {
-    if (!emails.value) return [];
-    return [...emails.value].slice(0, 3);
-});
-
-const tasksDueToday = computed(() => {
-    if (!tasks.value) return [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    return tasks.value.filter(task => {
-        if (!task.due_date) return false;
-        const taskDueDate = new Date(task.due_date);
-        return taskDueDate.toDateString() === today.toDateString();
-    });
-});
-
-// Function to open the add note modal
-const openAddNoteModal = () => {
-    showAddNoteModal.value = true;
-};
-
-// Function to open the magic link modal
-const openMagicLinkModal = () => {
-    // Reset state
-    selectedClientEmail.value = '';
-    magicLinkSuccess.value = '';
-    magicLinkError.value = '';
-    showMagicLinkModal.value = true;
-};
-
-// Function to send a magic link to the selected client
-const sendMagicLink = async () => {
-    if (!selectedClientEmail.value) {
-        magicLinkError.value = 'Please select a client email';
-        return;
-    }
-
-    sendingMagicLink.value = true;
-    magicLinkSuccess.value = '';
-    magicLinkError.value = '';
-
-    try {
-        const response = await window.axios.post(
-            `/api/projects/${project.value.id}/magic-link`,
-            { email: selectedClientEmail.value }
-        );
-
-        if (response.data.success) {
-            magicLinkSuccess.value = response.data.message;
-            // Reset selected client after successful send
-            selectedClientEmail.value = '';
-        } else {
-            magicLinkError.value = response.data.message || 'Failed to send magic link';
-        }
-    } catch (error) {
-        console.error('Error sending magic link:', error);
-        magicLinkError.value = error.response?.data?.message || 'An error occurred while sending the magic link';
-    } finally {
-        sendingMagicLink.value = false;
-    }
-};
-
-// Function to open the reply modal and fetch replies
-const replyToNote = async (note) => {
-    selectedNote.value = note;
-    replyContent.value = '';
-    replyError.value = '';
-    noteReplies.value = [];
-    loadingReplies.value = true;
-    showReplyModal.value = true;
-
-    try {
-        // Fetch replies for this note
-        const response = await window.axios.get(
-            `/api/projects/${project.value.id}/notes/${note.id}/replies`
-        );
-
-        if (response.data.success) {
-            noteReplies.value = response.data.replies;
-        } else {
-            console.error('Failed to fetch replies:', response.data.message);
-        }
-    } catch (error) {
-        console.error('Error fetching replies:', error);
-    } finally {
-        loadingReplies.value = false;
-    }
-};
-
-// Function to submit a reply to a note
-const submitReply = async () => {
-    if (!selectedNote.value || !replyContent.value.trim()) {
-        replyError.value = 'Reply content is required';
-        return;
-    }
-
-    replyError.value = '';
-
-    try {
-        const response = await window.axios.post(
-            `/api/projects/${project.value.id}/notes/${selectedNote.value.id}/reply`,
-            { content: replyContent.value }
-        );
-
-        if (response.data.success) {
-            // Clear the reply content
-            replyContent.value = '';
-
-            // Fetch the updated replies for this note
-            try {
-                loadingReplies.value = true;
-                const repliesResponse = await window.axios.get(
-                    `/api/projects/${project.value.id}/notes/${selectedNote.value.id}/replies`
-                );
-
-                if (repliesResponse.data.success) {
-                    noteReplies.value = repliesResponse.data.replies;
-                }
-            } catch (repliesError) {
-                console.error('Error fetching updated replies:', repliesError);
-            } finally {
-                loadingReplies.value = false;
-            }
-
-            // Refresh project data to update the reply count
-            await fetchProjectData();
-        } else {
-            replyError.value = response.data.message || 'Failed to send reply';
-        }
-    } catch (error) {
-        console.error('Error sending reply:', error);
-        replyError.value = error.response?.data?.message || 'An error occurred while sending the reply';
-    }
-};
-
-// Options (reused from Index.vue)
 const statusOptions = [
     { value: 'active', label: 'Active' },
     { value: 'completed', label: 'Completed' },
@@ -249,462 +65,75 @@ const sourceOptions = [
     { value: 'Wix Marketplace', label: 'Wix Marketplace' },
     { value: 'Referral', label: 'Referral' },
 ];
-const clientRoleOptions = [
-    { value: 'Primary', label: 'Primary' },
-    { value: 'Accountant', label: 'Accountant' },
-    { value: 'Other', label: 'Other' },
-];
-const userRoleOptions = [
-    { value: 'Manager', label: 'Manager' },
-    { value: 'Developer', label: 'Developer' },
-    { value: 'QA', label: 'QA' },
-    { value: 'Other', label: 'Other' },
-];
-const paymentTypeOptions = [
-    { value: 'one_off', label: 'One-Off' },
-    { value: 'monthly', label: 'Monthly' },
-];
 
-// Get the user's project-specific role
-const userProjectRole = useProjectRole(project);
+// Ref for meetings list component to call its methods
+const meetingsListComponent = ref(null);
 
-// Check if user has a specific project role
-const hasProjectRole = computed(() => {
-    return !!userProjectRole.value;
-});
+// Track which tab is currently selected (null means main overview)
+const selectedTab = ref(null);
 
-// Check if user is a project manager in this specific project
-const isProjectManager = computed(() => {
-    if (!userProjectRole.value) return false;
+// Get the user's project-specific role for permission checks
+const userProjectRole = useProjectRole(project); // Pass project ref for dynamic updates
 
-    // Check if the project-specific role is a manager role
-    const roleName = userProjectRole.value.name;
-    const roleSlug = userProjectRole.value.slug;
+// Set up permission checking functions
+const { canDo, canView } = usePermissions(projectId, userProjectRole);
 
-    return roleName === 'Manager' ||
-           roleName === 'Project Manager' ||
-           roleSlug === 'manager' ||
-           roleSlug === 'project-manager';
-});
+// Centralized permission checks based on project role and global permissions
+const isSuperAdmin = computed(() => authUser.value?.role_data?.slug === 'super-admin');
 
-// Set up permission checking functions with project ID
-const { canDo, canView, canManage } = usePermissions(projectId);
-
-// Legacy role-based checks (kept for backward compatibility)
-const isSuperAdmin = computed(() => {
-    if (!authUser.value) return false;
-    return (authUser.value.role_data && authUser.value.role_data.slug === 'super-admin') ||
-           authUser.value.role === 'super_admin' ||
-           authUser.value.role === 'super-admin';
-});
-
-const isManager = computed(() => {
-    if (!authUser.value) return false;
-    // Check application-wide role first
-    const hasManagerRole = (authUser.value.role_data && authUser.value.role_data.slug === 'manager') ||
-           authUser.value.role === 'manager' ||
-           authUser.value.role === 'manager-role' ||
-           authUser.value.role === 'manager_role';
-
-    // If user is not a manager application-wide, check if they're a project manager for this project
-    return hasManagerRole || isProjectManager.value;
-});
-
-const isEmployee = computed(() => {
-    if (!authUser.value) return false;
-    // If user has a project-specific role, don't consider them an employee for this project
-    if (hasProjectRole.value && !isProjectManager.value) return false;
-
-    return (authUser.value.role_data && authUser.value.role_data.slug === 'employee') ||
-           authUser.value.role === 'employee' ||
-           authUser.value.role === 'employee-role';
-});
-
-const isContractor = computed(() => {
-    if (!authUser.value) return false;
-    // Only consider application-wide role if user doesn't have a project-specific role
-    if (hasProjectRole.value) return false;
-
-    return (authUser.value.role_data && authUser.value.role_data.slug === 'contractor') ||
-           authUser.value.role === 'contractor' ||
-           authUser.value.role === 'contractor-role';
-});
-
-// Permission-based checks using the permission utilities
 const canManageProjects = computed(() => {
-    console.log('userProjectRole in canManageProjects:', userProjectRole.value);
-
-    // Check if we have project-specific permissions
-    const hasProjectPermission = userProjectRole.value &&
-                               userProjectRole.value.permissions &&
-                               userProjectRole.value.permissions.some(p => p.slug === 'manage_projects');
-
-    console.log('Has project-specific manage_projects permission:', hasProjectPermission);
-
-    // Check global permissions
-    const hasGlobalPermission = authUser.value &&
-                              authUser.value.global_permissions &&
-                              authUser.value.global_permissions.some(p => p.slug === 'manage_projects');
-
-    console.log('Has global manage_projects permission:', hasGlobalPermission);
-
-    // Check role permissions
-    const hasRolePermission = authUser.value &&
-                            authUser.value.role &&
-                            authUser.value.role.permissions &&
-                            authUser.value.role.permissions.some(p => p.slug === 'manage_projects');
-
-    console.log('Has role manage_projects permission:', hasRolePermission);
-
-    // Use the permission utility
-    const canDoResult = canDo('manage_projects', userProjectRole).value;
-    console.log('canDo result for manage_projects:', canDoResult);
-
-    const result = canDoResult || isSuperAdmin.value;
-    console.log('Final canManageProjects result:', result);
-
-    return result;
+    // This combines the check from the ProjectGeneralInfoCard and ProjectTasksTab
+    // It should leverage the `canDo` utility which already considers project-specific and global permissions.
+    return canDo('manage_projects').value || isSuperAdmin.value;
 });
 
-const canViewProjectFinancial = computed(() => {
-    return canView('project_financial', userProjectRole).value || isSuperAdmin.value;
+const canViewEmails = computed(() => canView('emails').value);
+const canComposeEmails = computed(() => canDo('compose_emails').value);
+const canApproveEmails = computed(() => canDo('approve_emails').value);
+const canViewNotes = computed(() => canView('project_notes').value);
+const canAddNotes = computed(() => canDo('add_project_notes').value);
+
+// Computed properties for limited data display on main page (Overview tab)
+const tasksDueToday = computed(() => {
+    if (!project.value.tasks) return [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return project.value.tasks.filter(task => {
+        if (!task.due_date) return false;
+        const taskDueDate = new Date(task.due_date);
+        return taskDueDate.toDateString() === today.toDateString();
+    });
 });
 
-const canViewProjectTransactions = computed(() => {
-    return canView('project_transactions', userProjectRole).value || isSuperAdmin.value;
+const latestNotes = computed(() => {
+    // Assuming notes fetched by ProjectNotesTab are passed back or available globally
+    // For the overview, we'll use a simplified version from the main project object
+    if (!project.value.notes) return [];
+    // Filter for regular notes (not standups) and get the latest 3
+    return [...project.value.notes]
+        .filter(note => note.type !== 'standup')
+        .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 3);
 });
 
-const canViewClientContacts = computed(() => {
-    return canView('client_contacts', userProjectRole).value || isSuperAdmin.value;
-});
-
-const canViewClientFinancial = computed(() => {
-    return canView('client_financial', userProjectRole).value || isSuperAdmin.value;
-});
-
-const canViewUsers = computed(() => {
-    return canView('users', userProjectRole).value || isSuperAdmin.value;
-});
-
-// Email permissions
-const canViewEmails = computed(() => {
-    return canView('emails', userProjectRole).value || false; // Default to false for backward compatibility
-});
-
-const canComposeEmails = computed(() => {
-    return canDo('compose_emails', userProjectRole).value || false; // Default to false for backward compatibility
-});
-
-const canApproveEmails = computed(() => {
-    return canDo('approve_emails', userProjectRole).value || false; // Default to false for backward compatibility
-});
-
-const canViewNotes = computed (() => {
-    return canView('project_notes', userProjectRole).value || false;
-})
-
-const canAddNotes = computed (() => {
-    return canDo('project_notes', userProjectRole).value || false;
-})
-
-// Notes filters
-const noteFilters = reactive({
-    startDate: '',
-    endDate: '',
-    search: '',
+const latestEmails = computed(() => {
+    if (!project.value.emails) return [];
+    return [...project.value.emails]
+        .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 3);
 });
 
 
-// Fetch project notes with filters
-const fetchProjectNotes = async () => {
-    try {
-        const projectId = usePage().props.id;
-
-        // Build query parameters for filters
-        const params = new URLSearchParams();
-
-        if (noteFilters.startDate) {
-            params.append('start_date', noteFilters.startDate);
-        }
-
-        if (noteFilters.endDate) {
-            params.append('end_date', noteFilters.endDate);
-        }
-
-        if (noteFilters.search) {
-            params.append('search', noteFilters.search);
-        }
-
-        // Append query parameters to the URL if any filters are applied
-        const queryString = params.toString();
-        const url = `/api/projects/${projectId}/sections/notes${queryString ? `?${queryString}` : ''}`;
-
-        const response = await window.axios.get(url);
-        project.value.notes = response.data;
-    } catch (error) {
-        console.error('Error fetching project notes:', error);
-    }
-};
-
-// Apply note filters
-const applyNoteFilters = () => {
-    fetchProjectNotes();
-};
-
-// Reset all note filters
-const resetNoteFilters = () => {
-    noteFilters.startDate = '';
-    noteFilters.endDate = '';
-    noteFilters.search = '';
-    fetchProjectNotes();
-};
-
-// Debounce timer for note search
-let noteSearchDebounceTimer = null;
-
-// Debounce note search to avoid too many API calls
-const debounceNoteSearch = () => {
-    clearTimeout(noteSearchDebounceTimer);
-    noteSearchDebounceTimer = setTimeout(() => {
-        applyNoteFilters();
-    }, 500); // Wait 500ms after user stops typing
-};
-
-
-// Fetch resources for the project
-const fetchResources = async () => {
-    loadingResources.value = true;
-    try {
-        const projectId = usePage().props.id;
-        const response = await window.axios.get(`/api/projects/${projectId}/resources`);
-
-        if (response.data.success) {
-            resources.value = response.data.resources;
-        } else {
-            console.error('Failed to fetch resources:', response.data.message);
-        }
-    } catch (error) {
-        console.error('Error fetching resources:', error);
-    } finally {
-        loadingResources.value = false;
-    }
-};
-
-// Open the resource modal for adding a new resource
-const openAddResourceModal = () => {
-    selectedResource.value = null;
-    showResourceModal.value = true;
-};
-
-// Open the resource modal for editing an existing resource
-const editResource = (resource) => {
-    selectedResource.value = resource;
-    showResourceModal.value = true;
-};
-
-// Delete a resource
-const deleteResource = async (resourceId) => {
-    if (!confirm('Are you sure you want to delete this resource?')) {
-        return;
-    }
-
-    try {
-        const projectId = usePage().props.id;
-        const response = await window.axios.delete(`/api/projects/${projectId}/resources/${resourceId}`);
-
-        if (response.data.success) {
-            // Remove the resource from the list
-            resources.value = resources.value.filter(r => r.id !== resourceId);
-        } else {
-            console.error('Failed to delete resource:', response.data.message);
-        }
-    } catch (error) {
-        console.error('Error deleting resource:', error);
-    }
-};
-
-// Handle resource saved event from the modal
-const handleResourceSaved = (resource) => {
-    // If editing an existing resource, update it in the list
-    if (selectedResource.value) {
-        const index = resources.value.findIndex(r => r.id === resource.id);
-        if (index !== -1) {
-            resources.value[index] = resource;
-        }
-    } else {
-        // If adding a new resource, add it to the list
-        resources.value.push(resource);
-    }
-};
-
-// Toggle tooltip visibility
-const toggleTooltip = (resourceId) => {
-    if (activeTooltipId.value === resourceId) {
-        // If clicking on the same resource, do nothing (keep tooltip open)
-        return;
-    }
-    // Set the active tooltip to this resource
-    activeTooltipId.value = resourceId;
-};
-
-// Close tooltip
-const closeTooltip = () => {
-    activeTooltipId.value = null;
-};
-
-// Close tooltip when clicking outside
-const handleClickOutside = (event) => {
-    // If clicking outside any tooltip container, close the active tooltip
-    if (activeTooltipId.value !== null) {
-        // Check if the click was inside a tooltip or resource button
-        const isTooltipClick = event.target.closest('.resource-tooltip');
-        const isResourceButtonClick = event.target.closest('.resource-button');
-
-        if (!isTooltipClick && !isResourceButtonClick) {
-            closeTooltip();
-        }
-    }
-};
-
-// Fetch project data
+// Data fetching for the entire project
 const fetchProjectData = async () => {
     loading.value = true;
     generalError.value = '';
     try {
-        const projectId = usePage().props.id; // Get project ID from Inertia props
-        console.log('Fetching project data for ID:', projectId);
+        // Fetch full project details including relationships the user has access to
+        const response = await window.axios.get(`/api/projects/${projectId}`);
+        project.value = response.data;
+        console.log('Full project data received:', project.value);
 
-        // Fetch basic project information
-        const basicResponse = await window.axios.get(`/api/projects/${projectId}/sections/basic`);
-        console.log('Basic project data received:', basicResponse.data);
-
-        // Initialize project with basic information
-        project.value = basicResponse.data;
-
-        // Fetch clients and users if user has permission
-        try {
-            const clientsUsersResponse = await window.axios.get(`/api/projects/${projectId}/sections/clients-users`);
-            console.log('Clients and users data received:', clientsUsersResponse.data);
-
-            // Add clients and users to project data if available
-            if (clientsUsersResponse.data.clients) {
-                project.value.clients = clientsUsersResponse.data.clients;
-            }
-
-            if (clientsUsersResponse.data.users) {
-                project.value.users = clientsUsersResponse.data.users;
-
-                // Check if users are included and have permissions
-                console.log('Project users:', project.value.users.length);
-
-                // Check the first user to see the structure
-                if (project.value.users.length > 0) {
-                    const firstUser = project.value.users[0];
-                    console.log('First user structure:', {
-                        id: firstUser.id,
-                        name: firstUser.name,
-                        hasPivot: !!firstUser.pivot,
-                        pivotData: firstUser.pivot ? {
-                            hasRoleId: !!firstUser.pivot.role_id,
-                            hasRoleData: !!firstUser.pivot.role_data,
-                            roleDataStructure: firstUser.pivot.role_data
-                        } : 'No pivot data'
-                    });
-
-                    // Check if current user is in the project
-                    const currentUser = project.value.users.find(u => u.id === authUser.value.id);
-                    console.log('Current user in project:', currentUser ? {
-                        name: currentUser.name,
-                        hasPivot: !!currentUser.pivot,
-                        pivotData: currentUser.pivot ? {
-                            hasRoleId: !!currentUser.pivot.role_id,
-                            hasRoleData: !!currentUser.pivot.role_data,
-                            roleDataStructure: currentUser.pivot.role_data
-                        } : 'No pivot data'
-                    } : 'Not found');
-                }
-            } else {
-                console.log('No users array in project data');
-            }
-        } catch (error) {
-            console.error('Error fetching clients and users:', error);
-            // Non-critical error, continue with other sections
-        }
-
-        // Fetch financial information if user has permission
-        if (canViewProjectFinancial.value) {
-            try {
-                const financialResponse = await window.axios.get(`/api/projects/${projectId}/sections/services-payment`);
-                console.log('Financial data received:', financialResponse.data);
-
-                // Add financial information to project data
-                project.value.services = financialResponse.data.services;
-                project.value.service_details = financialResponse.data.service_details;
-                project.value.total_amount = financialResponse.data.total_amount;
-                project.value.payment_type = financialResponse.data.payment_type;
-            } catch (error) {
-                console.error('Error fetching financial information:', error);
-                // Non-critical error, continue with other sections
-            }
-        }
-
-        // Fetch transactions if user has permission
-        if (canViewProjectTransactions.value) {
-            try {
-                const transactionsResponse = await window.axios.get(`/api/projects/${projectId}/sections/transactions`);
-                console.log('Transactions data received:', transactionsResponse.data);
-
-                // Add transactions to project data
-                project.value.transactions = transactionsResponse.data;
-            } catch (error) {
-                console.error('Error fetching transactions:', error);
-                // Non-critical error, continue with other sections
-            }
-        }
-
-        // Fetch documents if user has permission
-        try {
-            const documentsResponse = await window.axios.get(`/api/projects/${projectId}/sections/documents`);
-            console.log('Documents data received:', documentsResponse.data);
-
-            // Add documents to project data
-            project.value.documents = documentsResponse.data;
-        } catch (error) {
-            console.error('Error fetching documents:', error);
-            // Non-critical error, continue with other sections
-        }
-
-        // Fetch contract details if user has permission
-        if (canViewClientFinancial.value) {
-            try {
-                const contractResponse = await window.axios.get(`/api/projects/${projectId}/contract-details`);
-                console.log('Contract details received:', contractResponse.data);
-
-                // Add contract details to project data
-                project.value.contract_details = contractResponse.data;
-            } catch (error) {
-                console.error('Error fetching contract details:', error);
-                // Non-critical error, continue with other sections
-            }
-        }
-
-        // Notes will be loaded separately via fetchProjectNotes()
-
-        console.log('Project value after assignment:', project.value);
-
-        // Log the userProjectRole after project is set
-        console.log('userProjectRole after project set:', userProjectRole.value);
-
-        // Fetch additional data if user can manage projects
-        if (canManageProjects.value) {
-            console.log('User can manage projects, fetching additional data');
-            const clientsResponse = await window.axios.get('/api/clients');
-            clients.value = clientsResponse.data;
-            const usersResponse = await window.axios.get('/api/users');
-            contractors.value = usersResponse.data.filter(user => user.role === 'contractor');
-        } else {
-            console.log('User cannot manage projects, skipping additional data fetch');
-        }
     } catch (error) {
         generalError.value = 'Failed to load project data.';
         console.error('Error fetching project data:', error);
@@ -716,833 +145,52 @@ const fetchProjectData = async () => {
     }
 };
 
-// Edit project
-const openEditModal = () => {
-    showEditModal.value = true;
-};
-
+// Handle project update from ProjectForm
 const handleProjectSubmit = (updatedProject) => {
-    // First update the project with the returned data
     project.value = updatedProject;
-    // Close the modal
     showEditModal.value = false;
-    // Show success message
     alert('Project updated successfully!');
-    // Fetch the complete project data to ensure we have all necessary information
-    fetchProjectData();
+    fetchProjectData(); // Re-fetch to ensure all relationships/permissions are updated
 };
 
-// Tasks data
-const tasks = ref([]);
-const loadingTasks = ref(false);
-const tasksError = ref('');
-const showTaskModal = ref(false);
-const selectedTask = ref(null);
-const taskFormData = ref({
-    name: '',
-    description: '',
-    assigned_to_user_id: null,
-    due_date: null,
-    status: 'To Do',
-    task_type_id: null,
-    milestone_id: null,
-    tags: []
-});
-const taskFormErrors = ref({});
-const taskTypes = ref([]);
-const milestones = ref([]);
-const loadingTaskTypes = ref(false);
-const loadingMilestones = ref(false);
-
-// Task filters
-const taskFilters = ref({
-    status: '',
-    assigned_to_user_id: '',
-    milestone_id: '',
-    due_date_range: ''
-});
-
-// Due date filter options
-const dueDateOptions = [
-    { value: '', label: 'All Dates' },
-    { value: 'today', label: 'Due Today' },
-    { value: 'this_week', label: 'Due This Week' },
-    { value: 'next_week', label: 'Due Next Week' },
-    { value: 'overdue', label: 'Overdue' },
-    { value: 'no_date', label: 'No Due Date' }
-];
-
-// Computed property for sorted milestones
-const sortedMilestones = computed(() => {
-    if (!milestones.value || !milestones.value.length) return [];
-
-    // Sort milestones by completion_date
-    return [...milestones.value].sort((a, b) => {
-        // Handle null completion dates (put them at the end)
-        if (!a.completion_date) return 1;
-        if (!b.completion_date) return -1;
-
-        // Sort by completion_date (ascending)
-        return new Date(a.completion_date) - new Date(b.completion_date);
-    });
-});
-
-// Computed property for filtered tasks
-const filteredTasks = computed(() => {
-    if (!tasks.value.length) return [];
-
-    return tasks.value.filter(task => {
-        // Status filter
-        if (taskFilters.value.status && task.status !== taskFilters.value.status) {
-            return false;
-        }
-
-        // Assigned user filter
-        if (taskFilters.value.assigned_to_user_id) {
-            const assignedUserId = parseInt(taskFilters.value.assigned_to_user_id);
-            // Handle the special case for unassigned tasks
-            if (assignedUserId === -1) {
-                if (task.assigned_to !== 'Unassigned') {
-                    return false;
-                }
-            } else {
-                // The task.assigned_to_id might not be directly available in the API response
-                // We need to check if the assigned_to matches the user name or if we have the ID
-                const assignedToUser = project.value.users?.find(u => u.id === assignedUserId);
-                if (assignedToUser && task.assigned_to !== assignedToUser.name) {
-                    return false;
-                }
-            }
-        }
-
-        // Milestone filter
-        if (taskFilters.value.milestone_id) {
-            const milestoneId = parseInt(taskFilters.value.milestone_id);
-            // Handle the special case for tasks without milestones
-            if (milestoneId === -1) {
-                if (task.milestone) {
-                    return false;
-                }
-            } else {
-                // Check if the milestone name matches or if we have the ID
-                const milestone = milestones.value.find(m => m.id === milestoneId);
-                if (milestone && task.milestone !== milestone.name && task.milestone_id !== milestoneId) {
-                    return false;
-                }
-            }
-        }
-
-        // Due date filter
-        if (taskFilters.value.due_date_range) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            const taskDueDate = task.due_date ? new Date(task.due_date) : null;
-
-            switch (taskFilters.value.due_date_range) {
-                case 'today':
-                    if (!taskDueDate || taskDueDate.toDateString() !== today.toDateString()) {
-                        return false;
-                    }
-                    break;
-
-                case 'this_week': {
-                    if (!taskDueDate) return false;
-
-                    const endOfWeek = new Date(today);
-                    endOfWeek.setDate(today.getDate() + (6 - today.getDay())); // Sunday is 0, Saturday is 6
-
-                    if (taskDueDate < today || taskDueDate > endOfWeek) {
-                        return false;
-                    }
-                    break;
-                }
-
-                case 'next_week': {
-                    if (!taskDueDate) return false;
-
-                    const startOfNextWeek = new Date(today);
-                    startOfNextWeek.setDate(today.getDate() + (7 - today.getDay()));
-
-                    const endOfNextWeek = new Date(startOfNextWeek);
-                    endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
-
-                    if (taskDueDate < startOfNextWeek || taskDueDate > endOfNextWeek) {
-                        return false;
-                    }
-                    break;
-                }
-
-                case 'overdue': {
-                    if (!taskDueDate || taskDueDate >= today) {
-                        return false;
-                    }
-                    break;
-                }
-
-                case 'no_date': {
-                    if (taskDueDate) {
-                        return false;
-                    }
-                    break;
-                }
-            }
-        }
-
-        return true;
-    });
-});
-
-// Reset all filters
-const resetFilters = () => {
-    taskFilters.value = {
-        status: '',
-        assigned_to_user_id: '',
-        milestone_id: '',
-        due_date_range: ''
-    };
+// Handlers for child component emits to update parent state or re-fetch data
+const handleTasksUpdated = (updatedTasks) => {
+    project.value.tasks = updatedTasks;
 };
 
-// Task note data
-const showTaskNoteModal = ref(false);
-const taskForNote = ref(null);
-const taskNoteContent = ref('');
-const taskNoteError = ref('');
-const addingTaskNote = ref(false);
-
-// Milestone creation modal state
-const showMilestoneModal = ref(false);
-const milestoneFormData = ref({
-    name: '',
-    description: '',
-    completion_date: null,
-    status: 'Not Started',
-    project_id: usePage().props.id
-});
-const milestoneFormErrors = ref({});
-const creatingMilestone = ref(false);
-
-// Fetch tasks for the project
-const fetchProjectTasks = async () => {
-    loadingTasks.value = true;
-    tasksError.value = '';
-    try {
-        const projectId = usePage().props.id;
-        const response = await window.axios.get(`/api/projects/${projectId}/tasks`);
-        tasks.value = response.data;
-        console.log('Tasks fetched:', tasks.value);
-    } catch (error) {
-        tasksError.value = 'Failed to load tasks data.';
-        console.error('Error fetching project tasks:', error);
-
-        // If there's a specific message from the server, use it
-        if (error.response && error.response.data && error.response.data.message) {
-            tasksError.value = error.response.data.message;
-        }
-    } finally {
-        loadingTasks.value = false;
-    }
+const handleEmailsUpdated = (updatedEmails) => {
+    project.value.emails = updatedEmails;
 };
 
-// Fetch task types
-const fetchTaskTypes = async () => {
-    loadingTaskTypes.value = true;
-    try {
-        const response = await window.axios.get('/api/task-types');
-        taskTypes.value = response.data;
-    } catch (error) {
-        console.error('Error fetching task types:', error);
-    } finally {
-        loadingTaskTypes.value = false;
-    }
+const handleNotesUpdated = (updatedNotes) => {
+    project.value.notes = updatedNotes;
 };
 
-// Fetch milestones for the project
-const fetchMilestones = async () => {
-    loadingMilestones.value = true;
-    try {
-        const projectId = usePage().props.id;
-        const response = await window.axios.get(`/api/projects/${projectId}/milestones`);
-        milestones.value = response.data;
-    } catch (error) {
-        console.error('Error fetching milestones:', error);
-    } finally {
-        loadingMilestones.value = false;
-    }
-};
-
-// Open modal for adding a new milestone
-const openAddMilestoneModal = () => {
-    // Reset form data
-    milestoneFormData.value = {
-        name: '',
-        description: '',
-        completion_date: null,
-        status: 'Not Started',
-        project_id: usePage().props.id
-    };
-    milestoneFormErrors.value = {};
-    showMilestoneModal.value = true;
-};
-
-// Submit the milestone form
-const submitMilestoneForm = async () => {
-    milestoneFormErrors.value = {};
-    creatingMilestone.value = true;
-
-    try {
-        const response = await window.axios.post('/api/milestones', milestoneFormData.value);
-
-        // Add the new milestone to the milestones array
-        milestones.value.push(response.data);
-
-        // Select the new milestone in the task form
-        taskFormData.value.milestone_id = response.data.id;
-
-        // Close the milestone modal
-        showMilestoneModal.value = false;
-
-        // Show success message
-        alert('Milestone created successfully!');
-    } catch (error) {
-        console.error('Error creating milestone:', error);
-
-        if (error.response && error.response.data && error.response.data.errors) {
-            milestoneFormErrors.value = error.response.data.errors;
-        } else {
-            alert('Failed to create milestone. Please try again.');
-        }
-    } finally {
-        creatingMilestone.value = false;
-    }
-};
-
-// Open modal for adding a new task
-const openAddTaskModal = async () => {
-    selectedTask.value = null;
-    taskFormData.value = {
-        name: '',
-        description: '',
-        assigned_to_user_id: null,
-        due_date: null,
-        status: 'To Do',
-        task_type_id: null,
-        milestone_id: null,
-        tags: []
-    };
-    taskFormErrors.value = {};
-
-    // Fetch task types and milestones if needed
-    if (taskTypes.value.length === 0) {
-        await fetchTaskTypes();
-    }
-    if (milestones.value.length === 0) {
-        await fetchMilestones();
-    }
-
-    showTaskModal.value = true;
-};
-
-// Open modal for editing an existing task
-const editTask = async (task) => {
-    selectedTask.value = task;
-
-    // Fetch task types and milestones if needed
-    if (taskTypes.value.length === 0) {
-        await fetchTaskTypes();
-    }
-    if (milestones.value.length === 0) {
-        await fetchMilestones();
-    }
-
-    // Find milestone ID based on milestone name
-    let milestoneId = null;
-    if (task.milestone) {
-        const foundMilestone = milestones.value.find(m => m.name === task.milestone);
-        if (foundMilestone) {
-            milestoneId = foundMilestone.id;
-        }
-    }
-
-    // Find task type ID based on task type name
-    let taskTypeId = null;
-    if (task.task_type) {
-        const foundTaskType = taskTypes.value.find(t => t.name === task.task_type);
-        if (foundTaskType) {
-            taskTypeId = foundTaskType.id;
-        }
-    }
-
-    // Find user ID based on assigned_to name
-    let assignedToUserId = null;
-    if (task.assigned_to && task.assigned_to !== 'Unassigned') {
-        const foundUser = project.value.users?.find(u => u.name === task.assigned_to);
-        if (foundUser) {
-            assignedToUserId = foundUser.id;
-        }
-    }
-
-    taskFormData.value = {
-        name: task.title,
-        description: task.description || '',
-        assigned_to_user_id: assignedToUserId || task.assigned_to_id || null,
-        due_date: task.due_date || null,
-        status: task.status,
-        task_type_id: taskTypeId || task.task_type_id || null,
-        milestone_id: milestoneId,
-        tags: task.tags || []
-    };
-    taskFormErrors.value = {};
-
-    showTaskModal.value = true;
-};
-
-// Mark a task as completed
-const markTaskAsCompleted = async (task) => {
-    try {
-        await window.axios.post(`/api/tasks/${task.id}/complete`);
-        // Refresh tasks after marking as completed
-        await fetchProjectTasks();
-    } catch (error) {
-        console.error('Error marking task as completed:', error);
-        alert('Failed to mark task as completed. Please try again.');
-    }
-};
-
-// Start a task (change status to In Progress)
-const startTask = async (task) => {
-    try {
-        await window.axios.post(`/api/tasks/${task.id}/start`);
-        // Refresh tasks after starting
-        await fetchProjectTasks();
-    } catch (error) {
-        console.error('Error starting task:', error);
-        alert('Failed to start task. Please try again.');
-    }
-};
-
-// Open modal for adding a note to a task
-const openAddTaskNoteModal = (task) => {
-    taskForNote.value = task;
-    taskNoteContent.value = '';
-    taskNoteError.value = '';
-    showTaskNoteModal.value = true;
-};
-
-// Add a note to a task
-const addTaskNote = async () => {
-    if (!taskNoteContent.value.trim()) {
-        taskNoteError.value = 'Note content is required';
-        return;
-    }
-
-    taskNoteError.value = '';
-    addingTaskNote.value = true;
-
-    try {
-        await window.axios.post(`/api/tasks/${taskForNote.value.id}/notes`, {
-            note: taskNoteContent.value
-        });
-
-        // Close the modal and reset form
-        showTaskNoteModal.value = false;
-        taskNoteContent.value = '';
-        taskForNote.value = null;
-
-        // Refresh tasks to show any status changes
-        await fetchProjectTasks();
-
-        // Show success message
-        alert('Note added successfully!');
-    } catch (error) {
-        console.error('Error adding note to task:', error);
-
-        if (error.response && error.response.data && error.response.data.message) {
-            taskNoteError.value = error.response.data.message;
-        } else {
-            taskNoteError.value = 'Failed to add note. Please try again.';
-        }
-    } finally {
-        addingTaskNote.value = false;
-    }
-};
-
-// Delete a task
-const deleteTask = async (task) => {
-    if (!confirm(`Are you sure you want to delete the task "${task.title}"?`)) {
-        return;
-    }
-
-    try {
-        await window.axios.delete(`/api/tasks/${task.id}`);
-        // Refresh tasks after deletion
-        await fetchProjectTasks();
-    } catch (error) {
-        console.error('Error deleting task:', error);
-        alert('Failed to delete task. Please try again.');
-    }
-};
-
-// Submit the task form (create or update)
-const submitTaskForm = async () => {
-    taskFormErrors.value = {};
-
-    try {
-        let response;
-
-        if (selectedTask.value) {
-            // Update existing task
-            response = await window.axios.put(`/api/tasks/${selectedTask.value.id}`, taskFormData.value);
-        } else {
-            // Create new task
-            response = await window.axios.post('/api/tasks', {
-                ...taskFormData.value,
-                milestone_id: taskFormData.value.milestone_id || null
-            });
-        }
-
-        // Close the modal and refresh tasks
-        showTaskModal.value = false;
-        await fetchProjectTasks();
-    } catch (error) {
-        console.error('Error submitting task form:', error);
-
-        if (error.response && error.response.data && error.response.data.errors) {
-            taskFormErrors.value = error.response.data.errors;
-        } else {
-            alert('Failed to save task. Please try again.');
-        }
-    }
-};
-
-// Email data - Basic email display
-const emails = ref([]);
-const loadingEmails = ref(false);
-const emailError = ref('');
-const selectedEmail = ref(null);
-const showEmailModal = ref(false);
-
-// Email filters
-const emailFilters = reactive({
-    type: '',
-    startDate: '',
-    endDate: '',
-    search: '',
-});
-
-// Debounce timer for search
-let searchDebounceTimer = null;
-
-// Apply filters to emails
-const applyFilters = () => {
-    fetchProjectEmails();
-};
-
-// Reset all email filters
-const resetEmailFilters = () => {
-    emailFilters.type = '';
-    emailFilters.startDate = '';
-    emailFilters.endDate = '';
-    emailFilters.search = '';
-    fetchProjectEmails();
-};
-
-// Debounce search to avoid too many API calls
-const debounceSearch = () => {
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => {
-        applyFilters();
-    }, 500); // Wait 500ms after user stops typing
-};
-
-// Email approval data - Added for in-page email approval functionality
-const showEditEmailModal = ref(false);
-const showRejectEmailModal = ref(false);
-const editEmailForm = reactive({
-    subject: '',
-    body: '',
-});
-const editEmailErrors = ref({});
-const rejectionForm = reactive({
-    rejection_reason: '',
-});
-const rejectionErrors = ref({});
-const emailSuccessMessage = ref('');
-
-// Email composition data - Added for in-page email composition functionality
-const showComposeEmailModal = ref(false);
-const composeEmailForm = reactive({
-    project_id: '',
-    client_ids: [], // Array of selected client objects
-    subject: '',
-    body: '',
-});
-const composeEmailErrors = ref({}); // For validation errors
-
-// Fetch emails for the project
-const fetchProjectEmails = async () => {
-    loadingEmails.value = true;
-    emailError.value = '';
-    try {
-        const projectId = usePage().props.id;
-
-        // Build query parameters for filters
-        const params = new URLSearchParams();
-
-        if (emailFilters.type) {
-            params.append('type', emailFilters.type);
-        }
-
-        if (emailFilters.startDate) {
-            params.append('start_date', emailFilters.startDate);
-        }
-
-        if (emailFilters.endDate) {
-            params.append('end_date', emailFilters.endDate);
-        }
-
-        if (emailFilters.search) {
-            params.append('search', emailFilters.search);
-        }
-
-        // Append query parameters to the URL if any filters are applied
-        const queryString = params.toString();
-        const url = `/api/projects/${projectId}/emails-simplified${queryString ? `?${queryString}` : ''}`;
-
-        const response = await window.axios.get(url);
-        emails.value = response.data;
-    } catch (error) {
-        emailError.value = 'Failed to load email data.';
-        console.error('Error fetching project emails:', error);
-    } finally {
-        loadingEmails.value = false;
-    }
-};
-
-
-// Open the meeting modal
-const openMeetingModal = () => {
-    showMeetingModal.value = true;
-};
-
-// Open the standup modal
-const openStandupModal = () => {
-    showStandupModal.value = true;
-};
-
-// Handle meeting saved event
-const handleMeetingSaved = (meetingData) => {
-    // Refresh meetings list using the component's method
+const handleMeetingSaved = () => {
     if (meetingsListComponent.value) {
         meetingsListComponent.value.fetchMeetings();
     }
 };
 
-
-// View email details
-const viewEmail = (email) => {
-    selectedEmail.value = email;
-    showEmailModal.value = true;
+const handleStandupAdded = () => {
+    fetchProjectData(); // Re-fetch project notes/standups to update overview
 };
 
-// Email approval functions - Added for in-page email approval functionality
-/**
- * Approves an email without changes
- * @param {Object} email - The email to approve
- */
-const approveEmail = async (email) => {
-    emailSuccessMessage.value = '';
-    emailError.value = '';
-    try {
-        await window.axios.post(`/api/emails/${email.id}/approve`);
-        emailSuccessMessage.value = 'Email approved successfully!';
-        await fetchProjectEmails(); // Refresh emails list
-        showEmailModal.value = false; // Close the modal
-    } catch (error) {
-        if (error.response && error.response.data.message) {
-            emailError.value = error.response.data.message;
-        } else {
-            emailError.value = 'Failed to approve email.';
-            console.error('Error approving email:', error);
-        }
-    }
+const handleChangeTab = (tabName) => {
+    selectedTab.value = tabName;
 };
-
-const openEditEmailModal = (email) => {
-    selectedEmail.value = email;
-    editEmailForm.subject = email.subject;
-    editEmailForm.body = email.body;
-    editEmailErrors.value = {};
-    showEditEmailModal.value = true;
-    showEmailModal.value = false;
-};
-
-const saveAndApproveEmail = async () => {
-    editEmailErrors.value = {};
-    emailError.value = '';
-    emailSuccessMessage.value = '';
-    try {
-        const payload = {
-            subject: editEmailForm.subject,
-            body: editEmailForm.body,
-        };
-        await window.axios.post(`/api/emails/${selectedEmail.value.id}/edit-and-approve`, payload);
-        emailSuccessMessage.value = 'Email updated and approved successfully!';
-        showEditEmailModal.value = false;
-        await fetchProjectEmails();
-    } catch (error) {
-        if (error.response && error.response.status === 422) {
-            editEmailErrors.value = error.response.data.errors;
-        } else if (error.response && error.response.data.message) {
-            emailError.value = error.response.data.message;
-        } else {
-            emailError.value = 'Failed to update and approve email.';
-            console.error('Error updating and approving email:', error);
-        }
-    }
-};
-
-const openRejectEmailModal = (email) => {
-    selectedEmail.value = email;
-    rejectionForm.rejection_reason = '';
-    rejectionErrors.value = {};
-    showRejectEmailModal.value = true;
-    showEmailModal.value = false;
-};
-
-const submitRejection = async () => {
-    rejectionErrors.value = {};
-    emailError.value = '';
-    emailSuccessMessage.value = '';
-    try {
-        await window.axios.post(`/api/emails/${selectedEmail.value.id}/reject`, {
-            rejection_reason: rejectionForm.rejection_reason,
-        });
-        emailSuccessMessage.value = 'Email rejected successfully!';
-        rejectionForm.rejection_reason = '';
-        showRejectEmailModal.value = false;
-        await fetchProjectEmails();
-    } catch (error) {
-        if (error.response && error.response.status === 422) {
-            rejectionErrors.value = error.response.data.errors;
-        } else if (error.response && error.response.data.message) {
-            emailError.value = error.response.data.message;
-        } else {
-            emailError.value = 'Failed to reject email.';
-            console.error('Error rejecting email:', error);
-        }
-    }
-};
-
-// Email composition functions
-const openComposeEmailModal = () => {
-    composeEmailForm.project_id = project.value.id;
-    composeEmailForm.client_ids = [];
-    composeEmailForm.subject = '';
-    composeEmailForm.body = '';
-    composeEmailErrors.value = {};
-    emailSuccessMessage.value = '';
-    showComposeEmailModal.value = true;
-};
-
-const submitEmailForApproval = async () => {
-    composeEmailErrors.value = {};
-    emailError.value = '';
-    emailSuccessMessage.value = '';
-
-    if (!composeEmailForm.client_ids || composeEmailForm.client_ids.length === 0) {
-        composeEmailErrors.value.client_ids = ['Please select at least one client.'];
-        return;
-    }
-
-    try {
-        // Format client_ids as array of objects with id property
-        const formattedClientIds = composeEmailForm.client_ids.map(clientId => {
-            // Check if clientId is already an object with an id property
-            if (typeof clientId === 'object' && clientId !== null) {
-                return { id: clientId.id };
-            }
-            // Otherwise, assume it's a simple ID value
-            return { id: clientId };
-        });
-
-        const payload = {
-            project_id: composeEmailForm.project_id,
-            client_ids: formattedClientIds,
-            subject: composeEmailForm.subject,
-            body: composeEmailForm.body,
-            status: 'pending_approval',
-        };
-
-        await window.axios.post('/api/emails', payload);
-
-        emailSuccessMessage.value = 'Email submitted for approval successfully!';
-        composeEmailForm.client_ids = [];
-        composeEmailForm.subject = '';
-        composeEmailForm.body = '';
-        composeEmailErrors.value = {};
-        showComposeEmailModal.value = false;
-        await fetchProjectEmails();
-    } catch (error) {
-        if (error.response && error.response.status === 422) {
-            composeEmailErrors.value = error.response.data.errors;
-        } else if (error.response && error.response.data.message) {
-            emailError.value = error.response.data.message;
-        } else {
-            emailError.value = 'Failed to submit email. An unexpected error occurred.';
-            console.error('Error submitting email:', error);
-        }
-    }
-};
-
 
 onMounted(async () => {
-    console.log('Component mounted, fetching data...');
-
-    // Fetch project-specific permissions
-    // This will also include global permissions, so we don't need a separate call
+    console.log('Show.vue mounted, fetching initial data...');
+    // Fetch project-specific permissions first, as other data fetches depend on it
     try {
-        const projectId = usePage().props.id;
-        const permissions = await fetchProjectPermissions(projectId);
-        console.log('Project permissions fetched (includes global):', permissions);
+        await fetchProjectPermissions(projectId);
+        console.log('Project permissions fetched (includes global)');
     } catch (error) {
         console.error(`Error fetching permissions for project ${projectId}:`, error);
     }
-
-    // Then fetch project data
+    // Then fetch the main project data
     await fetchProjectData();
-    await fetchProjectNotes();
-    await fetchProjectEmails();
-    await fetchProjectTasks();
-    await fetchResources();
-
-    // Fetch task types and milestones for task management
-    try {
-        await fetchTaskTypes();
-        await fetchMilestones();
-        console.log('Task types and milestones fetched successfully');
-    } catch (error) {
-        console.error('Error fetching task types or milestones:', error);
-    }
-
-    // Add event listener for click outside
-    document.addEventListener('click', handleClickOutside);
-
-    // Log permission status after all data is loaded
-    console.log('All data loaded, permission status:');
-    console.log('- Global permissions:', globalPermissions.value);
-    console.log('- Global permissions loading:', permissionsLoading.value);
-    console.log('- Global permissions error:', permissionsError.value);
-    console.log('- Project permissions:', projectPermissions.value);
-    console.log('- Project permissions loading:', projectPermissionsLoading.value);
-    console.log('- Project permissions error:', projectPermissionsError.value);
-    console.log('- User project role:', userProjectRole.value);
-    console.log('- Can manage projects:', canManageProjects.value);
-});
-
-// Remove event listener when component is unmounted
-onBeforeUnmount(() => {
-    document.removeEventListener('click', handleClickOutside);
 });
 </script>
 
@@ -1550,7 +198,6 @@ onBeforeUnmount(() => {
     <Head :title="project.name || 'Project Details'" />
 
     <AuthenticatedLayout>
-
         <div class="py-8 max-w-full mx-auto px-4 sm:px-6 lg:px-8">
             <!-- Loading and Error States -->
             <div v-if="loading" class="text-center text-gray-600 text-lg animate-pulse">
@@ -1560,266 +207,38 @@ onBeforeUnmount(() => {
                 {{ generalError }}
             </div>
             <div v-else class="space-y-8">
-
-                <!-- General Information Card with Two Columns -->
-                <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h4 class="text-lg font-semibold text-gray-900">General Information</h4>
-                        <div class="flex gap-3">
-                            <PrimaryButton
-                                class="bg-blue-600 hover:bg-blue-700 transition-colors mr-2"
-                                @click="openStandupModal"
-                            >
-                                Daily Standup
-                            </PrimaryButton>
-                            <PrimaryButton
-                                v-if="canManageProjects || isSuperAdmin"
-                                class="bg-indigo-600 hover:bg-indigo-700 transition-colors mr-2"
-                                @click="openEditModal"
-                            >
-                                Edit Project
-                            </PrimaryButton>
-                            <PrimaryButton
-                                v-if="canManageProjects || isSuperAdmin"
-                                class="bg-green-600 hover:bg-green-700 transition-colors mr-2"
-                                @click="openMeetingModal"
-                            >
-                                Schedule Meeting
-                            </PrimaryButton>
-<!--                            <PrimaryButton-->
-<!--                                v-if="canManageProjects || isSuperAdmin"-->
-<!--                                class="bg-purple-600 hover:bg-purple-700 transition-colors"-->
-<!--                                @click="openMagicLinkModal"-->
-<!--                                :disabled="sendingMagicLink"-->
-<!--                            >-->
-<!--                                {{ sendingMagicLink ? 'Sending...' : 'Send Magic Link' }}-->
-<!--                            </PrimaryButton>-->
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <h3 class="text-2xl font-bold text-gray-900 tracking-tight mb-2">{{ project.name }}</h3>
-                            <p class="text-gray-600 text-base">{{ project.description || 'No description provided' }}</p>
-                        </div>
-                        <div class="space-y-3 text-sm text-gray-700">
-                            <p><strong class="text-gray-900">Status:</strong> {{ project.status.replace('_', ' ').toUpperCase() }}</p>
-                            <p><strong class="text-gray-900">Project Type:</strong> {{ project.project_type || 'N/A' }}</p>
-                            <p><strong class="text-gray-900">Source:</strong> {{ project.source || 'N/A' }}</p>
-                            <!-- Links and Resources -->
-                            <div class="flex flex-wrap gap-2 mt-2 items-center">
-                                <!-- Add Resource Button -->
-                                <button
-                                    @click="openAddResourceModal"
-                                    class="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
-                                    title="Add Resource"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                                    </svg>
-                                </button>
-
-                                <!-- Website Link -->
-                                <a v-if="project.website" :href="project.website" target="_blank"
-                                   class="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
-                                   title="Visit Website">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                                    </svg>
-                                </a>
-
-                                <!-- Social Media Link -->
-                                <a v-if="project.social_media_link" :href="project.social_media_link" target="_blank"
-                                   class="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
-                                   title="Social Media">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                                    </svg>
-                                </a>
-
-                                <!-- Google Drive Link -->
-                                <a v-if="project.google_drive_link" :href="project.google_drive_link" target="_blank"
-                                   class="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
-                                   title="Google Drive">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                </a>
-
-                                <!-- Loading Resources -->
-                                <div v-if="loadingResources" class="text-gray-500 text-sm">
-                                    Loading resources...
-                                </div>
-
-                                <!-- Dynamic Resources -->
-                                <template v-else>
-                                    <div v-for="resource in resources" :key="resource.id" class="relative">
-                                        <div class="relative">
-                                            <!-- Resource Link with Icon -->
-                                            <button @click.prevent="toggleTooltip(resource.id)"
-                                                   class="resource-button p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors block">
-                                                <!-- Icon based on resource type -->
-                                                <svg v-if="resource.type === 'link'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
-                                                </svg>
-                                                <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                </svg>
-                                            </button>
-
-                                            <!-- Tooltip with resource info (visible when active) -->
-                                            <div v-if="activeTooltipId === resource.id" class="resource-tooltip absolute left-0 bottom-full mb-2 w-48 z-10">
-                                                <div class="bg-white rounded-md shadow-lg p-3 text-sm border border-gray-200">
-                                                    <div class="flex justify-between items-center mb-2">
-                                                        <h4 class="font-medium text-gray-900">{{ resource.name }}</h4>
-                                                        <button @click.prevent="closeTooltip" class="text-gray-400 hover:text-gray-600">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                    <p v-if="resource.description" class="text-gray-600 text-xs mb-2">{{ resource.description }}</p>
-
-                                                    <div class="flex justify-between mt-2 pt-2 border-t border-gray-100">
-                                                        <a :href="resource.url" target="_blank"
-                                                           class="text-xs text-indigo-600 hover:text-indigo-800">
-                                                            Open Link
-                                                        </a>
-                                                        <div class="flex space-x-2">
-                                                            <button @click.prevent="editResource(resource)"
-                                                                    class="p-1 text-gray-500 hover:text-indigo-600"
-                                                                    title="Edit">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                                </svg>
-                                                            </button>
-                                                            <button @click.prevent="deleteResource(resource.id)"
-                                                                    class="p-1 text-gray-500 hover:text-red-600"
-                                                                    title="Delete">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="absolute left-5 bottom-0 transform translate-y-1/2 rotate-45 w-2 h-2 bg-white border-r border-b border-gray-200"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Upcoming Meetings Section -->
-                <ProjectMeetingsList
+                <!-- General Information Card -->
+                <ProjectGeneralInfoCard
+                    :project="project"
                     :project-id="projectId"
-                    ref="meetingsListComponent"
+                    :can-manage-projects="canManageProjects"
+                    :is-super-admin="isSuperAdmin"
+                    @open-edit-modal="showEditModal = true"
+                    @open-standup-modal="showStandupModal = true"
+                    @open-meeting-modal="showMeetingModal = true"
+                    @open-magic-link-modal="showMagicLinkModal = true"
+                    @resource-saved="fetchProjectData"
                 />
 
+                <!-- Upcoming Meetings Section -->
+                <ProjectMeetingsList :project-id="projectId" ref="meetingsListComponent" />
+
                 <!-- Project Stats Section -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-shadow">
-                        <h4 class="text-sm font-semibold text-gray-500 mb-1">Pending Tasks</h4>
-                        <p class="text-2xl font-bold text-indigo-600">{{ tasks.filter(t => t.status !== 'Done').length }}</p>
-                    </div>
-                    <div class="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-shadow">
-                        <h4 class="text-sm font-semibold text-gray-500 mb-1">Received Emails</h4>
-                        <p class="text-2xl font-bold text-indigo-600">{{ emails.filter(e => e.type === 'received').length }}</p>
-                    </div>
-                    <div class="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-shadow">
-                        <h4 class="text-sm font-semibold text-gray-500 mb-1">Last Email Received</h4>
-                        <p class="text-2xl font-bold text-indigo-600">{{ emails.filter(e => e.status === 'Received').length ? emails.filter(e => e.status === 'Received')[0].date : 'N/A' }}</p>
-                    </div>
-                    <div class="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-shadow">
-                        <h4 class="text-sm font-semibold text-gray-500 mb-1">Next Task Deadline</h4>
-                        <p class="text-2xl font-bold text-indigo-600">{{ tasks.filter(t => t.status !== 'Completed').length ? tasks.filter(t => t.status !== 'Completed').sort((a, b) => new Date(a.due_date) - new Date(b.due_date))[0].due_date : 'N/A' }}</p>
-                    </div>
-                </div>
-
-
-
+                <ProjectStatsCards :tasks="project.tasks || []" :emails="project.emails || []" />
 
                 <!-- Tab Navigation -->
-                <div class="bg-white p-4 rounded-xl shadow-md mb-6">
-                    <div class="border-b border-gray-200">
-                        <nav class="-mb-px flex space-x-8">
-                            <button
-                                @click="selectedTab = null"
-                                :class="[
-                                    selectedTab === null
-                                        ? 'border-indigo-500 text-indigo-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-                                    'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm'
-                                ]"
-                            >
-                                Overview
-                            </button>
-                            <button
-                                @click="selectedTab = 'tasks'"
-                                :class="[
-                                    selectedTab === 'tasks'
-                                        ? 'border-indigo-500 text-indigo-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-                                    'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm'
-                                ]"
-                            >
-                                Project Tasks
-                            </button>
-                            <button
-                                v-if="canViewEmails"
-                                @click="selectedTab = 'emails'"
-                                :class="[
-                                    selectedTab === 'emails'
-                                        ? 'border-indigo-500 text-indigo-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-                                    'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm'
-                                ]"
-                            >
-                                Email Communication
-                            </button>
-                            <button
-                                v-if="canViewNotes"
-                                @click="selectedTab = 'notes'"
-                                :class="[
-                                    selectedTab === 'notes'
-                                        ? 'border-indigo-500 text-indigo-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-                                    'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm'
-                                ]"
-                            >
-                                Notes
-                            </button>
-                            <button
-                                v-if="canViewNotes"
-                                @click="selectedTab = 'standups'"
-                                :class="[
-                                    selectedTab === 'standups'
-                                        ? 'border-indigo-500 text-indigo-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-                                    'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm'
-                                ]"
-                            >
-                                Daily Standups
-                            </button>
-                        </nav>
-                    </div>
-                </div>
-
-
+                <ProjectTabsNavigation
+                    v-model:selectedTab="selectedTab"
+                    :can-view-emails="canViewEmails"
+                    :can-view-notes="canViewNotes"
+                />
 
                 <div v-if="selectedTab === null">
-
-                    <!-- Tasks Due Today Section -->
+                    <!-- Tasks Due Today Section (Overview) -->
                     <div v-if="tasksDueToday.length > 0" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
                         <div class="flex justify-between items-center mb-4">
                             <h4 class="text-lg font-semibold text-gray-900">Tasks Due Today</h4>
-                            <button
-                                @click="selectedTab = 'tasks'"
-                                class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-                            >
+                            <button @click="selectedTab = 'tasks'" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
                                 View All Tasks →
                             </button>
                         </div>
@@ -1837,35 +256,23 @@ onBeforeUnmount(() => {
                                 <tr v-for="task in tasksDueToday" :key="task.id" class="hover:bg-gray-50 transition-colors">
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ task.title }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">
-                                        <span
-                                            :class="{
-                                                'px-2 py-1 rounded-full text-xs font-medium': true,
-                                                'bg-yellow-100 text-yellow-800': task.status === 'To Do',
-                                                'bg-blue-100 text-blue-800': task.status === 'In Progress',
-                                                'bg-green-100 text-green-800': task.status === 'Done',
-                                                'bg-red-100 text-red-800': task.status === 'Blocked',
-                                                'bg-gray-100 text-gray-800': task.status === 'Archived'
-                                            }"
-                                        >
+                                        <span :class="{
+                                            'px-2 py-1 rounded-full text-xs font-medium': true,
+                                            'bg-yellow-100 text-yellow-800': task.status === 'To Do',
+                                            'bg-blue-100 text-blue-800': task.status === 'In Progress',
+                                            'bg-green-100 text-green-800': task.status === 'Done',
+                                            'bg-red-100 text-red-800': task.status === 'Blocked',
+                                            'bg-gray-100 text-gray-800': task.status === 'Archived'
+                                        }">
                                             {{ task.status }}
                                         </span>
                                     </td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ task.assigned_to }}</td>
                                     <td class="px-4 py-3 text-right">
-                                        <div class="flex justify-end space-x-2">
-                                            <button
-                                                @click="editTask(task)"
-                                                class="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                @click="openAddTaskNoteModal(task)"
-                                                class="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                                            >
-                                                Add Note
-                                            </button>
-                                        </div>
+                                        <!-- Actions handled by ProjectTasksTab. Assuming view/edit is common -->
+                                        <button @click="selectedTab = 'tasks'" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                                            View/Edit
+                                        </button>
                                     </td>
                                 </tr>
                                 </tbody>
@@ -1875,34 +282,23 @@ onBeforeUnmount(() => {
                     <div v-else class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
                         <div class="flex justify-between items-center mb-4">
                             <h4 class="text-lg font-semibold text-gray-900">Tasks Due Today</h4>
-                            <button
-                                @click="selectedTab = 'tasks'"
-                                class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-                            >
+                            <button @click="selectedTab = 'tasks'" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
                                 View All Tasks →
                             </button>
                         </div>
                         <p class="text-gray-400 text-sm">No tasks due today.</p>
                     </div>
 
-                    <!-- Latest Emails Section -->
+                    <!-- Latest Emails Section (Overview) -->
                     <div v-if="canViewEmails" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
                         <div class="flex justify-between items-center mb-4">
                             <h4 class="text-lg font-semibold text-gray-900">Latest Emails</h4>
-                            <button
-                                @click="selectedTab = 'emails'"
-                                class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-                            >
+                            <button @click="selectedTab = 'emails'" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
                                 View All Emails →
                             </button>
                         </div>
-                        <div v-if="loadingEmails" class="text-center text-gray-600 text-sm animate-pulse py-4">
-                            Loading email data...
-                        </div>
-                        <div v-else-if="emailError" class="text-center text-red-600 text-sm font-medium py-4">
-                            {{ emailError }}
-                        </div>
-                        <div v-else-if="lastEmails.length" class="overflow-x-auto">
+                        <div v-if="!project.emails?.length" class="text-gray-400 text-sm">No email communication found.</div>
+                        <div v-else class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
                                 <tr>
@@ -1913,41 +309,31 @@ onBeforeUnmount(() => {
                                 </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="email in lastEmails" :key="email.id" class="hover:bg-gray-50 transition-colors">
+                                <tr v-for="email in latestEmails" :key="email.id" class="hover:bg-gray-50 transition-colors">
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ email.subject }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ email.sender?.name || 'N/A' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ new Date(email.created_at).toLocaleDateString() }}</td>
                                     <td class="px-4 py-3 text-right">
-                                        <SecondaryButton
-                                            class="text-indigo-600 hover:text-indigo-800"
-                                            @click="viewEmail(email)"
-                                        >
+                                        <button @click="selectedTab = 'emails'" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
                                             View
-                                        </SecondaryButton>
+                                        </button>
                                     </td>
                                 </tr>
                                 </tbody>
                             </table>
                         </div>
-                        <p v-else class="text-gray-400 text-sm">No email communication found.</p>
                     </div>
 
-                    <!-- Latest Notes Section -->
+                    <!-- Latest Notes Section (Overview) -->
                     <div v-if="canViewNotes" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
                         <div class="flex justify-between items-center mb-4">
                             <h4 class="text-lg font-semibold text-gray-900">Latest Notes</h4>
                             <div class="flex items-center gap-4">
-                                <button
-                                    @click="selectedTab = 'notes'"
-                                    class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-                                >
+                                <button @click="selectedTab = 'notes'" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
                                     View All Notes →
                                 </button>
-                                <div v-if="canDo('add_project_notes')">
-                                    <PrimaryButton
-                                        class="bg-indigo-600 hover:bg-indigo-700 transition-colors"
-                                        @click="openAddNoteModal"
-                                    >
+                                <div v-if="canAddNotes">
+                                    <PrimaryButton class="bg-indigo-600 hover:bg-indigo-700 transition-colors" @click="showAddNoteModal = true">
                                         Add Note
                                     </PrimaryButton>
                                 </div>
@@ -1971,565 +357,9 @@ onBeforeUnmount(() => {
                                         </div>
                                     </div>
                                     <div v-if="canViewNotes && note.chat_message_id && project.google_chat_id">
-                                        <SecondaryButton
-                                            class="text-sm text-indigo-600 hover:text-indigo-800"
-                                            @click="replyToNote(note)"
-                                        >
+                                        <button @click="selectedTab = 'notes'" class="text-sm text-indigo-600 hover:text-indigo-800">
                                             View
-                                        </SecondaryButton>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <p v-else class="text-gray-400 text-sm">No notes available.</p>
-                    </div>
-
-                </div>
-
-                <!-- Tasks Section -->
-                <div v-if="selectedTab === 'tasks'" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
-                    <div class="flex justify-between items-center mb-4">
-                        <h4 class="text-lg font-semibold text-gray-900">Project Tasks</h4>
-                        <div class="flex gap-2">
-                            <SecondaryButton
-                                @click="fetchProjectTasks"
-                                :disabled="loadingTasks"
-                                class="text-indigo-600 hover:text-indigo-800"
-                            >
-                                <span v-if="!loadingTasks">Refresh</span>
-                                <span v-else>Loading...</span>
-                            </SecondaryButton>
-                            <PrimaryButton
-                                v-if="canManageProjects"
-                                class="bg-indigo-600 hover:bg-indigo-700 transition-colors"
-                                @click="openAddTaskModal"
-                            >
-                                Add Task
-                            </PrimaryButton>
-                        </div>
-                    </div>
-
-                    <!-- Milestone Timeline -->
-                    <div class="mb-6 overflow-x-auto">
-                        <div v-if="loadingMilestones" class="text-center text-gray-600 text-sm animate-pulse py-4">
-                            Loading milestones...
-                        </div>
-                        <div v-else-if="!sortedMilestones.length" class="text-center py-4">
-                            <p class="text-gray-400 text-sm">No milestones found for this project.</p>
-                        </div>
-                        <div v-else class="relative py-8">
-                            <!-- Timeline Line -->
-                            <div class="absolute h-1 bg-gray-200 top-1/2 left-0 right-0 transform -translate-y-1/2"></div>
-
-                            <!-- Milestone Markers -->
-                            <div class="relative flex justify-between">
-                                <div
-                                    v-for="(milestone, index) in sortedMilestones"
-                                    :key="milestone.id"
-                                    class="flex flex-col items-center relative z-10"
-                                    :class="{'ml-4': index === 0, 'mr-4': index === sortedMilestones.length - 1}"
-                                >
-                                    <!-- Milestone Marker -->
-                                    <div
-                                        class="w-6 h-6 rounded-full shadow-lg flex items-center justify-center"
-                                        :class="{
-                                            'bg-gray-300': milestone.status === 'Not Started',
-                                            'bg-blue-500': milestone.status === 'In Progress',
-                                            'bg-green-500': milestone.status === 'Completed',
-                                            'bg-red-500': milestone.status === 'Overdue'
-                                        }"
-                                    >
-                                        <svg v-if="milestone.status === 'Completed'" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        <svg v-else-if="milestone.status === 'In Progress'" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                        </svg>
-                                        <svg v-else-if="milestone.status === 'Overdue'" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        <span v-else class="w-2 h-2 bg-white rounded-full"></span>
-                                    </div>
-
-                                    <!-- Milestone Name (above) -->
-                                    <div class="absolute -top-8 transform -translate-x-1/2 left-1/2 w-32">
-                                        <p class="text-xs font-medium text-gray-700 text-center truncate" :title="milestone.name">
-                                            {{ milestone.name }}
-                                        </p>
-                                    </div>
-
-                                    <!-- Milestone Date (below) -->
-                                    <div class="absolute top-8 transform -translate-x-1/2 left-1/2">
-                                        <p class="text-xs text-gray-500 whitespace-nowrap">
-                                            {{ milestone.completion_date ? new Date(milestone.completion_date).toLocaleDateString() : 'No date' }}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Task Filters -->
-                    <div class="mb-6 bg-gray-50 p-4 rounded-lg">
-                        <div class="flex flex-wrap items-center gap-4">
-                            <div class="flex-1 min-w-[200px]">
-                                <label for="status-filter" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                                <select
-                                    id="status-filter"
-                                    v-model="taskFilters.status"
-                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-                                >
-                                    <option value="">All Statuses</option>
-                                    <option value="To Do">To Do</option>
-                                    <option value="In Progress">In Progress</option>
-                                    <option value="Done">Done</option>
-                                    <option value="Blocked">Blocked</option>
-                                    <option value="Archived">Archived</option>
-                                </select>
-                            </div>
-
-                            <div class="flex-1 min-w-[200px]">
-                                <label for="assigned-filter" class="block text-sm font-medium text-gray-700 mb-1">Assigned To</label>
-                                <select
-                                    id="assigned-filter"
-                                    v-model="taskFilters.assigned_to_user_id"
-                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-                                >
-                                    <option value="">All Users</option>
-                                    <option value="-1">Unassigned</option>
-                                    <option v-for="user in project.users" :key="user.id" :value="user.id">
-                                        {{ user.name }}
-                                    </option>
-                                </select>
-                            </div>
-
-                            <div class="flex-1 min-w-[200px]">
-                                <label for="milestone-filter" class="block text-sm font-medium text-gray-700 mb-1">Milestone</label>
-                                <select
-                                    id="milestone-filter"
-                                    v-model="taskFilters.milestone_id"
-                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-                                >
-                                    <option value="">All Milestones</option>
-                                    <option value="-1">No Milestone</option>
-                                    <option v-for="milestone in milestones" :key="milestone.id" :value="milestone.id">
-                                        {{ milestone.name }}
-                                    </option>
-                                </select>
-                            </div>
-
-                            <div class="flex-1 min-w-[200px]">
-                                <label for="due-date-filter" class="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-                                <select
-                                    id="due-date-filter"
-                                    v-model="taskFilters.due_date_range"
-                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-                                >
-                                    <option v-for="option in dueDateOptions" :key="option.value" :value="option.value">
-                                        {{ option.label }}
-                                    </option>
-                                </select>
-                            </div>
-
-                            <div class="flex items-end">
-                                <button
-                                    @click="resetFilters"
-                                    class="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                                >
-                                    Clear Filters
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Filter summary -->
-                        <div v-if="Object.values(taskFilters).some(v => v !== '')" class="mt-3 text-sm text-gray-600">
-                            <p>
-                                Showing {{ filteredTasks.length }} of {{ tasks.length }} tasks
-                                <span v-if="filteredTasks.length === 0" class="text-red-600 font-medium">
-                                    (No tasks match the current filters)
-                                </span>
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Loading State -->
-                    <div v-if="loadingTasks" class="text-center text-gray-600 text-sm animate-pulse py-4">
-                        Loading tasks...
-                    </div>
-
-                    <!-- Error State -->
-                    <div v-else-if="tasksError" class="text-center py-4">
-                        <p class="text-red-600 text-sm font-medium">{{ tasksError }}</p>
-                    </div>
-
-                    <!-- Tasks Table -->
-                    <div v-else-if="tasks.length" class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Milestone</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                            </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                            <tr v-for="task in filteredTasks" :key="task.id" class="hover:bg-gray-50 transition-colors">
-                                <td class="px-4 py-3 text-sm text-gray-900">{{ task.title }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-700">
-                                    <span
-                                        :class="{
-                                            'px-2 py-1 rounded-full text-xs font-medium': true,
-                                            'bg-yellow-100 text-yellow-800': task.status === 'To Do',
-                                            'bg-blue-100 text-blue-800': task.status === 'In Progress',
-                                            'bg-green-100 text-green-800': task.status === 'Done',
-                                            'bg-red-100 text-red-800': task.status === 'Blocked',
-                                            'bg-gray-100 text-gray-800': task.status === 'Archived'
-                                        }"
-                                    >
-                                        {{ task.status }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3 text-sm text-gray-700">{{ task.assigned_to }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-700">
-                                    {{ task.due_date ? task.due_date : 'N/A' }}
-                                </td>
-                                <td class="px-4 py-3 text-sm text-gray-700">
-                                    {{ task.milestone || 'N/A' }}
-                                </td>
-                                <td class="px-4 py-3 text-right">
-                                    <div class="flex justify-end space-x-2">
-                                        <button
-                                            @click="editTask(task)"
-                                            class="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                                        >
-                                            Edit
                                         </button>
-                                        <button
-                                            @click="openAddTaskNoteModal(task)"
-                                            class="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                                        >
-                                            Add Note
-                                        </button>
-                                        <button
-                                            v-if="task.status === 'To Do'"
-                                            @click="startTask(task)"
-                                            class="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                                        >
-                                            Start
-                                        </button>
-                                        <button
-                                            v-if="task.status !== 'Done'"
-                                            @click="markTaskAsCompleted(task)"
-                                            class="text-green-600 hover:text-green-800 text-sm font-medium"
-                                        >
-                                            Complete
-                                        </button>
-<!--                                        <button-->
-<!--                                            v-if="canManageProjects"-->
-<!--                                            @click="deleteTask(task)"-->
-<!--                                            class="text-red-600 hover:text-red-800 text-sm font-medium"-->
-<!--                                        >-->
-<!--                                            Delete-->
-<!--                                        </button>-->
-                                    </div>
-                                </td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Empty State -->
-                    <div v-else class="text-center py-4">
-                        <p class="text-gray-400 text-sm">No tasks found for this project.</p>
-                        <p class="text-gray-500 text-sm mt-2">
-                            Click the "Add Task" button to create a new task.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Email Communication Section -->
-                <div v-if="canViewEmails && selectedTab === 'emails'" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
-                    <div class="flex justify-between items-center mb-4">
-                        <h4 class="text-lg font-semibold text-gray-900">Email Communication</h4>
-                        <div v-if="canComposeEmails" class="flex gap-3">
-                            <PrimaryButton
-                                class="bg-indigo-600 hover:bg-indigo-700 transition-colors"
-                                @click="openComposeEmailModal"
-                            >
-                                Compose Email
-                            </PrimaryButton>
-                        </div>
-                        <div v-if="emailSuccessMessage" class="mt-2 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded relative" role="alert">
-                            <span class="block sm:inline">{{ emailSuccessMessage }}</span>
-                        </div>
-                    </div>
-
-                    <!-- Email Filters -->
-                    <div class="mb-4 bg-gray-50 p-4 rounded-lg">
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <!-- Type Filter -->
-                            <div>
-                                <label for="typeFilter" class="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                                <select
-                                    id="typeFilter"
-                                    v-model="emailFilters.type"
-                                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                                    @change="applyFilters"
-                                >
-                                    <option value="">All Types</option>
-                                    <option value="sent">Sent</option>
-                                    <option value="received">Received</option>
-                                </select>
-                            </div>
-
-                            <!-- Date Range Filter -->
-                            <div>
-                                <label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">From Date</label>
-                                <input
-                                    type="date"
-                                    id="startDate"
-                                    v-model="emailFilters.startDate"
-                                    class="mt-1 block w-full border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                                    @change="applyFilters"
-                                />
-                            </div>
-                            <div>
-                                <label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">To Date</label>
-                                <input
-                                    type="date"
-                                    id="endDate"
-                                    v-model="emailFilters.endDate"
-                                    class="mt-1 block w-full border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                                    @change="applyFilters"
-                                />
-                            </div>
-
-                            <!-- Search Filter -->
-                            <div>
-                                <label for="searchFilter" class="block text-sm font-medium text-gray-700 mb-1">Search Content</label>
-                                <div class="mt-1 relative rounded-md shadow-sm">
-                                    <input
-                                        type="text"
-                                        id="searchFilter"
-                                        v-model="emailFilters.search"
-                                        class="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-10 sm:text-sm border-gray-300 rounded-md"
-                                        placeholder="Search in email content..."
-                                        @input="debounceSearch"
-                                    />
-                                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                        <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-                                        </svg>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Reset Filters Button -->
-                        <div class="mt-3 flex justify-end">
-                            <button
-                                type="button"
-                                class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                @click="resetEmailFilters"
-                            >
-                                Reset Filters
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Loading and Error States -->
-                    <div v-if="loadingEmails" class="text-center text-gray-600 text-sm animate-pulse py-4">
-                        Loading email data...
-                    </div>
-                    <div v-else-if="emailError" class="text-center text-red-600 text-sm font-medium py-4">
-                        {{ emailError }}
-                    </div>
-                    <div v-else-if="emails.length" class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                            </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                            <tr v-for="email in emails" :key="email.id" class="hover:bg-gray-50 transition-colors">
-                                <td class="px-4 py-3 text-sm text-gray-900">{{ email.subject }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-700">{{ email.sender?.name || 'N/A' }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-700">{{ new Date(email.created_at).toLocaleDateString() }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-700">
-                                    <span
-                                        :class="{
-                                            'px-2 py-1 rounded-full text-xs font-medium': true,
-                                            'bg-blue-100 text-blue-800': email.type === 'sent',
-                                            'bg-purple-100 text-purple-800': email.type === 'received'
-                                        }"
-                                    >
-                                        {{ email.type ? email.type.toUpperCase() : 'N/A' }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3 text-sm text-gray-700">
-                                    <span
-                                        :class="{
-                                            'px-2 py-1 rounded-full text-xs font-medium': true,
-                                            'bg-green-100 text-green-800': email.status === 'sent',
-                                            'bg-yellow-100 text-yellow-800': email.status === 'pending_approval',
-                                            'bg-red-100 text-red-800': email.status === 'rejected',
-                                            'bg-gray-100 text-gray-800': email.status === 'draft'
-                                        }"
-                                    >
-                                        {{ email.status.replace('_', ' ').toUpperCase() }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3 text-right">
-                                    <SecondaryButton
-                                        class="text-indigo-600 hover:text-indigo-800"
-                                        @click="viewEmail(email)"
-                                    >
-                                        View
-                                    </SecondaryButton>
-                                </td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <p v-else class="text-gray-400 text-sm">No email communication found.</p>
-                </div>
-
-                <!-- Daily Standups Section -->
-                <div v-if="canViewNotes && selectedTab === 'standups'">
-                    <DailyStandups
-                        :projectId="projectId"
-                        :users="project.users || []"
-                        @standupAdded="fetchProjectData"
-                    />
-                </div>
-
-                <!-- Notes Section -->
-                <div v-if="canViewNotes && selectedTab === 'notes'" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
-                    <div class="flex justify-between items-center mb-4">
-                        <h4 class="text-lg font-semibold text-gray-900">Project Notes</h4>
-                        <div class="flex gap-3">
-                            <PrimaryButton
-                                v-if="canDo('add_project_notes')"
-                                class="bg-indigo-600 hover:bg-indigo-700 transition-colors"
-                                @click="openAddNoteModal"
-                            >
-                                Add Note
-                            </PrimaryButton>
-                        </div>
-                    </div>
-
-                    <!-- Notes Filters -->
-                    <div class="mb-4 bg-gray-50 p-4 rounded-lg">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <!-- Date Range Filter -->
-                            <div>
-                                <label for="noteStartDate" class="block text-sm font-medium text-gray-700 mb-1">From Date</label>
-                                <input
-                                    type="date"
-                                    id="noteStartDate"
-                                    v-model="noteFilters.startDate"
-                                    class="mt-1 block w-full border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                                    @change="applyNoteFilters"
-                                />
-                            </div>
-                            <div>
-                                <label for="noteEndDate" class="block text-sm font-medium text-gray-700 mb-1">To Date</label>
-                                <input
-                                    type="date"
-                                    id="noteEndDate"
-                                    v-model="noteFilters.endDate"
-                                    class="mt-1 block w-full border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                                    @change="applyNoteFilters"
-                                />
-                            </div>
-
-                            <!-- Search Filter -->
-                            <div>
-                                <label for="noteSearchFilter" class="block text-sm font-medium text-gray-700 mb-1">Search Content</label>
-                                <div class="mt-1 relative rounded-md shadow-sm">
-                                    <input
-                                        type="text"
-                                        id="noteSearchFilter"
-                                        v-model="noteFilters.search"
-                                        class="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-10 sm:text-sm border-gray-300 rounded-md"
-                                        placeholder="Search in note content..."
-                                        @input="debounceNoteSearch"
-                                    />
-                                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                        <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-                                        </svg>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Reset Filters Button -->
-                        <div class="mt-3 flex justify-end">
-                            <button
-                                type="button"
-                                class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                @click="resetNoteFilters"
-                            >
-                                Reset Filters
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Note about Daily Standups -->
-                    <div class="mb-8 p-4 bg-blue-50 rounded-md">
-                        <div class="flex items-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <p class="text-sm text-blue-800">
-                                Daily Standups are now available in their own dedicated tab.
-                                <button
-                                    @click="selectedTab = 'standups'"
-                                    class="text-blue-600 hover:text-blue-800 font-medium underline"
-                                >
-                                    Click here to view Daily Standups
-                                </button>
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Regular Notes Section -->
-                    <div>
-                        <h5 class="text-md font-semibold text-gray-900 mb-4 border-b pb-2">Notes</h5>
-                        <div v-if="regularNotes.length" class="space-y-4">
-                            <div v-for="note in regularNotes" :key="note.id" class="p-4 bg-gray-50 rounded-md shadow-sm hover:bg-gray-100 transition-colors">
-                                <div class="flex justify-between">
-                                    <div class="flex-grow">
-                                        <p class="text-sm" :class="{'text-gray-700': note.content !== '[Encrypted content could not be decrypted]', 'text-red-500 italic': note.content === '[Encrypted content could not be decrypted]'}">
-                                            {{ note.content }}
-                                            <span v-if="note.content === '[Encrypted content could not be decrypted]'" class="text-xs text-red-400 block mt-1">
-                                                (There was an issue decrypting this note. Please contact an administrator.)
-                                            </span>
-                                        </p>
-                                        <div class="flex items-center mt-1">
-                                            <p class="text-xs text-gray-500">Added by {{ note.user?.name || 'Unknown' }} on {{ new Date(note.created_at).toLocaleDateString() }}</p>
-                                            <span v-if="note.reply_count > 0" class="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-800 text-xs rounded-full">
-                                                {{ note.reply_count }} {{ note.reply_count === 1 ? 'reply' : 'replies' }}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div v-if="note.chat_message_id && project.google_chat_id">
-                                        <SecondaryButton
-                                            class="text-sm text-indigo-600 hover:text-indigo-800"
-                                            @click="replyToNote(note)"
-                                        >
-                                            View
-                                        </SecondaryButton>
                                     </div>
                                 </div>
                             </div>
@@ -2537,676 +367,87 @@ onBeforeUnmount(() => {
                         <p v-else class="text-gray-400 text-sm">No notes available.</p>
                     </div>
                 </div>
+
+                <!-- Tab Content -->
+                <ProjectTasksTab
+                    v-if="selectedTab === 'tasks'"
+                    :project-id="projectId"
+                    :project-users="project.users || []"
+                    :can-manage-projects="canManageProjects"
+                    @tasksUpdated="handleTasksUpdated"
+                />
+
+                <ProjectEmailsTab
+                    v-if="selectedTab === 'emails'"
+                    :project-id="projectId"
+                    :project-clients="project.clients || []"
+                    :can-view-emails="canViewEmails"
+                    :can-compose-emails="canComposeEmails"
+                    :can-approve-emails="canApproveEmails"
+                    @emailsUpdated="handleEmailsUpdated"
+                />
+
+                <DailyStandups
+                    v-if="selectedTab === 'standups'"
+                    :projectId="projectId"
+                    :users="project.users || []"
+                    @standupAdded="handleStandupAdded"
+                />
+
+                <ProjectNotesTab
+                    v-if="selectedTab === 'notes'"
+                    :project-id="projectId"
+                    :google-chat-id="project.google_chat_id"
+                    :can-view-notes="canViewNotes"
+                    :can-add-notes="canAddNotes"
+                    @notesUpdated="handleNotesUpdated"
+                    @changeTab="handleChangeTab"
+                />
             </div>
         </div>
 
-        <!-- Edit Project Modal -->
+        <!-- Modals that apply broadly or are less section-specific -->
         <Modal :show="showEditModal" @close="showEditModal = false">
             <ProjectForm
                 :show="showEditModal"
                 :project="project"
-                :statusOptions="statusOptions"
-                :departmentOptions="departmentOptions"
-                :sourceOptions="sourceOptions"
-                :clientRoleOptions="clientRoleOptions"
-                :userRoleOptions="userRoleOptions"
-                :paymentTypeOptions="paymentTypeOptions"
+                :statusOptions="statusOptions" :departmentOptions="departmentOptions" :sourceOptions="sourceOptions"
+                :clientRoleOptions="[]" :userRoleOptions="[]" :paymentTypeOptions="[]"
                 @close="showEditModal = false"
                 @submit="handleProjectSubmit"
             />
         </Modal>
 
-        <!-- Email View Modal -->
-        <Modal :show="showEmailModal" @close="showEmailModal = false">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Email Details</h3>
-                    <button @click="showEmailModal = false" class="text-gray-400 hover:text-gray-500">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div v-if="selectedEmail" class="space-y-4">
-                    <!-- Email Header -->
-                    <div class="border-b pb-4">
-                        <h4 class="text-xl font-medium text-gray-900 mb-2">{{ selectedEmail.subject }}</h4>
-                        <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <p class="text-gray-600">From: <span class="text-gray-900">{{ selectedEmail.sender?.name || 'N/A' }}</span></p>
-                                <p class="text-gray-600 mt-1">Status:
-                                    <span
-                                        :class="{
-                                            'px-2 py-1 rounded-full text-xs font-medium': true,
-                                            'bg-green-100 text-green-800': selectedEmail.status === 'sent',
-                                            'bg-yellow-100 text-yellow-800': selectedEmail.status === 'pending_approval',
-                                            'bg-red-100 text-red-800': selectedEmail.status === 'rejected',
-                                            'bg-gray-100 text-gray-800': selectedEmail.status === 'draft'
-                                        }"
-                                    >
-                                        {{ selectedEmail.status.replace('_', ' ').toUpperCase() }}
-                                    </span>
-                                </p>
-                            </div>
-                            <div>
-                                <p class="text-gray-600">Date: <span class="text-gray-900">{{ new Date(selectedEmail.created_at).toLocaleString() }}</span></p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Email Body -->
-                    <div class="prose max-w-none">
-                        <div v-html="selectedEmail.body"></div>
-                    </div>
-
-                    <!-- Additional Information -->
-                    <div v-if="selectedEmail.rejection_reason" class="mt-4 p-4 bg-red-50 rounded-md">
-                        <h5 class="font-medium text-red-800">Rejection Reason:</h5>
-                        <p class="text-red-700">{{ selectedEmail.rejection_reason }}</p>
-                    </div>
-
-                    <div v-if="selectedEmail.approver" class="mt-4 text-sm text-gray-600">
-                        <p>Approved/Rejected by: {{ selectedEmail.approver.name }}</p>
-                        <p v-if="selectedEmail.sent_at">Sent at: {{ new Date(selectedEmail.sent_at).toLocaleString() }}</p>
-                    </div>
-
-                    <!-- Approval Actions for Pending Emails - Only shown if user has project-specific approval permission -->
-                    <!-- This ensures that only users with the appropriate project-level permission can approve emails -->
-                    <div v-if="selectedEmail.status === 'pending_approval' && canApproveEmails" class="mt-6 flex justify-end space-x-2">
-                        <PrimaryButton @click="approveEmail(selectedEmail)" class="bg-green-600 hover:bg-green-700">
-                            Approve
-                        </PrimaryButton>
-                        <PrimaryButton @click="openEditEmailModal(selectedEmail)" class="bg-blue-600 hover:bg-blue-700">
-                            Edit & Approve
-                        </PrimaryButton>
-                        <SecondaryButton @click="openRejectEmailModal(selectedEmail)" class="text-red-600 hover:text-red-800">
-                            Reject
-                        </SecondaryButton>
-                    </div>
-                </div>
-            </div>
-        </Modal>
-
-        <!-- Add Note Modal -->
-        <NotesModal
-            :show="showAddNoteModal"
-            :project-id="project.id"
-            @close="showAddNoteModal = false"
-            @note-added="fetchProjectData"
-        />
-
-        <!-- Edit Email Modal -->
-        <Modal :show="showEditEmailModal" @close="showEditEmailModal = false" max-width="3xl">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Edit and Approve Email</h3>
-                    <button @click="showEditEmailModal = false" class="text-gray-400 hover:text-gray-500">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div v-if="selectedEmail" class="space-y-4">
-                    <form @submit.prevent="saveAndApproveEmail">
-                        <div v-if="emailError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                            <span class="block sm:inline">{{ emailError }}</span>
-                        </div>
-
-                        <div class="mb-4">
-                            <InputLabel for="subject" value="Subject" />
-                            <TextInput id="subject" type="text" class="mt-1 block w-full" v-model="editEmailForm.subject" required />
-                            <InputError :message="editEmailErrors.subject ? editEmailErrors.subject[0] : ''" class="mt-2" />
-                        </div>
-
-                        <div class="mb-6">
-                            <InputLabel for="body" value="Email Body" />
-                            <RichTextEditor
-                                id="body"
-                                v-model="editEmailForm.body"
-                                placeholder="Edit your email here..."
-                                height="300px"
-                            />
-                            <InputError :message="editEmailErrors.body ? editEmailErrors.body[0] : ''" class="mt-2" />
-                        </div>
-
-                        <div class="mt-6 flex justify-end space-x-2">
-                            <SecondaryButton @click="showEditEmailModal = false">Cancel</SecondaryButton>
-                            <PrimaryButton type="submit" class="bg-green-600 hover:bg-green-700">Save & Approve</PrimaryButton>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </Modal>
-
-        <!-- Reject Email Modal -->
-        <Modal :show="showRejectEmailModal" @close="showRejectEmailModal = false" max-width="2xl">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Reject Email</h3>
-                    <button @click="showRejectEmailModal = false" class="text-gray-400 hover:text-gray-500">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div v-if="selectedEmail" class="space-y-4">
-                    <form @submit.prevent="submitRejection">
-                        <div v-if="emailError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                            <span class="block sm:inline">{{ emailError }}</span>
-                        </div>
-
-                        <div class="mb-6">
-                            <InputLabel for="rejection_reason" value="Rejection Reason" />
-                            <textarea
-                                id="rejection_reason"
-                                rows="5"
-                                class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full"
-                                v-model="rejectionForm.rejection_reason"
-                                required
-                                placeholder="Please provide a reason for rejecting this email (minimum 10 characters)"
-                            ></textarea>
-                            <InputError :message="rejectionErrors.rejection_reason ? rejectionErrors.rejection_reason[0] : ''" class="mt-2" />
-                        </div>
-
-                        <div class="mt-6 flex justify-end space-x-2">
-                            <SecondaryButton @click="showRejectEmailModal = false">Cancel</SecondaryButton>
-                            <PrimaryButton type="submit" class="bg-red-600 hover:bg-red-700">Reject Email</PrimaryButton>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </Modal>
-
-        <!-- Resource Modal -->
-        <ResourceModal
-            :show="showResourceModal"
-            :project-id="project.id"
-            :resource="selectedResource"
-            @close="showResourceModal = false"
-            @saved="handleResourceSaved"
-        />
-
-        <!-- Compose Email Modal -->
-        <Modal :show="showComposeEmailModal" @close="showComposeEmailModal = false" max-width="3xl">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Compose New Email</h3>
-                    <button @click="showComposeEmailModal = false" class="text-gray-400 hover:text-gray-500">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <form @submit.prevent="submitEmailForApproval">
-                    <div v-if="emailError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                        <span class="block sm:inline">{{ emailError }}</span>
-                    </div>
-
-                    <div class="mb-4">
-                        <InputLabel for="client_ids" value="To (Clients)" />
-                        <Multiselect
-                            id="client_ids"
-                            v-model="composeEmailForm.client_ids"
-                            :options="project.clients || []"
-                            :multiple="true"
-                            :close-on-select="true"
-                            :clear-on-select="false"
-                            :preserve-search="true"
-                            placeholder="Select one or more clients"
-                            label="name"
-                            track-by="id"
-                            :searchable="true"
-                            :allow-empty="true"
-                        >
-                            <template #option="{ option }">
-                                {{ option.name }}
-                            </template>
-                            <template #tag="{ option, remove }">
-                                <span class="multiselect__tag">
-                                    {{ option.name }}
-                                    <i class="multiselect__tag-icon" @click="remove(option)"></i>
-                                </span>
-                            </template>
-                        </Multiselect>
-                        <InputError :message="composeEmailErrors.client_ids ? composeEmailErrors.client_ids[0] : ''" class="mt-2" />
-                    </div>
-
-                    <div class="mb-4">
-                        <InputLabel for="subject" value="Subject" />
-                        <TextInput id="subject" type="text" class="mt-1 block w-full" v-model="composeEmailForm.subject" required />
-                        <InputError :message="composeEmailErrors.subject ? composeEmailErrors.subject[0] : ''" class="mt-2" />
-                    </div>
-
-                    <div class="mb-6">
-                        <InputLabel for="body" value="Email Body" />
-                        <RichTextEditor
-                            id="body"
-                            v-model="composeEmailForm.body"
-                            placeholder="Compose your email here..."
-                            height="300px"
-                        />
-                        <InputError :message="composeEmailErrors.body ? composeEmailErrors.body[0] : ''" class="mt-2" />
-                    </div>
-
-                    <div class="flex items-center justify-end">
-                        <SecondaryButton @click="showComposeEmailModal = false" class="mr-2">Cancel</SecondaryButton>
-                        <PrimaryButton type="submit">Submit for Approval</PrimaryButton>
-                    </div>
-                </form>
-            </div>
-        </Modal>
-
-        <!-- Reply to Note Modal -->
-        <Modal :show="showReplyModal" @close="showReplyModal = false">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Reply to Note</h3>
-                    <button @click="showReplyModal = false" class="text-gray-400 hover:text-gray-500">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div v-if="selectedNote" class="mb-4 p-3 bg-gray-100 rounded-md">
-                    <p class="text-sm text-gray-700">{{ selectedNote.content }}</p>
-                    <p class="text-xs text-gray-500 mt-1">Added by {{ selectedNote.user?.name || 'Unknown' }} on {{ new Date(selectedNote.created_at).toLocaleDateString() }}</p>
-                </div>
-
-                <!-- Replies Section -->
-                <div v-if="selectedNote" class="mb-4">
-                    <h4 class="text-sm font-medium text-gray-700 mb-2">Replies</h4>
-
-                    <!-- Loading State -->
-                    <div v-if="loadingReplies" class="text-center py-4">
-                        <p class="text-gray-500 text-sm">Loading replies...</p>
-                    </div>
-
-                    <!-- Replies List -->
-                    <div v-else-if="noteReplies.length" class="space-y-3 max-h-60 overflow-y-auto">
-                        <div v-for="reply in noteReplies" :key="reply.id" class="p-2 bg-gray-50 rounded border-l-2 border-indigo-300">
-                            <p class="text-sm text-gray-700">{{ reply.content }}</p>
-                            <p class="text-xs text-gray-500 mt-1">Replied by {{ reply.user?.name || 'Unknown' }} on {{ new Date(reply.created_at).toLocaleDateString() }}</p>
-                        </div>
-                    </div>
-
-                    <!-- No Replies State -->
-                    <div v-else class="text-center py-3">
-                        <p class="text-gray-500 text-sm">No replies yet. Be the first to reply!</p>
-                    </div>
-                </div>
-
-                <div class="mb-4" v-if="canAddNotes">
-                    <label for="reply-content" class="block text-sm font-medium text-gray-700 mb-1">Your Reply</label>
-                    <textarea
-                        id="reply-content"
-                        v-model="replyContent"
-                        class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full h-32"
-                        placeholder="Enter your reply..."
-                    ></textarea>
-                    <p v-if="replyError" class="mt-2 text-sm text-red-600">{{ replyError }}</p>
-                </div>
-
-                <div v-if="canAddNotes" class="mt-6 flex justify-end">
-                    <SecondaryButton @click="showReplyModal = false" class="mr-2">Cancel</SecondaryButton>
-                    <PrimaryButton @click="submitReply">Send Reply</PrimaryButton>
-                </div>
-            </div>
-        </Modal>
-
-        <!-- Task Modal -->
-        <Modal :show="showTaskModal" @close="showTaskModal = false">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">
-                        {{ selectedTask ? 'Edit Task' : 'Add New Task' }}
-                    </h3>
-                    <button @click="showTaskModal = false" class="text-gray-400 hover:text-gray-500">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <form @submit.prevent="submitTaskForm" class="space-y-4">
-                    <!-- Task Name -->
-                    <div>
-                        <label for="task-name" class="block text-sm font-medium text-gray-700">Task Name</label>
-                        <input
-                            id="task-name"
-                            v-model="taskFormData.name"
-                            type="text"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            placeholder="Enter task name"
-                        />
-                        <p v-if="taskFormErrors.name" class="mt-1 text-sm text-red-600">{{ taskFormErrors.name[0] }}</p>
-                    </div>
-
-                    <!-- Task Description -->
-                    <div>
-                        <label for="task-description" class="block text-sm font-medium text-gray-700">Description</label>
-                        <textarea
-                            id="task-description"
-                            v-model="taskFormData.description"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            rows="3"
-                            placeholder="Enter task description"
-                        ></textarea>
-                        <p v-if="taskFormErrors.description" class="mt-1 text-sm text-red-600">{{ taskFormErrors.description[0] }}</p>
-                    </div>
-
-                    <!-- Task Status -->
-                    <div>
-                        <label for="task-status" class="block text-sm font-medium text-gray-700">Status</label>
-                        <select
-                            id="task-status"
-                            v-model="taskFormData.status"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                            <option value="To Do">To Do</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Done">Done</option>
-                            <option value="Blocked">Blocked</option>
-                            <option value="Archived">Archived</option>
-                        </select>
-                        <p v-if="taskFormErrors.status" class="mt-1 text-sm text-red-600">{{ taskFormErrors.status[0] }}</p>
-                    </div>
-
-                    <!-- Due Date -->
-                    <div>
-                        <label for="task-due-date" class="block text-sm font-medium text-gray-700">Due Date</label>
-                        <input
-                            id="task-due-date"
-                            v-model="taskFormData.due_date"
-                            type="date"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        />
-                        <p v-if="taskFormErrors.due_date" class="mt-1 text-sm text-red-600">{{ taskFormErrors.due_date[0] }}</p>
-                    </div>
-
-                    <!-- Assigned To -->
-                    <div>
-                        <label for="task-assigned-to" class="block text-sm font-medium text-gray-700">Assigned To</label>
-                        <select
-                            id="task-assigned-to"
-                            v-model="taskFormData.assigned_to_user_id"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                            <option :value="null">Unassigned</option>
-                            <option v-for="user in project.users" :key="user.id" :value="user.id">
-                                {{ user.name }}
-                            </option>
-                        </select>
-                        <p v-if="taskFormErrors.assigned_to_user_id" class="mt-1 text-sm text-red-600">{{ taskFormErrors.assigned_to_user_id[0] }}</p>
-                    </div>
-
-                    <!-- Task Type -->
-                    <div>
-                        <label for="task-type" class="block text-sm font-medium text-gray-700">Task Type</label>
-                        <div v-if="loadingTaskTypes" class="text-sm text-gray-500">Loading task types...</div>
-                        <select
-                            v-else
-                            id="task-type"
-                            v-model="taskFormData.task_type_id"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                            <option :value="null">Select a task type</option>
-                            <option v-for="type in taskTypes" :key="type.id" :value="type.id">
-                                {{ type.name }}
-                            </option>
-                        </select>
-                        <p v-if="taskFormErrors.task_type_id" class="mt-1 text-sm text-red-600">{{ taskFormErrors.task_type_id[0] }}</p>
-                    </div>
-
-                    <!-- Milestone -->
-                    <div>
-                        <div class="flex justify-between items-center">
-                            <label for="task-milestone" class="block text-sm font-medium text-gray-700">Milestone</label>
-                            <button
-                                type="button"
-                                @click="openAddMilestoneModal"
-                                class="text-sm text-indigo-600 hover:text-indigo-800"
-                            >
-                                + Create New Milestone
-                            </button>
-                        </div>
-                        <div v-if="loadingMilestones" class="text-sm text-gray-500">Loading milestones...</div>
-                        <select
-                            v-else
-                            id="task-milestone"
-                            v-model="taskFormData.milestone_id"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                            <option :value="null">No milestone</option>
-                            <option v-for="milestone in milestones" :key="milestone.id" :value="milestone.id">
-                                {{ milestone.name }}
-                            </option>
-                        </select>
-                        <p v-if="taskFormErrors.milestone_id" class="mt-1 text-sm text-red-600">{{ taskFormErrors.milestone_id[0] }}</p>
-                    </div>
-
-                    <div class="mt-6 flex justify-end space-x-3">
-                        <SecondaryButton @click="showTaskModal = false">
-                            Cancel
-                        </SecondaryButton>
-                        <PrimaryButton type="submit" :disabled="loadingTaskTypes || loadingMilestones">
-                            {{ selectedTask ? 'Update Task' : 'Create Task' }}
-                        </PrimaryButton>
-                    </div>
-                </form>
-            </div>
-        </Modal>
-
-        <!-- Milestone Modal -->
-        <Modal :show="showMilestoneModal" @close="showMilestoneModal = false">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Add New Milestone</h3>
-                    <button @click="showMilestoneModal = false" class="text-gray-400 hover:text-gray-500">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <form @submit.prevent="submitMilestoneForm" class="space-y-4">
-                    <!-- Milestone Name -->
-                    <div>
-                        <label for="milestone-name" class="block text-sm font-medium text-gray-700">Milestone Name</label>
-                        <input
-                            id="milestone-name"
-                            v-model="milestoneFormData.name"
-                            type="text"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            placeholder="Enter milestone name"
-                        />
-                        <p v-if="milestoneFormErrors.name" class="mt-1 text-sm text-red-600">{{ milestoneFormErrors.name[0] }}</p>
-                    </div>
-
-                    <!-- Milestone Description -->
-                    <div>
-                        <label for="milestone-description" class="block text-sm font-medium text-gray-700">Description</label>
-                        <textarea
-                            id="milestone-description"
-                            v-model="milestoneFormData.description"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            rows="3"
-                            placeholder="Enter milestone description"
-                        ></textarea>
-                        <p v-if="milestoneFormErrors.description" class="mt-1 text-sm text-red-600">{{ milestoneFormErrors.description[0] }}</p>
-                    </div>
-
-                    <!-- Completion Date -->
-                    <div>
-                        <label for="milestone-completion-date" class="block text-sm font-medium text-gray-700">Completion Date</label>
-                        <input
-                            id="milestone-completion-date"
-                            v-model="milestoneFormData.completion_date"
-                            type="date"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        />
-                        <p v-if="milestoneFormErrors.completion_date" class="mt-1 text-sm text-red-600">{{ milestoneFormErrors.completion_date[0] }}</p>
-                    </div>
-
-                    <!-- Status -->
-                    <div>
-                        <label for="milestone-status" class="block text-sm font-medium text-gray-700">Status</label>
-                        <select
-                            id="milestone-status"
-                            v-model="milestoneFormData.status"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                            <option value="Not Started">Not Started</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Completed">Completed</option>
-                            <option value="Overdue">Overdue</option>
-                        </select>
-                        <p v-if="milestoneFormErrors.status" class="mt-1 text-sm text-red-600">{{ milestoneFormErrors.status[0] }}</p>
-                    </div>
-
-                    <div class="mt-6 flex justify-end space-x-3">
-                        <SecondaryButton @click="showMilestoneModal = false" type="button">
-                            Cancel
-                        </SecondaryButton>
-                        <PrimaryButton type="submit" :disabled="creatingMilestone">
-                            {{ creatingMilestone ? 'Creating...' : 'Create Milestone' }}
-                        </PrimaryButton>
-                    </div>
-                </form>
-            </div>
-        </Modal>
-
-        <!-- Task Note Modal -->
-        <Modal :show="showTaskNoteModal" @close="showTaskNoteModal = false">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Add Note to Task</h3>
-                    <button @click="showTaskNoteModal = false" class="text-gray-400 hover:text-gray-500">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div v-if="taskForNote" class="mb-4 p-3 bg-gray-100 rounded-md">
-                    <p class="text-sm font-medium text-gray-900">{{ taskForNote.title }}</p>
-                    <p class="text-xs text-gray-500 mt-1">Status: {{ taskForNote.status }}</p>
-                </div>
-
-                <div class="mb-4">
-                    <label for="task-note-content" class="block text-sm font-medium text-gray-700 mb-1">Note Content</label>
-                    <textarea
-                        id="task-note-content"
-                        v-model="taskNoteContent"
-                        class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full h-32"
-                        placeholder="Enter your note..."
-                    ></textarea>
-                    <p v-if="taskNoteError" class="mt-2 text-sm text-red-600">{{ taskNoteError }}</p>
-                </div>
-
-                <div class="mt-6 flex justify-end">
-                    <SecondaryButton @click="showTaskNoteModal = false" class="mr-2">Cancel</SecondaryButton>
-                    <PrimaryButton @click="addTaskNote" :disabled="addingTaskNote">
-                        {{ addingTaskNote ? 'Adding...' : 'Add Note' }}
-                    </PrimaryButton>
-                </div>
-            </div>
-        </Modal>
-
-        <!-- Meeting Modal -->
         <MeetingModal
             :show="showMeetingModal"
             @close="showMeetingModal = false"
             @saved="handleMeetingSaved"
-            :projectId="project.id"
+            :projectId="projectId"
             :projectUsers="project.users || []"
         />
 
-        <!-- Standup Modal -->
         <StandupModal
             :show="showStandupModal"
             @close="showStandupModal = false"
-            @standupAdded="fetchProjectNotes"
-            :projectId="project.id"
+            @standupAdded="handleStandupAdded"
+            :projectId="projectId"
         />
 
-        <!-- Magic Link Modal -->
-        <Modal :show="showMagicLinkModal" @close="showMagicLinkModal = false">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Send Magic Link to Client</h3>
-                    <button @click="showMagicLinkModal = false" class="text-gray-400 hover:text-gray-500">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
+        <NotesModal
+            :show="showAddNoteModal"
+            :project-id="projectId"
+            @close="showAddNoteModal = false"
+            @note-added="handleNotesUpdated"
+        />
 
-                <!-- Success Message -->
-                <div v-if="magicLinkSuccess" class="mb-4 p-3 bg-green-100 text-green-800 rounded-md">
-                    {{ magicLinkSuccess }}
-                </div>
-
-                <!-- Error Message -->
-                <div v-if="magicLinkError" class="mb-4 p-3 bg-red-100 text-red-800 rounded-md">
-                    {{ magicLinkError }}
-                </div>
-
-                <div class="mb-4">
-                    <label for="client-email" class="block text-sm font-medium text-gray-700 mb-1">Select Client</label>
-                    <select
-                        id="client-email"
-                        v-model="selectedClientEmail"
-                        class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full"
-                    >
-                        <option value="">Select a client</option>
-                        <option v-for="client in project.clients" :key="client.id" :value="client.email">
-                            {{ client.name }} ({{ client.email }})
-                        </option>
-                    </select>
-                    <p class="mt-2 text-sm text-gray-500">
-                        The magic link will be sent to the selected client's email address.
-                    </p>
-                </div>
-
-                <div class="mt-6 flex justify-end space-x-3">
-                    <SecondaryButton @click="showMagicLinkModal = false" type="button">
-                        Cancel
-                    </SecondaryButton>
-                    <PrimaryButton
-                        @click="sendMagicLink"
-                        :disabled="sendingMagicLink || !selectedClientEmail"
-                        class="bg-purple-600 hover:bg-purple-700"
-                    >
-                        {{ sendingMagicLink ? 'Sending...' : 'Send Magic Link' }}
-                    </PrimaryButton>
-                </div>
-            </div>
-        </Modal>
+        <ProjectMagicLinkModal
+            :show="showMagicLinkModal"
+            :project-id="projectId"
+            :project-clients="project.clients || []"
+            @close="showMagicLinkModal = false"
+        />
     </AuthenticatedLayout>
 </template>
-
-<style>
-.multiselect {
-    min-height: 38px;
-}
-.multiselect__tags {
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    padding: 0.5rem;
-}
-.multiselect__tag {
-    background: #e5e7eb;
-    color: #374151;
-}
-.multiselect__tag-icon:after {
-    color: #6b7280;
-}
-</style>
 
 <style scoped>
 /* Custom styles for subtle enhancements */

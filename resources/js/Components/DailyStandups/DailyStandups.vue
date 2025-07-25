@@ -382,7 +382,6 @@ const allFetchedStandupsByDate = computed(() => {
                 :active-view="'month'"
                 :events="vueCalEvents"
                 :selected-date="calendarDisplayMonth"
-                hide-weekends
                 hide-title-bar
                 :disable-views="['week', 'day', 'years', 'year']"
                 :twelveHour="true"

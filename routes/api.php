@@ -9,33 +9,28 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
-use App\Http\Controllers\GoogleAuthController; // Our Google Auth controller
-use App\Http\Controllers\Api\ClientController; // Import
-use App\Http\Controllers\Api\CommentController; // Import for comment management
+use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\EmailController;
-use App\Http\Controllers\Api\ProjectController; // Import
-use App\Http\Controllers\Api\ProjectSectionController; // Import for section-based project data
-use App\Http\Controllers\Api\RoleController; // Import for role management
-use App\Http\Controllers\Api\PermissionController; // Import for permission management
-use App\Http\Controllers\Api\TaskController; // Import for task management
-use App\Http\Controllers\Api\SubtaskController; // Import for subtask management
-use App\Http\Controllers\Api\MilestoneController; // Import for milestone management
-use App\Http\Controllers\Api\TaskTypeController; // Import for task type management
-use App\Http\Controllers\Api\AvailabilityController; // Import for availability management
-use App\Http\Controllers\Api\BonusConfigurationController; // Import for bonus configuration management
-use App\Http\Controllers\Api\ResourceController; // Import for resource management
-use App\Http\Controllers\Api\MagicLinkController; // Import for magic link functionality
+use App\Http\Controllers\Api\ProjectReadController; // New Import
+use App\Http\Controllers\Api\ProjectActionController; // New Import
+use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\PermissionController;
+use App\Http\Controllers\Api\TaskController;
+use App\Http\Controllers\Api\SubtaskController;
+use App\Http\Controllers\Api\MilestoneController;
+use App\Http\Controllers\Api\TaskTypeController;
+use App\Http\Controllers\Api\AvailabilityController;
+use App\Http\Controllers\Api\BonusConfigurationController;
+use App\Http\Controllers\Api\ResourceController;
+use App\Http\Controllers\Api\MagicLinkController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-// --- Public Authentication Routes (NO auth:sanctum middleware) ---
-// These routes must be accessible to unauthenticated users to perform login
-// Registration route removed - this is a closed system where only administrators can add users
-// Route::post('/register', [RegisteredUserController::class, 'store'])
-//     ->middleware('guest');
-
+// Public Authentication Routes (NO auth:sanctum middleware)
 Route::post('/login', [AuthenticatedSessionController::class, 'store'])
-    ->middleware(['guest', 'web']); // THIS IS THE CRUCIAL ROUTE FOR YOUR LOGIN.VUE
+    ->middleware(['guest', 'web']);
 
 Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
     ->middleware('guest');
@@ -43,16 +38,15 @@ Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
 Route::post('/reset-password', [NewPasswordController::class, 'store'])
     ->middleware('guest');
 
-// --- Authenticated API Routes (behind auth:sanctum middleware) ---
-// All routes within this group require a valid Sanctum token
+// Authenticated API Routes (behind auth:sanctum middleware)
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
 
-    Route::post('/logout', [AuthenticatedSessionController::class, 'destroy']); // Logout needs auth
+    Route::post('/logout', [AuthenticatedSessionController::class, 'destroy']);
 
-    // Email Verification routes (often here if API-only)
+    // Email Verification routes
     Route::get('/verify-email/{id}/{hash}', VerifyEmailController::class)
         ->middleware(['signed', 'throttle:6,1'])
         ->name('verification.verify');
@@ -60,80 +54,81 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
         ->middleware('throttle:6,1');
 
-    // Our Google OAuth Routes (for admin to link Google Workspace)
-    // These should also be protected by auth:sanctum as only a logged-in admin links their account
+    // Google OAuth Routes
     Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirectToGoogle'])
-        ->name('auth.google.redirect'); // This will redirect to Google's OAuth consent screen
-
-    Route::get('/auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback']); // Google redirects here after consent
+        ->name('auth.google.redirect');
+    Route::get('/auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback']);
 
     // Client Management Routes (CRUD)
     Route::apiResource('clients', ClientController::class);
     Route::get('clients/{client}/email', [ClientController::class, 'getEmail']);
     Route::post('/upload-image', [ImageUploadController::class, 'upload']);
 
-    // Project Management Routes (CRUD)
-    Route::apiResource('projects', ProjectController::class);
-    Route::get('projects-simplified', [ProjectController::class, 'getProjectsSimplified']); // New route with limited information for dashboard
-    Route::get('projects-for-email', [ProjectController::class, 'getProjectsForEmailComposer']);
-    Route::post('projects/{project}/attach-users', [ProjectController::class, 'attachUsers'])->name('projects.attach-users');
-    Route::post('projects/{project}/detach-users', [ProjectController::class, 'detachUsers'])->name('projects.detach-users');
-    Route::post('projects/{project}/attach-clients', [ProjectController::class, 'attachClients'])->name('projects.attach-clients');
-    Route::post('projects/{project}/detach-clients', [ProjectController::class, 'detachClients'])->name('projects.detach-clients');
+    // Project Management Routes (Split into Read and Action)
+    // Read Routes
+    Route::get('projects', [ProjectReadController::class, 'index']);
+    Route::get('projects/{project}', [ProjectReadController::class, 'show']);
+    Route::get('projects-simplified', [ProjectReadController::class, 'getProjectsSimplified']);
+    Route::get('projects-for-email', [ProjectReadController::class, 'getProjectsForEmailComposer']);
+    Route::get('projects/{project}/notes', [ProjectReadController::class, 'getNotes']); // Handles general project notes
+    Route::get('projects/{project}/standups', [ProjectReadController::class, 'getNotes']); // Standups are also notes, filtered by type
+    Route::get('projects/{project}/notes/{note}/replies', [ProjectReadController::class, 'getNoteReplies']);
+    Route::get('projects/{project}/tasks', [ProjectReadController::class, 'getTasks']);
+    Route::get('/projects/{project}/meetings', [ProjectReadController::class, 'getProjectMeetings']);
+
+    // Project Section Read Routes
+    Route::get('projects/{project}/sections/basic', [ProjectReadController::class, 'getBasicInfo']);
+    Route::get('projects/{project}/sections/clients-users', [ProjectReadController::class, 'getClientsAndUsers']);
+    Route::get('projects/{project}/sections/services-payment', [ProjectReadController::class, 'getServicesAndPayment']);
+    Route::get('projects/{project}/sections/transactions', [ProjectReadController::class, 'getTransactions']);
+    Route::get('projects/{project}/sections/documents', [ProjectReadController::class, 'getDocuments']);
+    Route::get('projects/{project}/sections/notes', [ProjectReadController::class, 'getNotes']); // Re-uses getNotes
+    Route::get('projects/{project}/users', [ProjectReadController::class, 'getProjectUsers']);
+    Route::get('projects/{project}/clients', [ProjectReadController::class, 'getProjectClients']);
+    Route::get('projects/{project}/contract-details', [ProjectReadController::class, 'getContractDetails']);
+
+    // Action Routes
+    Route::post('projects', [ProjectActionController::class, 'store']);
+    Route::put('projects/{project}', [ProjectActionController::class, 'update']);
+    Route::delete('projects/{project}', [ProjectActionController::class, 'destroy']);
+    Route::post('projects/{project}/attach-users', [ProjectActionController::class, 'attachUsers'])->name('projects.attach-users');
+    Route::post('projects/{project}/detach-users', [ProjectActionController::class, 'detachUsers'])->name('projects.detach-users');
+    Route::post('projects/{project}/attach-clients', [ProjectActionController::class, 'attachClients'])->name('projects.attach-clients');
+    Route::post('projects/{project}/detach-clients', [ProjectActionController::class, 'detach-clients']);
     Route::post('projects/{project}/transactions', [\App\Http\Controllers\Api\TransactionsController::class, 'addTransactions']);
     Route::patch('projects/{project}/transactions/{transaction}/process-payment', [\App\Http\Controllers\Api\TransactionsController::class, 'processPayment']);
-    Route::post('projects/{project}/notes', [ProjectController::class, 'addNotes']);
-    Route::get('projects/{project}/notes', [ProjectController::class, 'getNotes']);
-    Route::get('projects/{project}/standups', [ProjectSectionController::class, 'getNotes']);
-    Route::post('projects/{project}/notes/{note}/reply', [ProjectController::class, 'replyToNote']);
-    Route::get('projects/{project}/notes/{note}/replies', [ProjectController::class, 'getNoteReplies']);
-    Route::get('projects/{project}/tasks', [ProjectController::class, 'getTasks']);
-    Route::post('projects/{project}/documents', [ProjectController::class, 'uploadDocuments']);
-
-    // Project Section Routes (for permission-based data fetching)
-    Route::get('projects/{project}/sections/basic', [ProjectSectionController::class, 'getBasicInfo']);
-    Route::get('projects/{project}/sections/clients-users', [ProjectSectionController::class, 'getClientsAndUsers']);
-    Route::get('projects/{project}/sections/services-payment', [ProjectSectionController::class, 'getServicesAndPayment']);
-    Route::get('projects/{project}/sections/transactions', [ProjectSectionController::class, 'getTransactions']);
-    Route::get('projects/{project}/sections/documents', [ProjectSectionController::class, 'getDocuments']);
-    Route::get('projects/{project}/sections/notes', [ProjectSectionController::class, 'getNotes']);
-    Route::post('projects/{project}/standup', [ProjectSectionController::class, 'addStandup']);
-    Route::get('projects/{project}/users', [ProjectSectionController::class, 'getProjectUsers']);
-    Route::get('projects/{project}/clients', [ProjectSectionController::class, 'getProjectClients']);
-    Route::get('projects/{project}/contract-details', [ProjectSectionController::class, 'getContractDetails']);
-    Route::get('/projects/{project}/meetings', [ProjectController::class, 'getProjectMeetings']);
-    Route::post('/projects/{project}/meetings', [ProjectController::class, 'createProjectMeeting']);
-    Route::delete('/projects/{project}/meetings/{googleEventId}', [ProjectController::class, 'deleteProjectMeeting']);
+    Route::post('projects/{project}/notes', [ProjectActionController::class, 'addNotes']);
+    Route::post('projects/{project}/notes/{note}/reply', [ProjectActionController::class, 'replyToNote']);
+    Route::post('projects/{project}/documents', [ProjectActionController::class, 'uploadDocuments']);
+    Route::post('projects/{project}/standup', [ProjectActionController::class, 'addStandup']);
+    Route::post('/projects/{project}/meetings', [ProjectActionController::class, 'createProjectMeeting']);
+    Route::delete('/projects/{project}/meetings/{googleEventId}', [ProjectActionController::class, 'deleteProjectMeeting']);
+    Route::patch('projects/{project}/convert-payment-type', [ProjectActionController::class, 'convertPaymentType']); // Moved PATCH route
 
     // Project Section Update Routes
-    Route::put('projects/{project}/sections/basic', [ProjectSectionController::class, 'updateBasicInfo']);
-    Route::put('projects/{project}/sections/services-payment', [ProjectSectionController::class, 'updateServicesAndPayment']);
-    Route::put('projects/{project}/sections/transactions', [ProjectSectionController::class, 'updateTransactions']);
-    Route::put('projects/{project}/sections/notes', [ProjectSectionController::class, 'updateNotes']);
+    Route::put('projects/{project}/sections/basic', [ProjectActionController::class, 'updateBasicInfo']);
+    Route::put('projects/{project}/sections/services-payment', [ProjectActionController::class, 'updateServicesAndPayment']);
+    Route::put('projects/{project}/sections/transactions', [ProjectActionController::class, 'updateTransactions']);
+    Route::put('projects/{project}/sections/notes', [ProjectActionController::class, 'updateNotes']);
 
     // Resource Management Routes
-    Route::get('projects/{project}/resources', [ResourceController::class, 'index']);
-    Route::post('projects/{project}/resources', [ResourceController::class, 'store']);
-    Route::get('projects/{project}/resources/{resource}', [ResourceController::class, 'show']);
-    Route::put('projects/{project}/resources/{resource}', [ResourceController::class, 'update']);
-    Route::delete('projects/{project}/resources/{resource}', [ResourceController::class, 'destroy']);
+    Route::apiResource('projects/{project}/resources', ResourceController::class);
 
     // Comment Management Routes
-    Route::get('resources/{resource}/comments', [CommentController::class, 'index']);
-    Route::post('resources/{resource}/comments', [CommentController::class, 'store']);
-    Route::put('comments/{comment}', [CommentController::class, 'update']);
-    Route::delete('comments/{comment}', [CommentController::class, 'destroy']);
+    Route::apiResource('resources.comments', CommentController::class)->except(['index', 'store']); // Use nested resource
+    Route::get('resources/{resource}/comments', [CommentController::class, 'index']); // Specific index for comments on a resource
+    Route::post('resources/{resource}/comments', [CommentController::class, 'store']); // Specific store for comments on a resource
     Route::post('resources/{resource}/approve', [CommentController::class, 'approveResource']);
     Route::post('resources/{resource}/toggle-visibility', [CommentController::class, 'toggleVisibility']);
 
-    // Email Management & Approval Routes
 
-    Route::get('emails/pending-approval', [EmailController::class, 'pendingApproval']); // Legacy route with full details
-    Route::get('emails/pending-approval-simplified', [EmailController::class, 'pendingApprovalSimplified']); // New route with limited information
-    Route::get('emails/rejected', [EmailController::class, 'rejected']); // Legacy route with full details
-    Route::get('emails/rejected-simplified', [EmailController::class, 'rejectedSimplified']); // New route with limited information
-    Route::get('projects/{project}/emails', [EmailController::class, 'getProjectEmails']); // Get all emails for a project (legacy endpoint)
-    Route::get('projects/{project}/emails-simplified', [EmailController::class, 'getProjectEmailsSimplified']); // Get simplified emails for a project
+    // Email Management & Approval Routes
+    Route::get('emails/pending-approval', [EmailController::class, 'pendingApproval']);
+    Route::get('emails/pending-approval-simplified', [EmailController::class, 'pendingApprovalSimplified']);
+    Route::get('emails/rejected', [EmailController::class, 'rejected']);
+    Route::get('emails/rejected-simplified', [EmailController::class, 'rejectedSimplified']);
+    Route::get('projects/{project}/emails', [EmailController::class, 'getProjectEmails']);
+    Route::get('projects/{project}/emails-simplified', [EmailController::class, 'getProjectEmailsSimplified']);
     Route::post('emails/{email}/approve', [EmailController::class, 'approve']);
     Route::post('emails/{email}/edit-and-approve', [EmailController::class, 'editAndApprove']);
     Route::post('emails/{email}/reject', [EmailController::class, 'reject']);

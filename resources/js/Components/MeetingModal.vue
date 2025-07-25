@@ -1,13 +1,11 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue';
-import Modal from '@/Components/Modal.vue';
+import { ref, watch, onMounted, computed, reactive, nextTick } from 'vue';
+import BaseFormModal from '@/Components/BaseFormModal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import SecondaryButton from '@/Components/SecondaryButton.vue';
-import Multiselect from 'vue-multiselect';
-import 'vue-multiselect/dist/vue-multiselect.css';
+import CustomMultiSelect from '@/Components/CustomMultiSelect.vue';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 
 const props = defineProps({
     show: {
@@ -31,8 +29,8 @@ const getUserTimezone = () => {
     return Intl.DateTimeFormat().resolvedOptions().timeZone;
 };
 
-// List of common timezones
-const timezones = ref([
+// Raw list of timezone strings
+const rawTimezoneStrings = [
     'Africa/Cairo', 'Africa/Johannesburg', 'Africa/Lagos',
     'America/Anchorage', 'America/Bogota', 'America/Chicago', 'America/Denver',
     'America/Los_Angeles', 'America/Mexico_City', 'America/New_York', 'America/Phoenix',
@@ -43,47 +41,77 @@ const timezones = ref([
     'Europe/Amsterdam', 'Europe/Berlin', 'Europe/Dublin', 'Europe/Istanbul',
     'Europe/London', 'Europe/Madrid', 'Europe/Moscow', 'Europe/Paris', 'Europe/Rome',
     'Pacific/Auckland', 'Pacific/Honolulu',
-    'UTC'
-]);
+    'UTC', 'GMT', // Common abbreviations
+    // UK specific
+    'Europe/Belfast',
+    // USA Specific (more common zones beyond just NY/LA/Chicago/Denver/Phoenix)
+    'America/Adak', 'America/Boise', 'America/Detroit', 'America/Indianapolis', 'America/Juneau',
+    'America/Louisville', 'America/Menominee', 'America/Nome', 'America/Sitka', 'America/Yakutat',
+    // Pakistan
+    'Asia/Karachi',
+    // India
+    'Asia/Kolkata',
+    // New Zealand
+    'Pacific/Auckland', 'Pacific/Chatham', // New Zealand and Chatham Islands
+    // More Europe
+    'Europe/Athens', 'Europe/Brussels', 'Europe/Budapest', 'Europe/Copenhagen',
+    'Europe/Helsinki', 'Europe/Lisbon', 'Europe/Oslo', 'Europe/Stockholm', 'Europe/Zurich',
+    'Europe/Vienna', 'Europe/Warsaw', 'Europe/Zurich', 'Europe/Sofia', 'Europe/Prague',
+    'Europe/Malta', 'Europe/Luxembourg', 'Europe/Kiev', 'Europe/Rome',
+].sort(); // Sort the timezones alphabetically
 
-// User's detected timezone
-const userTimezone = ref(getUserTimezone());
+// Formatted list of timezones for SelectDropdown (value/label objects)
+const allTimezones = computed(() => {
+    return rawTimezoneStrings.map(tz => ({ value: tz, label: tz }));
+});
 
-// Form data
-const form = ref({
+// User's detected timezone, ensuring it's in our list or defaults to UTC
+const userTimezone = computed(() => {
+    const detectedTz = getUserTimezone();
+    const foundInList = rawTimezoneStrings.includes(detectedTz);
+    console.log('DEBUG: Is detected timezone in list?', foundInList, 'Detected:', detectedTz);
+
+    if (foundInList) {
+        return detectedTz;
+    }
+    console.log('DEBUG: Falling back to UTC for timezone as detected timezone not in list.');
+    return 'UTC';
+});
+
+// Form data (reactive for BaseFormModal)
+const form = reactive({
     summary: '',
     description: '',
     start_datetime: '',
     end_datetime: '',
-    attendee_user_ids: [],
+    attendee_user_ids: [], // This will hold an array of user IDs
     location: '',
     with_google_meet: true,
-    timezone: userTimezone.value, // Default to user's timezone
-    enable_recording: false, // New field for recording
+    timezone: userTimezone.value, // Default to user's timezone string
+    enable_recording: false,
 });
 
-// Form errors
-const errors = ref({});
-const processing = ref(false);
-const generalError = ref('');
-
-// Reset form when modal is closed
-watch(() => props.show, (value) => {
-    if (!value) {
-        resetForm();
-    }
-});
+// Reset form to default values
+const resetForm = () => {
+    form.summary = '';
+    form.description = '';
+    form.attendee_user_ids = []; // Ensure this is reset to an empty array
+    form.location = '';
+    form.with_google_meet = true;
+    form.timezone = userTimezone.value; // Reset to detected timezone string
+    form.enable_recording = false;
+    setDefaultTimes(); // Re-set datetimes
+    console.log('DEBUG: Form reset. Current timezone in form:', form.timezone);
+};
 
 // Format date for datetime-local input
 const formatDateForInput = (date) => {
     const d = new Date(date);
-    // Format as YYYY-MM-DDThh:mm while preserving local timezone
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     const hours = String(d.getHours()).padStart(2, '0');
     const minutes = String(d.getMinutes()).padStart(2, '0');
-
     return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
@@ -93,89 +121,69 @@ const setDefaultTimes = () => {
     const startTime = new Date(now.getTime() + 60 * 60 * 1000); // Now + 1 hour
     const endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000); // Now + 2 hours
 
-    form.value.start_datetime = formatDateForInput(startTime);
-    form.value.end_datetime = formatDateForInput(endTime);
+    form.start_datetime = formatDateForInput(startTime);
+    form.end_datetime = formatDateForInput(endTime);
+    console.log('DEBUG: Default times set. Start:', form.start_datetime, 'End:', form.end_datetime);
 };
 
-// Reset form to default values
-const resetForm = () => {
-    form.value = {
-        summary: '',
-        description: '',
-        start_datetime: '',
-        end_datetime: '',
-        attendee_user_ids: [],
-        location: '',
-        with_google_meet: true,
-        timezone: userTimezone.value, // Default to user's timezone
-        enable_recording: false, // Default recording to off
-    };
-    setDefaultTimes();
-    errors.value = {};
-    generalError.value = '';
-    processing.value = false;
-};
-
-// Initialize form with default values
+// Initialize form with default values on component setup
 setDefaultTimes();
 
-// Format date from ISO format (YYYY-MM-DDThh:mm) to MySQL format (Y-m-d H:i:s)
+// Watch for the modal opening to reset form
+watch(() => props.show, (value) => {
+    if (value) {
+        resetForm();
+    }
+}, { immediate: true }); // Use immediate to set initial timezone on first render
+
 const formatDateForBackend = (isoDate) => {
     if (!isoDate) return '';
+    console.log(isoDate);
     // Replace 'T' with space and add seconds
     return isoDate.replace('T', ' ') + ':00';
 };
 
-// Submit form
-const submit = async () => {
-    processing.value = true;
-    errors.value = {};
-    generalError.value = '';
+// Function to format form data before sending to API if needed
+const formatDataForApi = (formData) => {
+    const dataToSend = { ...formData }; // Create a copy
 
-    try {
-        // Create a copy of the form data to avoid modifying the original
-        const formData = { ...form.value };
+    dataToSend.start_datetime = formatDateForBackend(formData.start_datetime);
+    dataToSend.end_datetime = formatDateForBackend(formData.end_datetime);
 
-        // Format dates for backend without changing the time values
-        formData.start_datetime = formatDateForBackend(formData.start_datetime);
-        formData.end_datetime = formatDateForBackend(formData.end_datetime);
-
-        const response = await window.axios.post(
-            `/api/projects/${props.projectId}/meetings`,
-            formData
-        );
-
-        emit('saved', response.data);
-        emit('close');
-    } catch (error) {
-        processing.value = false;
-
-        if (error.response) {
-            if (error.response.status === 422) {
-                errors.value = error.response.data.errors;
-            } else {
-                generalError.value = error.response.data.message || 'An error occurred while creating the meeting.';
-            }
-        } else {
-            generalError.value = 'An unexpected error occurred. Please try again.';
-            console.error('Error creating meeting:', error);
-        }
-    }
+    console.log(dataToSend);
+    return dataToSend;
 };
 
-// Close modal
-const close = () => {
-    emit('close');
+// API endpoint for BaseFormModal
+const apiEndpoint = computed(() => `/api/projects/${props.projectId}/meetings`);
+
+// Handle successful submission from BaseFormModal
+const handleSaved = (responseData) => {
+    emit('saved', responseData); // Pass the response data up to parent
+};
+
+// Handle submission error from BaseFormModal (optional, BaseFormModal shows a generic error)
+const handleSubmissionError = (error) => {
+    console.error("DEBUG: MeetingModal submission error:", error);
+    // You could add more specific error handling here if required, e.g., for Google Calendar API issues
 };
 </script>
 
 <template>
-    <Modal :show="show" @close="close" max-width="2xl">
-        <div class="p-6">
-            <h2 class="text-lg font-medium text-gray-900">
-                Schedule a Meeting
-            </h2>
-
+    <BaseFormModal
+        :show="show"
+        title="Schedule a Meeting"
+        :api-endpoint="apiEndpoint"
+        http-method="post"
+        :form-data="form"
+        :format-data-for-api="formatDataForApi"
+        submit-button-text="Schedule Meeting"
+        success-message="Meeting scheduled successfully!"
+        @close="$emit('close')"
+        @submitted="handleSaved"
+        @error="handleSubmissionError"
+    >
+        <template #default="{ errors }">
             <div class="mt-6 space-y-6">
                 <div>
                     <InputLabel for="summary" value="Meeting Title" />
@@ -230,22 +238,15 @@ const close = () => {
 
                 <div>
                     <InputLabel for="attendees" value="Attendees" />
-                    <Multiselect
-                        id="attendees"
-                        v-model="form.attendee_user_ids"
-                        :options="props.projectUsers.map(user => user.id)"
-                        :custom-label="(id) => {
-                            const user = props.projectUsers.find(u => u.id === id);
-                            return user ? `${user.name} (${user.email})` : '';
-                        }"
-                        placeholder="Select attendees"
-                        :multiple="true"
-                        :close-on-select="false"
-                        :clear-on-select="false"
-                        :preserve-search="true"
-                        :show-labels="false"
-                        class="mt-1"
-                    />
+                    <!--Use your CustomMultiSelect here--><CustomMultiSelect
+                    id="attendees"
+                    v-model="form.attendee_user_ids"
+                    :options="props.projectUsers"
+                    label-key="name"
+                    track-by="id"
+                    placeholder="Select attendees"
+                    class="mt-1"
+                />
                     <p class="mt-1 text-sm text-gray-500">
                         Select project members to invite to this meeting
                     </p>
@@ -266,13 +267,15 @@ const close = () => {
 
                 <div>
                     <InputLabel for="timezone" value="Timezone" />
-                    <select
-                        id="timezone"
-                        v-model="form.timezone"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    >
-                        <option v-for="tz in timezones" :key="tz" :value="tz">{{ tz }}</option>
-                    </select>
+                    <!--Use SelectDropdown for timezone--><SelectDropdown
+                    id="timezone"
+                    v-model="form.timezone"
+                    :options="allTimezones"
+                    value-key="value"
+                    label-key="label"
+                    placeholder="Select timezone"
+                    class="mt-1"
+                />
                     <p class="mt-1 text-sm text-gray-500">
                         Select your timezone for this meeting
                     </p>
@@ -302,25 +305,11 @@ const close = () => {
                         Enable recording and transcript
                     </label>
                 </div>
-
-                <div v-if="generalError" class="text-sm text-red-600">
-                    {{ generalError }}
-                </div>
-
-                <div class="flex justify-end mt-6 space-x-3">
-                    <SecondaryButton @click="close">
-                        Cancel
-                    </SecondaryButton>
-
-                    <PrimaryButton
-                        @click="submit"
-                        :class="{ 'opacity-25': processing }"
-                        :disabled="processing"
-                    >
-                        Schedule Meeting
-                    </PrimaryButton>
-                </div>
             </div>
-        </div>
-    </Modal>
+        </template>
+    </BaseFormModal>
 </template>
+
+<style scoped>
+/* No specific scoped styles needed here, as styling is handled by Tailwind and the custom components. */
+</style>

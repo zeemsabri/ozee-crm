@@ -17,6 +17,10 @@ class Client extends Model
         'notes',
     ];
 
+    protected $hidden = [
+        'email', 'phone'
+    ];
+
     // Add a boot method to handle dynamic hiding
     protected static function boot()
     {

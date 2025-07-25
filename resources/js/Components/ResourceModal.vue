@@ -1,11 +1,9 @@
 <script setup>
-import { ref, watch } from 'vue';
-import Modal from '@/Components/Modal.vue';
+import { ref, watch, computed } from 'vue';
+import BaseFormModal from '@/Components/BaseFormModal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import SecondaryButton from '@/Components/SecondaryButton.vue';
 
 const props = defineProps({
     show: {
@@ -28,28 +26,48 @@ const resourceForm = ref({
     name: '',
     type: 'link', // Default to link
     url: '',
-    file: null,
+    file: null, // Holds the File object for upload
     description: ''
 });
 
-const errors = ref({});
-const isSubmitting = ref(false);
-const fileInputRef = ref(null);
+const fileInputRef = ref(null); // Reference to the file input element
 
-// Reset form when modal is opened/closed
+// Computed property for API endpoint
+const apiEndpoint = computed(() => {
+    return props.resource
+        ? `/api/projects/${props.projectId}/resources/${props.resource.id}`
+        : `/api/projects/${props.projectId}/resources`;
+});
+
+// Computed property for HTTP method
+const httpMethod = computed(() => {
+    return props.resource ? 'put' : 'post';
+});
+
+// Computed property for submit button text
+const submitButtonText = computed(() => {
+    return props.resource ? 'Update Resource' : 'Add Resource';
+});
+
+// Computed property for success message
+const successMessage = computed(() => {
+    return props.resource ? 'Resource updated successfully!' : 'Resource added successfully!';
+});
+
+// Watch for the modal's show prop to reset form or populate for editing
 watch(() => props.show, (newValue) => {
     if (newValue) {
-        // If editing an existing resource
         if (props.resource) {
+            // Editing existing resource
             resourceForm.value = {
                 name: props.resource.name,
                 type: props.resource.type,
                 url: props.resource.type === 'link' ? props.resource.url : '',
-                file: null,
+                file: null, // File input should be cleared for editing
                 description: props.resource.description || ''
             };
         } else {
-            // If adding a new resource
+            // Adding new resource
             resourceForm.value = {
                 name: '',
                 type: 'link',
@@ -58,93 +76,64 @@ watch(() => props.show, (newValue) => {
                 description: ''
             };
         }
-        errors.value = {};
+        // Reset file input value visually
+        if (fileInputRef.value) {
+            fileInputRef.value.value = '';
+        }
     }
-});
+}, { immediate: true }); // Run immediately on component mount
 
-// Handle file selection
+// Handle file selection (local to this component)
 const handleFileChange = (event) => {
     resourceForm.value.file = event.target.files[0] || null;
 };
 
-// Submit the form
-const submitForm = async () => {
-    isSubmitting.value = true;
-    errors.value = {};
+// Custom data formatting for API (especially for FormData with files)
+const formatDataForApi = (formData) => {
+    const data = new FormData();
+    data.append('name', formData.name || '');
+    data.append('type', formData.type || 'link');
+    data.append('description', formData.description || '');
 
-    try {
-        // Create FormData for file upload
-        const formData = new FormData();
-        formData.append('name', resourceForm.value.name);
-        formData.append('type', resourceForm.value.type);
-        formData.append('description', resourceForm.value.description);
-
-        if (resourceForm.value.type === 'link') {
-            formData.append('url', resourceForm.value.url);
-        } else if (resourceForm.value.file) {
-            formData.append('file', resourceForm.value.file);
-        }
-
-        let response;
-
-        if (props.resource) {
-            // Update existing resource
-            response = await window.axios.put(
-                `/api/projects/${props.projectId}/resources/${props.resource.id}`,
-                formData,
-                {
-                    headers: {
-                        'Content-Type': 'multipart/form-data'
-                    }
-                }
-            );
-        } else {
-            // Create new resource
-            response = await window.axios.post(
-                `/api/projects/${props.projectId}/resources`,
-                formData,
-                {
-                    headers: {
-                        'Content-Type': 'multipart/form-data'
-                    }
-                }
-            );
-        }
-
-        if (response.data.success) {
-            emit('saved', response.data.resource);
-            emit('close');
-        } else {
-            console.error('Error saving resource:', response.data.message);
-        }
-    } catch (error) {
-        console.error('Error saving resource:', error);
-
-        if (error.response && error.response.data && error.response.data.errors) {
-            errors.value = error.response.data.errors;
-        } else {
-            errors.value = {
-                general: [error.response?.data?.message || 'An error occurred while saving the resource.']
-            };
-        }
-    } finally {
-        isSubmitting.value = false;
+    if (formData.type === 'link') {
+        data.append('url', formData.url || '');
+    } else if (formData.type === 'file' && formData.file) {
+        data.append('file', formData.file);
     }
+
+    // For PUT/PATCH requests with FormData, Laravel expects _method field
+    if (httpMethod.value === 'put' || httpMethod.value === 'patch') {
+        data.append('_method', 'PUT'); // Or 'PATCH' if that's what your route uses explicitly
+    }
+
+    return data;
 };
 
-// Close the modal
+// Handle successful submission from BaseFormModal
+const handleSaved = (responseData) => {
+    emit('saved', responseData.resource); // Assuming API returns { success: true, resource: {...} }
+};
+
+// Handle close event from BaseFormModal
 const closeModal = () => {
     emit('close');
 };
 </script>
 
 <template>
-    <Modal :show="show" @close="closeModal" max-width="md">
-        <div class="p-6">
-            <h2 class="text-lg font-medium text-gray-900">
-                {{ resource ? 'Edit Resource' : 'Add Resource' }}
-            </h2>
-
+    <BaseFormModal
+        :show="show"
+        :title="resource ? 'Edit Resource' : 'Add Resource'"
+        :api-endpoint="apiEndpoint"
+        :http-method="httpMethod"
+        :form-data="resourceForm"
+        :submit-button-text="submitButtonText"
+        :success-message="successMessage"
+        :format-data-for-api="formatDataForApi"
+        @close="closeModal"
+        @submitted="handleSaved"
+    >
+        <template #default="{ errors }">
             <div class="mt-6 space-y-6">
                 <!-- Resource Type Selection -->
                 <div>
@@ -152,11 +141,11 @@ const closeModal = () => {
                     <div class="mt-2 flex space-x-4">
                         <label class="inline-flex items-center">
                             <input type="radio" v-model="resourceForm.type" value="link" class="form-radio text-indigo-600" />
-                            <span class="ml-2">Link</span>
+                            <span class="ml-2 text-gray-700">Link</span>
                         </label>
                         <label class="inline-flex items-center">
                             <input type="radio" v-model="resourceForm.type" value="file" class="form-radio text-indigo-600" />
-                            <span class="ml-2">File</span>
+                            <span class="ml-2 text-gray-700">File</span>
                         </label>
                     </div>
                 </div>
@@ -170,6 +159,7 @@ const closeModal = () => {
                         type="text"
                         class="mt-1 block w-full"
                         placeholder="Enter resource name"
+                        required
                     />
                     <InputError :message="errors.name ? errors.name[0] : ''" class="mt-2" />
                 </div>
@@ -183,6 +173,7 @@ const closeModal = () => {
                         type="url"
                         class="mt-1 block w-full"
                         placeholder="https://example.com"
+                        required
                     />
                     <InputError :message="errors.url ? errors.url[0] : ''" class="mt-2" />
                 </div>
@@ -196,6 +187,7 @@ const closeModal = () => {
                         type="file"
                         class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                         @change="handleFileChange"
+                        :required="!resource || resourceForm.type === 'file'"
                     />
                     <InputError :message="errors.file ? errors.file[0] : ''" class="mt-2" />
                 </div>
@@ -212,22 +204,11 @@ const closeModal = () => {
                     ></textarea>
                     <InputError :message="errors.description ? errors.description[0] : ''" class="mt-2" />
                 </div>
-
-                <!-- General Error Message -->
-                <div v-if="errors.general" class="text-red-600 text-sm">
-                    {{ errors.general[0] }}
-                </div>
-
-                <!-- Form Actions -->
-                <div class="flex justify-end space-x-3">
-                    <SecondaryButton @click="closeModal">
-                        Cancel
-                    </SecondaryButton>
-                    <PrimaryButton @click="submitForm" :disabled="isSubmitting">
-                        {{ isSubmitting ? 'Saving...' : (resource ? 'Update' : 'Add') }}
-                    </PrimaryButton>
-                </div>
             </div>
-        </div>
-    </Modal>
+        </template>
+    </BaseFormModal>
 </template>
+
+<style scoped>
+/* No specific scoped styles needed here, as styling is handled by Tailwind and the custom components. */
+</style>

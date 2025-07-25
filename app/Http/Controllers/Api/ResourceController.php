@@ -24,7 +24,7 @@ class ResourceController extends Controller
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  int  $projectId
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request, $projectId)
     {
@@ -59,7 +59,7 @@ class ResourceController extends Controller
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  int  $projectId
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request, $projectId)
     {

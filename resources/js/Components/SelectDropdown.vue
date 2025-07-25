@@ -3,8 +3,8 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 
 const props = defineProps({
     modelValue: {
-        type: [String, Number, Object],
-        default: '',
+        type: [String, Number, Object, null], // Allow null for initial empty selection
+        default: null,
     },
     options: {
         type: Array,
@@ -43,12 +43,26 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'change']);
 
 const isOpen = ref(false);
+const searchTerm = ref(''); // New reactive state for search term
 const dropdownRef = ref(null);
+const searchInputRef = ref(null); // Reference to the search input
+
+// Computed property to filter options based on search term
+const filteredOptions = computed(() => {
+    if (!searchTerm.value) {
+        return props.options;
+    }
+    const lowerSearchTerm = searchTerm.value.toLowerCase();
+    return props.options.filter(item =>
+        item[props.labelKey].toLowerCase().includes(lowerSearchTerm)
+    );
+});
 
 // Close dropdown when clicking outside
 const handleClickOutside = (event) => {
     if (dropdownRef.value && !dropdownRef.value.contains(event.target)) {
         isOpen.value = false;
+        searchTerm.value = ''; // Clear search term when closing
     }
 };
 
@@ -56,6 +70,7 @@ const handleClickOutside = (event) => {
 const handleKeyDown = (event) => {
     if (event.key === 'Escape' && isOpen.value) {
         isOpen.value = false;
+        searchTerm.value = ''; // Clear search term when closing
     }
 };
 
@@ -71,7 +86,9 @@ onUnmounted(() => {
 
 // Compute the selected option label
 const selectedLabel = computed(() => {
-    if (!props.modelValue) return props.placeholder;
+    if (props.modelValue === null || props.modelValue === undefined || props.modelValue === '') {
+        return props.placeholder;
+    }
 
     const selectedOption = props.options.find(option =>
         option[props.valueKey] === props.modelValue
@@ -85,14 +102,30 @@ const selectOption = (option) => {
     emit('update:modelValue', option[props.valueKey]);
     emit('change', option[props.valueKey]);
     isOpen.value = false;
+    searchTerm.value = ''; // Clear search term after selection
 };
 
-// Toggle dropdown
+// Toggle dropdown and focus search input if opening
 const toggleDropdown = () => {
     if (!props.disabled) {
         isOpen.value = !isOpen.value;
+        if (isOpen.value) {
+            // Use nextTick to ensure input is rendered before focusing
+            nextTick(() => {
+                if (searchInputRef.value) {
+                    searchInputRef.value.focus();
+                }
+            });
+        }
     }
 };
+
+// Watch modelValue to ensure placeholder is shown correctly if modelValue becomes empty
+watch(() => props.modelValue, (newVal) => {
+    if (newVal === null || newVal === undefined || newVal === '') {
+        searchTerm.value = ''; // Reset search if selection is cleared externally
+    }
+});
 </script>
 
 <template>
@@ -102,12 +135,12 @@ const toggleDropdown = () => {
             type="button"
             @click="toggleDropdown"
             :disabled="disabled"
-            class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full text-left px-3 py-2 text-gray-700 bg-white"
+            class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full text-left px-3 py-2 text-gray-700 bg-white relative flex items-center justify-between"
             :class="{ 'opacity-50 cursor-not-allowed': disabled }"
         >
             <span :class="{ 'text-gray-500': !props.modelValue }">{{ selectedLabel }}</span>
             <svg
-                class="float-right h-4 w-4 mt-1"
+                class="h-4 w-4 text-gray-500"
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 20 20"
                 fill="currentColor"
@@ -125,12 +158,25 @@ const toggleDropdown = () => {
             v-show="isOpen"
             class="absolute z-50 mt-1 w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5"
         >
+            <!-- Search Input within the dropdown -->
+            <div class="p-2 border-b border-gray-200">
+                <input
+                    ref="searchInputRef"
+                    type="text"
+                    v-model="searchTerm"
+                    @input="isOpen = true"
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                    placeholder="Search..."
+                    @click.stop=""
+                />
+            </div>
+
             <div
                 class="py-1 overflow-y-auto"
                 :style="{ maxHeight: maxHeight }"
             >
                 <div
-                    v-for="option in options"
+                    v-for="option in filteredOptions"
                     :key="option[valueKey]"
                     @click="selectOption(option)"
                     class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
@@ -139,7 +185,7 @@ const toggleDropdown = () => {
                     {{ option[labelKey] }}
                 </div>
                 <div
-                    v-if="options.length === 0"
+                    v-if="filteredOptions.length === 0"
                     class="block px-4 py-2 text-sm text-gray-500"
                 >
                     No options available
@@ -148,3 +194,7 @@ const toggleDropdown = () => {
         </div>
     </div>
 </template>
+
+<style scoped>
+/* Scoped styles specific to this component can go here if needed */
+</style>

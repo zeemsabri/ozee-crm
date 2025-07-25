@@ -153,7 +153,7 @@ class TaskController extends Controller
             'task_type_id' => 'required|exists:task_types,id',
             'milestone_id' => 'nullable|exists:milestones,id',
             'tags' => 'nullable|array',
-            'tags.*' => 'exists:tags,id',
+            'tags.*' => 'nullable|string',
         ]);
 
         // Create the task
@@ -161,7 +161,12 @@ class TaskController extends Controller
 
         // Attach tags if provided
         if (isset($validated['tags']) && is_array($validated['tags'])) {
-            $task->tags()->attach($validated['tags']);
+            $tagIds = [];
+            foreach ($validated['tags'] as $tagName) {
+                $tag = Tag::firstOrCreate(['name' => $tagName, 'created_by_user_id' => Auth::id()]);
+                $tagIds[] = $tag->id;
+            }
+            $task->tags()->attach($tagIds);
         }
 
         // Load relationships
