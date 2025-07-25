@@ -1001,7 +1001,7 @@ class ProjectController extends Controller
      * @param \App\Models\Project $project
      * @return bool
      */
-    private function canManageProjects($user, $project)
+    public function canManageProjects($user, $project)
     {
         // Check for super admin role
         if ($user->isSuperAdmin()) {

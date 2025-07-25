@@ -6,18 +6,22 @@ use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\ProjectNote;
 use App\Services\GoogleChatService;
+use App\Services\GoogleDriveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class ProjectSectionController extends Controller
 {
     protected $googleChatService;
 
-    public function __construct(GoogleChatService $googleChatService)
+    public function __construct(GoogleChatService $googleChatService, ProjectController $projectController)
     {
         $this->googleChatService = $googleChatService;
+        $this->projectController = $projectController;
     }
     /**
      * Get basic project information
@@ -48,6 +52,62 @@ class ProjectSectionController extends Controller
             'source' => $project->source,
             'google_drive_link' => $project->google_drive_link,
         ]);
+    }
+
+    public function updateBasicInfo(Request $request, Project $project)
+    {
+        try {
+            $user = Auth::user();
+
+            // Check if user has permission to manage the project
+            if (!$this->projectController->canManageProjects($user, $project)) {
+                return response()->json(['message' => 'Unauthorized. You do not have permission to update this project.'], 403);
+            }
+
+            // Determine if the request is JSON or FormData
+            $isJsonRequest = $request->isJson() || $request->header('Content-Type') === 'application/json';
+
+
+            // Adjust validation rules based on request type and user permissions
+            $validationRules = [
+                'name' => 'sometimes|required|string|max:255',
+                'description' => 'nullable|string',
+                'website' => 'nullable|url',
+                'preferred_keywords' => 'nullable|string',
+                'google_chat_id' => 'nullable|string|max:255',
+                'status' => 'sometimes|required|in:active,completed,on_hold,archived',
+                'source' => 'nullable|string|max:255',
+                'google_drive_link' => 'nullable|url',
+            ];
+
+
+            $validated = $request->validate($validationRules);
+
+            // Initialize project data with basic information
+            $projectData = [
+                'name' => $validated['name'] ?? $project->name,
+                'description' => $validated['description'] ?? $project->description,
+                'website' => $validated['website'] ?? $project->website,
+                'preferred_keywords' => $validated['preferred_keywords'] ?? $project->preferred_keywords,
+                'google_chat_id' => $validated['google_chat_id'] ?? $project->google_chat_id,
+                'status' => $validated['status'] ?? $project->status,
+                'source' => $validated['source'] ?? $project->source,
+                'google_drive_link' => $validated['google_drive_link'] ?? $project->google_drive_link,
+            ];
+
+            $project->update($projectData);
+
+            return response()->json($project);
+
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Error updating project: ' . $e->getMessage(), ['project_id' => $project->id, 'request' => $request->all(), 'error' => $e->getTraceAsString()]);
+            return response()->json(['message' => 'Failed to update project', 'error' => $e->getMessage()], 500);
+        }
     }
 
     /**

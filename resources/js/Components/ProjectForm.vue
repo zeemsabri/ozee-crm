@@ -1058,6 +1058,19 @@ const uploadDocuments = async () => {
                     <TextInput id="preferred_keywords" type="text" class="mt-1 block w-full" v-model="projectForm.preferred_keywords" :disabled="!canManageProjects" />
                     <InputError :message="errors.preferred_keywords ? errors.preferred_keywords[0] : ''" class="mt-2" />
                 </div>
+
+                <div class="mb-4" v-if="canManageProjectBasicDetails">
+                    <InputLabel for="google_chat_id" value="Google Chat ID" />
+                    <TextInput id="google_chat_id" type="text" class="mt-1 block w-full" v-model="projectForm.google_chat_id" :disabled="!canManageProjects" />
+                    <InputError :message="errors.google_chat_id ? errors.google_chat_id[0] : ''" class="mt-2" />
+                </div>
+
+                <div class="mb-4" v-if="canManageProjectBasicDetails">
+                    <InputLabel for="google_drive_link" value="Google Drive Link" />
+                    <TextInput id="google_drive_link" type="text" class="mt-1 block w-full" v-model="projectForm.google_drive_link" :disabled="!canManageProjects" />
+                    <InputError :message="errors.google_chat_id ? errors.google_chat_id[0] : ''" class="mt-2" />
+                </div>
+
                 <div class="mb-4">
                     <InputLabel for="status" value="Status" />
                     <select id="status" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="projectForm.status" required :disabled="!canManageProjects">
@@ -1065,6 +1078,8 @@ const uploadDocuments = async () => {
                     </select>
                     <InputError :message="errors.status ? errors.status[0] : ''" class="mt-2" />
                 </div>
+
+
                 <div class="mb-4">
                     <InputLabel for="source" value="Source" />
                     <select id="source" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="projectForm.source" :disabled="!canManageProjects">
