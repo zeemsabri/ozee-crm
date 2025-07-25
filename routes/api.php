@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\BonusConfigurationGroupController;
+use App\Http\Controllers\Api\ImageUploadController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
@@ -69,6 +70,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Client Management Routes (CRUD)
     Route::apiResource('clients', ClientController::class);
     Route::get('clients/{client}/email', [ClientController::class, 'getEmail']);
+    Route::post('/upload-image', [ImageUploadController::class, 'upload']);
 
     // Project Management Routes (CRUD)
     Route::apiResource('projects', ProjectController::class);
@@ -82,6 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('projects/{project}/transactions/{transaction}/process-payment', [\App\Http\Controllers\Api\TransactionsController::class, 'processPayment']);
     Route::post('projects/{project}/notes', [ProjectController::class, 'addNotes']);
     Route::get('projects/{project}/notes', [ProjectController::class, 'getNotes']);
+    Route::get('projects/{project}/standups', [ProjectSectionController::class, 'getNotes']);
     Route::post('projects/{project}/notes/{note}/reply', [ProjectController::class, 'replyToNote']);
     Route::get('projects/{project}/notes/{note}/replies', [ProjectController::class, 'getNoteReplies']);
     Route::get('projects/{project}/tasks', [ProjectController::class, 'getTasks']);

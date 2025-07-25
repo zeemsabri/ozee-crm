@@ -8,7 +8,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
-import RichTextEditor from '@/Components/RichTextEditor.vue';
+import EmailEditor from '@/Components/QuillEditor.vue'; // New Quill editor component
 import Multiselect from 'vue-multiselect';
 import { useAuthUser, usePermissions, useGlobalPermissions, fetchGlobalPermissions } from '@/Directives/permissions';
 import 'vue-multiselect/dist/vue-multiselect.css';
@@ -34,7 +34,7 @@ const successMessage = ref('');
 // Email form state
 const emailForm = reactive({
     project_id: '',
-    client_ids: [], // Changed to array for multi-select
+    client_ids: [],
     subject: '',
     body: '',
 });
@@ -117,11 +117,9 @@ const submitEmailForApproval = async () => {
     try {
         // Format client_ids as array of objects with id property
         const formattedClientIds = emailForm.client_ids.map(clientId => {
-            // Check if clientId is already an object with an id property
             if (typeof clientId === 'object' && clientId !== null) {
                 return { id: clientId.id };
             }
-            // Otherwise, assume it's a simple ID value
             return { id: clientId };
         });
 
@@ -263,7 +261,7 @@ onMounted(async () => {
 
                                 <div class="mb-6">
                                     <InputLabel for="body" value="Email Body" />
-                                    <RichTextEditor
+                                    <EmailEditor
                                         id="body"
                                         v-model="emailForm.body"
                                         placeholder="Compose your email here..."
