@@ -23,7 +23,7 @@ class TransactionsController extends Controller // Assuming your controller is n
     {
         // Authorize the action using Laravel's Gate facade
         // Ensure the authenticated user has permission to add transactions to this project.
-        Gate::authorize('addTransactions', $project);
+        $this->authorize('manageTransactions', $project);
 
         // Define validation rules for a single transaction object
         // The request body is expected to contain description, amount, type, etc., directly.

@@ -164,7 +164,7 @@ class ProjectPolicy
     public function restore(User $user, Project $project): bool { return false; }
     public function forceDelete(User $user, Project $project): bool { return false; }
 
-    public function manageTransaction(User $user, Project $project)
+    public function manageTransactions(User $user, Project $project)
     {
         // Check if user has global permission
         if ($user->hasPermission('manage_project_financial')) {
