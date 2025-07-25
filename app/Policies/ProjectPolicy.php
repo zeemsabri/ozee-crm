@@ -163,4 +163,16 @@ class ProjectPolicy
     // restore and forceDelete can be left as false/not implemented for MVP
     public function restore(User $user, Project $project): bool { return false; }
     public function forceDelete(User $user, Project $project): bool { return false; }
+
+    public function manageTransaction(User $user, Project $project)
+    {
+        // Check if user has global permission
+        if ($user->hasPermission('manage_project_inancial')) {
+            return true;
+        }
+
+        // Check project-specific permission
+        return $this->userHasProjectPermission($user, 'manage_project_financial', $project->id);
+    }
+
 }
