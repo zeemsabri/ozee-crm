@@ -272,6 +272,7 @@ onMounted(async () => {
 
                 <!-- Project Financials Card -->
                 <ProjectFinancialsCard
+                    v-if="canViewProjectServicesAndPayments && canViewProjectTransactions"
                     :project-id="projectId"
                     :can-view-project-services-and-payments="canViewProjectServicesAndPayments"
                     :can-view-project-transactions="canViewProjectTransactions"
@@ -283,6 +284,7 @@ onMounted(async () => {
 
                     <!-- Project Clients Card -->
                     <ProjectClientsCard
+                        v-if="canViewClientContacts"
                         :project-id="projectId"
                         :can-view-client-contacts="canViewClientContacts"
                     />
@@ -290,7 +292,7 @@ onMounted(async () => {
                     <!-- Project Team Card -->
                     <ProjectTeamCard
                         :project-id="projectId"
-                        :can-view-users="canViewUsers"
+                        :can-view-users="true"
                     />
 
                     <!-- Your Financials Card -->
