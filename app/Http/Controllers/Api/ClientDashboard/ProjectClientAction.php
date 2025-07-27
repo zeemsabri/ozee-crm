@@ -1,0 +1,249 @@
+<?php
+
+namespace App\Http\Controllers\Api\ClientDashboard;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use App\Models\Deliverable;
+use App\Models\Client;
+use App\Models\ClientDeliverableInteraction;
+use App\Models\DeliverableComment;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
+
+class ProjectClientAction extends Controller
+{
+    /**
+     * Mark a deliverable as read by the client.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @param \App\Models\Deliverable $deliverable
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function markDeliverableAsRead(Request $request, Deliverable $deliverable)
+    {
+        try {
+            $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+            $authenticatedClientEmail = $request->attributes->get('magic_link_email');
+
+            // Verify the deliverable belongs to the authenticated project
+            if ((int)$deliverable->project_id !== (int)$authenticatedProjectId) {
+                return response()->json(['message' => 'Unauthorized access to deliverable.'], 403);
+            }
+
+            // Find the client based on the authenticated email
+            $client = Client::where('email', $authenticatedClientEmail)->first();
+
+            if (!$client) {
+                return response()->json(['message' => 'Authenticated client not found.'], 404);
+            }
+
+            // Find or create the interaction record
+            $interaction = ClientDeliverableInteraction::firstOrCreate(
+                [
+                    'deliverable_id' => $deliverable->id,
+                    'client_id' => $client->id,
+                ],
+                [
+                    'read_at' => now(), // Set read_at only on first creation
+                ]
+            );
+
+            // If it already existed and wasn't read, update read_at
+            if (!$interaction->read_at) {
+                $interaction->read_at = now();
+                $interaction->save();
+            }
+
+            return response()->json(['message' => 'Deliverable marked as read.', 'interaction' => $interaction]);
+
+        } catch (\Exception $e) {
+            Log::error("Error marking deliverable as read: {$e->getMessage()}", [
+                'deliverable_id' => $deliverable->id,
+                'client_email' => $request->attributes->get('magic_link_email'),
+                'error' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to mark deliverable as read.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Client approves a deliverable.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @param \App\Models\Deliverable $deliverable
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function approveDeliverable(Request $request, Deliverable $deliverable)
+    {
+        try {
+            $request->validate([
+                'feedback_text' => 'nullable|string|max:2000',
+            ]);
+
+            $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+            $authenticatedClientEmail = $request->attributes->get('magic_link_email');
+
+            if ((int)$deliverable->project_id !== (int)$authenticatedProjectId) {
+                return response()->json(['message' => 'Unauthorized access to deliverable.'], 403);
+            }
+
+            $client = Client::where('email', $authenticatedClientEmail)->first();
+            if (!$client) {
+                return response()->json(['message' => 'Authenticated client not found.'], 404);
+            }
+
+            // Find or create the interaction record
+            $interaction = ClientDeliverableInteraction::firstOrCreate(
+                [
+                    'deliverable_id' => $deliverable->id,
+                    'client_id' => $client->id,
+                ]
+            );
+
+            // Update the interaction
+            $interaction->update([
+                'read_at' => $interaction->read_at ?? now(), // Ensure read_at is set
+                'approved_at' => now(),
+                'rejected_at' => null, // Clear rejection status if previously rejected
+                'revisions_requested_at' => null, // Clear revision request if previously requested
+                'feedback_text' => $request->input('feedback_text'),
+            ]);
+
+            // TODO: Optional: Logic to update overall Deliverable status if all clients have approved
+            // You'd need to fetch all clients for the project, check their interaction statuses.
+
+            return response()->json(['message' => 'Deliverable approved successfully.', 'interaction' => $interaction]);
+
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Validation failed.', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error("Error approving deliverable: {$e->getMessage()}", [
+                'deliverable_id' => $deliverable->id,
+                'client_email' => $request->attributes->get('magic_link_email'),
+                'error' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to approve deliverable.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Client requests revisions for a deliverable (or rejects it).
+     *
+     * @param \Illuminate\Http\Request $request
+     * @param \App\Models\Deliverable $deliverable
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function requestDeliverableRevisions(Request $request, Deliverable $deliverable)
+    {
+        try {
+            $request->validate([
+                'feedback_text' => 'required|string|max:2000', // Feedback is required for revisions
+            ]);
+
+            $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+            $authenticatedClientEmail = $request->attributes->get('magic_link_email');
+
+            if ((int)$deliverable->project_id !== (int)$authenticatedProjectId) {
+                return response()->json(['message' => 'Unauthorized access to deliverable.'], 403);
+            }
+
+            $client = Client::where('email', $authenticatedClientEmail)->first();
+            if (!$client) {
+                return response()->json(['message' => 'Authenticated client not found.'], 404);
+            }
+
+            // Find or create the interaction record
+            $interaction = ClientDeliverableInteraction::firstOrCreate(
+                [
+                    'deliverable_id' => $deliverable->id,
+                    'client_id' => $client->id,
+                ]
+            );
+
+            // Update the interaction
+            $interaction->update([
+                'read_at' => $interaction->read_at ?? now(), // Ensure read_at is set
+                'approved_at' => null, // Clear approval status if previously approved
+                'rejected_at' => null, // Clear rejection status if previously rejected
+                'revisions_requested_at' => now(),
+                'feedback_text' => $request->input('feedback_text'),
+            ]);
+
+            // TODO: Optional: Logic to update overall Deliverable status if revisions are requested
+            // E.g., change deliverable status to 'revisions_requested' if it was 'pending_review'
+
+            return response()->json(['message' => 'Revisions requested successfully.', 'interaction' => $interaction]);
+
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Feedback is required for revision requests.', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error("Error requesting revisions for deliverable: {$e->getMessage()}", [
+                'deliverable_id' => $deliverable->id,
+                'client_email' => $request->attributes->get('magic_link_email'),
+                'error' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to request revisions.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Client adds a general comment to a deliverable.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @param \App\Models\Deliverable $deliverable
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function addDeliverableComment(Request $request, Deliverable $deliverable)
+    {
+        try {
+            $request->validate([
+                'comment_text' => 'required|string|max:2000',
+                'context' => 'nullable|string|max:255', // e.g., "paragraph 2", "image 1"
+            ]);
+
+            $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+            $authenticatedClientEmail = $request->attributes->get('magic_link_email');
+
+            if ((int)$deliverable->project_id !== (int)$authenticatedProjectId) {
+                return response()->json(['message' => 'Unauthorized access to deliverable.'], 403);
+            }
+
+            $client = Client::where('email', $authenticatedClientEmail)->first();
+            if (!$client) {
+                return response()->json(['message' => 'Authenticated client not found.'], 404);
+            }
+
+            $comment = DeliverableComment::create([
+                'deliverable_id' => $deliverable->id,
+                'client_id' => $client->id,
+                'comment_text' => $request->input('comment_text'),
+                'context' => $request->input('context'),
+            ]);
+
+            // Ensure the deliverable is marked as read if a comment is added
+            $interaction = ClientDeliverableInteraction::firstOrCreate(
+                [
+                    'deliverable_id' => $deliverable->id,
+                    'client_id' => $client->id,
+                ]
+            );
+            if (!$interaction->read_at) {
+                $interaction->read_at = now();
+                $interaction->save();
+            }
+
+            return response()->json(['message' => 'Comment added successfully.', 'comment' => $comment], 201);
+
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Comment text is required.', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error("Error adding comment to deliverable: {$e->getMessage()}", [
+                'deliverable_id' => $deliverable->id,
+                'client_email' => $request->attributes->get('magic_link_email'),
+                'error' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to add comment.', 'error' => $e->getMessage()], 500);
+        }
+    }
+}

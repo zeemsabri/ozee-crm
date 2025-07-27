@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'permission' => CheckPermission::class,
+            'auth.magiclink' => \App\Http\Middleware\VerifyMagicLinkToken::class,
         ]);
 
         //

@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
+use Inertia\Inertia; // Import Inertia
 
 class MagicLinkController extends Controller
 {
@@ -87,8 +88,9 @@ class MagicLinkController extends Controller
             ]);
 
             // Generate the magic link URL
+            // Ensure this route name matches the one defined in web.php for the Vue client dashboard
             $url = URL::temporarySignedRoute(
-                'client.magic-link',
+                'client.magic-link-login', // Changed route name for clarity
                 $expiresAt,
                 ['token' => $token]
             );
@@ -125,59 +127,61 @@ class MagicLinkController extends Controller
     /**
      * Handle the magic link when clicked.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
      */
     public function handleMagicLink(Request $request)
     {
         try {
             // Check if the URL signature is valid
             if (!$request->hasValidSignature()) {
-                return response()->view('errors.magic-link', [
+                return Inertia::render('Errors/MagicLinkError', [ // Use Inertia for error page
                     'message' => 'Invalid or expired magic link.'
-                ], 403);
+                ])->toResponse($request)->setStatusCode(403);
             }
 
             // Find the magic link by token
             $magicLink = MagicLink::where('token', $request->token)->first();
 
             if (!$magicLink) {
-                return response()->view('errors.magic-link', [
+                return Inertia::render('Errors/MagicLinkError', [ // Use Inertia for error page
                     'message' => 'Magic link not found.'
-                ], 404);
+                ])->toResponse($request)->setStatusCode(404);
             }
 
             // Check if the magic link has expired
             if ($magicLink->hasExpired()) {
-                return response()->view('errors.magic-link', [
+                return Inertia::render('Errors/MagicLinkError', [ // Use Inertia for error page
                     'message' => 'This magic link has expired.'
-                ], 403);
+                ])->toResponse($request)->setStatusCode(403);
             }
 
             // Check if the magic link has been used
             if ($magicLink->hasBeenUsed()) {
-                return response()->view('errors.magic-link', [
+                return Inertia::render('Errors/MagicLinkError', [ // Use Inertia for error page
                     'message' => 'This magic link has already been used.'
-                ], 403);
+                ])->toResponse($request)->setStatusCode(403);
             }
 
-            // Mark the magic link as used
-           // $magicLink->markAsUsed();
+            // Mark the magic link as used (uncomment if you want to use it only once)
+            // $magicLink->markAsUsed();
 
-            // Get the project
-            $project = $magicLink->project;
+            // Get the project (optional, might be needed for internal checks)
+            // $project = $magicLink->project;
 
-            // Redirect to the client dashboard with the token
-            return redirect()->route('client.dashboard', ['token' => $magicLink->token]);
+            // Render the ClientDashboard Vue component and pass the token and Firebase config as props
+            return Inertia::render('ClientDashboard', [
+                'initialAuthToken' => $magicLink->token, // Pass the token to the Vue component
+                'projectId' => $magicLink->project_id,
+            ]);
+
         } catch (\Exception $e) {
             Log::error('Error handling magic link: ' . $e->getMessage(), [
                 'token' => $request->token ?? 'not provided',
                 'error' => $e->getTraceAsString(),
             ]);
 
-            return response()->view('errors.magic-link', [
+            return Inertia::render('Errors/MagicLinkError', [ // Use Inertia for error page
                 'message' => 'An error occurred while processing your magic link.'
-            ], 500);
+            ])->toResponse($request)->setStatusCode(500);
         }
     }
 }

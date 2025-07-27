@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\BonusConfigurationGroupController;
+use App\Http\Controllers\Api\ClientDashboard\ProjectClientAction;
+use App\Http\Controllers\Api\ClientDashboard\ProjectClientReader;
 use App\Http\Controllers\Api\ImageUploadController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -38,7 +40,7 @@ Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
 Route::post('/reset-password', [NewPasswordController::class, 'store'])
     ->middleware('guest');
 
-// Authenticated API Routes (behind auth:sanctum middleware)
+// Authenticated API Routes (behind auth:sanctum middleware for internal users)
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
@@ -214,4 +216,21 @@ Route::middleware('auth:sanctum')->group(function () {
     // Magic Link Routes
     Route::post('projects/{projectId}/magic-link', [MagicLinkController::class, 'sendMagicLink']);
     Route::get('currency-rates', [\App\Http\Controllers\Api\CurrencyController::class, 'index']);
+});
+
+
+// === Client-Specific API Routes (Protected by Magic Link Token) ===
+// These routes will be used by the Vue client dashboard, authenticated via magic link.
+// Client Dashboard API Routes (protected by magiclink middleware)
+Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
+    // Project Client Reader Routes (GET)
+    Route::get('project/{project}/tasks', [ProjectClientReader::class, 'getProjectTasks']);
+    Route::get('project/{project}/deliverables', [ProjectClientReader::class, 'getProjectDeliverables']);
+    // TODO: Add more reader endpoints as needed (e.g., announcements, invoices, comments for a deliverable)
+
+    // Project Client Action Routes (POST/PATCH)
+    Route::post('deliverables/{deliverable}/mark-read', [ProjectClientAction::class, 'markDeliverableAsRead']);
+    Route::post('deliverables/{deliverable}/approve', [ProjectClientAction::class, 'approveDeliverable']);
+    Route::post('deliverables/{deliverable}/request-revisions', [ProjectClientAction::class, 'requestDeliverableRevisions']);
+    Route::post('deliverables/{deliverable}/comments', [ProjectClientAction::class, 'addDeliverableComment']);
 });

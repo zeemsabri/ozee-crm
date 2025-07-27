@@ -51,4 +51,28 @@ class Client extends Model
     {
         return $this->hasMany(Conversation::class);
     }
+
+    /**
+     * Get the deliverable interactions for the client.
+     */
+    public function deliverableInteractions()
+    {
+        return $this->hasMany(ClientDeliverableInteraction::class);
+    }
+
+    /**
+     * Get the deliverable comments for the client.
+     */
+    public function deliverableComments()
+    {
+        return $this->hasMany(DeliverableComment::class);
+    }
+
+    /**
+     * Get the deliverables that the client has approved.
+     */
+    public function approvedDeliverables()
+    {
+        return $this->hasMany(Deliverable::class, 'overall_approved_by_client_id');
+    }
 }
