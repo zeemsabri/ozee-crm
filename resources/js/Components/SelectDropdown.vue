@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'; // Add nextTick here
 
 const props = defineProps({
     modelValue: {
@@ -111,7 +111,7 @@ const toggleDropdown = () => {
         isOpen.value = !isOpen.value;
         if (isOpen.value) {
             // Use nextTick to ensure input is rendered before focusing
-            nextTick(() => {
+            nextTick(() => { //
                 if (searchInputRef.value) {
                     searchInputRef.value.focus();
                 }
@@ -130,7 +130,6 @@ watch(() => props.modelValue, (newVal) => {
 
 <template>
     <div ref="dropdownRef" class="relative" :class="{ 'w-full': width === 'full' }">
-        <!-- Trigger button styled like a form input -->
         <button
             type="button"
             @click="toggleDropdown"
@@ -153,12 +152,10 @@ watch(() => props.modelValue, (newVal) => {
             </svg>
         </button>
 
-        <!-- Dropdown menu -->
         <div
             v-show="isOpen"
             class="absolute z-50 mt-1 w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5"
         >
-            <!-- Search Input within the dropdown -->
             <div class="p-2 border-b border-gray-200">
                 <input
                     ref="searchInputRef"

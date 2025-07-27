@@ -206,53 +206,7 @@ class ProjectReadController extends Controller
     }
 
     /**
-     * Get project services and payment information.
-     *
-     * @param Project $project
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function getServicesAndPayment(Project $project)
-    {
-        $user = Auth::user();
-        if (!$this->canAccessProject($user, $project) || !$this->canViewProjectServicesAndPayments($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have permission to view financial information.'], 403);
-        }
-
-        return response()->json([
-            'services' => $project->services,
-            'service_details' => $project->service_details,
-            'total_amount' => $project->total_amount,
-            'payment_type' => $project->payment_type,
-        ]);
-    }
-
-    /**
-     * Get project transactions.
-     *
-     * @param Project $project
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function getTransactions(Project $project)
-    {
-        $user = Auth::user();
-        if (!$this->canAccessProject($user, $project) || !$this->canViewProjectTransactions($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have permission to view transactions.'], 403);
-        }
-
-        $project->load('transactions');
-        if ($this->canManageProjectExpenses($user, $project) && !$this->canManageProjectIncome($user, $project)) {
-            $filteredTransactions = $project->transactions->filter(fn ($transaction) => $transaction->type === 'expense');
-            return response()->json($filteredTransactions);
-        } elseif (!$this->canManageProjectExpenses($user, $project) && $this->canManageProjectIncome($user, $project)) {
-            $filteredTransactions = $project->transactions->filter(fn ($transaction) => $transaction->type === 'income');
-            return response()->json($filteredTransactions);
-        } else {
-            return response()->json($project->transactions);
-        }
-    }
-
-    /**
-     * Get project clients.
+     * Get project clients
      *
      * @param Project $project
      * @return \Illuminate\Http\JsonResponse
@@ -260,16 +214,148 @@ class ProjectReadController extends Controller
     public function getProjectClients(Project $project)
     {
         $user = Auth::user();
-        // Permission check is less strict here, as it might be used for things like magic link target selection.
-        // If a stricter check is needed, uncomment the authorization lines.
-        // if (!$this->canAccessProject($user, $project) || !$this->canViewClientContacts($user, $project)) {
-        //     return response()->json(['message' => 'Unauthorized.'], 403);
-        // }
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
+        }
+        if (!$this->canViewClientContacts($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to view client contacts.'], 403);
+        }
 
         $project->load('clients');
         return response()->json($project->clients);
     }
 
+    /**
+     * Get project users (team members)
+     *
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getProjectUsers(Project $project)
+    {
+        $user = Auth::user();
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
+        }
+        if (!$this->canViewUsers($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to view team members.'], 403);
+        }
+
+        $project->load(['users' => function ($query) {
+            $query->withPivot('role_id'); // Ensure pivot data (earning, bonus) is loaded
+        }]);
+
+        $project->users->each(function ($user) {
+            $user->load(['role.permissions']);
+            if (isset($user->pivot->role_id)) {
+                $projectRole = \App\Models\Role::with('permissions')->find($user->pivot->role_id);
+                if ($projectRole) {
+                    $permissions = $projectRole->permissions->map(fn($p) => ['id' => $p->id, 'name' => $p->name, 'slug' => $p->slug, 'category' => $p->category]);
+                    $user->pivot->role_data = [
+                        'id' => $projectRole->id,
+                        'name' => $projectRole->name,
+                        'slug' => $projectRole->slug,
+                        'permissions' => $permissions
+                    ];
+                    $user->setRelation('pivot', $user->pivot->makeVisible(['role_data']));
+                    $user->pivot->role = $projectRole->name;
+                }
+            }
+            if ($user->role) {
+                $globalPermissions = $user->role->permissions->map(fn($p) => ['id' => $p->id, 'name' => $p->name, 'slug' => $p->slug, 'category' => $p->category]);
+                $user->global_permissions = $globalPermissions;
+                $user->makeVisible(['global_permissions']);
+            }
+        });
+
+        return response()->json($project->users);
+    }
+
+    /**
+     * Get project services and payment information
+     *
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getServicesAndPayment(Project $project)
+    {
+        $user = Auth::user();
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
+        }
+        if (!$this->canViewProjectServicesAndPayments($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to view financial information.'], 403);
+        }
+
+        // Return financial information
+        return response()->json([
+            'services' => $project->services,
+            'service_details' => $project->service_details,
+            'total_amount' => $project->total_amount,
+            'payment_type' => $project->payment_type,
+            'contract_details' => $this->canViewClientFinancial($user, $project) ? $project->contract_details : null,
+        ]);
+    }
+
+    /**
+     * Get project transactions
+     *
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getTransactions(Project $project, Request $request)
+    {
+        $user = Auth::user();
+        $userId = $request->user_id; // Use request() helper
+
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
+        }
+        // If no specific user_id is requested, and user doesn't have general view permission
+        if (!$this->canViewProjectTransactions($user, $project) && !$userId && ($userId && $userId !== Auth::id())) { // Check general permission if not user-specific
+            return response()->json(['message' => 'Unauthorized. You do not have permission to view transactions.'], 403);
+        }
+
+        // Start building the query for transactions
+        $transactionsQuery = $project->transactions();
+
+        // Apply user_id filter if present in the request
+        if ($userId) {
+            $transactionsQuery->where('user_id', $userId) // Filter by the requested user
+            ->whereIn('type', ['expense', 'bonus']); // Only include 'expense' or 'bonus' for a specific user's financials
+        }
+
+
+        $transactions = $transactionsQuery->get();
+
+        // Apply filtering based on manage expenses/income permissions (existing logic)
+        // This is primarily for project-wide views. For user-specific view, the query above is dominant.
+        $filteredTransactions = $transactions->filter(function ($transaction) use ($user, $project, $userId) {
+            $canManageExpenses = $this->canManageProjectExpenses($user, $project);
+            $canManageIncome = $this->canManageProjectIncome($user, $project);
+
+            // If a specific user ID was requested, ensure the transaction belongs to that user.
+            // This is mostly redundant if the query already filtered by user_id, but good for robust filtering.
+            if ($userId && $transaction->user_id !== (int) $userId) {
+                return false;
+            }
+
+            // General project-wide permission filtering:
+            // If user can only manage expenses and transaction is income, filter out
+            if (!$userId && $transaction->type === 'income' && !$canManageIncome && $canManageExpenses) {
+                return false;
+            }
+            // If user can only manage income and transaction is expense, filter out
+            if (!$userId && $transaction->type === 'expense' && !$canManageExpenses && $canManageIncome) {
+                return false;
+            }
+
+            return true; // View all if both permissions, or filter if only one
+        });
+
+        // Return raw, filtered transactions. Frontend will handle conversion and stats.
+        return response()->json($filteredTransactions->values()); // Use values() to re-index array
+    }
     /**
      * Get project contract details.
      *
@@ -301,12 +387,14 @@ class ProjectReadController extends Controller
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
-        if ($this->canViewClientContacts($user, $project)) {
+        $type = request()->type;
+
+        if ($this->canViewClientContacts($user, $project) && (!$type || $type === 'clients')) {
             $project->load('clients');
             $result['clients'] = $project->clients;
         }
 
-        if ($this->canViewUsers($user, $project)) {
+        if ($this->canViewUsers($user, $project) && (!$type || $type === 'users')) {
             $project->load(['users' => function ($query) {
                 $query->withPivot('role_id');
             }]);
@@ -337,51 +425,11 @@ class ProjectReadController extends Controller
             $result['users'] = $project->users;
         }
 
-        return response()->json($result);
-    }
-
-    /**
-     * Get project users.
-     *
-     * @param Project $project
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function getProjectUsers(Project $project)
-    {
-        $user = Auth::user();
-        if (!$this->canAccessProject($user, $project) || !$this->canViewUsers($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have permission to view team members.'], 403);
+        if($type) {
+            return response()->json($result[$type]);
         }
 
-        $project->load(['users' => function ($query) {
-            $query->withPivot('role_id');
-        }]);
-
-        $project->users->each(function ($user) {
-            $user->load(['role.permissions']);
-            if (isset($user->pivot->role_id)) {
-                $projectRole = Role::with('permissions')->find($user->pivot->role_id);
-                if ($projectRole) {
-                    $permissions = [];
-                    foreach ($projectRole->permissions as $permission) {
-                        $permissions[] = ['id' => $permission->id, 'name' => $permission->name, 'slug' => $permission->slug, 'category' => $permission->category];
-                    }
-                    $user->pivot->role_data = ['id' => $projectRole->id, 'name' => $projectRole->name, 'slug' => $projectRole->slug, 'permissions' => $permissions];
-                    $user->setRelation('pivot', $user->pivot->makeVisible(['role_data']));
-                    $user->pivot->role = $projectRole->name;
-                }
-            }
-            if ($user->role) {
-                $globalPermissions = [];
-                foreach ($user->role->permissions as $permission) {
-                    $globalPermissions[] = ['id' => $permission->id, 'name' => $permission->name, 'slug' => $permission->slug, 'category' => $permission->category];
-                }
-                $user->global_permissions = $globalPermissions;
-                $user->makeVisible(['global_permissions']);
-            }
-        });
-
-        return response()->json($project->users);
+        return response()->json($result);
     }
 
     /**

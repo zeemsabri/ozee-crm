@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, usePage } from '@inertiajs/vue3';
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import ProjectForm from '@/Components/ProjectForm.vue';
 import Modal from '@/Components/Modal.vue';
 import ProjectMeetingsList from '@/Components/ProjectMeetingsList.vue';
@@ -10,13 +10,23 @@ import MeetingModal from '@/Components/MeetingModal.vue';
 import StandupModal from '@/Components/StandupModal.vue';
 import NotesModal from '@/Components/NotesModal.vue'; // For adding standalone notes
 import ProjectMagicLinkModal from '@/Components/ProjectMagicLinkModal.vue'; // New component
+
 // Imported new components
 import ProjectGeneralInfoCard from '@/Components/ProjectGeneralInfoCard.vue';
 import ProjectStatsCards from '@/Components/ProjectStatsCards.vue';
 import ProjectTabsNavigation from '@/Components/ProjectTabsNavigation.vue';
-import ProjectTasksTab from '@/Components/ProjectTasksTab.vue';
+import ProjectTasksTab from '@/Components/ProjectTasks/ProjectTasksTab.vue'; // Updated path
 import ProjectEmailsTab from '@/Components/ProjectEmailsTab.vue';
 import ProjectNotesTab from '@/Components/ProjectNotesTab.vue';
+import ProjectFinancialsCard from '@/Components/ProjectOverviewCards/ProjectFinancialsCard.vue'; // New
+import ProjectClientsCard from '@/Components/ProjectOverviewCards/ProjectClientsCard.vue'; // New
+import ProjectTeamCard from '@/Components/ProjectOverviewCards/ProjectTeamCard.vue'; // New
+import UserFinancialsCard from '@/Components/ProjectOverviewCards/UserFinancialCard.vue'; // New
+import UserTransactionsModal from '@/Components/ProjectFinancials/UserTransactionsModal.vue'; // New
+
+// Currency utilities and SelectDropdown
+import SelectDropdown from '@/Components/SelectDropdown.vue'; // For currency switcher
+import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency'; // Import displayCurrency
 
 import { useAuthUser, useProjectRole, usePermissions, fetchProjectPermissions } from '@/Directives/permissions';
 import PrimaryButton from "@/Components/PrimaryButton.vue";
@@ -27,24 +37,27 @@ const authUser = useAuthUser();
 // Get project ID from Inertia page props
 const projectId = usePage().props.id;
 
-// Project data
+// Project data (still holds overview data from main /api/projects/{id} call)
 const project = ref({
     clients: [],
     users: [],
     notes: [],
     transactions: [],
     documents: [],
-    meetings: [], // Ensure meetings is initialized for ProjectMeetingsList
+    meetings: [],
+    tasks: [], // Ensure tasks is initialized for ProjectStatsCards
+    emails: [], // Ensure emails is initialized for ProjectStatsCards
 });
-const loading = ref(true);
+const loading = ref(true); // For the main page load
 const generalError = ref('');
 
 // Modals managed by Show.vue or passed down
 const showEditModal = ref(false);
 const showMeetingModal = ref(false);
 const showStandupModal = ref(false);
-const showAddNoteModal = ref(false); // For adding a note from the overview/notes tab
-const showMagicLinkModal = ref(false); // New magic link modal state
+const showAddNoteModal = ref(false);
+const showMagicLinkModal = ref(false);
+const showUserTransactionsModal = ref(false); // New state for user transactions modal
 
 const statusOptions = [
     { value: 'active', label: 'Active' },
@@ -55,7 +68,7 @@ const statusOptions = [
 const departmentOptions = [
     { value: 'Website Designing', label: 'Website Designing' },
     { value: 'SEO', label: 'SEO' },
-    { value: 'Social Media', label: 'Social Media' },
+    { value: 'Social Media', 'label': 'Social Media' },
     { value: 'Content Writing', label: 'Content Writing' },
     { value: 'Graphic Design', label: 'Graphic Design' },
 ];
@@ -73,7 +86,7 @@ const meetingsListComponent = ref(null);
 const selectedTab = ref(null);
 
 // Get the user's project-specific role for permission checks
-const userProjectRole = useProjectRole(project); // Pass project ref for dynamic updates
+const userProjectRole = useProjectRole(project);
 
 // Set up permission checking functions
 const { canDo, canView } = usePermissions(projectId, userProjectRole);
@@ -82,8 +95,6 @@ const { canDo, canView } = usePermissions(projectId, userProjectRole);
 const isSuperAdmin = computed(() => authUser.value?.role_data?.slug === 'super-admin');
 
 const canManageProjects = computed(() => {
-    // This combines the check from the ProjectGeneralInfoCard and ProjectTasksTab
-    // It should leverage the `canDo` utility which already considers project-specific and global permissions.
     return canDo('manage_projects').value || isSuperAdmin.value;
 });
 
@@ -92,6 +103,23 @@ const canComposeEmails = computed(() => canDo('compose_emails').value);
 const canApproveEmails = computed(() => canDo('approve_emails').value);
 const canViewNotes = computed(() => canView('project_notes').value);
 const canAddNotes = computed(() => canDo('add_project_notes').value);
+
+// Permissions for new financial/client/user cards
+const canViewClientContacts = computed(() => canView('client_contacts').value);
+const canViewUsers = computed(() => canView('users').value);
+const canViewProjectServicesAndPayments = computed(() => canView('project_financial', userProjectRole).value);
+const canViewProjectTransactions = computed(() => canView('project_transactions').value);
+const canViewClientFinancial = computed(() => canView('client_financial').value); // For contract details
+
+// Currency options (moved here from currency.js for display in SelectDropdown)
+const currencyOptions = [
+    { value: 'PKR', label: 'PKR' },
+    { value: 'AUD', label: 'AUD' },
+    { value: 'INR', label: 'INR' },
+    { value: 'USD', label: 'USD' },
+    { value: 'EUR', label: 'EUR' },
+    { value: 'GBP', label: 'GBP' },
+];
 
 // Computed properties for limited data display on main page (Overview tab)
 const tasksDueToday = computed(() => {
@@ -106,12 +134,9 @@ const tasksDueToday = computed(() => {
 });
 
 const latestNotes = computed(() => {
-    // Assuming notes fetched by ProjectNotesTab are passed back or available globally
-    // For the overview, we'll use a simplified version from the main project object
     if (!project.value.notes) return [];
-    // Filter for regular notes (not standups) and get the latest 3
     return [...project.value.notes]
-        .filter(note => note.type !== 'standup')
+        .filter(note => note.type !== 'standup') // Exclude standups from general notes overview
         .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
         .slice(0, 3);
 });
@@ -123,16 +148,15 @@ const latestEmails = computed(() => {
         .slice(0, 3);
 });
 
-
 // Data fetching for the entire project
 const fetchProjectData = async () => {
     loading.value = true;
     generalError.value = '';
     try {
         // Fetch full project details including relationships the user has access to
-        const response = await window.axios.get(`/api/projects/${projectId}`);
+        const response = await window.axios.get(`/api/projects/${projectId}`); // This hits the show method
         project.value = response.data;
-        console.log('Full project data received:', project.value);
+        console.log('Full project data received (Show.vue main fetch):', project.value);
 
     } catch (error) {
         generalError.value = 'Failed to load project data.';
@@ -180,6 +204,10 @@ const handleChangeTab = (tabName) => {
     selectedTab.value = tabName;
 };
 
+const handleViewUserTransactions = () => {
+    showUserTransactionsModal.value = true;
+};
+
 onMounted(async () => {
     console.log('Show.vue mounted, fetching initial data...');
     // Fetch project-specific permissions first, as other data fetches depend on it
@@ -189,6 +217,8 @@ onMounted(async () => {
     } catch (error) {
         console.error(`Error fetching permissions for project ${projectId}:`, error);
     }
+    // Fetch currency rates globally once
+    await fetchCurrencyRates();
     // Then fetch the main project data
     await fetchProjectData();
 });
@@ -225,6 +255,51 @@ onMounted(async () => {
 
                 <!-- Project Stats Section -->
                 <ProjectStatsCards :tasks="project.tasks || []" :emails="project.emails || []" />
+
+
+                <!-- Currency Switcher -->
+                <div class="flex justify-end items-center mb-5">
+                    <SelectDropdown
+                        id="display-currency-switcher"
+                        v-model="displayCurrency"
+                        :options="currencyOptions"
+                        value-key="value"
+                        label-key="label"
+                        class="w-20"
+                        containerClasses="max-w-[150px]"
+                    />
+                </div>
+
+                <!-- Project Financials Card -->
+                <ProjectFinancialsCard
+                    :project-id="projectId"
+                    :can-view-project-services-and-payments="canViewProjectServicesAndPayments"
+                    :can-view-project-transactions="canViewProjectTransactions"
+                />
+
+                <!-- Project Financials, Clients, Users, Current User Earning -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+
+                    <!-- Project Clients Card -->
+                    <ProjectClientsCard
+                        :project-id="projectId"
+                        :can-view-client-contacts="canViewClientContacts"
+                    />
+
+                    <!-- Project Team Card -->
+                    <ProjectTeamCard
+                        :project-id="projectId"
+                        :can-view-users="canViewUsers"
+                    />
+
+                    <!-- Your Financials Card -->
+                    <UserFinancialsCard
+                        :project-id="projectId"
+                        @viewUserTransactions="handleViewUserTransactions"
+                    />
+                </div>
+                <!-- END NEW SECTION -->
 
                 <!-- Tab Navigation -->
                 <ProjectTabsNavigation
@@ -357,7 +432,7 @@ onMounted(async () => {
                                         </div>
                                     </div>
                                     <div v-if="canViewNotes && note.chat_message_id && project.google_chat_id">
-                                        <button @click="selectedTab = 'notes'" class="text-sm text-indigo-600 hover:text-indigo-800">
+                                        <button @click="selectedTab = 'notes'" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
                                             View
                                         </button>
                                     </div>
@@ -384,6 +459,7 @@ onMounted(async () => {
                     :can-view-emails="canViewEmails"
                     :can-compose-emails="canComposeEmails"
                     :can-approve-emails="canApproveEmails"
+                    :user-project-role="userProjectRole"
                     @emailsUpdated="handleEmailsUpdated"
                 />
 
@@ -445,6 +521,14 @@ onMounted(async () => {
             :project-id="projectId"
             :project-clients="project.clients || []"
             @close="showMagicLinkModal = false"
+        />
+
+        <!-- New User Transactions Modal -->
+        <UserTransactionsModal
+            :show="showUserTransactionsModal"
+            :project-id="projectId"
+            :project-name="project.name"
+            @close="showUserTransactionsModal = false"
         />
     </AuthenticatedLayout>
 </template>

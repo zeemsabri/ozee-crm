@@ -16,7 +16,7 @@ const props = defineProps({
     },
     apiEndpoint: {
         type: String,
-        required: true,
+        required: false,
     },
     httpMethod: {
         type: String,
@@ -40,6 +40,10 @@ const props = defineProps({
         type: Function,
         default: (data) => data, // Default to a function that returns data as-is
     },
+    showFooter: {
+        type: Boolean,
+        default: true
+    }
 });
 
 const emit = defineEmits(['close', 'submitted', 'error']);
@@ -138,7 +142,7 @@ const close = () => {
                 <slot :errors="validationErrors"></slot>
 
                 <!-- Footer / Action Buttons -->
-                <div class="mt-6 flex justify-end space-x-3">
+                <div v-if="showFooter" class="mt-6 flex justify-end space-x-3">
                     <SecondaryButton @click="close" type="button" :disabled="isSubmitting">
                         Cancel
                     </SecondaryButton>

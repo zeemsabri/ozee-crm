@@ -28,7 +28,7 @@ const editorConfig = ref({
     toolbar: {
         items: [
             'heading', '|',
-            'bold', 'italic', 'link', 'bulletedList', 'numberedList', 'blockQuote', '|',
+            'bold', 'italic', 'blockQuote', '|',
             'imageUpload', 'insertTable', 'mediaEmbed', 'codeBlock', '|',
             'undo', 'redo'
         ]
@@ -173,4 +173,5 @@ onMounted(() => {
     min-height: v-bind(height); /* Use v-bind to dynamically set min-height based on the prop */
 }
 /* Add more classes if you have different height props, e.g., ckeditor-height-500px */
+
 </style>

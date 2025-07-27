@@ -15,7 +15,7 @@ return new class extends Migration
             $table->decimal('amount', 10, 2);
             $table->foreignId('user_id')->nullable()->constrained()->onDelete('set null');
             $table->decimal('hours_spent', 8, 2)->nullable();
-            $table->enum('type', ['income', 'expense'])->default('expense');
+            $table->enum('type', ['income', 'expense', 'bonus'])->default('expense');
             $table->timestamps();
         });
     }

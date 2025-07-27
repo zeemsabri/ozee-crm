@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use App\Http\Controllers\Api\Concerns\HasFinancialCalculations;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Transaction extends Model
 {
-    use HasFactory;
+    use HasFactory, HasFinancialCalculations;
 
     protected $fillable = [
         'project_id',
@@ -17,8 +18,8 @@ class Transaction extends Model
         'user_id',
         'hours_spent',
         'type',
-        'curency',
-        'is_paid'
+        'is_paid',
+        'payment_date',
     ];
 
     protected $casts = [

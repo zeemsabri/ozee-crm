@@ -79,6 +79,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Project Section Read Routes
     Route::get('projects/{project}/sections/basic', [ProjectReadController::class, 'getBasicInfo']);
     Route::get('projects/{project}/sections/clients-users', [ProjectReadController::class, 'getClientsAndUsers']);
+    Route::get('projects/{project}/sections/clients', [ProjectReadController::class, 'getClientsAndUsers']);
+    Route::get('projects/{project}/sections/users', [ProjectReadController::class, 'getClientsAndUsers']);
     Route::get('projects/{project}/sections/services-payment', [ProjectReadController::class, 'getServicesAndPayment']);
     Route::get('projects/{project}/sections/transactions', [ProjectReadController::class, 'getTransactions']);
     Route::get('projects/{project}/sections/documents', [ProjectReadController::class, 'getDocuments']);
@@ -132,6 +134,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('emails/{email}/approve', [EmailController::class, 'approve']);
     Route::post('emails/{email}/edit-and-approve', [EmailController::class, 'editAndApprove']);
     Route::post('emails/{email}/reject', [EmailController::class, 'reject']);
+    Route::post('emails/{email}/update', [EmailController::class, 'update']);
     Route::post('emails/{email}/resubmit', [EmailController::class, 'resubmit']);
     Route::apiResource('emails', EmailController::class)->except(['destroy']);
 
@@ -210,5 +213,5 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Magic Link Routes
     Route::post('projects/{projectId}/magic-link', [MagicLinkController::class, 'sendMagicLink']);
-
+    Route::get('currency-rates', [\App\Http\Controllers\Api\CurrencyController::class, 'index']);
 });

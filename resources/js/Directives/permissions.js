@@ -329,6 +329,8 @@ export const useProjectPermissions = (projectId) => {
  */
 export const useProjectRole = (project) => {
   const authUser = useAuthUser();
+  console.log({'authUser': authUser.value});
+  console.log(authUser.value);
   const permissionStore = usePermissionStore();
 
   return computed(() => {

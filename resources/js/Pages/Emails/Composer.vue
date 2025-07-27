@@ -8,7 +8,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
-import EmailEditor from '@/Components/QuillEditor.vue'; // New Quill editor component
+import EmailEditor from '@/Components/EmailEditor.vue';
 import Multiselect from 'vue-multiselect';
 import { useAuthUser, usePermissions, useGlobalPermissions, fetchGlobalPermissions } from '@/Directives/permissions';
 import 'vue-multiselect/dist/vue-multiselect.css';

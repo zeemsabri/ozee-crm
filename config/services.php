@@ -41,4 +41,8 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
 
+    'exchange_rates' => [
+        'api_key' => env('EXCHANGE_RATES_API_KEY'),
+    ],
+
 ];

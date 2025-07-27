@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Controller;
+use App\Mail\ClientEmail;
 use App\Models\Email;
 use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\Client;
 use App\Services\GmailService;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
@@ -16,6 +19,7 @@ use Illuminate\Support\Facades\Log;
 class EmailController extends Controller
 {
     protected GmailService $gmailService;
+    use HasProjectPermissions;
 
     public function __construct(GmailService $gmailService)
     {
@@ -65,8 +69,12 @@ class EmailController extends Controller
                 'client_ids.*.id' => 'required|exists:clients,id', // Validate each client ID
                 'subject' => 'required|string|max:255',
                 'body' => 'required|string',
+                'custom_greeting_name' => 'string|nullable',
+                'greeting_name' =>  'string|nullable',
                 'status' => 'sometimes|in:draft,pending_approval', // Default to pending if submitted
             ]);
+
+
 
             // Extract client IDs from the client_ids array of objects
             $clientIds = array_map(function ($client) {
@@ -85,7 +93,7 @@ class EmailController extends Controller
             }
 
             // Verify if contractor is assigned to this project
-            if ($user->isContractor() && !$user->projects->contains($project->id)) {
+            if (!$user->projects->contains($project->id)) {
                 return response()->json(['message' => 'Unauthorized: You are not assigned to this project.'], 403);
             }
 
@@ -114,13 +122,15 @@ class EmailController extends Controller
                 ->pluck('email')
                 ->toArray();
 
+            $greeting = $validated['custom_greeting_name'] ?? $validated['greeting_name'] ?: 'Hi there';
+
             // Create the email record
             $email = Email::create([
                 'conversation_id' => $conversation->id,
                 'sender_id' => $user->id, // The user who drafted/submitted the email
                 'to' => json_encode($clientEmails), // Store recipient emails as JSON array
                 'subject' => $validated['subject'],
-                'body' => $validated['body'],
+                'body' => $greeting . '<br/>' . $validated['body'],
                 'status' => $validated['status'] ?? 'pending_approval', // Default to pending
             ]);
 
@@ -213,9 +223,13 @@ class EmailController extends Controller
     /**
      * Approve an email and send it.
      * Accessible by: Super Admin, Manager
+     *
+     * @deprecated Use editAndApprove() method instead
      */
     public function approve(Email $email)
     {
+
+        throw new Exception('This method is deprecated. Use editAndApprove instead.');
         $user = Auth::user();
 
         if (!$user->isSuperAdmin() && !$user->isManager()) {
@@ -266,10 +280,13 @@ class EmailController extends Controller
      */
     public function editAndApprove(Request $request, Email $email)
     {
+        $approver = Auth::user(); // The person approving the email
 
-        $user = Auth::user();
+        if (!$approver) {
+            return response()->json(['error' => 'No authenticated user found for approval.'], 401);
+        }
 
-        if (!in_array($email->status, ['pending_approval', 'pending_approval_received'])  ) {
+        if (!in_array($email->status, ['pending_approval', 'pending_approval_received'])) {
             return response()->json(['message' => 'Email is not in pending approval status.'], 400);
         }
 
@@ -282,7 +299,6 @@ class EmailController extends Controller
             ]);
 
             if (isset($validated['project_id'], $validated['client_id'])) {
-
                 $project = Project::findOrFail($validated['project_id']);
 
                 if ($project->client_id !== (int)$validated['client_id']) {
@@ -301,22 +317,77 @@ class EmailController extends Controller
                     ]
                 );
                 $validated['conversation_id'] = $conversation->id;
+                // Ensure 'to' field is updated correctly for the email record
                 $validated['to'] = json_encode([Client::find($validated['client_id'])->email]);
             }
 
             $email->update($validated);
-            $recipientClientEmail = $email->conversation->client->email;
 
-            if($email->type === 'sent') {
+            // --- Fetch Sender Details (The original sender of the email) ---
+            // Assuming 'sender_id' is a foreign key to the 'users' table on your 'emails' table
+            $sender = $email->sender; // Assuming Email model has a 'sender' relationship
+            if (!$sender) {
+                // Fallback if sender relationship is not set up or sender not found
+                $senderDetails = [
+                    'name' => 'Support',
+                    'role' => 'Staff',
+                ];
+                Log::warning('Sender not found for email ID: ' . $email->id . '. Using fallback sender details.');
+            } else {
+                $senderDetails = [
+                    'name' => $sender->name ?? 'Unknown Sender',
+                    'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff', // Adjust based on your User model's role field
+                ];
+            }
+
+            // --- Define Company Details (can be from config, database, or static) ---
+            $companyDetails = [
+                'phone' => '+61 456 639 389',
+                'website' => 'ozeeweb.com.au',
+                'logo_url' => asset('logo.png'), // Ensure this path is correct
+                'brand_primary_color' => '#1a73e8',
+                'brand_secondary_color' => '#fbbc05',
+                'text_color_primary' => '#1a202c',
+                'text_color_secondary' => '#4a5568',
+                'border_color' => '#e5e7eb',
+                'background_color' => '#f9fafb',
+            ];
+
+            // --- Fetch Client Details for the email recipient ---
+            // Assuming 'conversation' relationship exists on Email model and 'client' on Conversation model
+            $recipientClient = $email->conversation->client;
+            if (!$recipientClient) {
+                throw new Exception('Recipient client not found for email ID: ' . $email->id);
+            }
+            $clientEmailAddress = $recipientClient->email;
+            $clientName = $recipientClient->name ?? 'Valued Client'; // Assuming 'name' field exists on client model
+
+            // Prepare payload for Mailable, including client name for greeting
+            $mailablePayload = [
+                'subject' => $email->subject,
+                'body' => $email->body,
+                'greeting_type' => $request->input('greeting_type', 'full_name'), // Get from request or default
+                'custom_greeting_name' => $request->input('custom_greeting_name', ''), // Get from request
+                'clientName' => $clientName,
+            ];
+
+            if ($email->type === 'sent') { // Assuming 'type' indicates if it's an outgoing email
+                // 1. Create a Mailable instance with all necessary data
+                $mailable = new ClientEmail($mailablePayload, $senderDetails, $companyDetails);
+
+                // 2. Render the Mailable's content to a string
+                $renderedBody = $mailable->render();
+
+                // 3. Use your GmailService to send the email
                 $gmailMessageId = $this->gmailService->sendEmail(
-                    $recipientClientEmail,
+                    $clientEmailAddress,
                     $email->subject,
-                    $email->body
+                    $renderedBody // Pass the rendered HTML body
                 );
 
                 $email->update([
                     'status' => 'sent',
-                    'approved_by' => $user->id,
+                    'approved_by' => $approver->id, // The approver's ID
                     'sent_at' => now(),
                     'message_id' => $gmailMessageId,
                 ]);
@@ -324,13 +395,20 @@ class EmailController extends Controller
                 Log::info('Email edited and approved', [
                     'email_id' => $email->id,
                     'gmail_message_id' => $gmailMessageId,
-                    'approved_by' => $user->id,
+                    'approved_by' => $approver->id,
+                    'sender_id' => $sender->id ?? 'N/A', // Log the original sender's ID
+                ]);
+            } else {
+                // If email type is not 'sent' (e.g., 'draft', 'received'), just update status to approved
+                $email->update([
+                    'status' => 'approved',
+                    'approved_by' => $approver->id,
+                ]);
+                Log::info('Email edited and approved (not sent, status updated to approved)', [
+                    'email_id' => $email->id,
+                    'approved_by' => $approver->id,
                 ]);
             }
-
-
-
-
 
             return response()->json(['message' => 'Email updated and approved successfully!', 'email' => $email->load('approver')]);
         } catch (ValidationException $e) {
@@ -346,7 +424,6 @@ class EmailController extends Controller
             return response()->json(['message' => 'Failed to edit and approve email: ' . $e->getMessage()], 500);
         }
     }
-
     /**
      * Approve a received email for viewing.
      */
@@ -748,5 +825,62 @@ class EmailController extends Controller
     private function isJson($string) {
         json_decode($string);
         return (json_last_error() == JSON_ERROR_NONE);
+    }
+
+    /**
+     * Preview an email exactly how the recipient will see it.
+     * Accessible by: Super Admin, Manager (or whoever needs to preview emails)
+     */
+    public function previewEmail(Email $email)
+    {
+        try {
+            // --- Fetch Sender Details (The original sender of the email) ---
+            $sender = $email->sender;
+            $senderDetails = [
+                'name' => $sender->name ?? 'Original Sender',
+                'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
+            ];
+
+            // --- Define Company Details (consistent with your sending logic) ---
+            $companyDetails = [
+                'phone' => '+61 456 639 389',
+                'website' => 'ozeeweb.com.au',
+                'logo_url' => asset('logo.png'),
+                'brand_primary_color' => '#1a73e8',
+                'brand_secondary_color' => '#fbbc05',
+                'text_color_primary' => '#1a202c',
+                'text_color_secondary' => '#4a5568',
+                'border_color' => '#e5e7eb',
+                'background_color' => '#f9fafb',
+            ];
+
+            // --- Fetch Client Details for the email recipient (for greeting) ---
+            $recipientClient = $email->conversation->client;
+            $clientName = $recipientClient->name ?? 'Valued Client';
+
+            // Prepare payload for Mailable
+            $mailablePayload = [
+                'subject' => $email->subject,
+                'body' => $email->body,
+                // These might need to come from the email record if you store them,
+                // otherwise use sensible defaults for preview.
+                'greeting_type' => 'full_name', // Defaulting for preview, adjust if email model stores this
+                'custom_greeting_name' => '',
+                'clientName' => $clientName,
+            ];
+
+            // Create and render the Mailable
+            $mailable = new ClientEmail($mailablePayload, $senderDetails, $companyDetails);
+            $renderedBody = $mailable->render();
+
+            return response($renderedBody)->header('Content-Type', 'text/html');
+
+        } catch (Exception $e) {
+            Log::error('Error previewing email: ' . $e->getMessage(), [
+                'email_id' => $email->id,
+                'error' => $e->getTraceAsString(),
+            ]);
+            return response('Error generating email preview: ' . $e->getMessage(), 500);
+        }
     }
 }

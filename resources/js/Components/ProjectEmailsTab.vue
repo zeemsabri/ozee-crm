@@ -2,15 +2,15 @@
 import { ref, onMounted, reactive, computed } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
-import Modal from '@/Components/Modal.vue';
+import Modal from '@/Components/Modal.vue'; // Keep for view-only modal
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import RichTextEditor from '@/Components/RichTextEditor.vue';
 import InputError from '@/Components/InputError.vue';
-import { usePermissions } from '@/Directives/permissions';
-// Import the new OZeeMultiSelect component
-import OZeeMultiSelect from '@/Components/CustomMultiSelect.vue';
-
+import { usePermissions, useAuthUser } from '@/Directives/permissions'; // Import useAuthUser
+import EmailActionModal from './ProjectsEmails/EmailActionModal.vue';
+import { useEmailSignature } from '@/Composables/useEmailSignature';
+import { useEmailTemplate } from '@/Composables/useEmailTemplate';
 
 const props = defineProps({
     projectId: {
@@ -33,15 +33,33 @@ const props = defineProps({
         type: Boolean,
         required: true,
     },
+    userProjectRole: {
+        type: Object,
+        required: true
+    }
 });
 
 const emit = defineEmits(['emailsUpdated']);
 
 const emails = ref([]);
 const loadingEmails = ref(true);
-const emailError = ref('');
+const emailError = ref(''); // General error for fetching emails
+
 const selectedEmail = ref(null);
-const showEmailModal = ref(false);
+const showEmailDetailsModal = ref(false); // For viewing email details
+
+// Reactive state for the dynamic EmailActionModal
+const showActionModal = ref(false);
+const actionModalTitle = ref('');
+const actionModalApiEndpoint = ref('');
+const actionModalHttpMethod = ref('post');
+const actionModalSubmitButtonText = ref('');
+const actionModalSuccessMessage = ref('');
+const actionModalInitialData = reactive({});
+
+// Get authenticated user for signature
+const authUser = useAuthUser();
+
 
 // Email filters
 const emailFilters = reactive({
@@ -52,30 +70,6 @@ const emailFilters = reactive({
 });
 
 let searchDebounceTimer = null;
-
-// Email approval data
-const showEditEmailModal = ref(false);
-const showRejectEmailModal = ref(false);
-const editEmailForm = reactive({
-    subject: '',
-    body: '',
-});
-const editEmailErrors = ref({});
-const rejectionForm = reactive({
-    rejection_reason: '',
-});
-const rejectionErrors = ref({});
-const emailSuccessMessage = ref('');
-
-// Email composition data
-const showComposeEmailModal = ref(false);
-const composeEmailForm = reactive({
-    project_id: props.projectId,
-    client_ids: [], // Initialize as an empty array for multiple selections
-    subject: '',
-    body: '',
-});
-const composeEmailErrors = ref({});
 
 // Functions
 const applyFilters = () => {
@@ -123,142 +117,74 @@ const fetchProjectEmails = async () => {
 
 const viewEmail = (email) => {
     selectedEmail.value = email;
-    showEmailModal.value = true;
+    showEmailDetailsModal.value = true;
 };
 
-const approveEmail = async (email) => {
-    emailSuccessMessage.value = '';
-    emailError.value = '';
-    try {
-        await window.axios.post(`/api/emails/${email.id}/approve`);
-        emailSuccessMessage.value = 'Email approved successfully!';
-        await fetchProjectEmails();
-        showEmailModal.value = false;
-    } catch (error) {
-        if (error.response && error.response.data.message) {
-            emailError.value = error.response.data.message;
-        } else {
-            emailError.value = 'Failed to approve email.';
-            console.error('Error approving email:', error);
-        }
-    }
+// --- EmailActionModal related functions ---
+
+const openComposeEmailModal = () => {
+    actionModalTitle.value = 'Compose New Email';
+    actionModalApiEndpoint.value = '/api/emails';
+    actionModalHttpMethod.value = 'post';
+    actionModalSubmitButtonText.value = 'Submit for Approval';
+    actionModalSuccessMessage.value = 'Email submitted for approval successfully!';
+    // Initialize form data for composition, including the signature
+    Object.assign(actionModalInitialData, {
+        project_id: props.projectId,
+        client_ids: [],
+        subject: '',
+        body: '', // Add signature here
+        status: 'pending_approval',
+    });
+    showActionModal.value = true;
 };
+
 
 const openEditEmailModal = (email) => {
-    selectedEmail.value = email;
-    editEmailForm.subject = email.subject;
-    editEmailForm.body = email.body;
-    editEmailErrors.value = {};
-    showEditEmailModal.value = true;
-    showEmailModal.value = false;
-};
-
-const saveAndApproveEmail = async () => {
-    editEmailErrors.value = {};
-    emailError.value = '';
-    emailSuccessMessage.value = '';
-    try {
-        const payload = {
-            subject: editEmailForm.subject,
-            body: editEmailForm.body,
-        };
-        await window.axios.post(`/api/emails/${selectedEmail.value.id}/edit-and-approve`, payload);
-        emailSuccessMessage.value = 'Email updated and approved successfully!';
-        showEditEmailModal.value = false;
-        await fetchProjectEmails();
-    } catch (error) {
-        if (error.response && error.response.status === 422) {
-            editEmailErrors.value = error.response.data.errors;
-        } else if (error.response && error.response.data.message) {
-            emailError.value = error.response.data.message;
-        } else {
-            emailError.value = 'Failed to update and approve email.';
-            console.error('Error updating and approving email:', error);
-        }
-    }
+    selectedEmail.value = email; // Keep selected email for context
+    actionModalTitle.value = 'Edit and Approve Email';
+    actionModalApiEndpoint.value = `/api/emails/${email.id}/edit-and-approve`;
+    actionModalHttpMethod.value = 'post';
+    actionModalSubmitButtonText.value = 'Approve & Send';
+    actionModalSuccessMessage.value = 'Email updated and approved successfully!';
+    // Initialize form data for editing, appending signature if not already present
+    let emailBody = email.body || '';
+    Object.assign(actionModalInitialData, {
+        subject: email.subject,
+        body: emailBody,
+    });
+    showActionModal.value = true;
+    showEmailDetailsModal.value = false; // Close details modal
 };
 
 const openRejectEmailModal = (email) => {
-    selectedEmail.value = email;
-    rejectionForm.rejection_reason = '';
-    rejectionErrors.value = {};
-    showRejectEmailModal.value = true;
-    showEmailModal.value = false;
+    selectedEmail.value = email; // Keep selected email for context
+    actionModalTitle.value = 'Reject Email';
+    actionModalApiEndpoint.value = `/api/emails/${email.id}/reject`;
+    actionModalHttpMethod.value = 'post';
+    actionModalSubmitButtonText.value = 'Reject Email';
+    actionModalSuccessMessage.value = 'Email rejected successfully!';
+    // Initialize form data for rejection
+    Object.assign(actionModalInitialData, {
+        rejection_reason: '',
+    });
+    showActionModal.value = true;
+    showEmailDetailsModal.value = false; // Close details modal
 };
 
-const submitRejection = async () => {
-    rejectionErrors.value = {};
-    emailError.value = '';
-    emailSuccessMessage.value = '';
-    try {
-        await window.axios.post(`/api/emails/${selectedEmail.value.id}/reject`, { rejection_reason: rejectionForm.rejection_reason });
-        emailSuccessMessage.value = 'Email rejected successfully!';
-        rejectionForm.rejection_reason = '';
-        showRejectEmailModal.value = false;
-        await fetchProjectEmails();
-    } catch (error) {
-        if (error.response && error.response.status === 422) {
-            rejectionErrors.value = error.response.data.errors;
-        } else if (error.response && error.response.data.message) {
-            emailError.value = error.response.data.message;
-        } else {
-            emailError.value = 'Failed to reject email.';
-            console.error('Error rejecting email:', error);
-        }
-    }
+
+
+// Handle submission from EmailActionModal
+const handleActionModalSubmitted = async (responseData) => {
+    console.log('Form submitted successfully:', responseData);
+    await fetchProjectEmails(); // Refresh email list
+    showActionModal.value = false; // Close the form modal
+    // EmailActionModal (via BaseFormModal) handles success message internally
 };
 
-const openComposeEmailModal = () => {
-    composeEmailForm.project_id = props.projectId;
-    composeEmailForm.client_ids = []; // Ensure it's reset to an empty array
-    composeEmailForm.subject = '';
-    composeEmailForm.body = '';
-    composeEmailErrors.value = {};
-    emailSuccessMessage.value = '';
-    showComposeEmailModal.value = true;
-};
-
-const submitEmailForApproval = async () => {
-    composeEmailErrors.value = {};
-    emailError.value = '';
-    emailSuccessMessage.value = '';
-
-    if (!composeEmailForm.client_ids || composeEmailForm.client_ids.length === 0) {
-        composeEmailErrors.client_ids = ['Please select at least one client.'];
-        return;
-    }
-
-    try {
-        // client_ids are already an array of IDs from the custom multi-select component
-        const formattedClientIds = composeEmailForm.client_ids.map(id => ({ id }));
-
-        const payload = {
-            project_id: composeEmailForm.project_id,
-            client_ids: formattedClientIds,
-            subject: composeEmailForm.subject,
-            body: composeEmailForm.body,
-            status: 'pending_approval',
-        };
-
-        await window.axios.post('/api/emails', payload);
-
-        emailSuccessMessage.value = 'Email submitted for approval successfully!';
-        composeEmailForm.client_ids = [];
-        composeEmailForm.subject = '';
-        composeEmailForm.body = '';
-        composeEmailErrors.value = {};
-        showComposeEmailModal.value = false;
-        await fetchProjectEmails();
-    } catch (error) {
-        if (error.response && error.response.status === 422) {
-            composeEmailErrors.value = error.response.data.errors;
-        } else if (error.response && error.response.data.message) {
-            emailError.value = error.response.data.message;
-        } else {
-            emailError.value = 'Failed to submit email. An unexpected error occurred.';
-            console.error('Error submitting email:', error);
-        }
-    }
+const handleActionModalClose = () => {
+    showActionModal.value = false;
+    // Any cleanup or state reset if needed when the modal closes
 };
 
 onMounted(() => {
@@ -277,8 +203,9 @@ onMounted(() => {
                     Compose Email
                 </PrimaryButton>
             </div>
-            <div v-if="emailSuccessMessage" class="mt-2 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded relative" role="alert">
-                <span class="block sm:inline">{{ emailSuccessMessage }}</span>
+            <!-- General email fetch error message -->
+            <div v-if="emailError" class="mt-2 bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded relative" role="alert">
+                <span class="block sm:inline">{{ emailError }}</span>
             </div>
         </div>
 
@@ -382,12 +309,12 @@ onMounted(() => {
         </div>
         <p v-else class="text-gray-400 text-sm">No email communication found.</p>
 
-        <!-- Email View Modal -->
-        <Modal :show="showEmailModal" @close="showEmailModal = false">
+        <!-- Email View Modal (Remains a standard Modal as it's for display only) -->
+        <Modal :show="showEmailDetailsModal" @close="showEmailDetailsModal = false">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-lg font-semibold text-gray-900">Email Details</h3>
-                    <button @click="showEmailModal = false" class="text-gray-400 hover:text-gray-500">
+                    <button @click="showEmailDetailsModal = false" class="text-gray-400 hover:text-gray-500">
                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -433,7 +360,6 @@ onMounted(() => {
                     </div>
 
                     <div v-if="selectedEmail.status === 'pending_approval' && canApproveEmails" class="mt-6 flex justify-end space-x-2">
-                        <PrimaryButton @click="approveEmail(selectedEmail)" class="bg-green-600 hover:bg-green-700">Approve</PrimaryButton>
                         <PrimaryButton @click="openEditEmailModal(selectedEmail)" class="bg-blue-600 hover:bg-blue-700">Edit & Approve</PrimaryButton>
                         <SecondaryButton @click="openRejectEmailModal(selectedEmail)" class="text-red-600 hover:text-red-800">Reject</SecondaryButton>
                     </div>
@@ -441,126 +367,22 @@ onMounted(() => {
             </div>
         </Modal>
 
-        <!-- Edit Email Modal -->
-        <Modal :show="showEditEmailModal" @close="showEditEmailModal = false" max-width="3xl">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Edit and Approve Email</h3>
-                    <button @click="showEditEmailModal = false" class="text-gray-400 hover:text-gray-500">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div v-if="selectedEmail" class="space-y-4">
-                    <form @submit.prevent="saveAndApproveEmail">
-                        <div v-if="emailError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                            <span class="block sm:inline">{{ emailError }}</span>
-                        </div>
-
-                        <div class="mb-4">
-                            <InputLabel for="subject" value="Subject" />
-                            <TextInput id="subject" type="text" class="mt-1 block w-full" v-model="editEmailForm.subject" required />
-                            <InputError :message="editEmailErrors.subject ? editEmailErrors.subject[0] : ''" class="mt-2" />
-                        </div>
-
-                        <div class="mb-6">
-                            <InputLabel for="body" value="Email Body" />
-                            <RichTextEditor id="body" v-model="editEmailForm.body" placeholder="Edit your email here..." height="300px" />
-                            <InputError :message="editEmailErrors.body ? editEmailErrors.body[0] : ''" class="mt-2" />
-                        </div>
-
-                        <div class="mt-6 flex justify-end space-x-2">
-                            <SecondaryButton @click="showEditEmailModal = false">Cancel</SecondaryButton>
-                            <PrimaryButton type="submit" class="bg-green-600 hover:bg-green-700">Save & Approve</PrimaryButton>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </Modal>
-
-        <!-- Reject Email Modal -->
-        <Modal :show="showRejectEmailModal" @close="showRejectEmailModal = false" max-width="2xl">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Reject Email</h3>
-                    <button @click="showRejectEmailModal = false" class="text-gray-400 hover:text-gray-500">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div v-if="selectedEmail" class="space-y-4">
-                    <form @submit.prevent="submitRejection">
-                        <div v-if="emailError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                            <span class="block sm:inline">{{ emailError }}</span>
-                        </div>
-
-                        <div class="mb-6">
-                            <InputLabel for="rejection_reason" value="Rejection Reason" />
-                            <textarea id="rejection_reason" rows="5" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="rejectionForm.rejection_reason" required placeholder="Please provide a reason for rejecting this email (minimum 10 characters)"></textarea>
-                            <InputError :message="rejectionErrors.rejection_reason ? rejectionErrors.rejection_reason[0] : ''" class="mt-2" />
-                        </div>
-
-                        <div class="mt-6 flex justify-end space-x-2">
-                            <SecondaryButton @click="showRejectEmailModal = false">Cancel</SecondaryButton>
-                            <PrimaryButton type="submit" class="bg-red-600 hover:bg-red-700">Reject Email</PrimaryButton>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </Modal>
-
-        <!-- Compose Email Modal -->
-        <Modal :show="showComposeEmailModal" @close="showComposeEmailModal = false" max-width="3xl">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Compose New Email</h3>
-                    <button @click="showComposeEmailModal = false" class="text-gray-400 hover:text-gray-500">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <form @submit.prevent="submitEmailForApproval">
-                    <div v-if="emailError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                        <span class="block sm:inline">{{ emailError }}</span>
-                    </div>
-
-                    <div class="mb-4">
-                        <InputLabel for="client_ids" value="To (Clients)" />
-                        <OZeeMultiSelect
-                            v-model="composeEmailForm.client_ids"
-                            :options="projectClients"
-                            placeholder="Select one or more clients"
-                            label-key="name"
-                            track-by="id"
-                        />
-                        <InputError :message="composeEmailErrors.client_ids ? composeEmailErrors.client_ids[0] : ''" class="mt-2" />
-                    </div>
-
-                    <div class="mb-4">
-                        <InputLabel for="subject" value="Subject" />
-                        <TextInput id="subject" type="text" class="mt-1 block w-full" v-model="composeEmailForm.subject" required />
-                        <InputError :message="composeEmailErrors.subject ? composeEmailErrors.subject[0] : ''" class="mt-2" />
-                    </div>
-
-                    <div class="mb-6">
-                        <InputLabel for="body" value="Email Body" />
-                        <RichTextEditor id="body" v-model="composeEmailForm.body" placeholder="Compose your email here..." height="300px" />
-                        <InputError :message="composeEmailErrors.body ? composeEmailErrors.body[0] : ''" class="mt-2" />
-                    </div>
-
-                    <div class="flex items-center justify-end">
-                        <SecondaryButton @click="showComposeEmailModal = false" class="mr-2">Cancel</SecondaryButton>
-                        <PrimaryButton type="submit">Submit for Approval</PrimaryButton>
-                    </div>
-                </form>
-            </div>
-        </Modal>
+        <!-- Dynamic EmailActionModal for Compose, Edit, and Reject actions -->
+        <EmailActionModal
+            :show="showActionModal"
+            :title="actionModalTitle"
+            :api-endpoint="actionModalApiEndpoint"
+            :http-method="actionModalHttpMethod"
+            :initial-form-data="actionModalInitialData"
+            :submit-button-text="actionModalSubmitButtonText"
+            :success-message="actionModalSuccessMessage"
+            :project-clients="projectClients"
+            :user-project-role="userProjectRole"
+            :email-id="selectedEmail?.id"
+            @close="handleActionModalClose"
+            @submitted="handleActionModalSubmitted"
+            @error="(err) => console.error('EmailActionModal error:', err)"
+        />
     </div>
 </template>
 
@@ -581,5 +403,14 @@ onMounted(() => {
 }
 .multiselect__tag-icon:after {
     color: #6b7280;
+}
+
+/* Custom style to attempt to make signature non-selectable/non-editable */
+.unselectable-signature {
+    user-select: none; /* Standard property */
+    -webkit-user-select: none; /* Safari */
+    -moz-user-select: none; /* Firefox */
+    -ms-user-select: none; /* IE/Edge */
+    pointer-events: none; /* Prevent clicks/interactions within the div */
 }
 </style>

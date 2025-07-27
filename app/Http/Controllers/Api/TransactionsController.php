@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class TransactionsController extends Controller // Assuming your controller is named TransactionController
@@ -33,7 +34,7 @@ class TransactionsController extends Controller // Assuming your controller is n
             'user_id' => 'nullable|exists:users,id', // User ID is optional
             'currency' =>   'required|string',
             'hours_spent' => 'nullable|numeric|min:0', // Hours spent is optional
-            'type' => 'required|in:income,expense', // Type must be 'income' or 'expense'
+            'type' => 'required|in:income,expense,bonus', // Type must be 'income' or 'expense'
         ];
 
         // Validate the incoming request data against the defined rules
@@ -78,18 +79,27 @@ class TransactionsController extends Controller // Assuming your controller is n
 
         // 2. Validation
         $validated = $request->validate([
-            'payment_amount' => 'required|numeric|min:0.01',
+            'payment_amount' => 'required|numeric|min:0', // Min can be 0 if pay_in_full is true for 0-amount transactions, but usually min:0.01 for actual payments
             'pay_in_full' => 'required|boolean',
+            'payment_date' => 'nullable|date', // Added validation for payment_date
         ]);
 
         $paymentAmount = (float) $validated['payment_amount'];
-        $payInFull = (bool) $validated['pay_in_full'];
-        $remainingAmount = (float) $transaction->amount;
+        $payInFullRequest = (bool) $validated['pay_in_full']; // Renamed to avoid confusion with internal logic
+        $paymentDate = $validated['payment_date'] ?? null; // Get payment date, default to null if not provided
 
-        // Backend validation: Ensure payment amount is not more than remaining amount
-        if (!$payInFull && $paymentAmount > $remainingAmount) {
+        $originalTransactionAmount = (float) $transaction->amount;
+
+        // Determine if it's truly a full payment, considering floating point precision.
+        // If payInFullRequest is true OR the payment amount is very close to the original transaction amount,
+        // treat it as a full payment.
+        $isActualFullPayment = $payInFullRequest || (abs($paymentAmount - $originalTransactionAmount) < 0.01); // Use a small tolerance for comparison
+
+        // Backend validation: If not a full payment, payment amount cannot exceed the remaining balance.
+        // This check is only relevant for partial payments.
+        if (!$isActualFullPayment && $paymentAmount > $originalTransactionAmount) {
             return response()->json([
-                'errors' => ['payment_amount' => ['Payment amount cannot exceed the remaining balance.']],
+                'errors' => ['payment_amount' => ['Payment amount cannot exceed the remaining balance of the original transaction.']],
                 'message' => 'The given data was invalid.'
             ], 422);
         }
@@ -98,31 +108,35 @@ class TransactionsController extends Controller // Assuming your controller is n
         DB::beginTransaction();
 
         try {
-            if ($payInFull) {
+            if ($isActualFullPayment) {
                 // 3. Handle Full Payment
+                // Mark the original transaction as fully paid and set its amount to 0 (if it represents remaining balance)
                 $transaction->update([
-                    'is_paid' => true
+                    'is_paid' => true,
+                    'payment_date' => $paymentDate, // Store payment date for full payment
                 ]);
             } else {
                 // 4. Handle Partial Payment
 
                 // Calculate the new remaining amount for the original transaction
-                $updatedRemainingAmount = $remainingAmount - $paymentAmount;
+                $updatedRemainingAmount = $originalTransactionAmount - $paymentAmount;
 
                 // Update the original transaction's remaining amount
                 $transaction->update([
-                    'amount' => $updatedRemainingAmount
+                    'amount' => $updatedRemainingAmount,
+                    // Do NOT set is_paid to true here, as it's a partial payment
                 ]);
 
-                // Create a new transaction for the paid portion
-                $newTransaction = $project->transactions()->create([
-                    'description' => $transaction->description . ' (Partial Payment)',
+                // Create a new transaction record specifically for the paid portion
+                $project->transactions()->create([
+                    'description' => $transaction->description . ' (Partial ' . ucfirst($transaction->type) . ')', // More descriptive
                     'amount' => $paymentAmount,
                     'currency' => $transaction->currency, // Use parent transaction's currency
                     'user_id' => $transaction->user_id, // Assign to the same user if applicable
-                    'type' => $transaction->type,
-                    'is_paid' => true, // This new transaction is specifically for the paid amount
-                    'transaction_id' => $transaction->id, // Link to the parent transaction
+                    'type' => $transaction->type, // Keep the same type (income/expense/bonus)
+                    'is_paid' => true, // This new record represents the paid portion
+                    'transaction_id' => $transaction->id, // Link to the original (parent) transaction
+                    'payment_date' => $paymentDate, // Store payment date for this partial payment record
                 ]);
             }
 
@@ -132,7 +146,7 @@ class TransactionsController extends Controller // Assuming your controller is n
 
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('Payment processing failed: ' . $e->getMessage(), ['exception' => $e]);
+            Log::error('Payment processing failed: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json(['message' => 'Failed to process payment.', 'error' => $e->getMessage()], 500);
         }
     }

@@ -1,13 +1,9 @@
 <script setup>
-import { reactive, ref, watch } from 'vue';
-import Modal from '@/Components/Modal.vue';
+import { reactive, ref, watch, computed } from 'vue';
+import BaseFormModal from '@/Components/BaseFormModal.vue'; // Import the new base modal
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
-import SecondaryButton from '@/Components/SecondaryButton.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import axios from 'axios';
-import { success, error } from '@/Utils/notification';
 
 const props = defineProps({
     show: Boolean,
@@ -19,11 +15,10 @@ const emit = defineEmits(['close', 'noteAdded']);
 // Form state for adding notes
 const noteForm = reactive({
     project_id: null,
-    content: '',
+    // The backend expects an array of notes, so we'll structure it that way.
+    // BaseFormModal will send this reactive object directly.
+    notes: [{ content: '' }],
 });
-
-const errors = ref({});
-const generalError = ref('');
 
 // Watch for changes in projectId prop
 watch(() => props.projectId, (newProjectId) => {
@@ -36,51 +31,53 @@ watch(() => props.projectId, (newProjectId) => {
 watch(() => props.show, (isVisible) => {
     if (isVisible) {
         noteForm.project_id = props.projectId;
-        noteForm.content = '';
-        errors.value = {};
-        generalError.value = '';
+        noteForm.notes[0].content = ''; // Reset the content of the first note
+        // BaseFormModal will handle clearing its own generalError and validationErrors
     }
 });
 
-const addNote = async () => {
-    errors.value = {};
-    generalError.value = '';
-    try {
-        await window.axios.post(`/api/projects/${noteForm.project_id}/notes`, { notes: [{ content: noteForm.content }] });
-        success('Note added successfully!');
-        emit('noteAdded');
-        emit('close');
-    } catch (error) {
-        if (error.response && error.response.status === 422) {
-            errors.value = error.response.data.errors;
-        } else if (error.response && error.response.data.message) {
-            generalError.value = error.response.data.message;
-            error(error.response.data.message);
-        } else {
-            generalError.value = 'Failed to add note.';
-            error('Failed to add note.');
-            console.error('Error adding note:', error);
-        }
-    }
+// Computed property for API endpoint
+const apiEndpoint = computed(() => `/api/projects/${noteForm.project_id}/notes`);
+
+// Handle the 'submitted' event from BaseFormModal
+const handleNoteSubmitted = (responseData) => {
+    emit('noteAdded'); // Notify parent that note was added
+    // BaseFormModal will automatically close if closeOnSuccess is true (default)
+};
+
+// Handle submission error from BaseFormModal (optional, BaseFormModal shows a generic error)
+const handleSubmissionError = (error) => {
+    console.error('Error in NotesModal submission:', error);
 };
 </script>
 
 <template>
-    <Modal :show="show" @close="$emit('close')">
-        <div class="p-6">
-            <h2 class="text-lg font-medium text-gray-900 mb-4">Add Note</h2>
-            <div v-if="generalError" class="text-red-600 text-sm mb-4">{{ generalError }}</div>
-            <form @submit.prevent="addNote">
-                <div class="mb-4">
-                    <InputLabel for="note_content" value="Note Content" />
-                    <TextInput id="note_content" type="text" class="mt-1 block w-full" v-model="noteForm.content" required />
-                    <InputError :message="errors['notes.0.content'] ? errors['notes.0.content'][0] : ''" class="mt-2" />
-                </div>
-                <div class="mt-6 flex justify-end">
-                    <SecondaryButton @click="$emit('close')">Cancel</SecondaryButton>
-                    <PrimaryButton class="ms-3" type="submit">Add Note</PrimaryButton>
-                </div>
-            </form>
-        </div>
-    </Modal>
+    <BaseFormModal
+        :show="show"
+        title="Add Note"
+        :api-endpoint="apiEndpoint"
+        http-method="post"
+        :form-data="noteForm"
+        submit-button-text="Add Note"
+        success-message="Note added successfully!"
+        @close="$emit('close')"
+        @submitted="handleNoteSubmitted"
+        @error="handleSubmissionError"
+    >
+        <!-- Use a scoped slot to access validation errors from BaseFormModal -->
+        <template #default="{ errors }">
+            <div class="mb-4">
+                <InputLabel for="note_content" value="Note Content" />
+                <TextInput
+                    id="note_content"
+                    type="text"
+                    class="mt-1 block w-full"
+                    v-model="noteForm.notes[0].content"
+                    required
+                />
+                <!-- Note: Backend validation for notes in an array usually uses dot notation (e.g., 'notes.0.content') -->
+                <InputError :message="errors['notes.0.content'] ? errors['notes.0.content'][0] : ''" class="mt-2" />
+            </div>
+        </template>
+    </BaseFormModal>
 </template>

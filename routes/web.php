@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\EmailController;
 use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\EmailTestController;
 use App\Http\Controllers\ProfileController;
@@ -38,6 +39,10 @@ Route::get('/', function (Request $request) {
         'phpVersion' => PHP_VERSION,
     ]);
 });
+
+Route::get('/emails/{email}/preview', [EmailController::class, 'previewEmail'])
+    ->middleware(['auth']) // Add any necessary middleware for access control
+    ->name('emails.preview');
 
 // --- Google OAuth Routes (for initial authorization by Super Admin) ---
 // These need to be accessible via web, but you might want to restrict access to them

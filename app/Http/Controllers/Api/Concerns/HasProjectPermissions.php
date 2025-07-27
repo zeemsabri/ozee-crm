@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Concerns;
 
+use App\Models\Permission;
 use App\Models\Project;
 use App\Models\User;
 use App\Models\Role; // Assuming Role model is accessible
@@ -37,13 +38,22 @@ trait HasProjectPermissions
      * @param Project $project
      * @return Role|null
      */
-    protected function getUserProjectRole(User $user, Project $project): ?Role
+    protected function getUserProjectRole(User $user, Project $project, $permission = true): ?Role
     {
         $projectUser = $project->users()->where('users.id', $user->id)->first();
         if ($projectUser && isset($projectUser->pivot->role_id)) {
-            return Role::with('permissions')->find($projectUser->pivot->role_id);
+            if($permission) {
+                return Role::with('permissions')->find($projectUser->pivot->role_id);
+            }
+            return Role::find($projectUser->pivot->role_id);
+
         }
         return null;
+    }
+
+    protected function getProjectRoleName(User $user, Project $project)
+    {
+        return $this->getUserProjectRole($user, $project, false)?->name ?? 'Staff';
     }
 
     /**
