@@ -19,6 +19,29 @@ class ProjectClientReader extends Controller
 
     }
 
+    public function getProject(Request $request)
+    {
+
+        try {
+            $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+
+            $project = Project::findOrFail($authenticatedProjectId);
+
+            return [
+                'name'  =>  $project->name,
+                'google_drive_link' => $project->google_drive_link,
+                'google_chat_id'    =>  $project->google_chat_id,
+                'website'   => $project->website,
+                'status'    =>  $project->status,
+                'logo'  =>  $project->logo
+            ];
+        }
+        catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to fetch project.', 'error' => $e->getMessage()], 500);
+        }
+
+    }
+
    /**
      * Get tasks for a specific project, accessible by magic link clients.
      *
@@ -140,5 +163,51 @@ class ProjectClientReader extends Controller
             return response()->json(['message' => 'Failed to fetch deliverables.', 'error' => $e->getMessage()], 500);
         }
     }
+    /**
+     * Get documents for a specific project, accessible by magic link clients.
+     *
+     * @param Request $request
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getProjectDocuments(Request $request, Project $project)
+    {
+        try {
+            // Retrieve the project ID associated with the magic link token
+            // This attribute is set by the VerifyMagicLinkToken middleware
+            $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+
+            $projectId = $project->id;
+            // IMPORTANT SECURITY CHECK: Ensure the requested projectId matches the one from the magic link token
+            if ((int)$projectId !== (int)$authenticatedProjectId) {
+                Log::warning("Unauthorized access attempt to project documents.", [
+                    'requested_project_id' => $projectId,
+                    'authenticated_project_id' => $authenticatedProjectId,
+                    'magic_link_email' => $request->attributes->get('magic_link_email'),
+                    'ip_address' => $request->ip()
+                ]);
+                return response()->json(['message' => 'Unauthorized access to this project\'s documents.'], 403);
+            }
+
+            // Get documents for the project
+            $documents = $project->documents()->with('notes')->latest()->get();
+            $drive = new GoogleDriveService();
+
+            return response()->json($documents);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching client project documents: ' . $e->getMessage(), [
+                'project_id' => $projectId,
+                'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
+                'error_trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to fetch documents.', 'error' => $e->getMessage()], 500);
+        }
+
+    }
+
+
+
+
 }
 

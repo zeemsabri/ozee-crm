@@ -223,9 +223,12 @@ Route::middleware('auth:sanctum')->group(function () {
 // These routes will be used by the Vue client dashboard, authenticated via magic link.
 // Client Dashboard API Routes (protected by magiclink middleware)
 Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
+
+    Route::get('project/{project}', [ProjectClientReader::class, 'getProject']);
     // Project Client Reader Routes (GET)
     Route::get('project/{project}/tasks', [ProjectClientReader::class, 'getProjectTasks']);
     Route::get('project/{project}/deliverables', [ProjectClientReader::class, 'getProjectDeliverables']);
+    Route::get('project/{project}/documents', [ProjectClientReader::class, 'getProjectDocuments']);
     // TODO: Add more reader endpoints as needed (e.g., announcements, invoices, comments for a deliverable)
 
     // Project Client Action Routes (POST/PATCH)
@@ -236,4 +239,6 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
 
     Route::post('tasks/{task}/notes', [ProjectClientAction::class, 'addNoteToTask']);
     Route::post('tasks', [ProjectClientAction::class, 'createTask']);
+    Route::post('documents', [ProjectClientAction::class, 'uploadClientDocuments']);
+    Route::post('document/{document}/notes', [ProjectClientAction::class, 'addNoteToDocument']);
 });

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Project extends Model
 {
@@ -110,6 +111,14 @@ class Project extends Model
     public function resources()
     {
         return $this->morphMany(Resource::class, 'resourceable');
+    }
+
+    /**
+     * Get the documents for this project.
+     */
+    public function documents()
+    {
+        return $this->hasMany(Document::class);
     }
 
     /**
@@ -266,5 +275,52 @@ class Project extends Model
             'user_summaries' => array_values($userSummaries),
             'transactions' => $transactions,
         ];
+    }
+    /**
+     * Upload documents to the project.
+     *
+     * @param array $files Array of uploaded files
+     * @param \App\Services\GoogleDriveService $googleDriveService
+     * @return array Array of created Document models
+     */
+    public function uploadDocuments(array $files, $googleDriveService)
+    {
+        $uploadedDocuments = [];
+
+        foreach ($files as $file) {
+            $localPath = $file->store('documents', 'public');
+            $fullLocalPath = Storage::disk('public')->path($localPath);
+            $originalFilename = $file->getClientOriginalName();
+            $mimeType = $file->getMimeType();
+            $fileSize = $file->getSize();
+
+            $documentData = [
+                'project_id' => $this->id,
+                'path' => $localPath,
+                'filename' => $originalFilename,
+                'mime_type' => $mimeType,
+                'file_size' => $fileSize
+            ];
+
+            try {
+                if ($this->google_drive_folder_id) {
+                    $response = $googleDriveService->uploadFile($fullLocalPath, $originalFilename, $this->google_drive_folder_id);
+                    $documentData['google_drive_file_id'] = $response['id'] ?? null;
+                    $documentData['path'] = $response['path'] ?? null;
+                    $documentData['thumbnail'] = $response['thumbnail'] ?? null;
+                }
+
+                Storage::disk('public')->delete($localPath);
+
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to upload file to Google Drive: ' . $e->getMessage(), ['project_id' => $this->id, 'file_name' => $originalFilename]);
+                $documentData['upload_error'] = 'Failed to upload to Google Drive';
+            }
+
+            $document = \App\Models\Document::create($documentData);
+            $uploadedDocuments[] = $document;
+        }
+
+        return $uploadedDocuments;
     }
 }

@@ -45,6 +45,7 @@ const invoices = ref([]);
 const announcements = ref([]);
 const deliverables = ref([]); // New reactive data for deliverables
 const error = ref(null); // To store any API errors
+const projectData = ref({});
 
 // Computed property for main content margin based on sidebar state
 const mainContentMargin = computed(() => {
@@ -180,10 +181,11 @@ onMounted(async () => {
         // fetchClientData(`project/${props.projectId}/activities`, activities),
         fetchClientData(`project/${props.projectId}/tasks`, tickets), // Assuming tasks are your tickets
         // fetchClientData(`project/${props.projectId}/approvals`, approvals), // Assuming EmailController handles approvals
-        // fetchClientData(`project/${props.projectId}/documents`, documents),
+        fetchClientData(`project/${props.projectId}/documents`, documents),
         // fetchClientData(`project/${props.projectId}/invoices`, invoices),
         // fetchClientData(`announcements`, announcements), // Assuming announcements are general and not tied to a project path, or you can use project specific announcements: `project/${props.projectId}/announcements`
-        fetchClientData(`project/${props.projectId}/deliverables`, deliverables) // New fetch for deliverables
+        fetchClientData(`project/${props.projectId}/deliverables`, deliverables), // New fetch for deliverables
+        fetchClientData(`project/${props.projectId}`, projectData)
     ]);
 
     isLoading.value = false;
@@ -227,10 +229,11 @@ provide('activityService', { addActivity: addActivity }); // Provided for child 
                 :announcements="announcements"
                 :deliverables="deliverables"
                 @open-deliverable-viewer="handleOpenDeliverableViewer"
+                :project-data="projectData"
             />
             <TicketsSection v-if="currentSection === 'tickets'" :project-id="projectId" :initial-auth-token="initialAuthToken" :tickets="tickets" @add-ticket="handleAddTicket" @add-activity="addActivity" />
             <ApprovalsSection @open-deliverable-viewer="handleOpenDeliverableViewer" :deliverables="deliverables" :initial-auth-token="initialAuthToken" :project-id="projectId" v-if="currentSection === 'approvals'" :approvals="approvals" @update-approval="handleUpdateApproval" @add-activity="addActivity" />
-            <DocumentsSection v-if="currentSection === 'documents'" :documents="documents" @add-document="handleAddDocument" @add-activity="addActivity" />
+            <DocumentsSection :project-data="projectData" :project-id="projectId" :initial-auth-token="initialAuthToken" v-if="currentSection === 'documents'" :documents="documents" @add-document="handleAddDocument" @add-activity="addActivity" />
             <InvoicesSection v-if="currentSection === 'invoices'" :invoices="invoices" @update-invoice="handleUpdateInvoice" @add-activity="addActivity" />
             <AnnouncementsSection v-if="currentSection === 'announcements'" :announcements="announcements" />
         </div>

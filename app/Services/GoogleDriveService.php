@@ -62,7 +62,7 @@ class GoogleDriveService
      * @param string $parentFolderId Folder ID to upload to
      * @return string File ID
      */
-    public function uploadFile(string $filePath, string $fileName, string $parentFolderId): string
+    public function uploadFile(string $filePath, string $fileName, string $parentFolderId): array
     {
         try {
             $file = new Drive\DriveFile();
@@ -83,7 +83,12 @@ class GoogleDriveService
                 'parent_folder_id' => $parentFolderId,
             ]);
 
-            return $uploadedFile->id;
+            return [
+                'id'    =>  $uploadedFile->id,
+                'thumbnail' =>  $this->getThumbnailLink($uploadedFile->id),
+                'path'  =>  $this->getWebContentLink($uploadedFile->id)
+            ];
+
         } catch (\Exception $e) {
             Log::error('Error uploading file to Google Drive: ' . $e->getMessage(), [
                 'file_name' => $fileName,
@@ -257,6 +262,27 @@ class GoogleDriveService
                 'error' => $e->getTraceAsString(),
             ]);
             throw $e;
+        }
+    }
+
+    /**
+     * Fetch the thumbnail link for a file.
+     *
+     * @param string $fileId
+     * @return string|null Thumbnail link or null if not available
+     */
+    public function getThumbnailLink(string $fileId): ?string
+    {
+        try {
+            $file = $this->driveService->files->get($fileId, ['fields' => 'thumbnailLink']);
+            Log::info('Fetched thumbnail link for file', ['file_id' => $fileId, 'thumbnail_link' => $file->getThumbnailLink()]);
+            return $file->getThumbnailLink();
+        } catch (\Exception $e) {
+            Log::error('Error fetching thumbnail link: ' . $e->getMessage(), [
+                'file_id' => $fileId,
+                'error' => $e->getTraceAsString(),
+            ]);
+            return null;
         }
     }
 

@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api\ClientDashboard;
 
 use App\Http\Controllers\Controller;
+use App\Models\Document;
 use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectNote;
 use App\Models\Task;
 use App\Models\TaskType;
+use App\Services\GoogleDriveService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Models\Deliverable;
@@ -15,6 +17,7 @@ use App\Models\Client;
 use App\Models\ClientDeliverableInteraction;
 use App\Models\DeliverableComment;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class ProjectClientAction extends Controller
@@ -308,6 +311,60 @@ class ProjectClientAction extends Controller
     }
 
     /**
+     * Add a note/reply to a specific task.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Task  $task
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function addNoteToDocument(Request $request, Document $document)
+    {
+        $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+        $authenticatedClientEmail = $request->attributes->get('magic_link_email');
+
+
+        $projectId = $document->project_id;
+
+        // Security check: Ensure the task belongs to the authenticated project
+        if ((int)$projectId !== (int)$authenticatedProjectId) {
+            return response()->json(['message' => 'Unauthorized action on this document.'], 403);
+        }
+
+        // Validate the request input
+        try {
+            $request->validate([
+                'comment_text' => 'required|string|max:2000',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+        }
+
+        // Find the client based on the authenticated email
+        $client = Client::where('email', $authenticatedClientEmail)->first();
+        if (!$client) {
+            return response()->json(['message' => 'Client not found.'], 404);
+        }
+
+        try {
+
+            $note = $document->addNote($request->comment_text, $client);
+            return response()->json([
+                'message' => 'Comment added successfully.',
+                'note' => $note,
+            ], 201);
+
+
+        } catch (\Exception $e) {
+            Log::error('Error adding note to task: ' . $e->getMessage(), [
+                'task_id' => $document->id,
+                'client_email' => $authenticatedClientEmail,
+                'error' => $e->getTraceAsString()
+            ]);
+            return response()->json(['message' => 'Failed to add comment to task.'], 500);
+        }
+    }
+
+    /**
      * Create a new task by a client.
      *
      * @param Request $request
@@ -327,7 +384,7 @@ class ProjectClientAction extends Controller
             return response()->json(['message' => 'Client not found.'], 404);
         }
 
-//        try {
+        try {
             $request->validate([
                 'title' => 'required|string|max:255',
                 'description' => 'nullable|string',
@@ -353,15 +410,71 @@ class ProjectClientAction extends Controller
                 'message' => 'Task created successfully.',
                 'task' => $task->load('notes'), // Load notes for immediate display if needed
             ], 201);
-//        } catch (ValidationException $e) {
-//            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
-//        } catch (\Exception $e) {
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
             Log::error('Error creating task: ' . $e->getMessage(), [
                 'project_id' => $authenticatedProjectId,
                 'client_email' => $authenticatedClientEmail,
                 'error' => $e->getTraceAsString()
             ]);
             return response()->json(['message' => 'Failed to create task.'], 500);
-//        }
+        }
+    }
+
+    /**
+     * Upload documents from the client dashboard.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function uploadClientDocuments(Request $request)
+    {
+        $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+        $authenticatedClientEmail = $request->attributes->get('magic_link_email');
+
+        // Verify the project exists and is accessible
+        $project = Project::find($authenticatedProjectId);
+        if (!$project) {
+            return response()->json(['message' => 'Project not found or unauthorized.'], 403);
+        }
+
+        try {
+            $validationRules = [
+                'documents' => 'required|array',
+                'documents.*' => 'required|file|mimes:pdf,doc,docx,jpg,png,jpeg|max:10240', // Max 10MB
+            ];
+            $validated = $request->validate($validationRules);
+            $uploadedDocuments = [];
+
+            if ($request->hasFile('documents')) {
+                // Get the client who is uploading
+                $client = Client::where('email', $authenticatedClientEmail)->first();
+                if (!$client) {
+                    return response()->json(['message' => 'Client not found.'], 404);
+                }
+
+                $uploadedDocuments = $project->uploadDocuments($request->file('documents'), new GoogleDriveService());
+
+                return response()->json([
+                    'message' => 'Documents uploaded successfully',
+                    'documents' => $uploadedDocuments // Return the newly uploaded documents
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'No documents were uploaded',
+                'documents' => []
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error('Error uploading documents: ' . $e->getMessage(), [
+                'project_id' => $authenticatedProjectId,
+                'email' => $authenticatedClientEmail,
+                'error' => $e->getTraceAsString()
+            ]);
+            return response()->json(['message' => 'Failed to upload documents: ' . $e->getMessage()], 500);
+        }
     }
 }

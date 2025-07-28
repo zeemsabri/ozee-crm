@@ -31,6 +31,10 @@ const props = defineProps({
     deliverables: {
         type: Array,
         default: () => []
+    },
+    projectData: {
+        type: [Object, null],
+        default: () => ({})
     }
 });
 
@@ -142,10 +146,10 @@ const handleOpenDeliverableViewer = (deliverable) => {
 
 <template>
     <div class="p-6 bg-gray-100 min-h-full">
-        <h1 class="text-3xl font-bold text-gray-800 mb-8">Client Dashboard</h1>
+        <h1 class="text-3xl font-bold text-gray-800 mb-8">{{ projectData.name ?? 'Client' }} Dashboard</h1>
 
         <!-- Quick Overview Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             <!-- Total Tickets Card -->
             <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between transition-transform transform hover:scale-105 cursor-pointer">
                 <div>
@@ -174,13 +178,13 @@ const handleOpenDeliverableViewer = (deliverable) => {
             </div>
 
             <!-- Other relevant metrics could go here -->
-            <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between transition-transform transform hover:scale-105 cursor-pointer">
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-600">Overall Progress</h2>
-                    <p class="text-4xl font-bold text-purple-600">75%</p> <!-- Placeholder -->
-                </div>
-                <svg class="w-12 h-12 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-            </div>
+<!--            <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between transition-transform transform hover:scale-105 cursor-pointer">-->
+<!--                <div>-->
+<!--                    <h2 class="text-lg font-semibold text-gray-600">Overall Progress</h2>-->
+<!--                    <p class="text-4xl font-bold text-purple-600">75%</p> &lt;!&ndash; Placeholder &ndash;&gt;-->
+<!--                </div>-->
+<!--                <svg class="w-12 h-12 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>-->
+<!--            </div>-->
         </div>
 
         <!-- Main Content Area: Action Required, Recent Announcements, Activity/Charts -->

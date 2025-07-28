@@ -367,7 +367,7 @@ const fetchDocumentsData = async (projectId) => {
         const data = response.data;
 
         // Update documents
-        projectForm.documents = data.documents || [];
+        projectForm.documents = data || [];
 
         return data;
     } catch (error) {

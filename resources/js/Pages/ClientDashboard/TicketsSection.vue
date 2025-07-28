@@ -157,7 +157,8 @@ onMounted(() => {
         <!-- Task Notes Sidebar Component -->
         <TicketNotesSidebar
             v-model:isOpen="showNotesSidebar"
-            :selectedTask="selectedTaskForNotes"
+            note-for="tasks"
+            :selected-item="selectedTaskForNotes"
             :initialAuthToken="initialAuthToken"
             :projectId="projectId"
             @note-added-success="handleNoteAdded"

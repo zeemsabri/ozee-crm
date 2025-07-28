@@ -6,7 +6,7 @@ const props = defineProps({
         type: Boolean,
         required: true,
     },
-    selectedTask: {
+    selectedItem: {
         type: Object,
         default: null,
     },
@@ -18,6 +18,10 @@ const props = defineProps({
         type: [String, Number],
         required: true,
     },
+    noteFor: {
+        type: String,
+        required: true
+    }
 });
 
 const emits = defineEmits(['update:isOpen', 'note-added-success']);
@@ -30,8 +34,8 @@ const notesContainerRef = ref(null); // Ref for the scrollable notes div
 // Inject the showModal from ClientDashboard for showing alerts
 const { showModal } = inject('modalService');
 
-// Watch for selectedTask changes to update local notes and scroll
-watch(() => props.selectedTask, (newTask) => {
+// Watch for selectedItem changes to update local notes and scroll
+watch(() => props.selectedItem, (newTask) => {
     if (newTask) {
         localNotes.value = [...(newTask.notes || [])];
         nextTick(() => {
@@ -64,10 +68,10 @@ const scrollToBottom = () => {
 const sendNoteApiRequest = async (payload) => {
     isSubmittingNote.value = true;
 
-    console.log(props.selectedTask);
+    console.log(props.selectedItem);
 
     try {
-        const response = await fetch(`/api/client-api/tasks/${props.selectedTask.id}/notes`, {
+        const response = await fetch(`/api/client-api/${props.noteFor}/${props.selectedItem.id}/notes`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${props.initialAuthToken}`,
@@ -85,7 +89,7 @@ const sendNoteApiRequest = async (payload) => {
         }
         return data;
     } catch (err) {
-        console.error(`Error adding note to task ${props.selectedTask.id}:`, err);
+        console.error(`Error adding note to task ${props.selectedItem.id}:`, err);
         showModal('Error', err.message || 'Failed to add comment.', 'alert');
         throw err;
     } finally {
@@ -129,8 +133,8 @@ const isClientAuthor = (note) => {
 
 // Computed property to display task status with styling
 const taskStatusClass = computed(() => {
-    if (!props.selectedTask) return '';
-    const status = props.selectedTask.status;
+    if (!props.selectedItem) return '';
+    const status = props.selectedItem.status;
     switch (status) {
         case 'completed': return 'text-green-600';
         case 'pending': return 'text-yellow-600';
@@ -141,14 +145,14 @@ const taskStatusClass = computed(() => {
 });
 
 const taskStatusDisplay = computed(() => {
-    if (!props.selectedTask) return '';
-    return props.selectedTask.status.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+    if (!props.selectedItem) return '';
+    return props.selectedItem.status?.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
 });
 </script>
 
 <template>
     <transition name="slide-fade">
-        <div v-if="isOpen && selectedTask"
+        <div v-if="isOpen && selectedItem"
              class="fixed right-0 top-0 h-full w-full sm:w-96 bg-white shadow-xl flex flex-col z-40 transition-transform duration-300 ease-in-out"
              @click.self="closeModal"
         >
@@ -159,7 +163,8 @@ const taskStatusDisplay = computed(() => {
             <div class="relative bg-white w-full h-full flex flex-col p-4">
                 <!-- Header -->
                 <div class="flex justify-between items-center pb-4 border-b border-gray-200">
-                    <h3 class="text-xl font-semibold text-gray-800 flex-1 truncate pr-2">Task: {{ selectedTask.name }}</h3>
+                    <h3 v-if="selectedItem.name" class="text-xl font-semibold text-gray-800 flex-1 truncate pr-2">Task: {{ selectedItem.name }}</h3>
+                    <h3 v-if="selectedItem.filename" class="text-xl font-semibold text-gray-800 flex-1 truncate pr-2">File: {{ selectedItem.filename }}</h3>
                     <span class="text-sm font-medium" :class="taskStatusClass">{{ taskStatusDisplay }}</span>
                     <button @click="closeModal"
                             class="text-gray-500 hover:text-gray-800 text-3xl ml-4 leading-none"
