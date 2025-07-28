@@ -27,6 +27,15 @@ const loadingTasks = ref(false);
 const taskError = ref('');
 const expandTasks = ref(false);
 
+// Weekly availability state
+const weeklyAvailability = ref({
+    availabilities: [],
+    start_date: '',
+    end_date: ''
+});
+const loadingAvailability = ref(false);
+const availabilityError = ref('');
+
 // Notes modal state
 const showNotesModal = ref(false);
 const selectedProjectId = ref(null);
@@ -89,11 +98,50 @@ const handleNoteAdded = () => {
     fetchProjects();
 };
 
+// Fetch user's weekly availability
+const fetchWeeklyAvailability = async () => {
+    loadingAvailability.value = true;
+    availabilityError.value = '';
+    try {
+
+
+        // Get current week's start and end dates (Monday to Sunday)
+        const now = new Date();
+        const startDate = new Date(now);
+        startDate.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1)); // Monday
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6); // Sunday
+
+        // Format dates as YYYY-MM-DD
+        const formatDate = (date) => {
+            return date.toISOString().split('T')[0];
+        };
+
+        // Fetch weekly availability for current user
+        const response = await axios.get('/api/availabilities', {
+            params: {
+                start_date: formatDate(startDate),
+                end_date: formatDate(endDate)
+            }
+        });
+
+        weeklyAvailability.value = response.data;
+    } catch (err) {
+        availabilityError.value = 'Failed to load availability data';
+        console.error('Error fetching weekly availability:', err);
+    } finally {
+        loadingAvailability.value = false;
+    }
+};
+
 onMounted(() => {
     // We don't fetch projects initially, only when the user expands the section
 
     // Fetch task statistics to display the total count
     fetchTaskStatistics();
+
+    // Fetch user's weekly availability
+    fetchWeeklyAvailability();
 });
 </script>
 
@@ -113,6 +161,101 @@ onMounted(() => {
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8 space-y-6">
                 <!-- Availability Prompt (shown on Thursdays) -->
                 <AvailabilityPrompt />
+
+                <!-- Weekly Availability Card -->
+                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                    <div class="p-6 text-gray-900">
+                        <h3 class="text-lg font-medium text-gray-900">Your Weekly Availability</h3>
+                        <p class="mt-1 text-sm text-gray-600">
+                            Current week:
+                            <span class="font-medium">
+                                {{ weeklyAvailability.start_date ? new Date(weeklyAvailability.start_date).toLocaleDateString() : '' }}
+                                to
+                                {{ weeklyAvailability.end_date ? new Date(weeklyAvailability.end_date).toLocaleDateString() : '' }}
+                            </span>
+                        </p>
+
+                        <div class="mt-4">
+                            <div v-if="loadingAvailability" class="text-sm text-gray-500">Loading availability data...</div>
+                            <div v-else-if="availabilityError" class="text-sm text-red-500">{{ availabilityError }}</div>
+                            <div v-else-if="!weeklyAvailability.availabilities || weeklyAvailability.availabilities.length === 0"
+                                 class="text-sm text-gray-500">
+                                No availability data found for this week.
+                            </div>
+                            <div v-else class="mt-3">
+                                <div class="grid grid-cols-7 gap-2 mt-2">
+                                    <!-- Days of the week -->
+                                    <div v-for="day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']"
+                                         :key="day"
+                                         class="text-center text-xs font-medium text-gray-500">
+                                        {{ day }}
+                                    </div>
+
+                                    <!-- Availability blocks -->
+                                    <template v-for="i in 7" :key="'day-'+i">
+                                        <div class="h-10 border rounded-md flex items-center justify-center">
+                                            <div v-if="weeklyAvailability.start_date" class="text-sm">
+                                                <!-- Calculate current date for this day of the week -->
+                                                <template v-if="(() => {
+                                                    const date = new Date(weeklyAvailability.start_date);
+                                                    date.setDate(date.getDate() + i - 1);
+                                                    const currentDate = date.toISOString().split('T')[0];
+                                                    return weeklyAvailability.availabilities.filter(a => a.date.split('T')[0] === currentDate).length > 0;
+                                                })()">
+                                                    <span :class="(() => {
+                                                        const date = new Date(weeklyAvailability.start_date);
+                                                        date.setDate(date.getDate() + i - 1);
+                                                        const currentDate = date.toISOString().split('T')[0];
+                                                        const availabilities = weeklyAvailability.availabilities.filter(a => a.date.split('T')[0] === currentDate);
+
+                                                        // If any availability is not available, show as unavailable
+                                                        if (availabilities.some(a => !a.is_available)) {
+                                                            return 'text-red-600';
+                                                        } else {
+                                                            return 'text-green-600';
+                                                        }
+                                                    })()">
+                                                        {{ (() => {
+                                                            const date = new Date(weeklyAvailability.start_date);
+                                                            date.setDate(date.getDate() + i - 1);
+                                                            const currentDate = date.toISOString().split('T')[0];
+                                                            const availabilities = weeklyAvailability.availabilities.filter(a => a.date.split('T')[0] === currentDate);
+
+                                                            // If any availability is not available, show as unavailable
+                                                            if (availabilities.some(a => !a.is_available)) {
+                                                                return 'Unavailable';
+                                                            }
+
+                                                            // Collect all time slots from all available entries
+                                                            const allTimeSlots = [];
+                                                            availabilities.forEach(availability => {
+                                                                if (availability.is_available && availability.time_slots && Array.isArray(availability.time_slots)) {
+                                                                    availability.time_slots.forEach(slot => {
+                                                                        allTimeSlots.push(`${slot.start_time} - ${slot.end_time}`);
+                                                                    });
+                                                                }
+                                                            });
+
+                                                            if (allTimeSlots.length > 0) {
+                                                                return allTimeSlots.join(', ');
+                                                            } else {
+                                                                return 'Available (No time slots)';
+                                                            }
+                                                        })() }}
+                                                    </span>
+                                                </template>
+                                                <span v-else class="text-gray-400">-</span>
+                                            </div>
+                                            <div v-else class="text-sm text-gray-400">-</div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
 
                 <!-- Projects Card -->
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
