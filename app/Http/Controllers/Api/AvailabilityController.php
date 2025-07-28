@@ -262,58 +262,98 @@ class AvailabilityController extends Controller
      *
      * @return \Illuminate\Http\JsonResponse
      */
-    public function shouldShowPrompt()
+    public function shouldShowPrompt(): \Illuminate\Http\JsonResponse
     {
         $user = Auth::user();
         $today = Carbon::now();
+
+        // --- Define Time Periods ---
+        // Current Calendar Week (Monday to Sunday)
+        $currentWeekStart = Carbon::now()->startOfWeek();
+        $currentWeekEnd = Carbon::now()->endOfWeek();
+
+        // Next Calendar Week (Monday to Sunday) - for which we prompt availability
         $nextWeekStart = Carbon::now()->addWeek()->startOfWeek();
         $nextWeekEnd = Carbon::now()->addWeek()->endOfWeek();
 
-        // Check if today is between Thursday and Saturday (inclusive)
-        $isThursday = $today->dayOfWeek === Carbon::THURSDAY;
-        $isFriday = $today->dayOfWeek === Carbon::FRIDAY;
-        $isSaturday = $today->dayOfWeek === Carbon::SATURDAY;
-        $isThursdayToSaturday = $isThursday || $isFriday || $isSaturday;
+        // --- Check Current Week's Availability ---
+        // Get availability entries for the current week (Monday to Friday only for completeness)
+        $currentWeekAvailabilities = UserAvailability::where('user_id', $user->id)
+            ->whereBetween('date', [$currentWeekStart->format('Y-m-d'), $currentWeekEnd->format('Y-m-d')])
+            ->get();
 
-        // Get all availability entries for next week
+        $currentWeekdaysWithAvailability = [];
+        foreach ($currentWeekAvailabilities as $availability) {
+            $weekday = Carbon::parse($availability->date)->dayOfWeek;
+            if ($weekday >= Carbon::MONDAY && $weekday <= Carbon::FRIDAY) {
+                $currentWeekdaysWithAvailability[] = $weekday;
+            }
+        }
+        $allCurrentWeekdaysCovered = count(array_unique($currentWeekdaysWithAvailability)) >= 5;
+
+        // --- Check Next Week's Availability ---
+        // Get availability entries for next week (Monday to Friday only for completeness)
         $nextWeekAvailabilities = UserAvailability::where('user_id', $user->id)
             ->whereBetween('date', [$nextWeekStart->format('Y-m-d'), $nextWeekEnd->format('Y-m-d')])
             ->get();
 
-        // Extract the weekdays (1-5 for Monday-Friday) for which the user has submitted availability
-        $weekdaysWithAvailability = [];
+        $nextWeekdaysWithAvailability = [];
         foreach ($nextWeekAvailabilities as $availability) {
             $weekday = Carbon::parse($availability->date)->dayOfWeek;
-            // Only consider weekdays (Monday to Friday, which are 1-5 in Carbon)
-            if ($weekday >= 1 && $weekday <= 5) {
-                $weekdaysWithAvailability[] = $weekday;
+            if ($weekday >= Carbon::MONDAY && $weekday <= Carbon::FRIDAY) {
+                $nextWeekdaysWithAvailability[] = $weekday;
             }
         }
+        $allNextWeekdaysCovered = count(array_unique($nextWeekdaysWithAvailability)) >= 5;
 
-        // Count unique weekdays with availability
-        $uniqueWeekdaysWithAvailability = array_unique($weekdaysWithAvailability);
+        // --- Prompt Visibility Logic ---
+        $shouldShowPrompt = false;
+        // Prompt only shown Thursday to Saturday
+        $isThursdayToSaturday = $today->dayOfWeek >= Carbon::THURSDAY && $today->dayOfWeek <= Carbon::SATURDAY;
 
-        // Check if all weekdays (Monday to Friday) have at least one availability entry
-        $allWeekdaysCovered = count($uniqueWeekdaysWithAvailability) >= 5;
+        if ($isThursdayToSaturday) {
+            // Show prompt if it's Thursday-Saturday AND next week's availability isn't fully covered yet
+            $shouldShowPrompt = !$allNextWeekdaysCovered;
+        } else {
+            // Monday to Wednesday: No prompt if current week is covered.
+            // If current week ISN'T covered, you might still want a prompt or block, but the requirements
+            // only mention Thursday for the *next week's* prompt.
+            // Based on "Current calendar week... if we have the availability then we don't show prompt or block until Thursday"
+            // this implies no prompt or block for the *next week's* availability.
+            $shouldShowPrompt = false; // Prompt for next week is NOT shown Mon-Wed
+        }
 
-        // Determine if the user should be blocked from other features
-        // Block if it's after Thursday and they haven't submitted availability for all weekdays
-        $isAfterThursday = $today->dayOfWeek > Carbon::THURSDAY ||
-                          ($today->dayOfWeek === Carbon::THURSDAY && $today->hour >= 23 && $today->minute >= 59);
-        $shouldBlockUser = $isAfterThursday && !$allWeekdaysCovered;
+        // --- User Blocking Logic ---
+        $shouldBlockUser = false;
+        // Blocking starts from Friday if next week's availability is incomplete
+        $isFridayOnwards = $today->dayOfWeek >= Carbon::FRIDAY;
 
-        // Always show prompt between Thursday and Saturday, regardless of submission status
-        $shouldShowPrompt = $isThursdayToSaturday;
+        // Block if it's Friday or later AND next week's availability is not covered
+        if ($isFridayOnwards) {
+            $shouldBlockUser = !$allNextWeekdaysCovered;
+        } else {
+            // Monday to Thursday: No blocking for next week's availability
+            // However, on Monday-Thursday, if the *current week's* availability isn't complete,
+            // this function doesn't handle blocking for that. The prompt is for next week.
+            // Based on "Current calendar week... if we have the availability then we don't show prompt or block until Thursday"
+            // this means blocking for *current week's* availability (if not present) is deferred or handled elsewhere.
+            // This function focuses on *next week's* submission deadlines.
+            $shouldBlockUser = false;
+        }
 
+        // --- Final Response ---
         return response()->json([
             'should_show_prompt' => $shouldShowPrompt,
-            'should_block_user' => true,
+            'should_block_user' => $shouldBlockUser,
+            'current_week_start' => $currentWeekStart->format('Y-m-d'),
+            'current_week_end' => $currentWeekEnd->format('Y-m-d'),
             'next_week_start' => $nextWeekStart->format('Y-m-d'),
             'next_week_end' => $nextWeekEnd->format('Y-m-d'),
-            'weekdays_covered' => $uniqueWeekdaysWithAvailability,
-            'all_weekdays_covered' => $allWeekdaysCovered,
+            'all_current_weekdays_covered' => $allCurrentWeekdaysCovered,
+            'all_next_weekdays_covered' => $allNextWeekdaysCovered,
             'current_day' => $today->dayOfWeek,
-            'is_thursday_to_saturday' => $isThursdayToSaturday
+            'is_thursday_to_saturday' => $isThursdayToSaturday,
+            'is_friday_onwards' => $isFridayOnwards,
         ]);
     }
 

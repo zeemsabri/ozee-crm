@@ -33,13 +33,34 @@ const fetchTeamData = async () => {
     try {
         // Fetch project users (team members)
         const response = await window.axios.get(`/api/projects/${props.projectId}/sections/users`);
-        teamUsers.value = response.data.users || []; // Assuming 'users' key in response if getClientsAndUsers returns object
+        teamUsers.value = response.data.users || [];
         console.log('Fetched team users:', teamUsers.value);
     } catch (e) {
         console.error('Failed to fetch project users:', e);
         error.value = e.response?.data?.message || 'Failed to load team data.';
     } finally {
         loading.value = false;
+    }
+};
+
+// Helper function to format the availability slots
+const getFormattedAvailability = (user) => {
+    // Assuming 'availabilities' array only contains today's entry if any
+    if (!user.availabilities || user.availabilities.length === 0) {
+        return 'No availability submitted for today.';
+    }
+
+    const todayAvailability = user.availabilities[0]; // Take the first (and assumed only) entry
+
+    if (!todayAvailability.is_available) {
+        return `Not available today: ${todayAvailability.reason || 'No reason provided'}`;
+    }
+
+    if (todayAvailability.time_slots && todayAvailability.time_slots.length > 0) {
+        const slots = todayAvailability.time_slots.map(slot => `${slot.start_time}-${slot.end_time}`);
+        return `${slots.join(', ')}`;
+    } else {
+        return 'No specific slots provided.';
     }
 };
 
@@ -70,9 +91,14 @@ watch([() => props.canViewUsers, () => authUser.value, () => props.projectId], (
         </div>
 
         <div v-else>
-            <ul v-if="teamUsers.length" class="space-y-1 text-sm text-gray-700 mb-4">
-                <li v-for="user in teamUsers" :key="user.id">
-                    {{ user.name }} (Role: <span class="font-medium">{{ user.pivot?.role || 'N/A' }}</span>)
+            <ul v-if="teamUsers.length" class="space-y-2 text-sm text-gray-700 mb-4">
+                <li v-for="user in teamUsers" :key="user.id" class="border-b pb-2 last:border-b-0">
+                    <div>
+                        <strong>{{ user.name }}</strong> (Role: <span class="font-medium">{{ user.pivot?.role || 'N/A' }}</span>)
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">
+                        Today's Availability: {{ getFormattedAvailability(user) }}
+                    </div>
                 </li>
             </ul>
             <p v-else class="text-gray-400 text-sm mb-4">No team members assigned.</p>

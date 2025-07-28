@@ -77,6 +77,20 @@ trait HasProjectPermissions
         return $user->hasPermission('view_client_contacts');
     }
 
+    protected function canViewClients(User $user, Project $project) : bool
+    {
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        $projectRole = $this->getUserProjectRole($user, $project);
+        if ($projectRole && $projectRole->permissions->contains('slug', 'view_clients')) {
+            return true;
+        }
+
+        return $user->hasPermission('view_clients');
+    }
+
     /**
      * Check if user has permission to view client financial.
      *

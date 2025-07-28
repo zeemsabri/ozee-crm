@@ -245,6 +245,7 @@ class ProjectReadController extends Controller
             $query->withPivot('role_id'); // Ensure pivot data (earning, bonus) is loaded
         }]);
 
+
         $project->users->each(function ($user) {
             $user->load(['role.permissions']);
             if (isset($user->pivot->role_id)) {
@@ -389,7 +390,7 @@ class ProjectReadController extends Controller
 
         $type = request()->type;
 
-        if ($this->canViewClientContacts($user, $project) && (!$type || $type === 'clients')) {
+        if ($this->canViewClients($user, $project) && (!$type || $type === 'clients')) {
             $project->load('clients');
             $result['clients'] = $project->clients;
         }
@@ -397,7 +398,11 @@ class ProjectReadController extends Controller
         if ($this->canViewUsers($user, $project) && (!$type || $type === 'users')) {
             $project->load(['users' => function ($query) {
                 $query->withPivot('role_id');
-            }]);
+            },
+            'users.availabilities' => function($query) {
+                $query->where('date', '=', Today());
+            }
+            ]);
 
             $project->users->each(function ($user) {
                 $user->load(['role.permissions']);
@@ -425,7 +430,7 @@ class ProjectReadController extends Controller
             $result['users'] = $project->users;
         }
 
-        if($type) {
+        if($type && isset($result[$type])) {
             return response()->json($result[$type]);
         }
 

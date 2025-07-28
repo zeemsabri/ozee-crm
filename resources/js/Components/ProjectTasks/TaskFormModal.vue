@@ -273,24 +273,25 @@ const availableTags = ref([
                         placeholder="No milestone"
                         class="mt-1"
                         :allow-empty="true"
+                        :required="true"
                     />
                     <InputError :message="errors.milestone_id ? errors.milestone_id[0] : ''" class="mt-2" />
                 </div>
 
                 <!-- Tags (using CustomMultiSelect) -->
-                <div>
-                    <InputLabel for="task-tags" value="Tags" />
-                    <CustomMultiSelect
-                        id="task-tags"
-                        v-model="taskForm.tags"
-                        :options="availableTags"
-                        label-key="name"
-                        track-by="name"
-                        placeholder="Add tags"
-                        class="mt-1"
-                    />
-                    <InputError :message="errors.tags ? errors.tags[0] : ''" class="mt-2" />
-                </div>
+<!--                <div>-->
+<!--                    <InputLabel for="task-tags" value="Tags" />-->
+<!--                    <CustomMultiSelect-->
+<!--                        id="task-tags"-->
+<!--                        v-model="taskForm.tags"-->
+<!--                        :options="availableTags"-->
+<!--                        label-key="name"-->
+<!--                        track-by="name"-->
+<!--                        placeholder="Add tags"-->
+<!--                        class="mt-1"-->
+<!--                    />-->
+<!--                    <InputError :message="errors.tags ? errors.tags[0] : ''" class="mt-2" />-->
+<!--                </div>-->
             </div>
         </template>
     </BaseFormModal>

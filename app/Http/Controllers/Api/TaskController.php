@@ -151,7 +151,7 @@ class TaskController extends Controller
             'due_date' => 'nullable|date',
             'status' => 'required|in:To Do,In Progress,Done,Blocked,Archived',
             'task_type_id' => 'required|exists:task_types,id',
-            'milestone_id' => 'nullable|exists:milestones,id',
+            'milestone_id' => 'required|exists:milestones,id',
             'tags' => 'nullable|array',
             'tags.*' => 'nullable|string',
         ]);
@@ -208,16 +208,15 @@ class TaskController extends Controller
             'task_type_id' => 'sometimes|required|exists:task_types,id',
             'milestone_id' => 'nullable|exists:milestones,id',
             'tags' => 'nullable|array',
-            'tags.*' => 'exists:tags,id',
         ]);
 
         // Update the task
         $task->update($validated);
 
-        // Sync tags if provided
-        if (isset($validated['tags'])) {
-            $task->tags()->sync($validated['tags']);
-        }
+//        // Sync tags if provided
+//        if (isset($validated['tags'])) {
+//            $task->tags()->sync($validated['tags']);
+//        }
 
         // Load relationships
         $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);

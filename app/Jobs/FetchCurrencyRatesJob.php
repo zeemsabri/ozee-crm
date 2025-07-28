@@ -9,6 +9,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use GuzzleHttp\Client;
 use App\Models\CurrencyRate;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
 
@@ -41,6 +42,8 @@ class FetchCurrencyRatesJob implements ShouldQueue
             Log::error('EXCHANGE_RATES_API_KEY is not set in .env. Cannot fetch currency rates.');
             return;
         }
+
+        Cache::forget('currency_rates_to_usd');
 
         $client = new Client();
         $baseUrl = 'https://api.exchangeratesapi.io/v1/latest';

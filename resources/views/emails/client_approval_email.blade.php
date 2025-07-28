@@ -96,7 +96,7 @@
 
         {!! $bodyContent !!} {{-- Render the HTML body from your payload --}}
 
-        <p>We appreciate your business.</p>
+{{--        <p>We appreciate your business.</p>--}}
 
         {{-- START OF INCLUDED SIGNATURE --}}
         <div class="signature-block">

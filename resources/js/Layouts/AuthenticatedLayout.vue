@@ -134,7 +134,7 @@ onMounted(() => {
                                     Rejected Emails
                                 </NavLink>
 
-                                <NavLink :href="route('availability.index')" :active="route().current('availability.index')">
+                                <NavLink v-if="canManageUsers" :href="route('availability.index')" :active="route().current('availability.index')">
                                     Weekly Availability
                                 </NavLink>
 
