@@ -1,11 +1,13 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
-import { ref, onMounted } from 'vue';
+import {Head, Link, usePage} from '@inertiajs/vue3';
+import {ref, onMounted, computed} from 'vue';
 import axios from 'axios';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import NotesModal from '@/Components/NotesModal.vue';
 import AvailabilityPrompt from '@/Components/Availability/AvailabilityPrompt.vue';
+
+const authUser = computed(() => usePage().props.auth.user);
 
 // Props
 const props = defineProps({
@@ -120,6 +122,7 @@ const fetchWeeklyAvailability = async () => {
         // Fetch weekly availability for current user
         const response = await axios.get('/api/availabilities', {
             params: {
+                user_id: authUser.value.id,
                 start_date: formatDate(startDate),
                 end_date: formatDate(endDate)
             }
