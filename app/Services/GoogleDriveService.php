@@ -244,4 +244,20 @@ class GoogleDriveService
             throw $e;
         }
     }
+
+    public function getWebContentLink(string $fileId): ?string
+    {
+        try {
+            $file = $this->driveService->files->get($fileId, ['fields' => 'webContentLink']);
+            Log::info('Fetched webContentLink for file', ['file_id' => $fileId]);
+            return $file->getWebContentLink();
+        } catch (\Exception $e) {
+            Log::error('Error fetching webContentLink: ' . $e->getMessage(), [
+                'file_id' => $fileId,
+                'error' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
 }

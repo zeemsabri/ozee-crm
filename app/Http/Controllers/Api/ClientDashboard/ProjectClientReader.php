@@ -7,11 +7,18 @@ use App\Models\Client;
 use App\Models\Deliverable;
 use App\Models\Project; // Assuming you have a Project model
 use App\Models\Task;    // Assuming you have a Task model
+use App\Services\GoogleDriveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class ProjectClientReader extends Controller
 {
+
+    public function __construct(private GoogleDriveService $googleDriveService)
+    {
+
+    }
+
     /**
      * Get tasks for a specific project, accessible by magic link clients.
      *
