@@ -208,7 +208,6 @@ class TaskController extends Controller
             'task_type_id' => 'sometimes|required|exists:task_types,id',
             'milestone_id' => 'nullable|exists:milestones,id',
             'tags' => 'nullable|array',
-            'tags.*' => 'exists:tags,id',
         ]);
 
         // Update the task
