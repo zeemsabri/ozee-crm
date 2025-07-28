@@ -389,7 +389,7 @@ class ProjectReadController extends Controller
 
         $type = request()->type;
 
-        if ($this->canViewClientContacts($user, $project) && (!$type || $type === 'clients')) {
+        if ($this->canViewClients($user, $project) && (!$type || $type === 'clients')) {
             $project->load('clients');
             $result['clients'] = $project->clients;
         }
