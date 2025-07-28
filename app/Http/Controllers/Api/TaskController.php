@@ -213,10 +213,10 @@ class TaskController extends Controller
         // Update the task
         $task->update($validated);
 
-        // Sync tags if provided
-        if (isset($validated['tags'])) {
-            $task->tags()->sync($validated['tags']);
-        }
+//        // Sync tags if provided
+//        if (isset($validated['tags'])) {
+//            $task->tags()->sync($validated['tags']);
+//        }
 
         // Load relationships
         $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
