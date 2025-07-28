@@ -760,8 +760,10 @@ class EmailController extends Controller
 
         // Get all emails for these conversations
         $query = Email::with(['sender:id,name'])
-            ->whereIn('status', ['approved', 'pending_approval', 'sent'])
+//            ->whereIn('status', ['approved', 'pending_approval', 'sent'])
             ->whereIn('conversation_id', $conversationIds);
+
+
 
         // Apply type filter if provided
         if ($request->has('type') && !empty($request->type)) {
@@ -788,6 +790,16 @@ class EmailController extends Controller
 
         // Get the filtered emails
         $emails = $query->orderBy('created_at', 'desc')->get();
+
+        if(!$user->hasPermission('approve_emails')) {
+            foreach ($emails as $email) {
+                if(in_array($email->status, ['pending_approval_received']))
+                {
+                    $email->body = 'Please ask project admin to approve this email';
+                }
+            }
+        }
+
 
         // Transform the data to include only the required fields
         $simplifiedEmails = $emails->map(function ($email) {
