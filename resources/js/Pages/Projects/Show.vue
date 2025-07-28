@@ -222,7 +222,7 @@ const fetchClients = async () => {
 
     try {
         const response = await window.axios.get(`/api/projects/${projectId}/sections/clients?type=clients`);
-        emailableClients.value = response.data;
+        clients.value = response.data;
     } catch (e) {
         console.error('Failed to fetch project clients:', e);
         error.value = e.response?.data?.message || 'Failed to load client data.';
@@ -484,7 +484,7 @@ onMounted(async () => {
                 <ProjectEmailsTab
                     v-if="selectedTab === 'emails'"
                     :project-id="projectId"
-                    :project-clients="emailableClients || []"
+                    :project-clients="project.clients || []"
                     :can-view-emails="canViewEmails"
                     :can-compose-emails="canComposeEmails"
                     :can-approve-emails="canApproveEmails"
