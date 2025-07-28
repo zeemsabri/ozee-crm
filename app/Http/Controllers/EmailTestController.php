@@ -95,8 +95,10 @@ class EmailTestController extends Controller
                 // Gmail's 'after' operator usually expects YYYY/MM/DD.
                 // To be safe and avoid missing emails due to time differences, fetch from a bit before the last email.
                 // Let's go back 1 minute to account for potential slight discrepancies or network delays.
-                $afterDate = Carbon::parse($lastReceivedEmail->sent_at)->subMinute()->format('Y/m/d H:i:s');
-                $query .= " after:\"{$afterDate}\"";
+                $afterDate = Carbon::parse($lastReceivedEmail->sent_at)
+                    ->subMinutes(5) // Added more buffer
+                    ->unix();
+                $query .= " after:{$afterDate}";
                 Log::info('Fetching emails with query:', ['query' => $query]);
             } else {
                 // If no previous emails, fetch a reasonable number (e.g., last 50) to start.
@@ -110,7 +112,6 @@ class EmailTestController extends Controller
             // and potentially a limit if you want to cap the number of emails fetched in one go (e.g., 200)
             // if you expect a very large backlog, to avoid hitting memory limits or API rate limits.
             $messageIds = $this->gmailService->listMessages(50, $query); // Pass null for limit to fetch all matching
-
 
             if (empty($messageIds)) {
                 return response()->json(['message' => 'No new messages found in the inbox since last fetch.']);
