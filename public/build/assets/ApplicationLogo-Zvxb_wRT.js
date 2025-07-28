@@ -1,1 +1,0 @@
-import{_ as o}from"./_plugin-vue_export-helper-DlAUqK2U.js";import{i as t,o as c}from"./app-BEGXechp.js";const e={},r={height:"1200",src:"/logo.png",alt:"OZEE Logo"};function n(s,_){return c(),t("img",r)}const p=o(e,[["render",n]]);export{p as A};
