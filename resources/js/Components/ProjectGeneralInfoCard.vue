@@ -30,6 +30,7 @@ const emit = defineEmits([
     'openMeetingModal',
     'openMagicLinkModal',
     'resourceSaved',
+    'openComposeModal'
 ]);
 
 // Resource Modal State
@@ -149,6 +150,9 @@ onBeforeUnmount(() => {
                 </PrimaryButton>
                 <PrimaryButton v-if="canManageProjects || isSuperAdmin" class="bg-green-600 hover:bg-green-700 transition-colors" @click="emit('openMeetingModal')">
                     Schedule Meeting
+                </PrimaryButton>
+                <PrimaryButton v-if="canManageProjects || isSuperAdmin" class="bg-blue-400 hover:bg-blue-600 transition-colors" @click="emit('openComposeModal')">
+                    Compose Email
                 </PrimaryButton>
                 <!-- Magic Link button remains commented out as in original for consistency -->
                 <!--

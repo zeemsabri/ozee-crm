@@ -122,9 +122,9 @@ onMounted(() => {
                                     Projects
                                 </NavLink>
 
-                                <NavLink v-if="canComposeEmails" :href="route('emails.compose')" :active="route().current('emails.compose')">
-                                    Compose Email
-                                </NavLink>
+<!--                                <NavLink v-if="canComposeEmails" :href="route('emails.compose')" :active="route().current('emails.compose')">-->
+<!--                                    Compose Email-->
+<!--                                </NavLink>-->
 
                                 <NavLink v-if="canApproveEmails" :href="route('emails.pending')" :active="route().current('emails.pending')">
                                     Approve Emails

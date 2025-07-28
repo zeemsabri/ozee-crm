@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, usePage } from '@inertiajs/vue3';
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, reactive } from 'vue';
 import ProjectForm from '@/Components/ProjectForm.vue';
 import Modal from '@/Components/Modal.vue';
 import ProjectMeetingsList from '@/Components/ProjectMeetingsList.vue';
@@ -209,7 +209,12 @@ const handleViewUserTransactions = () => {
     showUserTransactionsModal.value = true;
 };
 
+const openCompose = ref(false);
 
+const handleComposeEmailAction = () => {
+    selectedTab.value = 'emails';
+    openCompose.value = true;
+}
 
 const fetchClients = async () => {
     loading.value = true;
@@ -231,6 +236,8 @@ const fetchClients = async () => {
     }
 };
 
+
+
 onMounted(async () => {
     console.log('Show.vue mounted, fetching initial data...');
     // Fetch project-specific permissions first, as other data fetches depend on it
@@ -249,6 +256,8 @@ onMounted(async () => {
 
 
 });
+
+
 </script>
 
 <template>
@@ -275,6 +284,7 @@ onMounted(async () => {
                     @open-meeting-modal="showMeetingModal = true"
                     @open-magic-link-modal="showMagicLinkModal = true"
                     @resource-saved="fetchProjectData"
+                    @open-compose-modal="handleComposeEmailAction"
                 />
 
                 <!-- Upcoming Meetings Section -->
@@ -489,7 +499,9 @@ onMounted(async () => {
                     :can-compose-emails="canComposeEmails"
                     :can-approve-emails="canApproveEmails"
                     :user-project-role="userProjectRole"
+                    :open-compose="openCompose"
                     @emailsUpdated="handleEmailsUpdated"
+                    @resetOpenCompose="openCompose.value = false"
                 />
 
                 <DailyStandups

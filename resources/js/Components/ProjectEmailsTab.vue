@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, reactive, computed } from 'vue';
+import { ref, onMounted, reactive, computed, watch } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import Modal from '@/Components/Modal.vue'; // Keep for view-only modal
@@ -36,10 +36,15 @@ const props = defineProps({
     userProjectRole: {
         type: Object,
         required: true
+    },
+    openCompose : {
+        type: Boolean,
+        required: false,
+        default: false
     }
 });
 
-const emit = defineEmits(['emailsUpdated']);
+const emit = defineEmits(['emailsUpdated', 'resetOpenCompose']);
 
 const emails = ref([]);
 const loadingEmails = ref(true);
@@ -187,11 +192,26 @@ const handleActionModalClose = () => {
     // Any cleanup or state reset if needed when the modal closes
 };
 
+watch(() => props.openCompose, (newValue) => {
+    console.log('Watcher triggered: openCompose changed to', newValue);
+    if (newValue) {
+        console.log('Opening compose email modal');
+        openComposeEmailModal();
+        // Reset the openCompose value to false so the button can be clicked again
+        console.log('Emitting resetOpenCompose event');
+        emit('resetOpenCompose');
+    }
+});
+
 onMounted(() => {
     if (props.canViewEmails) {
         fetchProjectEmails();
     }
+    if(props.openCompose) {
+        openComposeEmailModal();
+    }
 });
+
 </script>
 
 <template>
