@@ -651,13 +651,41 @@ class ProjectReadController extends Controller
     {
         $user = Auth::user();
 
+        // Get all roles to avoid multiple database queries
+        $roles = Role::pluck('name', 'id')->toArray();
+
         if ($user->isSuperAdmin() || $user->isManager()) {
-            $projects = Project::select('id', 'name', 'status')->get();
+            // For super admins and managers, get all projects
+            $projects = Project::select('projects.id', 'projects.name', 'projects.status')
+                ->leftJoin('project_user', function($join) use ($user) {
+                    $join->on('projects.id', '=', 'project_user.project_id')
+                         ->where('project_user.user_id', '=', $user->id);
+                })
+                ->addSelect('project_user.role_id')
+                ->get();
         } else {
-            $projects = $user->projects()->select('projects.id', 'projects.name', 'projects.status')->get();
+            // For regular users, get only their projects
+            $projects = $user->projects()
+                ->select('projects.id', 'projects.name', 'projects.status', 'project_user.role_id')
+                ->get();
         }
 
-        return response()->json($projects);
+        $transformedProjects = $projects->map(function ($project) use ($roles) {
+            // Get the role name from the roles array using the role_id
+            $roleName = null;
+            if (isset($project->role_id) && isset($roles[$project->role_id])) {
+                $roleName = $roles[$project->role_id];
+            }
+
+            return [
+                'id' => $project->id,
+                'name' => $project->name,
+                'status' => $project->status,
+                'user_role' => $roleName
+            ];
+        });
+
+        return response()->json($transformedProjects);
     }
 
     /**
