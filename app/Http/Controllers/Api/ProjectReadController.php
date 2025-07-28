@@ -425,7 +425,7 @@ class ProjectReadController extends Controller
             $result['users'] = $project->users;
         }
 
-        if($type) {
+        if($type && isset($result[$type])) {
             return response()->json($result[$type]);
         }
 
