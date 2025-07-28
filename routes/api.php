@@ -233,4 +233,7 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
     Route::post('deliverables/{deliverable}/approve', [ProjectClientAction::class, 'approveDeliverable']);
     Route::post('deliverables/{deliverable}/request-revisions', [ProjectClientAction::class, 'requestDeliverableRevisions']);
     Route::post('deliverables/{deliverable}/comments', [ProjectClientAction::class, 'addDeliverableComment']);
+
+    Route::post('tasks/{task}/notes', [ProjectClientAction::class, 'addNoteToTask']);
+    Route::post('tasks', [ProjectClientAction::class, 'createTask']);
 });

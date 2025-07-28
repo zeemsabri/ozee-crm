@@ -17,7 +17,7 @@ const isExpanded = ref(false);
 
 const navItems = [
     { id: 'home', label: 'Dashboard', icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2 2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>` },
-    { id: 'tickets', label: 'Tasks/Tickets', icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>` },
+    { id: 'tickets', label: 'Tickets', icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>` },
     { id: 'approvals', label: 'Approvals', icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>` },
     { id: 'documents', label: 'Documents', icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>` },
     { id: 'invoices', label: 'Invoices', icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>` },
@@ -32,9 +32,13 @@ const navItems = [
         @mouseenter="isExpanded = true"
         @mouseleave="isExpanded = false"
     >
-        <h1 class="text-2xl font-bold text-gray-800 mb-8 whitespace-nowrap overflow-hidden px-4">
-            <span v-if="isExpanded">Agency Dashboard</span>
-            <span v-else class="flex items-center justify-center h-8">AD</span>
+        <h1 class="text-2xl font-bold text-gray-800 mb-8 whitespace-nowrap overflow-hidden h-20 flex items-center">
+            <span v-if="isExpanded" class="flex h-full items-center">
+                <img src="/logo.png" alt="OZEE Logo" class="h-full object-contain">
+            </span>
+                    <span v-else class="flex h-full items-center justify-center w-full">
+                <img src="/logo_sm.png" alt="OZEE logo" class="h-20 object-contain">
+            </span>
         </h1>
         <nav class="flex-1">
             <button

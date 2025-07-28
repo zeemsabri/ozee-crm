@@ -149,7 +149,7 @@ const handleOpenDeliverableViewer = (deliverable) => {
             <!-- Total Tickets Card -->
             <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between transition-transform transform hover:scale-105 cursor-pointer">
                 <div>
-                    <h2 class="text-lg font-semibold text-gray-600">Total Tasks</h2>
+                    <h2 class="text-lg font-semibold text-gray-600">Total Tickets</h2>
                     <p class="text-4xl font-bold text-blue-600">{{ totalTickets }}</p>
                 </div>
                 <svg class="w-12 h-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>

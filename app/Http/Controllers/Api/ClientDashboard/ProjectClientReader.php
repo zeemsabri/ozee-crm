@@ -19,7 +19,7 @@ class ProjectClientReader extends Controller
 
     }
 
-    /**
+   /**
      * Get tasks for a specific project, accessible by magic link clients.
      *
      * @param Request $request
@@ -46,19 +46,14 @@ class ProjectClientReader extends Controller
                 return response()->json(['message' => 'Unauthorized access to this project\'s tasks.'], 403);
             }
 
-            $milestoneIds = $project->milestones()->pluck('id')->toArray();
+            $milestoneIds = $project->milestones()->where('name', Project::SUPPORT)->pluck('id')->toArray();
 
             $tasks = \App\Models\Task::whereIn('milestone_id', $milestoneIds)
-//                ->with(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks'])
-                ->orderBy('due_date', 'asc')
+                ->with(['notes' => function ($query) {
+                    $query->orderBy('created_at', 'asc'); // Order notes chronologically
+                }])
+                ->orderBy('created_at', 'desc')
                 ->get();
-
-            // Fetch the tasks for the specific project.
-            // You might want to eager load relationships or add more specific filters
-            // based on what tasks a client should see (e.g., only 'open' tasks, tasks they are related to).
-//            $tasks = Task::where('project_id', $projectId)
-//                ->orderBy('created_at', 'desc') // Example: order by newest first
-//                ->get();
 
             return response()->json($tasks);
 

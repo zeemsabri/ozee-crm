@@ -137,18 +137,14 @@ const addActivity = async (message) => {
 
 // Handlers for child component emitted events (will be updated for API calls)
 const handleAddTicket = async (newTicket) => {
-    // This would involve a POST request to /api/client-api/project/{projectId}/tasks
-    console.log("Simulating adding ticket:", newTicket);
     tickets.value.unshift(newTicket);
     tickets.value.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
 const handleUpdateApproval = async (id, status) => {
-    // This would involve a POST/PATCH request to /api/client-api/emails/{emailId}/client-approve or client-reject
-    console.log(`Simulating updating approval ${id} to ${status}`);
-    const index = approvals.value.findIndex(app => app.id === id);
+    const index = deliverables.value.findIndex(app => app.id === id);
     if (index !== -1) {
-        approvals.value[index].status = status;
+        deliverables.value[index].status = status;
     }
 };
 
@@ -232,8 +228,8 @@ provide('activityService', { addActivity: addActivity }); // Provided for child 
                 :deliverables="deliverables"
                 @open-deliverable-viewer="handleOpenDeliverableViewer"
             />
-            <TicketsSection v-if="currentSection === 'tickets'" :tickets="tickets" @add-ticket="handleAddTicket" @add-activity="addActivity" />
-            <ApprovalsSection v-if="currentSection === 'approvals'" :approvals="approvals" @update-approval="handleUpdateApproval" @add-activity="addActivity" />
+            <TicketsSection v-if="currentSection === 'tickets'" :project-id="projectId" :initial-auth-token="initialAuthToken" :tickets="tickets" @add-ticket="handleAddTicket" @add-activity="addActivity" />
+            <ApprovalsSection @open-deliverable-viewer="handleOpenDeliverableViewer" :deliverables="deliverables" :initial-auth-token="initialAuthToken" :project-id="projectId" v-if="currentSection === 'approvals'" :approvals="approvals" @update-approval="handleUpdateApproval" @add-activity="addActivity" />
             <DocumentsSection v-if="currentSection === 'documents'" :documents="documents" @add-document="handleAddDocument" @add-activity="addActivity" />
             <InvoicesSection v-if="currentSection === 'invoices'" :invoices="invoices" @update-invoice="handleUpdateInvoice" @add-activity="addActivity" />
             <AnnouncementsSection v-if="currentSection === 'announcements'" :announcements="announcements" />
@@ -254,7 +250,7 @@ provide('activityService', { addActivity: addActivity }); // Provided for child 
             :deliverable="selectedDeliverable"
             :initialAuthToken="initialAuthToken"
             :projectId="projectId"
-            @deliverable-action-success="handleOpenDeliverableViewer"
+            @deliverable-action-success="handleUpdateApproval"
         />
 
     </div>

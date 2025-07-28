@@ -41,6 +41,8 @@ class Project extends Model
         'documents' => 'array',
     ];
 
+    const SUPPORT = 'support';
+
     public function client()
     {
         return $this->belongsTo(Client::class);
@@ -77,6 +79,21 @@ class Project extends Model
     public function milestones()
     {
         return $this->hasMany(Milestone::class);
+    }
+
+    public function supportMilestone()
+    {
+        $supportMilestone = $this->milestones()->where('name', self::SUPPORT);
+
+        if($supportMilestone->exists()) {
+            return $supportMilestone->first();
+        }
+
+        return $this->milestones()->create([
+            'name'  =>  self::SUPPORT,
+            'description'   =>  'Support milestone for tickets created by clients',
+            'status'    =>  'In Progress'
+        ]);
     }
 
     /**

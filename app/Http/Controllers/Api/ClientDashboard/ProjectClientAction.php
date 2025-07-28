@@ -3,6 +3,12 @@
 namespace App\Http\Controllers\Api\ClientDashboard;
 
 use App\Http\Controllers\Controller;
+use App\Models\Milestone;
+use App\Models\Project;
+use App\Models\ProjectNote;
+use App\Models\Task;
+use App\Models\TaskType;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Models\Deliverable;
 use App\Models\Client;
@@ -245,5 +251,117 @@ class ProjectClientAction extends Controller
             ]);
             return response()->json(['message' => 'Failed to add comment.', 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Add a note/reply to a specific task.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Task  $task
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function addNoteToTask(Request $request, Task $task)
+    {
+        $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+        $authenticatedClientEmail = $request->attributes->get('magic_link_email');
+
+
+        $projectId = $task->milestone?->project?->id;
+
+        // Security check: Ensure the task belongs to the authenticated project
+        if ((int)$projectId !== (int)$authenticatedProjectId) {
+            return response()->json(['message' => 'Unauthorized action on this task.'], 403);
+        }
+
+        // Validate the request input
+        try {
+            $request->validate([
+                'comment_text' => 'required|string|max:2000',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+        }
+
+        // Find the client based on the authenticated email
+        $client = Client::where('email', $authenticatedClientEmail)->first();
+        if (!$client) {
+            return response()->json(['message' => 'Client not found.'], 404);
+        }
+
+        try {
+
+            $note = $task->addNote($request->comment_text, $client);
+            return response()->json([
+                'message' => 'Comment added successfully.',
+                'note' => $note,
+            ], 201);
+
+
+        } catch (\Exception $e) {
+            Log::error('Error adding note to task: ' . $e->getMessage(), [
+                'task_id' => $task->id,
+                'client_email' => $authenticatedClientEmail,
+                'error' => $e->getTraceAsString()
+            ]);
+            return response()->json(['message' => 'Failed to add comment to task.'], 500);
+        }
+    }
+
+    /**
+     * Create a new task by a client.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function createTask(Request $request)
+    {
+        $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+        $authenticatedClientEmail = $request->attributes->get('magic_link_email');
+
+        if (!$authenticatedProjectId || !$authenticatedClientEmail) {
+            return response()->json(['message' => 'Authentication context missing.'], 401);
+        }
+
+        $client = Client::where('email', $authenticatedClientEmail)->first();
+        if (!$client) {
+            return response()->json(['message' => 'Client not found.'], 404);
+        }
+
+//        try {
+            $request->validate([
+                'title' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'due_date' => 'nullable|date',
+                // 'status' is usually set to a default (e.g., 'pending') by the model/migration
+            ]);
+
+            $project = Project::findOrFail($authenticatedProjectId);
+            $milestone = $project->supportMilestone();
+
+            $task = new Task();
+            $task->milestone_id = $milestone->id;
+            $task->name = $request->input('title');
+            $task->description = $request->input('description');
+            $task->task_type_id = TaskType::where('name', Project::SUPPORT)->first()?->id ?? 1;
+            $task->due_date = $request->input('due_date');
+            $task->status = 'To Do'; // Default status for client-created tasks
+
+            // The 'creating' model event in Task.php will handle setting creator_id and creator_type
+            $task->save();
+
+            return response()->json([
+                'message' => 'Task created successfully.',
+                'task' => $task->load('notes'), // Load notes for immediate display if needed
+            ], 201);
+//        } catch (ValidationException $e) {
+//            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+//        } catch (\Exception $e) {
+            Log::error('Error creating task: ' . $e->getMessage(), [
+                'project_id' => $authenticatedProjectId,
+                'client_email' => $authenticatedClientEmail,
+                'error' => $e->getTraceAsString()
+            ]);
+            return response()->json(['message' => 'Failed to create task.'], 500);
+//        }
     }
 }

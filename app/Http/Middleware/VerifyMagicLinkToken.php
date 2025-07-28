@@ -44,6 +44,7 @@ class VerifyMagicLinkToken
         // You might also want to pass the email or a client identifier from the magic link
         $request->attributes->set('magic_link_email', $magicLink->email);
 
+
         return $next($request);
     }
 }

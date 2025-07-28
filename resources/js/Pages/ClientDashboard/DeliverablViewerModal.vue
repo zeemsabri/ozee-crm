@@ -118,7 +118,7 @@ const handleApprove = async () => {
         try {
             await sendApiRequest('approve', 'POST', { feedback_text: clientComment.value });
             showModal('Success', 'Deliverable approved successfully!', 'alert');
-            emits('deliverable-action-success'); // Notify parent to re-fetch/update deliverable data
+            emits('deliverable-action-success', props.deliverable.id, 'approve'); // Notify parent to re-fetch/update deliverable data
             closeModal();
         } catch (error) {
             // Error already handled and shown by sendApiRequest

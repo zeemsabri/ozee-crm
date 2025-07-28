@@ -565,15 +565,15 @@ class ProjectActionController extends Controller
             $notes[] = $createdNote;
 
             if ($project->google_chat_id) {
-                try {
+//                try {
                     $messageText = "📝 *{$user->name}*: " . $note['content'];
                     $response = $this->googleChatService->sendMessage($project->google_chat_id, $messageText);
                     $createdNote->chat_message_id = $response['name'] ?? null;
                     $createdNote->save();
                     Log::info('Sent note notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'user_id' => $user->id, 'chat_message_id' => $response['name'] ?? null]);
-                } catch (\Exception $e) {
-                    Log::error('Failed to send note notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
-                }
+//                } catch (\Exception $e) {
+//                    Log::error('Failed to send note notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
+//                }
             }
         }
 
@@ -640,7 +640,8 @@ class ProjectActionController extends Controller
 
             $spaceId = $parts[1];
             $messageIdSegment = $parts[3];
-            $threadKey = str_contains($messageIdSegment, '.') ? end(explode('.', $messageIdSegment)) : $messageIdSegment;
+            $messageExploded = explode('.', $messageIdSegment);
+            $threadKey = str_contains($messageIdSegment, '.') ? end($messageExploded) : $messageIdSegment;
             $threadNameForReply = 'spaces/' . $spaceId . '/threads/' . $threadKey;
 
             $response = $this->googleChatService->sendThreadedMessage($project->google_chat_id, $threadNameForReply, $messageText);
