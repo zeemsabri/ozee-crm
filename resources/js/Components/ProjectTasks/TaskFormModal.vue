@@ -273,6 +273,7 @@ const availableTags = ref([
                         placeholder="No milestone"
                         class="mt-1"
                         :allow-empty="true"
+                        :required="true"
                     />
                     <InputError :message="errors.milestone_id ? errors.milestone_id[0] : ''" class="mt-2" />
                 </div>

@@ -58,6 +58,7 @@ const showStandupModal = ref(false);
 const showAddNoteModal = ref(false);
 const showMagicLinkModal = ref(false);
 const showUserTransactionsModal = ref(false); // New state for user transactions modal
+const emailableClients = ref([]);
 
 const statusOptions = [
     { value: 'active', label: 'Active' },
@@ -208,6 +209,28 @@ const handleViewUserTransactions = () => {
     showUserTransactionsModal.value = true;
 };
 
+
+
+const fetchClients = async () => {
+    loading.value = true;
+    error.value = null;
+    if (!props.canViewClientContacts) {
+        error.value = "You don't have permission to view project clients.";
+        loading.value = false;
+        return;
+    }
+
+    try {
+        const response = await window.axios.get(`/api/projects/${projectId}/sections/clients?type=clients`);
+        emailableClients.value = response.data;
+    } catch (e) {
+        console.error('Failed to fetch project clients:', e);
+        error.value = e.response?.data?.message || 'Failed to load client data.';
+    } finally {
+        loading.value = false;
+    }
+};
+
 onMounted(async () => {
     console.log('Show.vue mounted, fetching initial data...');
     // Fetch project-specific permissions first, as other data fetches depend on it
@@ -217,10 +240,14 @@ onMounted(async () => {
     } catch (error) {
         console.error(`Error fetching permissions for project ${projectId}:`, error);
     }
+
+    await fetchClients();
     // Fetch currency rates globally once
     await fetchCurrencyRates();
     // Then fetch the main project data
     await fetchProjectData();
+
+
 });
 </script>
 
@@ -457,7 +484,7 @@ onMounted(async () => {
                 <ProjectEmailsTab
                     v-if="selectedTab === 'emails'"
                     :project-id="projectId"
-                    :project-clients="project.clients || []"
+                    :project-clients="emailableClients || []"
                     :can-view-emails="canViewEmails"
                     :can-compose-emails="canComposeEmails"
                     :can-approve-emails="canApproveEmails"
