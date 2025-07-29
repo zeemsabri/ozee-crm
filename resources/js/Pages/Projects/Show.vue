@@ -150,12 +150,22 @@ const latestNotes = computed(() => {
         .slice(0, 3);
 });
 
-const latestEmails = computed(() => {
-    if (!project.value.emails) return [];
-    return [...project.value.emails]
-        .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 3);
-});
+// State for latest emails
+const latestEmails = ref([]);
+
+// Function to fetch latest emails
+const fetchLatestEmails = async () => {
+    try {
+        const response = await window.axios.get(`/api/projects/${projectId}/emails-simplified`, {
+            params: {
+                limit: 5 // Get only the latest 5 emails
+            }
+        });
+        latestEmails.value = response.data;
+    } catch (error) {
+        console.error('Error fetching latest emails:', error);
+    }
+};
 
 // Data fetching for the entire project
 const fetchProjectData = async () => {
@@ -196,6 +206,10 @@ const handleTasksUpdated = (updatedTasks) => {
 
 const handleEmailsUpdated = (updatedEmails) => {
     project.value.emails = updatedEmails;
+    // Refresh the latest emails section using the simplified endpoint
+    if (canViewEmails.value) {
+        fetchLatestEmails();
+    }
 };
 
 const handleNotesUpdated = (updatedNotes) => {
@@ -230,6 +244,11 @@ const handleComposeEmailAction = () => {
 const handleComposeEmailSubmitted = async () => {
     showComposeEmailModal.value = false;
     await fetchProjectData(); // Refresh all project data including emails
+
+    // Refresh the latest emails section using the simplified endpoint
+    if (canViewEmails.value) {
+        await fetchLatestEmails();
+    }
 };
 
 const handleComposeEmailClose = () => {
@@ -252,6 +271,11 @@ onMounted(async () => {
     await fetchCurrencyRates();
     // Then fetch the main project data (which will also fetch due and overdue tasks)
     await fetchProjectData();
+
+    // Fetch latest emails separately using the simplified endpoint with limit
+    if (canViewEmails.value) {
+        await fetchLatestEmails();
+    }
 });
 
 

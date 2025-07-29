@@ -333,7 +333,7 @@ class EmailController extends Controller
                     'role' => 'Staff',
                 ];
                 Log::warning('Sender not found for email ID: ' . $email->id . '. Using fallback sender details.');
-            } else {
+            } else if($email->type === 'sent') {
                 $senderDetails = [
                     'name' => $sender->name ?? 'Unknown Sender',
                     'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff', // Adjust based on your User model's role field
@@ -741,6 +741,15 @@ class EmailController extends Controller
      * Get emails for a specific project with simplified information.
      * Only returns Subject, From, Date, Status
      * Accessible by: Super Admin, Manager (all); Contractor (if assigned to project)
+     *
+     * @param int $projectId The ID of the project
+     * @param Request $request The request object which may contain:
+     *                         - type: Filter by email type
+     *                         - start_date: Filter by start date
+     *                         - end_date: Filter by end date
+     *                         - search: Search term for subject or body
+     *                         - limit: Optional parameter to limit the number of emails returned (default: all)
+     * @return \Illuminate\Http\JsonResponse
      */
     public function getProjectEmailsSimplified($projectId, Request $request)
     {
@@ -788,8 +797,16 @@ class EmailController extends Controller
             });
         }
 
+        // Order by creation date (newest first)
+        $query->orderBy('created_at', 'desc');
+
+        // Apply limit if provided
+        if ($request->has('limit') && is_numeric($request->limit)) {
+            $query->limit($request->limit);
+        }
+
         // Get the filtered emails
-        $emails = $query->orderBy('created_at', 'desc')->get();
+        $emails = $query->get();
 
         if(!$user->hasPermission('approve_emails')) {
             foreach ($emails as $email) {
