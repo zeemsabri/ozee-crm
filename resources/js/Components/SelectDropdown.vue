@@ -38,6 +38,10 @@ const props = defineProps({
         type: String,
         default: 'full',
     },
+    labelClass: {
+        type: String,
+        default: 'text-xs'
+    }
 });
 
 const emit = defineEmits(['update:modelValue', 'change']);

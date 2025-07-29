@@ -787,7 +787,7 @@ class ProjectActionController extends Controller
                 'website' => 'nullable|url',
                 'preferred_keywords' => 'nullable|string',
                 'google_chat_id' => 'nullable|string|max:255',
-                'status' => 'sometimes|required|in:active,completed,on_hold,archived',
+                'd' => 'sometimes|required|in:active,completed,on_hold,archived',
                 'source' => 'nullable|string|max:255',
                 'google_drive_link' => 'nullable|url', // Keep this validation
                 'project_type'  =>  'required|string|max:30',
@@ -960,13 +960,14 @@ class ProjectActionController extends Controller
             'notes.*.type' => 'nullable|string', // Allow updating type if needed
             'notes.*.chat_message_id' => 'nullable|string',
             'notes.*.parent_id' => 'nullable|exists:project_notes,id',
-            'notes.*.delete' => 'nullable|boolean', // Flag to indicate deletion
+            'notes.*.delete' => 'nullable|boolean', // Flag to indicate deletion'
         ]);
 
         $incomingNotes = collect($validated['notes'] ?? []);
-
+        $noteType = $request->type;
         // Process existing notes (update or delete)
         foreach ($incomingNotes as $noteData) {
+
             if (isset($noteData['id'])) {
                 $note = $project->notes()->find($noteData['id']);
                 if ($note) {
@@ -975,7 +976,7 @@ class ProjectActionController extends Controller
                     } else {
                         $note->update([
                             'content' => Crypt::encryptString($noteData['content']),
-                            'type' => $noteData['type'] ?? $note->type,
+                            'type' => $noteType ?? $noteData['type'] ?? $note->type,
                             'chat_message_id' => $noteData['chat_message_id'] ?? $note->chat_message_id,
                             'parent_id' => $noteData['parent_id'] ?? $note->parent_id,
                             // user_id is usually not changed on update
@@ -987,7 +988,7 @@ class ProjectActionController extends Controller
                 $project->notes()->create([
                     'content' => Crypt::encryptString($noteData['content']),
                     'user_id' => Auth::id(),
-                    'type' => $noteData['type'] ?? 'note',
+                    'type' => $noteType ?? $noteData['type'] ?? 'note',
                     'chat_message_id' => $noteData['chat_message_id'] ?? null,
                     'parent_id' => $noteData['parent_id'] ?? null,
                 ]);
@@ -995,8 +996,11 @@ class ProjectActionController extends Controller
         }
 
         // Reload and return all notes for the project
-        $project->load(['notes' => function($query) {
-            $query->whereNull('parent_id')->with('user'); // Load only parent notes with user, similar to getNotes
+        $project->load(['notes' => function($query) use($noteType) {
+            $query->whereNull('parent_id')->with('user');
+            if($noteType) {
+                $query->where('type', $noteType);
+            }
         }]);
 
         $project->notes->each(function ($note) {

@@ -126,7 +126,13 @@ onMounted(() => {
 </script>
 
 <template>
+
     <div class="flex h-screen overflow-hidden">
+
+        <!-- Notification Container (placed at the root for proper positioning) -->
+        <NotificationContainer ref="notificationContainerRef" />
+        <!-- Availability Blocker (also at root) -->
+        <AvailabilityBlocker />
         <!-- Left Sidebar -->
         <LeftSidebar
             :all-projects="allProjectsForSidebar"
@@ -386,9 +392,6 @@ onMounted(() => {
             <CreateTaskModal :show="openCreateTaskModel" @close="openCreateTaskModel = false" @saved="openCreateTaskModel = false" />
         </div>
 
-        <!-- Notification Container (placed at the root for proper positioning) -->
-        <NotificationContainer ref="notificationContainerRef" />
-        <!-- Availability Blocker (also at root) -->
-        <AvailabilityBlocker />
+
     </div>
 </template>

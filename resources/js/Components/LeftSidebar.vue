@@ -22,8 +22,8 @@ const searchTerm = ref('');
 // Reactive object to store collapse state for each category section
 const sectionCollapsedState = ref({});
 
-// --- Computed Properties (Moved to before watch) ---
-// Extract unique project types and departments
+// --- Computed Properties ---
+// Extract unique project types
 const uniqueProjectTypes = computed(() => {
     const types = new Set();
     props.allProjects.forEach(p => {
@@ -32,12 +32,15 @@ const uniqueProjectTypes = computed(() => {
     return Array.from(types).sort();
 });
 
-const uniqueDepartments = computed(() => {
-    const departments = new Set();
+// Extract unique tags
+const uniqueTags = computed(() => {
+    const tags = new Set();
     props.allProjects.forEach(p => {
-        if (p.department) departments.add(p.department);
+        if (Array.isArray(p.tags)) {
+            p.tags.forEach(tag => tags.add(tag));
+        }
     });
-    return Array.from(departments).sort();
+    return Array.from(tags).sort();
 });
 
 // Filtered projects (only by search term now)
@@ -49,16 +52,19 @@ const filteredProjects = computed(() => {
     return props.allProjects.filter(p =>
         p.name.toLowerCase().includes(lowerCaseQuery) ||
         p.description?.toLowerCase().includes(lowerCaseQuery) ||
-        p.project_type?.toLowerCase().includes(lowerCaseQuery) || // Allow searching by type/dept
-        p.department?.toLowerCase().includes(lowerCaseQuery)
+        p.project_type?.toLowerCase().includes(lowerCaseQuery) ||
+        (Array.isArray(p.tags) && p.tags.some(tag => tag.toLowerCase().includes(lowerCaseQuery))) ||
+        p.status?.toLowerCase().includes(lowerCaseQuery) // Allow searching by status
     );
 });
 
 // Categorization logic: Grouping for display in collapsible sections
-const getProjectsByType = computed(() => {
+
+// Active Projects by Type
+const getActiveProjectsByType = computed(() => {
     const groups = {};
     filteredProjects.value.forEach(p => {
-        if (p.project_type) {
+        if (p.project_type && p.status === 'active') { // Only active projects here
             if (!groups[p.project_type]) {
                 groups[p.project_type] = [];
             }
@@ -72,57 +78,70 @@ const getProjectsByType = computed(() => {
     return groups;
 });
 
-const getProjectsByDepartment = computed(() => {
+// Projects by Tag (can include active/inactive)
+const getProjectsByTag = computed(() => {
     const groups = {};
     filteredProjects.value.forEach(p => {
-        if (p.department) {
-            if (!groups[p.department]) {
-                groups[p.department] = [];
-            }
-            groups[p.department].push(p);
+        if (Array.isArray(p.tags) && p.tags.length > 0) {
+            p.tags.forEach(tag => {
+                if (!groups[tag]) {
+                    groups[tag] = [];
+                }
+                groups[tag].push(p);
+            });
         }
     });
     // Sort projects within each group by name
-    for (const dept in groups) {
-        groups[dept].sort((a, b) => a.name.localeCompare(b.name));
+    for (const tag in groups) {
+        // Ensure uniqueness if a project has multiple tags and is added multiple times
+        groups[tag] = [...new Set(groups[tag])].sort((a, b) => a.name.localeCompare(b.name));
     }
     return groups;
 });
 
-const getUncategorizedProjects = computed(() => {
-    return filteredProjects.value.filter(p => !p.project_type && !p.department)
+// Inactive Projects (any status other than 'active')
+const getInactiveProjects = computed(() => {
+    return filteredProjects.value.filter(p => p.status !== 'active')
         .sort((a, b) => a.name.localeCompare(b.name));
 });
-// --- End Computed Properties ---
 
+// Projects without a project_type AND without any tags
+const getUncategorizedProjects = computed(() => {
+    return filteredProjects.value.filter(p =>
+        !p.project_type && (!Array.isArray(p.tags) || p.tags.length === 0)
+    ).sort((a, b) => a.name.localeCompare(b.name));
+});
 
 // Watch for allProjects changes to initialize/update sectionCollapsedState
 watch(() => props.allProjects, () => {
     // Initialize all type sections to collapsed by default if not already set
     uniqueProjectTypes.value.forEach(type => {
         const key = `type-${type}`;
-        if (sectionCollapsedState.value[key] === undefined) { // Only set if not already present
+        if (sectionCollapsedState.value[key] === undefined) {
             sectionCollapsedState.value[key] = true; // Default to collapsed
         }
     });
 
-    // Initialize all department sections to collapsed by default if not already set
-    uniqueDepartments.value.forEach(dept => {
-        const key = `department-${dept}`;
-        if (sectionCollapsedState.value[key] === undefined) { // Only set if not already present
+    // Initialize all tag sections to collapsed by default if not already set
+    uniqueTags.value.forEach(tag => {
+        const key = `tag-${tag}`;
+        if (sectionCollapsedState.value[key] === undefined) {
             sectionCollapsedState.value[key] = true; // Default to collapsed
         }
     });
 
-    // Initialize main category containers to collapsed (these are now collapsible headers)
+    // Initialize main category containers to expanded by default for initial visibility
     if (sectionCollapsedState.value['main-types'] === undefined) {
-        sectionCollapsedState.value['main-types'] = false; // Start expanded for visibility
+        sectionCollapsedState.value['main-types'] = false;
     }
-    if (sectionCollapsedState.value['main-departments'] === undefined) {
-        sectionCollapsedState.value['main-departments'] = false; // Start expanded for visibility
+    if (sectionCollapsedState.value['main-tags'] === undefined) {
+        sectionCollapsedState.value['main-tags'] = false;
+    }
+    if (sectionCollapsedState.value['inactive-projects'] === undefined) {
+        sectionCollapsedState.value['inactive-projects'] = false;
     }
     if (sectionCollapsedState.value['uncategorized'] === undefined) {
-        sectionCollapsedState.value['uncategorized'] = false; // Start expanded for visibility
+        sectionCollapsedState.value['uncategorized'] = false;
     }
 
 }, { immediate: true });
@@ -205,14 +224,14 @@ const clearSearch = () => {
 
         <!-- Project List - Expanded View (categorized and collapsible) -->
         <div v-if="!isCollapsed" class="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-500 scrollbar-track-gray-700 p-4">
-            <!-- Projects by Type Category -->
-            <div v-if="Object.keys(getProjectsByType).length > 0" class="mb-4">
+            <!-- Active Projects by Type Category -->
+            <div v-if="Object.keys(getActiveProjectsByType).length > 0" class="mb-4">
                 <div class="flex items-center justify-between cursor-pointer py-2 hover:bg-gray-700 rounded-md px-2" @click="toggleSectionCollapse('main-types')">
-                    <h3 class="text-sm font-semibold text-gray-400">By Type</h3>
+                    <h3 class="text-sm font-semibold text-gray-400">Active Projects by Type</h3>
                     <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200" :class="{ 'rotate-90': !sectionCollapsedState['main-types'] }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                 </div>
                 <div v-show="!sectionCollapsedState['main-types']" class="ml-2 mt-2 space-y-1">
-                    <div v-for="(projectsInType, typeName) in getProjectsByType" :key="typeName">
+                    <div v-for="(projectsInType, typeName) in getActiveProjectsByType" :key="typeName">
                         <div class="flex items-center justify-between cursor-pointer py-1 hover:bg-gray-700 rounded-md px-2" @click="toggleSectionCollapse(`type-${typeName}`)">
                             <h4 class="text-sm font-medium text-gray-300 truncate">{{ typeName }}</h4>
                             <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200" :class="{ 'rotate-90': !sectionCollapsedState[`type-${typeName}`] }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
@@ -237,20 +256,20 @@ const clearSearch = () => {
                 </div>
             </div>
 
-            <!-- Projects by Department Category -->
-            <div v-if="Object.keys(getProjectsByDepartment).length > 0" class="mb-4">
-                <div class="flex items-center justify-between cursor-pointer py-2 hover:bg-gray-700 rounded-md px-2" @click="toggleSectionCollapse('main-departments')">
-                    <h3 class="text-sm font-semibold text-gray-400">By Department</h3>
-                    <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200" :class="{ 'rotate-90': !sectionCollapsedState['main-departments'] }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            <!-- Projects by Tag Category -->
+            <div v-if="Object.keys(getProjectsByTag).length > 0" class="mb-4">
+                <div class="flex items-center justify-between cursor-pointer py-2 hover:bg-gray-700 rounded-md px-2" @click="toggleSectionCollapse('main-tags')">
+                    <h3 class="text-sm font-semibold text-gray-400">Projects by Tag</h3>
+                    <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200" :class="{ 'rotate-90': !sectionCollapsedState['main-tags'] }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                 </div>
-                <div v-show="!sectionCollapsedState['main-departments']" class="ml-2 mt-2 space-y-1">
-                    <div v-for="(projectsInDept, deptName) in getProjectsByDepartment" :key="deptName">
-                        <div class="flex items-center justify-between cursor-pointer py-1 hover:bg-gray-700 rounded-md px-2" @click="toggleSectionCollapse(`department-${deptName}`)">
-                            <h4 class="text-sm font-medium text-gray-300 truncate">{{ deptName }}</h4>
-                            <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200" :class="{ 'rotate-90': !sectionCollapsedState[`department-${deptName}`] }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                <div v-show="!sectionCollapsedState['main-tags']" class="ml-2 mt-2 space-y-1">
+                    <div v-for="(projectsInTag, tagName) in getProjectsByTag" :key="tagName">
+                        <div class="flex items-center justify-between cursor-pointer py-1 hover:bg-gray-700 rounded-md px-2" @click="toggleSectionCollapse(`tag-${tagName}`)">
+                            <h4 class="text-sm font-medium text-gray-300 truncate">{{ tagName }}</h4>
+                            <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200" :class="{ 'rotate-90': !sectionCollapsedState[`tag-${tagName}`] }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                         </div>
-                        <ul v-show="!sectionCollapsedState[`department-${deptName}`]" class="ml-4 mt-1 space-y-1">
-                            <li v-for="project in projectsInDept" :key="project.id">
+                        <ul v-show="!sectionCollapsedState[`tag-${tagName}`]" class="ml-4 mt-1 space-y-1">
+                            <li v-for="project in projectsInTag" :key="project.id">
                                 <Link
                                     :href="route('projects.show', project.id)"
                                     @click="selectProject(project.id)"
@@ -269,6 +288,31 @@ const clearSearch = () => {
                 </div>
             </div>
 
+            <!-- Inactive Projects Section -->
+            <div v-if="getInactiveProjects.length > 0" class="mb-4">
+                <div class="flex items-center justify-between cursor-pointer py-2 hover:bg-gray-700 rounded-md px-2" @click="toggleSectionCollapse('inactive-projects')">
+                    <h3 class="text-sm font-semibold text-gray-400">Inactive Projects</h3>
+                    <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200" :class="{ 'rotate-90': !sectionCollapsedState['inactive-projects'] }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </div>
+                <ul v-show="!sectionCollapsedState['inactive-projects']" class="ml-2 mt-2 space-y-1">
+                    <li v-for="project in getInactiveProjects" :key="project.id">
+                        <Link
+                            :href="route('projects.show', project.id)"
+                            @click="selectProject(project.id)"
+                            :class="{
+                                'block w-full text-left px-3 py-2 rounded-md transition-colors': true,
+                                'bg-indigo-600 text-white': project.id === activeProjectId,
+                                'hover:bg-gray-700 text-gray-200': project.id !== activeProjectId,
+                                'font-bold': project.id === activeProjectId,
+                            }"
+                        >
+                            <span class="truncate">{{ project.name }} ({{ project.status.replace('_', ' ') }})</span>
+                        </Link>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Uncategorized Projects -->
             <div v-if="getUncategorizedProjects.length > 0" class="mb-4">
                 <div class="flex items-center justify-between cursor-pointer py-2 hover:bg-gray-700 rounded-md px-2" @click="toggleSectionCollapse('uncategorized')">
                     <h3 class="text-sm font-semibold text-gray-400">Uncategorized</h3>
@@ -292,6 +336,7 @@ const clearSearch = () => {
                 </ul>
             </div>
 
+            <!-- No projects message for expanded view after filtering -->
             <div v-if="filteredProjects.length === 0" class="text-gray-400 text-sm text-center py-4">
                 No projects found matching your search.
             </div>
@@ -300,6 +345,7 @@ const clearSearch = () => {
             </div>
         </div>
 
+        <!-- Project List - Collapsed View (all projects shown as icons) -->
         <div v-else class="flex flex-col items-center pt-4 space-y-4">
             <Link
                 v-for="project in props.allProjects" :key="project.id"

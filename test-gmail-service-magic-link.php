@@ -37,12 +37,14 @@ try {
         exit(1);
     }
 
-    // Get the first client's email
-    $clientEmail = $project->clients[0]->email;
+    // Get the first client's ID and email
+    $client = $project->clients[0];
+    $clientId = $client->id;
+    $clientEmail = $client->email;
 
-    // Create a request with the client's email
+    // Create a request with the client's ID (updated to use client_id instead of email)
     $request = Request::create('/api/projects/' . $project->id . '/magic-link', 'POST', [
-        'email' => $clientEmail
+        'client_id' => $clientId
     ]);
 
     // Create the controller with the GmailService

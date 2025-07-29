@@ -210,7 +210,7 @@ const switchTab = async (tabName) => {
                 } else if (tabName === 'documents') {
                     projectForm.documents = data || [];
                 } else if (tabName === 'notes') {
-                    projectForm.notes = data.map(note => ({ content: note.content })) || [];
+                    projectForm.notes = data.map(note => ({ id: note.id, content: note.content })) || [];
                 }
             }
         } catch (err) {
@@ -438,10 +438,13 @@ const handleUploadDocuments = async (filesToUpload) => {
 const handleUpdateNotes = async (notesContent) => {
     errors.value = {}; // Clear errors before new submission
     generalError.value = '';
+    loading.value = true;
     try {
-        await window.axios.put(`/api/projects/${projectForm.id}/sections/notes`, { notes: notesContent });
+        await window.axios.put(`/api/projects/${projectForm.id}/sections/notes?type=private`, { notes: notesContent });
         success('Notes updated successfully!');
+        loading.value = false;
     } catch (err) {
+        loading.value = false;
         handleError(err, 'Failed to update notes.');
     }
 };
@@ -632,6 +635,8 @@ const closeModal = () => {
                 :canAddProjectNotes="canAddProjectNotes"
                 :canViewProjectNotes="canViewProjectNotes"
                 @updateNotes="handleUpdateNotes"
+                :project-id="projectId"
+                :is-saving="loading"
             />
         </div>
 

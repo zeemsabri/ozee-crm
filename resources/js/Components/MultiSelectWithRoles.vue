@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
+import SelectDropdown from '@/Components/SelectDropdown.vue'; // Import the custom SelectDropdown
 import axios from 'axios';
 
 const props = defineProps({
@@ -9,77 +10,80 @@ const props = defineProps({
         type: String,
         required: true
     },
-    items: {
+    items: { // All available items (e.g., users, clients) to select from
         type: Array,
         default: () => []
     },
-    endpoint: {
+    endpoint: { // Optional API endpoint to fetch items if not provided via 'items' prop
         type: String,
         default: ''
     },
-    selectedItems: {
+    selectedItems: { // The currently selected items with their roles [{id: 1, role_id: 2}]
         type: Array,
         default: () => []
     },
-    itemText: {
+    itemText: { // Key for the display text of an item (e.g., 'name')
         type: String,
         default: 'name'
     },
-    itemSubtext: {
+    itemSubtext: { // Key for secondary display text (e.g., 'email')
         type: String,
         default: 'email'
     },
-    itemValue: {
+    itemValue: { // Key for the unique value of an item (e.g., 'id')
         type: String,
         default: 'id'
     },
-    roleOptions: {
+    roleOptions: { // Role options provided by parent, or fetched internally
         type: Array,
         default: () => []
     },
-    roleType: {
+    roleType: { // Type of roles to fetch if roleOptions is empty (e.g., 'application', 'client', 'project')
         type: String,
         default: 'application'
     },
-    defaultRoleId: {
+    defaultRoleId: { // Default role ID for newly added items
         type: Number,
         default: null
     },
-    error: {
+    error: { // Validation error message
         type: String,
         default: ''
     },
-    placeholder: {
+    placeholder: { // Placeholder for the main select dropdown
         type: String,
         default: 'Select an item'
     },
-    showRemoveButton: {
+    showRemoveButton: { // Whether to show the remove button for selected items
         type: Boolean,
         default: true
+    },
+    disabled: { // Disable all interactions
+        type: Boolean,
+        default: false
     }
 });
 
 const emit = defineEmits(['update:selectedItems']);
 
 // Reactive state
-const selectedIds = ref([]);
-const selectedItemsWithRoles = ref([]);
-const dbRoles = ref([]);
-const fetchedItems = ref([]);
-const loading = ref(false);
+const selectedIds = ref([]); // Stores only the IDs of selected items
+const selectedItemsWithRoles = ref([]); // Stores {id, role_id} for selected items
+const dbRoles = ref([]); // Roles fetched from DB if not provided by prop
+const fetchedItems = ref([]); // Items fetched from endpoint if provided
+const loading = ref(false); // Loading state for fetching items
 
-// Fetch roles from the database if not provided
+// Fetch roles from the database if roleOptions is empty
 const fetchRoles = async () => {
     if (props.roleOptions.length > 0) {
+        // If roles are provided by props, no need to fetch
         return;
     }
 
     try {
-        // Add type parameter to filter roles by type
         const response = await axios.get(`/api/roles?type=${props.roleType}`);
         const roles = response.data;
-
-        // Map roles to the format expected by the dropdowns
+        // Map roles to the format expected by SelectDropdown
         dbRoles.value = roles.map(role => ({
             value: role.id,
             label: role.name
@@ -89,103 +93,66 @@ const fetchRoles = async () => {
     }
 };
 
-// Computed property to use either props or fetched roles
+// Computed property to use either props.roleOptions or fetched dbRoles
 const roleOptionsComputed = computed(() => {
     return dbRoles.value.length > 0 ? dbRoles.value : props.roleOptions;
 });
 
-// Get default role ID
+// Get the default role ID for new items
 const getDefaultRoleId = () => {
     if (props.defaultRoleId) {
         return props.defaultRoleId;
     }
-
+    // Fallback to the first available role if no defaultRoleId is provided
     return roleOptionsComputed.value.length > 0
         ? roleOptionsComputed.value[0].value
-        : 1;
+        : 1; // Default to 1 if no roles are available
 };
 
-// Initialize from props
+// Initialize selectedIds and selectedItemsWithRoles from props.selectedItems
 const initializeFromProps = () => {
-    console.log('initializeFromProps called with selectedItems:', props.selectedItems);
+    // Clear current state to ensure fresh initialization
+    selectedIds.value = [];
+    selectedItemsWithRoles.value = [];
 
-    // Only clear arrays if we're not receiving valid data
-    // This prevents losing selected items when the component re-renders
     if (!props.selectedItems || props.selectedItems.length === 0) {
-        selectedIds.value = [];
-        selectedItemsWithRoles.value = [];
-        console.log('Cleared selectedIds and selectedItemsWithRoles because props.selectedItems is empty');
-        return;
+        return; // Nothing to initialize
     }
 
-    // Keep track of IDs we've processed to avoid duplicates
-    const processedIds = new Set();
-
-    // Process each item in props.selectedItems
     props.selectedItems.forEach(item => {
-        const id = typeof item === 'object' ? item.id : item;
+        const id = typeof item === 'object' ? item[props.itemValue] : item; // Get ID from object or direct value
+        const role_id = typeof item === 'object' && item.role_id !== undefined ? item.role_id : getDefaultRoleId();
 
-        // Skip if we've already processed this ID
-        if (processedIds.has(id)) {
-            return;
-        }
-
-        processedIds.add(id);
-
-        // Check if this ID is already in our selectedIds array
+        // Ensure no duplicates are added during initialization
         if (!selectedIds.value.includes(id)) {
             selectedIds.value.push(id);
-
-            // Add to selectedItemsWithRoles with role_id if available
-            if (typeof item === 'object' && item.role_id) {
-                selectedItemsWithRoles.value.push({
-                    id: id,
-                    role_id: item.role_id
-                });
-            } else {
-                selectedItemsWithRoles.value.push({
-                    id: id,
-                    role_id: getDefaultRoleId()
-                });
-            }
+            selectedItemsWithRoles.value.push({ id: id, role_id: role_id });
         } else {
-            // Update the role_id if the item is already in our array
-            if (typeof item === 'object' && item.role_id) {
-                const existingItem = selectedItemsWithRoles.value.find(i => i.id === id);
-                if (existingItem) {
-                    existingItem.role_id = item.role_id;
-                }
+            // If item already exists, just update its role_id if it changed
+            const existingItem = selectedItemsWithRoles.value.find(i => i.id === id);
+            if (existingItem && existingItem.role_id !== role_id) {
+                existingItem.role_id = role_id;
             }
         }
     });
-
-    console.log('After initialization, selectedIds:', selectedIds.value);
-    console.log('After initialization, selectedItemsWithRoles:', selectedItemsWithRoles.value);
 };
 
-// Watch for changes in props.selectedItems
+// Watch for changes in props.selectedItems (deeply) to re-initialize
 watch(() => props.selectedItems, (newValue, oldValue) => {
-    console.log('selectedItems changed:', newValue);
-
-    // Check if the arrays are different before reinitializing
-    // This prevents unnecessary reinitialization which could cause issues
-    const isDifferent = JSON.stringify(newValue) !== JSON.stringify(oldValue);
-
-    if (isDifferent) {
-        console.log('selectedItems changed significantly, reinitializing');
+    // Perform a deep comparison to avoid unnecessary re-initialization
+    if (JSON.stringify(newValue) !== JSON.stringify(oldValue)) {
         initializeFromProps();
-    } else {
-        console.log('selectedItems change was not significant, skipping reinitialization');
     }
-}, { deep: true, immediate: true });
+}, { deep: true, immediate: true }); // immediate: true to run on component mount
 
-// Watch for changes in selectedItemsWithRoles to emit updates
+// Watch for changes in selectedItemsWithRoles to emit updates to parent
 watch(selectedItemsWithRoles, (newValue) => {
     emit('update:selectedItems', newValue);
 }, { deep: true });
 
-// Add an item
+// Add an item from the main SelectDropdown
 const addItem = (itemId) => {
+    if (props.disabled) return;
     if (itemId && !selectedIds.value.includes(itemId)) {
         selectedIds.value.push(itemId);
         selectedItemsWithRoles.value.push({
@@ -197,30 +164,32 @@ const addItem = (itemId) => {
 
 // Remove an item
 const removeItem = (itemId) => {
+    if (props.disabled) return;
     selectedIds.value = selectedIds.value.filter(id => id !== itemId);
     selectedItemsWithRoles.value = selectedItemsWithRoles.value.filter(item => item.id !== itemId);
 };
 
 // Update role for an item
 const updateRole = (itemId, roleId) => {
+    if (props.disabled) return;
     const item = selectedItemsWithRoles.value.find(item => item.id === itemId);
     if (item) {
         item.role_id = parseInt(roleId);
     }
 };
 
-// Find item by ID
+// Find full item object by ID (from either props.items or fetchedItems)
 const findItem = (itemId) => {
     return itemsComputed.value.find(item => item[props.itemValue] === itemId);
 };
 
-// Get role for an item
+// Get role for a specific selected item
 const getItemRole = (itemId) => {
     const item = selectedItemsWithRoles.value.find(item => item.id === itemId);
     return item ? item.role_id : getDefaultRoleId();
 };
 
-// Fetch items from the endpoint
+// Fetch items from the endpoint (if provided)
 const fetchItems = async () => {
     if (!props.endpoint) {
         return;
@@ -246,71 +215,84 @@ const itemsComputed = computed(() => {
     return props.endpoint && fetchedItems.value.length > 0 ? fetchedItems.value : props.items;
 });
 
-// Initialize component
+// Options for the main SelectDropdown (filtered to exclude already selected items)
+const availableItemsForDropdown = computed(() => {
+    return itemsComputed.value.filter(item => !selectedIds.value.includes(item[props.itemValue])).map(item => ({
+        value: item[props.itemValue],
+        label: `${item[props.itemText]} (${item[props.itemSubtext]})`
+    }));
+});
+
+// Initialize component on mount
 onMounted(() => {
-    fetchRoles();
-    initializeFromProps();
+    fetchRoles(); // Fetch roles if needed
     if (props.endpoint) {
-        fetchItems();
+        fetchItems(); // Fetch items if endpoint is provided
     }
 });
 </script>
 
 <template>
-    <div>
+    <div class="mb-4">
         <InputLabel :value="label" />
         <div class="mt-2">
-            <div class="mb-2">
-                <div v-if="loading" class="text-gray-500 text-sm mb-2">Loading...</div>
-                <select
-                    v-if="showRemoveButton"
-                    class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full"
-                    @change="e => {
-                        const itemId = parseInt(e.target.value);
-                        addItem(itemId);
-                        e.target.value = '';
-                    }"
-                    :disabled="loading"
-                >
-                    <option value="">{{ placeholder }}</option>
-                    <option
-                        v-for="item in itemsComputed.filter(item => !selectedIds.includes(item[itemValue]))"
-                        :key="item[itemValue]"
-                        :value="item[itemValue]"
-                    >
-                        {{ item[itemText] }}  ({{ item[itemSubtext] }})
-                    </option>
-                </select>
+            <div v-if="loading" class="text-gray-500 text-sm mb-2">Loading available items...</div>
+
+            <!-- Main SelectDropdown for adding new items -->
+            <div class="mb-4">
+                <SelectDropdown
+                    v-model="selectedItemToAdd"
+                    :options="availableItemsForDropdown"
+                    valueKey="value"
+                    labelKey="label"
+                    :placeholder="placeholder"
+                    :disabled="loading || disabled"
+                    @change="addItem"
+                    class="w-full"
+                />
             </div>
 
-            <div v-for="itemId in selectedIds" :key="itemId" class="flex items-center mb-1 p-2 border rounded">
-                <div class="flex-grow">
-                    {{ findItem(itemId)?.[itemText] }} {{ findItem(itemId)?.[itemSubtext] }}
+            <!-- List of Selected Items with Roles -->
+            <div v-if="selectedIds.length > 0" class="space-y-3">
+                <div
+                    v-for="itemId in selectedIds"
+                    :key="itemId"
+                    class="flex items-center p-3 border border-gray-200 rounded-lg bg-gray-50 shadow-sm"
+                >
+                    <div class="flex-grow text-gray-800 font-medium">
+                        {{ findItem(itemId)?.[itemText] }}
+                        <span class="text-gray-600 text-sm">({{ findItem(itemId)?.[itemSubtext] }})</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <SelectDropdown
+                            :modelValue="getItemRole(itemId)"
+                            @update:modelValue="roleId => updateRole(itemId, roleId)"
+                            :options="roleOptionsComputed"
+                            valueKey="value"
+                            labelKey="label"
+                            placeholder="Select Role"
+                            :disabled="disabled"
+                            class="w-32"
+                        />
+                        <button
+                            v-if="showRemoveButton && !disabled"
+                            type="button"
+                            class="text-red-500 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 rounded-full p-1 transition-colors duration-200"
+                            @click="removeItem(itemId)"
+                            aria-label="Remove item"
+                        >
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-                <select
-                    class="ms-2 border-gray-300 rounded-md"
-                    :value="getItemRole(itemId)"
-                    @change="e => updateRole(itemId, e.target.value)"
-                    :disabled="!showRemoveButton"
-                >
-                    <option
-                        v-for="option in roleOptionsComputed"
-                        :key="option.value"
-                        :value="option.value"
-                    >
-                        {{ option.label }}
-                    </option>
-                </select>
-                <button
-                    v-if="showRemoveButton"
-                    type="button"
-                    class="ml-2 text-red-600"
-                    @click="() => removeItem(itemId)"
-                >
-                    Remove
-                </button>
+            </div>
+            <div v-else class="p-4 bg-gray-50 rounded-lg text-gray-600 text-center border border-dashed border-gray-200">
+                No {{ label.toLowerCase() }} selected.
             </div>
         </div>
         <InputError :message="error" class="mt-2" />
     </div>
 </template>
+

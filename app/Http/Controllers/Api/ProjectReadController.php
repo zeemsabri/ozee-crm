@@ -691,7 +691,7 @@ class ProjectReadController extends Controller
                 'name' => $project->name,
                 'status' => $project->status,
                 'user_role' => $roleName,
-                'departments'   =>  $project->departments,
+                'tags'   =>  $project->tags->pluck('name'),
                 'project_type'  =>  $project->project_type
             ];
         });

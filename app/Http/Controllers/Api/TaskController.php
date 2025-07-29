@@ -216,7 +216,9 @@ class TaskController extends Controller
     public function show(Task $task)
     {
         // Load relationships
-        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks', 'notes' => function ($q) {
+            $q->select('id', 'content', 'noteable_type', 'noteable_id', 'created_at', 'creator_type', 'creator_id');
+        }]);
 
         return response()->json($task);
     }

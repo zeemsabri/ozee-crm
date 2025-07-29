@@ -41,7 +41,7 @@ class MagicLinkController extends Controller
         try {
             // Validate the request
             $validator = Validator::make($request->all(), [
-                'email' => 'required|email',
+                'client_id' => 'required|integer',
             ]);
 
             if ($validator->fails()) {
@@ -63,12 +63,23 @@ class MagicLinkController extends Controller
                 ], 400);
             }
 
-            // Check if the email belongs to a client of the project
-            $clientEmails = collect($project->clients)->pluck('email')->toArray();
-            if (!in_array($request->email, $clientEmails)) {
+            // Find the client by ID and check if it belongs to the project
+            $client = collect($project->clients)->firstWhere('id', $request->client_id);
+
+            if (!$client) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'The provided email does not belong to any client associated with this project.'
+                    'message' => 'The provided client ID does not belong to any client associated with this project.'
+                ], 400);
+            }
+
+            // Get the client's email
+            $clientEmail = $client->email;
+
+            if (!$clientEmail) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The selected client does not have a valid email address.'
                 ], 400);
             }
 
@@ -80,7 +91,7 @@ class MagicLinkController extends Controller
 
             // Create a new magic link
             $magicLink = MagicLink::create([
-                'email' => $request->email,
+                'email' => $clientEmail,
                 'token' => $token,
                 'project_id' => $projectId,
                 'expires_at' => $expiresAt,
@@ -104,16 +115,17 @@ class MagicLinkController extends Controller
 
             // Send the magic link email using GmailService
             $subject = "Magic Link for {$project->name} Project";
-            $this->gmailService->sendEmail($request->email, $subject, $emailContent);
+            $this->gmailService->sendEmail($clientEmail, $subject, $emailContent);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Magic link sent successfully to ' . $request->email
+                'message' => 'Magic link sent successfully to ' . $client->name
             ]);
         } catch (\Exception $e) {
             Log::error('Error sending magic link: ' . $e->getMessage(), [
                 'project_id' => $projectId,
-                'email' => $request->email ?? 'not provided',
+                'client_id' => $request->client_id ?? 'not provided',
+                'email' => isset($clientEmail) ? $clientEmail : 'not found',
                 'error' => $e->getTraceAsString(),
             ]);
 

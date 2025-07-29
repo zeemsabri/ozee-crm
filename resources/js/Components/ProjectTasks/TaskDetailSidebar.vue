@@ -235,9 +235,9 @@ const taskStatusClass = computed(() => {
             </div>
             <div v-if="task.notes && task.notes.length > 0" class="space-y-3">
                 <div v-for="note in task.notes" :key="note.id" class="p-3 bg-gray-50 rounded-md">
-                    <p class="text-sm text-gray-700">{{ note.note }}</p>
+                    <p class="text-sm text-gray-700">{{ note.content }}</p>
                     <p class="text-xs text-gray-500 mt-1">
-                        By {{ note.user?.name || 'Unknown' }} on {{ new Date(note.created_at).toLocaleDateString() }}
+                        By {{ note.creator_name || 'Unknown' }} on {{ new Date(note.created_at).toLocaleDateString() }}
                     </p>
                 </div>
             </div>

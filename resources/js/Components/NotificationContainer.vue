@@ -38,7 +38,7 @@ defineExpose({
 </script>
 
 <template>
-    <div class="fixed top-4 right-4 z-50 space-y-4 w-full max-w-sm">
+    <div class="fixed top-4 right-4  z-[9999] space-y-4 w-full max-w-sm">
         <transition-group name="notification">
             <Notification
                 v-for="notification in notifications"

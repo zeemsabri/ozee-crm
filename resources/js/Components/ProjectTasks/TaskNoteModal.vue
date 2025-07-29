@@ -16,7 +16,7 @@ const noteForm = reactive({
 });
 
 // Computed properties for BaseFormModal
-const modalTitle = computed(() => `Add Note to Task: "${props.taskForNote?.title}"`);
+const modalTitle = computed(() => `Add Note to Task: "${props.taskForNote?.name}"`);
 const apiEndpoint = computed(() => `/api/tasks/${props.taskForNote?.id}/notes`);
 const httpMethod = 'post';
 const submitButtonText = 'Add Note';
@@ -58,7 +58,7 @@ const closeModal = () => {
         <template #default="{ errors }">
             <div class="space-y-4">
                 <div v-if="taskForNote" class="mb-4 p-3 bg-gray-100 rounded-md">
-                    <p class="text-sm font-medium text-gray-900">{{ taskForNote.title }}</p>
+                    <p class="text-sm font-medium text-gray-900">{{ taskForNote.name }}</p>
                     <p class="text-xs text-gray-500 mt-1">Status: {{ taskForNote.status }}</p>
                 </div>
 

@@ -8,6 +8,7 @@ import Modal from '@/Components/Modal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
+import CustomMultiSelect from '@/Components/CustomMultiSelect.vue';
 
 const props = defineProps({
     project: {
@@ -47,10 +48,15 @@ const activeTooltipId = ref(null);
 const showMagicLinkModal = ref(false);
 const sendingMagicLink = ref(false);
 const magicLinkForm = ref({
-    email: '',
+    client_ids: [],
 });
 const magicLinkErrors = ref({});
 const magicLinkSuccess = ref('');
+
+// Client data for the MultiSelect
+const projectClients = ref([]);
+const loadingClients = ref(false);
+const clientsError = ref('');
 
 // Set up permission checking functions
 const { canDo } = usePermissions(props.projectId);
@@ -148,13 +154,32 @@ onBeforeUnmount(() => {
     document.removeEventListener('click', handleClickOutside);
 });
 
+// Fetch clients for the project
+const fetchClients = async () => {
+    loadingClients.value = true;
+    clientsError.value = '';
+    try {
+        const response = await window.axios.get(`/api/projects/${props.projectId}/sections/clients?type=clients`);
+        console.log(response);
+        projectClients.value = response.data;
+    } catch (error) {
+        console.error('Failed to fetch project clients:', error);
+        clientsError.value = error.response?.data?.message || 'Failed to load client data.';
+    } finally {
+        loadingClients.value = false;
+    }
+};
+
 // Magic Link Modal Methods
 const openMagicLinkModal = () => {
     // Reset form and errors
-    magicLinkForm.value.email = '';
+    magicLinkForm.value.client_ids = [];
     magicLinkErrors.value = {};
     magicLinkSuccess.value = '';
     showMagicLinkModal.value = true;
+
+    // Fetch clients when the modal is opened
+    fetchClients();
 };
 
 const closeMagicLinkModal = () => {
@@ -169,17 +194,34 @@ const sendMagicLink = async () => {
     // Set loading state
     sendingMagicLink.value = true;
 
+    // Validate that a client is selected
+    if (!magicLinkForm.value.client_ids || magicLinkForm.value.client_ids.length === 0) {
+        magicLinkErrors.value = { client_ids: ['Please select a client.'] };
+        sendingMagicLink.value = false;
+        return;
+    }
+
     try {
+        // Get the selected client
+        const selectedClientId = magicLinkForm.value.client_ids[0]; // Get the first selected client
+        const selectedClient = projectClients.value.find(client => client.id === selectedClientId);
+
+        if (!selectedClient) {
+            magicLinkErrors.value = { client_ids: ['Selected client does not have a valid email.'] };
+            sendingMagicLink.value = false;
+            return;
+        }
+
         // Send request to the API
         const response = await window.axios.post(`/api/projects/${props.projectId}/magic-link`, {
-            email: magicLinkForm.value.email
+            client_id: selectedClientId
         });
 
         // Handle success
         if (response.data.success) {
             magicLinkSuccess.value = response.data.message;
             // Clear the form
-            magicLinkForm.value.email = '';
+            magicLinkForm.value.client_ids = [];
         }
     } catch (error) {
         // Handle validation errors
@@ -372,19 +414,22 @@ const sendMagicLink = async () => {
 
             <form @submit.prevent="sendMagicLink">
                 <div class="mb-4">
-                    <InputLabel for="email" value="Client Email" />
-                    <TextInput
-                        id="email"
-                        type="email"
-                        class="mt-1 block w-full"
-                        v-model="magicLinkForm.email"
-                        required
-                        autofocus
-                        placeholder="Enter client email"
+                    <InputLabel for="client" value="Select Client" />
+                    <div v-if="loadingClients" class="text-gray-500 text-sm mt-1">Loading clients...</div>
+                    <div v-else-if="clientsError" class="text-red-500 text-sm mt-1">{{ clientsError }}</div>
+                    <CustomMultiSelect
+                        v-else
+                        id="client"
+                        v-model="magicLinkForm.client_ids"
+                        :options="projectClients"
+                        placeholder="Select a client"
+                        label-key="name"
+                        track-by="id"
+                        class="mt-1"
                     />
-                    <InputError :message="magicLinkErrors.email ? magicLinkErrors.email[0] : ''" class="mt-2" />
+                    <InputError :message="magicLinkErrors.client_ids ? magicLinkErrors.client_ids[0] : ''" class="mt-2" />
                     <p class="mt-2 text-sm text-gray-500">
-                        The email must belong to a client associated with this project.
+                        Select a client to send them a magic link for project access.
                     </p>
                 </div>
 

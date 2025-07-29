@@ -48,7 +48,7 @@ const fetchRoles = async (type) => {
 const fetchClients = async (canCreateClientsPermission, projectId) => {
     try {
         let response;
-        if (projectId) {
+        if (projectId && !canCreateClientsPermission) {
             // If project ID exists, try to fetch clients associated with THIS project
             response = await window.axios.get(`/api/projects/${projectId}/clients`);
             clients.value = response.data; // Assuming this endpoint returns the direct clients list
@@ -79,7 +79,7 @@ const fetchClients = async (canCreateClientsPermission, projectId) => {
 const fetchUsers = async (canCreateProjectsPermission, projectId) => {
     try {
         let response;
-        if (projectId) {
+        if (projectId && !canCreateProjectsPermission) {
             // If project ID exists, try to fetch users associated with THIS project
             response = await window.axios.get(`/api/projects/${projectId}/users`);
             users.value = response.data; // Assuming this endpoint returns the direct users list
@@ -135,7 +135,7 @@ const fetchProjectSectionData = async (projectId, tabName, permissions) => {
                 break;
             case 'notes':
                 if (permissions.canViewProjectNotes || permissions.canAddProjectNotes) {
-                    url = `/api/projects/${projectId}/sections/notes`;
+                    url = `/api/projects/${projectId}/sections/notes?type=private`;
                 }
                 break;
             case 'transactions':
