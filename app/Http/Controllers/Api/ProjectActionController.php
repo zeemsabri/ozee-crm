@@ -787,7 +787,7 @@ class ProjectActionController extends Controller
                 'website' => 'nullable|url',
                 'preferred_keywords' => 'nullable|string',
                 'google_chat_id' => 'nullable|string|max:255',
-                'd' => 'sometimes|required|in:active,completed,on_hold,archived',
+                'status' => 'sometimes|required|in:active,completed,on_hold,archived',
                 'source' => 'nullable|string|max:255',
                 'google_drive_link' => 'nullable|url', // Keep this validation
                 'project_type'  =>  'required|string|max:30',
