@@ -1,12 +1,13 @@
 <script setup>
-import { ref, onMounted, computed, reactive } from 'vue';
+import { ref, onMounted, computed, reactive, watch } from 'vue'; // Added 'watch'
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
-import InputLabel from '@/Components/InputLabel.vue'; // Still needed for filters
-import SelectDropdown from '@/Components/SelectDropdown.vue'; // Needed for filters
+import InputLabel from '@/Components/InputLabel.vue';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 
-// Import the new modal components
-import TaskFormModal from '@/Components/ProjectTasks/TaskFormModal.vue';
+// Import the new/modified modal components
+import EditTaskModal from '@/Components/ProjectTasks/EditTaskModal.vue'; // Renamed
+import CreateTaskModal from '@/Components/ProjectTasks/CreateTaskModal.vue'; // New
 import MilestoneFormModal from '@/Components/ProjectTasks/MilestoneFormModal.vue';
 import TaskNoteModal from '@/Components/ProjectTasks/TaskNoteModal.vue';
 
@@ -15,32 +16,32 @@ const props = defineProps({
         type: Number,
         required: true,
     },
-    projectUsers: { // Pass project.users down
+    projectUsers: {
         type: Array,
         default: () => [],
     },
-    canManageProjects: { // Permission check prop
+    canManageProjects: {
         type: Boolean,
         required: true,
     },
 });
 
-const emit = defineEmits(['tasksUpdated']);
+const emit = defineEmits(['tasksUpdated', 'openTaskDetailSidebar', 'open-create-task-modal']);
 
 const tasks = ref([]);
 const loadingTasks = ref(true);
 const tasksError = ref('');
 
 // Modals visibility state
-const showTaskModal = ref(false);
-const selectedTask = ref(null); // Used to determine if adding or editing a task
+const showEditTaskModal = ref(false); // Renamed from showTaskModal
+const selectedTaskForEdit = ref(null); // Used for editing a task
 
 const showMilestoneModal = ref(false);
 
 const showTaskNoteModal = ref(false);
 const taskForNote = ref(null); // The specific task to add a note to
 
-// Task data needed for modals
+// Task data needed for modals and details
 const taskTypes = ref([]);
 const milestones = ref([]);
 const loadingTaskTypes = ref(false);
@@ -49,8 +50,8 @@ const loadingMilestones = ref(false);
 // Task filters
 const taskFilters = reactive({
     status: '',
-    assigned_to_user_id: null, // Change to null for SelectDropdown
-    milestone_id: null, // Change to null for SelectDropdown
+    assigned_to_user_id: null,
+    milestone_id: null,
     due_date_range: ''
 });
 
@@ -115,12 +116,11 @@ const filteredTasks = computed(() => {
         if (taskFilters.assigned_to_user_id !== null) {
             const assignedUserId = parseInt(taskFilters.assigned_to_user_id);
             if (assignedUserId === -1) { // Special case for "Unassigned"
-                if (task.assigned_to !== 'Unassigned') {
+                if (task.assigned_to !== 'Unassigned' && task.assigned_to_id !== null) { // Check both string and ID
                     return false;
                 }
             } else { // Filter by specific user ID
-                const assignedToUser = props.projectUsers?.find(u => u.id === assignedUserId);
-                if (assignedToUser && task.assigned_to !== assignedToUser.name) {
+                if (task.assigned_to_id !== assignedUserId) {
                     return false;
                 }
             }
@@ -130,16 +130,16 @@ const filteredTasks = computed(() => {
         if (taskFilters.milestone_id !== null) {
             const milestoneId = parseInt(taskFilters.milestone_id);
             if (milestoneId === -1) { // Special case for "No Milestone"
-                if (task.milestone) {
+                if (task.milestone_id) { // Check if task has any milestone
                     return false;
                 }
             } else { // Filter by specific milestone ID
-                const milestone = milestones.value.find(m => m.id === milestoneId);
-                if (milestone && task.milestone !== milestone.name && task.milestone_id !== milestoneId) {
+                if (task.milestone_id !== milestoneId) {
                     return false;
                 }
             }
         }
+
 
         // Due date filter
         if (taskFilters.due_date_range) {
@@ -257,24 +257,29 @@ const fetchMilestones = async () => {
 
 // --- Modal Handlers ---
 
-// Task Form Modal
-const openAddTaskModal = async () => {
-    selectedTask.value = null; // Set to null for add mode
-    await fetchTaskTypes(); // Ensure data is loaded before opening
-    await fetchMilestones();
-    showTaskModal.value = true;
+// Create Task Modal (new)
+const openCreateTaskModal = () => {
+    // We emit to the parent (Show.vue) to open the global CreateTaskModal
+    emit('open-create-task-modal');
 };
 
+// Edit Task Modal (modified)
 const editTask = async (task) => {
-    selectedTask.value = task; // Set the task for edit mode
+    selectedTaskForEdit.value = task; // Set the task for edit mode
     await fetchTaskTypes(); // Ensure data is loaded before opening
     await fetchMilestones();
-    showTaskModal.value = true;
+    showEditTaskModal.value = true;
 };
 
 const handleTaskSaved = () => {
-    // This function is called when TaskFormModal successfully saves/updates a task
+    // This function is called when EditTaskModal or CreateTaskModal successfully saves/updates a task
     fetchProjectTasks(); // Refresh the list of tasks
+};
+
+// View Task Details Sidebar
+const viewTaskDetails = (task) => {
+    console.log('ProjectTasksTab: Emitting open-task-detail-sidebar for taskId:', task.id);
+    emit('openTaskDetailSidebar', task.id);
 };
 
 // Milestone Form Modal
@@ -307,7 +312,6 @@ const markTaskAsCompleted = async (task) => {
         await fetchProjectTasks();
     } catch (error) {
         console.error('Error marking task as completed:', error);
-        // Use a more user-friendly notification if available
         alert('Failed to mark task as completed. Please try again.');
     }
 };
@@ -325,11 +329,20 @@ const startTask = async (task) => {
 
 onMounted(() => {
     fetchProjectTasks();
-    // Only fetch task types and milestones when the respective modals are opened,
-    // or if they are needed for initial rendering of the filters.
-    // For now, they are fetched on mount to populate the filters.
+    // These are fetched on mount to populate the filters.
     fetchTaskTypes();
     fetchMilestones();
+});
+
+// Watch projectUsers, taskTypes, milestones props to ensure dropdowns are updated if parent changes them
+watch(() => props.projectUsers, () => {
+    // No explicit action needed here, as computed properties for dropdowns will react
+});
+watch(() => props.taskTypes, () => {
+    // No explicit action needed here
+});
+watch(() => props.milestones, () => {
+    // No explicit action needed here
 });
 </script>
 
@@ -342,7 +355,7 @@ onMounted(() => {
                     <span v-if="!loadingTasks">Refresh</span>
                     <span v-else>Loading...</span>
                 </SecondaryButton>
-                <PrimaryButton v-if="canManageProjects" class="bg-indigo-600 hover:bg-indigo-700 transition-colors" @click="openAddTaskModal">
+                <PrimaryButton v-if="canManageProjects" class="bg-indigo-600 hover:bg-indigo-700 transition-colors" @click="openCreateTaskModal">
                     Add Task
                 </PrimaryButton>
             </div>
@@ -535,6 +548,12 @@ onMounted(() => {
                     <td class="px-4 py-3 text-right">
                         <div class="flex justify-end space-x-2">
                             <button
+                                @click="viewTaskDetails(task)"
+                                class="text-purple-600 hover:text-purple-800 text-sm font-medium"
+                            >
+                                View
+                            </button>
+                            <button
                                 @click="editTask(task)"
                                 class="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
                             >
@@ -575,17 +594,17 @@ onMounted(() => {
             </p>
         </div>
 
-        <!-- Task Form Modal -->
-        <TaskFormModal
-            :show="showTaskModal"
+        <!-- Edit Task Modal -->
+        <EditTaskModal
+            :show="showEditTaskModal"
             :project-id="projectId"
-            :selected-task="selectedTask"
+            :selected-task="selectedTaskForEdit"
             :project-users="projectUsers"
             :task-types="taskTypes"
             :milestones="milestones"
             :loading-task-types="loadingTaskTypes"
             :loading-milestones="loadingMilestones"
-            @close="showTaskModal = false"
+            @close="showEditTaskModal = false"
             @saved="handleTaskSaved"
             @open-add-milestone-modal="openAddMilestoneModal"
         />

@@ -27,6 +27,11 @@ import UserTransactionsModal from '@/Components/ProjectFinancials/UserTransactio
 // NEW: Import the standalone ComposeEmailModal
 import ComposeEmailModal from '@/Components/ProjectsEmails/ComponseEmailModal.vue'; // Adjust path if necessary
 
+// NEW: Import the new global components
+import RightSidebar from '@/Components/RightSidebar.vue'; // New global sidebar component
+import TaskDetailSidebar from '@/Components/ProjectTasks/TaskDetailSidebar.vue'; // New task detail component for sidebar
+import CreateTaskModal from '@/Components/ProjectTasks/CreateTaskModal.vue'; // New standalone create task modal
+
 // Currency utilities and SelectDropdown
 import SelectDropdown from '@/Components/SelectDropdown.vue'; // For currency switcher
 import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency'; // Import displayCurrency
@@ -61,10 +66,14 @@ const showStandupModal = ref(false);
 const showAddNoteModal = ref(false);
 const showMagicLinkModal = ref(false);
 const showUserTransactionsModal = ref(false); // New state for user transactions modal
-// Removed emailableClients as it's now fetched within ComposeEmailModal
-
-// NEW: State for the standalone ComposeEmailModal
 const showComposeEmailModal = ref(false);
+
+// NEW: State for the RightSidebar and TaskDetailSidebar
+const showRightSidebar = ref(false);
+const selectedTaskIdForSidebar = ref(null);
+
+// NEW: State for the global CreateTaskModal
+const showGlobalCreateTaskModal = ref(false);
 
 
 const statusOptions = [
@@ -195,7 +204,7 @@ const fetchProjectData = async () => {
 const handleProjectSubmit = (updatedProject) => {
     project.value = updatedProject;
     showEditModal.value = false;
-    alert('Project updated successfully!');
+    //alert('Project updated successfully!'); // Use a proper notification system
     fetchProjectData(); // Re-fetch to ensure all relationships/permissions are updated
 };
 
@@ -253,6 +262,42 @@ const handleComposeEmailSubmitted = async () => {
 
 const handleComposeEmailClose = () => {
     showComposeEmailModal.value = false;
+};
+
+// NEW: Handlers for TaskDetailSidebar
+const openTaskDetailSidebar = (taskId) => {
+    console.log('hit');
+    selectedTaskIdForSidebar.value = taskId;
+    showRightSidebar.value = true;
+};
+
+const closeTaskDetailSidebar = () => {
+    showRightSidebar.value = false;
+    selectedTaskIdForSidebar.value = null;
+};
+
+const handleTaskDetailUpdated = () => {
+    // A task was updated from the sidebar, refresh the main task list
+    // This will cause ProjectTasksTab to re-fetch its data
+    fetchProjectData();
+    // No need to close the sidebar unless specifically required
+};
+
+const handleTaskDeleted = (deletedTaskId) => {
+    // Filter out the deleted task from the local tasks array if it exists
+    project.value.tasks = project.value.tasks.filter(task => task.id !== deletedTaskId);
+    fetchProjectData(); // Re-fetch to ensure all counts are updated
+    closeTaskDetailSidebar(); // Close sidebar after deletion
+};
+
+// NEW: Handlers for global CreateTaskModal
+const openGlobalCreateTaskModal = () => {
+    showGlobalCreateTaskModal.value = true;
+};
+
+const handleGlobalCreateTaskSaved = () => {
+    showGlobalCreateTaskModal.value = false;
+    fetchProjectData(); // Refresh tasks after creation
 };
 
 onMounted(async () => {
@@ -390,7 +435,7 @@ onMounted(async () => {
                                     </td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ task.assigned_to?.name }}</td>
                                     <td class="px-4 py-3 text-right">
-                                        <button @click="selectedTab = 'tasks'" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                                        <button @click="openTaskDetailSidebar(task.id)" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
                                             View/Edit
                                         </button>
                                     </td>
@@ -492,6 +537,8 @@ onMounted(async () => {
                     :project-users="project.users || []"
                     :can-manage-projects="canManageProjects"
                     @tasksUpdated="handleTasksUpdated"
+                    @openTaskDetailSidebar="openTaskDetailSidebar"
+                    @open-create-task-modal="openGlobalCreateTaskModal"
                 />
 
                 <ProjectEmailsTab
@@ -580,6 +627,33 @@ onMounted(async () => {
             @submitted="handleComposeEmailSubmitted"
             @error="(err) => console.error('Error composing email:', err)"
         />
+
+        <!-- NEW: Global Right Sidebar for Task Details -->
+        <RightSidebar
+            :show="showRightSidebar"
+            @update:show="showRightSidebar = $event"
+            title="Task Details"
+            :initialWidth="50"
+        >
+            <template #content>
+                <TaskDetailSidebar
+                    :task-id="selectedTaskIdForSidebar"
+                    :project-users="project.users || []"
+                    @close="closeTaskDetailSidebar"
+                    @task-updated="handleTaskDetailUpdated"
+                    @task-deleted="handleTaskDeleted"
+                />
+            </template>
+        </RightSidebar>
+
+        <!-- NEW: Global Create Task Modal -->
+        <CreateTaskModal
+            :show="showGlobalCreateTaskModal"
+            :project-id="projectId"
+            @close="showGlobalCreateTaskModal = false"
+            @saved="handleGlobalCreateTaskSaved"
+        />
+
     </AuthenticatedLayout>
 </template>
 

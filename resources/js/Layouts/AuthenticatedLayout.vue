@@ -7,10 +7,14 @@ import NavLink from '@/Components/NavLink.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
 import NotificationContainer from '@/Components/NotificationContainer.vue';
 import AvailabilityBlocker from '@/Components/Availability/AvailabilityBlocker.vue';
-import { Link, usePage } from '@inertiajs/vue3';
-import { router } from '@inertiajs/vue3';
+import { Link, usePage, router } from '@inertiajs/vue3'; // Ensure 'router' is imported
 import { usePermissions, useGlobalPermissions } from '@/Directives/permissions';
 import { setNotificationContainer } from '@/Utils/notification';
+import CreateTaskModal from "@/Components/ProjectTasks/CreateTaskModal.vue";
+import PrimaryButton from "@/Components/PrimaryButton.vue"; // Ensure PrimaryButton is imported
+
+// New: Import LeftSidebar
+import LeftSidebar from '@/Components/LeftSidebar.vue';
 
 const showingNavigationDropdown = ref(false);
 
@@ -30,6 +34,13 @@ const canManageRoles = canDo('manage_roles');
 const canManageTaskTypes = canDo('manage_task_types');
 const canAccessClients = canDo('create_clients');
 
+// Global modal state
+const openCreateTaskModel = ref(false);
+
+// New: State for the Left Sidebar
+const allProjectsForSidebar = ref([]);
+const loadingAllProjects = ref(true);
+const activeProjectId = computed(() => usePage().props.id || null); // Assuming project ID is available in page props for active state
 
 const setAxiosAuthHeader = async () => {
     const token = localStorage.getItem('authToken');
@@ -59,8 +70,6 @@ const setAxiosAuthHeader = async () => {
     }
 };
 
-// onMounted hook moved below
-
 const handleLogoutSuccess = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('userRole');
@@ -78,10 +87,32 @@ const handleLogoutError = (error) => {
     window.location.href = '/login';
 };
 
+// Fetch all projects for the left sidebar
+const fetchAllProjects = async () => {
+    loadingAllProjects.value = true;
+    try {
+        // *** Updated to use the /api/projects-simplified endpoint ***
+        const response = await window.axios.get('/api/projects-simplified');
+        // Ensure your backend's /api/projects-simplified includes project_type and department
+        allProjectsForSidebar.value = response.data;
+    } catch (error) {
+        console.error('Error fetching all projects for sidebar:', error);
+        allProjectsForSidebar.value = [];
+    } finally {
+        loadingAllProjects.value = false;
+    }
+};
+
+// Handle project selection from LeftSidebar
+const handleProjectSelected = (projectId) => {
+    // This will navigate to the specific project's show page
+    router.visit(route('projects.show', projectId));
+};
+
 // Reference to the notification container
 const notificationContainerRef = ref(null);
 
-// Initialize the notification utility
+// Initialize the notification utility and fetch all projects on mount
 onMounted(() => {
     setAxiosAuthHeader();
 
@@ -89,19 +120,23 @@ onMounted(() => {
     if (notificationContainerRef.value) {
         setNotificationContainer(notificationContainerRef.value);
     }
+
+    fetchAllProjects();
 });
 </script>
 
 <template>
-    <div>
-        <!-- Notification Container -->
-        <NotificationContainer ref="notificationContainerRef" />
+    <div class="flex h-screen overflow-hidden">
+        <!-- Left Sidebar -->
+        <LeftSidebar
+            :all-projects="allProjectsForSidebar"
+            :active-project-id="activeProjectId"
+            @project-selected="handleProjectSelected"
+        />
 
-        <!-- Availability Blocker -->
-        <AvailabilityBlocker />
-
-        <div class="min-h-screen bg-gray-100">
-            <nav class="border-b border-gray-100 bg-white">
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Top Navigation Bar -->
+            <nav class="border-b border-gray-100 bg-white z-10 relative">
                 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <div class="flex h-16 justify-between">
                         <div class="flex">
@@ -116,15 +151,9 @@ onMounted(() => {
                                     Dashboard
                                 </NavLink>
 
-
-
                                 <NavLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')">
                                     Projects
                                 </NavLink>
-
-<!--                                <NavLink v-if="canComposeEmails" :href="route('emails.compose')" :active="route().current('emails.compose')">-->
-<!--                                    Compose Email-->
-<!--                                </NavLink>-->
 
                                 <NavLink v-if="canApproveEmails" :href="route('emails.pending')" :active="route().current('emails.pending')">
                                     Approve Emails
@@ -162,7 +191,6 @@ onMounted(() => {
                                         </template>
 
                                         <template #content>
-
                                             <DropdownLink v-if="canAccessClients" :href="route('clients.index')" :active="route().current('clients.index')">
                                                 Clients
                                             </DropdownLink>
@@ -191,7 +219,17 @@ onMounted(() => {
                             </div>
                         </div>
 
+                        <!-- Right-side actions: Add Task Button and User Profile Dropdown -->
                         <div class="hidden sm:ms-6 sm:flex sm:items-center">
+                            <!-- Add Task Button -->
+                            <PrimaryButton
+                                type="button"
+                                @click="openCreateTaskModel = true"
+                                class="mr-4 px-4 py-2 text-sm"
+                            >
+                                Add Task
+                            </PrimaryButton>
+
                             <div class="relative ms-3">
                                 <Dropdown align="right" width="48">
                                     <template #trigger>
@@ -258,6 +296,7 @@ onMounted(() => {
                     </div>
                 </div>
 
+                <!-- Mobile Navigation (Add Task button will be responsive here too) -->
                 <div :class="{ block: showingNavigationDropdown, hidden: !showingNavigationDropdown }" class="sm:hidden">
                     <div class="space-y-1 pb-3 pt-2">
                         <ResponsiveNavLink :href="route('dashboard')" :active="route().current('dashboard')">
@@ -318,6 +357,10 @@ onMounted(() => {
                         </div>
 
                         <div class="mt-3 space-y-1">
+                            <!-- Add Task button for mobile view -->
+                            <ResponsiveNavLink as="button" @click="openCreateTaskModel = true">
+                                Add Task
+                            </ResponsiveNavLink>
                             <ResponsiveNavLink :href="route('profile.edit')">
                                 Profile
                             </ResponsiveNavLink>
@@ -329,15 +372,23 @@ onMounted(() => {
                 </div>
             </nav>
 
+            <!-- Main Content Area with Header Slot -->
             <header class="bg-white shadow" v-if="$slots.header">
                 <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
                     <slot name="header" />
                 </div>
             </header>
 
-            <main>
+            <main class="flex-1 overflow-y-auto">
                 <slot />
             </main>
+
+            <CreateTaskModal :show="openCreateTaskModel" @close="openCreateTaskModel = false" @saved="openCreateTaskModel = false" />
         </div>
+
+        <!-- Notification Container (placed at the root for proper positioning) -->
+        <NotificationContainer ref="notificationContainerRef" />
+        <!-- Availability Blocker (also at root) -->
+        <AvailabilityBlocker />
     </div>
 </template>
