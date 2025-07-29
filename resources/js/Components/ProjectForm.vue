@@ -2,87 +2,66 @@
 import { ref, reactive, watch, computed, onMounted } from 'vue';
 import ServicesAndPaymentForm from '@/Components/ServicesAndPaymentForm.vue';
 import ProjectTransactions from '@/Components/ProjectTransactions.vue';
-/**
- * Debounce utility function to delay execution of a function
- * This helps improve user experience by preventing rapid, repeated function calls
- *
- * @param {Function} fn - The function to debounce
- * @param {number} delay - The delay in milliseconds
- * @returns {Function} - A debounced version of the function
- */
-const debounce = (fn, delay) => {
-    let timeoutId;
-    return (...args) => {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => fn(...args), delay);
-    };
-};
-import { usePage } from '@inertiajs/vue3';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import TextInput from '@/Components/TextInput.vue';
-import InputError from '@/Components/InputError.vue';
-import Checkbox from '@/Components/Checkbox.vue';
-import SelectDropdown from '@/Components/SelectDropdown.vue';
-import MultiSelectWithRoles from '@/Components/MultiSelectWithRoles.vue';
-import axios from 'axios';
 import { useAuthUser, useProjectRole, usePermissions, useProjectPermissions, fetchProjectPermissions } from '@/Directives/permissions';
 import { success, error, warning, info } from '@/Utils/notification';
 
+// Import new sub-components
+import ProjectFormBasicInfo from '@/Components/ProjectForm/ProjectFormBasicInfo.vue';
+import ProjectFormClientsUsers from '@/Components/ProjectForm/ProjectFormClientsUsers.vue';
+import ProjectFormDocuments from '@/Components/ProjectForm/ProjectFormDocuments.vue';
+import ProjectFormNotes from '@/Components/ProjectForm/ProjectFormNotes.vue';
+
+// Assume these come from a new composable for data fetching
+import { fetchRoles, fetchClients, fetchUsers, fetchProjectSectionData } from '@/Components/ProjectForm/useProjectData';
+
 // Use the permission utilities
 const authUser = useAuthUser();
+// 'project' ref is used by useProjectRole and useProjectPermissions to derive project-specific context
 const project = ref({});
 
-// Define props before using them
+// Define props for the main ProjectForm component
 const props = defineProps({
     show: { type: Boolean, required: true },
     project: { type: Object, default: () => ({}) },
     statusOptions: { type: Array, required: true },
     departmentOptions: { type: Array, required: true },
     sourceOptions: { type: Array, required: true },
+    // clientRoleOptions and userRoleOptions from props will be overridden by fetched roles if available
     clientRoleOptions: { type: Array, default: () => [] },
     userRoleOptions: { type: Array, default: () => [] },
     paymentTypeOptions: { type: Array, required: true },
 });
 
-// Set up project reference for the permission utilities
+// Watch for changes in the incoming 'project' prop to update the local 'project' ref
 watch(() => props.project, (newProject) => {
     project.value = newProject || {};
 }, { immediate: true });
 
-// Get project ID from the project object
+// Computed property for the current project ID
 const projectId = computed(() => project.value?.id || null);
 
-// Use project-specific permissions if project ID is available
+// Initialize project-specific permissions using the composable
 const { permissions: projectPermissions, loading: projectPermissionsLoading, error: projectPermissionsError } = useProjectPermissions(projectId);
-
-// Get the user's project-specific role
+// Get the user's project-specific role using the composable
 const userProjectRole = useProjectRole(project);
 
 // Check if user has a specific project role
-const hasProjectRole = computed(() => {
-    return !!userProjectRole.value;
-});
+const hasProjectRole = computed(() => !!userProjectRole.value);
 
 // Check if user is a project manager in this specific project
 const isProjectManager = computed(() => {
     if (!userProjectRole.value) return false;
-
-    // Check if the project-specific role is a manager role
     const roleName = userProjectRole.value.name;
-    const roleSlug = userProjectRole.value.slug;
-
-    return roleName === 'Manager' ||
-        roleName === 'Project Manager' ||
-        roleSlug === 'manager' ||
-        roleSlug === 'project-manager';
+    const roleSlug = userProjectRole.value.slug; // Corrected from userProjectS.value.slug
+    return roleName === 'Manager' || roleName === 'Project Manager' || roleSlug === 'manager' || roleSlug === 'project-manager';
 });
 
-// Set up permission checking functions with project ID
+// Set up permission checking functions (canDo, canView, canManage) with project ID context
 const { canDo, canView, canManage } = usePermissions(projectId);
 
-// Permission-based checks using the permission utilities
+// Permission-based flags for various sections/actions
 const canManageProjects = canDo('manage_projects', userProjectRole);
 const canCreateProjects = canDo('create_projects', userProjectRole);
 const canCreateClients = canDo('create_clients', userProjectRole);
@@ -93,7 +72,7 @@ const canManageProjectServicesAndPayments = canManage('project_services_and_paym
 const canAddProjectNotes = canDo('add_project_notes', userProjectRole);
 const canManageProjectUsers = canManage('project_users', userProjectRole);
 const canManageProjectClients = canManage('project_clients', userProjectRole);
-const canManageProjectBasicDetails = canManage('project_basic_details', userProjectRole);
+const canManageProjectBasicDetails = canDo('manage_project_basic_details', userProjectRole); // Using canDo for specific action
 
 const canViewProjectDocuments = canView('project_documents', userProjectRole);
 const canViewProjectServicesAndPayments = canView('project_services_and_payments', userProjectRole);
@@ -102,7 +81,7 @@ const canViewProjectUsers = canView('project_users', userProjectRole);
 const canViewProjectClients = canView('project_clients', userProjectRole);
 const canViewProjectTransactions = canView('project_transactions', userProjectRole);
 
-// Tab management
+// Tab management state
 const activeTab = ref('basic');
 
 // Computed property for clients/users tab name based on permissions
@@ -114,375 +93,16 @@ const clientsUsersTabName = computed(() => {
     } else if (canViewProjectUsers.value) {
         return 'Users';
     }
-    return 'Clients and Users'; // Fallback
+    return 'Clients and Users'; // Fallback if no specific view permission
 });
 
-// Function to switch tabs safely
-const switchTab = (tabName) => {
-    // If trying to access documents tab but no project ID exists, don't switch
-    if (tabName === 'documents' && !projectForm.id) {
-        return;
-    }
-
-    // Set the active tab
-    activeTab.value = tabName;
-
-    // If we have a project ID, fetch data for the selected tab
-    if (projectForm.id) {
-        // Show loading indicator
-        loading.value = true;
-
-        // Fetch data based on the selected tab
-        switch (tabName) {
-            case 'basic':
-                fetchBasicData(projectForm.id).finally(() => {
-                    loading.value = false;
-                });
-                break;
-            case 'client':
-                if (canViewProjectClients.value || canManageProjectClients.value ||
-                    canViewProjectUsers.value || canManageProjectUsers.value) {
-                    fetchClientsAndUsersData(projectForm.id).finally(() => {
-                        loading.value = false;
-                    });
-                } else {
-                    loading.value = false;
-                }
-                break;
-            case 'services':
-                if (canViewProjectServicesAndPayments.value || canManageProjectServicesAndPayments.value) {
-                    fetchServicesAndPaymentData(projectForm.id).finally(() => {
-                        loading.value = false;
-                    });
-                } else {
-                    loading.value = false;
-                }
-                break;
-            case 'transactions':
-                // Transactions are handled by ProjectTransactions component
-                loading.value = false;
-                break;
-            case 'documents':
-                if (canViewProjectDocuments.value) {
-                    fetchDocumentsData(projectForm.id).finally(() => {
-                        loading.value = false;
-                    });
-                } else {
-                    loading.value = false;
-                }
-                break;
-            case 'notes':
-                if (canViewProjectNotes.value || canAddProjectNotes.value) {
-                    fetchNotesData(projectForm.id).finally(() => {
-                        loading.value = false;
-                    });
-                } else {
-                    loading.value = false;
-                }
-                break;
-            default:
-                loading.value = false;
-                break;
-        }
-    }
-};
-
-// Define reactive refs for roles
+// Reactive refs for roles and entities fetched from API, to be passed to sub-components
 const dbClientRoles = ref([]);
 const dbUserRoles = ref([]);
-
-// Internal state for clients and users
 const clients = ref([]);
 const users = ref([]);
 
-// Fetch roles from the database
-const fetchRoles = async () => {
-    try {
-        // Fetch client roles
-        const clientResponse = await axios.get('/api/roles?type=client');
-        const clientRoles = clientResponse.data;
-
-        // Map client roles to the format expected by the dropdowns
-        dbClientRoles.value = clientRoles.map(role => ({
-            value: role.id,
-            label: role.name
-        }));
-
-        // Fetch project roles
-        const projectResponse = await axios.get('/api/roles?type=project');
-        const projectRoles = projectResponse.data;
-
-        // Map project roles to the format expected by the dropdowns
-        dbUserRoles.value = projectRoles.map(role => ({
-            value: role.id,
-            label: role.name
-        }));
-    } catch (error) {
-        console.error('Error fetching roles:', error);
-    }
-};
-
-// Fetch clients from the database
-const fetchClients = async () => {
-    try {
-        // If user has create_clients permission, always fetch all clients
-        if (canCreateClients.value) {
-            const response = await window.axios.get('/api/clients');
-            clients.value = response.data.data || response.data;
-        }
-        // Otherwise, if we have a project ID, use the project-specific endpoint
-        else if (projectId.value) {
-            const response = await window.axios.get(`/api/projects/${projectId.value}/clients`);
-            clients.value = response.data;
-        } else {
-            // Fall back to the global endpoint if no project ID is available (e.g., when creating a new project)
-            const response = await window.axios.get('/api/clients');
-            clients.value = response.data.data || response.data;
-        }
-    } catch (error) {
-        console.error('Error fetching clients:', error);
-        generalError.value = 'Failed to load clients.';
-    }
-};
-
-// Fetch users from the database
-const fetchUsers = async () => {
-    try {
-        // If user has create_projects permission, always fetch all users
-        if (canCreateProjects.value) {
-            const response = await window.axios.get('/api/users');
-            users.value = response.data;
-        }
-        // Otherwise, if we have a project ID, use the project-specific endpoint
-        else if (projectId.value) {
-            const response = await window.axios.get(`/api/projects/${projectId.value}/users`);
-            users.value = response.data;
-        } else {
-            // Fall back to the global endpoint if no project ID is available (e.g., when creating a new project)
-            const response = await window.axios.get('/api/users');
-            users.value = response.data;
-        }
-    } catch (error) {
-        console.error('Error fetching users:', error);
-        generalError.value = 'Failed to load users.';
-    }
-};
-
-// Computed properties to use either props or fetched roles
-const clientRoleOptionsComputed = computed(() => {
-    return dbClientRoles.value.length > 0 ? dbClientRoles.value : props.clientRoleOptions;
-});
-
-const userRoleOptionsComputed = computed(() => {
-    return dbUserRoles.value.length > 0 ? dbUserRoles.value : props.userRoleOptions;
-});
-
-// Function to fetch basic project data
-const fetchBasicData = async (projectId) => {
-    try {
-        const response = await window.axios.get(`/api/projects/${projectId}/sections/basic`);
-        const basicData = response.data;
-
-        // Update basic project information
-        projectForm.name = basicData.name || '';
-        projectForm.description = basicData.description || '';
-        projectForm.website = basicData.website || '';
-        projectForm.social_media_link = basicData.social_media_link || '';
-        projectForm.preferred_keywords = basicData.preferred_keywords || '';
-        projectForm.google_chat_id = basicData.google_chat_id || '';
-        projectForm.status = basicData.status || 'active';
-        projectForm.project_type = basicData.project_type || '';
-        projectForm.source = basicData.source || '';
-        projectForm.google_drive_link = basicData.google_drive_link || '';
-
-        return basicData;
-    } catch (error) {
-        console.error('Error fetching basic project data:', error);
-        generalError.value = 'Failed to fetch basic project data.';
-        return null;
-    }
-};
-
-// Function to fetch clients and users data
-const fetchClientsAndUsersData = async (projectId) => {
-    try {
-        const response = await window.axios.get(`/api/projects/${projectId}/sections/clients-users`);
-        const data = response.data;
-
-        // Update client_ids with the latest data
-        if (data.clients && data.clients.length > 0) {
-            projectForm.client_ids = data.clients.map(client => {
-                let role_id = client.pivot?.role_id ||
-                    (dbClientRoles.value.length > 0 ? dbClientRoles.value[0].value : 1);
-                return { id: client.id, role_id };
-            });
-        }
-
-        // Update user_ids with the latest data
-        if (data.users && data.users.length > 0) {
-            projectForm.user_ids = data.users.map(user => {
-                let role_id = user.pivot?.role_id ||
-                    (dbUserRoles.value.length > 0 ? dbUserRoles.value[0].value : 2);
-                return { id: user.id, role_id };
-            });
-        }
-
-        // Update contract details if available
-        if (data.contract_details !== undefined) {
-            projectForm.contract_details = data.contract_details || '';
-        }
-
-        return data;
-    } catch (error) {
-        console.error('Error fetching clients and users data:', error);
-        generalError.value = 'Failed to fetch clients and users data.';
-        return null;
-    }
-};
-
-// Function to fetch services and payment data
-const fetchServicesAndPaymentData = async (projectId) => {
-    try {
-        const response = await window.axios.get(`/api/projects/${projectId}/sections/services-payment`);
-        const data = response.data;
-
-        // Update services and payment information
-        projectForm.services = data.services || [];
-        projectForm.service_details = data.service_details || [];
-        projectForm.total_amount = data.total_amount || '';
-        projectForm.payment_type = data.payment_type || 'one_off';
-
-        return data;
-    } catch (error) {
-        console.error('Error fetching services and payment data:', error);
-        generalError.value = 'Failed to fetch services and payment data.';
-        return null;
-    }
-};
-
-// Function to fetch documents data
-const fetchDocumentsData = async (projectId) => {
-    try {
-        const response = await window.axios.get(`/api/projects/${projectId}/sections/documents`);
-        const data = response.data;
-
-        // Update documents
-        projectForm.documents = data || [];
-
-        return data;
-    } catch (error) {
-        console.error('Error fetching documents data:', error);
-        generalError.value = 'Failed to fetch documents data.';
-        return null;
-    }
-};
-
-// Function to fetch notes data
-const fetchNotesData = async (projectId) => {
-    try {
-        const response = await window.axios.get(`/api/projects/${projectId}/sections/notes`);
-        const notes = response.data;
-
-        // Update notes
-        projectForm.notes = notes.map(note => ({ content: note.content }));
-
-        return notes;
-    } catch (error) {
-        console.error('Error fetching notes data:', error);
-        generalError.value = 'Failed to fetch notes data.';
-        return null;
-    }
-};
-
-// Function to fetch project data based on the active tab
-const fetchProjectData = async (projectId) => {
-    try {
-        // Always fetch basic data first
-        await fetchBasicData(projectId);
-
-        // Fetch data for the active tab
-        switch (activeTab.value) {
-            case 'client':
-                if (canViewProjectClients.value || canManageProjectClients.value ||
-                    canViewProjectUsers.value || canManageProjectUsers.value) {
-                    await fetchClientsAndUsersData(projectId);
-                }
-                break;
-            case 'services':
-                if (canViewProjectServicesAndPayments.value || canManageProjectServicesAndPayments.value) {
-                    await fetchServicesAndPaymentData(projectId);
-                }
-                break;
-            case 'documents':
-                if (canViewProjectDocuments.value) {
-                    await fetchDocumentsData(projectId);
-                }
-                break;
-            case 'notes':
-                if (canViewProjectNotes.value || canAddProjectNotes.value) {
-                    await fetchNotesData(projectId);
-                }
-                break;
-        }
-    } catch (error) {
-        console.error('Error fetching project data:', error);
-        generalError.value = 'Failed to fetch project data.';
-    }
-};
-
-// Fetch data when component is mounted
-onMounted(() => {
-    fetchRoles();
-    fetchClients();
-    fetchUsers();
-
-    // Fetch project-specific permissions if project ID is available
-    if (projectId.value) {
-        fetchProjectPermissions(projectId.value)
-            .then(permissions => {
-                // Success - no logging needed
-            })
-            .catch(error => {
-                // Error handled by the permissions utility
-            });
-    }
-});
-
-// Watch for changes to project ID and fetch project-specific permissions, users, and clients
-watch(projectId, (newProjectId, oldProjectId) => {
-    if (newProjectId && newProjectId !== oldProjectId) {
-        // Fetch project-specific permissions
-        fetchProjectPermissions(newProjectId)
-            .then(permissions => {
-                // Success - no logging needed
-            })
-            .catch(error => {
-                // Error handled by the permissions utility
-            });
-
-        // Fetch users based on the new project ID and permissions
-        fetchUsers();
-
-        // Fetch clients based on the new project ID and permissions
-        fetchClients();
-    }
-});
-
-const emit = defineEmits(['close', 'submit']);
-
-const errors = ref({});
-const generalError = ref('');
-const loading = ref(false); // Loading state for data fetching
-const showDebugInfo = ref(false); // Controls visibility of debugging information
-
-// State for saving clients and users
-const clientSaving = ref(false);
-const clientSaveSuccess = ref(false);
-const clientSaveError = ref('');
-const userSaving = ref(false);
-const userSaveSuccess = ref(false);
-const userSaveError = ref('');
-
+// Main reactive state for the project form data
 const projectForm = reactive({
     id: null,
     name: '',
@@ -491,507 +111,395 @@ const projectForm = reactive({
     social_media_link: '',
     preferred_keywords: '',
     google_chat_id: '',
-    logo: null,
-    documents: [],
-    client_ids: [],
+    logo: null, // Will be handled by ProjectFormBasicInfo
+    documents: [], // Will be handled by ProjectFormDocuments
+    client_ids: [], // Will be handled by ProjectFormClientsUsers
     status: 'active',
     project_type: '',
-    services: [],
-    service_details: [],
+    services: [], // Handled by ServicesAndPaymentForm component
+    service_details: [], // Handled by ServicesAndPaymentForm component
     source: '',
-    total_amount: '',
-    contract_details: '',
+    total_amount: '', // Handled by ServicesAndPaymentForm component
+    contract_details: '', // Will be handled by ProjectFormClientsUsers
     google_drive_link: '',
-    payment_type: 'one_off',
-    user_ids: [],
-    notes: [],
+    payment_type: 'one_off', // Handled by ServicesAndPaymentForm component
+    user_ids: [], // Will be handled by ProjectFormClientsUsers
+    notes: [], // Will be handled by ProjectFormNotes
 });
 
-// Ensure arrays are initialized and fetch data when modal is opened
-watch(() => props.show, (isVisible) => {
-    if (isVisible) {
-        // Initialize arrays if they're undefined
-        if (!projectForm.client_ids) projectForm.client_ids = [];
-        if (!projectForm.user_ids) projectForm.user_ids = [];
+const errors = ref({}); // Centralized error messages
+const generalError = ref(''); // General error message display
+const loading = ref(false); // Loading state for data fetching
+const showDebugInfo = ref(false); // Controls visibility of debugging information
 
-        // If editing an existing project, fetch the latest data
-        if (projectForm.id) {
-            fetchProjectData(projectForm.id);
-        }
-    }
-}, { immediate: true });
+// States for saving clients and users, used by ProjectFormClientsUsers
+const clientSaving = ref(false);
+const clientSaveSuccess = ref(false);
+const clientSaveError = ref('');
+const userSaving = ref(false);
+const userSaveSuccess = ref(false);
+const userSaveError = ref('');
 
-// Initialize form with project data
-watch(() => props.project, (newProject) => {
-    const previousId = projectForm.id;
-    projectForm.id = newProject.id || null;
-
-    // If we're switching from an existing project to a new project
-    // and we're on the documents tab, switch to basic tab
-    if (previousId && !projectForm.id && activeTab.value === 'documents') {
-        switchTab('basic');
+// Function to switch tabs safely and trigger data fetching for the new tab
+const switchTab = async (tabName) => {
+    // Prevent switching to document tab if project isn't saved yet
+    if (tabName === 'documents' && !projectForm.id) {
+        warning('Please create the project first before managing documents.');
+        return;
     }
 
-    projectForm.name = newProject.name || '';
-    projectForm.description = newProject.description || '';
-    projectForm.website = newProject.website || '';
-    projectForm.social_media_link = newProject.social_media_link || '';
-    projectForm.preferred_keywords = newProject.preferred_keywords || '';
-    projectForm.google_chat_id = newProject.google_chat_id || '';
-    projectForm.logo = newProject.logo || null;
-    projectForm.documents = newProject.documents || [];
+    activeTab.value = tabName; // Update active tab
 
-    // Don't initialize client_ids from project prop
-    // We'll fetch this data when the client tab is opened
-    projectForm.client_ids = [];
+    // If project exists, fetch data for the selected tab
+    if (projectForm.id) {
+        loading.value = true;
+        try {
+            const data = await fetchProjectSectionData(projectForm.id, tabName, {
+                canViewProjectClients: canViewProjectClients.value,
+                canManageProjectClients: canManageProjectClients.value,
+                canViewProjectUsers: canViewProjectUsers.value,
+                canManageProjectUsers: canManageProjectUsers.value,
+                canViewProjectServicesAndPayments: canViewProjectServicesAndPayments.value,
+                canManageProjectServicesAndPayments: canManageProjectServicesAndPayments.value,
+                canViewProjectDocuments: canViewProjectDocuments.value,
+                canViewProjectNotes: canViewProjectNotes.value,
+                canAddProjectNotes: canAddProjectNotes.value,
+            });
 
-    projectForm.status = newProject.status || 'active';
-    projectForm.project_type = newProject.project_type || '';
-    projectForm.services = newProject.services || [];
-    projectForm.service_details = newProject.service_details || [];
-    projectForm.source = newProject.source || '';
-    projectForm.total_amount = newProject.total_amount || '';
-    projectForm.contract_details = newProject.contract_details || '';
-    projectForm.google_drive_link = newProject.google_drive_link || '';
-    projectForm.payment_type = newProject.payment_type || 'one_off';
-
-    // Don't initialize user_ids from project prop
-    // We'll fetch this data when the client tab is opened
-    projectForm.user_ids = [];
-
-    projectForm.notes = newProject.notes ? newProject.notes.map(note => ({ content: note.content })) : [];
-    errors.value = {};
-    generalError.value = '';
-}, { immediate: true });
-
-// Function to create a new project
-const createProject = async () => {
-    errors.value = {};
-    generalError.value = '';
-    try {
-        // Create a clean copy of the form data with basic information and user_ids
-        const formData = {
-            name: projectForm.name,
-            description: projectForm.description,
-            website: projectForm.website,
-            social_media_link: projectForm.social_media_link,
-            preferred_keywords: projectForm.preferred_keywords,
-            google_chat_id: projectForm.google_chat_id,
-            status: projectForm.status,
-            project_type: projectForm.project_type,
-            source: projectForm.source,
-            google_drive_link: projectForm.google_drive_link,
-            user_ids: projectForm.user_ids,
-        };
-
-        // Store the current logo value
-        const currentLogo = projectForm.logo;
-
-        // If logo is a File object, remove it from the JSON submission
-        if (typeof currentLogo === 'object' && currentLogo !== null && 'name' in currentLogo) {
-            delete formData.logo;
-        }
-
-        // Create the project
-        const response = await window.axios.post('/api/projects', formData);
-
-        // Update the project ID
-        projectForm.id = response.data.id;
-
-        // If there was a logo file, upload it separately after the project is saved
-        if (typeof currentLogo === 'object' && currentLogo !== null && 'name' in currentLogo) {
-            await uploadLogo(currentLogo, projectForm.id);
-        }
-
-        emit('submit', response.data);
-    } catch (error) {
-        handleError(error, 'Failed to create project.');
-    }
-};
-
-// Function to update basic information
-const updateBasicInfo = async () => {
-    errors.value = {};
-    generalError.value = '';
-    try {
-        // Create a clean copy of the form data with only basic information
-        const formData = {
-            name: projectForm.name,
-            description: projectForm.description,
-            website: projectForm.website,
-            social_media_link: projectForm.social_media_link,
-            preferred_keywords: projectForm.preferred_keywords,
-            google_chat_id: projectForm.google_chat_id,
-            status: projectForm.status,
-            project_type: projectForm.project_type,
-            source: projectForm.source,
-            google_drive_link: projectForm.google_drive_link,
-        };
-
-        // Store the current logo value
-        const currentLogo = projectForm.logo;
-
-        // If logo is a File object, remove it from the JSON submission
-        if (typeof currentLogo === 'object' && currentLogo !== null && 'name' in currentLogo) {
-            delete formData.logo;
-        }
-
-        // Update the project
-        const response = await window.axios.put(`/api/projects/${projectForm.id}/sections/basic`, formData);
-
-        // If there was a logo file, upload it separately
-        if (typeof currentLogo === 'object' && currentLogo !== null && 'name' in currentLogo) {
-            await uploadLogo(currentLogo, projectForm.id);
-        }
-
-        // Show success message
-        success('Basic information updated successfully!');
-    } catch (error) {
-        handleError(error, 'Failed to update basic information.');
-    }
-};
-
-// Function to update notes
-const updateNotes = async () => {
-    errors.value = {};
-    generalError.value = '';
-    try {
-        // Create a clean copy of the form data with only notes
-        const formData = {
-            notes: projectForm.notes,
-        };
-
-        // Update the project
-        const response = await window.axios.put(`/api/projects/${projectForm.id}/sections/notes`, formData);
-
-        // Show success message
-        success('Notes updated successfully!');
-    } catch (error) {
-        handleError(error, 'Failed to update notes.');
-    }
-};
-
-// Helper function to handle errors
-const handleError = (error, defaultMessage) => {
-    if (error.response && error.response.status === 422) {
-        errors.value = error.response.data.errors;
-    } else if (error.response && error.response.data.message) {
-        generalError.value = error.response.data.message;
-    } else {
-        generalError.value = defaultMessage;
-        console.error('Error:', error);
-    }
-};
-
-// Legacy function for backward compatibility
-const submitForm = async () => {
-    if (!projectForm.id) {
-        await createProject();
-    } else {
-        // Determine which update function to call based on the active tab
-        switch (activeTab.value) {
-            case 'basic':
-                await updateBasicInfo();
-                break;
-            case 'services':
-                // Services & Payment is now handled by the ServicesAndPaymentForm component
-                warning('Please use the Update Services & Payment button in the Services tab.');
-                break;
-            case 'notes':
-                await updateNotes();
-                break;
-            default:
-                // For other tabs, just update basic information
-                await updateBasicInfo();
-                break;
-        }
-    }
-};
-
-// Track if form has been modified
-const formModified = ref(false);
-const originalForm = ref({});
-
-// Watch for changes to the form
-watch(projectForm, () => {
-    if (Object.keys(originalForm.value).length > 0) {
-        formModified.value = true;
-    }
-}, { deep: true });
-
-// Store original form state after initial load
-watch(() => props.show, (isVisible) => {
-    if (isVisible) {
-        // Wait for the form to be populated with project data
-        setTimeout(() => {
-            originalForm.value = JSON.parse(JSON.stringify(projectForm));
-            formModified.value = false;
-        }, 100);
-    }
-});
-
-const closeModal = () => {
-    if (formModified.value) {
-        if (confirm('You have unsaved changes. Are you sure you want to close this form?')) {
-            emit('close');
-        }
-    } else {
-        emit('close');
-    }
-};
-
-// Function to upload logo separately
-const uploadLogo = async (logoFile, projectId) => {
-    try {
-        const formData = new FormData();
-        formData.append('logo', logoFile);
-
-        // Call the logo upload API endpoint
-        const response = await window.axios.post(
-            `/api/projects/${projectId}/logo`,
-            formData,
-            {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
+            // Update projectForm based on fetched data for the current tab
+            // This ensures data integrity when switching tabs
+            if (data) {
+                if (tabName === 'basic') {
+                    // CRITICAL FIX: Ensure 'logo' is explicitly assigned here from the fetched data
+                    Object.assign(projectForm, {
+                        name: data.name || '',
+                        description: data.description || '',
+                        website: data.website || '',
+                        social_media_link: data.social_media_link || '',
+                        preferred_keywords: data.preferred_keywords || '',
+                        google_chat_id: data.google_chat_id || '',
+                        status: data.status || 'active',
+                        project_type: data.project_type || '',
+                        source: data.source || '',
+                        google_drive_link: data.google_drive_link || '',
+                        logo: data.logo || null, // <--- ADDED THIS LINE
+                    });
+                } else if (tabName === 'client') {
+                    // Update client_ids and user_ids arrays for MultiSelectWithRoles
+                    projectForm.client_ids = data.clients ? data.clients.map(client => ({
+                        id: client.id,
+                        role_id: client.pivot?.role_id || (dbClientRoles.value.length > 0 ? dbClientRoles.value[0].value : 1)
+                    })) : [];
+                    projectForm.user_ids = data.users ? data.users.map(user => ({
+                        id: user.id,
+                        role_id: user.pivot?.role_id || (dbUserRoles.value.length > 0 ? dbUserRoles.value[0].value : 2)
+                    })) : [];
+                    projectForm.contract_details = data.contract_details || '';
+                } else if (tabName === 'services') {
+                    // ServicesAndPaymentForm will fetch its own data, but we keep these for general form structure
+                    projectForm.services = data.services || [];
+                    projectForm.service_details = data.service_details || [];
+                    projectForm.total_amount = data.total_amount || '';
+                    projectForm.payment_type = data.payment_type || 'one_off';
+                } else if (tabName === 'documents') {
+                    projectForm.documents = data || [];
+                } else if (tabName === 'notes') {
+                    projectForm.notes = data.map(note => ({ content: note.content })) || [];
                 }
             }
-        );
-
-        // Update the logo in the form with the response from the server
-        if (response.data && response.data.logo) {
-            projectForm.logo = response.data.logo;
+        } catch (err) {
+            generalError.value = `Failed to fetch ${tabName} data. Please try again.`;
+            console.error(`Error fetching ${tabName} data:`, err);
+        } finally {
+            loading.value = false;
         }
-
-        return response;
-    } catch (error) {
-        console.error('Error uploading logo:', error);
-        // Don't show error to user as this is a background operation
-        // The project was already saved successfully
     }
 };
 
-// Function to upload documents separately
-const saveClients = async () => {
+const emit = defineEmits(['close', 'submit']);
+
+// New variable to track if initial data has been loaded for the current project
+const hasLoadedInitialData = ref(false);
+
+// This consolidated watch handles the main initialization when the modal opens or project prop changes
+watch([() => props.show, () => props.project.id], async ([newShow, newProjectId], [oldShow, oldProjectId]) => {
+    // Only run if the modal is becoming visible OR if the project ID explicitly changes
+    // (and we haven't loaded initial data for the current project yet to prevent redundant calls)
+    if (newShow && (newProjectId !== oldProjectId || !hasLoadedInitialData.value)) {
+        // Reset errors and loading state
+        errors.value = {};
+        generalError.value = '';
+        loading.value = true;
+        hasLoadedInitialData.value = true; // Mark as started loading
+
+        // Clear existing form data and populate with new props to ensure fresh state
+        // Using Object.assign to maintain reactivity of the projectForm object itself
+        Object.assign(projectForm, {
+            id: props.project.id || null,
+            name: props.project.name || '',
+            description: props.project.description || '',
+            website: props.project.website || '',
+            social_media_link: props.project.social_media_link || '',
+            preferred_keywords: props.project.preferred_keywords || '',
+            google_chat_id: props.project.google_chat_id || '',
+            logo: props.project.logo || null, // <--- ALSO ENSURE INITIAL LOGO FROM PROPS IS SET HERE
+            // Clear arrays explicitly as they will be fetched by switchTab
+            documents: [],
+            client_ids: [],
+            status: props.project.status || 'active',
+            project_type: props.project.project_type || '',
+            services: [],
+            service_details: [],
+            source: props.project.source || '',
+            total_amount: props.project.total_amount || '',
+            contract_details: props.project.contract_details || '',
+            google_drive_link: props.project.google_drive_link || '',
+            payment_type: props.project.payment_type || 'one_off',
+            user_ids: [],
+            notes: [],
+        });
+
+        // If switching from an existing project to a new (empty) one,
+        // and the current tab requires a project ID, switch back to 'basic'.
+        const tabsRequiringId = ['documents', 'services', 'transactions', 'notes'];
+        if (oldProjectId && !newProjectId && tabsRequiringId.includes(activeTab.value)) {
+            activeTab.value = 'basic'; // Force switch to basic
+        }
+
+        try {
+            // Fetch global roles, clients, and users once on load/project change
+            dbClientRoles.value = await fetchRoles('client');
+            dbUserRoles.value = await fetchRoles('project');
+            clients.value = await fetchClients(canCreateClients.value, projectId.value);
+            users.value = await fetchUsers(canCreateProjects.value, projectId.value);
+
+            // Fetch project-specific permissions if project ID is available
+            if (projectId.value) {
+                await fetchProjectPermissions(projectId.value);
+            }
+
+            // Now, fetch data for the currently active tab
+            await switchTab(activeTab.value);
+
+        } catch (err) {
+            generalError.value = 'Failed to load project data. Please check your connection.';
+            console.error('Initial data load error:', err);
+        } finally {
+            loading.value = false;
+        }
+    } else if (!newShow) {
+        // Reset hasLoadedInitialData when modal closes to allow re-initialization next time
+        hasLoadedInitialData.value = false;
+        // Reset projectForm completely when modal closes for a clean state
+        Object.assign(projectForm, {
+            id: null, name: '', description: '', website: '', social_media_link: '',
+            preferred_keywords: '', google_chat_id: '', logo: null, documents: [],
+            client_ids: [], status: 'active', project_type: '', services: [],
+            service_details: [], source: '', total_amount: '', contract_details: '',
+            google_drive_link: '', payment_type: 'one_off', user_ids: [], notes: [],
+        });
+        activeTab.value = 'basic'; // Reset to basic tab for next open
+    }
+}, { immediate: true }); // Run immediately on component creation
+
+// Centralized error handler for API responses
+const handleError = (err, defaultMessage) => {
+    if (err.response && err.response.status === 422) {
+        errors.value = err.response.data.errors; // Validation errors
+        generalError.value = 'Please correct the highlighted fields.';
+    } else if (err.response && err.response.data.message) {
+        generalError.value = err.response.data.message; // API-specific error message
+    } else {
+        generalError.value = defaultMessage; // Generic error
+        console.error('API Error:', err);
+    }
+};
+
+// Handlers for events emitted by sub-components
+
+// Handles creation of new project or update of basic info
+const handleBasicInfoSubmit = async (formData, isNewProject) => {
+    errors.value = {}; // Clear errors before new submission
+    generalError.value = '';
+    try {
+        let response;
+        if (isNewProject) {
+            response = await window.axios.post('/api/projects', formData);
+            projectForm.id = response.data.id; // Update project ID for subsequent operations
+            emit('submit', response.data); // Emit to parent, e.g., to close modal or redirect
+            success('Project created successfully!');
+        } else {
+            response = await window.axios.put(`/api/projects/${projectForm.id}/sections/basic`, formData);
+            success('Basic information updated successfully!');
+        }
+        // If a logo file was part of the submission and project ID exists, upload it
+        // (Note: ProjectFormBasicInfo is designed to handle logo upload directly after its own save now)
+    } catch (err) {
+        handleError(err, `Failed to ${isNewProject ? 'create' : 'update'} project.`);
+    }
+};
+
+// Handles saving clients for the project
+const handleSaveClients = async (clientIds) => {
     if (!projectForm.id) {
         clientSaveError.value = 'Please save the project first before saving clients.';
         return;
     }
-
-    if (!projectForm.client_ids || projectForm.client_ids.length === 0) {
+    if (!clientIds || clientIds.length === 0) {
         clientSaveError.value = 'Please select at least one client to save.';
         return;
     }
 
     clientSaving.value = true;
     clientSaveSuccess.value = false;
-    clientSaveError.value = '';
+    clientSaveError.value = ''; // Clear previous client save error
 
     try {
-        // Call the attach-clients API endpoint
-        const response = await window.axios.post(
-            `/api/projects/${projectForm.id}/attach-clients`,
-            { client_ids: projectForm.client_ids }
-        );
-
-        // Show success message
+        await window.axios.post(`/api/projects/${projectForm.id}/attach-clients`, { client_ids: clientIds });
         clientSaveSuccess.value = true;
-
-        // Hide success message after 3 seconds
-        setTimeout(() => {
-            clientSaveSuccess.value = false;
-        }, 3000);
-    } catch (error) {
-        if (error.response && error.response.status === 422) {
-            clientSaveError.value = 'Validation error. Please check your input.';
-        } else if (error.response && error.response.data.message) {
-            clientSaveError.value = error.response.data.message;
-        } else {
-            clientSaveError.value = 'Failed to save clients.';
-            console.error('Error saving clients:', error);
-        }
+        success('Clients saved successfully!');
+        setTimeout(() => { clientSaveSuccess.value = false; }, 3000); // Hide success message after 3 seconds
+    } catch (err) {
+        handleError(err, 'Failed to save clients.');
+        clientSaveError.value = generalError.value; // Use the general error logic to set specific error
     } finally {
         clientSaving.value = false;
     }
 };
 
-const saveUsers = async () => {
+// Handles saving users for the project
+const handleSaveUsers = async (userIds) => {
     if (!projectForm.id) {
         userSaveError.value = 'Please save the project first before saving users.';
         return;
     }
-
-    if (!projectForm.user_ids || projectForm.user_ids.length === 0) {
+    if (!userIds || userIds.length === 0) {
         userSaveError.value = 'Please select at least one user to save.';
         return;
     }
 
     userSaving.value = true;
     userSaveSuccess.value = false;
-    userSaveError.value = '';
+    userSaveError.value = ''; // Clear previous user save error
 
     try {
-        // Call the attach-users API endpoint
-        const response = await window.axios.post(
-            `/api/projects/${projectForm.id}/attach-users`,
-            { user_ids: projectForm.user_ids }
-        );
-
-        // Show success message
+        await window.axios.post(`/api/projects/${projectForm.id}/attach-users`, { user_ids: userIds });
         userSaveSuccess.value = true;
-
-        // Hide success message after 3 seconds
-        setTimeout(() => {
-            userSaveSuccess.value = false;
-        }, 3000);
-    } catch (error) {
-        if (error.response && error.response.status === 422) {
-            userSaveError.value = 'Validation error. Please check your input.';
-        } else if (error.response && error.response.data.message) {
-            userSaveError.value = error.response.data.message;
-        } else {
-            userSaveError.value = 'Failed to save users.';
-            console.error('Error saving users:', error);
-        }
+        success('Users saved successfully!');
+        setTimeout(() => { userSaveSuccess.value = false; }, 3000); // Hide success message after 3 seconds
+    } catch (err) {
+        handleError(err, 'Failed to save users.');
+        userSaveError.value = generalError.value; // Use the general error logic to set specific error
     } finally {
         userSaving.value = false;
     }
 };
 
-const uploadDocuments = async () => {
+// Handles uploading documents for the project
+const handleUploadDocuments = async (filesToUpload) => {
     if (!projectForm.id) {
         generalError.value = 'Please save the project first before uploading documents.';
         return;
     }
-
-    if (!projectForm.documents || !projectForm.documents.some(doc => typeof doc === 'object' && doc !== null && 'name' in doc && 'size' in doc && 'type' in doc)) {
+    if (!filesToUpload || filesToUpload.length === 0) {
         generalError.value = 'Please select documents to upload.';
         return;
     }
 
     try {
         const formData = new FormData();
-
-        // Filter out only File objects and add them to FormData
-        const filesToUpload = projectForm.documents.filter(doc => typeof doc === 'object' && doc !== null && 'name' in doc && 'size' in doc && 'type' in doc);
         filesToUpload.forEach((file, index) => {
             formData.append(`documents[${index}]`, file);
         });
 
-        // Call the documents upload API endpoint
         const response = await window.axios.post(
             `/api/projects/${projectForm.id}/documents`,
             formData,
-            {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                }
-            }
+            { headers: { 'Content-Type': 'multipart/form-data' } }
         );
 
-        // Update the documents in the form with the response from the server
+        // Update the documents array in projectForm with the server response
         projectForm.documents = response.data.documents || [];
-
-        // Clear the file input to allow selecting the same files again if needed
-        document.getElementById('documents').value = '';
-
-        // Show success message
-        alert('Documents uploaded successfully!');
-
-        // Don't mark the form as modified since document uploads are separate
-        const currentFormState = JSON.parse(JSON.stringify(projectForm));
-        originalForm.value = currentFormState;
-        formModified.value = false;
-    } catch (error) {
-        if (error.response && error.response.status === 422) {
-            errors.value = error.response.data.errors;
-        } else if (error.response && error.response.data.message) {
-            generalError.value = error.response.data.message;
-        } else {
-            generalError.value = 'Failed to upload documents.';
-            console.error('Error uploading documents:', error);
-        }
+        success('Documents uploaded successfully!');
+        // Clear the file input manually if needed (controlled by the child component itself)
+    } catch (err) {
+        handleError(err, 'Failed to upload documents.');
     }
+};
+
+// Handles updating notes for the project
+const handleUpdateNotes = async (notesContent) => {
+    errors.value = {}; // Clear errors before new submission
+    generalError.value = '';
+    try {
+        await window.axios.put(`/api/projects/${projectForm.id}/sections/notes`, { notes: notesContent });
+        success('Notes updated successfully!');
+    } catch (err) {
+        handleError(err, 'Failed to update notes.');
+    }
+};
+
+// Close modal function
+const closeModal = () => {
+    // In a real application, you might want a confirmation dialog here
+    // if there are unsaved changes, but we avoid native 'confirm()'.
+    // A custom modal component would be used for such a feature.
+    emit('close');
 };
 </script>
 
 <template>
-    <div class="p-6 w-full max-w-6xl mx-auto bg-white rounded-lg shadow-xl">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-medium text-gray-900">{{ projectForm.id ? 'Edit Project' : 'Create New Project' }}</h2>
-            <button @click="closeModal" class="text-gray-400 hover:text-gray-500">
+    <div class="p-6 w-full max-w-6xl mx-auto bg-white rounded-xl shadow-2xl transition-all duration-300 transform scale-100 opacity-100">
+        <!-- Modal Header -->
+        <div class="flex justify-between items-center pb-4 mb-6 border-b border-gray-200">
+            <h2 class="text-2xl font-semibold text-gray-800">{{ projectForm.id ? 'Edit Project' : 'Create New Project' }}</h2>
+            <button @click="closeModal" class="p-2 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
         </div>
-        <div v-if="generalError" class="text-red-600 text-sm mb-4">{{ generalError }}</div>
 
-        <!-- Debug Information (Collapsible) -->
-        <div v-if="projectId" class="mb-4">
-            <div v-if="showDebugInfo" class="text-xs text-gray-500 mt-2 p-2 bg-gray-100 rounded">
-                <div class="font-bold">Project ID: {{ projectId }}</div>
-                <div>{{ userProjectRole ? 'Project Role: ' + (userProjectRole.value?.name || 'None') : 'No Project Role' }}</div>
-
-                <!-- Project Permissions -->
-                <div class="mt-1">
-                    <div class="font-semibold">Project Permissions:</div>
-                    <div v-if="projectPermissionsLoading">Loading project permissions...</div>
-                    <div v-else-if="projectPermissionsError">Error loading project permissions</div>
-                    <div v-else-if="projectPermissions">
-                        Count: {{ projectPermissions.permissions ? projectPermissions.permissions.length : 0 }}
-                        <div v-if="projectPermissions.permissions && projectPermissions.permissions.length > 0">
-                            <div class="font-semibold">Permissions:</div>
-                            <ul class="list-disc ml-4">
-                                <li v-for="perm in projectPermissions.permissions.slice(0, 5)" :key="perm.slug">
-                                    {{ perm.name }} ({{ perm.source }})
-                                </li>
-                                <li v-if="projectPermissions.permissions.length > 5">
-                                    ... and {{ projectPermissions.permissions.length - 5 }} more
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mt-1">Can manage projects: {{ canManageProjects ? 'Yes' : 'No' }}</div>
-            </div>
+        <!-- General Error Display -->
+        <div v-if="generalError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md relative mb-4" role="alert">
+            <span class="block sm:inline">{{ generalError }}</span>
         </div>
 
         <!-- Tab Navigation -->
         <div class="border-b border-gray-200 mb-6">
-            <nav class="flex -mb-px">
+            <nav class="flex -mb-px space-x-4">
                 <button
-                    v-if="canManageProjects"
+                    v-if="canManageProjects || !projectForm.id"
                     @click="switchTab('basic')"
                     :class="[
-                        'py-2 px-4 text-center border-b-2 font-medium text-sm',
+                        'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200',
                         activeTab === 'basic'
-                            ? 'border-indigo-500 text-indigo-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            ? 'border-indigo-600 text-indigo-700 bg-indigo-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50'
                     ]"
                 >
                     Basic Information
                 </button>
                 <button
-                    v-if="canViewProjectClients || canViewProjectUsers"
+                    v-if="(projectForm.id && (canViewProjectClients || canViewProjectUsers)) || !projectForm.id"
                     @click="switchTab('client')"
                     :class="[
-                        'py-2 px-4 text-center border-b-2 font-medium text-sm',
+                        'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200',
                         activeTab === 'client'
-                            ? 'border-indigo-500 text-indigo-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            ? 'border-indigo-600 text-indigo-700 bg-indigo-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50'
                     ]"
                 >
                     {{ clientsUsersTabName }}
                 </button>
                 <button
-                    v-if="(projectForm.id && (canManageProjectServicesAndPayments || canViewProjectServicesAndPayments))"
+                    v-if="projectForm.id && (canManageProjectServicesAndPayments || canViewProjectServicesAndPayments)"
                     @click="switchTab('services')"
                     :class="[
-                        'py-2 px-4 text-center border-b-2 font-medium text-sm',
+                        'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200',
                         activeTab === 'services'
-                            ? 'border-indigo-500 text-indigo-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            ? 'border-indigo-600 text-indigo-700 bg-indigo-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50'
                     ]"
                 >
                     Services & Payment
@@ -1000,10 +508,10 @@ const uploadDocuments = async () => {
                     v-if="projectForm.id && canViewProjectTransactions"
                     @click="switchTab('transactions')"
                     :class="[
-                        'py-2 px-4 text-center border-b-2 font-medium text-sm',
+                        'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200',
                         activeTab === 'transactions'
-                            ? 'border-indigo-500 text-indigo-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            ? 'border-indigo-600 text-indigo-700 bg-indigo-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50'
                     ]"
                 >
                     Transactions
@@ -1012,10 +520,10 @@ const uploadDocuments = async () => {
                     v-if="projectForm.id && canViewProjectDocuments"
                     @click="switchTab('documents')"
                     :class="[
-                        'py-2 px-4 text-center border-b-2 font-medium text-sm',
+                        'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200',
                         activeTab === 'documents'
-                            ? 'border-indigo-500 text-indigo-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            ? 'border-indigo-600 text-indigo-700 bg-indigo-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50'
                     ]"
                 >
                     Documents
@@ -1024,10 +532,10 @@ const uploadDocuments = async () => {
                     v-if="projectForm.id && (canAddProjectNotes || canViewProjectNotes)"
                     @click="switchTab('notes')"
                     :class="[
-                        'py-2 px-4 text-center border-b-2 font-medium text-sm',
+                        'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200',
                         activeTab === 'notes'
-                            ? 'border-indigo-500 text-indigo-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            ? 'border-indigo-600 text-indigo-700 bg-indigo-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50'
                     ]"
                 >
                     Notes
@@ -1035,243 +543,95 @@ const uploadDocuments = async () => {
             </nav>
         </div>
 
-        <form @submit.prevent="">
+        <!-- Loading Indicator -->
+        <div v-if="loading" class="text-center py-8 text-gray-500 text-lg">
+            <svg class="animate-spin h-8 w-8 text-indigo-500 mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Loading project data...
+        </div>
+
+        <!-- Render active tab component based on activeTab state -->
+        <div v-show="!loading" class="py-4">
             <!-- Tab 1: Basic Information -->
-            <div v-if="activeTab === 'basic'">
-                <div class="mb-4">
-                    <InputLabel for="name" value="Project Name" />
-                    <TextInput id="name" type="text" class="mt-1 block w-full" v-model="projectForm.name" required autofocus :disabled="!canManageProjects" />
-                    <InputError :message="errors.name ? errors.name[0] : ''" class="mt-2" />
-                </div>
-                <div class="mb-4">
-                    <InputLabel for="description" value="Description" />
-                    <textarea id="description" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="projectForm.description" :disabled="!canManageProjects"></textarea>
-                    <InputError :message="errors.description ? errors.description[0] : ''" class="mt-2" />
-                </div>
-                <div class="mb-4">
-                    <InputLabel for="website" value="Website" />
-                    <TextInput id="website" type="url" class="mt-1 block w-full" v-model="projectForm.website" :disabled="!canManageProjects" />
-                    <InputError :message="errors.website ? errors.website[0] : ''" class="mt-2" />
-                </div>
-                <div class="mb-4">
-                    <InputLabel for="preferred_keywords" value="Client Preferred Keywords" />
-                    <TextInput id="preferred_keywords" type="text" class="mt-1 block w-full" v-model="projectForm.preferred_keywords" :disabled="!canManageProjects" />
-                    <InputError :message="errors.preferred_keywords ? errors.preferred_keywords[0] : ''" class="mt-2" />
-                </div>
+            <ProjectFormBasicInfo
+                v-if="activeTab === 'basic'"
+                v-model:projectForm="projectForm"
+                :errors="errors"
+                :statusOptions="statusOptions"
+                :sourceOptions="sourceOptions"
+                :canManageProjects="canManageProjects"
+                :canManageProjectBasicDetails="canManageProjectBasicDetails"
+                @submit="handleBasicInfoSubmit"
+            />
 
-                <div class="mb-4" v-if="canManageProjectBasicDetails">
-                    <InputLabel for="google_chat_id" value="Google Chat ID" />
-                    <TextInput id="google_chat_id" type="text" class="mt-1 block w-full" v-model="projectForm.google_chat_id" :disabled="!canManageProjects" />
-                    <InputError :message="errors.google_chat_id ? errors.google_chat_id[0] : ''" class="mt-2" />
-                </div>
-
-                <div class="mb-4" v-if="canManageProjectBasicDetails">
-                    <InputLabel for="google_drive_link" value="Google Drive Link" />
-                    <TextInput id="google_drive_link" type="text" class="mt-1 block w-full" v-model="projectForm.google_drive_link" :disabled="!canManageProjects" />
-                    <InputError :message="errors.google_chat_id ? errors.google_chat_id[0] : ''" class="mt-2" />
-                </div>
-
-                <div class="mb-4">
-                    <InputLabel for="status" value="Status" />
-                    <select id="status" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="projectForm.status" required :disabled="!canManageProjects">
-                        <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                    </select>
-                    <InputError :message="errors.status ? errors.status[0] : ''" class="mt-2" />
-                </div>
-
-
-                <div class="mb-4">
-                    <InputLabel for="source" value="Source" />
-                    <select id="source" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="projectForm.source" :disabled="!canManageProjects">
-                        <option value="" disabled>Select a Source</option>
-                        <option v-for="option in sourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                    </select>
-                    <InputError :message="errors.source ? errors.source[0] : ''" class="mt-2" />
-                </div>
-
-                <div v-if="canManageProjects" class="mt-6 flex justify-end">
-                    <PrimaryButton
-                        @click="projectForm.id ? updateBasicInfo() : createProject()"
-                        :disabled="!canManageProjects"
-                        v-if="(projectForm.id && canManageProjectBasicDetails) || !projectForm.id"
-                    >
-                        {{ projectForm.id ? 'Update Basic Information' : 'Create Project' }}
-                    </PrimaryButton>
-                </div>
-            </div>
-
-            <!-- Tab 2: Client, Contract Details, and Contractors -->
-            <div v-if="activeTab === 'client'">
-                <div class="mb-4" v-if="canViewProjectClients">
-                    <MultiSelectWithRoles
-                        label="Clients"
-                        :items="clients"
-                        v-model:selectedItems="projectForm.client_ids"
-                        :roleOptions="clientRoleOptionsComputed"
-                        roleType="client"
-                        :error="errors.client_ids ? errors.client_ids[0] : ''"
-                        placeholder="Select a client to add"
-                        :disabled="!canManageProjectClients"
-                        :readonly="!canManageProjectClients && canViewProjectClients"
-                        :showRemoveButton="canManageProjectClients"
-                    />
-                    <div v-if="canManageProjectClients" class="mt-2 flex justify-end">
-                        <PrimaryButton @click="saveClients" :disabled="clientSaving">
-                            {{ clientSaving ? 'Saving...' : 'Save Clients' }}
-                        </PrimaryButton>
-                    </div>
-                    <div v-if="clientSaveSuccess" class="mt-2 text-green-600 text-sm">
-                        Clients saved successfully!
-                    </div>
-                    <div v-if="clientSaveError" class="mt-2 text-red-600 text-sm">
-                        {{ clientSaveError }}
-                    </div>
-                </div>
-                <div class="mb-4">
-                    <InputLabel for="contract_details" value="Contract Details" />
-                    <textarea id="contract_details" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="projectForm.contract_details" :disabled="!canManageProjects"></textarea>
-                    <InputError :message="errors.contract_details ? errors.contract_details[0] : ''" class="mt-2" />
-                </div>
-                <div class="mb-4" v-if="canViewProjectUsers">
-                    <MultiSelectWithRoles
-                        label="Assign Users"
-                        :items="users"
-                        v-model:selectedItems="projectForm.user_ids"
-                        :roleOptions="userRoleOptionsComputed"
-                        roleType="project"
-                        :defaultRoleId="2"
-                        :error="errors.user_ids ? errors.user_ids[0] : ''"
-                        placeholder="Select a user to add"
-                        :disabled="!canManageProjectUsers"
-                        :readonly="!canManageProjectUsers && canViewProjectUsers"
-                        :showRemoveButton="canManageProjectUsers"
-                    />
-                    <div v-if="canManageProjectUsers" class="mt-2 flex justify-end">
-                        <PrimaryButton @click="saveUsers" :disabled="userSaving">
-                            {{ userSaving ? 'Saving...' : 'Save Users' }}
-                        </PrimaryButton>
-                    </div>
-                    <div v-if="userSaveSuccess" class="mt-2 text-green-600 text-sm">
-                        Users saved successfully!
-                    </div>
-                    <div v-if="userSaveError" class="mt-2 text-red-600 text-sm">
-                        {{ userSaveError }}
-                    </div>
-                </div>
-            </div>
+            <!-- Tab 2: Client, Contract Details, and Users -->
+            <ProjectFormClientsUsers
+                v-if="activeTab === 'client'"
+                v-model:projectForm="projectForm"
+                :errors="errors"
+                :clientRoleOptions="dbClientRoles"
+                :userRoleOptions="dbUserRoles"
+                :clients="clients"
+                :users="users"
+                :canViewProjectClients="canViewProjectClients"
+                :canManageProjectClients="canManageProjectClients"
+                :canViewProjectUsers="canViewProjectUsers"
+                :canManageProjectUsers="canManageProjectUsers"
+                :clientSaving="clientSaving"
+                :clientSaveSuccess="clientSaveSuccess"
+                :clientSaveError="clientSaveError"
+                :userSaving="userSaving"
+                :userSaveSuccess="userSaveSuccess"
+                :userSaveError="userSaveError"
+                @saveClients="handleSaveClients"
+                @saveUsers="handleSaveUsers"
+            />
 
             <!-- Tab 3: Services & Payment -->
-            <div v-if="activeTab === 'services'">
-                <ServicesAndPaymentForm
-                    :projectId="projectForm.id"
-                    :departmentOptions="departmentOptions"
-                    :paymentTypeOptions="paymentTypeOptions"
-                    :canManageProjectServicesAndPayments="canManageProjectServicesAndPayments"
-                    :canViewProjectServicesAndPayments="canViewProjectServicesAndPayments"
-                    @updated="fetchServicesAndPaymentData(projectForm.id)"
-                />
-            </div>
+            <ServicesAndPaymentForm
+                v-if="activeTab === 'services'"
+                :projectId="projectForm.id"
+                :departmentOptions="departmentOptions"
+                :paymentTypeOptions="paymentTypeOptions"
+                :canManageProjectServicesAndPayments="canManageProjectServicesAndPayments"
+                :canViewProjectServicesAndPayments="canViewProjectServicesAndPayments"
+                @updated="switchTab('services')"
+            />
 
             <!-- Tab 4: Transactions -->
-            <div v-if="activeTab === 'transactions' && canViewProjectTransactions">
-                <ProjectTransactions
-                    :projectId="projectForm.id"
-                    :userProjectRole="userProjectRole.value"
-                />
-            </div>
+            <ProjectTransactions
+                v-if="activeTab === 'transactions' && canViewProjectTransactions"
+                :projectId="projectForm.id"
+                :userProjectRole="userProjectRole.value"
+            />
 
             <!-- Tab 5: Documents -->
-            <div v-if="activeTab === 'documents'">
-                <div class="mb-4">
-                    <InputLabel value="Project Documents" />
-                    <div class="mt-2">
-                        <!-- Only show upload section if user has upload_documents permission -->
-                        <div v-if="canUploadProjectDocuments" class="mb-4">
-                            <InputLabel for="documents" value="Upload Documents" />
-                            <input type="file" id="documents" @change="e => {
-                                const files = Array.from(e.target.files);
-                                if (files.length > 0) {
-                                    // Keep existing document objects and add new files
-                                    const existingDocs = Array.isArray(projectForm.documents)
-                                        ? projectForm.documents.filter(doc => typeof doc === 'object' && 'path' in doc)
-                                        : [];
-                                    projectForm.documents = [...existingDocs, ...files];
-                                }
-                            }" class="mt-1 block w-full" multiple accept=".pdf,.doc,.docx,.jpg,.png" />
-                            <p class="text-sm text-gray-500 mt-1">Supported formats: PDF, DOC, DOCX, JPG, PNG</p>
-                            <InputError :message="errors.documents ? errors.documents[0] : ''" class="mt-2" />
-
-                            <div class="mt-4">
-                                <PrimaryButton
-                                    type="button"
-                                    @click="uploadDocuments"
-                                    :disabled="!projectForm.id || !projectForm.documents || !projectForm.documents.some(doc => typeof doc === 'object' && doc !== null && 'name' in doc && 'size' in doc && 'type' in doc)"
-                                >
-                                    Upload Documents
-                                </PrimaryButton>
-                                <p v-if="!projectForm.id" class="text-sm text-red-500 mt-2">
-                                    Please save the project first before uploading documents.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div v-if="projectForm.documents && projectForm.documents.length > 0 && typeof projectForm.documents[0] === 'object' && 'path' in projectForm.documents[0]" class="mt-4">
-                            <h3 class="font-medium text-gray-700 mb-2">Existing Documents</h3>
-                            <div v-for="(doc, index) in projectForm.documents" :key="index" class="flex items-center mb-2 p-2 border rounded">
-                                <div class="flex-grow">
-                                    <a :href="'/storage/' + doc.path" target="_blank" class="text-blue-600 hover:underline">{{ doc.filename }}</a>
-                                </div>
-                                <!-- Only show remove button if user has upload_documents permission -->
-                                <button
-                                    v-if="canUploadProjectDocuments.value"
-                                    type="button"
-                                    class="ml-2 text-red-600"
-                                    @click="() => {
-                                        projectForm.documents = projectForm.documents.filter((_, i) => i !== index);
-                                    }"
-                                >
-                                    Remove
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="mt-4">
-                            <p class="text-sm text-gray-500">
-                                Documents will be uploaded to the project's Google Drive folder.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <ProjectFormDocuments
+                v-if="activeTab === 'documents'"
+                v-model:projectForm="projectForm"
+                :errors="errors"
+                :canUploadProjectDocuments="canUploadProjectDocuments"
+                :canViewProjectDocuments="canViewProjectDocuments"
+                @uploadDocuments="handleUploadDocuments"
+            />
 
             <!-- Tab 6: Notes -->
-            <div v-if="activeTab === 'notes'">
-                <div class="mb-4">
-                    <InputLabel value="Notes" />
-                    <div class="mt-2">
-                        <div v-if="projectForm.notes && projectForm.notes.length > 0">
-                            <div v-for="(note, index) in projectForm.notes" :key="index" class="mb-4">
-                                <div class="flex items-start mb-2">
-                                    <textarea
-                                        v-model="note.content"
-                                        :readonly="!canAddProjectNotes"
-                                        placeholder="Note Content"
-                                        class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full h-32"
-                                    ></textarea>
-                                </div>
-                            </div>
-                        </div>
-                        <div v-else class="p-4 bg-gray-50 rounded-md text-gray-600 text-center">
-                            No notes found for this project.
-                        </div>
-                    </div>
-                    <InputError :message="errors.notes ? errors.notes[0] : ''" class="mt-2" />
-                </div>
-            </div>
+            <ProjectFormNotes
+                v-if="activeTab === 'notes'"
+                v-model:projectForm="projectForm"
+                :errors="errors"
+                :canAddProjectNotes="canAddProjectNotes"
+                :canViewProjectNotes="canViewProjectNotes"
+                @updateNotes="handleUpdateNotes"
+            />
+        </div>
 
-            <div class="mt-6 flex justify-end">
-                <SecondaryButton @click="closeModal">Close</SecondaryButton>
-            </div>
-        </form>
+        <!-- Close Button at the bottom -->
+        <div class="mt-8 flex justify-end pt-4 border-t border-gray-200">
+            <SecondaryButton @click="closeModal" class="px-6 py-2 rounded-lg text-lg">Close</SecondaryButton>
+        </div>
     </div>
 </template>
+

@@ -10,7 +10,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
-use App\Http\Controllers\Api\Concerns\HasProjectPermissions; // Import the trait
+use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
+use Illuminate\Support\Facades\Storage;
+
+// Import the trait
 
 class ProjectReadController extends Controller
 {
@@ -202,6 +205,7 @@ class ProjectReadController extends Controller
             'project_type' => $project->project_type,
             'source' => $project->source,
             'google_drive_link' => $project->google_drive_link,
+            'logo'  => Storage::url($project->logo)
         ]);
     }
 

@@ -46,6 +46,9 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
 
+    // Tag Management Routes
+    Route::get('/tags/search', [\App\Http\Controllers\TagController::class, 'search']);
+
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy']);
 
     // Email Verification routes
@@ -104,13 +107,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('projects/{project}/notes', [ProjectActionController::class, 'addNotes']);
     Route::post('projects/{project}/notes/{note}/reply', [ProjectActionController::class, 'replyToNote']);
     Route::post('projects/{project}/documents', [ProjectActionController::class, 'uploadDocuments']);
+    Route::post('projects/{project}/logo', [ProjectActionController::class, 'uploadLogo']);
     Route::post('projects/{project}/standup', [ProjectActionController::class, 'addStandup']);
     Route::post('/projects/{project}/meetings', [ProjectActionController::class, 'createProjectMeeting']);
     Route::delete('/projects/{project}/meetings/{googleEventId}', [ProjectActionController::class, 'deleteProjectMeeting']);
     Route::patch('projects/{project}/convert-payment-type', [ProjectActionController::class, 'convertPaymentType']); // Moved PATCH route
 
     // Project Section Update Routes
-    Route::put('projects/{project}/sections/basic', [ProjectActionController::class, 'updateBasicInfo']);
+    Route::put('projects/{project}/sections/basic', [ProjectActionController::class, 'updateBasicInfo'])->middleware(['process.tags']);
     Route::put('projects/{project}/sections/services-payment', [ProjectActionController::class, 'updateServicesAndPayment']);
     Route::put('projects/{project}/sections/transactions', [ProjectActionController::class, 'updateTransactions']);
     Route::put('projects/{project}/sections/notes', [ProjectActionController::class, 'updateNotes']);
@@ -173,6 +177,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Task Management Routes
     Route::get('task-statistics', [TaskController::class, 'getTaskStatistics']);
     Route::get('projects/{projectId}/due-and-overdue-tasks', [TaskController::class, 'getProjectDueAndOverdueTasks']);
+
+    // Apply ProcessTags middleware to store and update methods
     Route::apiResource('tasks', TaskController::class);
     Route::post('tasks/{task}/notes', [TaskController::class, 'addNote']);
     Route::post('tasks/{task}/complete', [TaskController::class, 'markAsCompleted']);

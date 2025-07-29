@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\Taggable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Services\GoogleChatService;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 
 class Task extends Model
 {
-    use HasFactory;
+    use HasFactory, Taggable;
 
     /**
      * The attributes that are mass assignable.
@@ -202,13 +203,7 @@ class Task extends Model
         return $this->hasMany(Subtask::class, 'parent_task_id');
     }
 
-    /**
-     * Get the tags for this task.
-     */
-    public function tags()
-    {
-        return $this->belongsToMany(Tag::class, 'task_tag');
-    }
+    // The tags() method is now provided by the Taggable trait
 
     /**
      * Check if the task is completed.
@@ -621,39 +616,5 @@ class Task extends Model
         return null;
     }
 
-    /**
-     * Assign a tag to this task.
-     *
-     * @param Tag|int $tag
-     * @return void
-     */
-    public function attachTag($tag)
-    {
-        if (is_numeric($tag)) {
-            $tagId = $tag;
-        } else {
-            $tagId = $tag->id;
-        }
-
-        if (!$this->tags()->where('tag_id', $tagId)->exists()) {
-            $this->tags()->attach($tagId);
-        }
-    }
-
-    /**
-     * Remove a tag from this task.
-     *
-     * @param Tag|int $tag
-     * @return void
-     */
-    public function detachTag($tag)
-    {
-        if (is_numeric($tag)) {
-            $tagId = $tag;
-        } else {
-            $tagId = $tag->id;
-        }
-
-        $this->tags()->detach($tagId);
-    }
+    // The attachTag and detachTag methods are replaced by the syncTags method in the Taggable trait
 }

@@ -1087,6 +1087,57 @@ class ProjectActionController extends Controller
     }
 
     /**
+     * Upload a logo for a project.
+     *
+     * @param Request $request
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function uploadLogo(Request $request, Project $project)
+    {
+        $user = Auth::user();
+        if (!$this->canManageProjects($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to update this project.'], 403);
+        }
+
+        try {
+            $validationRules = [
+                'logo' => 'required|image|max:2048', // Max 2MB
+            ];
+
+            $validated = $request->validate($validationRules);
+
+            if ($request->hasFile('logo')) {
+                // Delete existing logo if it exists
+                if ($project->logo) {
+                    Storage::disk('public')->delete($project->logo);
+                }
+
+                // Store the new logo
+                $localPath = $request->file('logo')->store('logos', 'public');
+                $project->logo = $localPath;
+                $project->save();
+
+                Log::info('Generated Logo URL: ' . asset($project->logo));
+
+                return response()->json([
+                    'message' => 'Logo uploaded successfully',
+                    'logo' => Storage::url($project->logo)
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'No logo was uploaded',
+            ], 400);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error('Error uploading logo: ' . $e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
+            return response()->json(['message' => 'Failed to upload logo', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Upload documents from the client dashboard.
      *
      * @param Request $request

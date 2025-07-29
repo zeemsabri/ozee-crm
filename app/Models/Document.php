@@ -5,10 +5,11 @@ namespace App\Models;
 use App\Services\GoogleChatService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
+use App\Models\Traits\Taggable;
 
 class Document extends Model
 {
-    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+    use \Illuminate\Database\Eloquent\Factories\HasFactory, Taggable;
 
     /**
      * The attributes that are mass assignable.

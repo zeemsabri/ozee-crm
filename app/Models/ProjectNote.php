@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
+use App\Models\Traits\Taggable;
 
 class ProjectNote extends Model
 {
-    use HasFactory;
+    use HasFactory, Taggable;
 
     protected $fillable = [
         'project_id',

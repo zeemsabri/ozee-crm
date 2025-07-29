@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Traits\Taggable;
 
 class Milestone extends Model
 {
-    use HasFactory;
+    use HasFactory, Taggable;
 
     /**
      * The attributes that are mass assignable.

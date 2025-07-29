@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use App\Models\Traits\Taggable;
 
 class Resource extends Model
 {
-    use HasFactory;
+    use HasFactory, Taggable;
 
     /**
      * The attributes that are mass assignable.
