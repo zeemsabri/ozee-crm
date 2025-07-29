@@ -59,7 +59,7 @@ class ProjectController extends Controller
         $projects->each(function ($project) {
             $project->notes->each(function ($note) {
                 try {
-                    $note->content = Crypt::decryptString($note->content);
+                    $note->content = $note->content;
                 } catch (\Exception $e) {
                     // If decryption fails, set a placeholder or leave as is
                     Log::error('Failed to decrypt note content in index method', ['note_id' => $note->id, 'error' => $e->getMessage()]);
@@ -177,7 +177,7 @@ class ProjectController extends Controller
             }, 'transactions', 'notes']);
             $project->notes->each(function ($note) {
                 try {
-                    $note->content = Crypt::decryptString($note->content);
+                    $note->content = $note->content;
                 } catch (\Exception $e) {
                     // If decryption fails, set a placeholder or leave as is
                     Log::error('Failed to decrypt note content in store method', ['note_id' => $note->id, 'error' => $e->getMessage()]);
@@ -343,15 +343,6 @@ class ProjectController extends Controller
 
             // Decrypt note content and add reply count
             $project->notes->each(function ($note) {
-                try {
-                    $note->content = Crypt::decryptString($note->content);
-                } catch (\Exception $e) {
-                    // If decryption fails, set a placeholder or leave as is
-                    Log::error('Failed to decrypt note content in show method', ['note_id' => $note->id, 'error' => $e->getMessage()]);
-                    $note->content = '[Encrypted content could not be decrypted]';
-                }
-
-                // Add reply count to each parent note
                 $note->reply_count = $note->replyCount();
             });
 
@@ -815,7 +806,7 @@ class ProjectController extends Controller
                 $project->notes()->delete();
                 foreach ($validated['notes'] as $note) {
                     $project->notes()->create([
-                        'content' => Crypt::encryptString($note['content']),
+                        'content' => $note['content'],
                         'user_id' => Auth::id(),
                     ]);
                 }
@@ -970,9 +961,9 @@ class ProjectController extends Controller
                 $project->load('notes');
 
                 // Decrypt note content
-                $project->notes->each(function ($note) {
-                    $note->content = Crypt::decryptString($note->content);
-                });
+//                $project->notes->each(function ($note) {
+//                    $note->content = Crypt::decryptString($note->content);
+//                });
 
                 $filteredProject['notes'] = $project->notes;
             }
@@ -1291,7 +1282,7 @@ class ProjectController extends Controller
 
         foreach ($validated['notes'] as $note) {
             $notes[] = $project->notes()->create([
-                'content' => Crypt::encryptString($note['content']),
+                'content' => $note['content'],
                 'user_id' => Auth::id(),
             ]);
 
@@ -1352,16 +1343,6 @@ class ProjectController extends Controller
         $this->authorize('view', $project);
 
         $notes = $project->notes()->with('user')->orderBy('created_at', 'desc')->get();
-
-        // Decrypt the content of each note
-        foreach ($notes as $note) {
-            try {
-                $note->content = \Illuminate\Support\Facades\Crypt::decryptString($note->content);
-            } catch (\Exception $e) {
-                // If decryption fails, leave as is
-                Log::error('Failed to decrypt note content', ['note_id' => $note->id, 'error' => $e->getMessage()]);
-            }
-        }
 
         return response()->json($notes);
     }
@@ -1431,7 +1412,7 @@ class ProjectController extends Controller
         // Decrypt the content of each reply
         $replies->each(function ($reply) {
             try {
-                $reply->content = Crypt::decryptString($reply->content);
+                $reply->content = $reply->content;
             } catch (\Exception $e) {
                 Log::error('Failed to decrypt reply content', ['reply_id' => $reply->id, 'error' => $e->getMessage()]);
                 $reply->content = '[Encrypted content could not be decrypted]';
@@ -1527,7 +1508,7 @@ class ProjectController extends Controller
 
             // Create a new note for the reply
             $replyNote = $project->notes()->create([
-                'content' => Crypt::encryptString($validated['content']),
+                'content' => $validated['content'],
                 'user_id' => Auth::id(),
                 'chat_message_id' => $response['name'] ?? null,
                 'parent_id' => $note->id, // Set the parent_id to create the parent-child relationship

@@ -118,7 +118,7 @@ class ProjectActionController extends Controller
             }, 'transactions', 'notes']);
             $project->notes->each(function ($note) {
                 try {
-                    $note->content = Crypt::decryptString($note->content);
+                    $note->content = $note->content;
                 } catch (\Exception $e) {
                     Log::error('Failed to decrypt note content in store method', ['note_id' => $note->id, 'error' => $e->getMessage()]);
                     $note->content = '[Encrypted content could not be decrypted]';
@@ -303,7 +303,7 @@ class ProjectActionController extends Controller
                 $project->notes()->delete();
                 foreach ($validated['notes'] as $note) {
                     $project->notes()->create([
-                        'content' => Crypt::encryptString($note['content']),
+                        'content' => $note['content'],
                         'user_id' => Auth::id(),
                     ]);
                 }
@@ -559,21 +559,21 @@ class ProjectActionController extends Controller
         $notes = [];
         foreach ($validated['notes'] as $note) {
             $createdNote = $project->notes()->create([
-                'content' => Crypt::encryptString($note['content']),
+                'content' =>$note['content'],
                 'user_id' => Auth::id(),
             ]);
             $notes[] = $createdNote;
 
             if ($project->google_chat_id) {
-//                try {
+                try {
                     $messageText = "📝 *{$user->name}*: " . $note['content'];
                     $response = $this->googleChatService->sendMessage($project->google_chat_id, $messageText);
                     $createdNote->chat_message_id = $response['name'] ?? null;
                     $createdNote->save();
                     Log::info('Sent note notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'user_id' => $user->id, 'chat_message_id' => $response['name'] ?? null]);
-//                } catch (\Exception $e) {
-//                    Log::error('Failed to send note notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
-//                }
+                } catch (\Exception $e) {
+                    Log::error('Failed to send note notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
+                }
             }
         }
 
@@ -651,7 +651,7 @@ class ProjectActionController extends Controller
             }
 
             $replyNote = $project->notes()->create([
-                'content' => Crypt::encryptString($validated['content']),
+                'content' => $validated['content'],
                 'user_id' => Auth::id(),
                 'chat_message_id' => $response['name'] ?? null,
                 'parent_id' => $note->id,
@@ -740,7 +740,7 @@ class ProjectActionController extends Controller
         $formattedContent .= "**Blockers:** " . ($validated['blockers'] ?? 'None');
 
         $note = $project->notes()->create([
-            'content' => Crypt::encryptString($formattedContent),
+            'content' => $formattedContent,
             'user_id' => $user->id,
             'type' => 'standup',
         ]);
@@ -975,7 +975,7 @@ class ProjectActionController extends Controller
                         $note->delete();
                     } else {
                         $note->update([
-                            'content' => Crypt::encryptString($noteData['content']),
+                            'content' => $noteData['content'],
                             'type' => $noteType ?? $noteData['type'] ?? $note->type,
                             'chat_message_id' => $noteData['chat_message_id'] ?? $note->chat_message_id,
                             'parent_id' => $noteData['parent_id'] ?? $note->parent_id,
@@ -986,7 +986,7 @@ class ProjectActionController extends Controller
             } else {
                 // This is a new note to be added. Re-use addNotes logic or create here.
                 $project->notes()->create([
-                    'content' => Crypt::encryptString($noteData['content']),
+                    'content' => $noteData['content'],
                     'user_id' => Auth::id(),
                     'type' => $noteType ?? $noteData['type'] ?? 'note',
                     'chat_message_id' => $noteData['chat_message_id'] ?? null,
@@ -1004,12 +1004,6 @@ class ProjectActionController extends Controller
         }]);
 
         $project->notes->each(function ($note) {
-            try {
-                $note->content = Crypt::decryptString($note->content);
-            } catch (\Exception $e) {
-                Log::error('Failed to decrypt note content during updateNotes response', ['note_id' => $note->id, 'error' => $e->getMessage()]);
-                $note->content = '[Encrypted content could not be decrypted]';
-            }
             $note->reply_count = $note->replyCount();
         });
 

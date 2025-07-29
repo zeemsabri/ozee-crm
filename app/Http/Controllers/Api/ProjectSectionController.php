@@ -598,15 +598,6 @@ class ProjectSectionController extends Controller
 
         // Decrypt note content and add reply count
         $notes->each(function ($note) {
-            try {
-                $note->content = Crypt::decryptString($note->content);
-            } catch (\Exception $e) {
-                // If decryption fails, set a placeholder or leave as is
-                Log::error('Failed to decrypt note content in getNotes method', ['note_id' => $note->id, 'error' => $e->getMessage()]);
-                $note->content = '[Encrypted content could not be decrypted]';
-            }
-
-            // Add reply count to each parent note
             $note->reply_count = $note->replyCount();
         });
 
@@ -958,7 +949,7 @@ class ProjectSectionController extends Controller
 
         // Create the note with type 'standup'
         $note = $project->notes()->create([
-            'content' => Crypt::encryptString($formattedContent),
+            'content' => $formattedContent,
             'user_id' => $user->id,
             'type' => 'standup',
         ]);

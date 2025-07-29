@@ -38,16 +38,16 @@ class ProjectReadController extends Controller
             }, 'transactions', 'notes'])->get();
         }
 
-        $projects->each(function ($project) {
-            $project->notes->each(function ($note) {
-                try {
-                    $note->content = Crypt::decryptString($note->content);
-                } catch (\Exception $e) {
-                    Log::error('Failed to decrypt note content in index method', ['note_id' => $note->id, 'error' => $e->getMessage()]);
-                    $note->content = '[Encrypted content could not be decrypted]';
-                }
-            });
-        });
+//        $projects->each(function ($project) {
+//            $project->notes->each(function ($note) {
+//                try {
+//                    $note->content = $note->content;
+//                } catch (\Exception $e) {
+//                    Log::error('Failed to decrypt note content in index method', ['note_id' => $note->id, 'error' => $e->getMessage()]);
+//                    $note->content = '[Encrypted content could not be decrypted]';
+//                }
+//            });
+//        });
 
         return response()->json($projects);
     }
@@ -162,12 +162,6 @@ class ProjectReadController extends Controller
                 $query->whereNull('parent_id');
             }]);
             $project->notes->each(function ($note) {
-                try {
-                    $note->content = Crypt::decryptString($note->content);
-                } catch (\Exception $e) {
-                    Log::error('Failed to decrypt note content in show method', ['note_id' => $note->id, 'error' => $e->getMessage()]);
-                    $note->content = '[Encrypted content could not be decrypted]';
-                }
                 $note->reply_count = $note->replyCount();
             });
             $filteredProject['notes'] = $project->notes;
@@ -498,7 +492,7 @@ class ProjectReadController extends Controller
 
         $notes->each(function ($note) {
             try {
-                $note->content = Crypt::decryptString($note->content);
+                $note->content = $note->content;
             } catch (\Exception $e) {
                 Log::error('Failed to decrypt note content in getNotes method', ['note_id' => $note->id, 'error' => $e->getMessage()]);
                 $note->content = '[Encrypted content could not be decrypted]';
@@ -587,14 +581,14 @@ class ProjectReadController extends Controller
 
         $replies = $note->replies()->with('user')->orderBy('created_at', 'asc')->get();
 
-        $replies->each(function ($reply) {
-            try {
-                $reply->content = Crypt::decryptString($reply->content);
-            } catch (\Exception $e) {
-                Log::error('Failed to decrypt reply content', ['reply_id' => $reply->id, 'error' => $e->getMessage()]);
-                $reply->content = '[Encrypted content could not be decrypted]';
-            }
-        });
+//        $replies->each(function ($reply) {
+//            try {
+//                $reply->content = Crypt::decryptString($reply->content);
+//            } catch (\Exception $e) {
+//                Log::error('Failed to decrypt reply content', ['reply_id' => $reply->id, 'error' => $e->getMessage()]);
+//                $reply->content = '[Encrypted content could not be decrypted]';
+//            }
+//        });
 
         return response()->json([
             'replies' => $replies,
