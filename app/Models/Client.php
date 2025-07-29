@@ -16,6 +16,7 @@ class Client extends Model
         'phone',
         'address',
         'notes',
+        'timezone',
     ];
 
     protected $hidden = [

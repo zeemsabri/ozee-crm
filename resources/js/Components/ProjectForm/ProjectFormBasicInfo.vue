@@ -7,6 +7,8 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue'; // Import SelectDropdown
 import TagInput from '@/Components/TagInput.vue'; // Import TagInput
 import { success } from '@/Utils/notification'; // Assuming notification is globally available or passed down
+import TimezoneSelect from "@/Components/TimezoneSelect.vue";
+import ProjectTypeInput from "@/Components/ProjectTypeInput.vue";
 
 const props = defineProps({
     projectForm: {
@@ -27,6 +29,7 @@ const props = defineProps({
             source: '',
             tags: [], // Initialize tags as an empty array of IDs
             tags_data: [], // Initialize tags_data as empty array of objects for TagInput
+            timezone: null
         })
     },
     errors: {
@@ -38,10 +41,6 @@ const props = defineProps({
         required: true
     },
     sourceOptions: {
-        type: Array,
-        required: true
-    },
-    projectTypeOptions: { // New prop for project types
         type: Array,
         required: true
     },
@@ -101,6 +100,7 @@ const submitBasicInfo = async () => {
         source: localProjectForm.value.source,
         google_drive_link: localProjectForm.value.google_drive_link,
         tags: localProjectForm.value.tags, // Include tags (array of IDs)
+        timezone: localProjectForm.value.timezone
     };
 
     const currentLogo = localProjectForm.value.logo;
@@ -194,17 +194,7 @@ const handleLogoChange = (event) => {
             <InputError :message="errors.preferred_keywords ? errors.preferred_keywords[0] : ''" class="mt-2" />
         </div>
 
-        <!-- Tags Input Field -->
-        <div class="mb-4">
-            <TagInput
-                v-model="localProjectForm.tags"
-                :initialTags="localProjectForm.tags_data"
-                label="Associated Tags"
-                placeholder="Search or add tags"
-                :error="errors.tags ? errors.tags[0] : ''"
-                :disabled="!canManageProjects"
-            />
-        </div>
+
 
         <div class="mb-4" v-if="localProjectForm.id && canManageProjectBasicDetails">
             <InputLabel for="logo" value="Project Logo" />
@@ -265,14 +255,9 @@ const handleLogoChange = (event) => {
 
         <!-- Project Type Dropdown -->
         <div class="mb-4">
-            <InputLabel for="project_type" value="Project Type" />
-            <SelectDropdown
+            <ProjectTypeInput
                 id="project_type"
                 v-model="localProjectForm.project_type"
-                :options="projectTypeOptions"
-                valueKey="value"
-                labelKey="label"
-                placeholder="Select Project Type"
                 :disabled="!canManageProjects"
                 class="mt-1 block w-full"
             />
@@ -292,6 +277,28 @@ const handleLogoChange = (event) => {
                 class="mt-1 block w-full"
             />
             <InputError :message="errors.source ? errors.source[0] : ''" class="mt-2" />
+        </div>
+
+        <div class="mb-4">
+            <TimezoneSelect
+                id="source"
+                v-model="localProjectForm.timezone"
+                :disabled="!canManageProjects"
+                class="mt-1 block w-full"
+            />
+            <InputError :message="errors.source ? errors.source[0] : ''" class="mt-2" />
+        </div>
+
+        <!-- Tags Input Field -->
+        <div class="mb-4">
+            <TagInput
+                v-model="localProjectForm.tags"
+                :initialTags="localProjectForm.tags_data"
+                label="Associated Tags"
+                placeholder="Search or add tags"
+                :error="errors.tags ? errors.tags[0] : ''"
+                :disabled="!canManageProjects"
+            />
         </div>
 
         <div class="mt-6 flex justify-end">

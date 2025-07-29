@@ -58,8 +58,7 @@ const fetchClients = async (canCreateClientsPermission, projectId) => {
             clients.value = response.data.data || response.data; // Adjust based on API response structure
         } else {
             // Fallback for new projects without specific client access (empty list or limited access)
-            response = await window.axios.get('/api/clients');
-            clients.value = response.data.data || response.data; // Default to all clients if no specific endpoint
+            clients.value = []; // Default to all clients if no specific endpoint
         }
         return clients.value;
     } catch (err) {

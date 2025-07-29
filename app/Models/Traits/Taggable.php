@@ -3,7 +3,7 @@
 namespace App\Models\Traits;
 
 use App\Models\Tag;
-use Illuminate\Support\Str;
+use Illuminate\Support\Str; // While Str::slug won't be used for existing tags, it's good practice to keep if other methods in trait might need it.
 
 trait Taggable
 {
@@ -20,34 +20,17 @@ trait Taggable
     /**
      * Sync tags for this model.
      *
-     * @param array|string $tags
+     * This method now expects an array of tag IDs (integers).
+     * The processing of new tags from names to IDs should be handled
+     * by a middleware (e.g., ProcessTags) before this method is called.
+     *
+     * @param array $tagIds - An array of integer tag IDs to sync.
      * @return void
      */
-    public function syncTags($tags)
+    public function syncTags(array $tagIds)
     {
-        // If tags is a string, convert it to an array
-        if (is_string($tags)) {
-            $tags = array_map('trim', explode(',', $tags));
-        }
-
-        // Array to store tag IDs
-        $tagIds = [];
-
-        // Process each tag
-        foreach ($tags as $tagName) {
-            if (!empty($tagName)) {
-                // Find or create the tag
-                $tag = Tag::firstOrCreate(
-                    ['name' => $tagName],
-                    ['slug' => Str::slug($tagName)]
-                );
-
-                // Add the tag ID to our array
-                $tagIds[] = $tag->id;
-            }
-        }
-
-        // Sync the tags with the model
+        // Directly sync the tags with the model using the provided array of IDs.
+        // The middleware has already ensured these are valid integer IDs.
         $this->tags()->sync($tagIds);
     }
 }

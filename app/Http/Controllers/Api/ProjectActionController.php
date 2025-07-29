@@ -790,7 +790,11 @@ class ProjectActionController extends Controller
                 'status' => 'sometimes|required|in:active,completed,on_hold,archived',
                 'source' => 'nullable|string|max:255',
                 'google_drive_link' => 'nullable|url', // Keep this validation
+                'project_type'  =>  'required|string|max:30',
+                'timezone'  =>  'nullable|string|max:30'
             ];
+
+            $project->syncTags($request->tags ?? []);
 
             $validated = $request->validate($validationRules);
 
@@ -803,6 +807,8 @@ class ProjectActionController extends Controller
                 'status' => $validated['status'] ?? $project->status,
                 'source' => $validated['source'] ?? $project->source,
                 'google_drive_link' => $validated['google_drive_link'] ?? $project->google_drive_link,
+                'project_type'  =>  $validated['project_type'] ?? 'Unknown',
+                'timezone'  =>  $validated['timezone'] ?? null
             ];
 
             // --- NEW LOGIC FOR GOOGLE DRIVE FOLDER ID ---

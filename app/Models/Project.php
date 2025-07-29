@@ -32,6 +32,7 @@ class Project extends Model
         'logo',
         'logo_google_drive_file_id',
         'documents',
+        'timezone',
     ];
 
     protected $casts = [

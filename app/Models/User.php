@@ -23,6 +23,7 @@ class User extends Authenticatable
         'google_refresh_token',
         'google_expires_in',
         'role_id', // Foreign key to roles table
+        'timezone',
     ];
 
     /**

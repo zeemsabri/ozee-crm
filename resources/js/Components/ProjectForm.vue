@@ -125,6 +125,9 @@ const projectForm = reactive({
     payment_type: 'one_off', // Handled by ServicesAndPaymentForm component
     user_ids: [], // Will be handled by ProjectFormClientsUsers
     notes: [], // Will be handled by ProjectFormNotes
+    tags: [],
+    tags_data: [],
+    timezone: null
 });
 
 const errors = ref({}); // Centralized error messages
@@ -182,7 +185,10 @@ const switchTab = async (tabName) => {
                         project_type: data.project_type || '',
                         source: data.source || '',
                         google_drive_link: data.google_drive_link || '',
-                        logo: data.logo || null, // <--- ADDED THIS LINE
+                        logo: data.logo || null, //
+                        tags: data.tags_data || [],
+                        tags_data: data.tags_data || [],
+                        timezone: data.timezone || null
                     });
                 } else if (tabName === 'client') {
                     // Update client_ids and user_ids arrays for MultiSelectWithRoles
@@ -257,6 +263,7 @@ watch([() => props.show, () => props.project.id], async ([newShow, newProjectId]
             payment_type: props.project.payment_type || 'one_off',
             user_ids: [],
             notes: [],
+            timezone: props.project.timezone || null
         });
 
         // If switching from an existing project to a new (empty) one,

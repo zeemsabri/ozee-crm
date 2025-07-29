@@ -278,14 +278,14 @@ onMounted(() => {
                         :key="item[itemValue]"
                         :value="item[itemValue]"
                     >
-                        {{ item[itemText] }} ({{ item[itemSubtext] }})
+                        {{ item[itemText] }}  ({{ item[itemSubtext] }})
                     </option>
                 </select>
             </div>
 
             <div v-for="itemId in selectedIds" :key="itemId" class="flex items-center mb-1 p-2 border rounded">
                 <div class="flex-grow">
-                    {{ findItem(itemId)?.[itemText] }} ({{ findItem(itemId)?.[itemSubtext] }})
+                    {{ findItem(itemId)?.[itemText] }} {{ findItem(itemId)?.[itemSubtext] }}
                 </div>
                 <select
                     class="ms-2 border-gray-300 rounded-md"

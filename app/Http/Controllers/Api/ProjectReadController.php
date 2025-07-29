@@ -205,7 +205,11 @@ class ProjectReadController extends Controller
             'project_type' => $project->project_type,
             'source' => $project->source,
             'google_drive_link' => $project->google_drive_link,
-            'logo'  => Storage::url($project->logo)
+            'logo'  => Storage::url($project->logo),
+            'tags_data'  =>  $project->tags->map(function($tag) {
+                return ['id' => $tag->id, 'name' => $tag->name];
+            })->values()->all(),
+            'timezone'  =>  $project->timezone
         ]);
     }
 
