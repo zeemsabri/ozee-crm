@@ -1,25 +1,22 @@
 <script setup>
-import { reactive, watch, computed, ref } from 'vue';
+import {reactive, watch, computed, ref} from 'vue';
 import BaseFormModal from '@/Components/BaseFormModal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import EmailEditor from '@/Components/EmailEditor.vue';
 import InputError from '@/Components/InputError.vue';
-import OZeeMultiSelect from '@/Components/CustomMultiSelect.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import Modal from '@/Components/Modal.vue';
-import SelectDropdown from '@/Components/SelectDropdown.vue';
 
-import { useEmailSignature } from '@/Composables/useEmailSignature'; // Re-import useEmailSignature
-import { useEmailTemplate } from '@/Composables/useEmailTemplate';
+import { useEmailTemplate } from '@/Composables/useEmailTemplate'; // Keep for editing
 
 const props = defineProps({
     show: {
         type: Boolean,
         default: false,
     },
-    title: {
+    title: { // This title will now only be 'Edit and Approve Email' or 'Reject Email'
         type: String,
         required: true,
     },
@@ -43,21 +40,17 @@ const props = defineProps({
         type: String,
         default: 'Operation successful!',
     },
-    projectClients: {
-        type: Array,
-        default: () => [],
-    },
-    userProjectRole: { // This prop is still needed for useEmailSignature
-        type: Object,
-        required: true
-    },
-    emailId: {
+    emailId: { // Still needed for specific email actions
         type: Number,
         required: false
+    },
+    projectId: { // Still needed if actions require project context
+        type: Number,
+        required: true
     }
 });
 
-const emit = defineEmits(['close', 'submitted', 'error']);
+const emit = defineEmits(['close', 'submitted', 'error', 'fetchEmails']); // Added fetchEmails
 
 // Create a local reactive copy of formData to be mutated by the form inputs
 const localFormData = reactive({});
@@ -74,21 +67,13 @@ const listItemsInput = ref(''); // Raw text input for list items
 const listType = ref('bullet'); // 'bullet' or 'numbered'
 const listError = ref('');
 
-// State for greeting customization
-const greetingType = ref('full_name'); // 'full_name', 'first_name', 'last_name', 'custom'
-const customGreetingName = ref('');
+// Ref to hold the content directly from the EmailEditor (what the user types)
+// This is the raw HTML fragment that will be processed by useEmailTemplate
+const editorBodyContent = computed(() => localFormData.body || '');
 
-const greetingTypeOptions = ref([
-    { value: 'full_name', label: 'Full Name' },
-    { value: 'first_name', label: 'First Name' },
-    { value: 'last_name', label: 'Last Name' },
-    { value: 'custom', label: 'Custom' },
-]);
-
-
-// Use the useEmailSignature composable to get the user's signature HTML
-// This is now used for display purposes only within the modal
-const { userSignature } = useEmailSignature(computed(() => props.userProjectRole));
+// Use the useEmailTemplate composable to get the processed HTML fragment
+// Pass only the editorBodyContent.
+const { processedHtmlBody } = useEmailTemplate(editorBodyContent);
 
 
 // Watch for changes in initialFormData prop to update localFormData
@@ -98,77 +83,21 @@ watch(() => props.show, (newValue) => {
         for (const key in localFormData) {
             delete localFormData[key];
         }
-
-        // Deep copy initialFormData. No need to strip greeting/signature anymore.
-        // The body content will be exactly what was saved in the database.
+        // Deep copy initialFormData.
         Object.assign(localFormData, JSON.parse(JSON.stringify(props.initialFormData)));
-
-        // Reset greeting options when modal opens/data changes
-        greetingType.value = 'full_name';
-        customGreetingName.value = '';
     }
-}, { immediate: true }); // Immediate to set initial value on first load
-
-
-// Computed ref for subject from localFormData
-const emailSubject = computed(() => localFormData.subject || '');
-
-// Ref to hold the content directly from the EmailEditor (what the user types)
-// This is the raw HTML fragment that will be processed by useEmailTemplate
-const editorBodyContent = computed(() => localFormData.body || '');
-
-// Use the useEmailTemplate composable to get the processed HTML fragment
-// Pass only the editorBodyContent
-const { processedHtmlBody } = useEmailTemplate(editorBodyContent);
-
-
-// Computed property for the dynamic greeting (for display in editor only)
-const greetingText = computed(() => {
-    if (localFormData.client_ids && localFormData.client_ids.length > 0) {
-        const firstClientId = localFormData.client_ids[0];
-        const firstClient = props.projectClients.find(client => client.id === firstClientId);
-
-        if (firstClient) {
-            const nameParts = firstClient.name.split(' ').filter(part => part.length > 0);
-            const firstName = nameParts.length > 0 ? nameParts[0] : '';
-            const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
-
-            switch (greetingType.value) {
-                case 'full_name':
-                    return `Hi ${firstClient.name},`;
-                case 'first_name':
-                    return `Hi ${firstName},`;
-                case 'last_name':
-                    return `Hi ${lastName},`;
-                case 'custom':
-                    return `Hi ${customGreetingName.value.trim() || 'there'},`;
-                default:
-                    return `Hi ${firstClient.name},`;
-            }
-        }
-    }
-    return 'Hi there,'; // Default greeting if no client is selected or found
-});
+}, { immediate: true });
 
 
 // Custom data formatting for BaseFormModal
 const formatDataForApi = (data) => {
     const formattedData = { ...data };
 
-    // Specifically for client_ids in compose, ensure it's an array of { id: value }
-    if (formattedData.client_ids && Array.isArray(formattedData.client_ids) && props.title === 'Compose New Email') {
-        formattedData.client_ids = formattedData.client_ids.map(id => ({ id }));
-    }
-
     // The body sent to API is now just the processed HTML fragment from useEmailTemplate
-    formattedData.body = processedHtmlBody.value;
-
-    // Also send selected greeting type and custom name for backend templating
-    formattedData.greeting_name = greetingText.value;
-    formattedData.custom_greeting_name = customGreetingName.value.trim();
-    // Send the ID of the first client for greeting purposes on backend
-    formattedData.first_client_id = localFormData.client_ids && localFormData.client_ids.length > 0 ? localFormData.client_ids[0] : null;
-
+    // Only apply this for 'Edit and Approve' action where body is present
+    if (props.title === 'Edit and Approve Email') {
+        formattedData.body = processedHtmlBody.value;
+    }
 
     return formattedData;
 };
@@ -198,19 +127,20 @@ const insertLinkIntoEditor = () => {
         linkError.value = 'Link text cannot be empty.';
         return;
     }
-    if (!linkUrl.value.trim()) {
-        linkUrl.value = 'http://' + linkUrl.value.trim(); // Default to http if no protocol
+    let urlToInsert = linkUrl.value.trim();
+    if (!urlToInsert.startsWith('http://') && !urlToInsert.startsWith('https://')) {
+        urlToInsert = 'http://' + urlToInsert; // Default to http if no protocol
     }
 
     // Basic URL validation
     try {
-        new URL(linkUrl.value);
+        new URL(urlToInsert);
     } catch (e) {
         linkError.value = 'Please enter a valid URL (e.g., https://example.com or www.example.com).';
         return;
     }
 
-    const formattedLink = `[${linkText.value.trim()}] {${linkUrl.value.trim()}}`;
+    const formattedLink = `[${linkText.value.trim()}] {${urlToInsert}}`;
 
     // Append the formatted link to the current body content
     localFormData.body += formattedLink;
@@ -253,8 +183,12 @@ const insertListIntoEditor = () => {
     listError.value = '';
 };
 
+const emailError = ref({});
+const saving = ref(false);
+
 const saveEmail = async () => {
 
+    saving.value = true;
     try {
         await window.axios.post(`/api/emails/${props.emailId}/update`, {
             subject: localFormData.subject,
@@ -267,9 +201,13 @@ const saveEmail = async () => {
         } else {
             console.log('Email approved successfully!');
         }
-        await fetchProjectEmails();
-        showEmailDetailsModal.value = false;
+
+        saving.value = false;
+
     } catch (error) {
+
+        saving.value = false;
+
         if (error.response && error.response.data.message) {
             emailError.value = error.response.data.message;
         } else {
@@ -283,9 +221,44 @@ const saveEmail = async () => {
     }
 };
 
+const saveEmailAndApprove = async () => {
+    try {
+        // This is a direct API call for "Edit & Approve" specifically
+        // It bypasses BaseFormModal's internal submission
+        const response = await window.axios.post(`/api/emails/${props.emailId}/edit-and-approve`, {
+            subject: localFormData.subject,
+            body: processedHtmlBody.value // Use the processed body for saving
+        });
+
+        // Use a simple notification here since it's not a form submission via BaseFormModal
+        // Assuming 'success' utility is available globally or imported
+        if (typeof success === 'function') { // Check if 'success' is a defined global function
+            success('Email updated and approved successfully!');
+        } else {
+            alert('Email updated and approved successfully!'); // Fallback alert
+        }
+        emit('submitted', response.data); // Emit submitted event for parent to refresh
+        handleClose(); // Close the modal
+    } catch (error) {
+        let errorMessage = 'Failed to approve email.';
+        if (error.response && error.response.data.message) {
+            errorMessage = error.response.data.message;
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        // Assuming 'error' utility is available globally or imported
+        if (typeof errorGlobal === 'function') { // Check for global 'error' function
+            errorGlobal(errorMessage);
+        } else {
+            console.error('Error approving email directly:', error);
+            alert(errorMessage); // Fallback alert
+        }
+        emit('error', error);
+    }
+};
+
 // New function to preview email
 const previewEmail = () => {
-
     if (props.emailId) {
         // Construct the URL using a base path or a named route if you have one on the frontend
         const previewUrl = `/emails/${props.emailId}/preview`; // Adjust if your base URL is different
@@ -296,7 +269,6 @@ const previewEmail = () => {
         // Optionally show an alert or notification to the user
     }
 };
-
 </script>
 
 <template>
@@ -315,73 +287,7 @@ const previewEmail = () => {
         max-width="3xl"
     >
         <template #default="{ errors }">
-            <!-- Content for Compose Email -->
-            <div v-if="title === 'Compose New Email'">
-                <div class="mb-4">
-                    <InputLabel for="client_ids" value="To (Clients)" />
-                    <OZeeMultiSelect
-                        v-model="localFormData.client_ids"
-                        :options="projectClients"
-                        placeholder="Select one or more clients"
-                        label-key="name"
-                        value-key="id"
-                    />
-                    <InputError :message="errors.client_ids ? errors.client_ids[0] : ''" class="mt-2" />
-                </div>
-
-                <div class="mb-4">
-                    <InputLabel for="subject" value="Subject" />
-                    <TextInput id="subject" type="text" class="mt-1 block w-full" v-model="localFormData.subject" required />
-                    <InputError :message="errors.subject ? errors.subject[0] : ''" class="mt-2" />
-                </div>
-
-                <div class="mb-6">
-                    <!-- Buttons above the editor -->
-                    <div class="mb-2 flex justify-end space-x-2">
-                        <SecondaryButton type="button" @click="openInsertListModal">
-                            Insert List
-                        </SecondaryButton>
-                        <SecondaryButton type="button" @click="openInsertLinkModal">
-                            Insert Link
-                        </SecondaryButton>
-                    </div>
-
-                    <!-- Greeting Customization -->
-                    <div class="mb-4">
-                        <InputLabel for="greeting_type" value="Address Client By" />
-                        <SelectDropdown
-                            id="greeting_type"
-                            v-model="greetingType"
-                            :options="greetingTypeOptions"
-                            value-key="value"
-                            label-key="label"
-                            class="mt-1 block w-full"
-                        />
-                        <div v-if="greetingType === 'custom'" class="mt-2">
-                            <InputLabel for="custom_greeting_name" value="Custom Name" />
-                            <TextInput
-                                id="custom_greeting_name"
-                                type="text"
-                                class="mt-1 block w-full"
-                                v-model="customGreetingName"
-                                placeholder="e.g., Azaan"
-                            />
-                        </div>
-                    </div>
-
-                    <!-- Dynamic Greeting Display -->
-                    <p class="text-gray-700 text-base mb-2">{{ greetingText }}</p>
-
-                    <InputLabel for="body" value="Email Body" class="sr-only" />
-                    <EmailEditor id="body" v-model="localFormData.body" placeholder="Compose your email here..." height="300px" />
-                    <InputError :message="errors.body ? errors.body[0] : ''" class="mt-2" />
-                </div>
-                <!-- Display non-editable signature below the editor -->
-                <div v-if="userSignature" class="unselectable-signature" v-html="userSignature"></div>
-            </div>
-
-            <!-- Content for Edit and Approve Email -->
-            <div v-else-if="title === 'Edit and Approve Email'">
+            <div v-if="title === 'Edit and Approve Email'">
                 <div class="mb-4">
                     <InputLabel for="edit_subject" value="Subject" />
                     <TextInput id="edit_subject" type="text" class="mt-1 block w-full" v-model="localFormData.subject" required />
@@ -389,7 +295,6 @@ const previewEmail = () => {
                 </div>
 
                 <div class="mb-6">
-                    <!-- Buttons above the editor -->
                     <div class="mb-2 flex justify-end space-x-2">
                         <SecondaryButton type="button" @click="openInsertListModal">
                             Insert List
@@ -403,22 +308,17 @@ const previewEmail = () => {
                     <EmailEditor id="edit_body" v-model="localFormData.body" placeholder="Edit your email here..." height="300px" />
                     <InputError :message="errors.body ? errors.body[0] : ''" class="mt-2" />
                 </div>
-                <!-- Display non-editable signature below the editor -->
-<!--                <div v-if="userSignature" class="unselectable-signature" v-html="userSignature"></div>-->
 
-                <!-- Preview Button for Edit and Approve -->
                 <div class="mb-2 flex justify-end space-x-2">
-                    <PrimaryButton type="button" @click="saveEmail">
-                        Save
+                    <PrimaryButton type="button" :disabled="saving" @click="saveEmail">
+                        {{ saving ? 'Saving...' : 'Save' }}
                     </PrimaryButton>
                     <SecondaryButton type="button" @click="previewEmail">
                         Preview Email
                     </SecondaryButton>
-
                 </div>
             </div>
 
-            <!-- Content for Reject Email -->
             <div v-else-if="title === 'Reject Email'">
                 <div class="mb-6">
                     <InputLabel for="rejection_reason" value="Rejection Reason" />
@@ -429,7 +329,6 @@ const previewEmail = () => {
         </template>
     </BaseFormModal>
 
-    <!-- Insert Link Modal -->
     <Modal :show="showInsertLinkModal" @close="showInsertLinkModal = false" max-width="md">
         <div class="p-6">
             <h3 class="text-lg font-medium text-gray-900 mb-4">Insert Link</h3>
@@ -451,7 +350,6 @@ const previewEmail = () => {
         </div>
     </Modal>
 
-    <!-- Insert List Modal -->
     <Modal :show="showInsertListModal" @close="showInsertListModal = false" max-width="md">
         <div class="p-6">
             <h3 class="text-lg font-medium text-gray-900 mb-4">Insert List</h3>
@@ -478,23 +376,21 @@ const previewEmail = () => {
 </template>
 
 <style scoped>
-/* Custom style to attempt to make signature non-selectable/non-editable */
-.unselectable-signature {
-    user-select: none; /* Standard property */
-    -webkit-user-select: none; /* Safari */
-    -moz-user-select: none; /* Firefox */
-    -ms-user-select: none; /* IE/Edge */
-    pointer-events: none; /* Prevent clicks/interactions within the div */
-    margin-top: 30px;
-    padding-top: 20px;
-    border-top: 1px solid #e5e7eb;
-    font-size: 0.875rem;
-    color: #6b7280;
+/* No specific Multiselect styles needed anymore as it's custom. */
+/* You can remove these if this is the only place vue-multiselect was used. */
+.multiselect {
+    min-height: 38px;
 }
-
-/* Ensure links within unselectable signature are still clickable */
-.unselectable-signature a {
-    pointer-events: auto;
-    cursor: pointer;
+.multiselect__tags {
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+}
+.multiselect__tag {
+    background: #e5e7eb;
+    color: #374151;
+}
+.multiselect__tag-icon:after {
+    color: #6b7280;
 }
 </style>

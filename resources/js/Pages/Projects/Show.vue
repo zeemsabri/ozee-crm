@@ -24,6 +24,9 @@ import ProjectTeamCard from '@/Components/ProjectOverviewCards/ProjectTeamCard.v
 import UserFinancialsCard from '@/Components/ProjectOverviewCards/UserFinancialCard.vue'; // New
 import UserTransactionsModal from '@/Components/ProjectFinancials/UserTransactionsModal.vue'; // New
 
+// NEW: Import the standalone ComposeEmailModal
+import ComposeEmailModal from '@/Components/ProjectsEmails/ComponseEmailModal.vue'; // Adjust path if necessary
+
 // Currency utilities and SelectDropdown
 import SelectDropdown from '@/Components/SelectDropdown.vue'; // For currency switcher
 import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency'; // Import displayCurrency
@@ -58,7 +61,11 @@ const showStandupModal = ref(false);
 const showAddNoteModal = ref(false);
 const showMagicLinkModal = ref(false);
 const showUserTransactionsModal = ref(false); // New state for user transactions modal
-const emailableClients = ref([]);
+// Removed emailableClients as it's now fetched within ComposeEmailModal
+
+// NEW: State for the standalone ComposeEmailModal
+const showComposeEmailModal = ref(false);
+
 
 const statusOptions = [
     { value: 'active', label: 'Active' },
@@ -122,17 +129,18 @@ const currencyOptions = [
     { value: 'GBP', label: 'GBP' },
 ];
 
-// Computed properties for limited data display on main page (Overview tab)
-const tasksDueToday = computed(() => {
-    if (!project.value.tasks) return [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return project.value.tasks.filter(task => {
-        if (!task.due_date) return false;
-        const taskDueDate = new Date(task.due_date);
-        return taskDueDate.toDateString() === today.toDateString();
-    });
-});
+// State for due and overdue tasks
+const tasksDueToday = ref([]);
+
+// Function to fetch due and overdue tasks for the project
+const fetchDueAndOverdueTasks = async () => {
+    try {
+        const response = await window.axios.get(`/api/projects/${projectId}/due-and-overdue-tasks`);
+        tasksDueToday.value = response.data;
+    } catch (error) {
+        console.error('Error fetching due and overdue tasks:', error);
+    }
+};
 
 const latestNotes = computed(() => {
     if (!project.value.notes) return [];
@@ -158,6 +166,9 @@ const fetchProjectData = async () => {
         const response = await window.axios.get(`/api/projects/${projectId}`); // This hits the show method
         project.value = response.data;
         console.log('Full project data received (Show.vue main fetch):', project.value);
+
+        // Fetch due and overdue tasks after project data is loaded
+        await fetchDueAndOverdueTasks();
 
     } catch (error) {
         generalError.value = 'Failed to load project data.';
@@ -209,34 +220,21 @@ const handleViewUserTransactions = () => {
     showUserTransactionsModal.value = true;
 };
 
-const openCompose = ref(false);
-
+// This function now directly opens the new standalone ComposeEmailModal
 const handleComposeEmailAction = () => {
-    selectedTab.value = 'emails';
-    openCompose.value = true;
+    showComposeEmailModal.value = true;
+    selectedTab.value = 'emails'; // Optionally switch to emails tab when composing
 }
 
-const fetchClients = async () => {
-    loading.value = true;
-    // error.value = null;
-    if (!canViewClientContacts) {
-        error.value = "You don't have permission to view project clients.";
-        loading.value = false;
-        return;
-    }
-
-    try {
-        const response = await window.axios.get(`/api/projects/${projectId}/sections/clients?type=clients`);
-        emailableClients.value = response.data;
-    } catch (e) {
-        console.error('Failed to fetch project clients:', e);
-        error.value = e.response?.data?.message || 'Failed to load client data.';
-    } finally {
-        loading.value = false;
-    }
+// Handler for when ComposeEmailModal is submitted/closed
+const handleComposeEmailSubmitted = async () => {
+    showComposeEmailModal.value = false;
+    await fetchProjectData(); // Refresh all project data including emails
 };
 
-
+const handleComposeEmailClose = () => {
+    showComposeEmailModal.value = false;
+};
 
 onMounted(async () => {
     console.log('Show.vue mounted, fetching initial data...');
@@ -248,13 +246,12 @@ onMounted(async () => {
         console.error(`Error fetching permissions for project ${projectId}:`, error);
     }
 
-    await fetchClients();
+    // No longer need to fetch clients explicitly here for ComposeEmailModal as it fetches its own
+    // await fetchClients();
     // Fetch currency rates globally once
     await fetchCurrencyRates();
-    // Then fetch the main project data
+    // Then fetch the main project data (which will also fetch due and overdue tasks)
     await fetchProjectData();
-
-
 });
 
 
@@ -265,7 +262,6 @@ onMounted(async () => {
 
     <AuthenticatedLayout>
         <div class="py-8 max-w-full mx-auto px-4 sm:px-6 lg:px-8">
-            <!-- Loading and Error States -->
             <div v-if="loading" class="text-center text-gray-600 text-lg animate-pulse">
                 Loading project details...
             </div>
@@ -273,7 +269,6 @@ onMounted(async () => {
                 {{ generalError }}
             </div>
             <div v-else class="space-y-8">
-                <!-- General Information Card -->
                 <ProjectGeneralInfoCard
                     :project="project"
                     :project-id="projectId"
@@ -287,14 +282,11 @@ onMounted(async () => {
                     @open-compose-modal="handleComposeEmailAction"
                 />
 
-                <!-- Upcoming Meetings Section -->
                 <ProjectMeetingsList :project-id="projectId" ref="meetingsListComponent" />
 
-                <!-- Project Stats Section -->
                 <ProjectStatsCards :tasks="project.tasks || []" :emails="project.emails || []" />
 
 
-                <!-- Currency Switcher -->
                 <div class="flex justify-end items-center mb-5">
                     <SelectDropdown
                         id="display-currency-switcher"
@@ -307,7 +299,6 @@ onMounted(async () => {
                     />
                 </div>
 
-                <!-- Project Financials Card -->
                 <ProjectFinancialsCard
                     v-if="canViewProjectServicesAndPayments && canViewProjectTransactions"
                     :project-id="projectId"
@@ -315,32 +306,25 @@ onMounted(async () => {
                     :can-view-project-transactions="canViewProjectTransactions"
                 />
 
-                <!-- Project Financials, Clients, Users, Current User Earning -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
 
-                    <!-- Project Clients Card -->
                     <ProjectClientsCard
                         v-if="canViewClientContacts"
                         :project-id="projectId"
                         :can-view-client-contacts="canViewClientContacts"
                     />
 
-                    <!-- Project Team Card -->
                     <ProjectTeamCard
                         :project-id="projectId"
                         :can-view-users="true"
                     />
 
-                    <!-- Your Financials Card -->
                     <UserFinancialsCard
                         :project-id="projectId"
                         @viewUserTransactions="handleViewUserTransactions"
                     />
                 </div>
-                <!-- END NEW SECTION -->
-
-                <!-- Tab Navigation -->
                 <ProjectTabsNavigation
                     v-model:selectedTab="selectedTab"
                     :can-view-emails="canViewEmails"
@@ -348,10 +332,9 @@ onMounted(async () => {
                 />
 
                 <div v-if="selectedTab === null">
-                    <!-- Tasks Due Today Section (Overview) -->
                     <div v-if="tasksDueToday.length > 0" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
                         <div class="flex justify-between items-center mb-4">
-                            <h4 class="text-lg font-semibold text-gray-900">Tasks Due Today</h4>
+                            <h4 class="text-lg font-semibold text-gray-900">Due & Overdue Tasks</h4>
                             <button @click="selectedTab = 'tasks'" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
                                 View All Tasks →
                             </button>
@@ -368,7 +351,7 @@ onMounted(async () => {
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                 <tr v-for="task in tasksDueToday" :key="task.id" class="hover:bg-gray-50 transition-colors">
-                                    <td class="px-4 py-3 text-sm text-gray-900">{{ task.title }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-900">{{ task.name }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">
                                         <span :class="{
                                             'px-2 py-1 rounded-full text-xs font-medium': true,
@@ -381,9 +364,8 @@ onMounted(async () => {
                                             {{ task.status }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-gray-700">{{ task.assigned_to }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ task.assigned_to?.name }}</td>
                                     <td class="px-4 py-3 text-right">
-                                        <!-- Actions handled by ProjectTasksTab. Assuming view/edit is common -->
                                         <button @click="selectedTab = 'tasks'" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
                                             View/Edit
                                         </button>
@@ -395,15 +377,14 @@ onMounted(async () => {
                     </div>
                     <div v-else class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
                         <div class="flex justify-between items-center mb-4">
-                            <h4 class="text-lg font-semibold text-gray-900">Tasks Due Today</h4>
+                            <h4 class="text-lg font-semibold text-gray-900">Due & Overdue Tasks</h4>
                             <button @click="selectedTab = 'tasks'" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
                                 View All Tasks →
                             </button>
                         </div>
-                        <p class="text-gray-400 text-sm">No tasks due today.</p>
+                        <p class="text-gray-400 text-sm">No due or overdue tasks.</p>
                     </div>
 
-                    <!-- Latest Emails Section (Overview) -->
                     <div v-if="canViewEmails" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
                         <div class="flex justify-between items-center mb-4">
                             <h4 class="text-lg font-semibold text-gray-900">Latest Emails</h4>
@@ -438,7 +419,6 @@ onMounted(async () => {
                         </div>
                     </div>
 
-                    <!-- Latest Notes Section (Overview) -->
                     <div v-if="canViewNotes" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
                         <div class="flex justify-between items-center mb-4">
                             <h4 class="text-lg font-semibold text-gray-900">Latest Notes</h4>
@@ -482,7 +462,6 @@ onMounted(async () => {
                     </div>
                 </div>
 
-                <!-- Tab Content -->
                 <ProjectTasksTab
                     v-if="selectedTab === 'tasks'"
                     :project-id="projectId"
@@ -494,14 +473,13 @@ onMounted(async () => {
                 <ProjectEmailsTab
                     v-if="selectedTab === 'emails'"
                     :project-id="projectId"
-                    :project-clients="emailableClients || []"
                     :can-view-emails="canViewEmails"
                     :can-compose-emails="canComposeEmails"
                     :can-approve-emails="canApproveEmails"
                     :user-project-role="userProjectRole"
-                    :open-compose="openCompose"
+                    :open-compose="showComposeEmailModal"
                     @emailsUpdated="handleEmailsUpdated"
-                    @resetOpenCompose="openCompose.value = false"
+                    @resetOpenCompose="showComposeEmailModal = false"
                 />
 
                 <DailyStandups
@@ -523,7 +501,6 @@ onMounted(async () => {
             </div>
         </div>
 
-        <!-- Modals that apply broadly or are less section-specific -->
         <Modal :show="showEditModal" @close="showEditModal = false">
             <ProjectForm
                 :show="showEditModal"
@@ -564,12 +541,20 @@ onMounted(async () => {
             @close="showMagicLinkModal = false"
         />
 
-        <!-- New User Transactions Modal -->
         <UserTransactionsModal
             :show="showUserTransactionsModal"
             :project-id="projectId"
             :project-name="project.name"
             @close="showUserTransactionsModal = false"
+        />
+
+        <ComposeEmailModal
+            :show="showComposeEmailModal"
+            :project-id="projectId"
+            :user-project-role="userProjectRole"
+            @close="handleComposeEmailClose"
+            @submitted="handleComposeEmailSubmitted"
+            @error="(err) => console.error('Error composing email:', err)"
         />
     </AuthenticatedLayout>
 </template>

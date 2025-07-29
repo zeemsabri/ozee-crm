@@ -15,6 +15,38 @@ use Illuminate\Support\Facades\Log;
 class TaskController extends Controller
 {
     /**
+     * Get today's due tasks and overdue tasks for a project.
+     *
+     * @param int $projectId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getProjectDueAndOverdueTasks($projectId)
+    {
+        // Get all milestones for the project
+        $milestoneIds = Milestone::where('project_id', $projectId)->pluck('id');
+
+        // Get today's date
+        $today = now()->startOfDay();
+
+        // Query tasks that are due today or overdue
+        $tasks = Task::with(['assignedTo', 'taskType', 'milestone'])
+            ->whereIn('milestone_id', $milestoneIds)
+            ->where(function($query) use ($today) {
+                // Tasks due today
+                $query->whereDate('due_date', $today)
+                // Or tasks that are overdue (due date is in the past and not completed)
+                ->orWhere(function($q) use ($today) {
+                    $q->whereDate('due_date', '<', $today)
+                      ->where('status', '!=', 'Done');
+                });
+            })
+            ->orderBy('due_date', 'asc')
+            ->get();
+
+        return response()->json($tasks);
+    }
+
+    /**
      * Get task statistics for dashboard
      *
      * @return \Illuminate\Http\JsonResponse

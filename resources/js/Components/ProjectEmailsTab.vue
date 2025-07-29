@@ -5,22 +5,30 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import Modal from '@/Components/Modal.vue'; // Keep for view-only modal
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
-import RichTextEditor from '@/Components/RichTextEditor.vue';
 import InputError from '@/Components/InputError.vue';
 import { usePermissions, useAuthUser } from '@/Directives/permissions'; // Import useAuthUser
 import EmailActionModal from './ProjectsEmails/EmailActionModal.vue';
-import { useEmailSignature } from '@/Composables/useEmailSignature';
-import { useEmailTemplate } from '@/Composables/useEmailTemplate';
+// No longer import useEmailSignature or useEmailTemplate here as they are now in ComposeEmailModal
+// import { useEmailSignature } from '@/Composables/useEmailSignature';
+// import { useEmailTemplate } from '@/Composables/useEmailTemplate';
+
+// NEW: Import the standalone ComposeEmailModal
+import ComposeEmailModal from './ProjectsEmails/ComponseEmailModal.vue';
 
 const props = defineProps({
     projectId: {
         type: Number,
         required: true,
     },
-    projectClients: { // Pass project.clients down
-        type: Array,
-        default: () => [],
-    },
+    // projectClients is no longer passed to ComposeEmailModal directly from here
+    // as ComposeEmailModal will fetch its own clients.
+    // However, ProjectEmailsTab itself still needs it for general context if any
+    // other part of its functionality depends on it (e.g., if you later add filtering by client).
+    // For now, removing it from here as it's primarily used by compose.
+    // projectClients: {
+    //     type: Array,
+    //     default: () => [],
+    // },
     canViewEmails: {
         type: Boolean,
         required: true,
@@ -33,11 +41,11 @@ const props = defineProps({
         type: Boolean,
         required: true,
     },
-    userProjectRole: {
+    userProjectRole: { // Keep as it's used for permissions
         type: Object,
         required: true
     },
-    openCompose : {
+    openCompose : { // This prop will now control the new ComposeEmailModal
         type: Boolean,
         required: false,
         default: false
@@ -53,7 +61,7 @@ const emailError = ref(''); // General error for fetching emails
 const selectedEmail = ref(null);
 const showEmailDetailsModal = ref(false); // For viewing email details
 
-// Reactive state for the dynamic EmailActionModal
+// Reactive state for the dynamic EmailActionModal (now only for Edit/Reject)
 const showActionModal = ref(false);
 const actionModalTitle = ref('');
 const actionModalApiEndpoint = ref('');
@@ -62,9 +70,11 @@ const actionModalSubmitButtonText = ref('');
 const actionModalSuccessMessage = ref('');
 const actionModalInitialData = reactive({});
 
-// Get authenticated user for signature
-const authUser = useAuthUser();
+// State for the new ComposeEmailModal
+const showComposeEmailModal = ref(false);
 
+// Get authenticated user (still needed for permissions, not for signature directly here)
+const authUser = useAuthUser();
 
 // Email filters
 const emailFilters = reactive({
@@ -125,25 +135,7 @@ const viewEmail = (email) => {
     showEmailDetailsModal.value = true;
 };
 
-// --- EmailActionModal related functions ---
-
-const openComposeEmailModal = () => {
-    actionModalTitle.value = 'Compose New Email';
-    actionModalApiEndpoint.value = '/api/emails';
-    actionModalHttpMethod.value = 'post';
-    actionModalSubmitButtonText.value = 'Submit for Approval';
-    actionModalSuccessMessage.value = 'Email submitted for approval successfully!';
-    // Initialize form data for composition, including the signature
-    Object.assign(actionModalInitialData, {
-        project_id: props.projectId,
-        client_ids: [],
-        subject: '',
-        body: '', // Add signature here
-        status: 'pending_approval',
-    });
-    showActionModal.value = true;
-};
-
+// --- EmailActionModal related functions (now only Edit/Reject) ---
 
 const openEditEmailModal = (email) => {
     selectedEmail.value = email; // Keep selected email for context
@@ -152,7 +144,7 @@ const openEditEmailModal = (email) => {
     actionModalHttpMethod.value = 'post';
     actionModalSubmitButtonText.value = 'Approve & Send';
     actionModalSuccessMessage.value = 'Email updated and approved successfully!';
-    // Initialize form data for editing, appending signature if not already present
+    // Initialize form data for editing
     let emailBody = email.body || '';
     Object.assign(actionModalInitialData, {
         subject: email.subject,
@@ -177,9 +169,7 @@ const openRejectEmailModal = (email) => {
     showEmailDetailsModal.value = false; // Close details modal
 };
 
-
-
-// Handle submission from EmailActionModal
+// Handle submission from EmailActionModal (Edit/Reject)
 const handleActionModalSubmitted = async (responseData) => {
     console.log('Form submitted successfully:', responseData);
     await fetchProjectEmails(); // Refresh email list
@@ -192,14 +182,26 @@ const handleActionModalClose = () => {
     // Any cleanup or state reset if needed when the modal closes
 };
 
+// Handler for the new ComposeEmailModal
+const handleComposeEmailModalClose = () => {
+    showComposeEmailModal.value = false;
+    emit('resetOpenCompose'); // Important to reset the parent's `openCompose` prop
+};
+
+const handleComposeEmailModalSubmitted = async (responseData) => {
+    console.log('Compose email submitted successfully:', responseData);
+    await fetchProjectEmails(); // Refresh email list
+    showComposeEmailModal.value = false; // Close the modal
+    emit('resetOpenCompose'); // Important to reset the parent's `openCompose` prop
+};
+
 watch(() => props.openCompose, (newValue) => {
     console.log('Watcher triggered: openCompose changed to', newValue);
     if (newValue) {
         console.log('Opening compose email modal');
-        openComposeEmailModal();
-        // Reset the openCompose value to false so the button can be clicked again
-        console.log('Emitting resetOpenCompose event');
-        emit('resetOpenCompose');
+        showComposeEmailModal.value = true; // Open the new compose modal
+        // The resetOpenCompose event is now emitted by handleComposeEmailModalClose/Submitted
+        // to ensure the parent's prop is reset after the modal has handled its lifecycle.
     }
 });
 
@@ -207,8 +209,9 @@ onMounted(() => {
     if (props.canViewEmails) {
         fetchProjectEmails();
     }
+    // Initial check for openCompose when component mounts
     if(props.openCompose) {
-        openComposeEmailModal();
+        showComposeEmailModal.value = true;
     }
 });
 
@@ -219,17 +222,15 @@ onMounted(() => {
         <div class="flex justify-between items-center mb-4">
             <h4 class="text-lg font-semibold text-gray-900">Email Communication</h4>
             <div v-if="canComposeEmails" class="flex gap-3">
-                <PrimaryButton class="bg-indigo-600 hover:bg-indigo-700 transition-colors" @click="openComposeEmailModal">
+                <PrimaryButton class="bg-indigo-600 hover:bg-indigo-700 transition-colors" @click="showComposeEmailModal = true">
                     Compose Email
                 </PrimaryButton>
             </div>
-            <!-- General email fetch error message -->
             <div v-if="emailError" class="mt-2 bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded relative" role="alert">
                 <span class="block sm:inline">{{ emailError }}</span>
             </div>
         </div>
 
-        <!-- Email Filters -->
         <div class="mb-4 bg-gray-50 p-4 rounded-lg">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
@@ -270,7 +271,6 @@ onMounted(() => {
             </div>
         </div>
 
-        <!-- Loading and Error States -->
         <div v-if="loadingEmails" class="text-center text-gray-600 text-sm animate-pulse py-4">
             Loading email data...
         </div>
@@ -311,6 +311,7 @@ onMounted(() => {
                                 'px-2 py-1 rounded-full text-xs font-medium': true,
                                 'bg-green-100 text-green-800': email.status === 'sent',
                                 'bg-yellow-100 text-yellow-800': email.status === 'pending_approval',
+                                'bg-blue-200 text-blue-900': email.status === 'pending_approval_received',
                                 'bg-red-100 text-red-800': email.status === 'rejected',
                                 'bg-gray-100 text-gray-800': email.status === 'draft'
                             }"
@@ -329,7 +330,6 @@ onMounted(() => {
         </div>
         <p v-else class="text-gray-400 text-sm">No email communication found.</p>
 
-        <!-- Email View Modal (Remains a standard Modal as it's for display only) -->
         <Modal :show="showEmailDetailsModal" @close="showEmailDetailsModal = false">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-4">
@@ -379,7 +379,7 @@ onMounted(() => {
                         <p v-if="selectedEmail.sent_at">Sent at: {{ new Date(selectedEmail.sent_at).toLocaleString() }}</p>
                     </div>
 
-                    <div v-if="selectedEmail.status === 'pending_approval' && canApproveEmails" class="mt-6 flex justify-end space-x-2">
+                    <div v-if="(selectedEmail.status === 'pending_approval' || selectedEmail.status === 'pending_approval_received') && canApproveEmails" class="mt-6 flex justify-end space-x-2">
                         <PrimaryButton @click="openEditEmailModal(selectedEmail)" class="bg-blue-600 hover:bg-blue-700">Edit & Approve</PrimaryButton>
                         <SecondaryButton @click="openRejectEmailModal(selectedEmail)" class="text-red-600 hover:text-red-800">Reject</SecondaryButton>
                     </div>
@@ -387,7 +387,15 @@ onMounted(() => {
             </div>
         </Modal>
 
-        <!-- Dynamic EmailActionModal for Compose, Edit, and Reject actions -->
+        <ComposeEmailModal
+            :show="showComposeEmailModal"
+            :project-id="projectId"
+            :user-project-role="userProjectRole"
+            @close="handleComposeEmailModalClose"
+            @submitted="handleComposeEmailModalSubmitted"
+            @error="(err) => console.error('ComposeEmailModal error:', err)"
+        />
+
         <EmailActionModal
             :show="showActionModal"
             :title="actionModalTitle"
@@ -396,9 +404,8 @@ onMounted(() => {
             :initial-form-data="actionModalInitialData"
             :submit-button-text="actionModalSubmitButtonText"
             :success-message="actionModalSuccessMessage"
-            :project-clients="projectClients"
-            :user-project-role="userProjectRole"
             :email-id="selectedEmail?.id"
+            :project-id="projectId"
             @close="handleActionModalClose"
             @submitted="handleActionModalSubmitted"
             @error="(err) => console.error('EmailActionModal error:', err)"

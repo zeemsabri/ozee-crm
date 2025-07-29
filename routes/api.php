@@ -170,6 +170,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Task Management Routes
     Route::get('task-statistics', [TaskController::class, 'getTaskStatistics']);
+    Route::get('projects/{projectId}/due-and-overdue-tasks', [TaskController::class, 'getProjectDueAndOverdueTasks']);
     Route::apiResource('tasks', TaskController::class);
     Route::post('tasks/{task}/notes', [TaskController::class, 'addNote']);
     Route::post('tasks/{task}/complete', [TaskController::class, 'markAsCompleted']);
