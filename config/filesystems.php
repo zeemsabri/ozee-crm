@@ -40,8 +40,8 @@ return [
 
         'public' => [
             'driver' => 'local',
-            'root' => storage_path('storage'),
-            'url' => env('APP_URL').'/storage',
+            'root' => public_path('storage'), // <--- CHANGE THIS LINE
+            'url' => env('APP_URL').'/storage', // <--- This should already be correct based on public_path('storage')
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
