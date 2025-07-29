@@ -64,16 +64,6 @@ createInertiaApp({
         notificationMountPoint.id = 'notification-mount-point';
         document.body.appendChild(notificationMountPoint);
         notificationAppInstance.mount(notificationMountPoint);
-        console.log('NotificationContainer app instance mounted to body.');
-
-        // It's crucial that setNotificationContainer is called *after* NotificationContainer is mounted.
-        // The NotificationContainer's onMounted hook should handle calling setNotificationContainer.
-        // We can add a simple test notification here to see if the system is ready.
-        setTimeout(() => {
-            console.log('Attempting to show test notification...');
-            success('Test notification: System is ready!');
-            // error('Test error notification: Something went wrong!');
-        }, 1000); // Give it a moment to ensure everything is mounted
 
         // Fetch global permissions immediately after app initialization
         // This ensures permissions are loaded as soon as the user logs in
