@@ -24,12 +24,12 @@ use App\Http\Controllers\Api\MagicLinkController; // Import for magic link funct
 
 // Default welcome page or client dashboard if token is present
 Route::get('/', function (Request $request) {
-    // Check if token parameter is present in the URL
-    $token = $request->query('token');
-    if ($token) {
-        // If token is present, serve the client dashboard view with the token
-        return view('client_dashboard', ['token' => $token]);
-    }
+//    // Check if token parameter is present in the URL
+//    $token = $request->query('token');
+//    if ($token) {
+//        // If token is present, serve the client dashboard view with the token
+//        return view('client_dashboard', ['token' => $token]);
+//    }
 
     // Otherwise, serve the default welcome page
     return Inertia::render('Welcome', [
@@ -39,6 +39,19 @@ Route::get('/', function (Request $request) {
         'phpVersion' => PHP_VERSION,
     ]);
 });
+
+// Public route for handling the magic link (this is the new client dashboard route)
+// This route will render the ClientDashboard.vue component
+Route::get('/client/dashboard/{token}', [MagicLinkController::class, 'handleMagicLink'])
+    ->name('client.magic-link-login') // Consistent name with controller
+    ->middleware(['signed']); // Ensure the URL is signed
+
+// You might also want a dedicated error page for magic links
+Route::get('/magic-link-error', function () {
+    return Inertia::render('Errors/MagicLinkError', [
+        'message' => 'An unexpected error occurred.'
+    ]);
+})->name('magic-link.error');
 
 Route::get('/emails/{email}/preview', [EmailController::class, 'previewEmail'])
     ->middleware(['auth']) // Add any necessary middleware for access control

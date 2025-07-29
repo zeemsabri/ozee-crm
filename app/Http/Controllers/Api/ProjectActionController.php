@@ -565,15 +565,15 @@ class ProjectActionController extends Controller
             $notes[] = $createdNote;
 
             if ($project->google_chat_id) {
-                try {
+//                try {
                     $messageText = "📝 *{$user->name}*: " . $note['content'];
                     $response = $this->googleChatService->sendMessage($project->google_chat_id, $messageText);
                     $createdNote->chat_message_id = $response['name'] ?? null;
                     $createdNote->save();
                     Log::info('Sent note notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'user_id' => $user->id, 'chat_message_id' => $response['name'] ?? null]);
-                } catch (\Exception $e) {
-                    Log::error('Failed to send note notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
-                }
+//                } catch (\Exception $e) {
+//                    Log::error('Failed to send note notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
+//                }
             }
         }
 
@@ -640,7 +640,8 @@ class ProjectActionController extends Controller
 
             $spaceId = $parts[1];
             $messageIdSegment = $parts[3];
-            $threadKey = str_contains($messageIdSegment, '.') ? end(explode('.', $messageIdSegment)) : $messageIdSegment;
+            $messageExploded = explode('.', $messageIdSegment);
+            $threadKey = str_contains($messageIdSegment, '.') ? end($messageExploded) : $messageIdSegment;
             $threadNameForReply = 'spaces/' . $spaceId . '/threads/' . $threadKey;
 
             $response = $this->googleChatService->sendThreadedMessage($project->google_chat_id, $threadNameForReply, $messageText);
@@ -687,33 +688,24 @@ class ProjectActionController extends Controller
                 'documents.*' => 'required|file|mimes:pdf,doc,docx,jpg,png|max:10240',
             ];
             $validated = $request->validate($validationRules);
-            $existingDocuments = $project->documents ?? [];
 
             if ($request->hasFile('documents')) {
-                foreach ($request->file('documents') as $document) {
-                    $localPath = $document->store('documents', 'public');
-                    $fullLocalPath = Storage::disk('public')->path($localPath);
-                    $originalFilename = $document->getClientOriginalName();
+                // Use the Project model's uploadDocuments method
+                $project->uploadDocuments($request->file('documents'), $this->googleDriveService);
 
-                    try {
-                        if ($project->google_drive_folder_id) {
+                // Load the URL attribute for each document
+                $documents = $project->documents()->latest()->get();
 
-                            $fileId = $this->googleDriveService->uploadFile($fullLocalPath, $originalFilename, $project->google_drive_folder_id);
-                            $existingDocuments[] = ['path' => $localPath, 'filename' => $originalFilename, 'google_drive_file_id' => $fileId];
-                        } else {
-                            $existingDocuments[] = ['path' => $localPath, 'filename' => $originalFilename];
-                        }
-                    } catch (\Exception $e) {
-                        Log::error('Failed to upload file to Google Drive: ' . $e->getMessage(), ['project_id' => $project->id, 'file_name' => $originalFilename]);
-                        $existingDocuments[] = ['path' => $localPath, 'filename' => $originalFilename, 'upload_error' => 'Failed to upload to Google Drive'];
-                    }
-                }
-                $project->update(['documents' => $existingDocuments]);
-
-                return response()->json(['message' => 'Documents uploaded successfully', 'documents' => $existingDocuments]);
+                return response()->json([
+                    'message' => 'Documents uploaded successfully',
+                    'documents' => $documents
+                ]);
             }
 
-            return response()->json(['message' => 'No documents were uploaded', 'documents' => $existingDocuments]);
+            return response()->json([
+                'message' => 'No documents were uploaded',
+                'documents' => $project->documents()->latest()->get()
+            ]);
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
@@ -1092,5 +1084,117 @@ class ProjectActionController extends Controller
         }
 
         return $response;
+    }
+
+    /**
+     * Upload documents from the client dashboard.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function uploadClientDocuments(Request $request)
+    {
+        $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+        $authenticatedClientEmail = $request->attributes->get('magic_link_email');
+
+        // Verify the project exists and is accessible
+        $project = Project::find($authenticatedProjectId);
+        if (!$project) {
+            return response()->json(['message' => 'Project not found or unauthorized.'], 403);
+        }
+
+        try {
+            $validationRules = [
+                'documents' => 'required|array',
+                'documents.*' => 'required|file|mimes:pdf,doc,docx,jpg,png,jpeg|max:10240', // Max 10MB
+            ];
+            $validated = $request->validate($validationRules);
+            $uploadedDocuments = [];
+
+            if ($request->hasFile('documents')) {
+                // Get the client who is uploading
+                $client = Client::where('email', $authenticatedClientEmail)->first();
+                if (!$client) {
+                    return response()->json(['message' => 'Client not found.'], 404);
+                }
+
+                foreach ($request->file('documents') as $file) {
+                    // Store locally first
+                    $localPath = $file->store('client_documents', 'public'); // Store in 'client_documents' folder
+                    $fullLocalPath = Storage::disk('public')->path($localPath);
+                    $originalFilename = $file->getClientOriginalName();
+                    $mimeType = $file->getMimeType();
+                    $fileSize = $file->getSize();
+
+                    $documentData = [
+                        'project_id' => $project->id,
+                        'client_id' => $client->id, // Associate with the client who uploaded
+                        'path' => $localPath,
+                        'filename' => $originalFilename,
+                        'mime_type' => $mimeType,
+                        'file_size' => $fileSize,
+                        'is_client_uploaded' => true, // Flag to differentiate client uploads
+                    ];
+
+                    try {
+                        // Upload to Google Drive if project has a folder ID
+                        if ($project->google_drive_folder_id) {
+                            $response = $this->googleDriveService->uploadFile($fullLocalPath, $originalFilename, $project->google_drive_folder_id);
+                            $documentData['google_drive_file_id'] = $response['id'] ?? null;
+                            $documentData['path'] = $response['path'] ?? null;
+                            $documentData['thumbnail'] = $response['thumbnail'] ?? null;
+
+                            // Optionally, add permission for this client to the Google Drive file
+                            // This might require your service account to have appropriate delegation
+                            /*
+                            $this->googleDriveService->addPermission(
+                                $fileId,
+                                $authenticatedClientEmail,
+                                'reader', // or 'writer' if they need to edit after upload
+                                'user'
+                            );
+                            */
+                        }
+                    } catch (\Exception $e) {
+                        Log::error('Failed to upload file to Google Drive: ' . $e->getMessage(), [
+                            'project_id' => $project->id,
+                            'file_name' => $originalFilename,
+                            'error' => $e->getTraceAsString()
+                        ]);
+                        $documentData['upload_error'] = 'Failed to upload to Google Drive';
+                        // Optionally, if Google Drive upload fails, delete the locally stored file
+                        Storage::disk('public')->delete($localPath);
+                        throw new \Exception("Failed to upload '{$originalFilename}' to Google Drive: " . $e->getMessage());
+                    }
+
+                    $document = \App\Models\Document::create($documentData);
+                    $uploadedDocuments[] = $document;
+                }
+
+                // Append URL attribute for the newly uploaded documents
+                collect($uploadedDocuments)->each(function ($doc) {
+                    $doc->append('url');
+                });
+
+                return response()->json([
+                    'message' => 'Documents uploaded successfully',
+                    'documents' => $uploadedDocuments // Return the newly uploaded documents
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'No documents were uploaded',
+                'documents' => []
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error('Error uploading documents: ' . $e->getMessage(), [
+                'project_id' => $authenticatedProjectId,
+                'email' => $authenticatedClientEmail,
+                'error' => $e->getTraceAsString()
+            ]);
+            return response()->json(['message' => 'Failed to upload documents: ' . $e->getMessage()], 500);
+        }
     }
 }

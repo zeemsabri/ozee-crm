@@ -5,6 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Services\GoogleChatService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 
 class Task extends Model
@@ -28,6 +31,8 @@ class Task extends Model
         'google_chat_space_id',
         'google_chat_thread_id',
         'chat_message_id',
+        'creator_id',
+        'creator_type',
     ];
 
     /**
@@ -64,6 +69,8 @@ class Task extends Model
                 }
 
                 $project = $task->milestone->project;
+
+                $project->supportMilestone();
 
                 if (!$project->google_chat_id) {
                     Log::error('Cannot add task to Google Chat: Project has no Google Chat space', ['task_id' => $task->id, 'project_id' => $project->id]);
@@ -128,6 +135,34 @@ class Task extends Model
                 ]);
             }
         });
+
+        static::creating(function (Task $task) {
+            // Get the current request instance
+            $request = app(Request::class);
+
+            // 1. Check for standard authenticated User (team member)
+            if (Auth::check()) {
+                $user = Auth::user();
+                if ($user instanceof \App\Models\User) { // Ensure it's your User model
+                    $task->creator_id = $user->id;
+                    $task->creator_type = get_class($user);
+                }
+            }
+            // 2. Check for magic link authenticated Client
+            // This relies on your VerifyMagicLinkToken middleware setting these attributes
+            elseif ($request->attributes->has('magic_link_email') && $request->attributes->has('magic_link_project_id')) {
+                $clientEmail = $request->attributes->get('magic_link_email');
+                $client = Client::where('email', $clientEmail)->first(); // Assuming email is unique for clients
+
+                if ($client) {
+                    $task->creator_id = $client->id;
+                    $task->creator_type = get_class($client);
+                }
+            }
+            // Fallback: If no creator is identified, you might want to log, throw an error,
+            // or assign a default (e.g., an 'admin' user or null if nullable).
+            // For now, if no creator, it remains unset, allowing database to handle nullability.
+        });
     }
 
     /**
@@ -152,6 +187,11 @@ class Task extends Model
     public function milestone()
     {
         return $this->belongsTo(Milestone::class);
+    }
+
+    public function getProjectIdAttribute()
+    {
+        return $this->milestone?->project_id;
     }
 
     /**
@@ -397,30 +437,48 @@ class Task extends Model
      * Add a note to the task's thread in the project's Google Chat space.
      *
      * @param string $note
-     * @param User $user
-     * @return array|null
+     * @param User|Client $user
+     * @return ProjectNote $projectNote
      */
-    public function addNote(string $note, User $user)
+    public function addNote(string $note, User|Client $user)
     {
-        // Make sure we have the Google Chat space ID
-        if (!$this->google_chat_space_id) {
-            // Try to get it from the project
+        // Load milestone and project if not already loaded
+        if (!$this->relationLoaded('milestone') || ($this->milestone && !$this->milestone->relationLoaded('project'))) {
             $this->load('milestone.project');
-
-            if (!$this->milestone || !$this->milestone->project || !$this->milestone->project->google_chat_id) {
-                Log::error('Cannot add note to task: Google Chat space ID is missing and cannot be retrieved from project', [
-                    'task_id' => $this->id,
-                    'milestone_id' => $this->milestone_id ?? 'null'
-                ]);
-                return null;
-            }
-
-            // Set the Google Chat space ID from the project
-            $this->google_chat_space_id = $this->milestone->project->google_chat_id;
-            $this->save();
         }
 
+        // Get project_id from milestone if available
+        $projectId = $this->milestone->project_id ?? null;
+
+        // Save the note to the database using the polymorphic relationship
+        $projectNote = $this->notes()->create([
+            'content' => $note,
+            'creator_id' => $user->id,
+            'creator_type' => get_class($user),
+            'type' => 'note',
+            'project_id' => $projectId,
+        ]);
+
+        // Try to send to Google Chat if possible
         try {
+            // Make sure we have the Google Chat space ID
+            if (!$this->google_chat_space_id) {
+                // Try to get it from the project
+                if ($this->milestone && $this->milestone->project && $this->milestone->project->google_chat_id) {
+                    // Set the Google Chat space ID from the project
+                    $this->google_chat_space_id = $this->milestone->project->google_chat_id;
+                    $this->save();
+                } else {
+                    // Log that we can't send to Google Chat but continue with note creation
+                    Log::info('Note created but not sent to Google Chat: Google Chat space ID is missing', [
+                        'task_id' => $this->id,
+                        'milestone_id' => $this->milestone_id ?? 'null'
+                    ]);
+                    return $projectNote; // Return the note even though we couldn't send to Google Chat
+                }
+            }
+
+            // Create Google Chat service and prepare message
             $chatService = new GoogleChatService();
             $messageText = "💬 *{$user->name}*: " . $note;
 
@@ -431,6 +489,12 @@ class Task extends Model
                     $this->google_chat_thread_id,
                     $messageText
                 );
+
+                // Update the note with the chat message ID if available
+                if (isset($result['name']) && isset($projectNote)) {
+                    $projectNote->chat_message_id = $result['name'];
+                    $projectNote->save();
+                }
             } else {
                 // If we have a chat_message_id but no thread ID, try to construct the thread ID
                 if ($this->chat_message_id) {
@@ -456,17 +520,44 @@ class Task extends Model
                             $this->google_chat_thread_id,
                             $messageText
                         );
+
+                        // Update the note with the chat message ID if available
+                        if (isset($result['name']) && isset($projectNote)) {
+                            $projectNote->chat_message_id = $result['name'];
+                            $projectNote->save();
+                        }
+
+
+
                     } else {
                         // Fall back to regular message if we can't construct a thread ID
                         $result = $chatService->sendMessage($this->google_chat_space_id, $messageText);
+
+                        // Update the note with the chat message ID if available
+                        if (isset($result['name']) && isset($projectNote)) {
+                            $projectNote->chat_message_id = $result['name'];
+                            $projectNote->save();
+                        }
                     }
                 } else {
                     // Fall back to regular messages if no thread ID or chat_message_id is available
                     $result = $chatService->sendMessage($this->google_chat_space_id, $messageText);
 
+                    // Update the note with the chat message ID if available
+                    if (isset($result['name']) && isset($projectNote)) {
+                        $projectNote->chat_message_id = $result['name'];
+                        $projectNote->save();
+                    }
+
                     // If this is the first message, try to extract and save the thread ID and message ID
                     if (isset($result['name'])) {
                         $this->chat_message_id = $result['name'];
+
+                        // Update the note with the chat message ID
+                        if (isset($projectNote)) {
+                            $projectNote->chat_message_id = $result['name'];
+                            $projectNote->save();
+                        }
 
                         $parts = explode('/', $result['name']);
                         if (count($parts) >= 4) {
@@ -488,7 +579,8 @@ class Task extends Model
                 }
             }
 
-            return $result;
+            return $projectNote;
+
         } catch (\Exception $e) {
             Log::error('Failed to add note to task: ' . $e->getMessage(), [
                 'task_id' => $this->id,
@@ -496,6 +588,37 @@ class Task extends Model
             ]);
             return null;
         }
+    }
+
+    public function notes()
+    {
+        return $this->morphMany(ProjectNote::class, 'noteable');
+    }
+
+    /**
+     * Get the creator of the task (User or Client).
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\MorphTo
+     */
+    public function creator()
+    {
+        return $this->morphTo();
+    }
+
+
+
+    /**
+     * Get the creator name of the task.
+     *
+     * @return string|null
+     */
+    public function getCreatorName()
+    {
+        if ($this->creator) {
+            return $this->creator->name;
+        }
+
+        return null;
     }
 
     /**

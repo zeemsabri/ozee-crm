@@ -4,6 +4,10 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import ResourceModal from '@/Components/ResourceModal.vue';
 import { usePermissions } from '@/Directives/permissions';
+import Modal from '@/Components/Modal.vue';
+import InputLabel from '@/Components/InputLabel.vue';
+import TextInput from '@/Components/TextInput.vue';
+import InputError from '@/Components/InputError.vue';
 
 const props = defineProps({
     project: {
@@ -28,7 +32,6 @@ const emit = defineEmits([
     'openEditModal',
     'openStandupModal',
     'openMeetingModal',
-    'openMagicLinkModal',
     'resourceSaved',
     'openComposeModal'
 ]);
@@ -39,6 +42,15 @@ const selectedResource = ref(null);
 const resources = ref([]);
 const loadingResources = ref(false);
 const activeTooltipId = ref(null);
+
+// Magic Link Modal State
+const showMagicLinkModal = ref(false);
+const sendingMagicLink = ref(false);
+const magicLinkForm = ref({
+    email: '',
+});
+const magicLinkErrors = ref({});
+const magicLinkSuccess = ref('');
 
 // Set up permission checking functions
 const { canDo } = usePermissions(props.projectId);
@@ -135,6 +147,56 @@ onMounted(() => {
 onBeforeUnmount(() => {
     document.removeEventListener('click', handleClickOutside);
 });
+
+// Magic Link Modal Methods
+const openMagicLinkModal = () => {
+    // Reset form and errors
+    magicLinkForm.value.email = '';
+    magicLinkErrors.value = {};
+    magicLinkSuccess.value = '';
+    showMagicLinkModal.value = true;
+};
+
+const closeMagicLinkModal = () => {
+    showMagicLinkModal.value = false;
+};
+
+const sendMagicLink = async () => {
+    // Reset errors and success message
+    magicLinkErrors.value = {};
+    magicLinkSuccess.value = '';
+
+    // Set loading state
+    sendingMagicLink.value = true;
+
+    try {
+        // Send request to the API
+        const response = await window.axios.post(`/api/projects/${props.projectId}/magic-link`, {
+            email: magicLinkForm.value.email
+        });
+
+        // Handle success
+        if (response.data.success) {
+            magicLinkSuccess.value = response.data.message;
+            // Clear the form
+            magicLinkForm.value.email = '';
+        }
+    } catch (error) {
+        // Handle validation errors
+        if (error.response && error.response.status === 422) {
+            magicLinkErrors.value = error.response.data.errors;
+        }
+        // Handle other errors
+        else if (error.response && error.response.data.message) {
+            magicLinkErrors.value = { general: [error.response.data.message] };
+        } else {
+            magicLinkErrors.value = { general: ['An unexpected error occurred. Please try again.'] };
+        }
+    } finally {
+        // Reset loading state
+        sendingMagicLink.value = false;
+    }
+};
 </script>
 
 <template>
@@ -155,16 +217,16 @@ onBeforeUnmount(() => {
                     Compose Email
                 </PrimaryButton>
                 <!-- Magic Link button remains commented out as in original for consistency -->
-                <!--
+
                 <PrimaryButton
-                    v-if="canManageProjects || isSuperAdmin"
+                    v-if="canManageProjects "
                     class="bg-purple-600 hover:bg-purple-700 transition-colors"
-                    @click="emit('openMagicLinkModal')"
+                    @click="openMagicLinkModal"
                     :disabled="sendingMagicLink"
                 >
                     {{ sendingMagicLink ? 'Sending...' : 'Send Magic Link' }}
                 </PrimaryButton>
-                -->
+
             </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -290,6 +352,57 @@ onBeforeUnmount(() => {
         @close="showResourceModal = false"
         @saved="handleResourceSaved"
     />
+
+    <!-- Magic Link Modal -->
+    <Modal :show="showMagicLinkModal" @close="closeMagicLinkModal">
+        <div class="p-6">
+            <h2 class="text-lg font-medium text-gray-900 mb-4">
+                Send Magic Link
+            </h2>
+
+            <!-- Success Message -->
+            <div v-if="magicLinkSuccess" class="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded-md">
+                {{ magicLinkSuccess }}
+            </div>
+
+            <!-- General Error Message -->
+            <div v-if="magicLinkErrors.general" class="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-md">
+                {{ magicLinkErrors.general[0] }}
+            </div>
+
+            <form @submit.prevent="sendMagicLink">
+                <div class="mb-4">
+                    <InputLabel for="email" value="Client Email" />
+                    <TextInput
+                        id="email"
+                        type="email"
+                        class="mt-1 block w-full"
+                        v-model="magicLinkForm.email"
+                        required
+                        autofocus
+                        placeholder="Enter client email"
+                    />
+                    <InputError :message="magicLinkErrors.email ? magicLinkErrors.email[0] : ''" class="mt-2" />
+                    <p class="mt-2 text-sm text-gray-500">
+                        The email must belong to a client associated with this project.
+                    </p>
+                </div>
+
+                <div class="flex justify-end mt-6">
+                    <SecondaryButton @click="closeMagicLinkModal" class="mr-3">
+                        Cancel
+                    </SecondaryButton>
+                    <PrimaryButton
+                        type="submit"
+                        class="bg-purple-600 hover:bg-purple-700 transition-colors"
+                        :disabled="sendingMagicLink"
+                    >
+                        {{ sendingMagicLink ? 'Sending...' : 'Send Magic Link' }}
+                    </PrimaryButton>
+                </div>
+            </form>
+        </div>
+    </Modal>
 </template>
 
 <style scoped>
