@@ -249,9 +249,9 @@ const sendMagicLink = async () => {
                 <PrimaryButton class="bg-blue-600 hover:bg-blue-700 transition-colors" @click="emit('openStandupModal')">
                     Daily Standup
                 </PrimaryButton>
-                <PrimaryButton v-if="canManageProjects || isSuperAdmin" class="bg-indigo-600 hover:bg-indigo-700 transition-colors" @click="emit('openEditModal')">
-                    Edit Project
-                </PrimaryButton>
+<!--                <PrimaryButton v-if="canManageProjects || isSuperAdmin" class="bg-indigo-600 hover:bg-indigo-700 transition-colors" @click="emit('openEditModal')">-->
+<!--                    Edit Project-->
+<!--                </PrimaryButton>-->
                 <PrimaryButton v-if="canManageProjects || isSuperAdmin" class="bg-green-600 hover:bg-green-700 transition-colors" @click="emit('openMeetingModal')">
                     Schedule Meeting
                 </PrimaryButton>
