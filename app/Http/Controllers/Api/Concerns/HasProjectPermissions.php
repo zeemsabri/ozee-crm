@@ -322,4 +322,14 @@ trait HasProjectPermissions
 
         return $user->hasPermission('manage_projects');
     }
+
+
+    public function canCreateProjects(User $user)
+    {
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        return $user->hasPermission('create_projects') ?? $user->hasPermission('edit_projects');
+    }
 }

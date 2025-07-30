@@ -184,7 +184,7 @@ class ProjectReadController extends Controller
     {
 
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project) && !$this->canManageProjects($user)) {
+        if (!$this->canCreateProjects($user)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 

@@ -353,7 +353,6 @@ onMounted(() => {
 
             <!-- Timezone -->
             <div>
-                <InputLabel for="timezone" value="Timezone" />
                 <TimezoneSelect
                     id="timezone"
                     v-model="localProjectForm.timezone"
