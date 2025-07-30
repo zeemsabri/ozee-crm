@@ -5,6 +5,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import MilestoneFormModal from './MilestoneFormModal.vue'; // Import the MilestoneFormModal
 
 const props = defineProps({
     show: Boolean,
@@ -40,6 +41,9 @@ const loadingProjects = ref(true);
 const loadingProjectUsers = ref(false);
 const loadingTaskTypes = ref(false);
 const loadingMilestones = ref(false);
+
+// NEW: State for MilestoneFormModal visibility
+const showMilestoneModal = ref(false);
 
 // Computed properties for BaseFormModal
 const modalTitle = 'Create New Task';
@@ -88,7 +92,6 @@ watch(() => taskForm.project_id, async (newProjectId) => {
 const fetchProjects = async () => {
     loadingProjects.value = true;
     try {
-        // You'll need an API endpoint that returns a list of projects with at least 'id' and 'name'
         const response = await window.axios.get('/api/projects-simplified'); // Adjust this endpoint as needed
         projects.value = response.data.map(p => ({ value: p.id, label: p.name }));
     } catch (error) {
@@ -137,6 +140,34 @@ const handleSaved = (responseData) => {
 const closeModal = () => {
     emit('close');
 };
+
+// NEW: Function to open MilestoneFormModal
+const openMilestoneModal = () => {
+    if (taskForm.project_id) {
+        showMilestoneModal.value = true;
+    } else {
+        // Optionally, show a message to the user that a project must be selected first
+        alert('Please select a project before adding a milestone.'); // Replace with a proper notification
+    }
+};
+
+// NEW: Function to handle a newly created milestone
+const handleMilestoneSaved = (newMilestone) => {
+    // Close the milestone modal
+    showMilestoneModal.value = false;
+
+    // Add the new milestone to the local milestones list
+    if (newMilestone && newMilestone.id && newMilestone.name) {
+        const newOption = { value: newMilestone.id, label: newMilestone.name };
+        // Ensure it's not already in the list to prevent duplicates if API re-fetches
+        if (!milestones.value.some(m => m.value === newOption.value)) {
+            milestones.value.push(newOption);
+        }
+        // Automatically select the newly created milestone
+        taskForm.milestone_id = newOption.value;
+    }
+};
+
 
 // Computed options for SelectDropdowns
 const assignedToOptions = computed(() => projectUsers.value);
@@ -270,21 +301,43 @@ const milestoneOptions = computed(() => milestones.value);
                 <!-- Milestone -->
                 <div>
                     <InputLabel for="task-milestone" value="Milestone" />
-                    <div v-if="loadingMilestones" class="text-sm text-gray-500">Loading milestones...</div>
-                    <SelectDropdown
-                        v-else
-                        id="task-milestone"
-                        v-model="taskForm.milestone_id"
-                        :options="milestoneOptions"
-                        value-key="value"
-                        label-key="label"
-                        placeholder="No milestone"
-                        class="mt-1"
-                        :allow-empty="true"
-                    />
+                    <div class="flex items-center gap-2 mt-1">
+                        <div v-if="loadingMilestones" class="text-sm text-gray-500">Loading milestones...</div>
+                        <SelectDropdown
+                            v-else
+                            id="task-milestone"
+                            v-model="taskForm.milestone_id"
+                            :options="milestoneOptions"
+                            value-key="value"
+                            label-key="label"
+                            placeholder="No milestone"
+                            class="flex-grow"
+                            :allow-empty="true"
+                            :disabled="!taskForm.project_id"
+                        />
+                        <button
+                            type="button"
+                            @click="openMilestoneModal"
+                            :disabled="!taskForm.project_id || loadingMilestones"
+                            class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Add New Milestone"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                            </svg>
+                        </button>
+                    </div>
                     <InputError :message="errors.milestone_id ? errors.milestone_id[0] : ''" class="mt-2" />
                 </div>
             </div>
         </template>
     </BaseFormModal>
+
+    <!-- Milestone Creation Modal -->
+    <MilestoneFormModal
+        :show="showMilestoneModal"
+        :project-id="taskForm.project_id"
+        @close="showMilestoneModal = false"
+        @saved="handleMilestoneSaved"
+    />
 </template>
