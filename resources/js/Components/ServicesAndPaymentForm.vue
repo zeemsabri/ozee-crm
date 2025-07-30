@@ -402,8 +402,7 @@ watch(() => props.projectId, (newProjectId) => {
 </script>
 
 <template>
-    <div class="p-6 bg-white rounded-lg shadow-xl font-inter">
-        <h3 class="text-2xl font-semibold text-gray-800 mb-6">Project Services & Payments</h3>
+    <div class="p-6 bg-white rounded-lg font-inter">
 
         <div v-if="errors.general" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
             <strong class="font-bold">Error!</strong>

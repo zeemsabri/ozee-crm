@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\EmailController;
 use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\EmailTestController;
 use App\Http\Controllers\ProfileController;
+use App\Models\Project;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -183,6 +184,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/projects', function () {
         return Inertia::render('Projects/Index');
     })->name('projects.index');
+
+    // Projects Index Page
+    Route::get('/projects/create', function () {
+        return Inertia::render('Projects/Create');
+    })->name('projects.create');
+
+    // Projects Index Page
+    Route::get('/projects/{project}/edit', function (Project $project) {
+        return Inertia::render('Projects/Edit', [
+            'project' => $project,
+        ]);
+    })->name('projects.edit');
 
     // Project Detail Page
     Route::get('/projects/{id}', function ($id) {

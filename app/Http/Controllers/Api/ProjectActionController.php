@@ -675,7 +675,7 @@ class ProjectActionController extends Controller
      * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
-    public function uploadDocuments(Request $request, Project $project)
+    public function uploadDocument(Request $request, Project $project)
     {
         $user = Auth::user();
         if (!$this->canManageProjects($user, $project)) { // Assuming 'update' permission implies document upload
@@ -713,6 +713,54 @@ class ProjectActionController extends Controller
             return response()->json(['message' => 'Failed to upload documents', 'error' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Upload documents to a project.
+     *
+     * @param Request $request
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function uploadDocuments(Request $request, Project $project)
+    {
+        $user = Auth::user();
+        // Assuming canManageProjects is a method on your controller or a trait
+        if (!$this->canManageProjects($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to upload documents.'], 403);
+        }
+
+        try {
+            $validationRules = [
+                'documents' => 'required|array',
+                'documents.*' => 'required|file|mimes:pdf,doc,docx,jpg,png|max:10240',
+            ];
+            $validated = $request->validate($validationRules);
+
+            if ($request->hasFile('documents')) {
+                // Loop through each uploaded file and call the Project model's method
+                $project->uploadDocuments($request->file('documents'), $this->googleDriveService);
+
+                // Load the URL attribute for each document after all uploads are complete
+                $documents = $project->documents()->latest()->get();
+
+                return response()->json([
+                    'message' => 'Documents uploaded successfully',
+                    'documents' => $documents
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'No documents were uploaded',
+                'documents' => $project->documents()->latest()->get()
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error('Error uploading documents: ' . $e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
+            return response()->json(['message' => 'Failed to upload documents', 'error' => $e->getMessage()], 500);
+        }
+    }
+
 
     /**
      * Add a daily standup note to the project and send it to Google Space.
@@ -775,6 +823,7 @@ class ProjectActionController extends Controller
      */
     public function updateBasicInfo(Request $request, Project $project)
     {
+
         try {
             $user = Auth::user();
             if (!$this->canManageProjects($user, $project)) {
@@ -841,7 +890,11 @@ class ProjectActionController extends Controller
 
             $project->update($projectData);
 
-            return response()->json($project);
+            if($request->hasFile('logo')) {
+                $this->uploadLogo($request, $project);
+            }
+
+            return response()->json($project->refresh());
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
@@ -1099,12 +1152,8 @@ class ProjectActionController extends Controller
      */
     public function uploadLogo(Request $request, Project $project)
     {
-        $user = Auth::user();
-        if (!$this->canManageProjects($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have permission to update this project.'], 403);
-        }
 
-        try {
+//        try {
             $validationRules = [
                 'logo' => 'required|image|max:2048', // Max 2MB
             ];
@@ -1126,19 +1175,19 @@ class ProjectActionController extends Controller
 
                 return response()->json([
                     'message' => 'Logo uploaded successfully',
-                    'logo' => Storage::url($project->logo)
+                    'logo' => $project->logo
                 ]);
             }
 
             return response()->json([
                 'message' => 'No logo was uploaded',
             ], 400);
-        } catch (ValidationException $e) {
-            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
-        } catch (\Exception $e) {
-            Log::error('Error uploading logo: ' . $e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
-            return response()->json(['message' => 'Failed to upload logo', 'error' => $e->getMessage()], 500);
-        }
+//        } catch (ValidationException $e) {
+//            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+//        } catch (\Exception $e) {
+//            Log::error('Error uploading logo: ' . $e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
+//            return response()->json(['message' => 'Failed to upload logo', 'error' => $e->getMessage()], 500);
+//        }
     }
 
     /**

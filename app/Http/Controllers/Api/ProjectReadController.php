@@ -182,8 +182,9 @@ class ProjectReadController extends Controller
      */
     public function getBasicInfo(Project $project)
     {
+
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project)) {
+        if (!$this->canCreateProjects($user)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
@@ -199,7 +200,7 @@ class ProjectReadController extends Controller
             'project_type' => $project->project_type,
             'source' => $project->source,
             'google_drive_link' => $project->google_drive_link,
-            'logo'  => Storage::url($project->logo),
+            'logo'  => $project->logo,
             'tags_data'  =>  $project->tags->map(function($tag) {
                 return ['id' => $tag->id, 'name' => $tag->name];
             })->values()->all(),
@@ -452,7 +453,7 @@ class ProjectReadController extends Controller
             return response()->json(['message' => 'Unauthorized. You do not have permission to view documents.'], 403);
         }
 
-        return response()->json($project->documents);
+        return response()->json($project->documents()->get());
     }
 
     /**
