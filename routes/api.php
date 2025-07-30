@@ -106,7 +106,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('projects/{project}/transactions/{transaction}/process-payment', [\App\Http\Controllers\Api\TransactionsController::class, 'processPayment']);
     Route::post('projects/{project}/notes', [ProjectActionController::class, 'addNotes']);
     Route::post('projects/{project}/notes/{note}/reply', [ProjectActionController::class, 'replyToNote']);
-    Route::post('projects/{project}/documents', [ProjectActionController::class, 'uploadDocuments']);
+    Route::post('projects/{project}/document', [ProjectActionController::class, 'uploadDocuments'])->name('singleDocument');
+    Route::post('projects/{project}/documents', [ProjectActionController::class, 'uploadDocuments'])->name('multipleDocuments');
     Route::post('projects/{project}/logo', [ProjectActionController::class, 'uploadLogo']);
     Route::post('projects/{project}/standup', [ProjectActionController::class, 'addStandup']);
     Route::post('/projects/{project}/meetings', [ProjectActionController::class, 'createProjectMeeting']);

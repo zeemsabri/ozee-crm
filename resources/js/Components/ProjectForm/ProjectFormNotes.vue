@@ -35,7 +35,28 @@ const localNotes = reactive({
 });
 
 const isSavingNotes = ref(false); // Local saving state for notes
+// Function to fetch notes data for this specific tab
+const fetchNotesData = async () => {
+  if (!props.projectId) return;
 
+  try {
+    const data = await fetchProjectSectionData(props.projectId, 'notes', {
+      canViewProjectNotes: props.canViewProjectNotes,
+      canAddProjectNotes: props.canAddProjectNotes,
+    });
+    if (data) {
+      localNotes.notes = data.map(note => ({
+        id: note.id,
+        content: note.content,
+        created_at: note.created_at,
+        creator_name: note.creator_name || note.user?.name || note.creator?.name || 'Unknown'
+      })) || [];
+    }
+  } catch (err) {
+    console.error('Error fetching notes data:', err);
+    error('Failed to load notes data.');
+  }
+};
 // Watch for projectId changes to re-fetch data
 watch(() => props.projectId, async (newId) => {
     if (newId) {
@@ -120,28 +141,7 @@ const formatNoteDate = (dateString) => {
     });
 };
 
-// Function to fetch notes data for this specific tab
-const fetchNotesData = async () => {
-    if (!props.projectId) return;
 
-    try {
-        const data = await fetchProjectSectionData(props.projectId, 'notes', {
-            canViewProjectNotes: props.canViewProjectNotes,
-            canAddProjectNotes: props.canAddProjectNotes,
-        });
-        if (data) {
-            localNotes.notes = data.map(note => ({
-                id: note.id,
-                content: note.content,
-                created_at: note.created_at,
-                creator_name: note.creator_name || note.user?.name || note.creator?.name || 'Unknown'
-            })) || [];
-        }
-    } catch (err) {
-        console.error('Error fetching notes data:', err);
-        error('Failed to load notes data.');
-    }
-};
 
 // Initial data fetch on component mount
 onMounted(() => {
@@ -151,8 +151,7 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="p-6 bg-white rounded-lg shadow-xl font-inter">
-        <h3 class="text-2xl font-semibold text-gray-800 mb-6">Project Notes Board</h3>
+    <div class="p-6 bg-white rounded-lg font-inter">
 
         <div v-if="!canViewProjectNotes" class="p-6 bg-gray-50 rounded-lg text-gray-600 text-center border border-gray-200 shadow-sm">
             You do not have permission to view project notes.

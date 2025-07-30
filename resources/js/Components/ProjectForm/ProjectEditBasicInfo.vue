@@ -210,9 +210,13 @@ const fetchBasicInfoData = async () => {
 
 // Watch for projectId changes to re-fetch data (useful if component is reused or projectId changes)
 watch(() => props.projectId, async (newId) => {
-    if (newId) {
-        await fetchBasicInfoData();
-    }
+
+    setTimeout(async () => {
+        if (newId) {
+            await fetchBasicInfoData();
+        }
+    }, 500)
+
 }, { immediate: true }); // Immediate ensures it runs on initial mount too
 
 
@@ -226,7 +230,7 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="space-y-6 bg-white p-6 rounded-lg shadow-md border border-gray-100 font-inter">
+    <div class="space-y-6 bg-white p-6 rounded-lg border border-gray-100 font-inter">
         <div v-if="isLoadingLocal" class="text-center py-8 text-gray-500 text-lg">
             <svg class="animate-spin h-8 w-8 text-indigo-500 mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

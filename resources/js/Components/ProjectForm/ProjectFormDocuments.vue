@@ -34,6 +34,10 @@ const localDocuments = reactive({
   documents: [] // Array of file objects or document URLs/paths
 });
 
+// Ref for the file input element to clear it after upload
+const documentFileInput = ref(null);
+const isUploading = ref(false); // Local saving state for document uploads
+
 
 // Function to fetch documents data for this specific tab
 const fetchDocumentsData = async () => {
@@ -52,9 +56,6 @@ const fetchDocumentsData = async () => {
   }
 };
 
-// Ref for the file input element to clear it after upload
-const documentFileInput = ref(null);
-const isUploading = ref(false); // Local saving state for document uploads
 
 // Watch for projectId changes to re-fetch data
 watch(() => props.projectId, async (newId) => {
@@ -89,14 +90,18 @@ const submitDocuments = async () => {
     error('Project ID is missing. Cannot upload documents.');
     return;
   }
-  // Fix: Ensure 'doc' is an object before using instanceof File
-  const filesToUpload = localDocuments.documents.filter(doc => typeof doc === 'object' && doc !== null && doc instanceof File);
+  // Updated Fix: Check for file-like properties instead of instanceof File
+  const filesToUpload = localDocuments.documents.filter(doc =>
+      doc && typeof doc === 'object' && 'name' in doc && 'size' in doc && 'type' in doc
+  );
+
   if (!filesToUpload || filesToUpload.length === 0) {
     error('Please select documents to upload.');
     return;
   }
 
   isUploading.value = true;
+
 
   try {
     const formData = new FormData();
@@ -147,8 +152,6 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6">
-    <h3 class="text-xl font-semibold text-gray-800 mb-4">Manage Project Documents</h3>
-
     <!-- Document Upload Section -->
     <div v-if="canUploadProjectDocuments" class="bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
       <InputLabel for="documents-upload" value="Upload New Documents" class="mb-2 text-lg" />
@@ -171,7 +174,7 @@ onMounted(() => {
         <PrimaryButton
             type="button"
             @click="submitDocuments"
-            :disabled="!projectId || !localDocuments.documents || !localDocuments.documents.some(doc => typeof doc === 'object' && doc !== null && doc instanceof File) || isUploading || isSaving"
+            :disabled="!projectId || !localDocuments.documents || !localDocuments.documents.some(doc => doc && typeof doc === 'object' && 'name' in doc && 'size' in doc && 'type' in doc) || isUploading || isSaving"
             class="px-6 py-3 rounded-lg text-lg shadow-md hover:shadow-lg transition-all duration-200"
         >
           <span v-if="isUploading">Uploading...</span>

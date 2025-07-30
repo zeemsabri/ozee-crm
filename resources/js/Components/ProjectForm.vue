@@ -279,9 +279,5 @@ onMounted(async () => {
             />
         </div>
 
-        <!-- Close Button at the bottom -->
-        <div class="mt-8 flex justify-end pt-4 border-t border-gray-200">
-            <SecondaryButton @click="closeForm" class="px-6 py-2 rounded-lg text-lg">Close</SecondaryButton>
-        </div>
     </div>
 </template>

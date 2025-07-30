@@ -453,7 +453,7 @@ class ProjectReadController extends Controller
             return response()->json(['message' => 'Unauthorized. You do not have permission to view documents.'], 403);
         }
 
-        return response()->json($project->documents);
+        return response()->json($project->documents()->get());
     }
 
     /**

@@ -427,8 +427,7 @@ watch(currentDisplayCurrency, (newCurrency) => {
 </script>
 
 <template>
-    <div class="p-6 bg-white rounded-lg shadow-xl">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">Project Transactions</h3>
+    <div class="p-6 bg-white rounded-lg">
 
         <div v-if="generalError" class="text-red-600 text-sm mb-4">{{ generalError }}</div>
 
