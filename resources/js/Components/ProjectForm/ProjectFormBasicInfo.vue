@@ -322,6 +322,7 @@ const handleLogoChange = (event) => {
     <div class="mt-6 flex justify-end">
       <PrimaryButton
           @click="submitBasicInfo"
+          v-if="canManageProjectBasicDetails"
           :disabled="!canManageProjects || (localProjectForm.id && !canManageProjectBasicDetails) || isSaving"
           :class="{ 'opacity-50 cursor-not-allowed': isSaving }"
           class="px-6 py-2 rounded-lg text-base shadow-md hover:shadow-lg transition-all"
