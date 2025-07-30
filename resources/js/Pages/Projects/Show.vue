@@ -115,6 +115,11 @@ const canManageProjects = computed(() => {
     return canDo('manage_projects').value || isSuperAdmin.value;
 });
 
+const canEditProject = computed(() => {
+    return canDo('edit_projects').value || isSuperAdmin.value;
+});
+
+
 const canViewEmails = computed(() => canView('emails').value);
 const canComposeEmails = computed(() => canDo('compose_emails').value);
 const canApproveEmails = computed(() => canDo('approve_emails').value);
@@ -343,6 +348,7 @@ onMounted(async () => {
                     :project-id="projectId"
                     :can-manage-projects="canManageProjects"
                     :is-super-admin="isSuperAdmin"
+                    :can-edit-projects="canEditProject"
                     @open-edit-modal="showEditModal = true"
                     @open-standup-modal="showStandupModal = true"
                     @open-meeting-modal="showMeetingModal = true"
