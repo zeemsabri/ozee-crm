@@ -40,6 +40,7 @@ class AppServiceProvider extends ServiceProvider
     {
 
         Gate::before(function ($user, $ability) {
+
             // These logs are crucial for debugging. Keep them for now.
             Log::info('Gate::before check (from AppServiceProvider):', [
                 'user_id' => $user->id ?? 'N/A (guest)',

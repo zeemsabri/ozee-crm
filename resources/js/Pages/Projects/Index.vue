@@ -1,199 +1,102 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import ProjectForm from '@/Components/ProjectForm.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import { ref, onMounted, computed, reactive } from 'vue';
 import axios from 'axios';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
-import Modal from '@/Components/Modal.vue';
+import Modal from '@/Components/Modal.vue'; // Only for delete confirmation
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
-import InputError from '@/Components/InputError.vue';
-import NotesModal from '@/Components/NotesModal.vue';
-import BonusConfigurationGroupModal from '@/Components/BonusConfiguration/BonusConfigurationGroupModal.vue';
-import { useAuthUser, usePermissions, useProjectRole, vPermission, registerPermissionDirective } from '@/Directives/permissions';
-import { success, error, warning, info } from '@/Utils/notification';
+import SelectDropdown from '@/Components/SelectDropdown.vue'; // For filters
+import { usePermissions } from '@/Directives/permissions';
+import { success, error } from '@/Utils/notification';
 
-// Access user from permissions utility
-const authUser = useAuthUser();
+// Access user from permissions utility (if needed for display, otherwise remove)
+// const authUser = useAuthUser();
 
-// Reactive state
+// Reactive state for main project list and filters
 const projects = ref([]);
-const clients = ref([]);
-const users = ref([]);
-const projectUsers = ref([]); // Users specific to the current project
 const loading = ref(true);
-const errors = ref({});
 const generalError = ref('');
 
-// Modals state
-const showCreateModal = ref(false);
-const showEditModal = ref(false);
-const showDeleteModal = ref(false);
-const showAddTransactionModal = ref(false);
-const showAddNoteModal = ref(false);
-const showConvertPaymentModal = ref(false);
-const showBonusConfigModal = ref(false);
+// Filter & Search states
+const searchQuery = ref('');
+const filterStatus = ref('');
+const filterClient = ref('');
+const filterUser = ref('');
+const filterSource = ref('');
 
-// Form state for editing project (passed to ProjectForm)
-const selectedProject = ref({});
-
-// Form state for adding transactions
-const transactionForm = reactive({
-    project_id: null,
-    description: '',
-    amount: '',
-    user_id: null,
-    hours_spent: '',
-    type: 'expense',
-});
-
-// Form state for adding notes
-const noteForm = reactive({
-    project_id: null,
-    content: '',
-});
-
-// Form state for converting payment type
-const convertForm = reactive({
-    project_id: null,
-    payment_type: 'one_off',
-});
-
-// State for project being deleted or converted
-const projectToDelete = ref(null);
-const projectToConvert = ref(null);
-
-// Set up permission checking functions for global permissions
-const { canDo, canView, canManage } = usePermissions();
-
-// Using only global permissions as per requirements
-
-// Legacy role-based checks (kept for backward compatibility)
-const isSuperAdmin = computed(() => {
-    if (!authUser.value) return false;
-    return (authUser.value.role_data && authUser.value.role_data.slug === 'super-admin') ||
-           authUser.value.role === 'super_admin' ||
-           authUser.value.role === 'super-admin';
-});
-
-// Permission-based checks using the permission utilities
-// Global permission checks (for actions that apply to all projects)
-const canCreateProjects = canDo('create_projects');
-const hasAccessToProjects = computed(() => {
-    // The permission system already handles super admin permissions
-    return canView('projects').value;
-});
-
-// Project-specific permission checks
-const getProjectRole = (project) => {
-    // Create a ref to hold the project for useProjectRole
-    const projectRef = ref(project);
-    return useProjectRole(projectRef);
-};
-
-// Check if user can manage a specific project - using global permissions
-const canManageProject = (project) => {
-    // Using global permissions as per requirements
-    return canDo('manage_projects');
-};
-
-// Check if user can delete a specific project - using global permissions
-const canDeleteProject = (project) => {
-    // Using global permissions as per requirements
-    return canDo('delete_projects');
-};
-
-// For backward compatibility with existing code
-const canManageProjects = canDo('manage_projects');
-
-// Options
-const statusOptions = [
+// Fixed Status options
+const filterStatusOptions = ref([
+    { value: '', label: 'All Statuses' },
     { value: 'active', label: 'Active' },
     { value: 'completed', label: 'Completed' },
-    { value: 'on_hold', label: 'On Hold' },
+    { value: 'paid', label: 'Paid' },
+    { value: 'on-hold', label: 'On Hold' },
     { value: 'archived', label: 'Archived' },
-];
-const departmentOptions = [
-    { value: 'Website Designing', label: 'Website Designing' },
-    { value: 'SEO', label: 'SEO' },
-    { value: 'Social Media', label: 'Social Media' },
-    { value: 'Content Writing', label: 'Content Writing' },
-    { value: 'Graphic Design', label: 'Graphic Design' },
-];
-const sourceOptions = [
-    { value: 'UpWork', label: 'UpWork' },
-    { value: 'Direct', label: 'Direct Client' },
-    { value: 'Wix Marketplace', label: 'Wix Marketplace' },
-    { value: 'Referral', label: 'Referral' },
-];
-// Dynamic role options fetched from API
-const clientRoleOptions = ref([]);
-const userRoleOptions = ref([]);
+]);
 
-// Fetch roles from the database
-const fetchRoles = async () => {
-    try {
-        // Fetch client roles
-        const clientResponse = await axios.get('/api/roles?type=client');
-        clientRoleOptions.value = clientResponse.data.map(role => ({
-            value: role.id,
-            label: role.name
-        }));
+// Dynamic options for other filters, derived from fetched projects
+const filterClientOptions = computed(() => {
+    const uniqueClients = new Map();
+    projects.value.forEach(project => {
+        project.clients?.forEach(client => {
+            if (!uniqueClients.has(client.id)) {
+                uniqueClients.set(client.id, { value: client.id, label: client.name });
+            }
+        });
+    });
+    return [{ value: '', label: 'All Clients' }, ...Array.from(uniqueClients.values())];
+});
 
-        // Fetch project roles
-        const projectResponse = await axios.get('/api/roles?type=project');
-        userRoleOptions.value = projectResponse.data.map(role => ({
-            value: role.id,
-            label: role.name
-        }));
-    } catch (error) {
-        console.error('Error fetching roles:', error);
-        // Fallback to hardcoded roles if API fails
-        clientRoleOptions.value = [
-            { value: 1, label: 'Client Admin' },
-            { value: 2, label: 'Client User' },
-            { value: 3, label: 'Client Viewer' },
-        ];
-        userRoleOptions.value = [
-            { value: 1, label: 'Project Manager' },
-            { value: 2, label: 'Project Member' },
-            { value: 3, label: 'Project Viewer' },
-        ];
-    }
-};
-const paymentTypeOptions = [
-    { value: 'one_off', label: 'One-Off' },
-    { value: 'monthly', label: 'Monthly' },
-];
+const filterUserOptions = computed(() => {
+    const uniqueUsers = new Map();
+    projects.value.forEach(project => {
+        project.users?.forEach(user => {
+            if (!uniqueUsers.has(user.id)) {
+                uniqueUsers.set(user.id, { value: user.id, label: user.name });
+            }
+        });
+    });
+    return [{ value: '', label: 'All Users' }, ...Array.from(uniqueUsers.values())];
+});
 
-const serviceOptions = [
-    { value: 'website_design', label: 'Website Design' },
-    { value: 'seo', label: 'SEO' },
-    { value: 'social_media', label: 'Social Media' },
-    { value: 'content_writing', label: 'Content Writing' },
-    { value: 'graphic_design', label: 'Graphic Design' },
-];
+const filterSourceOptions = computed(() => {
+    const uniqueSources = new Set();
+    projects.value.forEach(project => {
+        if (project.source && !uniqueSources.has(project.source)) {
+            uniqueSources.add(project.source);
+        }
+    });
+    return [{ value: '', label: 'All Sources' }, ...Array.from(uniqueSources).map(s => ({ value: s, label: s }))];
+});
+
+
+// Modals state (only for delete confirmation)
+const showDeleteModal = ref(false);
+const projectToDelete = ref(null); // Project object to be deleted
+
+// Set up permission checking functions for global permissions
+const { canDo, canView } = usePermissions();
+
+// Global permission checks
+const canCreateProjects = canDo('create_projects');
+const hasAccessToProjects = computed(() => canView('projects').value);
+const canManageProjectsGlobal = canDo('manage_projects'); // For edit/delete actions
 
 // --- Fetch Initial Data ---
 const fetchInitialData = async () => {
     loading.value = true;
     generalError.value = '';
     try {
+        // Only fetch projects for the list page
         const projectsResponse = await window.axios.get('/api/projects');
         projects.value = projectsResponse.data;
 
-        if (canManageProjects.value) {
-            const clientsResponse = await window.axios.get('/api/clients');
-
-            clients.value = clientsResponse.data.data;
-            const usersResponse = await window.axios.get('/api/users');
-            users.value = usersResponse.data;
-        }
     } catch (error) {
-        generalError.value = 'Failed to load data.';
+        generalError.value = 'Failed to load projects.';
         console.error('Error fetching initial data:', error);
         if (error.response && (error.response.status === 401 || error.response.status === 403)) {
             generalError.value = 'You are not authorized to view this content or your session expired. Please log in.';
@@ -203,71 +106,97 @@ const fetchInitialData = async () => {
     }
 };
 
-// --- Create Project ---
-const openCreateModal = () => {
-    // Check if user has permission to create projects
-    if (!canDo('create_projects').value) {
-        error('You do not have permission to create projects.');
-        return;
+// --- Computed Filtered Projects ---
+const filteredProjects = computed(() => {
+    let filtered = projects.value;
+
+    // Apply search query
+    if (searchQuery.value) {
+        const lowerCaseQuery = searchQuery.value.toLowerCase();
+        filtered = filtered.filter(project =>
+            project.name.toLowerCase().includes(lowerCaseQuery) ||
+            (project.description && project.description.toLowerCase().includes(lowerCaseQuery)) ||
+            (project.status && project.status.toLowerCase().includes(lowerCaseQuery.replace(/_|-/g, ' '))) || // Handle 'on_hold' or 'on-hold'
+            (project.clients && project.clients.some(client => client.name.toLowerCase().includes(lowerCaseQuery))) ||
+            (project.users && project.users.some(user => user.name.toLowerCase().includes(lowerCaseQuery))) ||
+            (project.source && project.source.toLowerCase().includes(lowerCaseQuery))
+        );
     }
 
-    selectedProject.value = {};
-    showCreateModal.value = true;
-};
-
-// --- Edit Project ---
-const openEditModal = (project) => {
-    // Check if user has permission to manage projects (using global permissions)
-    if (!canDo('manage_projects').value) {
-        error('You do not have permission to edit this project.');
-        return;
+    // Apply status filter
+    if (filterStatus.value) {
+        filtered = filtered.filter(project => project.status === filterStatus.value);
     }
 
-    selectedProject.value = project;
-    showEditModal.value = true;
-};
-
-// --- Handle Project Submission ---
-const handleProjectSubmit = (project) => {
-    const index = projects.value.findIndex(p => p.id === project.id);
-    if (index !== -1) {
-        projects.value[index] = project;
-    } else {
-        projects.value.push(project);
+    // Apply client filter
+    if (filterClient.value) {
+        filtered = filtered.filter(project => project.clients && project.clients.some(client => client.id === filterClient.value));
     }
-    showCreateModal.value = false;
-    showEditModal.value = false;
-    success(project.id ? 'Project updated successfully!' : 'Project created successfully!');
-    fetchInitialData();
+
+    // Apply user filter
+    if (filterUser.value) {
+        filtered = filtered.filter(project => project.users && project.users.some(user => user.id === filterUser.value));
+    }
+
+    // Apply source filter
+    if (filterSource.value) {
+        filtered = filtered.filter(project => project.source === filterSource.value);
+    }
+
+    return filtered;
+});
+
+// --- Project Statistics ---
+const projectStats = computed(() => {
+    const stats = {
+        total: projects.value.length,
+        active: 0,
+        completed: 0,
+        onHold: 0,
+        paid: 0,
+        archived: 0,
+        // requiringAttention: 0, // Add if you have data for this
+    };
+
+    projects.value.forEach(project => {
+        if (project.status === 'active') stats.active++;
+        if (project.status === 'completed') stats.completed++;
+        if (project.status === 'on-hold' || project.status === 'on_hold') stats.onHold++;
+        if (project.status === 'paid') stats.paid++;
+        if (project.status === 'archived') stats.archived++;
+    });
+
+    return stats;
+});
+
+// Helper: Returns Tailwind CSS classes for project status badges
+const getStatusBadgeClass = (status) => {
+    switch (status) {
+        case 'active': return 'bg-green-100 text-green-800';
+        case 'completed': return 'bg-blue-100 text-blue-800';
+        case 'paid': return 'bg-purple-100 text-purple-800';
+        case 'on-hold':
+        case 'on_hold': return 'bg-red-100 text-red-800';
+        case 'archived': return 'bg-gray-100 text-gray-800';
+        default: return 'bg-gray-100 text-gray-800';
+    }
 };
 
 // --- Delete Project ---
 const confirmProjectDeletion = (project) => {
-    // Check if user has permission to delete projects (using global permissions)
     if (!canDo('delete_projects').value) {
         error('You do not have permission to delete this project.');
         return;
     }
-
     projectToDelete.value = project;
     showDeleteModal.value = true;
 };
 
 const deleteProject = async () => {
     generalError.value = '';
-
-    // Check if project is valid
     const projectId = projectToDelete.value?.id;
-    if (!projectId) {
-        generalError.value = 'Invalid project.';
-        return;
-    }
-
-    // Check if user has permission to delete projects (using global permissions)
-    if (!canDo('delete_projects').value) {
-        generalError.value = 'You do not have permission to delete this project.';
-        return;
-    }
+    if (!projectId) { generalError.value = 'Invalid project.'; return; }
+    if (!canDo('delete_projects').value) { generalError.value = 'You do not have permission to delete this project.'; return; }
 
     try {
         await window.axios.delete(`/api/projects/${projectId}`);
@@ -275,241 +204,28 @@ const deleteProject = async () => {
         showDeleteModal.value = false;
         projectToDelete.value = null;
         success('Project deleted successfully!');
-    } catch (error) {
-        generalError.value = 'Failed to delete project.';
-        if (error.response && error.response.data.message) {
-            generalError.value = error.response.data.message;
-        }
-        console.error('Error deleting project:', error);
+    } catch (err) {
+        generalError.value = err.response?.data?.message || 'Failed to delete project.';
+        console.error('Error deleting project:', err);
     }
 };
 
-// --- Add Transaction ---
-const openAddTransactionModal = async (project) => {
-    // Check if user has permission to manage transactions (using global permissions)
-    if (!canDo('manage_project_transactions').value) {
-        error('You do not have permission to add transactions to this project.');
-        return;
-    }
-
-    // Check if project is valid
-    const projectId = project.id;
-    if (!projectId) {
-        console.error('No project ID found in project object:', project);
-        return;
-    }
-
-    transactionForm.project_id = projectId;
-    transactionForm.description = '';
-    transactionForm.amount = '';
-    transactionForm.user_id = null;
-    transactionForm.hours_spent = '';
-    transactionForm.type = 'expense'; // Default to expense type
-    errors.value = {};
-    generalError.value = '';
-
-    // Fetch project data to get users assigned to this project
-    try {
-        const response = await window.axios.get(`/api/projects/${projectId}`);
-        projectUsers.value = response.data.users || [];
-    } catch (error) {
-        console.error('Error fetching project users:', error);
-        projectUsers.value = [];
-    }
-
-    showAddTransactionModal.value = true;
-};
-
-const addTransaction = async () => {
-    errors.value = {};
-    generalError.value = '';
-
-    // Check if project is valid
-    const projectId = transactionForm.project_id;
-    if (!projectId) {
-        generalError.value = 'Invalid project.';
-        return;
-    }
-
-    // Check if user has permission to manage transactions (using global permissions)
-    if (!canDo('manage_project_transactions').value) {
-        generalError.value = 'You do not have permission to add transactions to this project.';
-        return;
-    }
-
-    try {
-        await window.axios.post(`/api/projects/${projectId}/expenses`, { expenses: [transactionForm] });
-        showAddTransactionModal.value = false;
-        success('Transaction added successfully!');
-        fetchInitialData();
-    } catch (error) {
-        if (error.response && error.response.status === 422) {
-            errors.value = error.response.data.errors;
-        } else if (error.response && error.response.data.message) {
-            generalError.value = error.response.data.message;
-        } else {
-            generalError.value = 'Failed to add transaction.';
-            console.error('Error adding transaction:', error);
-        }
-    }
-};
-
-// --- Add Note ---
-const openAddNoteModal = (project) => {
-    // Check if user has permission to add notes (using global permissions)
-    if (!canDo('add_project_notes').value) {
-        error('You do not have permission to add notes to this project.');
-        return;
-    }
-
-    // Check if project is valid
-    const projectId = project.id;
-    if (!projectId) {
-        console.error('No project ID found in project object:', project);
-        return;
-    }
-
-    noteForm.project_id = projectId;
-    noteForm.content = '';
-    errors.value = {};
-    generalError.value = '';
-    showAddNoteModal.value = true;
-};
-
-const addNote = async () => {
-    errors.value = {};
-    generalError.value = '';
-
-    // Check if project is valid
-    const projectId = noteForm.project_id;
-    if (!projectId) {
-        generalError.value = 'Invalid project.';
-        return;
-    }
-
-    // Check if user has permission to add notes (using global permissions)
-    if (!canDo('add_project_notes').value) {
-        generalError.value = 'You do not have permission to add notes to this project.';
-        return;
-    }
-
-    try {
-        await window.axios.post(`/api/projects/${projectId}/notes`, { notes: [{ content: noteForm.content }] });
-        showAddNoteModal.value = false;
-        success('Note added successfully!');
-        fetchInitialData();
-    } catch (error) {
-        if (error.response && error.response.status === 422) {
-            errors.value = error.response.data.errors;
-        } else if (error.response && error.response.data.message) {
-            generalError.value = error.response.data.message;
-        } else {
-            generalError.value = 'Failed to add note.';
-            console.error('Error adding note:', error);
-        }
-    }
-};
-
-// --- Convert Payment Type ---
-const openConvertPaymentModal = (project) => {
-    // Check if user has permission to manage services and payments (using global permissions)
-    if (!canDo('manage_project_services_and_payments').value) {
-        error('You do not have permission to convert payment type for this project.');
-        return;
-    }
-
-    // Check if project is valid
-    const projectId = project.id;
-    if (!projectId) {
-        console.error('No project ID found in project object:', project);
-        return;
-    }
-
-    projectToConvert.value = project;
-    convertForm.project_id = projectId;
-    convertForm.payment_type = project.payment_type;
-    errors.value = {};
-    generalError.value = '';
-    showConvertPaymentModal.value = true;
-};
-
-const convertPaymentType = async () => {
-    generalError.value = '';
-
-    // Check if project is valid
-    const projectId = convertForm.project_id;
-    if (!projectId) {
-        generalError.value = 'Invalid project.';
-        return;
-    }
-
-    // Check if user has permission to manage services and payments (using global permissions)
-    if (!canDo('manage_project_services_and_payments').value) {
-        generalError.value = 'You do not have permission to convert payment type for this project.';
-        return;
-    }
-
-    try {
-        await window.axios.post(`/api/projects/${projectId}/convert-payment-type`, { payment_type: convertForm.payment_type });
-        const index = projects.value.findIndex(p => p.id === projectId);
-        if (index !== -1) {
-            projects.value[index].payment_type = convertForm.payment_type;
-        }
-        showConvertPaymentModal.value = false;
-        projectToConvert.value = null;
-        success('Payment type converted successfully!');
-        fetchInitialData();
-    } catch (error) {
-        generalError.value = 'Failed to convert payment type.';
-        if (error.response && error.response.data.message) {
-            generalError.value = error.response.data.message;
-        }
-        console.error('Error converting payment type:', error);
-    }
-};
-
-// --- Bonus Configuration Groups ---
-const openBonusConfigModal = (project) => {
-    // Check if user has permission to manage projects (using global permissions)
-    if (!canDo('manage_projects').value) {
-        error('You do not have permission to manage bonus configurations for this project.');
-        return;
-    }
-
-    // Check if project is valid
-    const projectId = project.id;
-    if (!projectId) {
-        console.error('No project ID found in project object:', project);
-        return;
-    }
-
-    selectedProject.value = project;
-    showBonusConfigModal.value = true;
-};
-
-const handleBonusGroupAttached = () => {
-    // Refresh the projects list
-    fetchInitialData();
-    success('Bonus configuration group attached successfully!');
+// --- Clear Filters ---
+const clearFilters = () => {
+    searchQuery.value = '';
+    filterStatus.value = '';
+    filterClient.value = '';
+    filterUser.value = '';
+    filterSource.value = '';
 };
 
 // --- Lifecycle Hook ---
 onMounted(() => {
-    // Check if user has access to projects page
     if (!hasAccessToProjects.value) {
-        // Redirect to dashboard if user doesn't have access
-        window.location.href = route('dashboard');
+        window.location.href = route('dashboard'); // Assuming 'route' helper is available
         return;
     }
-
     fetchInitialData();
-    fetchRoles(); // Fetch dynamic role options
-
-    // Register the v-permission directive
-    const app = document.querySelector('#app').__vue_app__;
-    if (app) {
-        registerPermissionDirective(app);
-    }
 });
 </script>
 
@@ -518,29 +234,152 @@ onMounted(() => {
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">Projects</h2>
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between py-4">
+                <h2 class="font-bold text-3xl text-gray-800 leading-tight mb-2 sm:mb-0">
+                    Project Management
+                </h2>
+                <div v-if="canCreateProjects">
+                    <Link :href="route('projects.create')" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:border-indigo-900 focus:ring ring-indigo-300 disabled:opacity-25 transition ease-in-out duration-150 shadow-md">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                        Create New Project
+                    </Link>
+                </div>
+            </div>
         </template>
 
-        <div class="py-12">
+        <div class="py-6">
             <div class="max-w-12xl mx-auto sm:px-6 lg:px-12">
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6 text-gray-900">
-                        <h3 class="text-2xl font-bold mb-4">Project List</h3>
-
-                        <div v-permission="'create_projects'" class="mb-6">
-                            <PrimaryButton @click="openCreateModal">
-                                Create New Project
-                            </PrimaryButton>
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
+                    <div v-if="loading" class="text-center py-4 text-gray-500 text-lg">
+                        <svg class="animate-spin h-8 w-8 text-indigo-500 mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Loading projects and data...
+                    </div>
+                    <div v-else-if="generalError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md relative mb-4" role="alert">
+                        <span class="block sm:inline">{{ generalError }}</span>
+                    </div>
+                    <div v-else>
+                        <!-- Project Statistics Cards -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            <div class="bg-blue-50 p-6 rounded-lg shadow-sm border border-blue-200 flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-blue-700">Total Projects</p>
+                                    <p class="text-3xl font-bold text-blue-900 mt-1">{{ projectStats.total }}</p>
+                                </div>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-400 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m-4 10h8a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <div class="bg-green-50 p-6 rounded-lg shadow-sm border border-green-200 flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-green-700">Active Projects</p>
+                                    <p class="text-3xl font-bold text-green-900 mt-1">{{ projectStats.active }}</p>
+                                </div>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-green-400 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <div class="bg-yellow-50 p-6 rounded-lg shadow-sm border border-yellow-200 flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-yellow-700">On-Hold Projects</p>
+                                    <p class="text-3xl font-bold text-yellow-900 mt-1">{{ projectStats.onHold }}</p>
+                                </div>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-yellow-400 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <div class="bg-purple-50 p-6 rounded-lg shadow-sm border border-purple-200 flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-purple-700">Completed/Paid</p>
+                                    <p class="text-3xl font-bold text-purple-900 mt-1">{{ projectStats.completed + projectStats.paid }}</p>
+                                </div>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-purple-400 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
                         </div>
 
-                        <div v-if="loading" class="text-gray-600">Loading projects...</div>
-                        <div v-else-if="generalError" class="text-red-600">{{ generalError }}</div>
-                        <div v-else-if="projects.length === 0" class="text-gray-600">No projects found.</div>
-                        <div v-else>
+                        <!-- Search and Filters -->
+                        <div class="mb-8 p-4 bg-gray-50 rounded-lg shadow-inner border border-gray-200">
+                            <h4 class="text-lg font-semibold text-gray-700 mb-4">Filter Projects</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div>
+                                    <InputLabel for="search-query" value="Search" class="mb-1" />
+                                    <TextInput
+                                        id="search-query"
+                                        type="text"
+                                        v-model="searchQuery"
+                                        placeholder="Search by name, client, user..."
+                                        class="w-full"
+                                    />
+                                </div>
+                                <div>
+                                    <InputLabel for="filter-status" value="Status" class="mb-1" />
+                                    <SelectDropdown
+                                        id="filter-status"
+                                        v-model="filterStatus"
+                                        :options="filterStatusOptions"
+                                        value-key="value"
+                                        label-key="label"
+                                        placeholder="All Statuses"
+                                        class="w-full"
+                                    />
+                                </div>
+                                <div>
+                                    <InputLabel for="filter-client" value="Client" class="mb-1" />
+                                    <SelectDropdown
+                                        id="filter-client"
+                                        v-model="filterClient"
+                                        :options="filterClientOptions"
+                                        value-key="value"
+                                        label-key="label"
+                                        placeholder="All Clients"
+                                        class="w-full"
+                                    />
+                                </div>
+                                <div>
+                                    <InputLabel for="filter-user" value="Assigned User" class="mb-1" />
+                                    <SelectDropdown
+                                        id="filter-user"
+                                        v-model="filterUser"
+                                        :options="filterUserOptions"
+                                        value-key="value"
+                                        label-key="label"
+                                        placeholder="All Users"
+                                        class="w-full"
+                                    />
+                                </div>
+                                <div>
+                                    <InputLabel for="filter-source" value="Source" class="mb-1" />
+                                    <SelectDropdown
+                                        id="filter-source"
+                                        v-model="filterSource"
+                                        :options="filterSourceOptions"
+                                        value-key="value"
+                                        label-key="label"
+                                        placeholder="All Sources"
+                                        class="w-full"
+                                    />
+                                </div>
+                            </div>
+                            <div class="mt-4 flex justify-end">
+                                <SecondaryButton @click="clearFilters" class="px-4 py-2">Clear Filters</SecondaryButton>
+                            </div>
+                        </div>
+
+                        <!-- Project List Table -->
+                        <div v-if="filteredProjects.length === 0" class="p-6 bg-gray-50 rounded-lg text-gray-600 text-center border border-gray-200 shadow-sm">
+                            No projects found matching your criteria.
+                        </div>
+                        <div v-else class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
                                 <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Name</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Clients</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Users</th>
@@ -548,39 +387,29 @@ onMounted(() => {
                                 </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="project in projects" :key="project.id">
-                                    <td class="px-6 py-4 whitespace-nowrap">{{ project.name }}</td>
-                                    <td class="px-6 py-4">
+                                <tr v-for="project in filteredProjects" :key="project.id">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ project.name }}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-600">
                                         <span v-if="project.clients && project.clients.length">
-                                            {{ project.clients.map(client => {
-                                                const roleId = client.pivot.role_id;
-                                                const roleOption = clientRoleOptions.find(option => option.value === roleId);
-                                                const roleName = roleOption ? roleOption.label : 'Unknown Role';
-                                                return `${client.name} (${roleName})`;
-                                            }).join(', ') }}
+                                            {{ project.clients.map(client => client.name).join(', ') }}
                                         </span>
                                         <span v-else class="text-gray-400">None</span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap capitalize">{{ project.status.replace('_', ' ') }}</td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span :class="['px-2 inline-flex text-xs leading-5 font-semibold rounded-full capitalize', getStatusBadgeClass(project.status)]">
+                                            {{ project.status.replace('_', ' ') }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-600">
                                         <span v-if="project.users && project.users.length">
-                                            {{ project.users.map(user => {
-                                                const roleId = user.pivot.role_id;
-                                                const roleOption = userRoleOptions.find(option => option.value === roleId);
-                                                const roleName = roleOption ? roleOption.label : 'Unknown Role';
-                                                return `${user.name} (${roleName})`;
-                                            }).join(', ') }}
+                                            {{ project.users.map(user => user.name).join(', ') }}
                                         </span>
                                         <span v-else class="text-gray-400">None</span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div class="flex items-center space-x-2">
-                                            <PrimaryButton v-permission="'manage_projects'" @click="openEditModal(project)">Edit</PrimaryButton>
-<!--                                            <PrimaryButton v-permission="'manage_project_transactions'" @click="openAddTransactionModal(project)">Add Transactions</PrimaryButton>-->
-                                            <PrimaryButton v-permission="'add_project_notes'" @click="openAddNoteModal(project)">Add Note</PrimaryButton>
-<!--                                            <PrimaryButton v-permission="'manage_projects'" @click="openBonusConfigModal(project)">Bonus Config</PrimaryButton>-->
-<!--                                            <PrimaryButton v-permission="'manage_project_services_and_payments'" @click="openConvertPaymentModal(project)">Convert Payment</PrimaryButton>-->
-                                            <DangerButton v-permission="'delete_projects'" @click="confirmProjectDeletion(project)">Delete</DangerButton>
+                                            <Link :href="route('projects.edit', project.id)" v-permission="'manage_projects'" class="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:border-indigo-700 focus:ring active:bg-indigo-700 transition ease-in-out duration-150">Edit</Link>
+<!--                                            <DangerButton v-permission="'delete_projects'" @click="confirmProjectDeletion(project)">Delete</DangerButton>-->
                                         </div>
                                     </td>
                                 </tr>
@@ -592,38 +421,7 @@ onMounted(() => {
             </div>
         </div>
 
-        <Modal :show="showCreateModal" @close="showCreateModal = false">
-            <ProjectForm
-                :show="showCreateModal"
-                :project="selectedProject"
-                :statusOptions="statusOptions"
-                :serviceOptions="serviceOptions"
-                :departmentOptions="departmentOptions"
-                :sourceOptions="sourceOptions"
-                :clientRoleOptions="clientRoleOptions"
-                :userRoleOptions="userRoleOptions"
-                :paymentTypeOptions="paymentTypeOptions"
-                @close="showCreateModal = false"
-                @submit="handleProjectSubmit"
-            />
-        </Modal>
-
-        <Modal :show="showEditModal" @close="showEditModal = false">
-            <ProjectForm
-                :show="showEditModal"
-                :project="selectedProject"
-                :statusOptions="statusOptions"
-                :serviceOptions="serviceOptions"
-                :departmentOptions="departmentOptions"
-                :sourceOptions="sourceOptions"
-                :clientRoleOptions="clientRoleOptions"
-                :userRoleOptions="userRoleOptions"
-                :paymentTypeOptions="paymentTypeOptions"
-                @close="showEditModal = false"
-                @submit="handleProjectSubmit"
-            />
-        </Modal>
-
+        <!-- Delete Confirmation Modal (Only modal remaining) -->
         <Modal :show="showDeleteModal" @close="showDeleteModal = false">
             <div class="p-6">
                 <h2 class="text-lg font-medium text-gray-900">
@@ -635,12 +433,7 @@ onMounted(() => {
                 <div v-if="projectToDelete" class="mt-4 text-gray-800">
                     <strong>Project:</strong> {{ projectToDelete.name }}
                     <span v-if="projectToDelete.clients && projectToDelete.clients.length">
-                        (Clients: {{ projectToDelete.clients.map(client => {
-                            const roleId = client.pivot.role_id;
-                            const roleOption = clientRoleOptions.find(option => option.value === roleId);
-                            const roleName = roleOption ? roleOption.label : 'Unknown Role';
-                            return `${client.name} (${roleName})`;
-                        }).join(', ') }})
+                        (Clients: {{ projectToDelete.clients.map(client => client.name).join(', ') }})
                     </span>
                 </div>
                 <div v-if="generalError" class="text-red-600 text-sm mb-4">{{ generalError }}</div>
@@ -650,83 +443,5 @@ onMounted(() => {
                 </div>
             </div>
         </Modal>
-
-        <Modal :show="showAddTransactionModal" @close="showAddTransactionModal = false">
-            <div class="p-6">
-                <h2 class="text-lg font-medium text-gray-900 mb-4">Add Transactions</h2>
-                <div v-if="generalError" class="text-red-600 text-sm mb-4">{{ generalError }}</div>
-                <form @submit.prevent="addTransaction">
-                    <div class="mb-4">
-                        <InputLabel for="transaction_type" value="Type" />
-                        <select id="transaction_type" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="transactionForm.type">
-                            <option value="income">Income</option>
-                            <option value="expense">Expense</option>
-                        </select>
-                        <InputError :message="errors['expenses.0.type'] ? errors['expenses.0.type'][0] : ''" class="mt-2" />
-                    </div>
-                    <div class="mb-4">
-                        <InputLabel for="transaction_description" value="Description" />
-                        <TextInput id="transaction_description" type="text" class="mt-1 block w-full" v-model="transactionForm.description" required />
-                        <InputError :message="errors['expenses.0.description'] ? errors['expenses.0.description'][0] : ''" class="mt-2" />
-                    </div>
-                    <div class="mb-4">
-                        <InputLabel for="transaction_amount" value="Amount" />
-                        <TextInput id="transaction_amount" type="number" step="0.01" class="mt-1 block w-full" v-model="transactionForm.amount" required />
-                        <InputError :message="errors['expenses.0.amount'] ? errors['expenses.0.amount'][0] : ''" class="mt-2" />
-                    </div>
-                    <div class="mb-4" v-if="transactionForm.type === 'expense'">
-                        <InputLabel for="transaction_user_id" value="User (Optional)" />
-                        <select id="transaction_user_id" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="transactionForm.user_id">
-                            <option value="" disabled>Select User</option>
-                            <option v-for="user in projectUsers" :key="user.id" :value="user.id">{{ user.name }}</option>
-                        </select>
-                        <InputError :message="errors['expenses.0.user_id'] ? errors['expenses.0.user_id'][0] : ''" class="mt-2" />
-                    </div>
-                    <div class="mb-4" v-if="transactionForm.type === 'expense'">
-                        <InputLabel for="transaction_hours_spent" value="Hours Spent (Optional)" />
-                        <TextInput id="transaction_hours_spent" type="number" step="0.01" class="mt-1 block w-full" v-model="transactionForm.hours_spent" />
-                        <InputError :message="errors['expenses.0.hours_spent'] ? errors['expenses.0.hours_spent'][0] : ''" class="mt-2" />
-                    </div>
-                    <div class="mt-6 flex justify-end">
-                        <SecondaryButton @click="showAddTransactionModal = false">Cancel</SecondaryButton>
-                        <PrimaryButton class="ms-3" type="submit">Add Transaction</PrimaryButton>
-                    </div>
-                </form>
-            </div>
-        </Modal>
-
-        <NotesModal
-            :show="showAddNoteModal"
-            :project-id="noteForm.project_id"
-            @close="showAddNoteModal = false"
-            @note-added="fetchInitialData"
-        />
-
-        <Modal :show="showConvertPaymentModal" @close="showConvertPaymentModal = false">
-            <div class="p-6">
-                <h2 class="text-lg font-medium text-gray-900 mb-4">Convert Payment Type</h2>
-                <div v-if="generalError" class="text-red-600 text-sm mb-4">{{ generalError }}</div>
-                <form @submit.prevent="convertPaymentType">
-                    <div class="mb-4">
-                        <InputLabel for="convert_payment_type" value="Payment Type" />
-                        <select id="convert_payment_type" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="convertForm.payment_type" required>
-                            <option v-for="option in paymentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                        </select>
-                        <InputError :message="errors.payment_type ? errors.payment_type[0] : ''" class="mt-2" />
-                    </div>
-                    <div class="mt-6 flex justify-end">
-                        <SecondaryButton @click="showConvertPaymentModal = false">Cancel</SecondaryButton>
-                        <PrimaryButton class="ms-3" type="submit">Convert</PrimaryButton>
-                    </div>
-                </form>
-            </div>
-        </Modal>
-
-        <BonusConfigurationGroupModal
-            :show="showBonusConfigModal"
-            :project-id="selectedProject?.id"
-            @close="showBonusConfigModal = false"
-            @group-attached="handleBonusGroupAttached"
-        />
     </AuthenticatedLayout>
 </template>

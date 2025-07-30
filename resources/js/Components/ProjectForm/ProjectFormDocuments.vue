@@ -1,8 +1,10 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import { success, error } from '@/Utils/notification';
+import { fetchProjectSectionData } from '@/Components/ProjectForm/useProjectData';
 
 const props = defineProps({
     projectForm: {
@@ -24,10 +26,14 @@ const props = defineProps({
     canViewProjectDocuments: {
         type: Boolean,
         default: false
+    },
+    isSaving: { // Overall page saving state
+        type: Boolean,
+        default: false
     }
 });
 
-const emit = defineEmits(['update:projectForm', 'uploadDocuments']);
+const emit = defineEmits(['update:projectForm']);
 
 // Computed property for v-model binding
 const localProjectForm = computed({
@@ -37,6 +43,7 @@ const localProjectForm = computed({
 
 // Ref for the file input element to clear it after upload
 const documentFileInput = ref(null);
+const isUploading = ref(false); // Local saving state for document uploads
 
 /**
  * Handles the change event of the file input.
@@ -56,17 +63,44 @@ const handleFileChange = (event) => {
 };
 
 /**
- * Initiates the document upload process by emitting an event to the parent.
+ * Initiates the document upload process by directly making the API call.
  * Clears the file input after emitting.
  */
-const submitDocuments = () => {
-    // Filter out only the File objects from the documents array to send for upload
+const submitDocuments = async () => {
+    if (!localProjectForm.value.id) {
+        error('Please save the project first before uploading documents.');
+        return;
+    }
     const filesToUpload = localProjectForm.value.documents.filter(doc => doc instanceof File);
-    emit('uploadDocuments', filesToUpload);
+    if (!filesToUpload || filesToUpload.length === 0) {
+        error('Please select documents to upload.');
+        return;
+    }
 
-    // Clear the file input after submission
-    if (documentFileInput.value) {
-        documentFileInput.value.value = '';
+    isUploading.value = true;
+
+    try {
+        const formData = new FormData();
+        filesToUpload.forEach((file, index) => {
+            formData.append(`documents[${index}]`, file);
+        });
+        const response = await window.axios.post(
+            `/api/projects/${localProjectForm.value.id}/documents`,
+            formData,
+            { headers: { 'Content-Type': 'multipart/form-data' } }
+        );
+        localProjectForm.value.documents = response.data.documents || []; // Update with new list of documents
+        success('Documents uploaded successfully!');
+        // Re-fetch documents after upload to ensure consistency
+        await fetchDocumentsData();
+    } catch (err) {
+        error('Failed to upload documents.');
+        console.error('Error uploading documents:', err);
+    } finally {
+        isUploading.value = false;
+        if (documentFileInput.value) {
+            documentFileInput.value.value = ''; // Clear the file input
+        }
     }
 };
 
@@ -83,6 +117,30 @@ const removeDocument = (index) => {
     // and an API call to delete it from storage/database.
     // For now, it just removes it from the list in the form.
 };
+
+// Function to fetch documents data for this specific tab
+const fetchDocumentsData = async () => {
+    if (!localProjectForm.value.id) return;
+
+    try {
+        const data = await fetchProjectSectionData(localProjectForm.value.id, 'documents', {
+            canViewProjectDocuments: props.canViewProjectDocuments,
+        });
+        if (data) {
+            localProjectForm.value.documents = data || [];
+        }
+    } catch (err) {
+        console.error('Error fetching documents data:', err);
+        error('Failed to load documents data.');
+    }
+};
+
+// Fetch data on component mount
+onMounted(async () => {
+    if (localProjectForm.value.id) {
+        await fetchDocumentsData();
+    }
+});
 </script>
 
 <template>
@@ -111,10 +169,11 @@ const removeDocument = (index) => {
                 <PrimaryButton
                     type="button"
                     @click="submitDocuments"
-                    :disabled="!localProjectForm.id || !localProjectForm.documents || !localProjectForm.documents.some(doc => doc instanceof File)"
+                    :disabled="!localProjectForm.id || !localProjectForm.documents || !localProjectForm.documents.some(doc => doc instanceof File) || isUploading || isSaving"
                     class="px-6 py-3 rounded-lg text-lg shadow-md hover:shadow-lg transition-all duration-200"
                 >
-                    Upload Selected Documents
+                    <span v-if="isUploading">Uploading...</span>
+                    <span v-else>Upload Selected Documents</span>
                 </PrimaryButton>
                 <p v-if="!localProjectForm.id" class="text-sm text-red-500 mt-3">
                     Please save the project first before uploading documents.
@@ -162,6 +221,7 @@ const removeDocument = (index) => {
                         @click="removeDocument(index)"
                         class="p-2 rounded-full text-red-500 hover:bg-red-100 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200"
                         title="Remove document"
+                        :disabled="isUploading || isSaving"
                     >
                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>

@@ -1,8 +1,10 @@
 <script setup>
-import { computed, watch } from 'vue';
+import { computed, watch, onMounted, ref } from 'vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import { success, error } from '@/Utils/notification';
+import { fetchProjectSectionData } from '@/Components/ProjectForm/useProjectData';
 
 const props = defineProps({
     projectId: { // Assuming projectId is passed from parent and is needed for context
@@ -29,20 +31,21 @@ const props = defineProps({
         type: Boolean,
         default: false
     },
-    // NEW PROP: Controlled by the parent component
-    isSaving: {
+    isSaving: { // Overall page saving state
         type: Boolean,
         default: false
     }
 });
 
-const emit = defineEmits(['update:projectForm', 'updateNotes']);
+const emit = defineEmits(['update:projectForm']);
 
 // Computed property for v-model binding
 const localProjectForm = computed({
     get: () => props.projectForm,
     set: (value) => emit('update:projectForm', value)
 });
+
+const isSavingNotes = ref(false); // Local saving state for notes
 
 /**
  * Adds a new empty note to the notes array.
@@ -65,31 +68,43 @@ const addNote = () => {
  */
 const removeNote = (index) => {
     if (props.canAddProjectNotes) {
-        // For existing notes, you might want to mark them for deletion
-        // instead of immediately splicing, then filter on save.
-        // For simplicity, this example still splices.
         localProjectForm.value.notes.splice(index, 1);
     }
 };
 
 /**
- * Emits the 'updateNotes' event to the parent component to save the notes.
- * This function now explicitly constructs the payload to ensure 'id' is included.
+ * Saves the notes by directly making the API call.
  */
-const saveNotes = () => {
+const saveNotes = async () => {
+    if (!localProjectForm.value.id) {
+        error('Please save the project first before adding or editing notes.');
+        return;
+    }
+    isSavingNotes.value = true;
+
     // Map the notes to ensure only relevant fields are sent and 'id' is always present if it exists
     const notesToSave = localProjectForm.value.notes.map(note => ({
         id: note.id || null, // Ensure 'id' is included, or null if new
         content: note.content,
-        // Include other fields if your backend expects them for updates, e.g.:
-        // type: note.type,
-        // chat_message_id: note.chat_message_id,
-        // parent_id: note.parent_id,
     }));
-    console.log('Payload being emitted for save:', notesToSave); // Debugging: check this in your browser console
 
-    // Emit the event. The parent component is now fully responsible for managing the loading state.
-    emit('updateNotes', notesToSave);
+    try {
+        const response = await window.axios.put(`/api/projects/${localProjectForm.value.id}/sections/notes?type=private`, { notes: notesToSave });
+        localProjectForm.value.notes = response.data.notes.map(note => ({
+            id: note.id,
+            content: note.content,
+            created_at: note.created_at,
+            creator_name: note.creator_name || note.user?.name || note.creator?.name || 'Unknown'
+        })) || [];
+        success('Notes updated successfully!');
+        // Re-fetch notes after update to ensure consistency
+        await fetchNotesData();
+    } catch (err) {
+        console.error('Error updating notes:', err);
+        error('Failed to update notes.');
+    } finally {
+        isSavingNotes.value = false;
+    }
 };
 
 /**
@@ -109,10 +124,35 @@ const formatNoteDate = (dateString) => {
     });
 };
 
-// --- Debugging Watcher ---
-watch(() => props.projectForm.notes, (newNotes) => {
-    console.log('ProjectFormNotes received notes:', newNotes);
-}, { deep: true, immediate: true });
+// Function to fetch notes data for this specific tab
+const fetchNotesData = async () => {
+    if (!props.projectId) return;
+
+    try {
+        const data = await fetchProjectSectionData(props.projectId, 'notes', {
+            canViewProjectNotes: props.canViewProjectNotes,
+            canAddProjectNotes: props.canAddProjectNotes,
+        });
+        if (data) {
+            localProjectForm.value.notes = data.map(note => ({
+                id: note.id,
+                content: note.content,
+                created_at: note.created_at,
+                creator_name: note.creator_name || note.user?.name || note.creator?.name || 'Unknown'
+            })) || [];
+        }
+    } catch (err) {
+        console.error('Error fetching notes data:', err);
+        error('Failed to load notes data.');
+    }
+};
+
+// Fetch data on component mount
+onMounted(async () => {
+    if (props.projectId) {
+        await fetchNotesData();
+    }
+});
 </script>
 
 <template>
@@ -129,7 +169,7 @@ watch(() => props.projectForm.notes, (newNotes) => {
                     @click="addNote"
                     type="button"
                     class="px-5 py-2.5 rounded-lg text-base shadow-sm hover:shadow-md transition-all duration-200"
-                    :disabled="!canAddProjectNotes || isSaving"
+                    :disabled="!canAddProjectNotes || isSavingNotes || isSaving"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
@@ -139,11 +179,11 @@ watch(() => props.projectForm.notes, (newNotes) => {
 
                 <PrimaryButton
                     @click="saveNotes"
-                    :disabled="!localProjectForm.id || !canAddProjectNotes || isSaving"
-                    :class="{ 'opacity-50 cursor-not-allowed': isSaving }"
+                    :disabled="!localProjectForm.id || !canAddProjectNotes || isSavingNotes || isSaving"
+                    :class="{ 'opacity-50 cursor-not-allowed': isSavingNotes || isSaving }"
                     class="px-6 py-3 rounded-lg text-lg shadow-md hover:shadow-lg transition-all duration-200"
                 >
-                    <span v-if="isSaving" class="flex items-center">
+                    <span v-if="isSavingNotes || isSaving" class="flex items-center">
                         <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -163,7 +203,7 @@ watch(() => props.projectForm.notes, (newNotes) => {
                     v-for="(note, index) in localProjectForm.notes"
                     :key="note.id || `new-note-${index}`"
                     class="relative bg-white p-5 rounded-lg shadow-md border border-gray-200 flex flex-col h-64 transition-all duration-200 ease-in-out hover:shadow-lg"
-                    :class="{ 'opacity-75 cursor-not-allowed': !canAddProjectNotes || isSaving }"
+                    :class="{ 'opacity-75 cursor-not-allowed': !canAddProjectNotes || isSavingNotes || isSaving }"
                 >
                     <div class="flex justify-between items-start mb-3">
                         <InputLabel :value="`Note ${index + 1}`" class="text-sm font-semibold text-gray-700" />
@@ -173,7 +213,7 @@ watch(() => props.projectForm.notes, (newNotes) => {
                             @click="removeNote(index)"
                             class="p-1 rounded-full text-red-500 hover:bg-red-100 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200"
                             title="Remove note"
-                            :disabled="isSaving"
+                            :disabled="isSavingNotes || isSaving"
                         >
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
@@ -181,7 +221,7 @@ watch(() => props.projectForm.notes, (newNotes) => {
 
                     <textarea
                         v-model="note.content"
-                        :readonly="!canAddProjectNotes || isSaving"
+                        :readonly="!canAddProjectNotes || isSavingNotes || isSaving"
                         placeholder="Type your note content here..."
                         class="flex-grow border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm block w-full resize-none transition-colors duration-200 p-3 text-sm overflow-auto"
                         rows="6"

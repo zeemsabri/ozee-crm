@@ -182,8 +182,9 @@ class ProjectReadController extends Controller
      */
     public function getBasicInfo(Project $project)
     {
+
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project)) {
+        if (!$this->canAccessProject($user, $project) && !$this->canManageProjects($user)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
