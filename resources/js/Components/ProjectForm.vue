@@ -1,58 +1,61 @@
 <script setup>
-import { ref, reactive, watch, computed, onMounted } from 'vue';
-import ServicesAndPaymentForm from '@/Components/ServicesAndPaymentForm.vue';
-import ProjectTransactions from '@/Components/ProjectTransactions.vue';
+import { ref, watch, computed, onMounted } from 'vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { useAuthUser, useProjectRole, usePermissions, useProjectPermissions, fetchProjectPermissions } from '@/Directives/permissions';
 import { success, error, warning, info } from '@/Utils/notification';
+import { fetchRoles, fetchClients, fetchUsers } from '@/Components/ProjectForm/useProjectData';
 
-// Import sub-components
-import ProjectFormBasicInfo from '@/Components/ProjectForm/ProjectFormBasicInfo.vue';
+// Import sub-components (renamed basic info)
+import ProjectEditBasicInfo from '@/Components/ProjectForm/ProjectEditBasicInfo.vue'; // Renamed
 import ProjectFormClientsUsers from '@/Components/ProjectForm/ProjectFormClientsUsers.vue';
 import ProjectFormDocuments from '@/Components/ProjectForm/ProjectFormDocuments.vue';
 import ProjectFormNotes from '@/Components/ProjectForm/ProjectFormNotes.vue';
-
-// Assume these come from a composable for data fetching (though children now call them)
-import { fetchRoles, fetchClients, fetchUsers } from '@/Components/ProjectForm/useProjectData';
+import ServicesAndPaymentForm from '@/Components/ServicesAndPaymentForm.vue'; // Assuming this component exists
+import ProjectTransactions from '@/Components/ProjectTransactions.vue'; // Assuming this component exists
 
 // Use the permission utilities
 const authUser = useAuthUser();
-const project = ref({}); // 'project' ref is used by useProjectRole and useProjectPermissions
 
 // Define props for the main ProjectForm component
 const props = defineProps({
-    project: { type: Object, default: () => ({}) }, // The project object to edit
+    projectId: { // Now explicitly projectId
+        type: [Number, String],
+        default: null, // Can be null for new projects (though this component is for editing)
+    },
     statusOptions: { type: Array, required: true },
     departmentOptions: { type: Array, required: true },
     sourceOptions: { type: Array, required: true },
-    clientRoleOptions: { type: Array, default: () => [] },
-    userRoleOptions: { type: Array, default: () => [] },
+    clientRoleOptions: { type: Array, default: () => [] }, // These will be fetched here and passed
+    userRoleOptions: { type: Array, default: () => [] }, // These will be fetched here and passed
     paymentTypeOptions: { type: Array, required: true },
-    errors: { type: Object, default: () => ({}) }, // Pass errors down from parent (Create/Edit page)
-    generalError: { type: String, default: '' }, // Pass general error down from parent
-    loading: { type: Boolean, default: false }, // Overall loading for ProjectForm's initial data fetch (from parent)
-    isSaving: { type: Boolean, default: false }, // Overall saving state for the page (from parent)
+    errors: { type: Object, default: () => ({}) }, // Pass Inertia errors down
+    isSaving: { type: Boolean, default: false }, // Overall page saving state (for disabling inputs)
 });
 
-// Watch for changes in the incoming 'project' prop to update the local 'project' ref
-watch(() => props.project, (newProject) => {
-    project.value = newProject || {};
-}, { immediate: true, deep: true });
+// Reactive ref for the project ID to be used by permission composables
+const currentProjectId = ref(props.projectId);
 
-// Computed property for the current project ID
-const projectId = computed(() => project.value?.id || null);
+
+// Watch for changes in the incoming 'projectId' prop to update the local ref
+watch(() => props.projectId, (newId) => {
+    currentProjectId.value = newId;
+    if (newId) {
+        // Re-fetch project-specific permissions if project ID changes
+        fetchProjectPermissions(newId);
+    }
+}, { immediate: true }); // Immediate ensures it runs on initial mount
 
 // Initialize project-specific permissions using the composable
-const { permissions: projectPermissions, loading: projectPermissionsLoading, error: projectPermissionsError } = useProjectPermissions(projectId);
+const { permissions: projectPermissions, loading: projectPermissionsLoading, error: projectPermissionsError } = useProjectPermissions(currentProjectId);
 // Get the user's project-specific role using the composable
-const userProjectRole = useProjectRole(project);
+const userProjectRole = useProjectRole(currentProjectId); // Pass ref directly
 
 // Set up permission checking functions (canDo, canView, canManage) with project ID context
-const { canDo, canView, canManage } = usePermissions(projectId);
+const { canDo, canView, canManage } = usePermissions(currentProjectId);
 
 // Permission-based flags for various sections/actions
 const canManageProjects = canDo('manage_projects', userProjectRole);
-const canCreateClients = canDo('create_clients', userProjectRole);
+const canCreateClients = canDo('create_clients', userProjectRole); // Used for fetching all clients
 const canUploadProjectDocuments = canDo('upload_project_documents', userProjectRole);
 const canManageProjectServicesAndPayments = canManage('project_services_and_payments', userProjectRole);
 const canAddProjectNotes = canDo('add_project_notes', userProjectRole);
@@ -83,46 +86,16 @@ const clientsUsersTabName = computed(() => {
 });
 
 // Reactive refs for roles and entities fetched from API, to be passed to sub-components
-// These are now primarily for passing to sub-components for their dropdowns/multiselects
+// These are global lists needed for selection in MultiSelectWithRoles
 const dbClientRoles = ref([]);
 const dbUserRoles = ref([]);
-const clients = ref([]);
-const users = ref([]);
-
-// Main reactive state for the project form data (synced with props.project)
-// This object will be passed down to child components via v-model.
-// Child components will update their specific sections within this object.
-const projectForm = reactive({
-    id: null,
-    name: '',
-    description: '',
-    website: '',
-    social_media_link: '',
-    preferred_keywords: '',
-    google_chat_id: '',
-    logo: null,
-    documents: [],
-    client_ids: [], // These will be populated by ProjectFormClientsUsers
-    status: 'active',
-    project_type: '',
-    services: [], // Populated by ServicesAndPaymentForm
-    service_details: [], // Populated by ServicesAndPaymentForm
-    source: '',
-    total_amount: '', // Populated by ServicesAndPaymentForm
-    contract_details: '', // Populated by ProjectFormClientsUsers
-    google_drive_link: '',
-    payment_type: 'one_off', // Populated by ServicesAndPaymentForm
-    user_ids: [], // Populated by ProjectFormClientsUsers
-    notes: [], // Populated by ProjectFormNotes
-    tags: [],
-    tags_data: [],
-    timezone: null
-});
+const allClients = ref([]); // Renamed from 'clients' to avoid confusion with project-specific clients
+const allUsers = ref([]); // Renamed from 'users' to avoid confusion with project-specific users
 
 // Function to switch tabs. No data fetching here, children handle it.
 const switchTab = (tabName) => {
     // Prevent switching to other tabs if project isn't saved yet (only basic info is available)
-    if (tabName !== 'basic' && !projectForm.id) {
+    if (tabName !== 'basic' && !props.projectId) {
         warning('Please create the project first before managing this section.');
         activeTab.value = 'basic'; // Force back to basic
         return;
@@ -130,60 +103,7 @@ const switchTab = (tabName) => {
     activeTab.value = tabName; // Update active tab
 };
 
-// Watch props.project and populate local projectForm
-// This is for initial load of the main project data (ID, name, etc.)
-watch(() => props.project, async (newProject) => {
-    if (newProject) {
-        Object.assign(projectForm, {
-            id: newProject.id || null,
-            name: newProject.name || '',
-            description: newProject.description || '',
-            website: newProject.website || '',
-            social_media_link: newProject.social_media_link || '',
-            preferred_keywords: newProject.preferred_keywords || '',
-            google_chat_id: newProject.google_chat_id || '',
-            google_drive_link: newProject.google_drive_link || '',
-            logo: newProject.logo || null,
-            status: newProject.status || 'active',
-            project_type: newProject.project_type || '',
-            source: newProject.source || '',
-            total_amount: newProject.total_amount || '', // Still here for initial prop consistency
-            payment_type: newProject.payment_type || 'one_off', // Still here for initial prop consistency
-            contract_details: newProject.contract_details || '', // Still here for initial prop consistency
-            timezone: newProject.timezone || null,
-            // Initialize arrays from props.project if they contain initial data,
-            // otherwise, child components will fetch/populate them.
-            documents: newProject.documents || [],
-            client_ids: newProject.clients ? newProject.clients.map(client => ({
-                id: client.id,
-                role_id: client.pivot?.role_id || (dbClientRoles.value.length > 0 ? dbClientRoles.value[0].value : null)
-            })) : [],
-            user_ids: newProject.users ? newProject.users.map(user => ({
-                id: user.id,
-                role_id: user.pivot?.role_id || (dbUserRoles.value.length > 0 ? dbUserRoles.value[0].value : null)
-            })) : [],
-            notes: newProject.notes ? newProject.notes.map(note => ({
-                id: note.id,
-                content: note.content,
-                created_at: note.created_at,
-                creator_name: note.creator_name || note.user?.name || note.creator?.name || 'Unknown'
-            })) : [],
-            services: newProject.services || [],
-            service_details: newProject.service_details || [],
-            tags: newProject.tags || [],
-            tags_data: newProject.tags_data || [],
-        });
-        // If project ID is available, fetch project-specific permissions
-        if (projectId.value) {
-            await fetchProjectPermissions(projectId.value); // Await permissions fetch
-        }
-        // No need to call switchTab('basic') here to fetch data,
-        // ProjectFormBasicInfo will fetch its own data on mount.
-    }
-}, { immediate: true, deep: true });
-
-
-const emit = defineEmits(['close']); // Only 'close' event remains, 'submit' is gone
+const emit = defineEmits(['close']); // Only 'close' event remains
 
 // Close form function (now navigates back, emitted to parent)
 const closeForm = () => {
@@ -196,8 +116,9 @@ onMounted(async () => {
         dbClientRoles.value = await fetchRoles('client');
         dbUserRoles.value = await fetchRoles('project');
         // Fetch all clients/users for selection, regardless of project ID initially
-        clients.value = await fetchClients(true, null); // Pass true for canCreateClientsPermission to fetch all
-        users.value = await fetchUsers(true, null); // Pass true for canManageProjects to fetch all
+        // Pass true for permissions to fetch all for selection dropdowns
+        allClients.value = await fetchClients(true, null);
+        allUsers.value = await fetchUsers(true, null);
     } catch (err) {
         console.error('Error fetching global data for ProjectForm:', err);
     }
@@ -206,22 +127,15 @@ onMounted(async () => {
 
 <template>
     <div class="p-6 w-full mx-auto bg-white rounded-xl shadow-2xl transition-all duration-300">
-        <!-- Form Header - Removed modal specific close button -->
+        <!-- Form Header -->
         <div class="flex justify-between items-center pb-4 mb-6 border-b border-gray-200">
-            <h2 class="text-2xl font-semibold text-gray-800">{{ projectForm.id ? 'Edit Project' : 'Create New Project' }}</h2>
-            <!-- No close button here, parent handles navigation -->
-        </div>
-
-        <!-- General Error Display (from parent) -->
-        <div v-if="props.generalError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md relative mb-4" role="alert">
-            <span class="block sm:inline">{{ props.generalError }}</span>
+            <h2 class="text-2xl font-semibold text-gray-800">Edit Project</h2>
         </div>
 
         <!-- Tab Navigation -->
         <div class="border-b border-gray-200 mb-6">
             <nav class="flex -mb-px space-x-4 overflow-x-auto pb-2">
                 <button
-                    v-if="canManageProjects || !projectForm.id"
                     @click="switchTab('basic')"
                     :class="[
                         'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200 whitespace-nowrap',
@@ -233,7 +147,7 @@ onMounted(async () => {
                     Basic Information
                 </button>
                 <button
-                    v-if="projectForm.id && (canViewProjectClients || canViewProjectUsers)"
+                    v-if="projectId && (canViewProjectClients || canViewProjectUsers)"
                     @click="switchTab('client')"
                     :class="[
                         'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200 whitespace-nowrap',
@@ -245,7 +159,7 @@ onMounted(async () => {
                     {{ clientsUsersTabName }}
                 </button>
                 <button
-                    v-if="projectForm.id && (canManageProjectServicesAndPayments || canViewProjectServicesAndPayments)"
+                    v-if="projectId && (canManageProjectServicesAndPayments || canViewProjectServicesAndPayments)"
                     @click="switchTab('services')"
                     :class="[
                         'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200 whitespace-nowrap',
@@ -257,7 +171,7 @@ onMounted(async () => {
                     Services & Payment
                 </button>
                 <button
-                    v-if="projectForm.id && canViewProjectTransactions"
+                    v-if="projectId && canViewProjectTransactions"
                     @click="switchTab('transactions')"
                     :class="[
                         'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200 whitespace-nowrap',
@@ -269,7 +183,7 @@ onMounted(async () => {
                     Transactions
                 </button>
                 <button
-                    v-if="projectForm.id && canViewProjectDocuments"
+                    v-if="projectId && canViewProjectDocuments"
                     @click="switchTab('documents')"
                     :class="[
                         'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200 whitespace-nowrap',
@@ -281,7 +195,7 @@ onMounted(async () => {
                     Documents
                 </button>
                 <button
-                    v-if="projectForm.id && (canAddProjectNotes || canViewProjectNotes)"
+                    v-if="projectId && (canAddProjectNotes || canViewProjectNotes)"
                     @click="switchTab('notes')"
                     :class="[
                         'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200 whitespace-nowrap',
@@ -297,10 +211,10 @@ onMounted(async () => {
 
         <!-- Render active tab component based on activeTab state -->
         <div class="py-4">
-            <!-- Tab 1: Basic Information -->
-            <ProjectFormBasicInfo
+            <!-- Tab 1: Basic Information (Edit) -->
+            <ProjectEditBasicInfo
                 v-if="activeTab === 'basic'"
-                v-model:projectForm="projectForm"
+                :projectId="projectId"
                 :errors="props.errors"
                 :statusOptions="statusOptions"
                 :sourceOptions="sourceOptions"
@@ -312,24 +226,23 @@ onMounted(async () => {
             <!-- Tab 2: Client, Contract Details, and Users -->
             <ProjectFormClientsUsers
                 v-if="activeTab === 'client'"
-                v-model:projectForm="projectForm"
+                :projectId="projectId"
                 :errors="props.errors"
                 :clientRoleOptions="dbClientRoles"
                 :userRoleOptions="dbUserRoles"
-                :clients="clients"
-                :users="users"
+                :clients="allClients"
+                :users="allUsers"
                 :canViewProjectClients="canViewProjectClients"
                 :canManageProjectClients="canManageProjectClients"
                 :canViewProjectUsers="canViewProjectUsers"
                 :canManageProjectUsers="canManageProjectUsers"
                 :isSaving="props.isSaving"
-
             />
 
             <!-- Tab 3: Services & Payment -->
             <ServicesAndPaymentForm
                 v-if="activeTab === 'services'"
-                :projectId="projectForm.id"
+                :projectId="projectId"
                 :departmentOptions="departmentOptions"
                 :paymentTypeOptions="paymentTypeOptions"
                 :canManageProjectServicesAndPayments="canManageProjectServicesAndPayments"
@@ -340,15 +253,15 @@ onMounted(async () => {
             <!-- Tab 4: Transactions -->
             <ProjectTransactions
                 v-if="activeTab === 'transactions' && canViewProjectTransactions"
-                :projectId="projectForm.id"
-                :userProjectRole="userProjectRole.value"
+                :projectId="projectId"
+                :userProjectRole="userProjectRole"
                 :isSaving="props.isSaving"
             />
 
             <!-- Tab 5: Documents -->
             <ProjectFormDocuments
                 v-if="activeTab === 'documents'"
-                v-model:projectForm="projectForm"
+                :projectId="projectId"
                 :errors="props.errors"
                 :canUploadProjectDocuments="canUploadProjectDocuments"
                 :canViewProjectDocuments="canViewProjectDocuments"
@@ -358,11 +271,10 @@ onMounted(async () => {
             <!-- Tab 6: Notes -->
             <ProjectFormNotes
                 v-if="activeTab === 'notes'"
-                v-model:projectForm="projectForm"
+                :projectId="projectId"
                 :errors="props.errors"
                 :canAddProjectNotes="canAddProjectNotes"
                 :canViewProjectNotes="canViewProjectNotes"
-                :projectId="projectId"
                 :is-saving="props.isSaving"
             />
         </div>
@@ -373,4 +285,3 @@ onMounted(async () => {
         </div>
     </div>
 </template>
-

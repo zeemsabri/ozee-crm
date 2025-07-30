@@ -80,6 +80,9 @@ const handleLogoChange = (event) => {
     if (file) {
         localProjectForm.logo = file;
     } else {
+        // If file is cleared, set logo to null.
+        // If it was previously a string (existing logo), it will become null,
+        // which means it won't be sent in the FormData and the backend won't try to validate it.
         localProjectForm.logo = null;
     }
 };
@@ -91,32 +94,42 @@ const handleLogoChange = (event) => {
 const submitBasicInfo = async () => {
     isSavingLocal.value = true; // Start local saving indicator
 
-    // Create FormData for the main project update (required for file uploads)
     const dataToSubmit = new FormData();
-    // Append all relevant fields from localProjectForm
+
+    // Append all basic text/non-file/non-array fields
+    // Explicitly exclude 'id', 'tags', 'tags_data', and 'logo' from this initial loop
+    const fieldsToExclude = ['id', 'tags', 'tags_data', 'logo'];
     for (const key in localProjectForm) {
-        // Skip 'id' and 'tags_data' as they are handled differently or are for display
-        if (key !== 'id' && key !== 'tags_data' && localProjectForm[key] !== null && localProjectForm[key] !== undefined) {
-            if (Array.isArray(localProjectForm[key])) {
-                localProjectForm[key].forEach((item, index) => {
-                    if (typeof item === 'object' && item !== null) {
-                        dataToSubmit.append(`${key}[${index}]`, JSON.stringify(item));
-                    } else {
-                        dataToSubmit.append(`${key}[]`, item);
-                    }
-                });
-            } else {
+        if (!fieldsToExclude.includes(key)) {
+            if (localProjectForm[key] !== null && localProjectForm[key] !== undefined) {
                 dataToSubmit.append(key, localProjectForm[key]);
             }
         }
     }
 
-    // Spoof PUT request for FormData submission
-    dataToSubmit.append('_method', 'PUT');
+    // Handle tags: ensure they are sent as an array of IDs
+    if (Array.isArray(localProjectForm.tags)) {
+        localProjectForm.tags.forEach(tag => {
+            // Assuming tag can be an object {id, name} or just an ID
+            const tagId = typeof tag === 'object' && tag !== null && tag.id ? tag.id : tag;
+            if (tagId !== null && tagId !== undefined) {
+                dataToSubmit.append('tags[]', tagId);
+            }
+        });
+    }
+
+    // Handle logo: only append if it's a new File object
+    if (localProjectForm.logo instanceof File) {
+        dataToSubmit.append('logo', localProjectForm.logo);
+    }
+    // If localProjectForm.logo is a string (existing path), we do NOT append it.
+    // The backend should interpret the absence of the 'logo' field as 'no change to logo'.
+
+    dataToSubmit.append('_method', 'PUT'); // Spoof PUT request for FormData
 
     try {
         // Make the PUT request to update the existing project
-        const response = await window.axios.post(`/api/projects/${props.projectId}`, dataToSubmit, {
+        const response = await window.axios.post(`/api/projects/${props.projectId}/sections/basic`, dataToSubmit, {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
 
@@ -153,13 +166,6 @@ const submitBasicInfo = async () => {
         isSavingLocal.value = false; // End local saving indicator
     }
 };
-
-// Watch for projectId changes to re-fetch data (useful if component is reused or projectId changes)
-watch(() => props.projectId, async (newId) => {
-    if (newId) {
-        await fetchBasicInfoData();
-    }
-}, { immediate: true }); // Immediate ensures it runs on initial mount too
 
 /**
  * Fetches basic project information from the backend.
@@ -201,6 +207,16 @@ const fetchBasicInfoData = async () => {
         isLoadingLocal.value = false;
     }
 };
+
+// Watch for projectId changes to re-fetch data (useful if component is reused or projectId changes)
+watch(() => props.projectId, async (newId) => {
+    if (newId) {
+        await fetchBasicInfoData();
+    }
+}, { immediate: true }); // Immediate ensures it runs on initial mount too
+
+
+
 
 // Initial data fetch on component mount
 onMounted(() => {

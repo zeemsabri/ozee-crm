@@ -1,5 +1,5 @@
 <script setup>
-import { computed, watch, onMounted, ref } from 'vue';
+import { reactive, watch, onMounted, ref } from 'vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -7,17 +7,9 @@ import { success, error } from '@/Utils/notification';
 import { fetchProjectSectionData } from '@/Components/ProjectForm/useProjectData';
 
 const props = defineProps({
-    projectId: { // Assuming projectId is passed from parent and is needed for context
+    projectId: { // Now accepts projectId directly
         type: [Number, String],
         required: true
-    },
-    projectForm: {
-        type: Object,
-        required: true,
-        default: () => ({
-            id: null,
-            notes: [] // Array of note objects { id: null, content: '...', created_at: '...', creator_name: '...' }
-        })
     },
     errors: {
         type: Object,
@@ -37,15 +29,19 @@ const props = defineProps({
     }
 });
 
-const emit = defineEmits(['update:projectForm']);
-
-// Computed property for v-model binding
-const localProjectForm = computed({
-    get: () => props.projectForm,
-    set: (value) => emit('update:projectForm', value)
+// Local reactive state for notes
+const localNotes = reactive({
+    notes: [] // Array of note objects { id: null, content: '...', created_at: '...', creator_name: '...' }
 });
 
 const isSavingNotes = ref(false); // Local saving state for notes
+
+// Watch for projectId changes to re-fetch data
+watch(() => props.projectId, async (newId) => {
+    if (newId) {
+        await fetchNotesData();
+    }
+}, { immediate: true }); // Immediate ensures it runs on initial mount too
 
 /**
  * Adds a new empty note to the notes array.
@@ -53,7 +49,7 @@ const isSavingNotes = ref(false); // Local saving state for notes
  */
 const addNote = () => {
     if (props.canAddProjectNotes) {
-        localProjectForm.value.notes.push({
+        localNotes.notes.push({
             id: null, // Explicitly null for new notes
             content: '',
             created_at: new Date().toISOString(), // Add current timestamp
@@ -68,7 +64,7 @@ const addNote = () => {
  */
 const removeNote = (index) => {
     if (props.canAddProjectNotes) {
-        localProjectForm.value.notes.splice(index, 1);
+        localNotes.notes.splice(index, 1);
     }
 };
 
@@ -76,21 +72,21 @@ const removeNote = (index) => {
  * Saves the notes by directly making the API call.
  */
 const saveNotes = async () => {
-    if (!localProjectForm.value.id) {
-        error('Please save the project first before adding or editing notes.');
+    if (!props.projectId) {
+        error('Project ID is missing. Cannot save notes.');
         return;
     }
     isSavingNotes.value = true;
 
     // Map the notes to ensure only relevant fields are sent and 'id' is always present if it exists
-    const notesToSave = localProjectForm.value.notes.map(note => ({
+    const notesToSave = localNotes.notes.map(note => ({
         id: note.id || null, // Ensure 'id' is included, or null if new
         content: note.content,
     }));
 
     try {
-        const response = await window.axios.put(`/api/projects/${localProjectForm.value.id}/sections/notes?type=private`, { notes: notesToSave });
-        localProjectForm.value.notes = response.data.notes.map(note => ({
+        const response = await window.axios.put(`/api/projects/${props.projectId}/sections/notes?type=private`, { notes: notesToSave });
+        localNotes.notes = response.data.notes.map(note => ({
             id: note.id,
             content: note.content,
             created_at: note.created_at,
@@ -134,7 +130,7 @@ const fetchNotesData = async () => {
             canAddProjectNotes: props.canAddProjectNotes,
         });
         if (data) {
-            localProjectForm.value.notes = data.map(note => ({
+            localNotes.notes = data.map(note => ({
                 id: note.id,
                 content: note.content,
                 created_at: note.created_at,
@@ -147,11 +143,10 @@ const fetchNotesData = async () => {
     }
 };
 
-// Fetch data on component mount
-onMounted(async () => {
-    if (props.projectId) {
-        await fetchNotesData();
-    }
+// Initial data fetch on component mount
+onMounted(() => {
+    // The watch handler with { immediate: true } will handle the initial fetch
+    // when props.projectId is first available.
 });
 </script>
 
@@ -179,7 +174,7 @@ onMounted(async () => {
 
                 <PrimaryButton
                     @click="saveNotes"
-                    :disabled="!localProjectForm.id || !canAddProjectNotes || isSavingNotes || isSaving"
+                    :disabled="!projectId || !canAddProjectNotes || isSavingNotes || isSaving"
                     :class="{ 'opacity-50 cursor-not-allowed': isSavingNotes || isSaving }"
                     class="px-6 py-3 rounded-lg text-lg shadow-md hover:shadow-lg transition-all duration-200"
                 >
@@ -194,13 +189,13 @@ onMounted(async () => {
                 </PrimaryButton>
             </div>
 
-            <p v-if="!localProjectForm.id" class="text-sm text-red-500 mb-4 bg-red-50 p-3 rounded-md border border-red-200">
+            <p v-if="!projectId" class="text-sm text-red-500 mb-4 bg-red-50 p-3 rounded-md border border-red-200">
                 Please save the project first before adding or editing notes.
             </p>
 
-            <div v-if="localProjectForm.notes && localProjectForm.notes.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div v-if="localNotes.notes && localNotes.notes.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div
-                    v-for="(note, index) in localProjectForm.notes"
+                    v-for="(note, index) in localNotes.notes"
                     :key="note.id || `new-note-${index}`"
                     class="relative bg-white p-5 rounded-lg shadow-md border border-gray-200 flex flex-col h-64 transition-all duration-200 ease-in-out hover:shadow-lg"
                     :class="{ 'opacity-75 cursor-not-allowed': !canAddProjectNotes || isSavingNotes || isSaving }"

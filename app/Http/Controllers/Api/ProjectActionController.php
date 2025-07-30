@@ -775,6 +775,7 @@ class ProjectActionController extends Controller
      */
     public function updateBasicInfo(Request $request, Project $project)
     {
+
         try {
             $user = Auth::user();
             if (!$this->canManageProjects($user, $project)) {
@@ -841,7 +842,11 @@ class ProjectActionController extends Controller
 
             $project->update($projectData);
 
-            return response()->json($project);
+            if($request->hasFile('logo')) {
+                $this->uploadLogo($request, $project);
+            }
+
+            return response()->json($project->refresh());
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
@@ -1099,12 +1104,8 @@ class ProjectActionController extends Controller
      */
     public function uploadLogo(Request $request, Project $project)
     {
-        $user = Auth::user();
-        if (!$this->canManageProjects($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have permission to update this project.'], 403);
-        }
 
-        try {
+//        try {
             $validationRules = [
                 'logo' => 'required|image|max:2048', // Max 2MB
             ];
@@ -1126,19 +1127,19 @@ class ProjectActionController extends Controller
 
                 return response()->json([
                     'message' => 'Logo uploaded successfully',
-                    'logo' => Storage::url($project->logo)
+                    'logo' => $project->logo
                 ]);
             }
 
             return response()->json([
                 'message' => 'No logo was uploaded',
             ], 400);
-        } catch (ValidationException $e) {
-            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
-        } catch (\Exception $e) {
-            Log::error('Error uploading logo: ' . $e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
-            return response()->json(['message' => 'Failed to upload logo', 'error' => $e->getMessage()], 500);
-        }
+//        } catch (ValidationException $e) {
+//            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+//        } catch (\Exception $e) {
+//            Log::error('Error uploading logo: ' . $e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
+//            return response()->json(['message' => 'Failed to upload logo', 'error' => $e->getMessage()], 500);
+//        }
     }
 
     /**

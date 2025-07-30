@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, watch, reactive } from 'vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
@@ -9,15 +9,9 @@ import { success, error } from '@/Utils/notification';
 import { fetchProjectSectionData, fetchClients as fetchAllClients, fetchUsers as fetchAllUsers } from '@/Components/ProjectForm/useProjectData';
 
 const props = defineProps({
-    projectForm: {
-        type: Object,
-        required: true,
-        default: () => ({
-            id: null,
-            client_ids: [],
-            user_ids: [],
-            contract_details: '',
-        })
+    projectId: { // Now accepts projectId directly
+        type: [Number, String],
+        required: true
     },
     errors: {
         type: Object,
@@ -31,11 +25,11 @@ const props = defineProps({
         type: Array,
         default: () => []
     },
-    clients: { // All available clients for selection (passed from parent or fetched here)
+    clients: { // All available clients for selection (passed from parent)
         type: Array,
         default: () => []
     },
-    users: { // All available users for selection (passed from parent or fetched here)
+    users: { // All available users for selection (passed from parent)
         type: Array,
         default: () => []
     },
@@ -55,20 +49,17 @@ const props = defineProps({
         type: Boolean,
         default: false
     },
-    // isSaving prop from parent is now less critical for this component's own save button,
-    // as it manages its own `clientSaving` and `userSaving` states.
-    isSaving: {
+    isSaving: { // Overall page saving state
         type: Boolean,
         default: false
     }
 });
 
-const emit = defineEmits(['update:projectForm']);
-
-// Computed property for v-model binding
-const localProjectForm = computed({
-    get: () => props.projectForm,
-    set: (value) => emit('update:projectForm', value)
+// Local reactive state for this section's data
+const localClientsUsersForm = reactive({
+    client_ids: [],
+    user_ids: [],
+    contract_details: '',
 });
 
 const clientSaving = ref(false);
@@ -79,17 +70,49 @@ const userSaving = ref(false);
 const userSaveSuccess = ref(false);
 const userSaveError = ref('');
 
-// Internal refs for all available clients and users for selection
-const allClients = ref([]);
-const allUsers = ref([]);
+
+// Function to fetch clients and users data for this specific tab
+const fetchClientsUsersData = async () => {
+    if (!props.projectId) return;
+
+    try {
+        const data = await fetchProjectSectionData(props.projectId, 'client', {
+            canViewProjectClients: props.canViewProjectClients,
+            canManageProjectClients: props.canManageProjectClients,
+            canViewProjectUsers: props.canViewProjectUsers,
+            canManageProjectUsers: props.canManageProjectUsers,
+        });
+
+        if (data) {
+            localClientsUsersForm.client_ids = data.clients ? data.clients.map(client => ({
+                id: client.id,
+                role_id: client.pivot?.role_id || (props.clientRoleOptions.length > 0 ? props.clientRoleOptions[0].value : null)
+            })) : [];
+            localClientsUsersForm.user_ids = data.users ? data.users.map(user => ({
+                id: user.id,
+                role_id: user.pivot?.role_id || (props.userRoleOptions.length > 0 ? props.userRoleOptions[0].value : null)
+            })) : [];
+            localClientsUsersForm.contract_details = data.contract_details || '';
+        }
+    } catch (err) {
+        console.error('Error fetching clients/users data:', err);
+        error('Failed to load clients and users data.');
+    }
+};
+// Watch for projectId changes to re-fetch data
+watch(() => props.projectId, async (newId) => {
+    if (newId) {
+        await fetchClientsUsersData();
+    }
+}, { immediate: true }); // Immediate ensures it runs on initial mount too
 
 // Function to save clients
 const handleSaveClients = async () => {
-    if (!localProjectForm.value.id) {
-        error('Please save the project first before saving clients.');
+    if (!props.projectId) {
+        error('Project ID is missing. Cannot save clients.');
         return;
     }
-    if (!localProjectForm.value.client_ids || localProjectForm.value.client_ids.length === 0) {
+    if (!localClientsUsersForm.client_ids || localClientsUsersForm.client_ids.length === 0) {
         error('Please select at least one client to save.');
         return;
     }
@@ -99,8 +122,8 @@ const handleSaveClients = async () => {
     clientSaveError.value = '';
 
     try {
-        await window.axios.post(`/api/projects/${localProjectForm.value.id}/attach-clients`, {
-            client_ids: localProjectForm.value.client_ids
+        await window.axios.post(`/api/projects/${props.projectId}/attach-clients`, {
+            client_ids: localClientsUsersForm.client_ids
         });
         success('Clients saved successfully!');
         clientSaveSuccess.value = true;
@@ -118,11 +141,11 @@ const handleSaveClients = async () => {
 
 // Function to save users
 const handleSaveUsers = async () => {
-    if (!localProjectForm.value.id) {
-        error('Please save the project first before saving users.');
+    if (!props.projectId) {
+        error('Project ID is missing. Cannot save users.');
         return;
     }
-    if (!localProjectForm.value.user_ids || localProjectForm.value.user_ids.length === 0) {
+    if (!localClientsUsersForm.user_ids || localClientsUsersForm.user_ids.length === 0) {
         error('Please select at least one user to save.');
         return;
     }
@@ -132,8 +155,8 @@ const handleSaveUsers = async () => {
     userSaveError.value = '';
 
     try {
-        await window.axios.post(`/api/projects/${localProjectForm.value.id}/attach-users`, {
-            user_ids: localProjectForm.value.user_ids
+        await window.axios.post(`/api/projects/${props.projectId}/attach-users`, {
+            user_ids: localClientsUsersForm.user_ids
         });
         success('Users saved successfully!');
         userSaveSuccess.value = true;
@@ -149,45 +172,12 @@ const handleSaveUsers = async () => {
     }
 };
 
-// Function to fetch clients and users data for this specific tab
-const fetchClientsUsersData = async () => {
-    if (!localProjectForm.value.id) return;
 
-    try {
-        const data = await fetchProjectSectionData(localProjectForm.value.id, 'client', {
-            canViewProjectClients: props.canViewProjectClients,
-            canManageProjectClients: props.canManageProjectClients,
-            canViewProjectUsers: props.canViewProjectUsers,
-            canManageProjectUsers: props.canManageProjectUsers,
-        });
 
-        if (data) {
-            localProjectForm.value.client_ids = data.clients ? data.clients.map(client => ({
-                id: client.id,
-                role_id: client.pivot?.role_id || (props.clientRoleOptions.length > 0 ? props.clientRoleOptions[0].value : null)
-            })) : [];
-            localProjectForm.value.user_ids = data.users ? data.users.map(user => ({
-                id: user.id,
-                role_id: user.pivot?.role_id || (props.userRoleOptions.length > 0 ? props.userRoleOptions[0].value : null)
-            })) : [];
-            localProjectForm.value.contract_details = data.contract_details || '';
-        }
-    } catch (err) {
-        console.error('Error fetching clients/users data:', err);
-        error('Failed to load clients and users data.');
-    }
-};
-
-// Fetch data on component mount
-onMounted(async () => {
-    // Fetch all available clients and users for the multiselects
-    allClients.value = await fetchAllClients(true, null); // Assuming true means can fetch all clients
-    allUsers.value = await fetchAllUsers(true, null); // Assuming true means can fetch all users
-
-    // Fetch project-specific clients/users if editing an existing project
-    if (localProjectForm.value.id) {
-        await fetchClientsUsersData();
-    }
+// Initial data fetch on component mount
+onMounted(() => {
+    // The watch handler with { immediate: true } will handle the initial fetch
+    // when props.projectId is first available.
 });
 </script>
 
@@ -198,8 +188,8 @@ onMounted(async () => {
             <h3 class="text-xl font-semibold text-gray-800 mb-5">Project Clients</h3>
             <MultiSelectWithRoles
                 label="Select Clients"
-                :items="allClients"
-                v-model:selectedItems="localProjectForm.client_ids"
+                :items="clients"
+                v-model:selectedItems="localClientsUsersForm.client_ids"
                 :roleOptions="clientRoleOptions"
                 roleType="client"
                 :error="errors.client_ids ? errors.client_ids[0] : ''"
@@ -234,7 +224,7 @@ onMounted(async () => {
             <textarea
                 id="contract_details"
                 class="block w-full px-4 py-2 border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors duration-200 resize-y min-h-[120px]"
-                v-model="localProjectForm.contract_details"
+                v-model="localClientsUsersForm.contract_details"
                 :disabled="!canManageProjectClients || isSaving"
                 placeholder="Enter contract terms, agreements, or important notes about the client relationship."
             ></textarea>
@@ -246,8 +236,8 @@ onMounted(async () => {
             <h3 class="text-xl font-semibold text-gray-800 mb-5">Assign Project Users</h3>
             <MultiSelectWithRoles
                 label="Assign Users"
-                :items="allUsers"
-                v-model:selectedItems="localProjectForm.user_ids"
+                :items="users"
+                v-model:selectedItems="localClientsUsersForm.user_ids"
                 :roleOptions="userRoleOptions"
                 roleType="project"
                 :defaultRoleId="2"
@@ -277,4 +267,3 @@ onMounted(async () => {
         </div>
     </div>
 </template>
-

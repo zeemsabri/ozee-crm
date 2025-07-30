@@ -325,4 +325,9 @@ class Project extends Model
 
         return $uploadedDocuments;
     }
+
+    public function getLogoAttribute($value)
+    {
+        return $this->attributes['logo'] = Storage::url($value);
+    }
 }
