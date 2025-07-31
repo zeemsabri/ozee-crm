@@ -11,6 +11,7 @@ import InvoicesSection from './ClientDashboard/InvoicesSection.vue';
 import AnnouncementsSection from './ClientDashboard/AnnouncementsSection.vue';
 import DeliverableViewerModal from './ClientDashboard/DeliverableViewerModal.vue';
 import ResourcesSection from './ClientDashboard/ResourceSection.vue'; // Import the new ResourcesSection
+import SEOReport from "@/Pages/ClientDashboard/SEOReport.vue";
 
 const props = defineProps({
     initialAuthToken: { // Token from magic link
@@ -234,6 +235,10 @@ provide('activityService', { addActivity: addActivity }); // Provided for child 
                 :shareableResources="shareableResources"
                 @open-deliverable-viewer="handleOpenDeliverableViewer"
                 :project-data="projectData"
+            />
+            <SEOReport
+                :project-id="projectId"
+                :initial-auth-token="initialAuthToken"
             />
             <TicketsSection v-if="currentSection === 'tickets'" :project-id="projectId" :initial-auth-token="initialAuthToken" :tickets="tickets" @add-ticket="handleAddTicket" @add-activity="addActivity" />
             <ApprovalsSection @open-deliverable-viewer="handleOpenDeliverableViewer" :deliverables="deliverables" :initial-auth-token="initialAuthToken" :project-id="projectId" v-if="currentSection === 'approvals'" :approvals="approvals" @update-approval="handleUpdateApproval" @add-activity="addActivity" />

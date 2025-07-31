@@ -252,6 +252,7 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
     Route::get('project/{project}/deliverables', [ProjectClientReader::class, 'getProjectDeliverables']);
     Route::get('project/{project}/documents', [ProjectClientReader::class, 'getProjectDocuments']);
     Route::get('project/{project}/shareable-resources', [ProjectClientReader::class, 'getShareableResources']);
+    Route::get('/project/{projectId}/seo-report/{month}', [ProjectClientReader::class, 'getReportData']);
     // TODO: Add more reader endpoints as needed (e.g., announcements, invoices, comments for a deliverable)
 
     // Project Client Action Routes (POST/PATCH)
@@ -264,4 +265,5 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
     Route::post('tasks', [ProjectClientAction::class, 'createTask']);
     Route::post('documents', [ProjectClientAction::class, 'uploadClientDocuments']);
     Route::post('documents/{document}/notes', [ProjectClientAction::class, 'addNoteToDocument']);
+
 });
