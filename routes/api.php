@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\BonusConfigurationGroupController;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientAction;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientReader;
+use App\Http\Controllers\Api\Client\SeoReportController;
 use App\Http\Controllers\Api\ImageUploadController;
 use App\Http\Controllers\Api\ProjectDashboard\ProjectDeliverableAction;
 use App\Http\Controllers\Api\ShareableResourceController;
@@ -234,6 +235,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/projects/{project}/deliverables/{deliverable}', [ProjectDeliverableAction::class, 'show'])->name('projects.deliverables.show');
     Route::post('/projects/{project}/deliverables/{deliverable}/comments', [ProjectDeliverableAction::class, 'addComment'])->name('projects.deliverables.addComment');
 
+    //SEO Report
+    Route::post('/projects/{project}/seo-reports', [SeoReportController::class, 'store']);
+    Route::get('/projects/{project}/seo-reports/available-months', [SeoReportController::class, 'getAvailableMonths']);
+    Route::get('/projects/{project}/seo-reports/{yearMonth}', [SeoReportController::class, 'show']);
 
     // Magic Link Routes
     Route::post('projects/{projectId}/magic-link', [MagicLinkController::class, 'sendMagicLink']);
@@ -253,6 +258,10 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
     Route::get('project/{project}/documents', [ProjectClientReader::class, 'getProjectDocuments']);
     Route::get('project/{project}/shareable-resources', [ProjectClientReader::class, 'getShareableResources']);
     Route::get('/project/{projectId}/seo-report/{month}', [ProjectClientReader::class, 'getReportData']);
+
+    // SEO Reports API Routes
+    Route::get('/projects/{project}/seo-reports/available-months', [SeoReportController::class, 'getAvailableMonths']);
+    Route::get('/projects/{project}/seo-reports/{yearMonth}', [SeoReportController::class, 'show']);
     // TODO: Add more reader endpoints as needed (e.g., announcements, invoices, comments for a deliverable)
 
     // Project Client Action Routes (POST/PATCH)

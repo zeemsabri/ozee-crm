@@ -13,14 +13,17 @@ const props = defineProps({
     },
 });
 
-// Reactive state for report data, initially null
+// Reactive state for report data
 const reportData = ref(null);
-const isLoading = ref(true);
-const apiError = ref(null);
+const isLoading = ref(true); // For fetching the specific month's report
+const apiError = ref(null); // For errors fetching specific month's report
 
-// Month selection
+// Month selection states
 const availableMonths = ref([]);
 const selectedMonth = ref('');
+const isLoadingMonths = ref(true); // For fetching the list of available months
+const errorMonths = ref(null); // For errors fetching available months
+const hasNoReportsAtAll = ref(false); // True if no reports are found for the project
 
 // Refs for canvas elements
 const searchVisibilityCanvas = ref(null);
@@ -30,23 +33,48 @@ const countryClicksCanvas = ref(null);
 const mobileCoreVitalsCanvas = ref(null);
 const desktopCoreVitalsCanvas = ref(null);
 
-
-// Generate sample months (replace with actual data from backend if needed)
-const generateAvailableMonths = () => {
-    const months = [];
-    const now = new Date();
-    for (let i = 0; i < 6; i++) { // Last 6 months
-        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        months.push({
-            label: date.toLocaleString('en-US', { month: 'long', year: 'numeric' }),
-            value: `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}` // YYYY-MM format
+// Function to fetch available months for SEO reports from API
+const fetchAvailableMonths = async () => {
+    isLoadingMonths.value = true;
+    errorMonths.value = null;
+    hasNoReportsAtAll.value = false;
+    try {
+        const response = await fetch(`/api/client-api/projects/${props.projectId}/seo-reports/available-months`, {
+            headers: {
+                'Authorization': `Bearer ${props.initialAuthToken}`,
+                'Accept': 'application/json',
+            },
         });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            const errorMessage = data.errors ? Object.values(data.errors).flat().join('\n') : (data.message || 'Failed to load available report months.');
+            throw new Error(errorMessage);
+        }
+
+        availableMonths.value = data.map(month => ({
+            value: month,
+            label: new Date(month + '-01').toLocaleString('en-US', { year: 'numeric', month: 'long' })
+        }));
+
+        // Automatically select the most recent month if available
+        if (availableMonths.value.length > 0) {
+            selectedMonth.value = availableMonths.value[0].value;
+        } else {
+            hasNoReportsAtAll.value = true; // No reports found for this client
+        }
+
+    } catch (err) {
+        console.error('Error fetching available months:', err);
+        errorMonths.value = err.message || 'Failed to load available report months.';
+        hasNoReportsAtAll.value = true; // Treat API error here as no reports found for now
+    } finally {
+        isLoadingMonths.value = false;
     }
-    availableMonths.value = months;
-    selectedMonth.value = months[0]?.value || ''; // Auto-select the latest month
 };
 
-// Fetch report data from API
+// Fetch report data from API for the selected month
 const fetchReportData = async () => {
     isLoading.value = true;
     apiError.value = null;
@@ -58,13 +86,20 @@ const fetchReportData = async () => {
     }
 
     try {
-        const response = await fetch(`/api/client-api/project/${props.projectId}/seo-report/${selectedMonth.value}`, {
+        const response = await fetch(`/api/client-api/projects/${props.projectId}/seo-reports/${selectedMonth.value}`, {
             headers: {
                 'Authorization': `Bearer ${props.initialAuthToken}`,
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
             },
         });
+
+        if (response.status === 404) {
+            // Specific handling for 404 Not Found, meaning no report for this month
+            reportData.value = null; // Ensure reportData is null
+            isLoading.value = false;
+            return;
+        }
 
         const data = await response.json();
 
@@ -76,15 +111,16 @@ const fetchReportData = async () => {
         reportData.value = data;
         // Re-initialize charts after data is fetched and DOM is updated
         nextTick(() => {
-            // Ensure we have a small delay to allow canvas elements to be fully rendered
+            // Give a small delay to ensure canvas elements are fully rendered
             setTimeout(() => {
                 initializeCharts();
-            }, 0);
+            }, 50); // Small delay
         });
 
     } catch (err) {
         console.error("Error fetching SEO report:", err);
         apiError.value = err.message || 'An unexpected error occurred while fetching the SEO report.';
+        reportData.value = null; // Ensure reportData is null on error
     } finally {
         isLoading.value = false;
     }
@@ -98,17 +134,17 @@ const recommendations = computed(() => {
         {
             number: 1,
             heading: 'Improve Page Performance (Core Web Vitals)',
-            description: `Prioritize technical improvements to boost mobile and desktop performance scores (currently ${rData.coreVitals.mobile.scores[0]}/100 and ${rData.coreVitals.desktop.scores[0]}/100). A faster site enhances user experience and is a direct Google ranking factor.`
+            description: `Prioritize technical improvements to boost mobile and desktop performance scores (currently ${rData.coreVitals?.mobile?.scores?.[0] || 0}/100 and ${rData.coreVitals?.desktop?.scores?.[0] || 0}/100). A faster site enhances user experience and is a direct Google ranking factor.`
         },
         {
             number: 2,
             heading: 'Optimize High-Impression, Low-CTR Queries',
-            description: `Rewrite meta titles and descriptions for keywords like "${rData.zeroClickKeywords[0]?.query || 'N/A'}" (${rData.zeroClickKeywords[0]?.impressions || 'N/A'} impressions, ${rData.zeroClickKeywords[0]?.ctr || 'N/A'}% CTR) to be more compelling and improve click-through rates.`
+            description: `Rewrite meta titles and descriptions for keywords like "${rData.zeroClickKeywords?.[0]?.query || 'N/A'}" (${rData.zeroClickKeywords?.[0]?.impressions || 'N/A'} impressions, ${rData.zeroClickKeywords?.[0]?.ctr || 'N/A'}% CTR) to be more compelling and improve click-through rates.`
         },
         {
             number: 3,
             heading: 'Conduct a Comprehensive Backlink Audit',
-            description: `Investigate the reported ${rData.totalBacklinksValue} backlinks to identify and disavow low-quality or spammy links. Focus on acquiring high-quality, relevant backlinks from authoritative sites in the digital marketing niche.`
+            description: `Investigate the reported ${rData.totalBacklinksValue || 'N/A'} backlinks to identify and disavow low-quality or spammy links. Focus on acquiring high-quality, relevant backlinks from authoritative sites in the digital marketing niche.`
         },
         {
             number: 4,
@@ -187,6 +223,13 @@ const destroyCharts = () => {
     if (countryClicksChartInstance) countryClicksChartInstance.destroy();
     if (mobileCoreVitalsChartInstance) mobileCoreVitalsChartInstance.destroy();
     if (desktopCoreVitalsChartInstance) desktopCoreVitalsChartInstance.destroy();
+
+    searchVisibilityChartInstance = null;
+    trafficChannelChartInstance = null;
+    deviceUsageChartInstance = null;
+    countryClicksChartInstance = null;
+    mobileCoreVitalsChartInstance = null;
+    desktopCoreVitalsChartInstance = null;
 };
 
 // Function to initialize charts
@@ -195,16 +238,29 @@ const initializeCharts = () => {
 
     if (!reportData.value) return; // Don't initialize if no data
 
-    // Check if canvas elements are available before creating charts
+    // Helper for safe data access
+    const safeData = (obj, path, defaultValue) => {
+        const parts = path.split('.');
+        let current = obj;
+        for (let i = 0; i < parts.length; i++) {
+            if (current === null || typeof current !== 'object' || !current.hasOwnProperty(parts[i])) {
+                return defaultValue;
+            }
+            current = current[parts[i]];
+        }
+        return current;
+    };
+
+    // Search Visibility Trend
     if (searchVisibilityCanvas.value) {
         searchVisibilityChartInstance = new Chart(searchVisibilityCanvas.value, {
             type: 'line',
             data: {
-                labels: reportData.value.clicksImpressions.labels,
+                labels: safeData(reportData.value, 'clicksImpressions.labels', []),
                 datasets: [
                     {
                         label: 'Clicks',
-                        data: reportData.value.clicksImpressions.clicks,
+                        data: safeData(reportData.value, 'clicksImpressions.clicks', []),
                         borderColor: chartColors.main,
                         backgroundColor: chartColors.main + '33',
                         fill: false,
@@ -213,7 +269,7 @@ const initializeCharts = () => {
                     },
                     {
                         label: 'Impressions',
-                        data: reportData.value.clicksImpressions.impressions,
+                        data: safeData(reportData.value, 'clicksImpressions.impressions', []),
                         borderColor: chartColors.accent,
                         backgroundColor: chartColors.accent + '33',
                         fill: true,
@@ -253,13 +309,14 @@ const initializeCharts = () => {
 
     if (trafficChannelCanvas.value) {
         // Traffic by Channel
+        const trafficColors = safeData(reportData.value, 'trafficSources.colors', ['#4f46e5', '#3b82f6', '#6b7280', '#c8b496', '#22c55e', '#ef4444']);
         trafficChannelChartInstance = new Chart(trafficChannelCanvas.value, {
             type: 'doughnut',
             data: {
-                labels: reportData.value.trafficSources.labels,
+                labels: safeData(reportData.value, 'trafficSources.labels', []),
                 datasets: [{
-                    data: reportData.value.trafficSources.sessions,
-                    backgroundColor: reportData.value.trafficSources.colors,
+                    data: safeData(reportData.value, 'trafficSources.sessions', []),
+                    backgroundColor: trafficColors.slice(0, safeData(reportData.value, 'trafficSources.labels', []).length),
                     borderColor: '#ffffff',
                     borderWidth: 2
                 }]
@@ -280,13 +337,14 @@ const initializeCharts = () => {
 
     if (deviceUsageCanvas.value) {
         // Device Usage
+        const deviceColors = safeData(reportData.value, 'deviceUsage.colors', ['#4f46e5', '#3b82f6', '#6b7280', '#c8b496', '#22c55e', '#ef4444']);
         deviceUsageChartInstance = new Chart(deviceUsageCanvas.value, {
             type: 'doughnut',
             data: {
-                labels: reportData.value.deviceUsage.labels,
+                labels: safeData(reportData.value, 'deviceUsage.labels', []),
                 datasets: [{
-                    data: reportData.value.deviceUsage.clicks,
-                    backgroundColor: reportData.value.deviceUsage.colors,
+                    data: safeData(reportData.value, 'deviceUsage.clicks', []),
+                    backgroundColor: deviceColors.slice(0, safeData(reportData.value, 'deviceUsage.labels', []).length),
                     borderColor: '#ffffff',
                     borderWidth: 2
                 }]
@@ -310,9 +368,9 @@ const initializeCharts = () => {
         countryClicksChartInstance = new Chart(countryClicksCanvas.value, {
             type: 'bar',
             data: {
-                labels: reportData.value.countryPerformance.labels,
+                labels: safeData(reportData.value, 'countryPerformance.labels', []),
                 datasets: [{
-                    data: reportData.value.countryPerformance.clicks,
+                    data: safeData(reportData.value, 'countryPerformance.clicks', []),
                     backgroundColor: chartColors.main,
                     borderRadius: 4
                 }]
@@ -341,13 +399,14 @@ const initializeCharts = () => {
 
     if (mobileCoreVitalsCanvas.value) {
         // Core Web Vitals - Mobile
+        const mobileScores = safeData(reportData.value, 'coreVitals.mobile.scores', [0, 0, 0, 0]);
         mobileCoreVitalsChartInstance = new Chart(mobileCoreVitalsCanvas.value, {
             type: 'bar',
             data: {
-                labels: reportData.value.coreVitals.mobile.labels,
+                labels: safeData(reportData.value, 'coreVitals.mobile.labels', ["Performance", "Accessibility", "Best Practices", "SEO"]),
                 datasets: [{
-                    data: reportData.value.coreVitals.mobile.scores,
-                    backgroundColor: reportData.value.coreVitals.mobile.scores.map(getCoreVitalsColor),
+                    data: mobileScores,
+                    backgroundColor: mobileScores.map(getCoreVitalsColor),
                     borderRadius: 4
                 }]
             },
@@ -376,13 +435,14 @@ const initializeCharts = () => {
 
     if (desktopCoreVitalsCanvas.value) {
         // Core Web Vitals - Desktop
+        const desktopScores = safeData(reportData.value, 'coreVitals.desktop.scores', [0, 0, 0, 0]);
         desktopCoreVitalsChartInstance = new Chart(desktopCoreVitalsCanvas.value, {
             type: 'bar',
             data: {
-                labels: reportData.value.coreVitals.desktop.labels,
+                labels: safeData(reportData.value, 'coreVitals.desktop.labels', ["Performance", "Accessibility", "Best Practices", "SEO"]),
                 datasets: [{
-                    data: reportData.value.coreVitals.desktop.scores,
-                    backgroundColor: reportData.value.coreVitals.desktop.scores.map(getCoreVitalsColor),
+                    data: desktopScores,
+                    backgroundColor: desktopScores.map(getCoreVitalsColor),
                     borderRadius: 4
                 }]
             },
@@ -449,10 +509,10 @@ const smoothScroll = (event, targetId) => {
     }
 };
 
-onMounted(() => {
-    generateAvailableMonths();
-    // Fetch data for the initially selected month
-    if (selectedMonth.value) {
+onMounted(async () => {
+    await fetchAvailableMonths();
+    // Only fetch report data if months are available and a month is selected
+    if (availableMonths.value.length > 0 && selectedMonth.value) {
         fetchReportData();
     }
 });
@@ -461,8 +521,14 @@ onMounted(() => {
 watch(selectedMonth, (newMonth, oldMonth) => {
     if (newMonth !== oldMonth && newMonth) {
         fetchReportData();
+    } else if (!newMonth) {
+        // If selectedMonth becomes empty (e.g., if all options are removed or cleared)
+        reportData.value = null;
+        destroyCharts();
+        isLoading.value = false;
+        apiError.value = null;
     }
-}, { flush: 'post' });
+}, { flush: 'post' }); // 'post' ensures the DOM is updated before watch effect runs
 
 // Cleanup charts on component unmount
 onUnmounted(() => {
@@ -483,7 +549,9 @@ onUnmounted(() => {
             <div class="flex items-center space-x-4">
                 <label for="month-select" class="text-gray-700 font-medium">Select Month:</label>
                 <select id="month-select" v-model="selectedMonth"
-                        class="block w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200">
+                        class="block w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200"
+                        :disabled="isLoadingMonths || errorMonths || hasNoReportsAtAll">
+                    <option v-if="availableMonths.length === 0" value="" disabled>No reports available</option>
                     <option v-for="month in availableMonths" :key="month.value" :value="month.value">
                         {{ month.label }}
                     </option>
@@ -492,7 +560,7 @@ onUnmounted(() => {
         </header>
 
         <!-- Loading, Error, or No Data States -->
-        <div v-if="isLoading" class="text-center text-gray-600 py-12 bg-white rounded-xl shadow-md">
+        <div v-if="isLoadingMonths" class="text-center text-gray-600 py-12 bg-white rounded-xl shadow-md">
             <svg class="animate-spin h-8 w-8 text-indigo-500 mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none"
                  viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -500,21 +568,74 @@ onUnmounted(() => {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
                 </path>
             </svg>
-            <p>Loading SEO report for {{ selectedMonth }}...</p>
+            <p>Loading available report months...</p>
+        </div>
+
+        <div v-else-if="errorMonths" class="text-center text-red-600 py-12 bg-red-50 rounded-xl shadow-md border border-red-200">
+            <p class="font-semibold mb-2 text-xl">Error loading available months:</p>
+            <p class="text-lg">{{ errorMonths }}</p>
+            <p class="mt-4 text-sm">Please try again or contact support if the issue persists.</p>
+        </div>
+
+        <div v-else-if="hasNoReportsAtAll" class="text-center text-gray-700 py-12 bg-white rounded-xl shadow-md border border-gray-200">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-x mx-auto mb-4 text-gray-400">
+                <path d="M10 20H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.88l.82 1.12h6.59a2 2 0 0 1 2 2v1.5" />
+                <path d="M17 22l5-5" />
+                <path d="m17 17 5 5" />
+            </svg>
+            <p class="text-xl font-semibold mb-3">No SEO Reports Found for Your Project.</p>
+            <p class="text-base leading-relaxed max-w-lg mx-auto">
+                It looks like there are no SEO performance reports available for this project yet.
+                If you are expecting reports, please ensure your SEO services are active.
+            </p>
+            <p class="text-base mt-2 mb-5 leading-relaxed max-w-lg mx-auto">
+                Interested in boosting your online visibility? Learn more about our comprehensive SEO services!
+            </p>
+            <div class="flex flex-col sm:flex-row justify-center items-center gap-4 mt-6">
+                <a href="mailto:info@ozeeweb.com.au" class="bg-indigo-600 text-white py-2 px-6 rounded-lg font-semibold hover:bg-indigo-700 transition-colors duration-200 shadow-md flex items-center justify-center w-full sm:w-auto">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                    </svg>
+                    info@ozeeweb.com.au
+                </a>
+                <a href="tel:+61456639389" class="bg-gray-200 text-gray-800 py-2 px-6 rounded-lg font-semibold hover:bg-gray-300 transition-colors duration-200 shadow-md flex items-center justify-center w-full sm:w-auto">
+                    +61 456 639 389
+                </a>
+            </div>
+        </div>
+
+        <div v-else-if="isLoading" class="text-center text-gray-600 py-12 bg-white rounded-xl shadow-md">
+            <svg class="animate-spin h-8 w-8 text-indigo-500 mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none"
+                 viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                </path>
+            </svg>
+            <p>Loading SEO report for {{ selectedMonth ? availableMonths.find(m => m.value === selectedMonth)?.label : 'selected month' }}...</p>
         </div>
 
         <div v-else-if="apiError" class="text-center text-red-600 py-12 bg-red-50 rounded-xl shadow-md border border-red-200">
-            <p class="font-semibold mb-2 text-xl">Error loading report:</p>
+            <p class="font-semibold mb-2 text-xl">Error loading report for {{ selectedMonth ? availableMonths.find(m => m.value === selectedMonth)?.label : 'selected month' }}:</p>
             <p class="text-lg">{{ apiError }}</p>
             <p class="mt-4 text-sm">Please try again or contact support if the issue persists.</p>
         </div>
 
-        <div v-else-if="!reportData" class="text-center text-gray-500 py-12 bg-white rounded-xl shadow-md">
-            <p class="text-lg mb-2">No SEO report available for {{ selectedMonth }}.</p>
-            <p>Please select another month or check back later.</p>
+        <div v-else-if="!reportData && availableMonths.length > 0" class="text-center text-gray-700 py-12 bg-white rounded-xl shadow-md border border-gray-200">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-x mx-auto mb-4 text-gray-400"><path d="M8 2v4"/><path d="M16 2v4"/><path d="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"/><path d="M3 10h18"/><path d="m17 22 5-5"/><path d="m17 17 5 5"/></svg>
+            <p class="text-xl font-semibold mb-3">No Report Available for {{ selectedMonth ? availableMonths.find(m => m.value === selectedMonth)?.label : 'this month' }}.</p>
+            <p class="text-base leading-relaxed max-w-lg mx-auto">
+                While SEO services are active for this client, the report for
+                <span class="font-semibold">{{ selectedMonth ? availableMonths.find(m => m.value === selectedMonth)?.label : 'this month' }}</span>
+                is not yet available or has not been generated.
+            </p>
+            <p class="text-base mt-2 leading-relaxed max-w-lg mx-auto">
+                Please check back later or select a different month from the dropdown.
+            </p>
         </div>
 
-        <!-- Main Content (rendered only if reportData is available) -->
+        <!-- Main Content (rendered only if reportData is successfully loaded) -->
         <main v-else class="max-w-7xl mx-auto py-8">
 
             <!-- Navigation Links -->

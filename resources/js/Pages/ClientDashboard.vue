@@ -237,6 +237,7 @@ provide('activityService', { addActivity: addActivity }); // Provided for child 
                 :project-data="projectData"
             />
             <SEOReport
+                v-if="currentSection === 'seo'"
                 :project-id="projectId"
                 :initial-auth-token="initialAuthToken"
             />

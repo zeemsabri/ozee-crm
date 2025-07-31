@@ -37,6 +37,10 @@ import ProjectDeliverablesTab from '@/Components/ProjectsDeliverables/ProjectDel
 import CreateDeliverableModal from '@/Components/ProjectsDeliverables/CreateDeliverableModal.vue'; // Adjust path
 import DeliverableDetailSidebar from '@/Components/ProjectsDeliverables/DeliverableDetailSidebar.vue'; // NEW: Deliverable detail sidebar
 
+// SEO Import
+import SeoReportTab from '@/Components/ProjectsSeoReports/SeoReportTab.vue'; // Adjust path as needed
+import CreateSeoReportModal from "@/Components/ProjectsSeoReports/CreateSeoReportModal.vue";
+
 // Currency utilities and SelectDropdown
 import SelectDropdown from '@/Components/SelectDropdown.vue'; // For currency switcher
 import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency'; // Import displayCurrency
@@ -83,6 +87,9 @@ const selectedDeliverableIdForSidebar = ref(null); // NEW: State for Deliverable
 // NEW: State for the global CreateTaskModal
 const showGlobalCreateTaskModal = ref(false);
 
+// SEO Report Modals
+const showCreateSeoReportModal = ref(false);
+const selectedSeoReportInitialData = ref(null); // To pass data for editing
 
 const statusOptions = [
     { value: 'active', label: 'Active' },
@@ -137,6 +144,10 @@ const canAddNotes = computed(() => canDo('add_project_notes').value);
 // Permissions for Deliverables
 const canViewDeliverables = computed(() => canView('deliverables').value);
 const canCreateDeliverables = computed(() => canDo('create_deliverables').value);
+
+// Permissions for SEO Reports (NEW)
+const canViewSeoReports = computed(() => canView('seo_reports').value);
+const canCreateSeoReports = computed(() => canDo('create_seo_reports').value); // Assuming a permission for creating SEO reports
 
 
 // Permissions for new financial/client/user cards
@@ -343,6 +354,27 @@ const handleGlobalCreateTaskSaved = () => {
     fetchProjectData(); // Refresh tasks after creation
 };
 
+// Handlers for SEO Report Modal
+const openCreateSeoReportModal = (initialData = null) => {
+    selectedSeoReportInitialData.value = initialData;
+    showCreateSeoReportModal.value = true;
+};
+
+const handleSeoReportSaved = () => {
+    showCreateSeoReportModal.value = false;
+    // Trigger a refresh of the SeoReportTab to show the updated data
+    // This can be done by re-fetching all project data or by having SeoReportTab
+    // listen to this event. For simplicity, we can just re-fetch here if needed,
+    // but the SeoReportTab is already designed to re-fetch on its own when `selectedMonth` changes.
+    // So, we just need to ensure the modal closes.
+    // If you need to force a re-render/re-fetch in SeoReportTab, you might need a more direct method.
+    // For now, let's assume SeoReportTab's watch on `selectedMonth` and its internal `fetchAvailableMonths`
+    // and `fetchSeoReport` are sufficient.
+    // A more explicit way would be to emit an event from here that SeoReportTab listens to.
+    // For now, we rely on the reactivity of selectedMonth and the tab's internal refresh.
+};
+
+
 onMounted(async () => {
     console.log('Show.vue mounted, fetching initial data...');
     // Fetch project-specific permissions first, as other data fetches depend on it
@@ -438,6 +470,7 @@ onMounted(async () => {
                     :can-view-emails="canViewEmails"
                     :can-view-notes="canViewNotes"
                     :can-view-deliverables="canViewDeliverables"
+                    :can-view-seo-reports="canViewSeoReports"
                 />
 
                 <div v-if="selectedTab === null">
@@ -646,6 +679,14 @@ onMounted(async () => {
                     @deliverablesUpdated="handleDeliverablesUpdated"
                     @openDeliverableDetailSidebar="openDeliverableDetailSidebar"
                 />
+
+                <!-- SEO Reports Tab Content (NEW) -->
+                <SeoReportTab
+                    v-if="selectedTab === 'seo-reports'"
+                    :project-id="projectId"
+                    :can-create-seo-reports="canCreateSeoReports"
+                    @openCreateSeoReportModal="openCreateSeoReportModal"
+                />
             </div>
         </div>
 
@@ -746,6 +787,15 @@ onMounted(async () => {
             :project-id="projectId"
             @close="showCreateDeliverableModal = false"
             @saved="handleDeliverableSaved"
+        />
+
+        <!-- Create/Edit SEO Report Modal -->
+        <CreateSeoReportModal
+            :project-id="projectId"
+            :show="showCreateSeoReportModal"
+            :initial-data="selectedSeoReportInitialData"
+            @close="showCreateSeoReportModal = false"
+            @saved="handleSeoReportSaved"
         />
 
     </AuthenticatedLayout>
