@@ -78,6 +78,7 @@ Route::get('/magic-link', [MagicLinkController::class, 'handleMagicLink'])->name
 Route::get('/client/dashboard', [ClientDashboardController::class, 'index'])->name('client.dashboard');
 // Authenticated routes group for Inertia pages that require a logged-in user
 // The 'verified' middleware ensures the user's email is verified (optional, remove if not needed for MVP)
+
 Route::middleware(['auth', 'verified'])->group(function () {
 
     // Admin routes for role and permission management
@@ -157,6 +158,66 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::put('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'update'])->name('permissions.update');
         Route::delete('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'destroy'])->name('permissions.destroy');
+
+        // Projects Index Page
+        Route::get('/projects/create', function () {
+            return Inertia::render('Projects/Create');
+        })->name('projects.create');
+
+        // Projects Index Page
+        Route::get('/projects/{project}/edit', function (Project $project) {
+            return Inertia::render('Projects/Edit', [
+                'project' => $project,
+            ]);
+        })->name('projects.edit');
+
+        // --- NEW: Inertia Routes for our custom application features ---
+
+        // Clients Index Page
+        Route::get('/clients', function () {
+            return Inertia::render('Clients/Index');
+        })->name('clients.index')->middleware('permission:view_clients');
+
+        Route::get('/users', function () {
+            return Inertia::render('Users/Index');
+        })->name('users.index');
+
+
+        // Availability Calendar Page
+        Route::get('/availability', function () {
+            return Inertia::render('Availability/Index');
+        })->name('availability.index');
+
+        // Bonus Configuration Page
+        Route::get('/bonus-configuration', function () {
+            return Inertia::render('BonusConfiguration/Index');
+        })->name('bonus-configuration.index');
+
+        // Projects Index Page
+        Route::get('/projects', function () {
+            return Inertia::render('Projects/Index');
+        })->name('projects.index');
+
+        // Task Types Management Page
+        Route::get('/task-types', function () {
+            return Inertia::render('TaskTypes/Index');
+        })->name('task-types.index')->middleware('permission:manage_projects');
+
+        // Email Composer Page
+        Route::get('/emails/compose', function () {
+            return Inertia::render('Emails/Composer');
+        })->name('emails.compose');
+
+        // Pending Approvals Page
+        Route::get('/emails/pending', function () {
+            return Inertia::render('Emails/PendingApprovals');
+        })->name('emails.pending');
+
+        Route::get('/emails/rejected', function () {
+            return Inertia::render('Emails/Rejected');
+        })->name('emails.rejected'); // New route for rejected emails
+
+
     });
     // Your existing dashboard route
     Route::get('/dashboard', function () {
@@ -173,30 +234,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // --- NEW: Inertia Routes for our custom application features ---
-
-    // Clients Index Page
-    Route::get('/clients', function () {
-        return Inertia::render('Clients/Index');
-    })->name('clients.index')->middleware('permission:view_clients');
-
-    // Projects Index Page
-    Route::get('/projects', function () {
-        return Inertia::render('Projects/Index');
-    })->name('projects.index');
-
-    // Projects Index Page
-    Route::get('/projects/create', function () {
-        return Inertia::render('Projects/Create');
-    })->name('projects.create');
-
-    // Projects Index Page
-    Route::get('/projects/{project}/edit', function (Project $project) {
-        return Inertia::render('Projects/Edit', [
-            'project' => $project,
-        ]);
-    })->name('projects.edit');
-
     // Project Detail Page
     Route::get('/projects/{id}', function ($id) {
         return Inertia::render('Projects/Show', [
@@ -204,42 +241,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('projects.show');
 
-    // Task Types Management Page
-    Route::get('/task-types', function () {
-        return Inertia::render('TaskTypes/Index');
-    })->name('task-types.index')->middleware('permission:manage_projects');
-
-    // Email Composer Page
-    Route::get('/emails/compose', function () {
-        return Inertia::render('Emails/Composer');
-    })->name('emails.compose');
-
-    // Pending Approvals Page
-    Route::get('/emails/pending', function () {
-        return Inertia::render('Emails/PendingApprovals');
-    })->name('emails.pending');
-
-    Route::get('/emails/rejected', function () {
-        return Inertia::render('Emails/Rejected');
-    })->name('emails.rejected'); // New route for rejected emails
-
-    Route::get('/users', function () {
-        return Inertia::render('Users/Index');
-    })->name('users.index');
-
-    // Test route for User Project Role functionality
-    Route::get('/test/user-project-role', [\App\Http\Controllers\TestController::class, 'testUserProjectRole'])
-        ->name('test.user-project-role');
-
-    // Availability Calendar Page
-    Route::get('/availability', function () {
-        return Inertia::render('Availability/Index');
-    })->name('availability.index');
-
-    // Bonus Configuration Page
-    Route::get('/bonus-configuration', function () {
-        return Inertia::render('BonusConfiguration/Index');
-    })->name('bonus-configuration.index');
 
 });
 
