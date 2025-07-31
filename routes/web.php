@@ -157,18 +157,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::put('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'update'])->name('permissions.update');
         Route::delete('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'destroy'])->name('permissions.destroy');
-
-        // Projects Index Page
-        Route::get('/projects/create', function () {
-            return Inertia::render('Projects/Create');
-        })->name('projects.create');
-
-        // Projects Index Page
-        Route::get('/projects/{project}/edit', function (Project $project) {
-            return Inertia::render('Projects/Edit', [
-                'project' => $project,
-            ]);
-        })->name('projects.edit');
     });
     // Your existing dashboard route
     Route::get('/dashboard', function () {
@@ -197,7 +185,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('Projects/Index');
     })->name('projects.index');
 
+    // Projects Index Page
+    Route::get('/projects/create', function () {
+        return Inertia::render('Projects/Create');
+    })->name('projects.create');
 
+    // Projects Index Page
+    Route::get('/projects/{project}/edit', function (Project $project) {
+        return Inertia::render('Projects/Edit', [
+            'project' => $project,
+        ]);
+    })->name('projects.edit');
 
     // Project Detail Page
     Route::get('/projects/{id}', function ($id) {
