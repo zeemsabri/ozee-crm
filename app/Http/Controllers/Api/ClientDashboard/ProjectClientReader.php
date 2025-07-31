@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Deliverable;
 use App\Models\Project; // Assuming you have a Project model
+use App\Models\ShareableResource;
 use App\Models\Task;    // Assuming you have a Task model
 use App\Services\GoogleDriveService;
 use Illuminate\Http\Request;
@@ -209,7 +210,37 @@ class ProjectClientReader extends Controller
     }
 
 
+    /**
+     * Display a listing of the resource.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getShareableResources(Request $request, Project $project)
+    {
 
+        $query = ShareableResource::with('tags');
+
+        // Filter by type if provided
+        if ($request->has('type')) {
+            $query->where('type', $request->type);
+        }
+
+        // Filter by visibility if provided
+        if ($request->has('visible_to_client')) {
+            $query->where('visible_to_client', $request->visible_to_client);
+        }
+
+        // Filter by tag if provided
+        if ($request->has('tag_id')) {
+            $query->whereHas('tags', function ($q) use ($request) {
+                $q->where('tags.id', $request->tag_id);
+            });
+        }
+
+        $resources = $query->get();
+
+        return response()->json($resources);
+    }
 
 }
 

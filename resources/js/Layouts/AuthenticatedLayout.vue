@@ -12,6 +12,7 @@ import { usePermissions, useGlobalPermissions } from '@/Directives/permissions';
 import { setNotificationContainer } from '@/Utils/notification';
 import CreateTaskModal from "@/Components/ProjectTasks/CreateTaskModal.vue";
 import PrimaryButton from "@/Components/PrimaryButton.vue"; // Ensure PrimaryButton is imported
+import CreateResourceForm from "@/Components/ShareableResource/CreateForm.vue";
 
 // New: Import LeftSidebar
 import LeftSidebar from '@/Components/LeftSidebar.vue';
@@ -36,6 +37,7 @@ const canAccessClients = canDo('create_clients');
 
 // Global modal state
 const openCreateTaskModel = ref(false);
+const addResource = ref(false);
 
 // New: State for the Left Sidebar
 const allProjectsForSidebar = ref([]);
@@ -157,21 +159,6 @@ onMounted(() => {
                                     Dashboard
                                 </NavLink>
 
-                                <NavLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')">
-                                    Projects
-                                </NavLink>
-
-                                <NavLink v-if="canApproveEmails" :href="route('emails.pending')" :active="route().current('emails.pending')">
-                                    Approve Emails
-                                </NavLink>
-
-                                <NavLink v-if="canComposeEmails" :href="route('emails.rejected')" :active="route().current('emails.rejected')">
-                                    Rejected Emails
-                                </NavLink>
-
-                                <NavLink v-if="canManageUsers" :href="route('availability.index')" :active="route().current('availability.index')">
-                                    Weekly Availability
-                                </NavLink>
 
                                 <!-- Admin dropdown for roles and permissions -->
                                 <div v-if="canManageRoles" class="hidden sm:flex sm:items-center">
@@ -197,6 +184,23 @@ onMounted(() => {
                                         </template>
 
                                         <template #content>
+
+                                            <NavLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')">
+                                                Projects
+                                            </NavLink>
+
+                                            <NavLink v-if="canApproveEmails" :href="route('emails.pending')" :active="route().current('emails.pending')">
+                                                Approve Emails
+                                            </NavLink>
+
+                                            <NavLink v-if="canComposeEmails" :href="route('emails.rejected')" :active="route().current('emails.rejected')">
+                                                Rejected Emails
+                                            </NavLink>
+
+                                            <NavLink v-if="canManageUsers" :href="route('availability.index')" :active="route().current('availability.index')">
+                                                Weekly Availability
+                                            </NavLink>
+
                                             <DropdownLink v-if="canAccessClients" :href="route('clients.index')" :active="route().current('clients.index')">
                                                 Clients
                                             </DropdownLink>
@@ -234,6 +238,14 @@ onMounted(() => {
                                 class="mr-4 px-4 py-2 text-sm"
                             >
                                 Add Task
+                            </PrimaryButton>
+
+                            <PrimaryButton
+                                type="button"
+                                @click="addResource = true"
+                                class="mr-4 px-4 py-2 text-sm"
+                            >
+                                Add Resource
                             </PrimaryButton>
 
                             <div class="relative ms-3">
@@ -367,6 +379,10 @@ onMounted(() => {
                             <ResponsiveNavLink as="button" @click="openCreateTaskModel = true">
                                 Add Task
                             </ResponsiveNavLink>
+                            <!-- Add Resource button for mobile view -->
+                            <ResponsiveNavLink as="button" @click="addResource = true">
+                                Add Resource
+                            </ResponsiveNavLink>
                             <ResponsiveNavLink :href="route('profile.edit')">
                                 Profile
                             </ResponsiveNavLink>
@@ -390,6 +406,10 @@ onMounted(() => {
             </main>
 
             <CreateTaskModal :show="openCreateTaskModel" @close="openCreateTaskModel = false" @saved="openCreateTaskModel = false" />
+            <CreateResourceForm
+                api-endpoint="/api/shareable-resources"
+                :show="addResource"
+                @close="addResource = false" />
         </div>
 
 

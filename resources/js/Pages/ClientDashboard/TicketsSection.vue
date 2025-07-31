@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, inject } from 'vue';
+import { ref, onMounted, inject, computed } from 'vue';
 import TicketNotesSidebar from './TicketNotesSidebar.vue'; // Import the notes sidebar
 import CreateTaskModal from './CreateTaskModal.vue'; // Import the new task creation modal
 
@@ -12,7 +12,6 @@ const props = defineProps({
         type: [String, Number],
         required: true,
     },
-    // The 'tickets' prop from parent is no longer strictly needed as tasks are fetched internally
 });
 
 const emits = defineEmits(['add-activity']); // Emit for general dashboard activity log
@@ -20,6 +19,7 @@ const emits = defineEmits(['add-activity']); // Emit for general dashboard activ
 const isLoading = ref(true);
 const tasks = ref([]); // Reactive state for tasks/tickets
 const apiError = ref(null); // To store any API errors
+const taskSearchQuery = ref(''); // New: Search query for tasks
 
 // State for the Task Notes Sidebar
 const selectedTaskForNotes = ref(null);
@@ -30,6 +30,30 @@ const showCreateTaskModal = ref(false);
 
 // Inject the showModal service from the parent (ClientDashboard.vue)
 const { showModal } = inject('modalService');
+
+// --- Computed properties for task statistics ---
+const totalTasksCount = computed(() => tasks.value.length);
+const completedTasksCount = computed(() => tasks.value.filter(task => task.status.toLowerCase() === 'completed').length);
+const pendingTasksCount = computed(() => tasks.value.filter(task => ['to do', 'in progress'].includes(task.status.toLowerCase())).length);
+const overdueTasksCount = computed(() => {
+    const now = new Date();
+    return tasks.value.filter(task =>
+        task.due_date && new Date(task.due_date) < now && task.status.toLowerCase() !== 'completed'
+    ).length;
+});
+
+// Computed property for filtered tasks
+const filteredTasks = computed(() => {
+    if (!taskSearchQuery.value) {
+        return tasks.value;
+    }
+    const query = taskSearchQuery.value.toLowerCase();
+    return tasks.value.filter(task =>
+        task.name.toLowerCase().includes(query) ||
+        (task.description && task.description.toLowerCase().includes(query)) ||
+        task.status.toLowerCase().includes(query)
+    );
+});
 
 // Function to fetch tasks from the API
 const fetchTasks = async () => {
@@ -81,11 +105,26 @@ const openCreateTaskModal = () => {
 // Method to handle successful task creation from the modal
 const handleTaskCreated = (newTask) => {
     // Add the newly created task to the local tasks list
-    // This provides immediate UI update without a full re-fetch if not strictly necessary
     tasks.value.unshift(newTask);
-    // Optionally sort if you have a specific order, e.g., by creation date or due date
-    // tasks.value.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-    emits('add-activity', `New task "${newTask.title}" created.`); // Log activity
+    emits('add-activity', `New task "${newTask.name}" created.`); // Log activity
+};
+
+// Helper to format due date
+const formatDueDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+// Helper to get status class
+const getStatusClass = (status) => {
+    switch (status.toLowerCase()) {
+        case 'completed': return 'bg-green-100 text-green-800';
+        case 'to do': return 'bg-yellow-100 text-yellow-800';
+        case 'in progress': return 'bg-blue-100 text-blue-800';
+        case 'blocked': return 'bg-red-100 text-red-800';
+        default: return 'bg-gray-100 text-gray-800';
+    }
 };
 
 // Initial data load when the component is mounted
@@ -95,63 +134,108 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="p-6 bg-white rounded-lg shadow-md min-h-[calc(100vh-6rem)] relative">
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-semibold text-gray-800">Tickets</h2>
+    <div class="p-6 bg-white rounded-xl shadow-lg font-inter min-h-[calc(100vh-6rem)]">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4 sm:mb-0">Your Tasks</h2>
             <button @click="openCreateTaskModal"
-                    class="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors shadow-md"
+                    class="bg-indigo-600 text-white py-2 px-5 rounded-lg font-semibold hover:bg-indigo-700 transition-all duration-200 ease-in-out transform hover:scale-105 shadow-md flex items-center"
             >
-                Add New Ticket
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus mr-2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                Add New Task
             </button>
         </div>
 
+        <!-- Task Statistics Section -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-blue-500 text-white p-4 rounded-lg shadow-md flex items-center justify-between">
+                <div>
+                    <div class="text-3xl font-bold">{{ totalTasksCount }}</div>
+                    <div class="text-sm">Total Tasks</div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-todo"><rect x="3" y="5" width="6" height="6" rx="1"/><path d="m3 17h.01"/><path d="M13 5h8"/><path d="M13 9h8"/><path d="M13 13h8"/><path d="M13 17h8"/><path d="m3 13h.01"/></svg>
+            </div>
+            <div class="bg-green-500 text-white p-4 rounded-lg shadow-md flex items-center justify-between">
+                <div>
+                    <div class="text-3xl font-bold">{{ completedTasksCount }}</div>
+                    <div class="text-sm">Completed</div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-circle-2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+            </div>
+            <div class="bg-yellow-500 text-white p-4 rounded-lg shadow-md flex items-center justify-between">
+                <div>
+                    <div class="text-3xl font-bold">{{ pendingTasksCount }}</div>
+                    <div class="text-sm">Pending</div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hourglass"><path d="M6 2v6a6 6 0 0 0 6 6 6 6 0 0 0 6-6V2"/><path d="M6 22v-6a6 6 0 0 1 6-6 6 6 0 0 1 6 6v6"/></svg>
+            </div>
+            <div class="bg-red-500 text-white p-4 rounded-lg shadow-md flex items-center justify-between">
+                <div>
+                    <div class="text-3xl font-bold">{{ overdueTasksCount }}</div>
+                    <div class="text-sm">Overdue</div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            </div>
+        </div>
+
+        <!-- Task Search Bar -->
+        <div class="relative mb-6">
+            <input
+                type="text"
+                v-model="taskSearchQuery"
+                placeholder="Search tasks by title, description, or status..."
+                class="w-full p-3 pl-10 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-200"
+                aria-label="Search Tasks"
+            >
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search text-gray-400 w-5 h-5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </div>
+        </div>
+
         <!-- Conditional rendering based on loading, errors, or empty state -->
-        <div v-if="isLoading" class="text-center text-gray-600 py-8">Loading tasks...</div>
-        <div v-else-if="apiError" class="text-center text-red-600 py-8">{{ apiError }}</div>
-        <div v-else-if="tasks.length === 0" class="text-center text-gray-500 py-8">No tasks found for this project.</div>
-        <div v-else class="overflow-x-auto">
-            <table class="min-w-full bg-white border border-gray-200 rounded-lg">
-                <thead>
-                <tr class="bg-gray-100 text-gray-600 uppercase text-sm leading-normal">
-                    <th class="py-3 px-6 text-left">Title</th>
-                    <th class="py-3 px-6 text-left">Description</th>
-                    <th class="py-3 px-6 text-left">Status</th>
-                    <th class="py-3 px-6 text-left">Due Date</th>
-                    <th class="py-3 px-6 text-center">Actions</th>
-                </tr>
-                </thead>
-                <tbody class="text-gray-700 text-sm font-light">
-                <tr v-for="task in tasks" :key="task.id" class="border-b border-gray-200 hover:bg-gray-50">
-                    <td class="py-3 px-6 text-left whitespace-nowrap">{{ task.name }}</td>
-                    <td class="py-3 px-6 text-left">{{ task.description }}</td>
-                    <td class="py-3 px-6 text-left">
-                            <span :class="{
-                                'px-3 py-1 rounded-full text-xs font-semibold': true,
-                                'bg-green-200 text-green-800': task.status === 'completed',
-                                'bg-yellow-200 text-yellow-800': task.status === 'pending',
-                                'bg-blue-200 text-blue-800': task.status === 'in_progress',
-                                'bg-red-200 text-red-800': task.status === 'blocked',
-                            }">
-                                {{ task.status.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase()) }}
-                            </span>
-                    </td>
-                    <td class="py-3 px-6 text-left">{{ task.due_date ? new Date(task.due_date).toLocaleDateString() : 'N/A' }}</td>
-                    <td class="py-3 px-6 text-center">
-                        <div class="flex item-center justify-center">
-                            <button @click="openNotesSidebar(task)"
-                                    class="w-8 h-8 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center text-xs font-bold transition-colors shadow-md mr-2"
-                                    title="View Notes"
-                            >
-                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 2v2h8V6H6zm0 4v2h4v-2H6zm0 4v2h4v-2H6zm5-4v6h3v-6h-3z"/>
-                                </svg>
-                            </button>
-                            <!-- Potentially add other actions here like 'Mark Complete' if allowed for client -->
-                        </div>
-                    </td>
-                </tr>
-                </tbody>
-            </table>
+        <div v-if="isLoading" class="text-center text-gray-600 py-12">
+            <svg class="animate-spin h-8 w-8 text-indigo-500 mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p>Loading tasks...</p>
+        </div>
+        <div v-else-if="apiError" class="text-center text-red-600 py-12">
+            <p class="font-semibold mb-2">Error loading tasks:</p>
+            <p>{{ apiError }}</p>
+        </div>
+        <div v-else-if="tasks.length === 0" class="text-center text-gray-500 py-12">
+            <p class="text-lg mb-2">No tasks found for this project.</p>
+            <p>Click "Add New Task" to get started!</p>
+        </div>
+        <div v-else-if="filteredTasks.length === 0 && taskSearchQuery" class="text-center text-gray-500 py-12">
+            <p class="text-lg mb-2">No tasks match your search "{{ taskSearchQuery }}".</p>
+            <p>Try a different keyword or clear your search.</p>
+        </div>
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div v-for="task in filteredTasks" :key="task.id" class="bg-gray-50 rounded-lg shadow-sm p-5 border border-gray-200 flex flex-col justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ task.name }}</h3>
+                    <p class="text-sm text-gray-700 mb-3 line-clamp-2">{{ task.description || 'No description provided.' }}</p>
+                </div>
+                <div class="flex items-center justify-between text-sm text-gray-600 mb-4">
+                    <div class="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar mr-1 text-gray-500"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
+                        <span>Due: {{ formatDueDate(task.due_date) }}</span>
+                    </div>
+                    <span :class="['px-3 py-1 rounded-full text-xs font-bold capitalize', getStatusClass(task.status)]">
+                        {{ task.status.replace(/_/g, ' ') }}
+                    </span>
+                </div>
+                <div class="mt-auto">
+                    <button @click="openNotesSidebar(task)"
+                            class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-700 transition-all duration-200 ease-in-out transform hover:scale-105 shadow-md flex items-center justify-center"
+                            title="View Notes"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-notebook-text mr-2"><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><path d="M7 2h14a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M10 8h6"/><path d="M10 12h6"/><path d="M10 16h6"/></svg>
+                        View Notes
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Task Notes Sidebar Component -->
@@ -175,5 +259,11 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* No specific styles needed for this component, Tailwind handles most */
+.font-inter {
+    font-family: 'Inter', sans-serif;
+}
+/* Specific styling for search input to place icon inside */
+.relative input[type="text"] {
+    padding-left: 2.5rem; /* Adjust padding to make space for the icon */
+}
 </style>

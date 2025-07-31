@@ -9,7 +9,8 @@ import ApprovalsSection from './ClientDashboard/ApprovalsSection.vue';
 import DocumentsSection from './ClientDashboard/DocumentsSection.vue';
 import InvoicesSection from './ClientDashboard/InvoicesSection.vue';
 import AnnouncementsSection from './ClientDashboard/AnnouncementsSection.vue';
-import DeliverableViewerModal from './ClientDashboard/DeliverablViewerModal.vue'; // Import the new modal component
+import DeliverableViewerModal from './ClientDashboard/DeliverableViewerModal.vue';
+import ResourcesSection from './ClientDashboard/ResourceSection.vue'; // Import the new ResourcesSection
 
 const props = defineProps({
     initialAuthToken: { // Token from magic link
@@ -43,7 +44,8 @@ const approvals = ref([]);
 const documents = ref([]);
 const invoices = ref([]);
 const announcements = ref([]);
-const deliverables = ref([]); // New reactive data for deliverables
+const deliverables = ref([]);
+const shareableResources = ref([]); // Reactive data for shareable resources
 const error = ref(null); // To store any API errors
 const projectData = ref({});
 
@@ -176,15 +178,16 @@ onMounted(async () => {
         return;
     }
 
-    // Fetch all data concurrently, now including deliverables
+    // Fetch all data concurrently, now including deliverables and shareable resources
     await Promise.all([
-        // fetchClientData(`project/${props.projectId}/activities`, activities),
+        // fetchClientData(`project/${props.projectId}/activities`, activities), // Uncomment if you have activities API
         fetchClientData(`project/${props.projectId}/tasks`, tickets), // Assuming tasks are your tickets
-        // fetchClientData(`project/${props.projectId}/approvals`, approvals), // Assuming EmailController handles approvals
+        // fetchClientData(`project/${props.projectId}/approvals`, approvals), // Uncomment if you have approvals API
         fetchClientData(`project/${props.projectId}/documents`, documents),
-        // fetchClientData(`project/${props.projectId}/invoices`, invoices),
-        // fetchClientData(`announcements`, announcements), // Assuming announcements are general and not tied to a project path, or you can use project specific announcements: `project/${props.projectId}/announcements`
-        fetchClientData(`project/${props.projectId}/deliverables`, deliverables), // New fetch for deliverables
+        // fetchClientData(`project/${props.projectId}/invoices`, invoices), // Uncomment if you have invoices API
+        // fetchClientData(`announcements`, announcements), // Uncomment if you have announcements API
+        fetchClientData(`project/${props.projectId}/deliverables`, deliverables),
+        fetchClientData(`project/${props.projectId}/shareable-resources`, shareableResources), // Fetch shareable resources
         fetchClientData(`project/${props.projectId}`, projectData)
     ]);
 
@@ -228,12 +231,14 @@ provide('activityService', { addActivity: addActivity }); // Provided for child 
                 :invoices="invoices"
                 :announcements="announcements"
                 :deliverables="deliverables"
+                :shareableResources="shareableResources"
                 @open-deliverable-viewer="handleOpenDeliverableViewer"
                 :project-data="projectData"
             />
             <TicketsSection v-if="currentSection === 'tickets'" :project-id="projectId" :initial-auth-token="initialAuthToken" :tickets="tickets" @add-ticket="handleAddTicket" @add-activity="addActivity" />
             <ApprovalsSection @open-deliverable-viewer="handleOpenDeliverableViewer" :deliverables="deliverables" :initial-auth-token="initialAuthToken" :project-id="projectId" v-if="currentSection === 'approvals'" :approvals="approvals" @update-approval="handleUpdateApproval" @add-activity="addActivity" />
             <DocumentsSection :project-data="projectData" :project-id="projectId" :initial-auth-token="initialAuthToken" v-if="currentSection === 'documents'" :documents="documents" @add-document="handleAddDocument" @add-activity="addActivity" />
+            <ResourcesSection v-if="currentSection === 'resources'" :project-id="projectId" :initial-auth-token="initialAuthToken" :shareable-resources="shareableResources" @add-activity="addActivity" />
             <InvoicesSection v-if="currentSection === 'invoices'" :invoices="invoices" @update-invoice="handleUpdateInvoice" @add-activity="addActivity" />
             <AnnouncementsSection v-if="currentSection === 'announcements'" :announcements="announcements" />
         </div>

@@ -70,7 +70,6 @@ const handleSubmit = async () => {
     try {
         // Apply custom formatting if a function is provided
         const dataToSend = props.formatDataForApi(props.formData);
-        console.log('BaseFormModal: Data being sent to API:', dataToSend); // Debugging
 
         let response;
         const lowerHttpMethod = props.httpMethod.toLowerCase();
@@ -92,7 +91,7 @@ const handleSubmit = async () => {
         emit('submitted', response.data);
         emit('close'); // Close modal on success
     } catch (err) {
-        console.error('BaseFormModal: API submission error:', err); // Debugging
+        console.error('API submission error:', err);
         if (err.response) {
             if (err.response.status === 422) {
                 // Validation errors

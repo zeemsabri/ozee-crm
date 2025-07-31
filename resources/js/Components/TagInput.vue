@@ -50,7 +50,7 @@ function updateModelValue() {
   emit('update:modelValue', selectedTags.value.map((tag) => tag.id));
 }
 
-// Fix: Robustly initialize/update selectedTags based on initialTags prop
+// Initialize selectedTags based on initialTags prop
 watch(() => props.initialTags, (newTags) => {
   // Always clear existing selectedTags to ensure fresh state
   selectedTags.value = [];
@@ -67,12 +67,21 @@ watch(() => props.initialTags, (newTags) => {
     });
     selectedTags.value.push(...uniqueNewTags);
   }
-  // Crucial: After initializing selectedTags from initialTags,
-  // immediately emit the corresponding IDs to update the parent's v-model.
-  // This ensures `localProjectForm.tags` (in ProjectFormBasicInfo)
-  // always holds an array of IDs/temp_ids, not objects.
-  updateModelValue();
-}, { immediate: true, deep: true });
+
+  // Only emit update on initial load or when tags actually change
+  // Compare the IDs from newTags with modelValue to avoid recursive updates
+  const newTagIds = newTags.map(tag => tag.id);
+  const modelValueIds = Array.isArray(props.modelValue) ? props.modelValue : [];
+
+  // Check if arrays have different lengths or different content
+  const needsUpdate = newTagIds.length !== modelValueIds.length ||
+    newTagIds.some(id => !modelValueIds.includes(id)) ||
+    modelValueIds.some(id => !newTagIds.includes(id));
+
+  if (needsUpdate) {
+    updateModelValue();
+  }
+}, { immediate: true });
 
 // Debounced function to fetch tags from API
 const fetchTags = debounce(async (query) => {

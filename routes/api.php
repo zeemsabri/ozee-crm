@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\ClientDashboard\ProjectClientAction;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientReader;
 use App\Http\Controllers\Api\ImageUploadController;
 use App\Http\Controllers\Api\ProjectDashboard\ProjectDeliverableAction;
+use App\Http\Controllers\Api\ShareableResourceController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
@@ -223,6 +224,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('projects/{projectId}/attach-bonus-configuration-group', [BonusConfigurationGroupController::class, 'attachToProject']);
     Route::post('projects/{projectId}/detach-bonus-configuration-group', [BonusConfigurationGroupController::class, 'detachFromProject']);
 
+    // Shareable Resource Management Routes
+    Route::apiResource('shareable-resources', ShareableResourceController::class)->middleware(['process.tags']);
+
     // Deliverable Routes
     Route::get('/projects/{project}/deliverables', [ProjectDeliverableAction::class, 'index'])->name('projects.deliverables.index');
     Route::post('/projects/{project}/deliverables', [ProjectDeliverableAction::class, 'store'])->name('projects.deliverables.store');
@@ -247,6 +251,7 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
     Route::get('project/{project}/tasks', [ProjectClientReader::class, 'getProjectTasks']);
     Route::get('project/{project}/deliverables', [ProjectClientReader::class, 'getProjectDeliverables']);
     Route::get('project/{project}/documents', [ProjectClientReader::class, 'getProjectDocuments']);
+    Route::get('project/{project}/shareable-resources', [ProjectClientReader::class, 'getShareableResources']);
     // TODO: Add more reader endpoints as needed (e.g., announcements, invoices, comments for a deliverable)
 
     // Project Client Action Routes (POST/PATCH)
@@ -258,5 +263,5 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
     Route::post('tasks/{task}/notes', [ProjectClientAction::class, 'addNoteToTask']);
     Route::post('tasks', [ProjectClientAction::class, 'createTask']);
     Route::post('documents', [ProjectClientAction::class, 'uploadClientDocuments']);
-    Route::post('document/{document}/notes', [ProjectClientAction::class, 'addNoteToDocument']);
+    Route::post('documents/{document}/notes', [ProjectClientAction::class, 'addNoteToDocument']);
 });
