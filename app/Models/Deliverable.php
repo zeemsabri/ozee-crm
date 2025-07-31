@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\ProjectNote;
 
 class Deliverable extends Model
 {
@@ -89,7 +90,7 @@ class Deliverable extends Model
      */
     public function comments()
     {
-        return $this->hasMany(DeliverableComment::class);
+        return $this->morphMany(ProjectNote::class, 'noteable');
     }
 
     /**

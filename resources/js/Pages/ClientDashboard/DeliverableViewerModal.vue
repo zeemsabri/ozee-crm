@@ -241,12 +241,12 @@ const getEmbedUrl = (url, type) => {
                                 ({{ new Date(deliverable.client_interaction.updated_at).toLocaleString() }})
                             </p>
                         </div>
-                        <!-- Placeholder for other comments from DeliverableComment model -->
+                        <!-- Comments from ProjectNote model -->
                         <div class="mt-4 pt-4 border-t border-gray-200" v-if="deliverable.comments && deliverable.comments.length > 0">
                             <p class="font-bold text-gray-800 mb-2">All Comments:</p>
                             <div v-for="comment in deliverable.comments" :key="comment.id" class="mb-3 p-2 bg-white rounded-lg shadow-sm">
-                                <p class="font-semibold text-blue-700">{{ comment.client?.name || 'Client' }}</p>
-                                <p>{{ comment.comment_text }}</p>
+                                <p class="font-semibold text-blue-700">{{ comment.creator_name || 'Client' }}</p>
+                                <p>{{ comment.content }}</p>
                                 <p class="text-xs text-gray-500 mt-1">
                                     {{ new Date(comment.created_at).toLocaleString() }}
                                     <span v-if="comment.context" class="ml-2 text-gray-400">({{ comment.context }})</span>

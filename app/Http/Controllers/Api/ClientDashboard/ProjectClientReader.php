@@ -130,7 +130,9 @@ class ProjectClientReader extends Controller
             // Fetch deliverables for the project that are visible to clients
             $deliverables = Deliverable::where('project_id', $projectId)
                 ->where('is_visible_to_client', true)
-                ->with('teamMember') // Eager load the team member who submitted it
+                ->with(['comments' => function($q) {
+                        $q->orderBy('created_at', 'desc');
+                }, 'teamMember']) // Eager load the team member who submitted it
                 ->orderBy('submitted_at', 'desc')
                 ->get();
 

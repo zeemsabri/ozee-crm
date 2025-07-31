@@ -5,6 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @deprecated Use ProjectNote model with noteable and creator relationships instead.
+ */
 class DeliverableComment extends Model
 {
     use HasFactory;

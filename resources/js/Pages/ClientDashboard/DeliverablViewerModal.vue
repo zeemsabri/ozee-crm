@@ -284,7 +284,7 @@ const getEmbedUrl = (url, type) => {
                 <!--All general comments--><div class="mt-4 pt-4 border-t border-gray-200" v-if="commentsList && commentsList.length > 0">
                 <p class="font-bold text-gray-800 mb-2">All Client Comments:</p>
                 <div v-for="comment in commentsList" :key="comment.id" class="mb-3 p-2 bg-white rounded-lg shadow-sm">
-                    <p class="font-semibold text-blue-700">{{ comment.client?.name || 'Client' }}</p>
+                    <p class="font-semibold text-blue-700">{{ comment.creator_name || 'Client' }}</p>
                     <p>{{ comment.comment_text }}</p>
                     <p class="text-xs text-gray-500 mt-1">
                         {{ new Date(comment.created_at).toLocaleString() }}

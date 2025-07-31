@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\ProjectDashboard;
 use App\Http\Controllers\Controller;
 use App\Models\Deliverable;
 use App\Models\Project;
+use App\Models\ProjectNote;
 use App\Services\GoogleDriveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -40,7 +41,7 @@ class ProjectDeliverableAction extends Controller
 
         try {
             $deliverables = $project->deliverables()
-                ->with('teamMember') // Eager load the team member (user)
+                ->with(['teamMember', 'comments', 'clientInteractions']) // Eager load the team member (user)
                 ->orderBy('submitted_at', 'desc')
                 ->get();
 
@@ -159,6 +160,97 @@ class ProjectDeliverableAction extends Controller
                 'error' => $e->getTraceAsString(),
             ]);
             return response()->json(['message' => 'Failed to create deliverable.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Display the specified deliverable with its relations for CRM backend.
+     *
+     * @param Project $project
+     * @param Deliverable $deliverable
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function show(Project $project, Deliverable $deliverable)
+    {
+
+        // Ensure the deliverable belongs to the project (Route Model Binding usually handles this,
+        // but an explicit check adds robustness if the route isn't fully scoped or for custom middleware).
+        if ((int)$deliverable->project_id !== (int)$project->id) {
+            abort(404, 'Deliverable not found in this project.');
+        }
+
+        try {
+            $deliverable->load([
+                'teamMember',
+                'clientInteractions.client', // Load client details for each interaction
+                'comments' => function($q) {
+                    $q->orderBy('created_at', 'desc');
+                },
+                'comments.creator', // Load creator details for comments (could be client or team member)
+            ]);
+
+            return response()->json($deliverable);
+        } catch (\Exception $e) {
+            Log::error("Error fetching single deliverable for CRM: {$e->getMessage()}", [
+                'deliverable_id' => $deliverable->id,
+                'project_id' => $project->id,
+                'user_id' => Auth::id(),
+                'error_trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to fetch deliverable details.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Add a comment to a specific deliverable by a team member.
+     *
+     * @param Request $request
+     * @param Project $project
+     * @param Deliverable $deliverable
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function addComment(Request $request, Project $project, Deliverable $deliverable)
+    {
+        // Ensure the deliverable belongs to the project
+        if ((int)$deliverable->project_id !== (int)$project->id) {
+            abort(404, 'Deliverable not found in this project.');
+        }
+
+        try {
+            $validated = $request->validate([
+                'comment_text' => 'required|string|max:2000',
+                'context' => 'nullable|string|max:255',
+            ]);
+
+            // Create the note, associating it with the authenticated team member
+            $comment = new ProjectNote([
+                'content' => $validated['comment_text'],
+                'type' => 'comment',
+                'noteable_id' => $deliverable->id,
+                'noteable_type' => get_class($deliverable),
+                'creator_id' => Auth::id(),
+                'creator_type' => get_class(Auth::user()),
+                'project_id' => $deliverable->project_id,
+                'context' => $validated['context'],
+            ]);
+
+            $comment->save();
+
+            return response()->json([
+                'message' => 'Comment added successfully.',
+                'comment' => $comment->load('creator'), // Load the creator (team member) who added it
+            ], 201);
+
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error("Error adding comment to deliverable by team member: {$e->getMessage()}", [
+                'deliverable_id' => $deliverable->id,
+                'project_id' => $project->id,
+                'user_id' => Auth::id(),
+                'error' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to add comment.', 'error' => $e->getMessage()], 500);
         }
     }
 }
