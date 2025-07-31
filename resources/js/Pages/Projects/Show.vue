@@ -32,6 +32,15 @@ import RightSidebar from '@/Components/RightSidebar.vue'; // New global sidebar 
 import TaskDetailSidebar from '@/Components/ProjectTasks/TaskDetailSidebar.vue'; // New task detail component for sidebar
 import CreateTaskModal from '@/Components/ProjectTasks/CreateTaskModal.vue'; // New standalone create task modal
 
+// NEW: Import Deliverables components
+import ProjectDeliverablesTab from '@/Components/ProjectsDeliverables/ProjectDeliverableTab.vue'; // Adjust path
+import CreateDeliverableModal from '@/Components/ProjectsDeliverables/CreateDeliverableModal.vue'; // Adjust path
+import DeliverableDetailSidebar from '@/Components/ProjectsDeliverables/DeliverableDetailSidebar.vue'; // NEW: Deliverable detail sidebar
+
+// SEO Import
+import SeoReportTab from '@/Components/ProjectsSeoReports/SeoReportTab.vue'; // Adjust path as needed
+import CreateSeoReportModal from "@/Components/ProjectsSeoReports/CreateSeoReportModal.vue";
+
 // Currency utilities and SelectDropdown
 import SelectDropdown from '@/Components/SelectDropdown.vue'; // For currency switcher
 import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency'; // Import displayCurrency
@@ -55,6 +64,7 @@ const project = ref({
     meetings: [],
     tasks: [], // Ensure tasks is initialized for ProjectStatsCards
     emails: [], // Ensure emails is initialized for ProjectStatsCards
+    deliverables: [], // Initialize deliverables array
 });
 const loading = ref(true); // For the main page load
 const generalError = ref('');
@@ -67,14 +77,19 @@ const showAddNoteModal = ref(false);
 const showMagicLinkModal = ref(false);
 const showUserTransactionsModal = ref(false); // New state for user transactions modal
 const showComposeEmailModal = ref(false);
+const showCreateDeliverableModal = ref(false);
 
 // NEW: State for the RightSidebar and TaskDetailSidebar
 const showRightSidebar = ref(false);
 const selectedTaskIdForSidebar = ref(null);
+const selectedDeliverableIdForSidebar = ref(null); // NEW: State for Deliverable Detail Sidebar
 
 // NEW: State for the global CreateTaskModal
 const showGlobalCreateTaskModal = ref(false);
 
+// SEO Report Modals
+const showCreateSeoReportModal = ref(false);
+const selectedSeoReportInitialData = ref(null); // To pass data for editing
 
 const statusOptions = [
     { value: 'active', label: 'Active' },
@@ -125,6 +140,15 @@ const canComposeEmails = computed(() => canDo('compose_emails').value);
 const canApproveEmails = computed(() => canDo('approve_emails').value);
 const canViewNotes = computed(() => canView('project_notes').value);
 const canAddNotes = computed(() => canDo('add_project_notes').value);
+
+// Permissions for Deliverables
+const canViewDeliverables = computed(() => canView('deliverables').value);
+const canCreateDeliverables = computed(() => canDo('create_deliverables').value);
+
+// Permissions for SEO Reports (NEW)
+const canViewSeoReports = computed(() => canView('seo_reports').value);
+const canCreateSeoReports = computed(() => canDo('create_seo_reports').value); // Assuming a permission for creating SEO reports
+
 
 // Permissions for new financial/client/user cards
 const canViewClientContacts = computed(() => canView('client_contacts').value);
@@ -230,6 +254,13 @@ const handleNotesUpdated = (updatedNotes) => {
     project.value.notes = updatedNotes;
 };
 
+// Handler for Deliverables updates
+const handleDeliverablesUpdated = () => {
+    // When deliverables are updated (e.g., new one added), re-fetch project data
+    // to ensure any related counts/statuses on the overview are fresh.
+    fetchProjectData();
+}
+
 const handleMeetingSaved = () => {
     if (meetingsListComponent.value) {
         meetingsListComponent.value.fetchMeetings();
@@ -242,6 +273,9 @@ const handleStandupAdded = () => {
 
 const handleChangeTab = (tabName) => {
     selectedTab.value = tabName;
+    // Close any open sidebars when changing tabs
+    closeTaskDetailSidebar();
+    closeDeliverableDetailSidebar();
 };
 
 const handleViewUserTransactions = () => {
@@ -269,10 +303,10 @@ const handleComposeEmailClose = () => {
     showComposeEmailModal.value = false;
 };
 
-// NEW: Handlers for TaskDetailSidebar
+// Handlers for TaskDetailSidebar
 const openTaskDetailSidebar = (taskId) => {
-    console.log('hit');
     selectedTaskIdForSidebar.value = taskId;
+    selectedDeliverableIdForSidebar.value = null; // Ensure deliverable sidebar is closed
     showRightSidebar.value = true;
 };
 
@@ -283,9 +317,7 @@ const closeTaskDetailSidebar = () => {
 
 const handleTaskDetailUpdated = () => {
     // A task was updated from the sidebar, refresh the main task list
-    // This will cause ProjectTasksTab to re-fetch its data
     fetchProjectData();
-    // No need to close the sidebar unless specifically required
 };
 
 const handleTaskDeleted = (deletedTaskId) => {
@@ -295,7 +327,24 @@ const handleTaskDeleted = (deletedTaskId) => {
     closeTaskDetailSidebar(); // Close sidebar after deletion
 };
 
-// NEW: Handlers for global CreateTaskModal
+// NEW: Handlers for DeliverableDetailSidebar
+const openDeliverableDetailSidebar = (deliverableId) => {
+    selectedDeliverableIdForSidebar.value = deliverableId;
+    selectedTaskIdForSidebar.value = null; // Ensure task sidebar is closed
+    showRightSidebar.value = true;
+};
+
+const closeDeliverableDetailSidebar = () => {
+    showRightSidebar.value = false;
+    selectedDeliverableIdForSidebar.value = null;
+};
+
+const handleDeliverableDetailUpdated = () => {
+    // A deliverable was updated from the sidebar, refresh the main deliverables list
+    fetchProjectData();
+};
+
+// Handlers for global CreateTaskModal
 const openGlobalCreateTaskModal = () => {
     showGlobalCreateTaskModal.value = true;
 };
@@ -304,6 +353,27 @@ const handleGlobalCreateTaskSaved = () => {
     showGlobalCreateTaskModal.value = false;
     fetchProjectData(); // Refresh tasks after creation
 };
+
+// Handlers for SEO Report Modal
+const openCreateSeoReportModal = (initialData = null) => {
+    selectedSeoReportInitialData.value = initialData;
+    showCreateSeoReportModal.value = true;
+};
+
+const handleSeoReportSaved = () => {
+    showCreateSeoReportModal.value = false;
+    // Trigger a refresh of the SeoReportTab to show the updated data
+    // This can be done by re-fetching all project data or by having SeoReportTab
+    // listen to this event. For simplicity, we can just re-fetch here if needed,
+    // but the SeoReportTab is already designed to re-fetch on its own when `selectedMonth` changes.
+    // So, we just need to ensure the modal closes.
+    // If you need to force a re-render/re-fetch in SeoReportTab, you might need a more direct method.
+    // For now, let's assume SeoReportTab's watch on `selectedMonth` and its internal `fetchAvailableMonths`
+    // and `fetchSeoReport` are sufficient.
+    // A more explicit way would be to emit an event from here that SeoReportTab listens to.
+    // For now, we rely on the reactivity of selectedMonth and the tab's internal refresh.
+};
+
 
 onMounted(async () => {
     console.log('Show.vue mounted, fetching initial data...');
@@ -315,14 +385,9 @@ onMounted(async () => {
         console.error(`Error fetching permissions for project ${projectId}:`, error);
     }
 
-    // No longer need to fetch clients explicitly here for ComposeEmailModal as it fetches its own
-    // await fetchClients();
-    // Fetch currency rates globally once
     await fetchCurrencyRates();
-    // Then fetch the main project data (which will also fetch due and overdue tasks)
     await fetchProjectData();
 
-    // Fetch latest emails separately using the simplified endpoint with limit
     if (canViewEmails.value) {
         await fetchLatestEmails();
     }
@@ -404,6 +469,8 @@ onMounted(async () => {
                     v-model:selectedTab="selectedTab"
                     :can-view-emails="canViewEmails"
                     :can-view-notes="canViewNotes"
+                    :can-view-deliverables="canViewDeliverables"
+                    :can-view-seo-reports="canViewSeoReports"
                 />
 
                 <div v-if="selectedTab === null">
@@ -475,6 +542,8 @@ onMounted(async () => {
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                                 </thead>
@@ -483,10 +552,35 @@ onMounted(async () => {
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ email.subject }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ email.sender?.name || 'N/A' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ new Date(email.created_at).toLocaleDateString() }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">
+                                        <span
+                                            :class="{
+                                                'px-2 py-1 rounded-full text-xs font-medium': true,
+                                                'bg-blue-100 text-blue-800': email.type === 'sent',
+                                                'bg-purple-100 text-purple-800': email.type === 'received'
+                                            }"
+                                        >
+                                            {{ email.type ? email.type.toUpperCase() : 'N/A' }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">
+                                        <span
+                                            :class="{
+                                                'px-2 py-1 rounded-full text-xs font-medium': true,
+                                                'bg-green-100 text-green-800': email.status === 'sent',
+                                                'bg-yellow-100 text-yellow-800': email.status === 'pending_approval',
+                                                'bg-blue-200 text-blue-900': email.status === 'pending_approval_received',
+                                                'bg-red-100 text-red-800': email.status === 'rejected',
+                                                'bg-gray-100 text-gray-800': email.status === 'draft'
+                                            }"
+                                        >
+                                            {{ email.status.replace('_', ' ').toUpperCase() }}
+                                        </span>
+                                    </td>
                                     <td class="px-4 py-3 text-right">
-                                        <button @click="selectedTab = 'emails'" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                                        <SecondaryButton class="text-indigo-600 hover:text-indigo-800" @click="viewEmail(email)">
                                             View
-                                        </button>
+                                        </SecondaryButton>
                                     </td>
                                 </tr>
                                 </tbody>
@@ -575,6 +669,24 @@ onMounted(async () => {
                     @notesUpdated="handleNotesUpdated"
                     @changeTab="handleChangeTab"
                 />
+
+                <!-- Deliverables Tab Content -->
+                <ProjectDeliverablesTab
+                    v-if="selectedTab === 'deliverables'"
+                    :project-id="projectId"
+                    :can-create-deliverables="canCreateDeliverables"
+                    :can-view-deliverables="canViewDeliverables"
+                    @deliverablesUpdated="handleDeliverablesUpdated"
+                    @openDeliverableDetailSidebar="openDeliverableDetailSidebar"
+                />
+
+                <!-- SEO Reports Tab Content (NEW) -->
+                <SeoReportTab
+                    v-if="selectedTab === 'seo-reports'"
+                    :project-id="projectId"
+                    :can-create-seo-reports="canCreateSeoReports"
+                    @openCreateSeoReportModal="openCreateSeoReportModal"
+                />
             </div>
         </div>
 
@@ -634,30 +746,56 @@ onMounted(async () => {
             @error="(err) => console.error('Error composing email:', err)"
         />
 
-        <!-- NEW: Global Right Sidebar for Task Details -->
+        <!-- Global Right Sidebar -->
         <RightSidebar
             :show="showRightSidebar"
             @update:show="showRightSidebar = $event"
-            title="Task Details"
+            :title="selectedTaskIdForSidebar ? 'Task Details' : (selectedDeliverableIdForSidebar ? 'Deliverable Details' : 'Details')"
             :initialWidth="50"
         >
             <template #content>
+                <!-- Conditionally render TaskDetailSidebar or DeliverableDetailSidebar -->
                 <TaskDetailSidebar
+                    v-if="selectedTaskIdForSidebar"
                     :task-id="selectedTaskIdForSidebar"
                     :project-users="project.users || []"
                     @close="closeTaskDetailSidebar"
                     @task-updated="handleTaskDetailUpdated"
                     @task-deleted="handleTaskDeleted"
                 />
+                <DeliverableDetailSidebar
+                    v-else-if="selectedDeliverableIdForSidebar"
+                    :project-id="projectId"
+                    :deliverable-id="selectedDeliverableIdForSidebar"
+                    @close="closeDeliverableDetailSidebar"
+                    @deliverable-updated="handleDeliverableDetailUpdated"
+                />
             </template>
         </RightSidebar>
 
-        <!-- NEW: Global Create Task Modal -->
+        <!-- Global Create Task Modal -->
         <CreateTaskModal
             :show="showGlobalCreateTaskModal"
             :project-id="projectId"
             @close="showGlobalCreateTaskModal = false"
             @saved="handleGlobalCreateTaskSaved"
+        />
+
+        <!-- Create Deliverable Modal -->
+        <CreateDeliverableModal
+            :show="showCreateDeliverableModal"
+            :project-id="projectId"
+            @close="showCreateDeliverableModal = false"
+            @saved="handleDeliverableSaved"
+        />
+
+        <!-- Create/Edit SEO Report Modal -->
+        <CreateSeoReportModal
+            :project-id="projectId"
+            :show="showCreateSeoReportModal"
+            :initial-data="selectedSeoReportInitialData"
+            @close="showCreateSeoReportModal = false"
+            @saved="handleSeoReportSaved"
         />
 
     </AuthenticatedLayout>

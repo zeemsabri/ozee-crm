@@ -24,6 +24,7 @@ class ProjectNote extends Model
         'noteable_type',
         'creator_id',
         'creator_type',
+        'context',
     ];
 
     protected $appends = ['creator_name'];

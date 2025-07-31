@@ -1,18 +1,17 @@
 <script setup>
-import { defineProps, computed, defineEmits } from 'vue';
+import { defineProps, computed, defineEmits, ref, onMounted, watch } from 'vue';
 import Chart from 'chart.js/auto';
-import { onMounted, watch, ref } from 'vue';
 
 const props = defineProps({
     activities: {
         type: Array,
         default: () => []
     },
-    tickets: {
+    tickets: { // Assuming these are your tasks
         type: Array,
         default: () => []
     },
-    approvals: {
+    approvals: { // General approvals, might be less used if deliverables handle most
         type: Array,
         default: () => []
     },
@@ -32,15 +31,22 @@ const props = defineProps({
         type: Array,
         default: () => []
     },
+    shareableResources: {
+        type: Array,
+        default: () => []
+    },
     projectData: {
         type: [Object, null],
         default: () => ({})
     }
 });
 
-const emits = defineEmits(['open-deliverable-viewer']); // Define the new emit
+const emits = defineEmits(['open-deliverable-viewer']);
 
-// Computed properties for dashboard stats
+// --- State for search and filters ---
+const globalSearchQuery = ref('');
+
+// --- Computed properties for dashboard stats ---
 const totalTickets = computed(() => props.tickets.length);
 const pendingApprovalsCount = computed(() => {
     return props.deliverables.filter(d =>
@@ -56,37 +62,143 @@ const newReportsAvailableCount = computed(() => {
     ).length;
 });
 
-// Filter deliverables that need specific action from the client
+// --- Filtered Data for Sections ---
+
+// Action Required Deliverables
 const actionRequiredDeliverables = computed(() => {
-    return props.deliverables.filter(d =>
-        (d.status === 'pending_review' && (!d.client_interaction || (!d.client_interaction.approved_at && !d.client_interaction.rejected_at))) // Not yet approved/rejected by this client
-        || (d.status === 'revisions_requested' && d.client_interaction && d.client_interaction.revisions_requested_at) // Or if this client requested revisions on previous version
+    const filtered = [...props.deliverables].filter(d =>
+        (d.status === 'pending_review' && (!d.client_interaction || (!d.client_interaction.approved_at && !d.client_interaction.rejected_at)))
+        || (d.status === 'revisions_requested' && d.client_interaction && d.client_interaction.revisions_requested_at)
     );
+    // Apply global search
+    if (globalSearchQuery.value) {
+        const query = globalSearchQuery.value.toLowerCase();
+        return filtered.filter(d =>
+            d.title.toLowerCase().includes(query) ||
+            (d.description && d.description.toLowerCase().includes(query)) ||
+            (d.team_member && d.team_member.name.toLowerCase().includes(query))
+        );
+    }
+    return filtered.sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
 });
 
-// Get the 5 most recent deliverables submitted
-const recentDeliverables = computed(() => {
-    return [...props.deliverables]
-        .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))
-        .slice(0, 5);
+// Upcoming Tasks
+const upcomingTasks = computed(() => {
+    const now = new Date();
+    const sevenDaysLater = new Date();
+    sevenDaysLater.setDate(now.getDate() + 7);
+
+    const filtered = [...props.tickets]
+        .filter(t => t.due_date && new Date(t.due_date) >= now && new Date(t.due_date) <= sevenDaysLater && t.status !== 'completed');
+
+    // Apply global search
+    if (globalSearchQuery.value) {
+        const query = globalSearchQuery.value.toLowerCase();
+        return filtered.filter(t =>
+            t.name.toLowerCase().includes(query) ||
+            (t.description && t.description.toLowerCase().includes(query))
+        );
+    }
+    return filtered.sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+});
+
+// Latest 5 Documents
+const latestDocuments = computed(() => {
+    const sortedDocs = [...props.documents].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const filtered = sortedDocs.slice(0, 5);
+
+    // Apply global search
+    if (globalSearchQuery.value) {
+        const query = globalSearchQuery.value.toLowerCase();
+        return filtered.filter(item =>
+            item.filename.toLowerCase().includes(query) ||
+            (item.notes && item.notes.some(note => note.content.toLowerCase().includes(query)))
+        );
+    }
+    return filtered;
+});
+
+// Random 5 Resources
+const randomResources = computed(() => {
+    const shuffled = [...props.shareableResources].sort(() => 0.5 - Math.random());
+    const filtered = shuffled.slice(0, 5);
+
+    // Apply global search
+    if (globalSearchQuery.value) {
+        const query = globalSearchQuery.value.toLowerCase();
+        return filtered.filter(item =>
+            item.title.toLowerCase().includes(query) ||
+            (item.description && item.description.toLowerCase().includes(query)) ||
+            item.type.toLowerCase().includes(query) ||
+            (item.tags && item.tags.some(tag => tag.name.toLowerCase().includes(query)))
+        );
+    }
+    return filtered;
 });
 
 
-// Chart.js setup
+// Recent Activity (Combined Feed - now including deliverables, documents, resources)
+const recentActivity = computed(() => {
+    const combined = [
+        ...props.deliverables.map(d => ({
+            id: d.id,
+            title: d.title,
+            description: d.description || `Status: ${d.status.replace(/_/g, ' ')}`,
+            activityDate: d.submitted_at,
+            type: 'deliverable',
+            link: null, // Deliverables open in modal
+            originalItem: d // Keep reference to original deliverable object
+        })),
+        ...props.documents.map(d => ({
+            id: d.id,
+            title: d.filename,
+            description: d.notes && d.notes.length > 0 ? d.notes[0].content : 'No description',
+            activityDate: d.created_at,
+            type: 'document',
+            mime_type: d.mime_type,
+            link: d.path,
+            originalItem: d
+        })),
+        ...props.shareableResources.map(r => ({
+            id: r.id,
+            title: r.title,
+            description: r.description || 'No description',
+            activityDate: r.created_at,
+            type: 'resource',
+            mime_type: r.type, // Using 'type' from shareableResources as mime_type for icon
+            link: r.url,
+            originalItem: r
+        }))
+    ];
+
+    const sortedAndSliced = combined.sort((a, b) => new Date(b.activityDate) - new Date(a.activityDate)).slice(0, 5);
+
+    // Apply global search
+    if (globalSearchQuery.value) {
+        const query = globalSearchQuery.value.toLowerCase();
+        return sortedAndSliced.filter(item =>
+            item.title.toLowerCase().includes(query) ||
+            (item.description && item.description.toLowerCase().includes(query))
+        );
+    }
+    return sortedAndSliced;
+});
+
+
+// --- Chart.js setup ---
 const chartCanvas = ref(null);
 let myChart = null;
 
-// Computed properties for chart data, ensuring they re-evaluate only when relevant prop data changes
-const completedTasks = computed(() => props.tickets.filter(t => t.status === 'completed').length);
-const openTasks = computed(() => props.tickets.filter(t => t.status === 'open').length);
-const pendingGeneralApprovals = computed(() => props.approvals.filter(a => a.status === 'pending').length);
-const approvedGeneralApprovals = computed(() => props.approvals.filter(a => a.status === 'approved').length);
+const completedTasksCount = computed(() => props.tickets.filter(t => t.status === 'completed').length);
+const openTasksCount = computed(() => props.tickets.filter(t => t.status === 'To Do' || t.status === 'In Progress').length);
+const pendingGeneralApprovalsCount = computed(() => props.approvals.filter(a => a.status === 'pending').length);
+const approvedGeneralApprovalsCount = computed(() => props.approvals.filter(a => a.status === 'approved').length);
 
 
 const createOrUpdateChart = () => {
-    if (chartCanvas.value) { // Ensure chartCanvas.value is not null
+    if (chartCanvas.value) {
         if (myChart) {
-            myChart.destroy(); // Destroy existing chart before creating a new one
+            myChart.destroy();
         }
 
         const ctx = chartCanvas.value.getContext('2d');
@@ -95,12 +207,12 @@ const createOrUpdateChart = () => {
             data: {
                 labels: ['Completed Tasks', 'Open Tasks', 'Pending General Approvals', 'Approved General Approvals'],
                 datasets: [{
-                    data: [completedTasks.value, openTasks.value, pendingGeneralApprovals.value, approvedGeneralApprovals.value],
+                    data: [completedTasksCount.value, openTasksCount.value, pendingGeneralApprovalsCount.value, approvedGeneralApprovalsCount.value],
                     backgroundColor: [
-                        'rgba(75, 192, 192, 0.6)',
-                        'rgba(255, 159, 64, 0.6)',
-                        'rgba(54, 162, 235, 0.6)',
-                        'rgba(153, 102, 255, 0.6)'
+                        'rgba(75, 192, 192, 0.8)', // Green-ish for completed
+                        'rgba(255, 159, 64, 0.8)', // Orange for open
+                        'rgba(54, 162, 235, 0.8)', // Blue for pending
+                        'rgba(153, 102, 255, 0.8)' // Purple for approved
                     ],
                     borderColor: [
                         'rgba(75, 192, 192, 1)',
@@ -117,10 +229,23 @@ const createOrUpdateChart = () => {
                 plugins: {
                     legend: {
                         position: 'bottom',
+                        labels: {
+                            font: {
+                                size: 12, /* Smaller font for legend */
+                                family: 'Inter, sans-serif'
+                            },
+                            color: '#4B5563'
+                        }
                     },
                     title: {
                         display: true,
-                        text: 'Overall Project Status'
+                        text: 'Overall Project Status',
+                        font: {
+                            size: 16, /* Slightly smaller title */
+                            weight: 'bold',
+                            family: 'Inter, sans-serif'
+                        },
+                        color: '#1F2937'
                     }
                 }
             }
@@ -132,134 +257,242 @@ onMounted(() => {
     createOrUpdateChart();
 });
 
-// Watch the computed properties that directly provide the chart data
-// This is more efficient than a deep watch on the entire 'tickets' or 'approvals' arrays.
-watch([completedTasks, openTasks, pendingGeneralApprovals, approvedGeneralApprovals], () => {
+watch([completedTasksCount, openTasksCount, pendingGeneralApprovalsCount, approvedGeneralApprovalsCount], () => {
     createOrUpdateChart();
 });
 
-// Function to open the deliverable viewer modal
-const handleOpenDeliverableViewer = (deliverable) => {
-    emits('open-deliverable-viewer', deliverable);
+// Function to handle item click in Recent Activity or other sections
+const handleItemClick = (item) => {
+    if (item.type === 'deliverable') {
+        emits('open-deliverable-viewer', item.originalItem);
+    } else if (item.link) {
+        window.open(item.link, '_blank');
+    }
 };
+
+// Helper function to get icon for resource type
+const getResourceIcon = (item) => {
+    if (item.type === 'resource') {
+        switch (item.mime_type) {
+            case 'youtube': return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-youtube text-red-500 w-5 h-5"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0 2 2 0 0 1 1.4 1.4 24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.56 49.56 0 0 1-16.2 0 2 2 0 0 1-1.4-1.4Z"/><path d="m10 15 5-3-5-3z"/></svg>`;
+            case 'website': return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe text-blue-500 w-5 h-5"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`;
+            case 'document': return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file text-green-500 w-5 h-5"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>`;
+            case 'image': return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image text-purple-500 w-5 h-5"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>`;
+            case 'pdf': return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text text-red-500 w-5 h-5"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>`;
+            default: return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link text-gray-500 w-5 h-5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07L9.4 6.6A2 2 0 0 1 8.07 8z"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.41-1.41A2 2 0 0 1 15.93 16z"/></svg>`;
+        }
+    } else if (item.type === 'document') {
+        if (item.mime_type && item.mime_type.includes('pdf')) {
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text text-red-500 w-5 h-5"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>`; // PDF icon
+        } else if (item.mime_type && item.mime_type.includes('image')) {
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image text-purple-500 w-5 h-5"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>`; // Image icon
+        } else if (item.mime_type && item.mime_type.includes('wordprocessingml')) {
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-type-doc text-blue-500 w-5 h-5"><path d="M14.5 22H18a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h8.5"/><path d="M14 2v6a2 2 0 0 0 2 2h6"/><path d="M8 12h4"/><path d="M8 16h4"/><path d="M8 20h4"/></svg>`; // Word icon
+        }
+    } else if (item.type === 'deliverable') {
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clipboard-check text-green-500 w-5 h-5"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>`; // Deliverable icon
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file text-gray-500 w-5 h-5"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>`; // Generic file icon
+};
+
+const formatDueDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
 </script>
 
 <template>
-    <div class="p-6 bg-gray-100 min-h-full">
-        <h1 class="text-3xl font-bold text-gray-800 mb-8">{{ projectData.name ?? 'Client' }} Dashboard</h1>
-
-        <!-- Quick Overview Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            <!-- Total Tickets Card -->
-            <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between transition-transform transform hover:scale-105 cursor-pointer">
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-600">Total Tickets</h2>
-                    <p class="text-4xl font-bold text-blue-600">{{ totalTickets }}</p>
-                </div>
-                <svg class="w-12 h-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+    <div class="min-h-screen bg-gray-100 font-inter text-gray-800 p-4 sm:p-6 lg:p-8">
+        <!-- Header Section -->
+        <header class="bg-white rounded-xl shadow-lg p-4 mb-6 flex flex-col sm:flex-row items-center justify-between">
+            <div class="flex items-center mb-4 sm:mb-0">
+                <img v-if="projectData.logo" :src="projectData.logo" alt="Project Logo" class="w-12 h-12 rounded-full mr-3 border-2 border-indigo-500 p-0.5">
+                <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">{{ projectData.name || 'Client Dashboard' }}</h1>
             </div>
 
-            <!-- Pending Approvals Card -->
-            <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between transition-transform transform hover:scale-105 cursor-pointer">
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-600">Action Needed (Deliverables)</h2>
-                    <p class="text-4xl font-bold text-yellow-600">{{ actionRequiredDeliverables.length }}</p>
+            <!-- Quick Stats -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full sm:w-auto">
+                <div class="bg-indigo-500 text-white p-3 rounded-lg shadow-md flex items-center justify-center text-center">
+                    <span class="text-xl font-bold">{{ totalTickets }}</span>
+                    <span class="ml-2 text-sm">Total Tasks</span>
                 </div>
-                <svg class="w-12 h-12 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            </div>
-
-            <!-- New Reports Available Card -->
-            <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between transition-transform transform hover:scale-105 cursor-pointer">
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-600">New Reports</h2>
-                    <p class="text-4xl font-bold text-green-600">{{ newReportsAvailableCount }}</p>
+                <div class="bg-yellow-500 text-white p-3 rounded-lg shadow-md flex items-center justify-center text-center">
+                    <span class="text-xl font-bold">{{ pendingApprovalsCount }}</span>
+                    <span class="ml-2 text-sm">Pending Approvals</span>
                 </div>
-                <svg class="w-12 h-12 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <div class="bg-green-500 text-white p-3 rounded-lg shadow-md flex items-center justify-center text-center">
+                    <span class="text-xl font-bold">{{ newReportsAvailableCount }}</span>
+                    <span class="ml-2 text-sm">New Reports</span>
+                </div>
             </div>
+        </header>
 
-            <!-- Other relevant metrics could go here -->
-<!--            <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between transition-transform transform hover:scale-105 cursor-pointer">-->
-<!--                <div>-->
-<!--                    <h2 class="text-lg font-semibold text-gray-600">Overall Progress</h2>-->
-<!--                    <p class="text-4xl font-bold text-purple-600">75%</p> &lt;!&ndash; Placeholder &ndash;&gt;-->
-<!--                </div>-->
-<!--                <svg class="w-12 h-12 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>-->
-<!--            </div>-->
+        <!-- Global Search Bar -->
+        <div class="relative mb-6">
+            <input
+                type="text"
+                v-model="globalSearchQuery"
+                placeholder="Search all tasks, deliverables, and resources..."
+                class="w-full p-3 pl-10 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-200"
+                aria-label="Global Search"
+            >
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search text-gray-400 w-5 h-5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </div>
         </div>
 
-        <!-- Main Content Area: Action Required, Recent Announcements, Activity/Charts -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Section for Items Requiring Client Attention -->
-            <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
-                    <svg class="w-6 h-6 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Action Required
-                </h2>
-                <div v-if="actionRequiredDeliverables.length > 0" class="space-y-4">
-                    <div v-for="deliverable in actionRequiredDeliverables" :key="deliverable.id"
-                         class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex justify-between items-center"
-                    >
-                        <div>
-                            <p class="font-semibold text-yellow-800">{{ deliverable.title }}</p>
-                            <p class="text-sm text-yellow-700">Type: {{ deliverable.type.replace(/_/g, ' ') }}</p>
-                            <p class="text-sm text-yellow-700">Submitted by: {{ deliverable.team_member?.name || 'N/A' }}</p>
-                        </div>
-                        <button @click="handleOpenDeliverableViewer(deliverable)"
-                                class="bg-yellow-600 text-white text-sm py-2 px-4 rounded-lg hover:bg-yellow-700 transition-colors"
-                        >
-                            Review Now
-                        </button>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Column -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Action Required Section -->
+                <section v-if="actionRequiredDeliverables.length > 0" class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500">
+                    <h2 class="text-xl font-semibold text-red-700 mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bell-ring mr-2 w-6 h-6"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M2.2 13.7A2 2 0 0 1 4 11h16a2 2 0 0 1 1.8 2.7L19 16H5Z"/></svg>
+                        Action Required
+                    </h2>
+                    <ul class="space-y-3">
+                        <li v-for="deliverable in actionRequiredDeliverables" :key="deliverable.id" class="flex items-center justify-between bg-gray-50 p-3 rounded-lg shadow-sm">
+                            <div>
+                                <p class="font-medium text-gray-900">{{ deliverable.title }}</p>
+                                <p class="text-sm text-gray-600">
+                                    <span class="capitalize">{{ deliverable.type.replace('_', ' ') }}</span> submitted by {{ deliverable.team_member?.name || 'N/A' }} on {{ formatDate(deliverable.submitted_at) }}
+                                </p>
+                            </div>
+                            <button @click="handleOpenDeliverableViewer(deliverable)" class="ml-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-200">
+                                View & Approve
+                            </button>
+                        </li>
+                    </ul>
+                    <p v-if="actionRequiredDeliverables.length === 0 && !globalSearchQuery" class="text-gray-500 italic">No actions currently required.</p>
+                    <p v-else-if="actionRequiredDeliverables.length === 0 && globalSearchQuery" class="text-gray-500 italic">No matching actions found.</p>
+                </section>
+
+                <!-- Project Status Chart -->
+                <section class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bar-chart-2 mr-2 w-6 h-6"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+                        Project Status
+                    </h2>
+                    <div class="chart-container h-64">
+                        <canvas ref="chartCanvas"></canvas>
                     </div>
-                </div>
-                <div v-else class="text-gray-600 py-4 text-center">
-                    <p>No immediate actions required. Great job!</p>
-                </div>
+                </section>
+
+                <!-- Upcoming Tasks Section -->
+                <section class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-check mr-2 w-6 h-6"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>
+                        Upcoming Tasks
+                    </h2>
+                    <ul class="space-y-3">
+                        <li v-for="task in upcomingTasks" :key="task.id" class="flex items-center justify-between bg-gray-50 p-3 rounded-lg shadow-sm">
+                            <div>
+                                <p class="font-medium text-gray-900">{{ task.name }}</p>
+                                <p class="text-sm text-gray-600">Due: {{ formatDueDate(task.due_date) }}</p>
+                            </div>
+                            <span :class="{'bg-yellow-100 text-yellow-800': task.status === 'To Do', 'bg-blue-100 text-blue-800': task.status === 'In Progress'}" class="px-3 py-1 text-xs font-semibold rounded-full capitalize">
+                                {{ task.status }}
+                            </span>
+                        </li>
+                    </ul>
+                    <p v-if="upcomingTasks.length === 0 && !globalSearchQuery" class="text-gray-500 italic">No upcoming tasks.</p>
+                    <p v-else-if="upcomingTasks.length === 0 && globalSearchQuery" class="text-gray-500 italic">No matching tasks found.</p>
+                </section>
             </div>
 
-            <!-- Recent Announcements Section -->
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
-                    <svg class="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592L6 18V6l3-3 2 2zm6-3v14.485c0 .085.033.166.098.221l.685.56a1.76 1.76 0 002.417-.592L21 6V3l-3 3-2-2z"></path></svg>
-                    Recent Announcements
-                </h2>
-                <div v-if="announcements.length > 0" class="space-y-3">
-                    <div v-for="announcement in announcements" :key="announcement.id" class="border-b pb-3 last:border-b-0">
-                        <p class="font-semibold text-gray-700">{{ announcement.title }}</p>
-                        <p class="text-sm text-gray-600">{{ announcement.content.substring(0, 70) }}...</p>
-                        <p class="text-xs text-gray-500 mt-1">{{ new Date(announcement.date).toLocaleDateString() }}</p>
-                    </div>
-                </div>
-                <div v-else class="text-gray-600 py-4 text-center">
-                    <p>No new announcements at this time.</p>
-                </div>
+            <!-- Right Column -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Recent Activity Section -->
+                <section class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity mr-2 w-6 h-6"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                        Recent Activity
+                    </h2>
+                    <ul class="space-y-3">
+                        <li v-for="item in recentActivity" :key="item.id" @click="handleItemClick(item)"
+                            class="flex items-center bg-gray-50 p-3 rounded-lg shadow-sm cursor-pointer hover:bg-gray-100 transition-colors duration-200">
+                            <div v-html="getResourceIcon(item)" class="flex-shrink-0 mr-3"></div>
+                            <div>
+                                <p class="font-medium text-gray-900">{{ item.title || item.filename }}</p>
+                                <p class="text-sm text-gray-600">Added on {{ formatDate(item.activityDate) }}</p>
+                            </div>
+                        </li>
+                    </ul>
+                    <p v-if="recentActivity.length === 0 && !globalSearchQuery" class="text-gray-500 italic">No recent activity.</p>
+                    <p v-else-if="recentActivity.length === 0 && globalSearchQuery" class="text-gray-500 italic">No matching activity found.</p>
+                </section>
+
+                <!-- Latest Documents Section -->
+                <section class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text mr-2 w-6 h-6"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+                        Latest Documents
+                    </h2>
+                    <ul class="space-y-3">
+                        <li v-for="doc in latestDocuments" :key="doc.id" @click="handleItemClick({ type: 'document', link: doc.path })"
+                            class="flex items-center bg-gray-50 p-3 rounded-lg shadow-sm cursor-pointer hover:bg-gray-100 transition-colors duration-200">
+                            <div v-html="getResourceIcon({ type: 'document', mime_type: doc.mime_type })" class="flex-shrink-0 mr-3"></div>
+                            <div>
+                                <p class="font-medium text-gray-900">{{ doc.filename }}</p>
+                                <p class="text-sm text-gray-600">Uploaded on {{ formatDate(doc.created_at) }}</p>
+                            </div>
+                        </li>
+                    </ul>
+                    <p v-if="latestDocuments.length === 0 && !globalSearchQuery" class="text-gray-500 italic">No recent documents.</p>
+                    <p v-else-if="latestDocuments.length === 0 && globalSearchQuery" class="text-gray-500 italic">No matching documents found.</p>
+                </section>
+
+                <!-- Random Resources Section -->
+                <section class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link-2 mr-2 w-6 h-6"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
+                        Explore Resources
+                    </h2>
+                    <ul class="space-y-3">
+                        <li v-for="resource in randomResources" :key="resource.id" @click="handleItemClick({ type: 'resource', link: resource.url })"
+                            class="flex items-center bg-gray-50 p-3 rounded-lg shadow-sm cursor-pointer hover:bg-gray-100 transition-colors duration-200">
+                            <div v-html="getResourceIcon({ type: 'resource', mime_type: resource.type })" class="flex-shrink-0 mr-3"></div>
+                            <div>
+                                <p class="font-medium text-gray-900">{{ resource.title }}</p>
+                                <p v-if="resource.description" class="text-sm text-gray-600 truncate">{{ resource.description }}</p>
+                                <div class="flex flex-wrap gap-1 mt-1">
+                                    <span v-for="tag in resource.tags" :key="tag.id" class="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full">
+                                        {{ tag.name }}
+                                    </span>
+                                </div>
+                            </div>
+                        </li>
+                    </ul>
+                    <p v-if="randomResources.length === 0 && !globalSearchQuery" class="text-gray-500 italic">No resources available.</p>
+                    <p v-else-if="randomResources.length === 0 && globalSearchQuery" class="text-gray-500 italic">No matching resources found.</p>
+                </section>
             </div>
-
-            <!-- Recent Activity and Charts Section -->
-<!--            <div class="lg:col-span-1 bg-white p-6 rounded-lg shadow-md">-->
-<!--                <h2 class="text-2xl font-bold text-gray-800 mb-4">Task & Approval Status</h2>-->
-<!--                <div class="chart-container h-64 mb-6">-->
-<!--                    <canvas ref="chartCanvas"></canvas>-->
-<!--                </div>-->
-
-<!--                <h2 class="text-2xl font-bold text-gray-800 mb-4 mt-8">Recent Activity</h2>-->
-<!--                <div v-if="activities.length > 0" class="space-y-3">-->
-<!--                    <div v-for="activity in activities" :key="activity.id" class="border-b pb-3 last:border-b-0">-->
-<!--                        <p class="text-gray-700">{{ activity.description }}</p>-->
-<!--                        <p class="text-sm text-gray-500 mt-1">{{ new Date(activity.date).toLocaleString() }}</p>-->
-<!--                    </div>-->
-<!--                </div>-->
-<!--                <div v-else class="text-gray-600 py-4 text-center">-->
-<!--                    <p>No recent activity to display.</p>-->
-<!--                </div>-->
-<!--            </div>-->
-        </div>
+        </main>
     </div>
 </template>
 
 <style scoped>
+.font-inter {
+    font-family: 'Inter', sans-serif;
+}
 .chart-container {
     position: relative;
     width: 100%;
-    height: 100%; /* Adjust height as needed */
+    height: 100%;
+    max-height: 256px; /* Reduced chart height */
+}
+
+/* Specific styling for search input to place icon inside */
+.relative input[type="text"] {
+    padding-left: 2.5rem; /* Adjust padding to make space for the icon */
 }
 </style>

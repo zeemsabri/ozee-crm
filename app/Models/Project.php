@@ -285,7 +285,7 @@ class Project extends Model
      * @param \App\Services\GoogleDriveService $googleDriveService
      * @return array Array of created Document models
      */
-    public function uploadDocuments(array $files, $googleDriveService)
+    public function uploadDocuments(array $files, $googleDriveService, null|string $field = 'webContentLink')
     {
         $uploadedDocuments = [];
 
@@ -306,7 +306,7 @@ class Project extends Model
 
             try {
                 if ($this->google_drive_folder_id) {
-                    $response = $googleDriveService->uploadFile($fullLocalPath, $originalFilename, $this->google_drive_folder_id);
+                    $response = $googleDriveService->uploadFile($fullLocalPath, $originalFilename, $this->google_drive_folder_id, $field);
                     $documentData['google_drive_file_id'] = $response['id'] ?? null;
                     $documentData['path'] = $response['path'] ?? null;
                     $documentData['thumbnail'] = $response['thumbnail'] ?? null;
@@ -329,5 +329,11 @@ class Project extends Model
     public function getLogoAttribute($value)
     {
         return $this->attributes['logo'] = Storage::url($value);
+    }
+
+    // app/Models/Project.php
+    public function deliverables()
+    {
+        return $this->hasMany(Deliverable::class);
     }
 }

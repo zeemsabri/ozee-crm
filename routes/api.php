@@ -3,7 +3,10 @@
 use App\Http\Controllers\Api\BonusConfigurationGroupController;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientAction;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientReader;
+use App\Http\Controllers\Api\Client\SeoReportController;
 use App\Http\Controllers\Api\ImageUploadController;
+use App\Http\Controllers\Api\ProjectDashboard\ProjectDeliverableAction;
+use App\Http\Controllers\Api\ShareableResourceController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
@@ -169,6 +172,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user/permissions', [PermissionController::class, 'getUserPermissions']);
     Route::get('/projects/{project}/permissions', [PermissionController::class, 'getUserProjectPermissions'])->name('projects.permissions');
 
+
     // Role Management Routes (CRUD)
     Route::apiResource('roles', RoleController::class)->middleware('permission:manage_roles');
     Route::post('roles/{role}/permissions', [RoleController::class, 'updatePermissions'])
@@ -221,6 +225,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('projects/{projectId}/attach-bonus-configuration-group', [BonusConfigurationGroupController::class, 'attachToProject']);
     Route::post('projects/{projectId}/detach-bonus-configuration-group', [BonusConfigurationGroupController::class, 'detachFromProject']);
 
+    // Shareable Resource Management Routes
+    Route::apiResource('shareable-resources', ShareableResourceController::class)->middleware(['process.tags']);
+
+    // Deliverable Routes
+    Route::get('/projects/{project}/deliverables', [ProjectDeliverableAction::class, 'index'])->name('projects.deliverables.index');
+    Route::post('/projects/{project}/deliverables', [ProjectDeliverableAction::class, 'store'])->name('projects.deliverables.store');
+
+    Route::get('/projects/{project}/deliverables/{deliverable}', [ProjectDeliverableAction::class, 'show'])->name('projects.deliverables.show');
+    Route::post('/projects/{project}/deliverables/{deliverable}/comments', [ProjectDeliverableAction::class, 'addComment'])->name('projects.deliverables.addComment');
+
+    //SEO Report
+    Route::post('/projects/{project}/seo-reports', [SeoReportController::class, 'store']);
+    Route::get('/projects/{project}/seo-reports/available-months', [SeoReportController::class, 'getAvailableMonths']);
+    Route::get('/projects/{project}/seo-reports/{yearMonth}', [SeoReportController::class, 'show']);
+
     // Magic Link Routes
     Route::post('projects/{projectId}/magic-link', [MagicLinkController::class, 'sendMagicLink']);
     Route::get('currency-rates', [\App\Http\Controllers\Api\CurrencyController::class, 'index']);
@@ -237,6 +256,12 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
     Route::get('project/{project}/tasks', [ProjectClientReader::class, 'getProjectTasks']);
     Route::get('project/{project}/deliverables', [ProjectClientReader::class, 'getProjectDeliverables']);
     Route::get('project/{project}/documents', [ProjectClientReader::class, 'getProjectDocuments']);
+    Route::get('project/{project}/shareable-resources', [ProjectClientReader::class, 'getShareableResources']);
+    Route::get('/project/{projectId}/seo-report/{month}', [ProjectClientReader::class, 'getReportData']);
+
+    // SEO Reports API Routes
+    Route::get('/projects/{project}/seo-reports/available-months', [SeoReportController::class, 'getAvailableMonths']);
+    Route::get('/projects/{project}/seo-reports/{yearMonth}', [SeoReportController::class, 'show']);
     // TODO: Add more reader endpoints as needed (e.g., announcements, invoices, comments for a deliverable)
 
     // Project Client Action Routes (POST/PATCH)
@@ -248,5 +273,6 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
     Route::post('tasks/{task}/notes', [ProjectClientAction::class, 'addNoteToTask']);
     Route::post('tasks', [ProjectClientAction::class, 'createTask']);
     Route::post('documents', [ProjectClientAction::class, 'uploadClientDocuments']);
-    Route::post('document/{document}/notes', [ProjectClientAction::class, 'addNoteToDocument']);
+    Route::post('documents/{document}/notes', [ProjectClientAction::class, 'addNoteToDocument']);
+
 });

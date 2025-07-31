@@ -241,6 +241,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('BonusConfiguration/Index');
     })->name('bonus-configuration.index');
 
+    Route::get('/shareable-resources', function () {
+        return Inertia::render('ShareableResources/Index');
+    })->name('bonus-configuration.index');
+
 });
 
 // Require your existing authentication routes (login, register, logout, etc.)

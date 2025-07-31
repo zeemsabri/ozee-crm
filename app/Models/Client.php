@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Traits\Taggable;
+use App\Models\ProjectNote;
 
 class Client extends Model
 {
@@ -64,10 +65,20 @@ class Client extends Model
 
     /**
      * Get the deliverable comments for the client.
+     *
+     * @deprecated Use notes() instead.
      */
     public function deliverableComments()
     {
         return $this->hasMany(DeliverableComment::class);
+    }
+
+    /**
+     * Get all notes created by this client.
+     */
+    public function notes()
+    {
+        return $this->morphMany(ProjectNote::class, 'creator');
     }
 
     /**

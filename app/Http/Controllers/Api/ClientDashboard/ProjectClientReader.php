@@ -6,10 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Deliverable;
 use App\Models\Project; // Assuming you have a Project model
+use App\Models\SeoReport;
+use App\Models\ShareableResource;
 use App\Models\Task;    // Assuming you have a Task model
 use App\Services\GoogleDriveService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Response;
 
 class ProjectClientReader extends Controller
 {
@@ -130,7 +134,9 @@ class ProjectClientReader extends Controller
             // Fetch deliverables for the project that are visible to clients
             $deliverables = Deliverable::where('project_id', $projectId)
                 ->where('is_visible_to_client', true)
-                ->with('teamMember') // Eager load the team member who submitted it
+                ->with(['comments' => function($q) {
+                        $q->orderBy('created_at', 'desc');
+                }, 'teamMember']) // Eager load the team member who submitted it
                 ->orderBy('submitted_at', 'desc')
                 ->get();
 
@@ -207,7 +213,72 @@ class ProjectClientReader extends Controller
     }
 
 
+    /**
+     * Display a listing of the resource.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getShareableResources(Request $request, Project $project)
+    {
 
+        $query = ShareableResource::with('tags');
+
+        // Filter by type if provided
+        if ($request->has('type')) {
+            $query->where('type', $request->type);
+        }
+
+        // Filter by visibility if provided
+        if ($request->has('visible_to_client')) {
+            $query->where('visible_to_client', $request->visible_to_client);
+        }
+
+        // Filter by tag if provided
+        if ($request->has('tag_id')) {
+            $query->whereHas('tags', function ($q) use ($request) {
+                $q->where('tags.id', $request->tag_id);
+            });
+        }
+
+        $resources = $query->get();
+
+        return response()->json($resources);
+    }
+
+    /**
+     * Get SEO Report data for a specific project and month.
+     * For now, returns hardcoded data.
+     *
+     * @param  string  $projectId
+     * @param  string  $month (YYYY-MM format)
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getReportData(Request $request, $projectId, $yearMonth)
+    {
+        // In a real application, you would fetch data from a database
+        // based on $projectId and $month.
+        // For now, we return the hardcoded sample data.
+
+        // Validate year-month format
+        if (!preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
+            return response()->json(['error' => 'Invalid date format. Use YYYY-MM format.'], 400);
+        }
+
+        // Construct the report date
+        $reportDate = Carbon::createFromFormat('Y-m', $yearMonth)->startOfMonth();
+
+        // Find the report
+        $report = SeoReport::where('project_id', $projectId)
+            ->where('report_date', $reportDate)
+            ->first();
+
+        if (!$report) {
+            return response()->json(['error' => 'Report not found'], 404);
+        }
+
+        // Return just the data field which is already cast to an array
+        return response()->json($report->data, 200);
+
+    }
 
 }
-

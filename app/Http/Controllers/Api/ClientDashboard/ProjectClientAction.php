@@ -15,7 +15,7 @@ use Illuminate\Http\Request;
 use App\Models\Deliverable;
 use App\Models\Client;
 use App\Models\ClientDeliverableInteraction;
-use App\Models\DeliverableComment;
+// use App\Models\DeliverableComment; // Replaced with ProjectNote
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -223,12 +223,22 @@ class ProjectClientAction extends Controller
                 return response()->json(['message' => 'Authenticated client not found.'], 404);
             }
 
-            $comment = DeliverableComment::create([
-                'deliverable_id' => $deliverable->id,
-                'client_id' => $client->id,
-                'comment_text' => $request->input('comment_text'),
-                'context' => $request->input('context'),
+            $comment = new ProjectNote([
+                'content' => $request->input('comment_text'),
+                'type' => 'comment',
+                'noteable_id' => $deliverable->id,
+                'noteable_type' => get_class($deliverable),
+                'creator_id' => $client->id,
+                'creator_type' => get_class($client),
+                'project_id' => $deliverable->project_id,
             ]);
+
+            // Store the context in a way that's compatible with ProjectNote
+            if ($request->has('context')) {
+                $comment->context = $request->input('context');
+            }
+
+            $comment->save();
 
             // Ensure the deliverable is marked as read if a comment is added
             $interaction = ClientDeliverableInteraction::firstOrCreate(

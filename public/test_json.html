@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEO Report JSON Reviewer</title>
+    <!-- Google Fonts Link for Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px; /* Base height */
+            max-height: 40vh;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        /* Specific chart container height adjustments */
+        #trafficChannelChart-reviewer + .chart-container,
+        #deviceUsageChart-reviewer + .chart-container {
+            height: 80vh;
+            max-height: 35vh;
+        }
+        #mobileCoreVitalsChart-reviewer + .chart-container,
+        #desktopCoreVitalsChart-reviewer + .chart-container {
+            height: 64vh;
+            max-height: 25vh;
+        }
+        .table-sortable th {
+            cursor: pointer;
+            transition: background-color 0.1s ease-in-out;
+        }
+        .table-sortable th:hover {
+            background-color: #e5e7eb; /* gray-200 */
+        }
+        #opportunities-reviewer .table-sortable th {
+            background-color: #fef3c7; /* yellow-100 */
+            color: #b45309; /* amber-800 */
+        }
+        #opportunities-reviewer .table-sortable th:hover {
+            background-color: #fde68a; /* yellow-200 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 sm:p-6 lg:p-8">
+
+<div class="max-w-7xl mx-auto">
+    <h1 class="text-3xl font-bold text-gray-900 mb-6">SEO Report JSON Reviewer</h1>
+
+    <!-- JSON Input and Controls -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Paste Your JSON Report Here:</h2>
+        <textarea id="json-input" class="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono" placeholder="Paste your generated JSON here..."></textarea>
+        <div class="mt-4 flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+            <button id="load-report-btn" class="bg-indigo-600 text-white py-2 px-6 rounded-lg font-semibold hover:bg-indigo-700 transition-colors duration-200 shadow-md">
+                Load & Validate Report
+            </button>
+            <button id="clear-report-btn" class="bg-gray-300 text-gray-800 py-2 px-6 rounded-lg font-semibold hover:bg-gray-400 transition-colors duration-200 shadow-md">
+                Clear Report
+            </button>
+        </div>
+        <div id="validation-feedback" class="mt-4 p-4 rounded-lg text-sm hidden"></div>
+    </div>
+
+    <!-- SEO Report Display Area -->
+    <div id="seo-report-display" class="hidden">
+        <!-- Header (dynamic content will be inserted here) -->
+        <header class="bg-white rounded-xl shadow-lg p-4 mb-6 flex flex-col sm:flex-row items-center justify-between">
+            <div class="flex items-center mb-4 sm:mb-0">
+                <h1 class="font-bold text-2xl sm:text-3xl text-gray-900" id="report-client-name">SEO Report for [Client Name]</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span class="text-gray-700 font-medium" id="report-period">Reporting Period: [Month Year]</span>
+            </div>
+        </header>
+
+        <!-- Navigation Links -->
+        <nav class="mb-8 hidden md:block">
+            <ul class="flex justify-center space-x-6 bg-white p-3 rounded-xl shadow-sm">
+                <li><a href="#overview-reviewer" class="text-gray-700 hover:bg-gray-100 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">Overview</a></li>
+                <li><a href="#audience-reviewer" class="text-gray-700 hover:bg-gray-100 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">Audience</a></li>
+                <li><a href="#performance-reviewer" class="text-gray-700 hover:bg-gray-100 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">Performance</a></li>
+                <li><a href="#seo-foundation-reviewer" class="text-gray-700 hover:bg-gray-100 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">SEO Foundation</a></li>
+                <li><a href="#opportunities-reviewer" class="text-gray-700 hover:bg-gray-100 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">Opportunities</a></li>
+            </ul>
+        </nav>
+
+        <!-- Section: Performance Overview -->
+        <section id="overview-reviewer" class="mb-12 py-8 bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-3xl font-bold text-gray-900 mb-6">Performance Overview</h2>
+            <p class="text-gray-600 mb-8" id="overview-intro">This section provides a high-level summary of [Client Name] website's SEO performance over the last [Reporting Period], combining key metrics from Google Search Console and SEMrush. It offers a quick snapshot of overall visibility, authority, and user engagement.</p>
+
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+                <div class="bg-indigo-50 p-6 rounded-xl shadow-sm border border-indigo-200">
+                    <p class="text-sm text-gray-700 mb-1">Authority Score (SEMrush)</p>
+                    <p class="text-2xl font-semibold text-indigo-700" id="kpi-authority-score">N/A</p>
+                </div>
+                <div class="bg-blue-50 p-6 rounded-xl shadow-sm border border-blue-200">
+                    <p class="text-sm text-gray-700 mb-1">Total Clicks (GSC)</p>
+                    <p class="text-2xl font-semibold text-blue-700" id="kpi-total-clicks">N/A</p>
+                </div>
+                <div class="bg-green-50 p-6 rounded-xl shadow-sm border border-green-200">
+                    <p class="text-sm text-gray-700 mb-1">Total Impressions (GSC)</p>
+                    <p class="text-2xl font-semibold text-green-700" id="kpi-total-impressions">N/A</p>
+                </div>
+                <div class="bg-yellow-50 p-6 rounded-xl shadow-sm border border-yellow-200">
+                    <p class="text-sm text-gray-700 mb-1">Average Position (GSC)</p>
+                    <p class="text-2xl font-semibold text-yellow-700" id="kpi-average-position">N/A</p>
+                </div>
+            </div>
+
+            <!-- Chart: Search Visibility Trend -->
+            <div class="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">Search Visibility Trend</h3>
+                <p class="text-gray-600 mb-4">This chart shows the daily clicks and impressions from Google Search Console, illustrating how search visibility fluctuated throughout the reporting period. Hover over the points to see data for a specific day.</p>
+                <div class="chart-container relative w-full max-w-4xl mx-auto h-96 md:h-[400px]">
+                    <canvas id="searchVisibilityChart-reviewer"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: Audience Insights -->
+        <section id="audience-reviewer" class="mb-12 py-8 bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-3xl font-bold text-gray-900 mb-6">Audience Insights</h2>
+            <p class="text-gray-600 mb-8">Understanding who your visitors are and how they find you is crucial. This section breaks down the website's traffic by its source, the devices users are on, and their geographic location.</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <!-- Chart: Traffic by Channel -->
+                <div class="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Traffic by Channel (GA4 Sessions)</h3>
+                    <p class="text-gray-600 mb-4">This chart shows the distribution of user sessions across different primary channels, indicating how users are primarily arriving at the website.</p>
+                    <div class="chart-container relative w-full max-w-2xl mx-auto h-80 max-h-[35vh] md:h-96">
+                        <canvas id="trafficChannelChart-reviewer"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart: Device Usage -->
+                <div class="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Device Usage (GSC Clicks)</h3>
+                    <p class="text-gray-600 mb-4">This breakdown shows which devices visitors use to access the site, based on clicks from Google Search Console. A significant mobile user base means a seamless mobile experience is critical.</p>
+                    <div class="chart-container relative w-full max-w-2xl mx-auto h-80 max-h-[35vh] md:h-96">
+                        <canvas id="deviceUsageChart-reviewer"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart: Top 10 Countries by Clicks -->
+            <div class="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200 mt-8">
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">Top 10 Countries by Clicks (GSC)</h3>
+                <p class="text-gray-600 mb-4">This chart highlights the primary geographic locations from which users are clicking on search results leading to the website.</p>
+                <div class="chart-container relative w-full max-w-4xl mx-auto h-96 md:h-[400px]">
+                    <canvas id="countryClicksChart-reviewer"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: Performance Deep Dive -->
+        <section id="performance-reviewer" class="mb-12 py-8 bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-3xl font-bold text-gray-900 mb-6">Performance Deep Dive</h2>
+            <p class="text-gray-600 mb-8">Let's look closer at what's working and areas for improvement. This section covers the top search queries driving traffic and the technical performance of the site, which impacts user experience and rankings.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <!-- Chart: Core Web Vitals - Mobile -->
+                <div class="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Mobile Performance</h3>
+                    <p class="text-gray-600 mb-4">These scores measure the website's loading speed, interactivity, and visual stability. Google uses these as a key ranking factor. The lower performance scores (especially mobile) are critical areas for improvement.</p>
+                    <div class="chart-container relative w-full max-w-2xl mx-auto h-64 max-h-[25vh]">
+                        <canvas id="mobileCoreVitalsChart-reviewer"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart: Core Web Vitals - Desktop -->
+                <div class="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Desktop Performance</h3>
+                    <p class="text-gray-600 mb-4">These scores measure the website's loading speed, interactivity, and visual stability. Google uses these as a key ranking factor. The lower performance scores (especially mobile) are critical areas for improvement.</p>
+                    <div class="chart-container relative w-full max-w-2xl mx-auto h-64 max-h-[25vh]">
+                        <canvas id="desktopCoreVitalsChart-reviewer"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table: Top Search Queries -->
+            <div class="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">Top Search Queries (GSC)</h3>
+                <p class="text-gray-600 mb-4">These are the top search terms that are currently bringing visitors to the website, along with their clicks, impressions, CTR, and average position. Click column headers to sort.</p>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 table-sortable" id="topQueriesTable-reviewer">
+                        <thead class="bg-gray-100">
+                        <tr>
+                            <th data-sort="query" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200">Query <span class="sort-indicator"></span></th>
+                            <th data-sort="clicks" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200">Clicks <span class="sort-indicator"></span></th>
+                            <th data-sort="impressions" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200">Impressions <span class="sort-indicator"></span></th>
+                            <th data-sort="ctr" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200">CTR <span class="sort-indicator"></span></th>
+                            <th data-sort="position" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-200">Position <span class="sort-indicator"></span></th>
+                        </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                        <!-- Data will be inserted here by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: SEO Foundation -->
+        <section id="seo-foundation-reviewer" class="mb-12 py-8 bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-3xl font-bold text-gray-900 mb-6">SEO Foundation</h2>
+            <p class="text-gray-600 mb-8">This section highlights the foundational elements of your SEO strategy: the keywords your website is ranking for and the backlinks (links from other websites) that contribute to your site's authority.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <!-- Table: Top Keyword Rankings -->
+                <div class="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Top Keyword Rankings (SEMrush)</h3>
+                    <p class="text-gray-600 mb-4">These are the specific keywords for which your website is currently appearing in Google's search results, along with their top ranking position. Higher rankings mean more visibility and potential clicks, especially for local terms.</p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200" id="keywordRankingsTable-reviewer">
+                            <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Keyword</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Ranking</th>
+                            </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                            <!-- Data will be inserted here by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Table: Backlinks -->
+                <div class="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Backlinks (SEMrush Sample)</h3>
+                    <p class="text-gray-600 mb-4">Backlinks are links from other websites to yours. They act as 'votes of confidence' and are crucial for building your website's authority and improving its search engine ranking. Here are a few examples of recent backlinks.</p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200" id="backlinksTable-reviewer">
+                            <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Backlink URL</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Target Site</th>
+                            </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                            <!-- Data will be inserted here by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="bg-amber-100 text-amber-800 p-4 rounded-xl mt-4 text-sm" id="backlink-note">
+                        <p>The total backlink number reported by SEMrush (<span id="backlink-value-note">N/A</span>) is unusually high relative to the domain's authority score. Many of these links are likely from low-quality sources like user profiles, which offer minimal SEO value. A comprehensive backlink audit is recommended to assess quality.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: Opportunities & Recommendations -->
+        <section id="opportunities-reviewer" class="py-8 bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-3xl font-bold text-gray-900 mb-6">Opportunities & Recommendations</h2>
+            <p class="text-gray-600 mb-8">Based on the data, here are the biggest opportunities for growth. Focusing on these areas will provide the most impact on improving organic visibility and driving conversions.</p>
+
+            <!-- Table: High-Impression, Low-CTR Queries -->
+            <div class="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">High-Impression, Low-CTR Queries (Opportunity)</h3>
+                <p class="text-gray-600 mb-4">These are valuable keywords for which the website is appearing in search results but getting a low click-through rate. Optimizing content and search snippets for these terms can significantly increase relevant traffic. Click column headers to sort.</p>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 table-sortable" id="zeroClickKeywordsTable-reviewer">
+                        <thead>
+                        <tr>
+                            <th data-sort="query" class="px-6 py-3 text-left text-xs font-medium bg-yellow-100 text-yellow-800 uppercase tracking-wider cursor-pointer hover:bg-yellow-200">Query <span class="sort-indicator"></span></th>
+                            <th data-sort="impressions" class="px-6 py-3 text-left text-xs font-medium bg-yellow-100 text-yellow-800 uppercase tracking-wider cursor-pointer hover:bg-yellow-200">Impressions <span class="sort-indicator"></span></th>
+                            <th data-sort="ctr" class="px-6 py-3 text-left text-xs font-medium bg-yellow-100 text-yellow-800 uppercase tracking-wider cursor-pointer hover:bg-yellow-200">CTR <span class="sort-indicator"></span></th>
+                            <th data-sort="position" class="px-6 py-3 text-left text-xs font-medium bg-yellow-100 text-yellow-800 uppercase tracking-wider cursor-pointer hover:bg-yellow-200">Position <span class="sort-indicator"></span></th>
+                        </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                        <!-- Data will be inserted here by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- List: Key Recommendations -->
+            <div class="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="text-xl font-semibold text-gray-900 mb-4">Key Recommendations</h3>
+                <ol class="space-y-6" id="recommendations-list">
+                    <!-- Data will be inserted here by JavaScript -->
+                </ol>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const jsonInput = document.getElementById('json-input');
+        const loadReportBtn = document.getElementById('load-report-btn');
+        const clearReportBtn = document.getElementById('clear-report-btn');
+        const validationFeedback = document.getElementById('validation-feedback');
+        const seoReportDisplay = document.getElementById('seo-report-display');
+
+        let currentReportData = null;
+        const chartInstances = {}; // Store Chart.js instances to destroy them later
+
+        // Chart colors (matching CRM theme)
+        const chartColors = {
+            main: '#4f46e5', // Indigo-600
+            secondary: '#3b82f6', // Blue-600
+            accent: '#6b7280', // Gray-500
+            light: '#e5e7eb', // Gray-200
+            ge90: '#22c55e', // Green-500
+            ge50: '#f59e0b', // Yellow-500
+            lt50: '#ef4444' // Red-500
+        };
+
+        // Global Chart.js options
+        const globalChartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                        font: {
+                            family: 'Inter',
+                            size: 12
+                        },
+                        color: chartColors.accent
+                    }
+                },
+                tooltip: {
+                    titleFont: { family: 'Inter' },
+                    bodyFont: { family: 'Inter' }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { font: { family: 'Inter' }, color: chartColors.accent },
+                    grid: { color: chartColors.light + '33' },
+                    title: { display: false }
+                },
+                y: {
+                    ticks: { font: { family: 'Inter' }, color: chartColors.accent },
+                    grid: { color: chartColors.light + '33' },
+                    title: { display: false }
+                }
+            }
+        };
+
+        // JSON Schema for Validation (more detailed)
+        const jsonSchema = {
+            "type": "OBJECT",
+            "properties": {
+                "clientName": { "type": "STRING" },
+                "reportingPeriod": { "type": "STRING" },
+                "authorityScoreValue": { "type": "NUMBER" },
+                "totalClicksValue": { "type": "STRING" },
+                "totalImpressionsValue": { "type": "STRING" },
+                "averagePositionValue": { "type": "NUMBER" },
+                "totalBacklinksValue": { "type": "STRING" },
+                "clicksImpressions": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "labels": { "type": "ARRAY", "items": { "type": "STRING" } },
+                        "clicks": { "type": "ARRAY", "items": { "type": "NUMBER" } },
+                        "impressions": { "type": "ARRAY", "items": { "type": "NUMBER" } }
+                    },
+                    "required": ["labels", "clicks", "impressions"]
+                },
+                "trafficSources": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "labels": { "type": "ARRAY", "items": { "type": "STRING" } },
+                        "sessions": { "type": "ARRAY", "items": { "type": "NUMBER" } },
+                        "colors": { "type": "ARRAY", "items": { "type": "STRING" } }
+                    },
+                    "required": ["labels", "sessions", "colors"]
+                },
+                "deviceUsage": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "labels": { "type": "ARRAY", "items": { "type": "STRING" } },
+                        "clicks": { "type": "ARRAY", "items": { "type": "NUMBER" } },
+                        "colors": { "type": "ARRAY", "items": { "type": "STRING" } }
+                    },
+                    "required": ["labels", "clicks", "colors"]
+                },
+                "countryPerformance": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "labels": { "type": "ARRAY", "items": { "type": "STRING" } },
+                        "clicks": { "type": "ARRAY", "items": { "type": "NUMBER" } }
+                    },
+                    "required": ["labels", "clicks"]
+                },
+                "coreVitals": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "mobile": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "labels": { "type": "ARRAY", "items": { "type": "STRING" } },
+                                "scores": { "type": "ARRAY", "items": { "type": "NUMBER" } }
+                            },
+                            "required": ["labels", "scores"]
+                        },
+                        "desktop": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "labels": { "type": "ARRAY", "items": { "type": "STRING" } },
+                                "scores": { "type": "ARRAY", "items": { "type": "NUMBER" } }
+                            },
+                            "required": ["labels", "scores"]
+                        }
+                    },
+                    "required": ["mobile", "desktop"]
+                },
+                "topQueries": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "query": { "type": "STRING" },
+                            "clicks": { "type": "NUMBER" },
+                            "impressions": { "type": "NUMBER" },
+                            "ctr": { "type": "NUMBER" },
+                            "position": { "type": "NUMBER" }
+                        },
+                        "required": ["query", "clicks", "impressions", "ctr", "position"]
+                    }
+                },
+                "keywordRankings": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "keyword": { "type": "STRING" },
+                            "ranking": { "type": "NUMBER" }
+                        },
+                        "required": ["keyword", "ranking"]
+                    }
+                },
+                "backlinks": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "url": { "type": "STRING" },
+                            "target": { "type": "STRING" }
+                        },
+                        "required": ["url", "target"]
+                    }
+                },
+                "zeroClickKeywords": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "query": { "type": "STRING" },
+                            "impressions": { "type": "NUMBER" },
+                            "ctr": { "type": "NUMBER" },
+                            "position": { "type": "NUMBER" }
+                        },
+                        "required": ["query", "impressions", "ctr", "position"]
+                    }
+                }
+            },
+            "required": [
+                "clientName", "reportingPeriod", "authorityScoreValue", "totalClicksValue",
+                "totalImpressionsValue", "averagePositionValue", "totalBacklinksValue",
+                "clicksImpressions", "trafficSources", "deviceUsage",
+                "countryPerformance", "coreVitals", "topQueries",
+                "keywordRankings", "backlinks", "zeroClickKeywords"
+            ]
+        };
+
+        // Function to validate JSON against the schema
+        function validateJson(data, schema, path = '') {
+            let errors = [];
+
+            if (schema.type === "OBJECT") {
+                // Check for required properties in object
+                if (schema.required) {
+                    schema.required.forEach(prop => {
+                        if (data[prop] === undefined || data[prop] === null) {
+                            errors.push(`Missing required property: "${path}${prop}"`);
+                        }
+                    });
+                }
+
+                // Recursively validate properties
+                for (const key in schema.properties) {
+                    const propSchema = schema.properties[key];
+                    const propData = data[key];
+                    const currentPath = path ? `${path}.${key}` : key;
+
+                    if (propData !== undefined && propData !== null) {
+                        const expectedType = propSchema.type;
+                        const actualType = typeof propData;
+
+                        if (expectedType === "OBJECT" && actualType !== "object") {
+                            errors.push(`Property "${currentPath}" should be an object, but got ${actualType}.`);
+                        } else if (expectedType === "ARRAY" && !Array.isArray(propData)) {
+                            errors.push(`Property "${currentPath}" should be an array, but got ${actualType}.`);
+                        } else if (expectedType === "STRING" && actualType !== "string") {
+                            errors.push(`Property "${currentPath}" should be a string, but got ${actualType}.`);
+                        } else if (expectedType === "NUMBER" && actualType !== "number") {
+                            errors.push(`Property "${currentPath}" should be a number, but got ${actualType}.`);
+                        }
+
+                        if (expectedType === "OBJECT" && actualType === "object") {
+                            errors = errors.concat(validateJson(propData, propSchema, currentPath));
+                        } else if (expectedType === "ARRAY" && Array.isArray(propData)) {
+                            if (propData.length === 0 && (key === 'topQueries' || key === 'keywordRankings' || key === 'backlinks' || key === 'zeroClickKeywords')) {
+                                errors.push(`Array "${currentPath}" is empty but is expected to contain data.`);
+                            }
+                            propData.forEach((item, index) => {
+                                if (propSchema.items) {
+                                    errors = errors.concat(validateJson(item, propSchema.items, `${currentPath}[${index}]`));
+                                }
+                            });
+                        }
+                    } else if (schema.required && schema.required.includes(key)) {
+                        // This case is already handled by the initial required check, but good for clarity
+                    }
+                }
+            } else if (schema.type === "ARRAY") {
+                // This part is mostly for root-level arrays, but recursive calls handle it
+                if (!Array.isArray(data)) {
+                    errors.push(`Expected an array at "${path}", but got ${typeof data}.`);
+                } else {
+                    data.forEach((item, index) => {
+                        if (schema.items) {
+                            errors = errors.concat(validateJson(item, schema.items, `${path}[${index}]`));
+                        }
+                    });
+                }
+            }
+            // For primitive types, validation is handled by the parent object's type check
+            return errors;
+        }
+
+
+        // Function to get core web vital bar color
+        function getCoreVitalsColor(score) {
+            if (score >= 90) return chartColors.ge90;
+            if (score >= 50) return chartColors.ge50;
+            return chartColors.lt50;
+        }
+
+        // Function to destroy existing charts
+        function destroyCharts() {
+            for (const chartId in chartInstances) {
+                if (chartInstances[chartId]) {
+                    chartInstances[chartId].destroy();
+                    chartInstances[chartId] = null;
+                }
+            }
+        }
+
+        // Function to initialize charts
+        function initializeCharts(data) {
+            destroyCharts(); // Destroy existing charts before creating new ones
+
+            if (!data) return;
+
+            // Helper for safe data access
+            const safeData = (path, defaultValue) => {
+                const parts = path.split('.');
+                let current = data;
+                for (let i = 0; i < parts.length; i++) {
+                    if (current === null || typeof current !== 'object' || !current.hasOwnProperty(parts[i])) {
+                        return defaultValue;
+                    }
+                    current = current[parts[i]];
+                }
+                return current;
+            };
+
+            // Search Visibility Trend
+            chartInstances['searchVisibilityChart-reviewer'] = new Chart(document.getElementById('searchVisibilityChart-reviewer'), {
+                type: 'line',
+                data: {
+                    labels: safeData('clicksImpressions.labels', []),
+                    datasets: [
+                        {
+                            label: 'Clicks',
+                            data: safeData('clicksImpressions.clicks', []),
+                            borderColor: chartColors.main,
+                            backgroundColor: chartColors.main + '33',
+                            fill: false,
+                            tension: 0.1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Impressions',
+                            data: safeData('clicksImpressions.impressions', []),
+                            borderColor: chartColors.accent,
+                            backgroundColor: chartColors.accent + '33',
+                            fill: true,
+                            tension: 0.1,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    ...globalChartOptions,
+                    scales: {
+                        ...globalChartOptions.scales,
+                        y: {
+                            ...globalChartOptions.scales.y,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Clicks',
+                                font: { family: 'Inter' }
+                            }
+                        },
+                        y1: {
+                            ...globalChartOptions.scales.y,
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            title: {
+                                display: true,
+                                text: 'Impressions',
+                                font: { family: 'Inter' }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Traffic by Channel
+            const trafficColors = safeData('trafficSources.colors', ['#4f46e5', '#3b82f6', '#6b7280', '#c8b496', '#22c55e', '#ef4444']);
+            chartInstances['trafficChannelChart-reviewer'] = new Chart(document.getElementById('trafficChannelChart-reviewer'), {
+                type: 'doughnut',
+                data: {
+                    labels: safeData('trafficSources.labels', []),
+                    datasets: [{
+                        data: safeData('trafficSources.sessions', []),
+                        backgroundColor: trafficColors.slice(0, safeData('trafficSources.labels', []).length),
+                        borderColor: '#ffffff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    ...globalChartOptions,
+                    plugins: {
+                        ...globalChartOptions.plugins,
+                        legend: {
+                            ...globalChartOptions.plugins.legend,
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+
+            // Device Usage
+            const deviceColors = safeData('deviceUsage.colors', ['#4f46e5', '#3b82f6', '#6b7280', '#c8b496', '#22c55e', '#ef4444']);
+            chartInstances['deviceUsageChart-reviewer'] = new Chart(document.getElementById('deviceUsageChart-reviewer'), {
+                type: 'doughnut',
+                data: {
+                    labels: safeData('deviceUsage.labels', []),
+                    datasets: [{
+                        data: safeData('deviceUsage.clicks', []),
+                        backgroundColor: deviceColors.slice(0, safeData('deviceUsage.labels', []).length),
+                        borderColor: '#ffffff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    ...globalChartOptions,
+                    plugins: {
+                        ...globalChartOptions.plugins,
+                        legend: {
+                            ...globalChartOptions.plugins.legend,
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+
+            // Top 10 Countries by Clicks
+            chartInstances['countryClicksChart-reviewer'] = new Chart(document.getElementById('countryClicksChart-reviewer'), {
+                type: 'bar',
+                data: {
+                    labels: safeData('countryPerformance.labels', []),
+                    datasets: [{
+                        data: safeData('countryPerformance.clicks', []),
+                        backgroundColor: chartColors.main,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    ...globalChartOptions,
+                    indexAxis: 'y',
+                    plugins: {
+                        ...globalChartOptions.plugins,
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            ...globalChartOptions.scales.x,
+                            beginAtZero: true
+                        },
+                        y: {
+                            ...globalChartOptions.scales.y,
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // Core Web Vitals - Mobile
+            const mobileScores = safeData('coreVitals.mobile.scores', [0, 0, 0, 0]);
+            chartInstances['mobileCoreVitalsChart-reviewer'] = new Chart(document.getElementById('mobileCoreVitalsChart-reviewer'), {
+                type: 'bar',
+                data: {
+                    labels: safeData('coreVitals.mobile.labels', ["Performance", "Accessibility", "Best Practices", "SEO"]),
+                    datasets: [{
+                        data: mobileScores,
+                        backgroundColor: mobileScores.map(getCoreVitalsColor),
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    ...globalChartOptions,
+                    indexAxis: 'y',
+                    plugins: {
+                        ...globalChartOptions.plugins,
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            ...globalChartOptions.scales.x,
+                            max: 100,
+                            beginAtZero: true
+                        },
+                        y: {
+                            ...globalChartOptions.scales.y,
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // Core Web Vitals - Desktop
+            const desktopScores = safeData('coreVitals.desktop.scores', [0, 0, 0, 0]);
+            chartInstances['desktopCoreVitalsChart-reviewer'] = new Chart(document.getElementById('desktopCoreVitalsChart-reviewer'), {
+                type: 'bar',
+                data: {
+                    labels: safeData('coreVitals.desktop.labels', ["Performance", "Accessibility", "Best Practices", "SEO"]),
+                    datasets: [{
+                        data: desktopScores,
+                        backgroundColor: desktopScores.map(getCoreVitalsColor),
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    ...globalChartOptions,
+                    indexAxis: 'y',
+                    plugins: {
+                        ...globalChartOptions.plugins,
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            ...globalChartOptions.scales.x,
+                            max: 100,
+                            beginAtZero: true
+                        },
+                        y: {
+                            ...globalChartOptions.scales.y,
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Function to populate tables
+        function populateTables(data) {
+            const safeData = (path, defaultValue) => {
+                const parts = path.split('.');
+                let current = data;
+                for (let i = 0; i < parts.length; i++) {
+                    if (current === null || typeof current !== 'object' || !current.hasOwnProperty(parts[i])) {
+                        return defaultValue;
+                    }
+                    current = current[parts[i]];
+                }
+                return current;
+            };
+
+            // Top Search Queries
+            const topQueriesBody = document.querySelector('#topQueriesTable-reviewer tbody');
+            topQueriesBody.innerHTML = ''; // Clear existing rows
+            safeData('topQueries', []).forEach(item => {
+                const row = topQueriesBody.insertRow();
+                row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.query || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${item.clicks || 0}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${item.impressions || 0}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${(item.ctr || 0).toFixed(1)}%</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${(item.position || 0).toFixed(1)}</td>
+                    `;
+            });
+
+            // Top Keyword Rankings
+            const keywordRankingsBody = document.querySelector('#keywordRankingsTable-reviewer tbody');
+            keywordRankingsBody.innerHTML = '';
+            safeData('keywordRankings', []).forEach(item => {
+                const row = keywordRankingsBody.insertRow();
+                row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.keyword || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${item.ranking || 0}</td>
+                    `;
+            });
+
+            // Backlinks
+            const backlinksBody = document.querySelector('#backlinksTable-reviewer tbody');
+            backlinksBody.innerHTML = '';
+            safeData('backlinks', []).forEach(item => {
+                const row = backlinksBody.insertRow();
+                row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <a href="${item.url || '#'}" target="_blank" class="text-blue-600 hover:underline">${item.url || 'N/A'}</a>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${item.target || 'N/A'}</td>
+                    `;
+            });
+            document.getElementById('backlink-value-note').textContent = safeData('totalBacklinksValue', 'N/A');
+
+
+            // High-Impression, Low-CTR Queries
+            const zeroClickKeywordsBody = document.querySelector('#zeroClickKeywordsTable-reviewer tbody');
+            zeroClickKeywordsBody.innerHTML = '';
+            safeData('zeroClickKeywords', []).forEach(item => {
+                const row = zeroClickKeywordsBody.insertRow();
+                row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.query || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${item.impressions || 0}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${(item.ctr || 0).toFixed(1)}%</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${(item.position || 0).toFixed(1)}</td>
+                    `;
+            });
+        }
+
+        // Function to populate recommendations
+        function populateRecommendations(data) {
+            const recommendationsList = document.getElementById('recommendations-list');
+            recommendationsList.innerHTML = '';
+
+            const safeData = (path, defaultValue) => {
+                const parts = path.split('.');
+                let current = data;
+                for (let i = 0; i < parts.length; i++) {
+                    if (current === null || typeof current !== 'object' || !current.hasOwnProperty(parts[i])) {
+                        return defaultValue;
+                    }
+                    current = current[parts[i]];
+                }
+                return current;
+            };
+
+            const mobilePerfScore = safeData('coreVitals.mobile.scores.0', 0);
+            const desktopPerfScore = safeData('coreVitals.desktop.scores.0', 0);
+            const firstZeroClickQuery = safeData('zeroClickKeywords.0', {});
+
+            const recommendations = [
+                {
+                    number: 1,
+                    heading: 'Improve Page Performance (Core Web Vitals)',
+                    description: `Prioritize technical improvements to boost mobile and desktop performance scores (currently ${mobilePerfScore}/100 and ${desktopPerfScore}/100). A faster site enhances user experience and is a direct Google ranking factor.`
+                },
+                {
+                    number: 2,
+                    heading: 'Optimize High-Impression, Low-CTR Queries',
+                    description: `Rewrite meta titles and descriptions for keywords like "${firstZeroClickQuery.query || 'N/A'}" (${firstZeroClickQuery.impressions || 'N/A'} impressions, ${firstZeroClickQuery.ctr || 'N/A'}% CTR) to be more compelling and improve click-through rates.`
+                },
+                {
+                    number: 3,
+                    heading: 'Conduct a Comprehensive Backlink Audit',
+                    description: `Investigate the reported ${safeData('totalBacklinksValue', 'N/A')} backlinks to identify and disavow low-quality or spammy links. Focus on acquiring high-quality, relevant backlinks from authoritative sites in the digital marketing niche.`
+                },
+                {
+                    number: 4,
+                    heading: 'Optimize Conversion Paths for Organic Traffic',
+                    description: `While organic search drives good engagement, the low number of "Key events" suggests a need to optimize conversion funnels. Ensure clear calls to action and intuitive user journeys from organic landing pages to desired actions (e.g., lead form submissions).`
+                }
+            ];
+
+            recommendations.forEach(rec => {
+                const listItem = document.createElement('li');
+                listItem.className = 'flex items-start';
+                listItem.innerHTML = `
+                        <span class="text-green-600 font-bold text-lg mr-3 flex-shrink-0">${rec.number}.</span>
+                        <div>
+                            <h4 class="text-lg font-medium text-gray-900 mb-1">${rec.heading}</h4>
+                            <p class="text-gray-600">${rec.description}</p>
+                        </div>
+                    `;
+                recommendationsList.appendChild(listItem);
+            });
+        }
+
+        // Function to render the entire report
+        function renderReport(data) {
+            currentReportData = data; // Store data for sorting
+
+            // Update Header
+            document.getElementById('report-client-name').textContent = `SEO Report for ${data.clientName || 'N/A'}`;
+            document.getElementById('report-period').textContent = `Reporting Period: ${data.reportingPeriod || 'N/A'}`;
+            document.getElementById('overview-intro').textContent = `This section provides a high-level summary of ${data.clientName || 'N/A'} website's SEO performance over the last ${data.reportingPeriod || 'N/A'}, combining key metrics from Google Search Console and SEMrush. It offers a quick snapshot of overall visibility, authority, and user engagement.`;
+
+            // Update KPI Cards
+            document.getElementById('kpi-authority-score').textContent = data.authorityScoreValue || 'N/A';
+            document.getElementById('kpi-total-clicks').textContent = data.totalClicksValue || 'N/A';
+            document.getElementById('kpi-total-impressions').textContent = data.totalImpressionsValue || 'N/A';
+            document.getElementById('kpi-average-position').textContent = data.averagePositionValue || 'N/A';
+
+            initializeCharts(data);
+            populateTables(data);
+            populateRecommendations(data);
+
+            seoReportDisplay.classList.remove('hidden'); // Show the report
+        }
+
+        // Function to clear the report display
+        function clearReportDisplay() {
+            destroyCharts();
+            document.getElementById('json-input').value = '';
+            validationFeedback.classList.add('hidden');
+            seoReportDisplay.classList.add('hidden');
+            // Reset table bodies
+            document.querySelector('#topQueriesTable-reviewer tbody').innerHTML = '';
+            document.querySelector('#keywordRankingsTable-reviewer tbody').innerHTML = '';
+            document.querySelector('#backlinksTable-reviewer tbody').innerHTML = '';
+            document.querySelector('#zeroClickKeywordsTable-reviewer tbody').innerHTML = '';
+            document.getElementById('recommendations-list').innerHTML = '';
+            currentReportData = null;
+        }
+
+        // Table Sorting Logic
+        let currentSort = {}; // { tableName: { column: 'query', direction: 'asc' } }
+
+        function sortTable(tableName, column) {
+            if (!currentReportData || !currentReportData[tableName]) return;
+
+            let direction = 'asc';
+            if (currentSort.tableName === tableName && currentSort.column === column) {
+                direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            }
+            currentSort = { tableName, column, direction };
+
+            const dataArray = currentReportData[tableName];
+            const sortedData = [...dataArray].sort((a, b) => {
+                const valA = a[column];
+                const valB = b[column];
+
+                if (typeof valA === 'string' && typeof valB === 'string') {
+                    return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                } else {
+                    return direction === 'asc' ? (valA || 0) - (valB || 0) : (valB || 0) - (valA || 0);
+                }
+            });
+
+            // Update the displayed data (re-populate the specific table)
+            if (tableName === 'topQueries') {
+                const topQueriesBody = document.querySelector('#topQueriesTable-reviewer tbody');
+                topQueriesBody.innerHTML = '';
+                sortedData.forEach(item => {
+                    const row = topQueriesBody.insertRow();
+                    row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.query || 'N/A'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${item.clicks || 0}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${item.impressions || 0}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${(item.ctr || 0).toFixed(1)}%</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${(item.position || 0).toFixed(1)}</td>
+                        `;
+                });
+            } else if (tableName === 'zeroClickKeywords') {
+                const zeroClickKeywordsBody = document.querySelector('#zeroClickKeywordsTable-reviewer tbody');
+                zeroClickKeywordsBody.innerHTML = '';
+                sortedData.forEach(item => {
+                    const row = zeroClickKeywordsBody.insertRow();
+                    row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.query || 'N/A'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${item.impressions || 0}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${(item.ctr || 0).toFixed(1)}%</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${(item.position || 0).toFixed(1)}</td>
+                        `;
+                });
+            }
+
+            // Update sort indicators
+            document.querySelectorAll('.table-sortable th').forEach(th => {
+                const indicator = th.querySelector('.sort-indicator');
+                if (indicator) {
+                    indicator.textContent = ''; // Clear all indicators
+                }
+            });
+            const activeTh = document.querySelector(`#${tableName}Table-reviewer th[data-sort="${column}"]`);
+            if (activeTh) {
+                const indicator = activeTh.querySelector('.sort-indicator');
+                if (indicator) {
+                    indicator.textContent = direction === 'asc' ? ' ▲' : ' ▼';
+                }
+            }
+        }
+
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('nav a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href') + '-reviewer').scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Event Listener for Load Report Button
+        loadReportBtn.addEventListener('click', () => {
+            let parsedJson = null;
+            validationFeedback.classList.add('hidden'); // Hide previous feedback
+
+            try {
+                parsedJson = JSON.parse(jsonInput.value);
+            } catch (e) {
+                validationFeedback.textContent = `JSON Parse Error: ${e.message}. Please ensure your JSON is valid.`;
+                validationFeedback.className = 'mt-4 p-4 rounded-lg text-sm bg-red-100 text-red-800';
+                validationFeedback.classList.remove('hidden');
+                seoReportDisplay.classList.add('hidden'); // Hide report on error
+                return;
+            }
+
+            const validationErrors = validateJson(parsedJson, jsonSchema);
+
+            if (validationErrors.length > 0) {
+                validationFeedback.innerHTML = `
+                        <p class="font-semibold mb-2">JSON Validation Errors:</p>
+                        <ul class="list-disc list-inside">
+                            ${validationErrors.map(err => `<li>${err}</li>`).join('')}
+                        </ul>
+                        <p class="mt-2">Please correct the JSON according to the expected structure.</p>
+                    `;
+                validationFeedback.className = 'mt-4 p-4 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                validationFeedback.classList.remove('hidden');
+                // Even with validation errors, we attempt to render with defaults
+                // This allows the team to see what's missing visually
+                renderReport(parsedJson);
+            } else {
+                validationFeedback.textContent = 'JSON is valid and structure looks good!';
+                validationFeedback.className = 'mt-4 p-4 rounded-lg text-sm bg-green-100 text-green-800';
+                validationFeedback.classList.remove('hidden');
+                renderReport(parsedJson); // Render the report if valid
+            }
+        });
+
+        // Event Listener for Clear Report Button
+        clearReportBtn.addEventListener('click', clearReportDisplay);
+
+        // Event Listeners for table sorting
+        document.querySelectorAll('.table-sortable th').forEach(header => {
+            header.addEventListener('click', function() {
+                const tableName = this.closest('table').id.replace('-reviewer', ''); // Get table name (e.g., 'topQueries')
+                const column = this.dataset.sort;
+                if (tableName && column) {
+                    sortTable(tableName, column);
+                }
+            });
+        });
+    });
+</script>
+</body>
+</html>

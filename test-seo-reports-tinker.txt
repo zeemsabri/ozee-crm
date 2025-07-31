@@ -1,0 +1,84 @@
+# Test commands for SeoReport functionality using Laravel Tinker
+
+# 1. Find a project to use for testing
+$project = App\Models\Project::first();
+echo "Using project ID: {$project->id}";
+
+# 2. Create a test report date (first day of current month)
+$reportDate = \Carbon\Carbon::now()->startOfMonth();
+echo "Using report date: {$reportDate->format('Y-m-d')}";
+
+# 3. Create test data
+$testData = [
+    'keyMetrics' => [
+        'organicTrafficValue' => 12500,
+        'averagePositionValue' => 25.4,
+        'totalBacklinksValue' => '2,000',
+    ],
+    'clicksImpressions' => [
+        'labels' => ['2025-07-01', '2025-07-02', '2025-07-03'],
+        'clicks' => [10, 15, 12],
+        'impressions' => [500, 600, 550],
+    ],
+];
+
+# 4. Create a new SeoReport
+$report = new App\Models\SeoReport([
+    'project_id' => $project->id,
+    'report_date' => $reportDate,
+    'data' => $testData,
+]);
+$report->save();
+echo "Report created with ID: {$report->id}";
+
+# 5. Retrieve the report
+$retrievedReport = App\Models\SeoReport::find($report->id);
+echo "Retrieved report with ID: {$retrievedReport->id}";
+echo "Project ID: {$retrievedReport->project_id}";
+echo "Report Date: {$retrievedReport->report_date->format('Y-m-d')}";
+echo "Data: " . json_encode($retrievedReport->data);
+
+# 6. Test the relationship
+$project = $retrievedReport->project;
+echo "Report belongs to project: {$project->id}";
+
+# 7. Test getting available months
+$availableMonths = App\Models\SeoReport::where('project_id', $project->id)
+    ->orderBy('report_date', 'desc')
+    ->pluck('report_date')
+    ->map(function ($date) {
+        return \Carbon\Carbon::parse($date)->format('Y-m');
+    });
+echo "Available months: " . implode(', ', $availableMonths->toArray());
+
+# 8. Create another report for a different month
+$anotherReportDate = \Carbon\Carbon::now()->subMonth()->startOfMonth();
+$anotherReport = new App\Models\SeoReport([
+    'project_id' => $project->id,
+    'report_date' => $anotherReportDate,
+    'data' => $testData,
+]);
+$anotherReport->save();
+echo "Another report created with ID: {$anotherReport->id} for date: {$anotherReportDate->format('Y-m-d')}";
+
+# 9. Check available months again
+$availableMonths = App\Models\SeoReport::where('project_id', $project->id)
+    ->orderBy('report_date', 'desc')
+    ->pluck('report_date')
+    ->map(function ($date) {
+        return \Carbon\Carbon::parse($date)->format('Y-m');
+    });
+echo "Updated available months: " . implode(', ', $availableMonths->toArray());
+
+# 10. Test updating an existing report
+$report->data = array_merge($report->data, ['newField' => 'test value']);
+$report->save();
+echo "Report updated with new data";
+
+# 11. Verify the update
+$updatedReport = App\Models\SeoReport::find($report->id);
+echo "Updated report data: " . json_encode($updatedReport->data);
+
+# 12. Clean up (optional)
+# App\Models\SeoReport::where('project_id', $project->id)->delete();
+# echo "Test reports deleted";
