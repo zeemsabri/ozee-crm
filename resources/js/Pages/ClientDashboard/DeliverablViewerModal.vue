@@ -216,7 +216,7 @@ const getEmbedUrl = (url, type) => {
 <!--                />-->
 
                 <iframe v-if="['blog_post', 'report', 'contract_draft', 'proposal', 'social_media_post', 'design_mockup'].includes(deliverable.type) || deliverable.content_url.includes('docs.google.com') || deliverable.content_url.includes('.pdf')"
-                        :src="getEmbedUrl(deliverable.content_url, deliverable.type)"
+                        :src="deliverable.content_url"
                         class="w-full h-full border-0 rounded-lg shadow-md"
                         allowfullscreen
                         frameborder="0"

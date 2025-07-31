@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\BonusConfigurationGroupController;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientAction;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientReader;
 use App\Http\Controllers\Api\ImageUploadController;
+use App\Http\Controllers\Api\ProjectDashboard\ProjectDeliverableAction;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
@@ -169,6 +170,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user/permissions', [PermissionController::class, 'getUserPermissions']);
     Route::get('/projects/{project}/permissions', [PermissionController::class, 'getUserProjectPermissions'])->name('projects.permissions');
 
+
     // Role Management Routes (CRUD)
     Route::apiResource('roles', RoleController::class)->middleware('permission:manage_roles');
     Route::post('roles/{role}/permissions', [RoleController::class, 'updatePermissions'])
@@ -220,6 +222,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('bonus-configuration-groups/{id}/duplicate', [BonusConfigurationGroupController::class, 'duplicate']);
     Route::post('projects/{projectId}/attach-bonus-configuration-group', [BonusConfigurationGroupController::class, 'attachToProject']);
     Route::post('projects/{projectId}/detach-bonus-configuration-group', [BonusConfigurationGroupController::class, 'detachFromProject']);
+
+    // Deliverable Routes
+    Route::get('/projects/{project}/deliverables', [ProjectDeliverableAction::class, 'index'])->name('projects.deliverables.index');
+    Route::post('/projects/{project}/deliverables', [ProjectDeliverableAction::class, 'store'])->name('projects.deliverables.store');
 
     // Magic Link Routes
     Route::post('projects/{projectId}/magic-link', [MagicLinkController::class, 'sendMagicLink']);

@@ -184,7 +184,7 @@ const getEmbedUrl = (url, type) => {
                              onerror="this.onerror=null;this.src='https://placehold.co/600x400/CCCCCC/000000?text=Image+Not+Found';"
                         />
                         <iframe v-else-if="['blog_post', 'report', 'contract_draft', 'proposal'].includes(deliverable.type) || deliverable.content_url.includes('docs.google.com') || deliverable.content_url.includes('.pdf')"
-                                :src="getEmbedUrl(deliverable.content_url, deliverable.type)"
+                                src="https://drive.google.com/uc?export-view&id=11QjS-ZAQ7cUOudUtwZjhISJQ1q7csL8Y"
                                 class="w-full h-full border-0 rounded-lg shadow-md"
                                 allowfullscreen
                                 frameborder="0"

@@ -32,6 +32,10 @@ import RightSidebar from '@/Components/RightSidebar.vue'; // New global sidebar 
 import TaskDetailSidebar from '@/Components/ProjectTasks/TaskDetailSidebar.vue'; // New task detail component for sidebar
 import CreateTaskModal from '@/Components/ProjectTasks/CreateTaskModal.vue'; // New standalone create task modal
 
+// NEW: Import Deliverables components
+import ProjectDeliverablesTab from '@/Components/ProjectsDeliverables/ProjectDeliverableTab.vue'; // Adjust path
+import CreateDeliverableModal from '@/Components/ProjectsDeliverables/CreateDeliverableModal.vue'; // Adjust path
+
 // Currency utilities and SelectDropdown
 import SelectDropdown from '@/Components/SelectDropdown.vue'; // For currency switcher
 import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency'; // Import displayCurrency
@@ -55,6 +59,7 @@ const project = ref({
     meetings: [],
     tasks: [], // Ensure tasks is initialized for ProjectStatsCards
     emails: [], // Ensure emails is initialized for ProjectStatsCards
+    deliverables: [], // Initialize deliverables array
 });
 const loading = ref(true); // For the main page load
 const generalError = ref('');
@@ -67,6 +72,7 @@ const showAddNoteModal = ref(false);
 const showMagicLinkModal = ref(false);
 const showUserTransactionsModal = ref(false); // New state for user transactions modal
 const showComposeEmailModal = ref(false);
+const showCreateDeliverableModal = ref(false); // NEW: State for CreateDeliverableModal
 
 // NEW: State for the RightSidebar and TaskDetailSidebar
 const showRightSidebar = ref(false);
@@ -125,6 +131,11 @@ const canComposeEmails = computed(() => canDo('compose_emails').value);
 const canApproveEmails = computed(() => canDo('approve_emails').value);
 const canViewNotes = computed(() => canView('project_notes').value);
 const canAddNotes = computed(() => canDo('add_project_notes').value);
+
+// NEW: Permissions for Deliverables
+const canViewDeliverables = computed(() => canView('deliverables').value);
+const canCreateDeliverables = computed(() => canDo('create_deliverables').value);
+
 
 // Permissions for new financial/client/user cards
 const canViewClientContacts = computed(() => canView('client_contacts').value);
@@ -229,6 +240,13 @@ const handleEmailsUpdated = (updatedEmails) => {
 const handleNotesUpdated = (updatedNotes) => {
     project.value.notes = updatedNotes;
 };
+
+// NEW: Handler for Deliverables updates
+const handleDeliverablesUpdated = () => {
+    // When deliverables are updated (e.g., new one added), re-fetch project data
+    // to ensure any related counts/statuses on the overview are fresh.
+    fetchProjectData();
+}
 
 const handleMeetingSaved = () => {
     if (meetingsListComponent.value) {
@@ -404,6 +422,7 @@ onMounted(async () => {
                     v-model:selectedTab="selectedTab"
                     :can-view-emails="canViewEmails"
                     :can-view-notes="canViewNotes"
+                    :can-view-deliverables="canViewDeliverables"
                 />
 
                 <div v-if="selectedTab === null">
@@ -575,6 +594,16 @@ onMounted(async () => {
                     @notesUpdated="handleNotesUpdated"
                     @changeTab="handleChangeTab"
                 />
+
+                <!-- NEW: Deliverables Tab Content -->
+                <ProjectDeliverablesTab
+                    v-if="selectedTab === 'deliverables'"
+                    :project-id="projectId"
+                    :project-users="project.users || []"
+                    :can-create-deliverables="canCreateDeliverables"
+                    :can-view-deliverables="canViewDeliverables"
+                    @deliverablesUpdated="handleDeliverablesUpdated"
+                />
             </div>
         </div>
 
@@ -658,6 +687,15 @@ onMounted(async () => {
             :project-id="projectId"
             @close="showGlobalCreateTaskModal = false"
             @saved="handleGlobalCreateTaskSaved"
+        />
+
+        <!-- NEW: Create Deliverable Modal -->
+        <CreateDeliverableModal
+            :show="showCreateDeliverableModal"
+            :project-id="projectId"
+            :project-users="project.users || []"
+            @close="showCreateDeliverableModal = false"
+            @saved="handleDeliverableSaved"
         />
 
     </AuthenticatedLayout>

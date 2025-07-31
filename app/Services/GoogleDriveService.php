@@ -62,7 +62,7 @@ class GoogleDriveService
      * @param string $parentFolderId Folder ID to upload to
      * @return string File ID
      */
-    public function uploadFile(string $filePath, string $fileName, string $parentFolderId): array
+    public function uploadFile(string $filePath, string $fileName, string $parentFolderId, $field = 'webContentLink'): array
     {
         try {
             $file = new Drive\DriveFile();
@@ -77,6 +77,16 @@ class GoogleDriveService
                 'fields' => 'id',
             ]);
 
+            $permission = new Drive\Permission();
+            $permission->setType('anyone');
+            $permission->setRole('reader');
+
+            $this->driveService->permissions->create(
+                $uploadedFile->id, // The ID of the file you just uploaded
+                $permission, // The permission object you created
+                ['fields' => 'id'] // Request only the ID of the created permission (optional, but good practice)
+            );
+
             Log::info('File uploaded to Google Drive', [
                 'file_name' => $fileName,
                 'file_id' => $uploadedFile->id,
@@ -86,7 +96,7 @@ class GoogleDriveService
             return [
                 'id'    =>  $uploadedFile->id,
                 'thumbnail' =>  $this->getThumbnailLink($uploadedFile->id),
-                'path'  =>  $this->getWebContentLink($uploadedFile->id)
+                'path'  => $this->getWebContentLink($uploadedFile->id, $field)
             ];
 
         } catch (\Exception $e) {
@@ -250,12 +260,12 @@ class GoogleDriveService
         }
     }
 
-    public function getWebContentLink(string $fileId): ?string
+    public function getWebContentLink(string $fileId, $field = 'webContentLink'): ?string
     {
         try {
-            $file = $this->driveService->files->get($fileId, ['fields' => 'webContentLink']);
+            $file = $this->driveService->files->get($fileId, ['fields' => $field]);
             Log::info('Fetched webContentLink for file', ['file_id' => $fileId]);
-            return $file->getWebContentLink();
+            return $file->{$field};
         } catch (\Exception $e) {
             Log::error('Error fetching webContentLink: ' . $e->getMessage(), [
                 'file_id' => $fileId,
