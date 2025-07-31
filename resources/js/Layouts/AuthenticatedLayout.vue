@@ -210,14 +210,14 @@ onMounted(() => {
                                                 Task Types
                                             </DropdownLink>
 
-                                            <DropdownLink :href="route('bonus-configuration.index')" :active="route().current('bonus-configuration.index')">
+                                            <DropdownLink v-if="canDo('manage_bonus_configuration')" :href="route('bonus-configuration.index')" :active="route().current('bonus-configuration.index')">
                                                 Bonus Configuration
                                             </DropdownLink>
 
-                                            <DropdownLink :href="route('admin.roles.index')">
+                                            <DropdownLink v-if="canDo('manage_roles')" :href="route('admin.roles.index')">
                                                 Manage Roles
                                             </DropdownLink>
-                                            <DropdownLink :href="route('admin.permissions.index')">
+                                            <DropdownLink v-if="canDo('manage_permissions')" :href="route('admin.permissions.index')">
                                                 Manage Permissions
                                             </DropdownLink>
                                         </template>
@@ -345,14 +345,20 @@ onMounted(() => {
                                 Rejected Emails
                             </ResponsiveNavLink>
 
-                            <ResponsiveNavLink :href="route('availability.index')" :active="route().current('availability.index')">
+                            <ResponsiveNavLink v-if="canManageUsers" :href="route('availability.index')" :active="route().current('availability.index')">
                                 Weekly Availability
                             </ResponsiveNavLink>
-                            <ResponsiveNavLink :href="route('admin.roles.index')" :active="route().current('admin.roles.index')">
+                            <ResponsiveNavLink v-if="canDo('manage_roles')" :href="route('admin.roles.index')" :active="route().current('admin.roles.index')">
                                 Manage Roles
                             </ResponsiveNavLink>
-                            <ResponsiveNavLink :href="route('admin.permissions.index')" :active="route().current('admin.permissions.index')">
+                            <ResponsiveNavLink v-if="canDo('manage_permissions')" :href="route('admin.permissions.index')" :active="route().current('admin.permissions.index')">
                                 Manage Permissions
+                            </ResponsiveNavLink>
+                            <ResponsiveNavLink v-if="canDo('manage_bonus_configuration')" :href="route('bonus-configuration.index')" :active="route().current('bonus-configuration.index')">
+                                Bonus Configuration
+                            </ResponsiveNavLink>
+                            <ResponsiveNavLink v-if="canManageTaskTypes" :href="route('task-types.index')" :active="route().current('task-types.index')">
+                                Task Types
                             </ResponsiveNavLink>
                         </div>
                     </div>

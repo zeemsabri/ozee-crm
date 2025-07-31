@@ -1,12 +1,16 @@
 <script setup>
-import { Head, router } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import ProjectCreateBasicInfo from '@/Components/ProjectForm/ProjectCreateBasicInfo.vue';
 import {useGlobalPermissions, usePermissions} from '@/Directives/permissions';
+import { computed } from 'vue';
 const { canDo, canView } = usePermissions();
 
 const { permissions: globalPermissions, loading: globalPermissionsLoading } = useGlobalPermissions();
 const canCreateProject = canDo('create_projects');
+
+// Note: Router-level permission middleware now handles access control
+// No need for client-side redirect
 
 const props = defineProps({
     statusOptions: { type: Array, required: true },

@@ -1,12 +1,17 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import ProjectForm from '@/Components/ProjectForm.vue'; // The main form component
-import { useGlobalPermissions } from '@/Directives/permissions'; // Import useGlobalPermissions
+import { useGlobalPermissions, usePermissions } from '@/Directives/permissions'; // Import useGlobalPermissions and usePermissions
 
 // Fetch global permissions (used by ProjectForm internally for permission checks)
 const { permissions: globalPermissions, loading: globalPermissionsLoading } = useGlobalPermissions();
+const { canDo } = usePermissions();
+const canCreateProject = canDo('create_projects');
+
+// Note: Router-level permission middleware now handles access control
+// No need for client-side redirect
 
 // Define props passed from the Inertia controller
 const props = defineProps({

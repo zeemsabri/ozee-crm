@@ -183,26 +183,26 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Projects Index Page
     Route::get('/projects', function () {
         return Inertia::render('Projects/Index');
-    })->name('projects.index');
+    })->name('projects.index')->middleware('permission:view_projects');
 
-    // Projects Index Page
+    // Projects Create Page
     Route::get('/projects/create', function () {
         return Inertia::render('Projects/Create');
-    })->name('projects.create');
+    })->name('projects.create')->middleware('permission:create_projects');
 
-    // Projects Index Page
+    // Projects Edit Page
     Route::get('/projects/{project}/edit', function (Project $project) {
         return Inertia::render('Projects/Edit', [
             'project' => $project,
         ]);
-    })->name('projects.edit');
+    })->name('projects.edit')->middleware('permission:create_projects');
 
     // Project Detail Page
     Route::get('/projects/{id}', function ($id) {
         return Inertia::render('Projects/Show', [
             'id' => $id,
         ]);
-    })->name('projects.show');
+    })->name('projects.show')->middleware('permission:view_projects');
 
     // Task Types Management Page
     Route::get('/task-types', function () {
@@ -212,20 +212,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Email Composer Page
     Route::get('/emails/compose', function () {
         return Inertia::render('Emails/Composer');
-    })->name('emails.compose');
+    })->name('emails.compose')->middleware('permission:compose_emails');
 
     // Pending Approvals Page
     Route::get('/emails/pending', function () {
         return Inertia::render('Emails/PendingApprovals');
-    })->name('emails.pending');
+    })->name('emails.pending')->middleware('permission:approve_emails');
 
     Route::get('/emails/rejected', function () {
         return Inertia::render('Emails/Rejected');
-    })->name('emails.rejected'); // New route for rejected emails
+    })->name('emails.rejected')->middleware('permission:compose_emails'); // New route for rejected emails
 
     Route::get('/users', function () {
         return Inertia::render('Users/Index');
-    })->name('users.index');
+    })->name('users.index')->middleware('permission:create_users');
 
     // Test route for User Project Role functionality
     Route::get('/test/user-project-role', [\App\Http\Controllers\TestController::class, 'testUserProjectRole'])
@@ -234,16 +234,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Availability Calendar Page
     Route::get('/availability', function () {
         return Inertia::render('Availability/Index');
-    })->name('availability.index');
+    })->name('availability.index')->middleware('permission:create_users');
 
     // Bonus Configuration Page
     Route::get('/bonus-configuration', function () {
         return Inertia::render('BonusConfiguration/Index');
-    })->name('bonus-configuration.index');
+    })->name('bonus-configuration.index')->middleware('permission:manage_bonus_configuration');
 
     Route::get('/shareable-resources', function () {
         return Inertia::render('ShareableResources/Index');
-    })->name('bonus-configuration.index');
+    })->name('shareable-resources.index')->middleware('permission:view_shareable_resources');
 
 });
 
