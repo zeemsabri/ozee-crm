@@ -23,12 +23,42 @@ class ProjectClientReader extends Controller
 
     }
 
+    /**
+     * Verify that the requested project matches the authenticated project from magic link
+     *
+     * @param Request $request
+     * @param int $projectId
+     * @param string $context Context for logging (e.g., 'tasks', 'deliverables')
+     * @return array|null Returns null if verification passes, or an error response array if it fails
+     */
+    private function verifyMagicLinkProject(Request $request, $projectId, string $context)
+    {
+        $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+
+        // IMPORTANT SECURITY CHECK: Ensure the requested projectId matches the one from the magic link token
+        if ((int)$projectId !== (int)$authenticatedProjectId) {
+            Log::warning("Unauthorized access attempt to project $context.", [
+                'requested_project_id' => $projectId,
+                'authenticated_project_id' => $authenticatedProjectId,
+                'magic_link_email' => $request->attributes->get('magic_link_email'),
+                'ip_address' => $request->ip()
+            ]);
+            return [
+                'status' => 403,
+                'message' => "Unauthorized access to this project's $context."
+            ];
+        }
+
+        return null;
+    }
+
     public function getProject(Request $request)
     {
 
         try {
             $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
 
+            // No need to verify project ID here as we're directly using the authenticated project ID
             $project = Project::findOrFail($authenticatedProjectId);
 
             return [
@@ -57,20 +87,12 @@ class ProjectClientReader extends Controller
     {
 
         try {
-            // Retrieve the project ID associated with the magic link token
-            // This attribute is set by the VerifyMagicLinkToken middleware
-            $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
-
             $projectId = $project->id;
-            // IMPORTANT SECURITY CHECK: Ensure the requested projectId matches the one from the magic link token
-            if ((int)$projectId !== (int)$authenticatedProjectId) {
-                Log::warning("Unauthorized access attempt to project tasks.", [
-                    'requested_project_id' => $projectId,
-                    'authenticated_project_id' => $authenticatedProjectId,
-                    'magic_link_email' => $request->attributes->get('magic_link_email'),
-                    'ip_address' => $request->ip()
-                ]);
-                return response()->json(['message' => 'Unauthorized access to this project\'s tasks.'], 403);
+
+            // Verify magic link project
+            $verificationResult = $this->verifyMagicLinkProject($request, $projectId, 'tasks');
+            if ($verificationResult) {
+                return response()->json(['message' => $verificationResult['message']], $verificationResult['status']);
             }
 
             $milestoneIds = $project->milestones()->where('name', Project::SUPPORT)->pluck('id')->toArray();
@@ -105,19 +127,13 @@ class ProjectClientReader extends Controller
     public function getProjectDeliverables(Request $request, Project $project)
     {
         try {
-            $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
             $authenticatedClientEmail = $request->attributes->get('magic_link_email');
-
             $projectId = $project->id;
-            // Security check: Ensure the requested projectId matches the authenticated one
-            if ((int)$projectId !== (int)$authenticatedProjectId) {
-                Log::warning("Unauthorized access attempt to project deliverables.", [
-                    'requested_project_id' => $projectId,
-                    'authenticated_project_id' => $authenticatedProjectId,
-                    'magic_link_email' => $authenticatedClientEmail,
-                    'ip_address' => $request->ip()
-                ]);
-                return response()->json(['message' => 'Unauthorized access to this project\'s deliverables.'], 403);
+
+            // Verify magic link project
+            $verificationResult = $this->verifyMagicLinkProject($request, $projectId, 'deliverables');
+            if ($verificationResult) {
+                return response()->json(['message' => $verificationResult['message']], $verificationResult['status']);
             }
 
             // Find the client based on the authenticated email
@@ -179,20 +195,12 @@ class ProjectClientReader extends Controller
     public function getProjectDocuments(Request $request, Project $project)
     {
         try {
-            // Retrieve the project ID associated with the magic link token
-            // This attribute is set by the VerifyMagicLinkToken middleware
-            $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
-
             $projectId = $project->id;
-            // IMPORTANT SECURITY CHECK: Ensure the requested projectId matches the one from the magic link token
-            if ((int)$projectId !== (int)$authenticatedProjectId) {
-                Log::warning("Unauthorized access attempt to project documents.", [
-                    'requested_project_id' => $projectId,
-                    'authenticated_project_id' => $authenticatedProjectId,
-                    'magic_link_email' => $request->attributes->get('magic_link_email'),
-                    'ip_address' => $request->ip()
-                ]);
-                return response()->json(['message' => 'Unauthorized access to this project\'s documents.'], 403);
+
+            // Verify magic link project
+            $verificationResult = $this->verifyMagicLinkProject($request, $projectId, 'documents');
+            if ($verificationResult) {
+                return response()->json(['message' => $verificationResult['message']], $verificationResult['status']);
             }
 
             // Get documents for the project
@@ -220,29 +228,45 @@ class ProjectClientReader extends Controller
      */
     public function getShareableResources(Request $request, Project $project)
     {
+        try {
+            $projectId = $project->id;
 
-        $query = ShareableResource::with('tags');
+            // Verify magic link project
+            $verificationResult = $this->verifyMagicLinkProject($request, $projectId, 'shareable resources');
+            if ($verificationResult) {
+                return response()->json(['message' => $verificationResult['message']], $verificationResult['status']);
+            }
 
-        // Filter by type if provided
-        if ($request->has('type')) {
-            $query->where('type', $request->type);
+            $query = ShareableResource::with('tags');
+
+            // Filter by type if provided
+            if ($request->has('type')) {
+                $query->where('type', $request->type);
+            }
+
+            // Filter by visibility if provided
+            if ($request->has('visible_to_client')) {
+                $query->where('visible_to_client', $request->visible_to_client);
+            }
+
+            // Filter by tag if provided
+            if ($request->has('tag_id')) {
+                $query->whereHas('tags', function ($q) use ($request) {
+                    $q->where('tags.id', $request->tag_id);
+                });
+            }
+
+            $resources = $query->get();
+
+            return response()->json($resources);
+        } catch (\Exception $e) {
+            Log::error('Error fetching client project shareable resources: ' . $e->getMessage(), [
+                'project_id' => $project->id,
+                'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
+                'error_trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to fetch shareable resources.', 'error' => $e->getMessage()], 500);
         }
-
-        // Filter by visibility if provided
-        if ($request->has('visible_to_client')) {
-            $query->where('visible_to_client', $request->visible_to_client);
-        }
-
-        // Filter by tag if provided
-        if ($request->has('tag_id')) {
-            $query->whereHas('tags', function ($q) use ($request) {
-                $q->where('tags.id', $request->tag_id);
-            });
-        }
-
-        $resources = $query->get();
-
-        return response()->json($resources);
     }
 
     /**
@@ -255,30 +279,41 @@ class ProjectClientReader extends Controller
      */
     public function getReportData(Request $request, $projectId, $yearMonth)
     {
-        // In a real application, you would fetch data from a database
-        // based on $projectId and $month.
-        // For now, we return the hardcoded sample data.
+        try {
+            // Verify magic link project
+            $verificationResult = $this->verifyMagicLinkProject($request, $projectId, 'SEO reports');
+            if ($verificationResult) {
+                return response()->json(['message' => $verificationResult['message']], $verificationResult['status']);
+            }
 
-        // Validate year-month format
-        if (!preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
-            return response()->json(['error' => 'Invalid date format. Use YYYY-MM format.'], 400);
+            // Validate year-month format
+            if (!preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
+                return response()->json(['error' => 'Invalid date format. Use YYYY-MM format.'], 400);
+            }
+
+            // Construct the report date
+            $reportDate = Carbon::createFromFormat('Y-m', $yearMonth)->startOfMonth();
+
+            // Find the report
+            $report = SeoReport::where('project_id', $projectId)
+                ->where('report_date', $reportDate)
+                ->first();
+
+            if (!$report) {
+                return response()->json(['error' => 'Report not found'], 404);
+            }
+
+            // Return just the data field which is already cast to an array
+            return response()->json($report->data, 200);
+        } catch (\Exception $e) {
+            Log::error('Error fetching SEO report data: ' . $e->getMessage(), [
+                'project_id' => $projectId,
+                'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
+                'year_month' => $yearMonth,
+                'error_trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to fetch SEO report data.', 'error' => $e->getMessage()], 500);
         }
-
-        // Construct the report date
-        $reportDate = Carbon::createFromFormat('Y-m', $yearMonth)->startOfMonth();
-
-        // Find the report
-        $report = SeoReport::where('project_id', $projectId)
-            ->where('report_date', $reportDate)
-            ->first();
-
-        if (!$report) {
-            return response()->json(['error' => 'Report not found'], 404);
-        }
-
-        // Return just the data field which is already cast to an array
-        return response()->json($report->data, 200);
-
     }
 
 }
