@@ -128,9 +128,7 @@ onMounted(() => {
 </script>
 
 <template>
-
     <div class="flex h-screen overflow-hidden">
-
         <!-- Notification Container (placed at the root for proper positioning) -->
         <NotificationContainer ref="notificationContainerRef" />
         <!-- Availability Blocker (also at root) -->
@@ -159,7 +157,6 @@ onMounted(() => {
                                     Dashboard
                                 </NavLink>
 
-
                                 <!-- Admin dropdown for roles and permissions -->
                                 <div v-if="canManageRoles" class="hidden sm:flex sm:items-center">
                                     <Dropdown align="right" width="48">
@@ -185,21 +182,21 @@ onMounted(() => {
 
                                         <template #content>
 
-                                            <NavLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')">
+                                            <DropdownLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')">
                                                 Projects
-                                            </NavLink>
+                                            </DropdownLink>
 
-                                            <NavLink v-if="canApproveEmails" :href="route('emails.pending')" :active="route().current('emails.pending')">
+                                            <DropdownLink v-if="canApproveEmails" :href="route('emails.pending')" :active="route().current('emails.pending')">
                                                 Approve Emails
-                                            </NavLink>
+                                            </DropdownLink>
 
-                                            <NavLink v-if="canComposeEmails" :href="route('emails.rejected')" :active="route().current('emails.rejected')">
+                                            <DropdownLink v-if="canComposeEmails" :href="route('emails.rejected')" :active="route().current('emails.rejected')">
                                                 Rejected Emails
-                                            </NavLink>
+                                            </DropdownLink>
 
-                                            <NavLink v-if="canManageUsers" :href="route('availability.index')" :active="route().current('availability.index')">
+                                            <DropdownLink v-if="canManageUsers" :href="route('availability.index')" :active="route().current('availability.index')">
                                                 Weekly Availability
-                                            </NavLink>
+                                            </DropdownLink>
 
                                             <DropdownLink v-if="canAccessClients" :href="route('clients.index')" :active="route().current('clients.index')">
                                                 Clients
@@ -317,41 +314,40 @@ onMounted(() => {
                 <!-- Mobile Navigation (Add Task button will be responsive here too) -->
                 <div :class="{ block: showingNavigationDropdown, hidden: !showingNavigationDropdown }" class="sm:hidden">
                     <div class="space-y-1 pb-3 pt-2">
-                        <ResponsiveNavLink :href="route('dashboard')" :active="route().current('dashboard')">
-                            Dashboard
-                        </ResponsiveNavLink>
-
-                        <ResponsiveNavLink v-if="canAccessClients" :href="route('clients.index')" :active="route().current('clients.index')">
-                            Clients
-                        </ResponsiveNavLink>
-
-                        <ResponsiveNavLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')">
-                            Projects
-                        </ResponsiveNavLink>
-
-                        <ResponsiveNavLink v-if="canManageUsers" :href="route('users.index')" :active="route().current('users.index')">
-                            Users
-                        </ResponsiveNavLink>
-
-                        <ResponsiveNavLink v-if="canComposeEmails" :href="route('emails.compose')" :active="route().current('emails.compose')">
-                            Compose Email
-                        </ResponsiveNavLink>
-
-                        <ResponsiveNavLink v-if="canApproveEmails" :href="route('emails.pending')" :active="route().current('emails.pending')">
-                            Approve Emails
-                        </ResponsiveNavLink>
-
-                        <ResponsiveNavLink v-if="canComposeEmails" :href="route('emails.rejected')" :active="route().current('emails.rejected')">
-                            Rejected Emails
-                        </ResponsiveNavLink>
-
-                        <ResponsiveNavLink :href="route('availability.index')" :active="route().current('availability.index')">
-                            Weekly Availability
-                        </ResponsiveNavLink>
-
                         <!-- Admin section for mobile -->
                         <div v-if="canManageRoles" class="mt-3 space-y-1">
                             <div class="px-4 font-medium text-base text-gray-800">Admin</div>
+                            <ResponsiveNavLink :href="route('dashboard')" :active="route().current('dashboard')">
+                                Dashboard
+                            </ResponsiveNavLink>
+
+                            <ResponsiveNavLink v-if="canAccessClients" :href="route('clients.index')" :active="route().current('clients.index')">
+                                Clients
+                            </ResponsiveNavLink>
+
+                            <ResponsiveNavLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')">
+                                Projects
+                            </ResponsiveNavLink>
+
+                            <ResponsiveNavLink v-if="canManageUsers" :href="route('users.index')" :active="route().current('users.index')">
+                                Users
+                            </ResponsiveNavLink>
+
+                            <ResponsiveNavLink v-if="canComposeEmails" :href="route('emails.compose')" :active="route().current('emails.compose')">
+                                Compose Email
+                            </ResponsiveNavLink>
+
+                            <ResponsiveNavLink v-if="canApproveEmails" :href="route('emails.pending')" :active="route().current('emails.pending')">
+                                Approve Emails
+                            </ResponsiveNavLink>
+
+                            <ResponsiveNavLink v-if="canComposeEmails" :href="route('emails.rejected')" :active="route().current('emails.rejected')">
+                                Rejected Emails
+                            </ResponsiveNavLink>
+
+                            <ResponsiveNavLink :href="route('availability.index')" :active="route().current('availability.index')">
+                                Weekly Availability
+                            </ResponsiveNavLink>
                             <ResponsiveNavLink :href="route('admin.roles.index')" :active="route().current('admin.roles.index')">
                                 Manage Roles
                             </ResponsiveNavLink>
@@ -411,7 +407,5 @@ onMounted(() => {
                 :show="addResource"
                 @close="addResource = false" />
         </div>
-
-
     </div>
 </template>
