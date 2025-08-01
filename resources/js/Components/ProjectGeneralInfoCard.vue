@@ -9,6 +9,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import CustomMultiSelect from '@/Components/CustomMultiSelect.vue';
+import ComposeEmailModal from './ComposeEmailModal.vue'; // New component import
 
 const props = defineProps({
     project: {
@@ -47,6 +48,9 @@ const selectedResource = ref(null);
 const resources = ref([]);
 const loadingResources = ref(false);
 const activeTooltipId = ref(null);
+
+// Compose Email Modal State
+const showComposeEmailModal = ref(false);
 
 // Magic Link Modal State
 const showMagicLinkModal = ref(false);
@@ -186,6 +190,12 @@ const openMagicLinkModal = () => {
     fetchClients();
 };
 
+const handOpenCompose = () => {
+    showComposeEmailModal.value = true
+    fetchClients();
+}
+
+
 const closeMagicLinkModal = () => {
     showMagicLinkModal.value = false;
 };
@@ -259,11 +269,13 @@ const sendMagicLink = async () => {
                 <PrimaryButton v-if="canManageProjects || isSuperAdmin" class="bg-green-600 hover:bg-green-700 transition-colors" @click="emit('openMeetingModal')">
                     Schedule Meeting
                 </PrimaryButton>
-                <PrimaryButton v-if="canManageProjects || isSuperAdmin" class="bg-blue-400 hover:bg-blue-600 transition-colors" @click="emit('openComposeModal')">
+                <PrimaryButton
+                    v-if="canManageProjects || isSuperAdmin"
+                    class="bg-blue-400 hover:bg-blue-600 transition-colors"
+                    @click="handOpenCompose"
+                >
                     Compose Email
                 </PrimaryButton>
-                <!-- Magic Link button remains commented out as in original for consistency -->
-
                 <PrimaryButton
                     v-if="canManageProjects "
                     class="bg-purple-600 hover:bg-purple-700 transition-colors"
@@ -272,7 +284,6 @@ const sendMagicLink = async () => {
                 >
                     {{ sendingMagicLink ? 'Sending...' : 'Send Magic Link' }}
                 </PrimaryButton>
-
             </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -452,6 +463,13 @@ const sendMagicLink = async () => {
             </form>
         </div>
     </Modal>
+    <!-- New Compose Email Modal -->
+    <ComposeEmailModal
+        :show="showComposeEmailModal"
+        :project-id="projectId"
+        :clients="projectClients"
+        @close="showComposeEmailModal = false"
+    />
 </template>
 
 <style scoped>

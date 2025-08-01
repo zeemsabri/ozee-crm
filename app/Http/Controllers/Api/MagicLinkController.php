@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Mail\MagicLinkMail;
+use App\Models\Client;
 use App\Models\MagicLink;
 use App\Models\Project;
 use App\Services\GmailService;
@@ -137,9 +138,105 @@ class MagicLinkController extends Controller
     }
 
     /**
-     * Handle the magic link when clicked.
+     * Send a magic link to a client email without requiring a specific project.
+     * This is used for the client login on the welcome page.
      *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
      */
+    public function sendClientMagicLink(Request $request)
+    {
+        try {
+            // Validate the request
+            $validator = Validator::make($request->all(), [
+                'email' => 'required|email',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Please provide a valid email address',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $clientEmail = $request->email;
+
+            // Find projects associated with this client email
+            $client = Client::where('email', $clientEmail)->first();
+
+            if (!$client) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No client found with this email address.'
+                ], 404);
+            }
+
+            // Get projects through the many-to-many relationship
+            $projects = Project::whereHas('clients', function($query) use ($client) {
+                $query->where('clients.id', $client->id);
+            })->get();
+
+            if ($projects->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No projects found associated with this email address.'
+                ], 404);
+            }
+
+            // Use the first project found (we could potentially send links for all projects)
+            $project = $projects->first();
+
+            // Generate a unique token
+            $token = Str::random(64);
+
+            // Set expiration time (24 hours from now)
+            $expiresAt = now()->addHours(24);
+
+            // Create a new magic link
+            $magicLink = MagicLink::create([
+                'email' => $clientEmail,
+                'token' => $token,
+                'project_id' => $project->id,
+                'expires_at' => $expiresAt,
+                'used' => false,
+            ]);
+
+            // Generate the magic link URL
+            $url = URL::temporarySignedRoute(
+                'client.magic-link-login',
+                $expiresAt,
+                ['token' => $token]
+            );
+
+            // Render the email template
+            $emailContent = View::make('emails.magic-link', [
+                'magicLink' => $magicLink,
+                'project' => $project,
+                'url' => $url
+            ])->render();
+
+            // Send the magic link email using GmailService
+            $subject = "Magic Link for {$project->name} Project";
+            $this->gmailService->sendEmail($clientEmail, $subject, $emailContent);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Magic link sent successfully to your email address. Please check your inbox.'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error sending client magic link: ' . $e->getMessage(), [
+                'email' => $request->email ?? 'not provided',
+                'error' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send magic link: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function handleMagicLink(Request $request)
     {
         try {

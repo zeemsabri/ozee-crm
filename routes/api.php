@@ -4,8 +4,11 @@ use App\Http\Controllers\Api\BonusConfigurationGroupController;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientAction;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientReader;
 use App\Http\Controllers\Api\Client\SeoReportController;
+use App\Http\Controllers\Api\EmailTemplateController;
 use App\Http\Controllers\Api\ImageUploadController;
+use App\Http\Controllers\Api\PlaceholderDefinitionController;
 use App\Http\Controllers\Api\ProjectDashboard\ProjectDeliverableAction;
+use App\Http\Controllers\Api\SendEmailController;
 use App\Http\Controllers\Api\ShareableResourceController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -42,6 +45,9 @@ Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
 
 Route::post('/reset-password', [NewPasswordController::class, 'store'])
     ->middleware('guest');
+
+// Client Magic Link Route (accessible without authentication)
+Route::post('/client-magic-link', [MagicLinkController::class, 'sendClientMagicLink']);
 
 // Authenticated API Routes (behind auth:sanctum middleware for internal users)
 Route::middleware('auth:sanctum')->group(function () {
@@ -243,6 +249,25 @@ Route::middleware('auth:sanctum')->group(function () {
     // Magic Link Routes
     Route::post('projects/{projectId}/magic-link', [MagicLinkController::class, 'sendMagicLink']);
     Route::get('currency-rates', [\App\Http\Controllers\Api\CurrencyController::class, 'index']);
+
+    // --- NEW: Email Templates API Routes ---
+    // Protect these routes with a new permission: 'manage_email_templates'
+    Route::apiResource('email-templates', EmailTemplateController::class)->middleware('permission:manage_email_templates');
+    Route::post('email-templates/{emailTemplate}/placeholders', [EmailTemplateController::class, 'syncPlaceholders'])->middleware('permission:manage_email_templates');
+    // We can also add a route to get a preview of the rendered template.
+    Route::post('email-templates/{emailTemplate}/preview', [EmailTemplateController::class, 'preview'])->middleware('permission:manage_email_templates');
+
+    // --- NEW: Placeholder Definitions API Routes ---
+    // Protected by 'manage_placeholder_definitions' permission
+    Route::get('placeholder-definitions/models-and-columns', [PlaceholderDefinitionController::class, 'getModelsAndColumns'])->middleware('permission:manage_placeholder_definitions');
+    Route::apiResource('placeholder-definitions', PlaceholderDefinitionController::class)->middleware('permission:manage_placeholder_definitions');
+
+
+    // New route for sending emails from a template
+    Route::post('send-email', [SendEmailController::class, 'sendEmail']);
+    Route::post('email-preview', [SendEmailController::class, 'preview']);
+
+
 });
 
 

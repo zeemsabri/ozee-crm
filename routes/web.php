@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\EmailController;
 use App\Http\Controllers\ClientDashboardController;
+use App\Http\Controllers\EmailPreviewController;
 use App\Http\Controllers\EmailTestController;
 use App\Http\Controllers\ProfileController;
 use App\Models\Project;
@@ -53,6 +54,9 @@ Route::get('/magic-link-error', function () {
         'message' => 'An unexpected error occurred.'
     ]);
 })->name('magic-link.error');
+
+// --- NEW: Public Email Preview Route for Development ---
+Route::get('/email-preview/{slug?}', [EmailPreviewController::class, 'preview'])->name('email.preview');
 
 Route::get('/emails/{email}/preview', [EmailController::class, 'previewEmail'])
     ->middleware(['auth']) // Add any necessary middleware for access control
@@ -244,6 +248,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/shareable-resources', function () {
         return Inertia::render('ShareableResources/Index');
     })->name('shareable-resources.index')->middleware('permission:view_shareable_resources');
+
+    // --- NEW: Email Templates Web Routes ---
+    Route::get('/email-templates', function () {
+        return Inertia::render('EmailTemplates/Index');
+    })->name('email-templates.index')->middleware('permission:manage_email_templates');
+
+    // Route to the create form for a new template
+    Route::get('/email-templates/create', function () {
+        return Inertia::render('EmailTemplates/Create');
+    })->name('email-templates.create')->middleware('permission:manage_email_templates');
+
+    // --- NEW: Placeholder Definitions Web Routes ---
+    Route::get('/placeholder-definitions', function () {
+        return Inertia::render('PlaceholderDefinitions/Index');
+    })->name('placeholder-definitions.index')->middleware('permission:manage_placeholder_definitions');
 
 });
 

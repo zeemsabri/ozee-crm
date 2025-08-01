@@ -167,7 +167,7 @@ onMounted(() => {
                                                 >
                                                     Admin
                                                     <svg class="ms-2 -me-0.5 h-4 w-4"
-                                                         xmlns="http://www.w3.org/2000/svg"
+                                                         xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)"
                                                          viewBox="0 0 20 20"
                                                          fill="currentColor"
                                                     >
@@ -214,6 +214,14 @@ onMounted(() => {
                                                 Bonus Configuration
                                             </DropdownLink>
 
+                                            <DropdownLink v-if="canDo('manage_email_templates')" :href="route('email-templates.index')" :active="route().current('email-templates.index')">
+                                                Email Templates
+                                            </DropdownLink>
+
+                                            <DropdownLink v-if="canDo('manage_placeholder_definitions')" :href="route('placeholder-definitions.index')" :active="route().current('placeholder-definitions.index')">
+                                                Placeholder Definitions
+                                            </DropdownLink>
+
                                             <DropdownLink v-if="canDo('manage_roles')" :href="route('admin.roles.index')">
                                                 Manage Roles
                                             </DropdownLink>
@@ -255,7 +263,7 @@ onMounted(() => {
                                                 {{ user.name }} ({{ user.role_data?.name }})
 
                                                 <svg class="ms-2 -me-0.5 h-4 w-4"
-                                                     xmlns="http://www.w3.org/2000/svg"
+                                                     xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)"
                                                      viewBox="0 0 20 20"
                                                      fill="currentColor"
                                                 >
@@ -359,6 +367,14 @@ onMounted(() => {
                             </ResponsiveNavLink>
                             <ResponsiveNavLink v-if="canManageTaskTypes" :href="route('task-types.index')" :active="route().current('task-types.index')">
                                 Task Types
+                            </ResponsiveNavLink>
+
+                            <ResponsiveNavLink v-if="canDo('manage_email_templates')" :href="route('email-templates.index')" :active="route().current('email-templates.index')">
+                                Email Templates
+                            </ResponsiveNavLink>
+
+                            <ResponsiveNavLink v-if="canDo('manage_placeholder_definitions')" :href="route('placeholder-definitions.index')" :active="route().current('placeholder-definitions.index')">
+                                Placeholder Definitions
                             </ResponsiveNavLink>
                         </div>
                     </div>

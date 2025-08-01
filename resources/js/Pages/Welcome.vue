@@ -1,5 +1,10 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import Modal from '@/Components/Modal.vue';
+import InputLabel from '@/Components/InputLabel.vue';
+import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
 
 defineProps({
     canLogin: {
@@ -15,6 +20,53 @@ defineProps({
         required: true,
     },
 });
+
+const showClientLoginModal = ref(false);
+const clientEmail = ref('');
+const sendingMagicLink = ref(false);
+const magicLinkSuccess = ref('');
+const magicLinkError = ref('');
+
+const sendMagicLink = async () => {
+    if (!clientEmail.value) {
+        magicLinkError.value = 'Please enter your email address';
+        return;
+    }
+
+    sendingMagicLink.value = true;
+    magicLinkSuccess.value = '';
+    magicLinkError.value = '';
+
+    try {
+        const response = await window.axios.post(
+            '/api/client-magic-link',
+            { email: clientEmail.value }
+        );
+
+        if (response.data.success) {
+            magicLinkSuccess.value = response.data.message;
+            clientEmail.value = ''; // Reset after successful send
+        } else {
+            magicLinkError.value = response.data.message || 'Failed to send magic link';
+        }
+    } catch (error) {
+        console.error('Error sending magic link:', error);
+        if (error.response?.status === 404) {
+            magicLinkError.value = 'No projects found associated with this email address.';
+        } else {
+            magicLinkError.value = error.response?.data?.message || 'An error occurred while sending the magic link';
+        }
+    } finally {
+        sendingMagicLink.value = false;
+    }
+};
+
+const closeModal = () => {
+    clientEmail.value = '';
+    magicLinkSuccess.value = '';
+    magicLinkError.value = '';
+    showClientLoginModal.value = false;
+};
 </script>
 
 <template>
@@ -38,12 +90,20 @@ defineProps({
                     </Link>
 
                     <template v-else>
-                        <Link
-                            :href="route('login')"
-                            class="px-4 py-2 text-sm font-medium text-indigo-600 bg-white border border-indigo-600 rounded-md hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                        >
-                            Log in
-                        </Link>
+                        <div class="flex space-x-4">
+                            <Link
+                                :href="route('login')"
+                                class="px-4 py-2 text-sm font-medium text-indigo-600 bg-white border border-indigo-600 rounded-md hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            >
+                                Team Log in
+                            </Link>
+                            <button
+                                @click="showClientLoginModal = true"
+                                class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            >
+                                Client Login
+                            </button>
+                        </div>
                     </template>
                 </nav>
             </div>
@@ -249,5 +309,56 @@ defineProps({
                 </div>
             </div>
         </footer>
+
+        <!-- Client Login Modal -->
+        <Modal :show="showClientLoginModal" @close="closeModal">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Client Login</h3>
+                    <button @click="closeModal" class="text-gray-400 hover:text-gray-500">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Success Message -->
+                <div v-if="magicLinkSuccess" class="mb-4 p-3 bg-green-100 text-green-800 rounded-md">
+                    {{ magicLinkSuccess }}
+                </div>
+
+                <!-- Error Message -->
+                <div v-if="magicLinkError" class="mb-4 p-3 bg-red-100 text-red-800 rounded-md">
+                    {{ magicLinkError }}
+                </div>
+
+                <div class="mb-4">
+                    <InputLabel for="client-email" value="Email Address" />
+                    <input
+                        id="client-email"
+                        type="email"
+                        v-model="clientEmail"
+                        class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full"
+                        placeholder="Enter your email address"
+                    />
+                    <p class="mt-2 text-sm text-gray-500">
+                        Enter your email address to receive a magic link for project access.
+                    </p>
+                </div>
+
+                <div class="mt-6 flex justify-end space-x-3">
+                    <SecondaryButton @click="closeModal" type="button">
+                        Cancel
+                    </SecondaryButton>
+                    <PrimaryButton
+                        @click="sendMagicLink"
+                        :disabled="sendingMagicLink || !clientEmail"
+                        class="bg-indigo-600 hover:bg-indigo-700"
+                    >
+                        {{ sendingMagicLink ? 'Sending...' : 'Send Magic Link' }}
+                    </PrimaryButton>
+                </div>
+            </div>
+        </Modal>
     </div>
 </template>
