@@ -87,8 +87,10 @@ createInertiaApp({
                         success(notification.message);
                     });
 
-                // Set the notification container in your utility functions if needed
-                setNotificationContainer(notificationMountPoint);
+                // Set the notification container in your utility functions
+                // Get the mounted component instance instead of the DOM element
+                const notificationInstance = notificationAppInstance._instance.component.exposed;
+                setNotificationContainer(notificationInstance);
             } else {
                 console.error('Laravel Echo is not initialized. Check your bootstrap.js file.');
             }

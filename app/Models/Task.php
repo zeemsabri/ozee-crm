@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\Taggable;
+use App\Notifications\TaskAssigned;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Services\GoogleChatService;
@@ -128,6 +129,26 @@ class Task extends Model
                 }
 
                 $task->save();
+
+                // Send notification to assigned user if task is assigned
+                if ($task->assigned_to_user_id) {
+                    $task->load('assignedTo');
+                    if ($task->assignedTo) {
+                        try {
+                            $task->assignedTo->notify(new TaskAssigned($task));
+                            Log::info('Task assignment notification sent to user', [
+                                'task_id' => $task->id,
+                                'user_id' => $task->assigned_to_user_id
+                            ]);
+                        } catch (\Exception $notifyException) {
+                            Log::error('Failed to send task assignment notification: ' . $notifyException->getMessage(), [
+                                'task_id' => $task->id,
+                                'user_id' => $task->assigned_to_user_id,
+                                'exception' => $notifyException
+                            ]);
+                        }
+                    }
+                }
 
             } catch (\Exception $e) {
                 Log::error('Failed to send task message to Google Chat: ' . $e->getMessage(), [
