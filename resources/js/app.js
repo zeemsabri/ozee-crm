@@ -71,6 +71,27 @@ createInertiaApp({
             fetchGlobalPermissions().catch(error => {
                 console.error('Failed to fetch global permissions:', error);
             });
+
+            // Reverb Integration for Push Notifications
+            // Ensure `window.Echo` is available from './bootstrap.js'
+            const userId = props.initialPage.props.auth.user.id;
+
+            if (window.Echo) {
+                console.log(`Subscribing to private user channel: App.Models.User.${userId}`);
+
+                // Listen for private notifications on the user's channel
+                window.Echo.private(`App.Models.User.${userId}`)
+                    .notification((notification) => {
+                        console.log('Received notification:', notification);
+                        // Use your existing notification utility to display the notification
+                        success(notification.message);
+                    });
+
+                // Set the notification container in your utility functions if needed
+                setNotificationContainer(notificationMountPoint);
+            } else {
+                console.error('Laravel Echo is not initialized. Check your bootstrap.js file.');
+            }
         }
 
         return mountedApp;
