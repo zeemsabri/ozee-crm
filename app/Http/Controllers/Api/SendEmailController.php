@@ -7,8 +7,10 @@ use App\Mail\GenericTemplateMail;
 use App\Models\EmailTemplate;
 use App\Models\PlaceholderDefinition;
 use App\Models\Client;
+use App\Models\Task;
 use App\Models\User;
 use App\Models\Project;
+use App\Notifications\TaskAssigned;
 use App\Services\MagicLinkService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -38,6 +40,7 @@ class SendEmailController extends Controller
      */
     private function populateAllPlaceholders(string $content, EmailTemplate $template, array $dynamicData, $recipient, Project $project, bool $isFinalSend): string
     {
+
         $replacements = [];
         $placeholders = $template->placeholders->keyBy('name');
 

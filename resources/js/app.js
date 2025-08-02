@@ -7,8 +7,9 @@ import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 import { createPinia } from 'pinia';
 import { registerPermissionDirective, fetchGlobalPermissions, usePermissionStore } from './Directives/permissions';
-import NotificationContainer from '@/Components/NotificationContainer.vue'; // Correctly imported
-import { setNotificationContainer, success, error } from '@/Utils/notification'; // Import notification utilities
+// Correctly imported with the new name
+import PushNotificationContainer from '@/Components/PushNotificationContainer.vue';
+import { setStandardNotificationContainer, pushSuccess } from '@/Utils/notification'; // Import the correct utilities
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -31,7 +32,7 @@ createInertiaApp({
         app.use(ZiggyVue);
 
         // Register the permission directive
-        registerPermissionDirective(app);
+        app.directive('permission', registerPermissionDirective(app));
 
         // Register the v-click-outside directive
         app.directive('click-outside', {
@@ -54,23 +55,38 @@ createInertiaApp({
         const mountedApp = app.mount(el);
         console.log('Main Inertia app mounted.');
 
-        // Create a separate Vue app instance for the NotificationContainer
-        // and mount it directly to the body. This ensures it's outside
-        // the main Inertia app's DOM hierarchy and can have a higher z-index.
+        // Create a separate Vue app instance for the PushNotificationContainer
+        // and mount it directly to the body.
         const notificationAppInstance = createApp({
-            render: () => h(NotificationContainer)
+            render: () => h(PushNotificationContainer)
         });
         const notificationMountPoint = document.createElement('div');
-        notificationMountPoint.id = 'notification-mount-point';
+        notificationMountPoint.id = 'push-notification-mount-point';
         document.body.appendChild(notificationMountPoint);
         notificationAppInstance.mount(notificationMountPoint);
 
         // Fetch global permissions immediately after app initialization
-        // This ensures permissions are loaded as soon as the user logs in
         if (props.initialPage.props.auth && props.initialPage.props.auth.user) {
             fetchGlobalPermissions().catch(error => {
                 console.error('Failed to fetch global permissions:', error);
             });
+
+            // Reverb Integration for Push Notifications
+            // Ensure `window.Echo` is available from './bootstrap.js'
+            const userId = props.initialPage.props.auth.user.id;
+
+            if (window.Echo) {
+                console.log(`Subscribing to private user channel: App.Models.User.${userId}`);
+
+                // Listen for private notifications on the user's channel
+                window.Echo.private(`App.Models.User.${userId}`)
+                    .notification((notification) => {
+                        console.log('Received notification:', notification);
+                        pushSuccess(notification);
+                    });
+            } else {
+                console.error('Laravel Echo is not initialized. Check your bootstrap.js file.');
+            }
         }
 
         return mountedApp;
