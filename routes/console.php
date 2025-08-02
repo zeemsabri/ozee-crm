@@ -11,4 +11,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command(\App\Console\Commands\FetchEmails::class)->everyFiveMinutes();
 
-Schedule::job(new \App\Jobs\FetchCurrencyRatesJob)->everyMinute();
+Schedule::job(new \App\Jobs\FetchCurrencyRatesJob)->everyDay();
