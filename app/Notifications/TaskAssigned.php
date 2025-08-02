@@ -5,10 +5,12 @@ namespace App\Notifications;
 use App\Models\Task;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 
-class TaskAssigned extends Notification implements ShouldQueue
+class TaskAssigned extends Notification implements ShouldQueue, ShouldBroadcast
 {
     use Queueable;
 
@@ -33,7 +35,8 @@ class TaskAssigned extends Notification implements ShouldQueue
      */
     public function via($notifiable)
     {
-        return ['mail', 'database'];
+        // Add 'broadcast' to the array of channels
+        return ['mail', 'database', 'broadcast'];
     }
 
     /**
@@ -62,6 +65,31 @@ class TaskAssigned extends Notification implements ShouldQueue
             })
             ->action('View Task', $url)
             ->line('Thank you for using our application!');
+    }
+
+    /**
+     * Get the broadcastable representation of the notification.
+     *
+     * @param  mixed  $notifiable
+     * @return BroadcastMessage
+     */
+    public function toBroadcast($notifiable)
+    {
+        $project = $this->task->milestone?->project ?? null;
+        $projectName = $project?->name ?? null;
+        return new BroadcastMessage([
+            'title' => $this->task->name ,
+            'project_name'  =>  $projectName,
+            'message' => 'You have been assigned a new task: ' . $this->task->name,
+            'project_id'    =>  $this->task->milestong?->project_id,
+            'description'   =>  $this->task->description,
+            'task_type' =>  $this->task->type,
+            'priority'  =>  'low',
+            'task_id' => $this->task->id,
+            'task_name' => $this->task->name,
+            'due_date' => $this->task->due_date ? $this->task->due_date->format('Y-m-d') : null,
+            'url' => url('/project/' . $project?->id . '/task/' . $this->task->id)
+        ]);
     }
 
     /**

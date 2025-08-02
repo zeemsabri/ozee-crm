@@ -9,10 +9,13 @@ import NotificationContainer from '@/Components/NotificationContainer.vue';
 import AvailabilityBlocker from '@/Components/Availability/AvailabilityBlocker.vue';
 import { Link, usePage, router } from '@inertiajs/vue3'; // Ensure 'router' is imported
 import { usePermissions, useGlobalPermissions } from '@/Directives/permissions';
-import { setNotificationContainer } from '@/Utils/notification';
+import { setStandardNotificationContainer } from '@/Utils/notification';
 import CreateTaskModal from "@/Components/ProjectTasks/CreateTaskModal.vue";
 import PrimaryButton from "@/Components/PrimaryButton.vue"; // Ensure PrimaryButton is imported
 import CreateResourceForm from "@/Components/ShareableResource/CreateForm.vue";
+import RightSidebar from '@/Components/RightSidebar.vue';
+import TaskDetailSidebar from '@/Components/ProjectTasks/TaskDetailSidebar.vue';
+import { sidebarState, closeTaskDetailSidebar } from '@/Utils/sidebar';
 
 // New: Import LeftSidebar
 import LeftSidebar from '@/Components/LeftSidebar.vue';
@@ -43,6 +46,22 @@ const addResource = ref(false);
 const allProjectsForSidebar = ref([]);
 const loadingAllProjects = ref(true);
 const activeProjectId = computed(() => usePage().props.id || null); // Assuming project ID is available in page props for active state
+
+// Handler for when a task is updated from the sidebar
+const handleTaskDetailUpdated = () => {
+    // This could be used to re-fetch data on the active page if needed
+    console.log('Task updated from sidebar. Refreshing project data if necessary.');
+    // You may need to add router.reload() here if you want to refresh the entire page.
+};
+
+// Handler for when a task is deleted from the sidebar
+const handleTaskDeleted = () => {
+    // This could be used to refresh the active page after a deletion
+    console.log('Task deleted from sidebar. Refreshing project data if necessary.');
+    closeTaskDetailSidebar();
+    // You may need to add router.reload() here if you want to refresh the entire page.
+};
+
 
 const setAxiosAuthHeader = async () => {
     const token = localStorage.getItem('authToken');
@@ -120,7 +139,7 @@ onMounted(() => {
 
     // Set the notification container reference
     if (notificationContainerRef.value) {
-        setNotificationContainer(notificationContainerRef.value);
+        setStandardNotificationContainer(notificationContainerRef.value);
     }
 
     fetchAllProjects();
@@ -429,5 +448,25 @@ onMounted(() => {
                 :show="addResource"
                 @close="addResource = false" />
         </div>
+
+        <!-- Global Right Sidebar (always present in the layout) -->
+        <RightSidebar
+            :show="sidebarState.show"
+            @update:show="closeTaskDetailSidebar"
+            :title="sidebarState.taskId ? 'Task Details' : 'Details'"
+            :initialWidth="50"
+        >
+            <template #content>
+                <TaskDetailSidebar
+                    v-if="sidebarState.taskId"
+                    :task-id="sidebarState.taskId"
+                    :project-id="sidebarState.projectId"
+                    :project-users="[]"
+                    @close="closeTaskDetailSidebar"
+                    @task-updated="handleTaskDetailUpdated"
+                    @task-deleted="handleTaskDeleted"
+                />
+            </template>
+        </RightSidebar>
     </div>
 </template>
