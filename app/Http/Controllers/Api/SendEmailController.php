@@ -41,8 +41,6 @@ class SendEmailController extends Controller
     private function populateAllPlaceholders(string $content, EmailTemplate $template, array $dynamicData, $recipient, Project $project, bool $isFinalSend): string
     {
 
-        $task = Task::first();
-        $task->assignedTo->notify(new TaskAssigned($task));
         $replacements = [];
         $placeholders = $template->placeholders->keyBy('name');
 
