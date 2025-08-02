@@ -31,7 +31,9 @@ class PlaceholderDefinitionController extends Controller
             'source_model' => 'nullable|string|max:255',
             'source_attribute' => 'nullable|string|max:255',
             'is_dynamic' => 'boolean',
-            'is_repeatable' =>  'boolean'
+            'is_repeatable' =>  'boolean',
+            'is_link'   =>  'boolean',
+            'is_selectable' =>  'boolean'
         ]);
 
         $placeholder = PlaceholderDefinition::create($request->all());
@@ -58,6 +60,9 @@ class PlaceholderDefinitionController extends Controller
             'source_model' => 'nullable|string|max:255',
             'source_attribute' => 'nullable|string|max:255',
             'is_dynamic' => 'boolean',
+            'is_repeatable' =>  'boolean',
+            'is_link'   =>  'boolean',
+            'is_selectable' =>  'boolean'
         ]);
 
         $placeholderDefinition->update($request->all());

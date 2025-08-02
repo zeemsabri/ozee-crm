@@ -11,13 +11,12 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import Checkbox from '@/Components/Checkbox.vue';
-import SelectDropdown from '@/Components/SelectDropdown.vue'; // Assuming you have this component
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 import { usePermissions } from '@/Directives/permissions';
-import { success, error } from '@/Utils/notification'; // Assuming you have these utilities
+import { success, error } from '@/Utils/notification';
 
 const { canDo } = usePermissions();
 
-// Replace props with a ref for definitions
 const definitions = ref([]);
 const loading = ref(true);
 
@@ -29,7 +28,6 @@ const selectedDefinition = ref(null);
 const modelsAndColumns = ref([]);
 const loadingModels = ref(false);
 
-// Replace Inertia form with a reactive object
 const form = reactive({
     name: '',
     description: '',
@@ -37,10 +35,10 @@ const form = reactive({
     source_attribute: null,
     is_dynamic: false,
     is_repeatable: false,
+    is_link: false,
+    is_selectable: false,
     errors: {},
     processing: false,
-
-    // Add a reset method
     reset() {
         this.name = '';
         this.description = '';
@@ -48,10 +46,10 @@ const form = reactive({
         this.source_attribute = null;
         this.is_dynamic = false;
         this.is_repeatable = false;
+        this.is_link = false;
+        this.is_selectable = false;
         this.errors = {};
     },
-
-    // Add a method to set errors
     setError(errors) {
         this.errors = errors;
     }
@@ -99,8 +97,10 @@ const openEditModal = (definition) => {
     form.description = definition.description;
     form.source_model = definition.source_model;
     form.source_attribute = definition.source_attribute;
-    form.is_dynamic = definition.is_dynamic;
-    form.is_repeatable = definition.is_repeatable;
+    form.is_dynamic = Boolean(definition.is_dynamic);
+    form.is_repeatable = Boolean(definition.is_repeatable);
+    form.is_link = Boolean(definition.is_link);
+    form.is_selectable = Boolean(definition.is_selectable);
     showEditModal.value = true;
 };
 
@@ -116,9 +116,6 @@ const closeModals = () => {
     form.reset();
     selectedDefinition.value = null;
 };
-
-// These functions are no longer needed as BaseFormModal handles the API calls
-// We've removed saveDefinition, updateDefinition, and deleteDefinition functions
 
 const fetchDefinitions = async () => {
     loading.value = true;
@@ -192,6 +189,15 @@ watch(() => form.source_model, (newValue) => {
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Dynamic
                                 </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Repeatable
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Link
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Selectable
+                                </th>
                                 <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Actions
                                 </th>
@@ -213,6 +219,30 @@ watch(() => form.source_model, (newValue) => {
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         <span v-if="definition.is_dynamic" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                            Yes
+                                        </span>
+                                    <span v-else class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                            No
+                                        </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span v-if="definition.is_repeatable" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                        Yes
+                                    </span>
+                                    <span v-else class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                        No
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <span v-if="definition.is_link" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                            Yes
+                                        </span>
+                                    <span v-else class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                            No
+                                        </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <span v-if="definition.is_selectable" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                                             Yes
                                         </span>
                                     <span v-else class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
@@ -297,12 +327,32 @@ watch(() => form.source_model, (newValue) => {
                         />
                         <InputError class="mt-2" :message="errors.source_attribute ? errors.source_attribute[0] : ''" />
                     </div>
-                    <div>
-                        <label class="flex items-center">
-                            <Checkbox name="create-is_dynamic" v-model:checked="form.is_dynamic" />
-                            <span class="ml-2 text-sm text-gray-600">Is a dynamic variable (e.g., magic link, due date)?</span>
-                        </label>
-                        <InputError class="mt-2" :message="errors.is_dynamic ? errors.is_dynamic[0] : ''" />
+                    <div class="flex flex-col space-y-2">
+                        <p class="text-sm font-medium text-gray-700">Placeholder Type:</p>
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <label class="flex items-center">
+                                <Checkbox name="create-is_dynamic" v-model:checked="form.is_dynamic" />
+                                <span class="ml-2 text-sm text-gray-600">Is a dynamic input field</span>
+                            </label>
+                            <label class="flex items-center">
+                                <Checkbox name="create-is_repeatable" v-model:checked="form.is_repeatable" />
+                                <span class="ml-2 text-sm text-gray-600">Is a repeatable list</span>
+                            </label>
+                            <label class="flex items-center">
+                                <Checkbox name="create-is_link" v-model:checked="form.is_link" />
+                                <span class="ml-2 text-sm text-gray-600">Is a link</span>
+                            </label>
+                            <label class="flex items-center">
+                                <Checkbox name="edit-is_selectable" v-model:checked="form.is_selectable" />
+                                <span class="ml-2 text-sm text-gray-600">Is a dropdown field</span>
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">
+                            <strong>Dynamic:</strong> User will be able to manually add content for this placeholder. <br>
+                            <strong>Repeatable:</strong> User will be able to select multiple items for this placeholder (e.g., a list of blogs). <br>
+                            <strong>Link:</strong> The system will convert to a link or generate link for magic link.
+                            <strong>Link:</strong> User will be able to select a single item from a dropdown list.
+                        </p>
                     </div>
                 </div>
             </template>
@@ -364,16 +414,32 @@ watch(() => form.source_model, (newValue) => {
                         />
                         <InputError class="mt-2" :message="errors.source_attribute ? errors.source_attribute[0] : ''" />
                     </div>
-                    <div>
-                        <label class="flex items-center">
-                            <Checkbox name="edit-is_dynamic" v-model:checked="form.is_dynamic" />
-                            <span class="ml-2 text-sm text-gray-600">Is a dynamic variable (e.g., magic link, due date)?</span>
-                        </label>
-                        <label class="flex items-center">
-                            <Checkbox name="edit-is_repeatable" v-model:checked="form.is_repeatable" />
-                            <span class="ml-2 text-sm text-gray-600">Is a repeatable fields?</span>
-                        </label>
-                        <InputError class="mt-2" :message="errors.is_repeatable ? errors.is_dynamic[0] : ''" />
+                    <div class="flex flex-col space-y-2">
+                        <p class="text-sm font-medium text-gray-700">Placeholder Type:</p>
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <label class="flex items-center">
+                                <Checkbox name="edit-is_dynamic" v-model:checked="form.is_dynamic" />
+                                <span class="ml-2 text-sm text-gray-600">Is a dynamic input field</span>
+                            </label>
+                            <label class="flex items-center">
+                                <Checkbox name="edit-is_repeatable" v-model:checked="form.is_repeatable" />
+                                <span class="ml-2 text-sm text-gray-600">Is a repeatable list</span>
+                            </label>
+                            <label class="flex items-center">
+                                <Checkbox name="edit-is_link" v-model:checked="form.is_link" />
+                                <span class="ml-2 text-sm text-gray-600">Is a link</span>
+                            </label>
+                            <label class="flex items-center">
+                                <Checkbox name="edit-is_selectable" v-model:checked="form.is_selectable" />
+                                <span class="ml-2 text-sm text-gray-600">Is a dropdown field</span>
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">
+                            <strong>Dynamic:</strong> User will be able to manually add content for this placeholder. <br>
+                            <strong>Repeatable:</strong> User will be able to select multiple items for this placeholder (e.g., a list of blogs). <br>
+                            <strong>Link:</strong> The system will convert to a link or generate link for magic link.
+                            <strong>Link:</strong> User will be able to select a single item from a dropdown list.
+                        </p>
                     </div>
                 </div>
             </template>

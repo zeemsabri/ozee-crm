@@ -466,4 +466,15 @@ class User extends Authenticatable
             'transactions' => $transactions,
         ];
     }
+
+    public function getProjectRoleName($project)
+    {
+        $roleId = $this->getRoleForProject($project->id);
+        if(!$roleId) {
+            return 'Staff';
+        }
+
+        return Role::find($roleId)->name ?? 'Staff';
+
+    }
 }

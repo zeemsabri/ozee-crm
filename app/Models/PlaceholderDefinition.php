@@ -18,7 +18,9 @@ class PlaceholderDefinition extends Model
         'source_model',
         'source_attribute',
         'is_dynamic',
-        'is_repeatable'
+        'is_repeatable',
+        'is_link',
+        'is_selectable'
     ];
 
     /**

@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\AvailabilityController;
 use App\Http\Controllers\Api\BonusConfigurationController;
 use App\Http\Controllers\Api\ResourceController;
 use App\Http\Controllers\Api\MagicLinkController;
+use App\Http\Controllers\Api\ModelDataController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -265,7 +266,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // New route for sending emails from a template
     Route::post('send-email', [SendEmailController::class, 'sendEmail']);
-    Route::post('email-preview', [SendEmailController::class, 'preview']);
+    Route::post('projects/{project}/email-preview', [SendEmailController::class, 'preview']);
+    Route::get('projects/{project}/model-data/{shortModelName}', [\App\Http\Controllers\Api\ModelDataController::class, 'index']);
 
 
 });

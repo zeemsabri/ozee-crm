@@ -19,6 +19,8 @@ return new class extends Migration
             $table->string('source_attribute', 255)->nullable()->comment('E.g., name');
             $table->boolean('is_dynamic')->default(false)->comment('For placeholders generated at runtime (e.g., magic_link)');
             $table->boolean('is_repeatable')->default(false)->comment('Denotes a placeholder that represents a list of items'); // <-- New Column
+            $table->boolean('is_link')->default(false)->comment('To generate link');
+            $table->boolean('is_selectable')->default(false)->comment('To allow user to select from list');
             $table->timestamps();
         });
 
