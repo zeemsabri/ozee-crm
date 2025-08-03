@@ -35,75 +35,75 @@ class GmailService
      */
     protected function loadAndSetAccessToken()
     {
-        if (!Storage::disk('local')->exists('google_tokens.json')) {
-            throw new Exception('Google tokens not found. Please run the OAuth authorization flow first via /google/redirect.');
-        }
-
-        $tokens = json_decode(Storage::disk('local')->get('google_tokens.json'), true);
-
-        if (empty($tokens['access_token'])) {
-            throw new Exception('Access token not found in google_tokens.json. Re-authorize.');
-        }
-
-        // Set the current access token
-        $this->client->setAccessToken($tokens['access_token']);
-
-        // Check if the access token is expired
-        // Note: Google's isAccessTokenExpired() checks against the 'exp' claim in the JWT.
-        // It's good practice to allow a small buffer for network latency, etc.
-        if ($this->client->isAccessTokenExpired()) {
-            Log::info('Google access token expired, attempting to refresh.');
-            if (empty($tokens['refresh_token'])) {
-                throw new Exception('Refresh token not found. User needs to re-authorize.');
-            }
-
-            try {
-                // Use the refresh token to get a new access token
-                $this->client->fetchAccessTokenWithRefreshToken($tokens['refresh_token']);
-                $newTokens = $this->client->getAccessToken();
-
-                // Update stored tokens with the new access token and its expiry
-                $tokens['access_token'] = $newTokens['access_token'];
-                $tokens['expires_in'] = $newTokens['expires_in'];
-                $tokens['created_at'] = now()->timestamp; // Update creation time
-
-                // If Google ever issues a new refresh token (rare, but good to check)
-                if (isset($newTokens['refresh_token'])) {
-                    $tokens['refresh_token'] = $newTokens['refresh_token'];
-                    Log::info('Google refresh token updated.');
-                }
-
-                Storage::disk('local')->put('google_tokens.json', json_encode($tokens, JSON_PRETTY_PRINT));
-                Log::info('Google access token refreshed successfully.');
-
-            } catch (Exception $e) {
-                // Log and throw if refresh fails (e.g., refresh token revoked or invalid)
-                Log::error('Failed to refresh Google access token: ' . $e->getMessage(), ['exception' => $e]);
-                return false;
-                throw new Exception('Failed to refresh Google access token. Please re-authorize.');
-            }
-        }
-
-        // Get the email of the authorized user. 'id_token' might not always be present or valid
-        // when only an access token is available (e.g., after refresh without new id_token).
-        // A more robust way to get the user's email after initial auth is to save it from the first callback.
-        // For this MVP, we saved it directly in the tokens array.
-        $this->userEmail = $tokens['email'] ?? '';
-        if (empty($this->userEmail)) {
-            // Fallback: If email wasn't explicitly saved, try from the ID token if available.
-            // This can fail if no id_token is present after a refresh.
-            try {
-                $payload = $this->client->verifyIdToken($this->client->getAccessToken()['id_token'] ?? null);
-                if ($payload && isset($payload['email'])) {
-                    $this->userEmail = $payload['email'];
-                }
-            } catch (\Exception $e) {
-                Log::warning('Could not get user email from id_token after refresh. Ensure it was saved during initial auth.', ['error' => $e->getMessage()]);
-            }
-            if(empty($this->userEmail)){
-                throw new Exception("Could not determine authorized user's email. Re-authorize or check token storage.");
-            }
-        }
+//        if (!Storage::disk('local')->exists('google_tokens.json')) {
+//            throw new Exception('Google tokens not found. Please run the OAuth authorization flow first via /google/redirect.');
+//        }
+//
+//        $tokens = json_decode(Storage::disk('local')->get('google_tokens.json'), true);
+//
+//        if (empty($tokens['access_token'])) {
+//            throw new Exception('Access token not found in google_tokens.json. Re-authorize.');
+//        }
+//
+//        // Set the current access token
+//        $this->client->setAccessToken($tokens['access_token']);
+//
+//        // Check if the access token is expired
+//        // Note: Google's isAccessTokenExpired() checks against the 'exp' claim in the JWT.
+//        // It's good practice to allow a small buffer for network latency, etc.
+//        if ($this->client->isAccessTokenExpired()) {
+//            Log::info('Google access token expired, attempting to refresh.');
+//            if (empty($tokens['refresh_token'])) {
+//                throw new Exception('Refresh token not found. User needs to re-authorize.');
+//            }
+//
+//            try {
+//                // Use the refresh token to get a new access token
+//                $this->client->fetchAccessTokenWithRefreshToken($tokens['refresh_token']);
+//                $newTokens = $this->client->getAccessToken();
+//
+//                // Update stored tokens with the new access token and its expiry
+//                $tokens['access_token'] = $newTokens['access_token'];
+//                $tokens['expires_in'] = $newTokens['expires_in'];
+//                $tokens['created_at'] = now()->timestamp; // Update creation time
+//
+//                // If Google ever issues a new refresh token (rare, but good to check)
+//                if (isset($newTokens['refresh_token'])) {
+//                    $tokens['refresh_token'] = $newTokens['refresh_token'];
+//                    Log::info('Google refresh token updated.');
+//                }
+//
+//                Storage::disk('local')->put('google_tokens.json', json_encode($tokens, JSON_PRETTY_PRINT));
+//                Log::info('Google access token refreshed successfully.');
+//
+//            } catch (Exception $e) {
+//                // Log and throw if refresh fails (e.g., refresh token revoked or invalid)
+//                Log::error('Failed to refresh Google access token: ' . $e->getMessage(), ['exception' => $e]);
+//                return false;
+//                throw new Exception('Failed to refresh Google access token. Please re-authorize.');
+//            }
+//        }
+//
+//        // Get the email of the authorized user. 'id_token' might not always be present or valid
+//        // when only an access token is available (e.g., after refresh without new id_token).
+//        // A more robust way to get the user's email after initial auth is to save it from the first callback.
+//        // For this MVP, we saved it directly in the tokens array.
+//        $this->userEmail = $tokens['email'] ?? '';
+//        if (empty($this->userEmail)) {
+//            // Fallback: If email wasn't explicitly saved, try from the ID token if available.
+//            // This can fail if no id_token is present after a refresh.
+//            try {
+//                $payload = $this->client->verifyIdToken($this->client->getAccessToken()['id_token'] ?? null);
+//                if ($payload && isset($payload['email'])) {
+//                    $this->userEmail = $payload['email'];
+//                }
+//            } catch (\Exception $e) {
+//                Log::warning('Could not get user email from id_token after refresh. Ensure it was saved during initial auth.', ['error' => $e->getMessage()]);
+//            }
+//            if(empty($this->userEmail)){
+//                throw new Exception("Could not determine authorized user's email. Re-authorize or check token storage.");
+//            }
+//        }
     }
 
     /**
