@@ -17,7 +17,7 @@
                             </Link>
                         </div>
 
-                        <div v-if="roles.length === 0" class="text-center py-4">
+                        <div v-if="!roles || roles.length === 0" class="text-center py-4">
                             <p>No roles found. Create your first role to get started.</p>
                         </div>
 
@@ -55,7 +55,7 @@
                                         </td>
                                         <td class="px-6 py-4">
                                             <div class="text-sm text-gray-500">
-                                                <span v-if="role.permissions.length === 0">No permissions</span>
+                                                <span v-if="!role.permissions || role.permissions.length === 0">No permissions</span>
                                                 <div v-else class="flex flex-wrap gap-1">
                                                     <span
                                                         v-for="permission in role.permissions.slice(0, 3)"
@@ -65,7 +65,7 @@
                                                         {{ permission.name }}
                                                     </span>
                                                     <span
-                                                        v-if="role.permissions.length > 3"
+                                                        v-if="role.permissions && role.permissions.length > 3"
                                                         class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
                                                     >
                                                         +{{ role.permissions.length - 3 }} more

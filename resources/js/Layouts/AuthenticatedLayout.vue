@@ -1,35 +1,37 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
-import NotificationContainer from '@/Components/NotificationContainer.vue';
+import PushNotificationContainer from '@/Components/PushNotificationContainer.vue';
 import AvailabilityBlocker from '@/Components/Availability/AvailabilityBlocker.vue';
-import { Link, usePage, router } from '@inertiajs/vue3'; // Ensure 'router' is imported
+import { Link, usePage, router } from '@inertiajs/vue3';
 import { usePermissions, useGlobalPermissions } from '@/Directives/permissions';
 import { setStandardNotificationContainer } from '@/Utils/notification';
 import CreateTaskModal from "@/Components/ProjectTasks/CreateTaskModal.vue";
-import PrimaryButton from "@/Components/PrimaryButton.vue"; // Ensure PrimaryButton is imported
+import PrimaryButton from "@/Components/PrimaryButton.vue";
 import CreateResourceForm from "@/Components/ShareableResource/CreateForm.vue";
 import RightSidebar from '@/Components/RightSidebar.vue';
 import TaskDetailSidebar from '@/Components/ProjectTasks/TaskDetailSidebar.vue';
 import { sidebarState, closeTaskDetailSidebar } from '@/Utils/sidebar';
-
-// New: Import LeftSidebar
+import NotificationsSidebar from '@/Components/NotificationsSidebar.vue';
+import {
+    openNotificationsSidebar,
+    notificationSidebarState,
+    fetchNotificationsFromDatabase,
+} from '@/Utils/notification-sidebar';
 import LeftSidebar from '@/Components/LeftSidebar.vue';
+import { Bell } from 'lucide-vue-next';
+import { markRaw } from 'vue';
 
 const showingNavigationDropdown = ref(false);
 
 const user = computed(() => usePage().props.auth.user);
-// Get role name from role_data (new system)
 const roleName = computed(() => user.value.role_data?.name || '');
 
-// Use the permissions system instead of hardcoded role checks
 const { canDo } = usePermissions();
-
-// Global permission checks for menu items
 const canAccessProjects = canDo('manage_projects');
 const canComposeEmails = canDo('compose_emails');
 const canApproveEmails = canDo('approve_emails');
@@ -38,45 +40,32 @@ const canManageRoles = canDo('manage_roles');
 const canManageTaskTypes = canDo('manage_task_types');
 const canAccessClients = canDo('create_clients');
 
-// Global modal state
 const openCreateTaskModel = ref(false);
 const addResource = ref(false);
 
-// New: State for the Left Sidebar
 const allProjectsForSidebar = ref([]);
 const loadingAllProjects = ref(true);
-const activeProjectId = computed(() => usePage().props.id || null); // Assuming project ID is available in page props for active state
+const activeProjectId = computed(() => usePage().props.id || null);
 
-// Handler for when a task is updated from the sidebar
 const handleTaskDetailUpdated = () => {
-    // This could be used to re-fetch data on the active page if needed
     console.log('Task updated from sidebar. Refreshing project data if necessary.');
-    // You may need to add router.reload() here if you want to refresh the entire page.
 };
 
-// Handler for when a task is deleted from the sidebar
 const handleTaskDeleted = () => {
-    // This could be used to refresh the active page after a deletion
     console.log('Task deleted from sidebar. Refreshing project data if necessary.');
     closeTaskDetailSidebar();
-    // You may need to add router.reload() here if you want to refresh the entire page.
 };
-
 
 const setAxiosAuthHeader = async () => {
     const token = localStorage.getItem('authToken');
     if (token) {
         window.axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
-        // Verify that the token is still valid by making a request to the user endpoint
         try {
             await window.axios.get('/api/user');
         } catch (error) {
-            // If we get a 401 Unauthorized error, the token is no longer valid
-            // This could happen if the session expired on the server
             if (error.response && error.response.status === 401) {
                 console.log('Session expired, redirecting to login');
-                // Clear localStorage and redirect to login
                 localStorage.removeItem('authToken');
                 localStorage.removeItem('userRole');
                 localStorage.removeItem('userId');
@@ -108,13 +97,10 @@ const handleLogoutError = (error) => {
     window.location.href = '/login';
 };
 
-// Fetch all projects for the left sidebar
 const fetchAllProjects = async () => {
     loadingAllProjects.value = true;
     try {
-        // *** Updated to use the /api/projects-simplified endpoint ***
         const response = await window.axios.get('/api/projects-simplified');
-        // Ensure your backend's /api/projects-simplified includes project_type and department
         allProjectsForSidebar.value = response.data;
     } catch (error) {
         console.error('Error fetching all projects for sidebar:', error);
@@ -124,35 +110,34 @@ const fetchAllProjects = async () => {
     }
 };
 
-// Handle project selection from LeftSidebar
 const handleProjectSelected = (projectId) => {
-    // This will navigate to the specific project's show page
     router.visit(route('projects.show', projectId));
 };
 
-// Reference to the notification container
 const notificationContainerRef = ref(null);
 
-// Initialize the notification utility and fetch all projects on mount
+const unreadNotificationCount = computed(() => {
+    return notificationSidebarState.value.notifications.filter(n => !n.isRead).length;
+});
+
 onMounted(() => {
     setAxiosAuthHeader();
-
-    // Set the notification container reference
     if (notificationContainerRef.value) {
         setStandardNotificationContainer(notificationContainerRef.value);
     }
-
     fetchAllProjects();
+    fetchNotificationsFromDatabase(); // Call the utility function
 });
 </script>
 
 <template>
     <div class="flex h-screen overflow-hidden">
-        <!-- Notification Container (placed at the root for proper positioning) -->
-        <NotificationContainer ref="notificationContainerRef" />
-        <!-- Availability Blocker (also at root) -->
+        <!-- Push Notification Container (visible only when the notifications sidebar is not open) -->
+        <PushNotificationContainer
+            ref="notificationContainerRef"
+            :sidebar-is-open="notificationSidebarState.show"
+        />
         <AvailabilityBlocker />
-        <!-- Left Sidebar -->
         <LeftSidebar
             :all-projects="allProjectsForSidebar"
             :active-project-id="activeProjectId"
@@ -160,7 +145,6 @@ onMounted(() => {
         />
 
         <div class="flex-1 flex flex-col overflow-hidden">
-            <!-- Top Navigation Bar -->
             <nav class="border-b border-gray-100 bg-white z-10 relative">
                 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <div class="flex h-16 justify-between">
@@ -176,7 +160,6 @@ onMounted(() => {
                                     Dashboard
                                 </NavLink>
 
-                                <!-- Admin dropdown for roles and permissions -->
                                 <div v-if="canManageRoles" class="hidden sm:flex sm:items-center">
                                     <Dropdown align="right" width="48">
                                         <template #trigger>
@@ -186,7 +169,7 @@ onMounted(() => {
                                                 >
                                                     Admin
                                                     <svg class="ms-2 -me-0.5 h-4 w-4"
-                                                         xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)"
+                                                         xmlns="http://www.w3.org/2000/svg"
                                                          viewBox="0 0 20 20"
                                                          fill="currentColor"
                                                     >
@@ -200,47 +183,36 @@ onMounted(() => {
                                         </template>
 
                                         <template #content>
-
                                             <DropdownLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')">
                                                 Projects
                                             </DropdownLink>
-
                                             <DropdownLink v-if="canApproveEmails" :href="route('emails.pending')" :active="route().current('emails.pending')">
                                                 Approve Emails
                                             </DropdownLink>
-
                                             <DropdownLink v-if="canComposeEmails" :href="route('emails.rejected')" :active="route().current('emails.rejected')">
                                                 Rejected Emails
                                             </DropdownLink>
-
                                             <DropdownLink v-if="canManageUsers" :href="route('availability.index')" :active="route().current('availability.index')">
                                                 Weekly Availability
                                             </DropdownLink>
-
                                             <DropdownLink v-if="canAccessClients" :href="route('clients.index')" :active="route().current('clients.index')">
                                                 Clients
                                             </DropdownLink>
-
                                             <DropdownLink v-if="canManageUsers" :href="route('users.index')" :active="route().current('users.index')">
                                                 Users
                                             </DropdownLink>
-
                                             <DropdownLink v-if="canManageTaskTypes" :href="route('task-types.index')" :active="route().current('task-types.index')">
                                                 Task Types
                                             </DropdownLink>
-
                                             <DropdownLink v-if="canDo('manage_bonus_configuration')" :href="route('bonus-configuration.index')" :active="route().current('bonus-configuration.index')">
                                                 Bonus Configuration
                                             </DropdownLink>
-
                                             <DropdownLink v-if="canDo('manage_email_templates')" :href="route('email-templates.index')" :active="route().current('email-templates.index')">
                                                 Email Templates
                                             </DropdownLink>
-
                                             <DropdownLink v-if="canDo('manage_placeholder_definitions')" :href="route('placeholder-definitions.index')" :active="route().current('placeholder-definitions.index')">
                                                 Placeholder Definitions
                                             </DropdownLink>
-
                                             <DropdownLink v-if="canDo('manage_roles')" :href="route('admin.roles.index')">
                                                 Manage Roles
                                             </DropdownLink>
@@ -253,9 +225,7 @@ onMounted(() => {
                             </div>
                         </div>
 
-                        <!-- Right-side actions: Add Task Button and User Profile Dropdown -->
                         <div class="hidden sm:ms-6 sm:flex sm:items-center">
-                            <!-- Add Task Button -->
                             <PrimaryButton
                                 type="button"
                                 @click="openCreateTaskModel = true"
@@ -272,6 +242,17 @@ onMounted(() => {
                                 Add Resource
                             </PrimaryButton>
 
+                            <button
+                                @click="openNotificationsSidebar"
+                                class="relative flex-shrink-0 text-gray-400 hover:text-gray-600 p-1 rounded-full transition-colors duration-200 mr-4"
+                                aria-label="View all notifications"
+                            >
+                                <Bell class="h-6 w-6" />
+                                <span v-if="unreadNotificationCount > 0" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
+                                    {{ unreadNotificationCount }}
+                                </span>
+                            </button>
+
                             <div class="relative ms-3">
                                 <Dropdown align="right" width="48">
                                     <template #trigger>
@@ -282,7 +263,7 @@ onMounted(() => {
                                                 {{ user.name }} ({{ user.role_data?.name }})
 
                                                 <svg class="ms-2 -me-0.5 h-4 w-4"
-                                                     xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)"
+                                                     xmlns="http://www.w3.org/2000/svg"
                                                      viewBox="0 0 20 20"
                                                      fill="currentColor"
                                                 >
@@ -338,10 +319,8 @@ onMounted(() => {
                     </div>
                 </div>
 
-                <!-- Mobile Navigation (Add Task button will be responsive here too) -->
                 <div :class="{ block: showingNavigationDropdown, hidden: !showingNavigationDropdown }" class="sm:hidden">
                     <div class="space-y-1 pb-3 pt-2">
-                        <!-- Admin section for mobile -->
                         <div v-if="canManageRoles" class="mt-3 space-y-1">
                             <div class="px-4 font-medium text-base text-gray-800">Admin</div>
                             <ResponsiveNavLink :href="route('dashboard')" :active="route().current('dashboard')">
@@ -412,13 +391,14 @@ onMounted(() => {
                         </div>
 
                         <div class="mt-3 space-y-1">
-                            <!-- Add Task button for mobile view -->
                             <ResponsiveNavLink as="button" @click="openCreateTaskModel = true">
                                 Add Task
                             </ResponsiveNavLink>
-                            <!-- Add Resource button for mobile view -->
                             <ResponsiveNavLink as="button" @click="addResource = true">
                                 Add Resource
+                            </ResponsiveNavLink>
+                            <ResponsiveNavLink as="button" @click="openNotificationsSidebar">
+                                Notifications ({{ unreadNotificationCount }})
                             </ResponsiveNavLink>
                             <ResponsiveNavLink :href="route('profile.edit')">
                                 Profile
@@ -431,7 +411,6 @@ onMounted(() => {
                 </div>
             </nav>
 
-            <!-- Main Content Area with Header Slot -->
             <header class="bg-white shadow" v-if="$slots.header">
                 <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
                     <slot name="header" />
@@ -449,7 +428,6 @@ onMounted(() => {
                 @close="addResource = false" />
         </div>
 
-        <!-- Global Right Sidebar (always present in the layout) -->
         <RightSidebar
             :show="sidebarState.show"
             @update:show="closeTaskDetailSidebar"
@@ -468,5 +446,8 @@ onMounted(() => {
                 />
             </template>
         </RightSidebar>
+
+        <NotificationsSidebar />
+
     </div>
 </template>

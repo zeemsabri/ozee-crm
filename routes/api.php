@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\BonusConfigurationController;
 use App\Http\Controllers\Api\ResourceController;
 use App\Http\Controllers\Api\MagicLinkController;
 use App\Http\Controllers\Api\ModelDataController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -55,6 +56,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    // Notifications Routes
+    // Other routes...
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/{viewId}/read', [NotificationController::class, 'markAsReadByViewId']);
+    Route::delete('/notifications/{notificationId}', [NotificationController::class, 'destroy']);
 
     // Tag Management Routes
     Route::get('/tags/search', [\App\Http\Controllers\TagController::class, 'search']);

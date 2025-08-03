@@ -74,33 +74,94 @@
                         <div class="mt-6">
                             <h3 class="text-lg font-medium text-gray-900 mb-4">Users with this Role</h3>
 
-                            <div v-if="role.users && role.users.length === 0" class="text-sm text-gray-500 p-4 bg-gray-50 rounded-lg">
-                                No users have been assigned this role.
+                            <!-- Application Users -->
+                            <div v-if="applicationUsers && applicationUsers.length > 0" class="mb-6">
+                                <h4 class="font-medium text-gray-700 mb-2">Application Users</h4>
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200">
+                                        <thead class="bg-gray-50">
+                                            <tr>
+                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Name
+                                                </th>
+                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Email
+                                                </th>
+                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Actions
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white divide-y divide-gray-200">
+                                            <tr v-for="user in applicationUsers" :key="user.id">
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="text-sm font-medium text-gray-900">{{ user.name }}</div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="text-sm text-gray-500">{{ user.email }}</div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <button
+                                                        @click="revokeRole(user.id, 'application')"
+                                                        class="text-red-600 hover:text-red-900"
+                                                    >
+                                                        Revoke
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
 
-                            <div v-else-if="role.users" class="overflow-x-auto">
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Name
-                                            </th>
-                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Email
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="bg-white divide-y divide-gray-200">
-                                        <tr v-for="user in role.users" :key="user.id">
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="text-sm font-medium text-gray-900">{{ user.name }}</div>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="text-sm text-gray-500">{{ user.email }}</div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                            <!-- Project Users -->
+                            <div v-if="projectUsers && projectUsers.length > 0" class="mb-6">
+                                <h4 class="font-medium text-gray-700 mb-2">Project Users</h4>
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200">
+                                        <thead class="bg-gray-50">
+                                            <tr>
+                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Name
+                                                </th>
+                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Email
+                                                </th>
+                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Project
+                                                </th>
+                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Actions
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white divide-y divide-gray-200">
+                                            <tr v-for="user in projectUsers" :key="`${user.id}-${user.project_id}`">
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="text-sm font-medium text-gray-900">{{ user.name }}</div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="text-sm text-gray-500">{{ user.email }}</div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="text-sm text-gray-500">{{ user.project_name }}</div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <button
+                                                        @click="revokeRole(user.id, 'project', user.project_id)"
+                                                        class="text-red-600 hover:text-red-900"
+                                                    >
+                                                        Revoke
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div v-if="(!applicationUsers || applicationUsers.length === 0) && (!projectUsers || projectUsers.length === 0)" class="text-sm text-gray-500 p-4 bg-gray-50 rounded-lg">
+                                No users have been assigned this role.
                             </div>
                         </div>
 
@@ -121,11 +182,13 @@
 
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     role: Object,
+    applicationUsers: Array,
+    projectUsers: Array,
 });
 
 // Group permissions by category
@@ -143,4 +206,34 @@ const groupedPermissions = computed(() => {
         return groups;
     }, {});
 });
+
+// Loading state for revoke actions
+const isRevoking = ref(false);
+
+// Function to revoke a role from a user
+const revokeRole = (userId, roleType, projectId = null) => {
+    if (isRevoking.value) return;
+
+    isRevoking.value = true;
+
+    const data = {
+        user_id: userId,
+        role_id: props.role.id,
+        role_type: roleType
+    };
+
+    if (projectId) {
+        data.project_id = projectId;
+    }
+
+    router.post(route('admin.roles.revoke-user'), data, {
+        preserveScroll: true,
+        onSuccess: () => {
+            isRevoking.value = false;
+        },
+        onError: () => {
+            isRevoking.value = false;
+        }
+    });
+};
 </script>

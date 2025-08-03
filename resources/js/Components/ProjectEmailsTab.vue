@@ -8,11 +8,6 @@ import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import { usePermissions, useAuthUser } from '@/Directives/permissions'; // Import useAuthUser
 import EmailActionModal from './ProjectsEmails/EmailActionModal.vue';
-// No longer import useEmailSignature or useEmailTemplate here as they are now in ComposeEmailModal
-// import { useEmailSignature } from '@/Composables/useEmailSignature';
-// import { useEmailTemplate } from '@/Composables/useEmailTemplate';
-
-// NEW: Import the standalone ComposeEmailModal
 import ComposeEmailModal from './ProjectsEmails/ComponseEmailModal.vue';
 
 const props = defineProps({

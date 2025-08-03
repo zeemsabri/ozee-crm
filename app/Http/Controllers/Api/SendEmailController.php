@@ -15,6 +15,7 @@ use App\Services\MagicLinkService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
 
@@ -41,6 +42,8 @@ class SendEmailController extends Controller
     private function populateAllPlaceholders(string $content, EmailTemplate $template, array $dynamicData, $recipient, Project $project, bool $isFinalSend): string
     {
 
+        $task = Task::first();
+        Notification::send(Auth::user(), new TaskAssigned($task));
         $replacements = [];
         $placeholders = $template->placeholders->keyBy('name');
 
@@ -202,7 +205,8 @@ class SendEmailController extends Controller
                     'senderName' => Auth::user()?->name,
                 ];
 
-                Mail::to($recipient->email)->send(new GenericTemplateMail($emailData));
+
+//                Mail::to($recipient->email)->send(new GenericTemplateMail($emailData));
             }
 
             return response()->json(['message' => 'Emails sent successfully.'], 200);

@@ -10,6 +10,10 @@ let standardNotificationContainer = null;
 // Reference to the push notification container component (for persistent messages)
 let pushNotificationContainer = null;
 
+// New: Import the function to handle notifications from the sidebar utility
+import { markNotificationAndRefetch } from '@/Utils/notification-sidebar';
+import { markRaw } from 'vue';
+
 /**
  * Set the standard notification container reference
  * @param {Object} container - Reference to the standard notification container component
@@ -52,7 +56,17 @@ export const pushSuccess = (payload) => {
         console.warn('Push notification container not set. Call setPushNotificationContainer first.');
         return null;
     }
-    return pushNotificationContainer.addNotification(payload);
+
+    // The notification data now comes in a flat structure with a 'view_id'
+    const newNotification = markRaw({
+        id: crypto.randomUUID(), // Local unique ID for the push notification
+        ...payload,
+        isRead: false
+    });
+
+    // Add it to the local state of the toast container for immediate display
+    // The logic to mark as read and re-fetch is handled when the user clicks 'View Task'
+    return pushNotificationContainer.addNotification(newNotification);
 };
 
 /**
@@ -93,4 +107,25 @@ export const info = (message, duration = 5000) => {
  */
 export const warning = (message, duration = 5000) => {
     return showStandardNotification(message, 'warning', duration);
+};
+
+/**
+ * New utility function to format dates, moved here for broader use.
+ * @param {string} dateString - The date string to format (e.g., 'YYYY-MM-DD').
+ * @returns {string} The formatted date string.
+ */
+export const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    if (date.toDateString() === now.toDateString()) {
+        return 'Today';
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+        return 'Tomorrow';
+    } else {
+        return date.toLocaleDateString('en-GB'); // dd/mm/yyyy format
+    }
 };
