@@ -36,7 +36,7 @@ class TaskAssigned extends Notification implements ShouldQueue, ShouldBroadcast
     public function via($notifiable)
     {
         // Add 'broadcast' to the array of channels
-        return ['mail', 'database', 'broadcast'];
+        return ['database', 'broadcast'];
     }
 
     /**
