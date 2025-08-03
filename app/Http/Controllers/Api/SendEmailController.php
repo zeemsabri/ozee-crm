@@ -33,21 +33,19 @@ class SendEmailController extends Controller
      *
      * @param string $content
      * @param EmailTemplate $template
-     * @param array $dynamicData
+     * @param array $templateData
      * @param mixed $recipient
      * @param Project $project
      * @param bool $isFinalSend
      * @return string
      */
-    private function populateAllPlaceholders(string $content, EmailTemplate $template, array $dynamicData, $recipient, Project $project, bool $isFinalSend): string
+    public function populateAllPlaceholders(string $content, EmailTemplate $template, array $templateData, $recipient, Project $project, bool $isFinalSend): string
     {
 
-        $task = Task::first();
-        Notification::send(Auth::user(), new TaskAssigned($task));
         $replacements = [];
         $placeholders = $template->placeholders->keyBy('name');
 
-        foreach ($dynamicData as $key => $value) {
+        foreach ($templateData as $key => $value) {
             $placeholder = $placeholders->get($key);
             if ($placeholder) {
                 $placeholderTag = "{{ {$key} }}";
@@ -183,19 +181,19 @@ class SendEmailController extends Controller
     {
         $validatedData = $request->validate([
             'template_id' => 'required|exists:email_templates,id',
-            'recipients' => 'required|array',
-            'recipients.*' => 'exists:clients,id',
-            'dynamic_data' => 'nullable|array',
+            'clients' => 'required|array',
+            'clients.*' => 'exists:clients,id',
+            'template_data' => 'nullable|array',
         ]);
 
         try {
             $template = EmailTemplate::with('placeholders')->findOrFail($validatedData['template_id']);
-            $recipients = Client::whereIn('id', $validatedData['recipients'])->get();
-            $dynamicData = $validatedData['dynamic_data'] ?? [];
+            $recipients = Client::whereIn('id', $validatedData['clients'])->get();
+            $templateData = $validatedData['template_data'] ?? [];
 
             foreach ($recipients as $recipient) {
-                $subject = $this->populateAllPlaceholders($template->subject, $template, $dynamicData, $recipient, $project, true);
-                $bodyHtml = $this->populateAllPlaceholders($template->body_html, $template, $dynamicData, $recipient, $project, true);
+                $subject = $this->populateAllPlaceholders($template->subject, $template, $templateData, $recipient, $project, true);
+                $bodyHtml = $this->populateAllPlaceholders($template->body_html, $template, $templateData, $recipient, $project, true);
 
                 $formattedBodyHtml = nl2br($bodyHtml);
 
@@ -227,17 +225,17 @@ class SendEmailController extends Controller
     {
         $validatedData = $request->validate([
             'template_id' => 'required|exists:email_templates,id',
-            'recipient_id' => 'required|exists:clients,id',
-            'dynamic_data' => 'nullable|array',
+            'client_id' => 'required|exists:clients,id',
+            'template_data' => 'nullable|array',
         ]);
 
         try {
             $template = EmailTemplate::with('placeholders')->findOrFail($validatedData['template_id']);
-            $recipient = Client::findOrFail($validatedData['recipient_id']);
-            $dynamicData = $request->input('dynamic_data', []);
+            $recipient = Client::findOrFail($validatedData['client_id']);
+            $templateData = $request->input('template_data', []);
 
-            $subject = $this->populateAllPlaceholders($template->subject, $template, $dynamicData, $recipient, $project, false);
-            $bodyHtml = $this->populateAllPlaceholders($template->body_html, $template, $dynamicData, $recipient, $project, false);
+            $subject = $this->populateAllPlaceholders($template->subject, $template, $templateData, $recipient, $project, false);
+            $bodyHtml = $this->populateAllPlaceholders($template->body_html, $template, $templateData, $recipient, $project, false);
 
             $formattedBodyHtml = nl2br($bodyHtml);
             $user = Auth::user();

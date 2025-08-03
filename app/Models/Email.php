@@ -4,11 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Traits\Taggable;
 
 class Email extends Model
 {
-    use HasFactory, Taggable;
+    use HasFactory, Taggable, SoftDeletes;
 
     protected $fillable = [
         'conversation_id',
@@ -22,12 +23,15 @@ class Email extends Model
         'rejection_reason',
         'sent_at',
         'message_id',
-        'type'
+        'type',
+        'template_id',
+        'template_data'
     ];
 
     protected $casts = [
         'sent_at' => 'datetime',
         'to' => 'array', // If 'to' can store multiple recipients as JSON
+        'template_data' => 'array',
     ];
 
     public function conversation()
@@ -73,5 +77,13 @@ class Email extends Model
     public function isViewableByNonManagers()
     {
         return in_array($this->status, ['approved', 'sent', 'received']);
+    }
+
+    /**
+     * Get the email template associated with this email.
+     */
+    public function template()
+    {
+        return $this->belongsTo(EmailTemplate::class);
     }
 }

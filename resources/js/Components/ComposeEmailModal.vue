@@ -35,8 +35,15 @@ const loadingSourceModels = ref(false);
 
 const emailForm = reactive({
     template_id: null,
-    recipients: [],
-    dynamic_data: {},
+    template_data: {},
+    project_id: props.projectId,
+    // Initialize client_ids as an array of objects
+    client_ids: [],
+    subject: '',
+    // body is no longer needed here as we are only saving variables
+    greeting_name: '',
+    custom_greeting_name: '',
+    status: 'pending_approval',
 });
 
 const { canDo } = usePermissions(props.projectId);
@@ -81,19 +88,26 @@ const fetchTemplates = async () => {
 };
 
 const fetchPreview = async () => {
-    if (!emailForm.template_id || emailForm.recipients.length === 0) {
+    if (!emailForm.template_id || emailForm.client_ids.length === 0) {
         previewContent.value = '<p class="text-gray-500 italic">Select a template and at least one recipient to see a preview.</p>';
         return;
     }
 
     previewLoading.value = true;
     try {
+        const firstClient = emailForm.client_ids[0];
+        const clientId = typeof firstClient === 'object' ? firstClient.id : firstClient;
+
         const response = await window.axios.post(`/api/projects/${props.projectId}/email-preview`, {
             template_id: emailForm.template_id,
-            recipient_id: emailForm.recipients[0],
-            dynamic_data: emailForm.dynamic_data,
+            client_id: clientId,
+            template_data: emailForm.template_data,
         });
         previewContent.value = response.data.body_html;
+        // Capture the subject from the preview response
+        if (response.data.subject) {
+            emailForm.subject = response.data.subject;
+        }
     } catch (error) {
         console.error('Failed to fetch email preview:', error);
         previewContent.value = '<p class="text-red-500 italic">Error loading preview.</p>';
@@ -106,8 +120,13 @@ watch(() => props.show, (newValue) => {
     if (newValue) {
         Object.assign(emailForm, {
             template_id: null,
-            recipients: [],
-            dynamic_data: {},
+            template_data: {},
+            project_id: props.projectId,
+            client_ids: [],
+            subject: '',
+            greeting_name: '',
+            custom_greeting_name: '',
+            status: 'pending_approval',
         });
         previewContent.value = '';
         validationErrors.value = {};
@@ -117,22 +136,54 @@ watch(() => props.show, (newValue) => {
 });
 
 watch(selectedTemplate, (newTemplate) => {
-    emailForm.dynamic_data = {};
+    emailForm.template_data = {};
     if (newTemplate && newTemplate.placeholders) {
         newTemplate.placeholders.forEach(placeholder => {
             if (placeholder.is_dynamic) {
-                emailForm.dynamic_data[placeholder.name] = '';
+                emailForm.template_data[placeholder.name] = '';
             } else if (placeholder.is_repeatable || placeholder.is_selectable) {
                 if(placeholder.is_repeatable) {
-                    emailForm.dynamic_data[placeholder.name] = [];
+                    emailForm.template_data[placeholder.name] = [];
                 } else {
-                    emailForm.dynamic_data[placeholder.name] = null;
+                    emailForm.template_data[placeholder.name] = null;
                 }
             }
         });
         fetchSourceModelsData(newTemplate);
     }
 });
+
+const prepareFormData = async () => {
+    // A defensive check to ensure client_ids is an array of objects
+    // This is needed because some cases may result in an array of primitive IDs.
+    if (Array.isArray(emailForm.client_ids)) {
+        emailForm.client_ids = emailForm.client_ids.map(client => {
+            return typeof client === 'object' && client !== null ? client : { id: client };
+        });
+    }
+
+    // Set subject from template only if it hasn't been set by the preview
+    if (!emailForm.subject && selectedTemplate.value) {
+        emailForm.subject = selectedTemplate.value.subject || '';
+    }
+
+    // Set greeting_name from the first selected client if available
+    if (emailForm.client_ids.length > 0) {
+        const firstClient = emailForm.client_ids[0];
+        if (typeof firstClient === 'object' && firstClient !== null) {
+            emailForm.greeting_name = firstClient.name || '';
+        } else {
+            // This fallback should not be needed with the check above, but it's a good practice
+            const clientObj = props.clients.find(client => client.id === firstClient);
+            if (clientObj) {
+                emailForm.greeting_name = clientObj.name || '';
+            }
+        }
+    }
+
+    console.log('Form data prepared:', JSON.stringify(emailForm));
+    return true;
+};
 
 const handleSubmitted = () => {
     emit('close');
@@ -153,7 +204,7 @@ const inputPlaceholders = computed(() => {
     return selectedTemplate.value ? selectedTemplate.value.placeholders.filter(p => p.is_dynamic || p.is_repeatable || p.is_selectable) : [];
 });
 
-const apiEndpoint = computed(() => `/api/projects/${props.projectId}/send-email`);
+const apiEndpoint = computed(() => `/api/emails/templated`);
 
 onMounted(() => {
     fetchTemplates();
@@ -167,10 +218,11 @@ onMounted(() => {
         :api-endpoint="apiEndpoint"
         http-method="post"
         :form-data="emailForm"
-        :submit-button-text="'Send Email'"
-        success-message="Email sent successfully!"
+        :submit-button-text="'Submit for Approval'"
+        success-message="Email submitted for approval successfully!"
         @close="closeModal"
         @submitted="handleSubmitted"
+        :before-submit="prepareFormData"
     >
         <template #default="{ errors }">
             <div class="flex flex-col space-y-6">
@@ -194,17 +246,19 @@ onMounted(() => {
 
                     <!-- Recipient Selection (multi select box) -->
                     <div>
-                        <InputLabel for="recipients" value="Recipients" />
+                        <InputLabel for="client_ids" value="Recipients" />
                         <CustomMultiSelect
-                            id="recipients"
-                            v-model="emailForm.recipients"
+                            id="client_ids"
+                            v-model="emailForm.client_ids"
                             :options="clients"
                             placeholder="Select clients to send to"
                             label-key="name"
                             track-by="id"
+                            :preserve-search="true"
+                            :object-value="true"
                             class="mt-1"
                         />
-                        <InputError :message="errors.recipients ? errors.recipients[0] : ''" class="mt-2" />
+                        <InputError :message="errors.client_ids ? errors.client_ids[0] : ''" class="mt-2" />
                     </div>
                 </div>
 
@@ -218,7 +272,7 @@ onMounted(() => {
                                 <template v-if="placeholder.is_repeatable && placeholder.source_model">
                                     <CustomMultiSelect
                                         :id="placeholder.name"
-                                        v-model="emailForm.dynamic_data[placeholder.name]"
+                                        v-model="emailForm.template_data[placeholder.name]"
                                         :options="sourceModelsData[placeholder.source_model.split('\\').pop()] || []"
                                         :placeholder="`Select one or more ${placeholder.name}`"
                                         :label-key="placeholder.source_attribute"
@@ -232,7 +286,7 @@ onMounted(() => {
                                 <template v-else-if="placeholder.is_selectable && placeholder.source_model">
                                     <SelectDropdown
                                         :id="placeholder.name"
-                                        v-model="emailForm.dynamic_data[placeholder.name]"
+                                        v-model="emailForm.template_data[placeholder.name]"
                                         :options="sourceModelsData[placeholder.source_model.split('\\').pop()] || []"
                                         :placeholder="`Select a ${placeholder.name}`"
                                         :value-key="placeholder.trackBy ?? 'id'"
@@ -249,7 +303,7 @@ onMounted(() => {
                                         :id="placeholder.name"
                                         type="url"
                                         class="mt-1 block w-full"
-                                        v-model="emailForm.dynamic_data[placeholder.name]"
+                                        v-model="emailForm.template_data[placeholder.name]"
                                         placeholder="Enter URL"
                                     />
                                 </template>
@@ -258,10 +312,10 @@ onMounted(() => {
                                         :id="placeholder.name"
                                         type="text"
                                         class="mt-1 block w-full"
-                                        v-model="emailForm.dynamic_data[placeholder.name]"
+                                        v-model="emailForm.template_data[placeholder.name]"
                                     />
                                 </template>
-                                <InputError :message="errors[`dynamic_data.${placeholder.name}`] ? errors[`dynamic_data.${placeholder.name}`][0] : ''" class="mt-2" />
+                                <InputError :message="errors[`template_data.${placeholder.name}`] ? errors[`template_data.${placeholder.name}`][0] : ''" class="mt-2" />
                             </div>
                         </div>
                     </div>
@@ -273,8 +327,8 @@ onMounted(() => {
                         <h4 class="text-md font-semibold text-gray-800">Email Preview</h4>
                         <PrimaryButton
                             @click="fetchPreview"
-                            :disabled="!emailForm.template_id || emailForm.recipients.length === 0 || previewLoading"
-                            :class="{ 'opacity-50 cursor-not-allowed': !emailForm.template_id || emailForm.recipients.length === 0 || previewLoading }"
+                            :disabled="!emailForm.template_id || emailForm.client_ids.length === 0 || previewLoading"
+                            :class="{ 'opacity-50 cursor-not-allowed': !emailForm.template_id || emailForm.client_ids.length === 0 || previewLoading }"
                         >
                             <span v-if="previewLoading" class="flex items-center">
                                 <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

@@ -154,15 +154,91 @@ class EmailController extends Controller
     }
 
     /**
+     * Store a newly created email using a template, saving only the template and dynamic data.
+     */
+    public function storeTemplatedEmail(Request $request)
+    {
+        $user = Auth::user();
+
+        try {
+            $validated = $request->validate([
+                'project_id' => 'required|exists:projects,id',
+                'client_ids' => 'required|array|min:1',
+                'client_ids.*' => 'required|exists:clients,id',
+                'subject' => 'required|string|max:255',
+                'template_id' => 'required|exists:email_templates,id',
+                'template_data' => 'nullable|array',
+            ]);
+
+            $clientIds = $validated['client_ids'];
+
+            $project = Project::with('clients')->find($validated['project_id']);
+            $projectClientIds = $project->clients->pluck('id')->toArray();
+            foreach ($clientIds as $clientId) {
+                if (!in_array($clientId, $projectClientIds)) {
+                    throw ValidationException::withMessages([
+                        'client_ids' => "Client ID {$clientId} is not assigned to this project.",
+                    ]);
+                }
+            }
+
+            if (!$user->projects->contains($project->id)) {
+                return response()->json(['message' => 'Unauthorized: You are not assigned to this project.'], 403);
+            }
+
+            $conversation = Conversation::firstOrCreate(
+                [
+                    'project_id' => $validated['project_id'],
+                ],
+                [
+                    'subject' => $validated['subject'],
+                    'contractor_id' => $user->id,
+                    'client_id' => $clientIds[0],
+                    'last_activity_at' => now(),
+                ]
+            );
+
+            if ($conversation->wasRecentlyCreated && empty($conversation->subject)) {
+                $conversation->subject = $validated['subject'];
+                $conversation->save();
+            }
+
+            $clientEmails = Client::whereIn('id', $clientIds)
+                ->pluck('email')
+                ->toArray();
+
+            $email = Email::create([
+                'conversation_id' => $conversation->id,
+                'sender_id' => $user->id,
+                'to' => json_encode($clientEmails),
+                'subject' => $validated['subject'],
+                'template_id' => $validated['template_id'],
+                'template_data' => json_encode($validated['template_data'] ?? []),
+                'status' => 'pending_approval',
+            ]);
+
+            $conversation->update(['last_activity_at' => now()]);
+
+            Log::info('Templated email created/submitted for approval', ['email_id' => $email->id, 'status' => $email->status, 'user_id' => $user->id]);
+            return response()->json($email->load('conversation'), 201);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Error creating/submitting templated email: ' . $e->getMessage(), ['request' => $request->all(), 'error' => $e->getTraceAsString()]);
+            return response()->json(['message' => 'Failed to process email', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Display the specified email.
      * Accessible by: Super Admin, Manager (any); Employee (any); Contractor (if on associated project)
      */
     public function show(Email $email)
     {
         $user = Auth::user();
-        // Policy check for viewing a specific email
-        // Implement policy logic later (e.g., if contractor, check if on project)
-        // For now, let's simply return it, assuming index filtering handles most cases.
         if ($user->isContractor() && !$user->projects->contains($email->conversation->project_id)) {
             return response()->json(['message' => 'Unauthorized to view this email.'], 403);
         }
@@ -178,8 +254,6 @@ class EmailController extends Controller
     {
         $user = Auth::user();
 
-        // Only Super Admins and Managers can update any email
-        // Contractors can only update their own drafts or pending emails that were rejected
         if (!$user->isSuperAdmin() && !$user->isManager()) {
             if ($user->isContractor() && $email->sender_id === $user->id && in_array($email->status, ['draft', 'rejected'])) {
                 // Allow contractor to update their own draft or rejected emails
@@ -196,7 +270,6 @@ class EmailController extends Controller
                 'rejection_reason' => 'nullable|string', // Admin might clear this on re-submit
             ]);
 
-            // If a contractor is resubmitting, ensure status is changing to pending_approval
             if ($user->isContractor() && $email->sender_id === $user->id && $email->status === 'rejected' && ($validated['status'] ?? null) === 'pending_approval') {
                 $email->update(array_merge($validated, ['rejection_reason' => null])); // Clear reason on re-submit
                 Log::info('Contractor re-submitted email for approval', ['email_id' => $email->id, 'user_id' => $user->id]);
@@ -228,50 +301,7 @@ class EmailController extends Controller
      */
     public function approve(Email $email)
     {
-
         throw new Exception('This method is deprecated. Use editAndApprove instead.');
-        $user = Auth::user();
-
-        if (!$user->isSuperAdmin() && !$user->isManager()) {
-            return response()->json(['message' => 'Unauthorized to approve emails.'], 403);
-        }
-
-
-        if (!in_array($email->status, ['pending_approval', 'pending_approval_received'])  ) {
-            return response()->json(['message' => 'Email is not in pending approval status.'], 400);
-        }
-
-        try {
-            // Get client's email from the linked conversation/client
-            $recipientClientEmail = $email->to;
-
-            // Convert JSON-encoded array to comma-separated string
-            if (is_string($recipientClientEmail) && $this->isJson($recipientClientEmail)) {
-                $emailArray = json_decode($recipientClientEmail, true);
-                $recipientClientEmail = implode(',', $emailArray);
-            }
-
-            // Send email using GmailService
-            $gmailMessageId = $this->gmailService->sendEmail(
-                $recipientClientEmail,
-                $email->subject,
-                $email->body
-            );
-
-            // Update email status and record who approved it and when it was sent
-            $email->update([
-                'status' => 'sent',
-                'approved_by' => $user->id,
-                'sent_at' => now(),
-                'message_id' => $gmailMessageId, // Store the Gmail message ID
-            ]);
-
-            Log::info('Email approved and sent', ['email_id' => $email->id, 'gmail_message_id' => $gmailMessageId, 'approved_by' => $user->id]);
-            return response()->json(['message' => 'Email approved and sent successfully!', 'email' => $email->load('approver')], 200);
-        } catch (\Exception $e) {
-            Log::error('Error approving/sending email: ' . $e->getMessage(), ['email_id' => $email->id, 'error' => $e->getTraceAsString()]);
-            return response()->json(['message' => 'Failed to approve and send email: ' . $e->getMessage()], 500);
-        }
     }
 
     /**
@@ -280,7 +310,7 @@ class EmailController extends Controller
      */
     public function editAndApprove(Request $request, Email $email)
     {
-        $approver = Auth::user(); // The person approving the email
+        $approver = Auth::user();
 
         if (!$approver) {
             return response()->json(['error' => 'No authenticated user found for approval.'], 401);
@@ -292,59 +322,57 @@ class EmailController extends Controller
 
         try {
             $validated = $request->validate([
-                'project_id' => 'sometimes|required|exists:projects,id',
-                'client_id' => 'sometimes|required|exists:clients,id',
                 'subject' => 'sometimes|required|string|max:255',
                 'body' => 'sometimes|required|string',
             ]);
 
-            if (isset($validated['project_id'], $validated['client_id'])) {
-                $project = Project::findOrFail($validated['project_id']);
-
-                if ($project->client_id !== (int)$validated['client_id']) {
-                    throw ValidationException::withMessages(['client_id' => 'The selected client is not assigned to this project.']);
+            // Handle templated emails
+            if ($email->template_id) {
+                // Get the client for the conversation
+                $recipientClient = $email->conversation->client;
+                if (!$recipientClient) {
+                    throw new Exception('Recipient client not found for email ID: ' . $email->id);
                 }
 
-                $conversation = Conversation::firstOrCreate(
-                    [
-                        'client_id' => $validated['client_id'],
-                    ],
-                    [
-                        'project_id' => $validated['project_id'],
-                        'subject' => $validated['subject'] ?? $email->subject,
-                        'contractor_id' => $email->conversation->contractor_id,
-                        'last_activity_at' => now(),
-                    ]
+                // Get the template and dynamic data
+                $template = EmailTemplate::with('placeholders')->findOrFail($email->template_id);
+                $templateData = json_decode($email->template_data, true) ?? [];
+
+                // Render the subject and body using the template
+                $subject = $this->populateAllPlaceholders(
+                    $template->subject,
+                    $template,
+                    $templateData,
+                    $recipientClient,
+                    $email->conversation->project,
+                    true
                 );
-                $validated['conversation_id'] = $conversation->id;
-                // Ensure 'to' field is updated correctly for the email record
-                $validated['to'] = json_encode([Client::find($validated['client_id'])->email]);
+                $renderedBody = $this->populateAllPlaceholders(
+                    $template->body_html,
+                    $template,
+                    $templateData,
+                    $recipientClient,
+                    $email->conversation->project,
+                    true
+                );
+            } else {
+                // Handle regular emails
+                $subject = $validated['subject'] ?? $email->subject;
+                $renderedBody = $validated['body'] ?? $email->body;
             }
 
             $email->update($validated);
 
-            // --- Fetch Sender Details (The original sender of the email) ---
-            // Assuming 'sender_id' is a foreign key to the 'users' table on your 'emails' table
-            $sender = $email->sender; // Assuming Email model has a 'sender' relationship
-            if (!$sender) {
-                // Fallback if sender relationship is not set up or sender not found
-                $senderDetails = [
-                    'name' => 'Support',
-                    'role' => 'Staff',
-                ];
-                Log::warning('Sender not found for email ID: ' . $email->id . '. Using fallback sender details.');
-            } else if($email->type === 'sent') {
-                $senderDetails = [
-                    'name' => $sender->name ?? 'Unknown Sender',
-                    'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff', // Adjust based on your User model's role field
-                ];
-            }
+            $sender = $email->sender;
+            $senderDetails = [
+                'name' => $sender->name ?? 'Unknown Sender',
+                'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
+            ];
 
-            // --- Define Company Details (can be from config, database, or static) ---
             $companyDetails = [
                 'phone' => '+61 456 639 389',
                 'website' => 'ozeeweb.com.au',
-                'logo_url' => asset('logo.png'), // Ensure this path is correct
+                'logo_url' => asset('logo.png'),
                 'brand_primary_color' => '#1a73e8',
                 'brand_secondary_color' => '#fbbc05',
                 'text_color_primary' => '#1a202c',
@@ -353,62 +381,42 @@ class EmailController extends Controller
                 'background_color' => '#f9fafb',
             ];
 
-            // --- Fetch Client Details for the email recipient ---
-            // Assuming 'conversation' relationship exists on Email model and 'client' on Conversation model
             $recipientClient = $email->conversation->client;
             if (!$recipientClient) {
                 throw new Exception('Recipient client not found for email ID: ' . $email->id);
             }
             $clientEmailAddress = $recipientClient->email;
-            $clientName = $recipientClient->name ?? 'Valued Client'; // Assuming 'name' field exists on client model
+            $clientName = $recipientClient->name ?? 'Valued Client';
 
-            // Prepare payload for Mailable, including client name for greeting
             $mailablePayload = [
-                'subject' => $email->subject,
-                'body' => $email->body,
-                'greeting_type' => $request->input('greeting_type', 'full_name'), // Get from request or default
-                'custom_greeting_name' => $request->input('custom_greeting_name', ''), // Get from request
+                'subject' => $subject,
+                'body' => $renderedBody,
+                'greeting_type' => $request->input('greeting_type', 'full_name'),
+                'custom_greeting_name' => $request->input('custom_greeting_name', ''),
                 'clientName' => $clientName,
             ];
 
-            if ($email->type === 'sent') { // Assuming 'type' indicates if it's an outgoing email
-                // 1. Create a Mailable instance with all necessary data
-                $mailable = new ClientEmail($mailablePayload, $senderDetails, $companyDetails);
+            $mailable = new ClientEmail($mailablePayload, $senderDetails, $companyDetails);
+            $finalRenderedBody = $mailable->render();
 
-                // 2. Render the Mailable's content to a string
-                $renderedBody = $mailable->render();
+            $gmailMessageId = $this->gmailService->sendEmail(
+                $clientEmailAddress,
+                $subject,
+                $finalRenderedBody
+            );
 
-                // 3. Use your GmailService to send the email
-                $gmailMessageId = $this->gmailService->sendEmail(
-                    $clientEmailAddress,
-                    $email->subject,
-                    $renderedBody // Pass the rendered HTML body
-                );
+            $email->update([
+                'status' => 'sent',
+                'approved_by' => $approver->id,
+                'sent_at' => now(),
+                'message_id' => $gmailMessageId,
+            ]);
 
-                $email->update([
-                    'status' => 'sent',
-                    'approved_by' => $approver->id, // The approver's ID
-                    'sent_at' => now(),
-                    'message_id' => $gmailMessageId,
-                ]);
-
-                Log::info('Email edited and approved', [
-                    'email_id' => $email->id,
-                    'gmail_message_id' => $gmailMessageId,
-                    'approved_by' => $approver->id,
-                    'sender_id' => $sender->id ?? 'N/A', // Log the original sender's ID
-                ]);
-            } else {
-                // If email type is not 'sent' (e.g., 'draft', 'received'), just update status to approved
-                $email->update([
-                    'status' => 'approved',
-                    'approved_by' => $approver->id,
-                ]);
-                Log::info('Email edited and approved (not sent, status updated to approved)', [
-                    'email_id' => $email->id,
-                    'approved_by' => $approver->id,
-                ]);
-            }
+            Log::info('Email edited and approved', [
+                'email_id' => $email->id,
+                'gmail_message_id' => $gmailMessageId,
+                'approved_by' => $approver->id,
+            ]);
 
             return response()->json(['message' => 'Email updated and approved successfully!', 'email' => $email->load('approver')]);
         } catch (ValidationException $e) {
@@ -424,6 +432,7 @@ class EmailController extends Controller
             return response()->json(['message' => 'Failed to edit and approve email: ' . $e->getMessage()], 500);
         }
     }
+
     /**
      * Approve a received email for viewing.
      */
@@ -495,7 +504,7 @@ class EmailController extends Controller
                 'email_id' => $email->id,
                 'error' => $e->getTraceAsString(),
             ]);
-            return response()->json(['message' => 'Failed to edit and approve received email: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Failed to edit and approve received email: ' . e->getMessage()], 500);
         }
     }
 
@@ -592,10 +601,10 @@ class EmailController extends Controller
         }
 
         $pendingEmails = Email::with([
-            'conversation',                  // Load the conversation
-            'conversation.project',          // Load the project nested inside conversation
-            'conversation.client',           // Load the client nested inside conversation
-            'sender'                         // Load the sender user
+            'conversation',
+            'conversation.project',
+            'conversation.client',
+            'sender'
         ])
             ->whereIn('status', [ 'pending_approval', 'pending_approval_received'])
             ->orderBy('created_at', 'asc')
@@ -618,15 +627,14 @@ class EmailController extends Controller
         }
 
         $pendingEmails = Email::with([
-            'conversation.project:id,name',  // Load only project id and name
-            'conversation.client:id,name',   // Load only client id and name
-            'sender:id,name'                 // Load only sender id and name
+            'conversation.project:id,name',
+            'conversation.client:id,name',
+            'sender:id,name'
         ])
             ->whereIn('status', ['pending_approval', 'pending_approval_received'])
             ->orderBy('created_at', 'asc')
             ->get();
 
-        // Transform the data to include only the required fields
         $simplifiedEmails = $pendingEmails->map(function ($email) {
             return [
                 'id' => $email->id,
@@ -644,7 +652,7 @@ class EmailController extends Controller
                     'name' => $email->sender->name
                 ] : null,
                 'created_at' => $email->created_at,
-                'body' => $email->body, // Include body for the modal
+                'body' => $email->body,
             ];
         });
 
@@ -674,7 +682,6 @@ class EmailController extends Controller
 
         $emails = $query->get();
 
-        // Transform the data to include only the required fields
         $simplifiedEmails = $emails->map(function ($email) {
             return [
                 'id' => $email->id,
@@ -716,16 +723,13 @@ class EmailController extends Controller
 
         $project = Project::findOrFail($projectId);
 
-        // Check if user has access to this project
         if ($user->isContractor() && !$user->projects->contains($project->id)) {
             return response()->json(['message' => 'Unauthorized to view emails for this project.'], 403);
         }
 
-        // Get all conversations for this project
         $conversations = $project->conversations;
         $conversationIds = $conversations->pluck('id')->toArray();
 
-        // Get all emails for these conversations
         $emails = Email::with(['conversation.project.client', 'sender', 'approver'])
             ->whereIn('status', ['approved', 'pending_approval', 'sent']);
 
@@ -744,11 +748,11 @@ class EmailController extends Controller
      *
      * @param int $projectId The ID of the project
      * @param Request $request The request object which may contain:
-     *                         - type: Filter by email type
-     *                         - start_date: Filter by start date
-     *                         - end_date: Filter by end date
-     *                         - search: Search term for subject or body
-     *                         - limit: Optional parameter to limit the number of emails returned (default: all)
+     * - type: Filter by email type
+     * - start_date: Filter by start date
+     * - end_date: Filter by end date
+     * - search: Search term for subject or body
+     * - limit: Optional parameter to limit the number of emails returned (default: all)
      * @return \Illuminate\Http\JsonResponse
      */
     public function getProjectEmailsSimplified($projectId, Request $request)
@@ -758,28 +762,21 @@ class EmailController extends Controller
 
         $project = Project::findOrFail($projectId);
 
-        // Check if user has access to this project
         if ($user->isContractor() && !$user->projects->contains($project->id)) {
             return response()->json(['message' => 'Unauthorized to view emails for this project.'], 403);
         }
 
-        // Get all conversations for this project
         $conversations = $project->conversations;
         $conversationIds = $conversations->pluck('id')->toArray();
 
-        // Get all emails for these conversations
         $query = Email::with(['sender:id,name'])
 //            ->whereIn('status', ['approved', 'pending_approval', 'sent'])
             ->whereIn('conversation_id', $conversationIds);
 
-
-
-        // Apply type filter if provided
         if ($request->has('type') && !empty($request->type)) {
             $query->where('type', $request->type);
         }
 
-        // Apply date range filters if provided
         if ($request->has('start_date') && !empty($request->start_date)) {
             $query->whereDate('created_at', '>=', $request->start_date);
         }
@@ -788,7 +785,6 @@ class EmailController extends Controller
             $query->whereDate('created_at', '<=', $request->end_date);
         }
 
-        // Apply search filter if provided
         if ($request->has('search') && !empty($request->search)) {
             $searchTerm = $request->search;
             $query->where(function($q) use ($searchTerm) {
@@ -797,15 +793,12 @@ class EmailController extends Controller
             });
         }
 
-        // Order by creation date (newest first)
         $query->orderBy('created_at', 'desc');
 
-        // Apply limit if provided
         if ($request->has('limit') && is_numeric($request->limit)) {
             $query->limit($request->limit);
         }
 
-        // Get the filtered emails
         $emails = $query->get();
 
         if(!$user->hasPermission('approve_emails')) {
@@ -817,8 +810,6 @@ class EmailController extends Controller
             }
         }
 
-
-        // Transform the data to include only the required fields
         $simplifiedEmails = $emails->map(function ($email) {
             return [
                 'id' => $email->id,
@@ -830,15 +821,15 @@ class EmailController extends Controller
                 'created_at' => $email->created_at,
                 'status' => $email->status,
                 'type'  => $email->type,
-                // Include body for the modal view
                 'body' => $email->body,
-                // Include additional fields needed for the modal view
                 'rejection_reason' => $email->rejection_reason,
                 'approver' => $email->approver ? [
                     'id' => $email->approver->id,
                     'name' => $email->approver->name
                 ] : null,
-                'sent_at' => $email->sent_at
+                'sent_at' => $email->sent_at,
+                'template_id' => $email->template_id,
+                'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
             ];
         });
 
@@ -863,14 +854,47 @@ class EmailController extends Controller
     public function previewEmail(Email $email)
     {
         try {
-            // --- Fetch Sender Details (The original sender of the email) ---
+            // Check if the email is based on a template
+            if ($email->template_id) {
+                // Get the template and dynamic data
+                $template = EmailTemplate::with('placeholders')->findOrFail($email->template_id);
+                $templateData = json_decode($email->template_data, true) ?? [];
+
+                // Get the recipient client
+                $recipientClient = $email->conversation->client;
+                if (!$recipientClient) {
+                    throw new Exception('Recipient client not found for email ID: ' . $email->id);
+                }
+
+                // Render the body from the template and dynamic data
+                $renderedBody = $this->populateAllPlaceholders(
+                    $template->body_html,
+                    $template,
+                    $templateData,
+                    $recipientClient,
+                    $email->conversation->project,
+                    false // It's a preview, not a final send
+                );
+                $subject = $this->populateAllPlaceholders(
+                    $template->subject,
+                    $template,
+                    $templateData,
+                    $recipientClient,
+                    $email->conversation->project,
+                    false
+                );
+            } else {
+                // Use the stored body for non-templated emails
+                $renderedBody = $email->body;
+                $subject = $email->subject;
+            }
+
             $sender = $email->sender;
             $senderDetails = [
                 'name' => $sender->name ?? 'Original Sender',
                 'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
             ];
 
-            // --- Define Company Details (consistent with your sending logic) ---
             $companyDetails = [
                 'phone' => '+61 456 639 389',
                 'website' => 'ozeeweb.com.au',
@@ -883,26 +907,21 @@ class EmailController extends Controller
                 'background_color' => '#f9fafb',
             ];
 
-            // --- Fetch Client Details for the email recipient (for greeting) ---
             $recipientClient = $email->conversation->client;
             $clientName = $recipientClient->name ?? 'Valued Client';
 
-            // Prepare payload for Mailable
             $mailablePayload = [
-                'subject' => $email->subject,
-                'body' => $email->body,
-                // These might need to come from the email record if you store them,
-                // otherwise use sensible defaults for preview.
-                'greeting_type' => 'full_name', // Defaulting for preview, adjust if email model stores this
+                'subject' => $subject,
+                'body' => $renderedBody,
+                'greeting_type' => 'full_name',
                 'custom_greeting_name' => '',
                 'clientName' => $clientName,
             ];
 
-            // Create and render the Mailable
             $mailable = new ClientEmail($mailablePayload, $senderDetails, $companyDetails);
-            $renderedBody = $mailable->render();
+            $fullHtml = $mailable->render();
 
-            return response($renderedBody)->header('Content-Type', 'text/html');
+            return response($fullHtml)->header('Content-Type', 'text/html');
 
         } catch (Exception $e) {
             Log::error('Error previewing email: ' . $e->getMessage(), [
