@@ -85,6 +85,7 @@ createInertiaApp({
                         pushSuccess(notification);
                     });
             } else {
+                console.log('hit');
                 console.error('Laravel Echo is not initialized. Check your bootstrap.js file.');
             }
         }
