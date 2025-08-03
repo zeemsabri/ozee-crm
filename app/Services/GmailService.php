@@ -79,6 +79,7 @@ class GmailService
             } catch (Exception $e) {
                 // Log and throw if refresh fails (e.g., refresh token revoked or invalid)
                 Log::error('Failed to refresh Google access token: ' . $e->getMessage(), ['exception' => $e]);
+                return false;
                 throw new Exception('Failed to refresh Google access token. Please re-authorize.');
             }
         }
