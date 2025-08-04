@@ -32,14 +32,23 @@ class PermissionHelper
      */
     public static function getUsersWithProjectPermission(string $permissionSlug, int $projectId)
     {
-        $project = Project::findOrFail($projectId);
-
-        return User::whereHas('projects', function ($query) use ($permissionSlug, $projectId) {
-            $query->where('projects.id', $projectId)
-                ->whereHas('pivot.role.permissions', function ($q) use ($permissionSlug) {
-                    $q->where('slug', $permissionSlug);
-                });
+        // Get all users associated with the project
+        $projectUsers = User::whereHas('projects', function ($query) use ($projectId) {
+            $query->where('projects.id', $projectId);
         })->get();
+
+        // Filter users who have the specified permission through their project role
+        return $projectUsers->filter(function ($user) use ($permissionSlug, $projectId) {
+            // Get the user's role for this project
+            $roleId = $user->getRoleForProject($projectId);
+            if (!$roleId) {
+                return false;
+            }
+
+            // Check if the role has the specified permission
+            $role = \App\Models\Role::find($roleId);
+            return $role && $role->permissions->contains('slug', $permissionSlug);
+        });
     }
 
     /**

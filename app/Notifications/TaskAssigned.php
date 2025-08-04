@@ -91,6 +91,7 @@ class TaskAssigned extends Notification implements ShouldQueue, ShouldBroadcast
             'priority'  =>  'low',
             'task_id' => $this->task->id,
             'task_name' => $this->task->name,
+            'button_label' =>   'View Task',
             'due_date' => $this->task->due_date ? $this->task->due_date->format('Y-m-d') : null,
             'url' => url('/project/' . $project?->id . '/task/' . $this->task->id)
         ]);

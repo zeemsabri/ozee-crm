@@ -79,6 +79,7 @@ class EmailApprovalRequired extends Notification implements ShouldQueue, ShouldB
             'email_id' => $this->email->id,
             'email_subject' => $this->email->subject,
             'email_type' => $emailType,
+            'button_label'  =>  'View Project',
             'url' => url('/projects/' . $project->id)
         ];
     }
