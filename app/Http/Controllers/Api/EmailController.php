@@ -192,9 +192,10 @@ class EmailController extends Controller
             $conversation = Conversation::firstOrCreate(
                 [
                     'project_id' => $validated['project_id'],
+                    'subject' => $validated['subject'],
                 ],
                 [
-                    'subject' => $validated['subject'],
+
                     'contractor_id' => $user->id,
                     'client_id' => $clientIds[0],
                     'last_activity_at' => now(),

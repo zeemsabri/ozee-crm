@@ -116,6 +116,8 @@ class SendEmailController extends Controller
                 false // Not a final send
             );
 
+            $bodyHtml = nl2br($bodyHtml);
+
             $sender = Auth::user();
             $senderDetails = [
                 'name' => $sender?->name ?? 'Staff',
