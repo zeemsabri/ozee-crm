@@ -135,6 +135,7 @@ class EmailController extends Controller
                 'subject' => $validated['subject'],
                 'body' => $greeting . '<br/>' . $validated['body'],
                 'status' => $validated['status'] ?? 'pending_approval', // Default to pending
+                'type' => 'sent', // Set type to sent for outgoing emails
             ]);
 
             // Attach clients to the conversation (if not already attached)
@@ -219,6 +220,7 @@ class EmailController extends Controller
                 'template_id' => $validated['template_id'],
                 'template_data' => json_encode($validated['template_data'] ?? []),
                 'status' => 'pending_approval',
+                'type' => 'sent', // Set type to sent for outgoing emails
             ]);
 
             $conversation->update(['last_activity_at' => now()]);
@@ -816,7 +818,7 @@ class EmailController extends Controller
         $simplifiedEmails = $emails->map(function ($email) use ($user) {
             $body = $email->body;
 
-            if (!$user->hasPermission('approve_emails') && in_array($email->status, ['pending_approval_received'])) {
+            if (!$user->hasPermission('approve_received_emails') && in_array($email->status, ['pending_approval_received'])) {
                 $body = 'Please ask project admin to approve this email';
             }
 

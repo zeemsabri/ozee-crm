@@ -81,7 +81,7 @@ class TaskAssigned extends Notification implements ShouldQueue, ShouldBroadcast
         $project = $this->task->milestone?->project ?? null;
         $projectName = $project?->name ?? null;
         return ([
-            'title' => $this->task->name . ' ' . Str::random(3) ,
+            'title' => $this->task->name,
             'view_id'   =>  Str::random(7),
             'project_name'  =>  $projectName,
             'message' => 'You have been assigned a new task: ' . $this->task->name,

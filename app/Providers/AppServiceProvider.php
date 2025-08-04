@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\Email;
 use App\Models\Project;
 use App\Models\User;
+use App\Observers\EmailObserver;
 use App\Policies\ClientPolicy;
 use App\Policies\EmailPolicy;
 use App\Policies\ProjectPolicy;
@@ -38,6 +39,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Register the Email observer
+        Email::observe(EmailObserver::class);
 
         Gate::before(function ($user, $ability) {
 
