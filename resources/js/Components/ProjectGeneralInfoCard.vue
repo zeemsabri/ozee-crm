@@ -467,8 +467,9 @@ const sendMagicLink = async () => {
     <ComposeEmailModal
         :show="showComposeEmailModal"
         :title="'Compose New Email'"
-        :api-endpoint="'/api/emails'"
+        :api-endpoint="'/api/emails/templated'"
         :http-method="'post'"
+        :clients="projectClients"
         :submit-button-text="'Submit for Approval'"
         :success-message="'Email submitted for approval successfully!'"
         :project-id="projectId"

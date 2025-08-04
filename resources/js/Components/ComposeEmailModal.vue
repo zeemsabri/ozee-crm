@@ -1,64 +1,81 @@
 <script setup>
-import { reactive, ref, computed, defineExpose } from 'vue';
+import { ref, reactive, watch, computed, onMounted } from 'vue';
 import BaseFormModal from '@/Components/BaseFormModal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
-import EmailEditor from '@/Components/EmailEditor.vue';
 import InputError from '@/Components/InputError.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import SecondaryButton from '@/Components/SecondaryButton.vue';
-import Modal from '@/Components/Modal.vue';
-import SelectDropdown from '@/Components/SelectDropdown.vue';
+import { usePermissions } from '@/Directives/permissions';
 import CustomMultiSelect from '@/Components/CustomMultiSelect.vue';
-import { useEmailTemplate } from '@/Composables/useEmailTemplate';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
+import PrimaryButton from '@/Components/PrimaryButton.vue';
 
 const props = defineProps({
-    show: Boolean,
-    title: String,
-    apiEndpoint: String,
-    httpMethod: { type: String, default: 'post' },
-    submitButtonText: String,
-    successMessage: String,
-    emailId: Number,
-    projectId: Number,
+    show: {
+        type: Boolean,
+        default: false,
+    },
+    projectId: {
+        type: Number,
+        required: true,
+    },
+    clients: {
+        type: Array,
+        default: () => [],
+    },
 });
 
-const emit = defineEmits(['close', 'submitted', 'error']);
+const emit = defineEmits(['close']);
 
-// --- STATE ---
-const localFormData = reactive({
-    subject: '',
-    body: '',
-    rejection_reason: '',
-    template_id: null,
-    template_data: {},
-});
-
-// State to control which editor is shown: 'custom' or 'template'
-const compositionType = ref('custom');
-
-// State for template editing
 const templates = ref([]);
-const sourceModelsData = ref({});
-const loadingSourceModels = ref(false);
 const previewContent = ref('');
 const previewLoading = ref(false);
+const validationErrors = ref({});
+const sourceModelsData = ref({});
+const loadingSourceModels = ref(false);
 
-// --- COMPUTED PROPERTIES ---
+const emailForm = reactive({
+    template_id: null,
+    template_data: {},
+    project_id: props.projectId,
+    client_ids: [],
+    subject: '',
+    greeting_name: '',
+    custom_greeting_name: '',
+    status: 'pending_approval',
+});
+
+const { canDo } = usePermissions(props.projectId);
+
 const selectedTemplate = computed(() => {
-    return templates.value.find(template => template.id === localFormData.template_id);
+    return templates.value.find(template => template.id === emailForm.template_id);
 });
 
-const inputPlaceholders = computed(() => {
-    if (!selectedTemplate.value) return [];
-    return selectedTemplate.value.placeholders.filter(p => p.is_dynamic || p.is_repeatable || p.is_selectable);
-});
+const fetchSourceModelsData = async (template) => {
+    loadingSourceModels.value = true;
+    sourceModelsData.value = {};
+    const modelNames = new Set();
+    template.placeholders.forEach(p => {
+        if ((p.is_repeatable || p.is_selectable) && p.source_model) {
+            modelNames.add(p.source_model);
+        }
+    });
 
-const templateOptions = computed(() => {
-    return templates.value.map(template => ({ value: template.id, label: template.name }));
-});
+    try {
+        const promises = Array.from(modelNames).map(modelName => {
+            const shortModelName = modelName.split('\\').pop();
+            const url = `/api/projects/${props.projectId}/model-data/${shortModelName}`;
+            return window.axios.get(url).then(response => {
+                sourceModelsData.value[shortModelName] = response.data;
+            });
+        });
+        await Promise.all(promises);
+    } catch (error) {
+        console.error('Failed to fetch source model data:', error);
+    } finally {
+        loadingSourceModels.value = false;
+    }
+};
 
-// --- METHODS ---
 const fetchTemplates = async () => {
     try {
         const response = await window.axios.get('/api/email-templates');
@@ -68,143 +85,257 @@ const fetchTemplates = async () => {
     }
 };
 
-const fetchSourceModelsData = async (template) => {
-    // ... (This function can be copied from your original ComposeEmailModal.vue)
-};
-
-// This function is called by the parent to initialize the modal's state
-const setData = async (initialData) => {
-    // Reset state first
-    Object.assign(localFormData, { subject: '', body: '', rejection_reason: '', template_id: null, template_data: {} });
-    previewContent.value = '';
-
-    // Check if the email is template-based
-    if (initialData.template_id) {
-        compositionType.value = 'template';
-        await fetchTemplates(); // Ensure templates are loaded
-
-        localFormData.subject = initialData.subject;
-        localFormData.template_id = initialData.template_id;
-        localFormData.template_data = initialData.template_data || {};
-
-    } else {
-        // It's a custom/rich-text email
-        compositionType.value = 'custom';
-        localFormData.subject = initialData.subject;
-        localFormData.body = initialData.body;
-    }
-};
-
-// Expose the setData function to the parent component
-defineExpose({ setData });
-
-
-const { processedHtmlBody } = useEmailTemplate(() => localFormData.body);
-
-const formatDataForApi = (data) => {
-    const formattedData = { ...data };
-
-    if (props.title === 'Edit and Approve Email') {
-        // Add composition_type to inform the backend
-        formattedData.composition_type = compositionType.value;
-
-        if (compositionType.value === 'template') {
-            // For template emails, send template data and nullify body
-            formattedData.body = null;
-        } else {
-            // For custom emails, send processed body and nullify template data
-            formattedData.body = processedHtmlBody.value;
-            formattedData.template_id = null;
-            formattedData.template_data = {};
-        }
-    }
-    return formattedData;
-};
-
 const fetchPreview = async () => {
-    // This function can be adapted from your ComposeEmailModal to generate a preview
-    // for the currently edited template data.
+    if (!emailForm.template_id || emailForm.client_ids.length === 0) {
+        previewContent.value = '<p class="text-gray-500 italic">Select a template and at least one recipient to see a preview.</p>';
+        return;
+    }
+
     previewLoading.value = true;
     try {
-        const payload = {
-            template_id: localFormData.template_id,
-            template_data: localFormData.template_data,
-            client_id: props.initialFormData?.client_id // Assuming client_id is passed
-        };
-        const response = await window.axios.post(`/api/projects/${props.projectId}/email-preview`, payload);
+        const firstClient = emailForm.client_ids[0];
+        const clientId = typeof firstClient === 'object' ? firstClient.id : firstClient;
+
+        const response = await window.axios.post(`/api/projects/${props.projectId}/email-preview`, {
+            template_id: emailForm.template_id,
+            client_id: clientId,
+            template_data: emailForm.template_data,
+        });
         previewContent.value = response.data.body_html;
-        localFormData.subject = response.data.subject;
+        if (response.data.subject) {
+            emailForm.subject = response.data.subject;
+        }
     } catch (error) {
+        console.error('Failed to fetch email preview:', error);
         previewContent.value = '<p class="text-red-500 italic">Error loading preview.</p>';
     } finally {
         previewLoading.value = false;
     }
 };
 
+watch(() => props.show, (newValue) => {
+    if (newValue) {
+        Object.assign(emailForm, {
+            template_id: null,
+            template_data: {},
+            project_id: props.projectId,
+            client_ids: [],
+            subject: '',
+            greeting_name: '',
+            custom_greeting_name: '',
+            status: 'pending_approval',
+        });
+        previewContent.value = '';
+        validationErrors.value = {};
+        sourceModelsData.value = {};
+        fetchTemplates();
+    }
+});
 
-const handleClose = () => { emit('close'); };
-const handleSubmit = (response) => { emit('submitted', response); };
-const handleError = (error) => { emit('error', error); };
+watch(selectedTemplate, (newTemplate) => {
+    emailForm.template_data = {};
+    if (newTemplate && newTemplate.placeholders) {
+        newTemplate.placeholders.forEach(placeholder => {
+            if (placeholder.is_dynamic) {
+                emailForm.template_data[placeholder.name] = '';
+            } else if (placeholder.is_repeatable || placeholder.is_selectable) {
+                if(placeholder.is_repeatable) {
+                    emailForm.template_data[placeholder.name] = [];
+                } else {
+                    emailForm.template_data[placeholder.name] = null;
+                }
+            }
+        });
+        fetchSourceModelsData(newTemplate);
+    }
+});
+
+const prepareFormData = async () => {
+    // If client_ids contains objects, extract the ids only for a cleaner payload
+    if (Array.isArray(emailForm.client_ids) && emailForm.client_ids.length > 0 && typeof emailForm.client_ids[0] === 'object') {
+        emailForm.client_ids = emailForm.client_ids.map(client => client.id);
+    }
+
+    // Set subject from template only if it hasn't been set by the preview
+    if (!emailForm.subject && selectedTemplate.value) {
+        emailForm.subject = selectedTemplate.value.subject || '';
+    }
+
+    if (emailForm.client_ids.length > 0) {
+        const firstClient = emailForm.client_ids[0];
+        const clientObj = props.clients.find(client => client.id === firstClient);
+        if (clientObj) {
+            emailForm.greeting_name = clientObj.name || '';
+        }
+    }
+
+    console.log('Form data prepared:', JSON.stringify(emailForm));
+    return true;
+};
+
+const handleSubmitted = () => {
+    emit('close');
+};
+
+const closeModal = () => {
+    emit('close');
+};
+
+const templateOptions = computed(() => {
+    return templates.value.map(template => ({
+        value: template.id,
+        label: template.name
+    }));
+});
+
+const inputPlaceholders = computed(() => {
+    return selectedTemplate.value ? selectedTemplate.value.placeholders.filter(p => p.is_dynamic || p.is_repeatable || p.is_selectable) : [];
+});
+
+const apiEndpoint = computed(() => `/api/emails/templated`);
+
+onMounted(() => {
+    fetchTemplates();
+});
 </script>
 
 <template>
     <BaseFormModal
         :show="show"
-        :title="title"
+        title="Compose Email from Template"
         :api-endpoint="apiEndpoint"
-        :http-method="httpMethod"
-        :form-data="localFormData"
-        :submit-button-text="submitButtonText"
-        :success-message="successMessage"
-        :format-data-for-api="formatDataForApi"
-        @close="handleClose"
-        @submitted="handleSubmit"
-        @error="handleError"
-        max-width="4xl"
+        http-method="post"
+        :form-data="emailForm"
+        :submit-button-text="'Submit for Approval'"
+        success-message="Email submitted for approval successfully!"
+        @close="closeModal"
+        @submitted="handleSubmitted"
+        :before-submit="prepareFormData"
     >
         <template #default="{ errors }">
-            <!-- UI for Rejecting -->
-            <div v-if="title === 'Reject Email'">
-                <!-- ... rejection reason textarea ... -->
-            </div>
+            <div class="flex flex-col space-y-6">
+                <!-- Top Section: Template and Recipient Selection -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <!-- Template Selection -->
+                    <div>
+                        <InputLabel for="template" value="Select Template" />
+                        <SelectDropdown
+                            id="template"
+                            v-model="emailForm.template_id"
+                            :options="templateOptions"
+                            placeholder="Select a template"
+                            value-key="value"
+                            label-key="label"
+                            :allow-empty="true"
+                            class="mt-1"
+                        />
+                        <InputError :message="errors.template_id ? errors.template_id[0] : ''" class="mt-2" />
+                    </div>
 
-            <!-- UI for Editing (now handles both types) -->
-            <div v-else-if="title === 'Edit and Approve Email'" class="space-y-6">
-                <!-- Common Subject Field -->
-                <div class="mb-4">
-                    <InputLabel for="edit_subject" value="Subject" />
-                    <TextInput id="edit_subject" type="text" class="mt-1 block w-full" v-model="localFormData.subject" required />
-                    <InputError :message="errors.subject ? errors.subject[0] : ''" class="mt-2" />
+                    <!-- Recipient Selection (multi select box) -->
+                    <div>
+                        <InputLabel for="client_ids" value="Recipients" />
+                        <CustomMultiSelect
+                            id="client_ids"
+                            v-model="emailForm.client_ids"
+                            :options="clients"
+                            placeholder="Select clients to send to"
+                            label-key="name"
+                            track-by="id"
+                            :preserve-search="true"
+                            :object-value="true"
+                            class="mt-1"
+                        />
+                        <InputError :message="errors.client_ids ? errors.client_ids[0] : ''" class="mt-2" />
+                    </div>
                 </div>
 
-                <!-- TEMPLATE EDITING UI -->
-                <div v-if="compositionType === 'template'">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3 border-b pb-2">Editing Template Fields</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
+                <!-- Middle Section: Dynamic Input Fields -->
+                <div v-if="selectedTemplate">
+                    <h4 class="text-md font-semibold text-gray-800 mb-3">Dynamic Placeholders</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div v-for="placeholder in inputPlaceholders" :key="placeholder.id">
-                            <InputLabel :for="placeholder.name" :value="placeholder.name" />
-                            <!-- Add inputs for template_data here based on placeholder type -->
-                            <TextInput type="text" class="mt-1 block w-full" v-model="localFormData.template_data[placeholder.name]" />
-                            <InputError :message="errors[`template_data.${placeholder.name}`] ? errors[`template_data.${placeholder.name}`][0] : ''" class="mt-2" />
+                            <div class="mb-4">
+                                <InputLabel :for="placeholder.name" :value="placeholder.name" />
+                                <template v-if="placeholder.is_repeatable && placeholder.source_model">
+                                    <CustomMultiSelect
+                                        :id="placeholder.name"
+                                        v-model="emailForm.template_data[placeholder.name]"
+                                        :options="sourceModelsData[placeholder.source_model.split('\\').pop()] || []"
+                                        :placeholder="`Select one or more ${placeholder.name}`"
+                                        :label-key="placeholder.source_attribute"
+                                        track-by="id"
+                                        class="mt-1"
+                                    />
+                                    <div v-if="loadingSourceModels" class="text-xs text-gray-500 mt-1">
+                                        Loading {{ placeholder.source_model.split('\\').pop() }}...
+                                    </div>
+                                </template>
+                                <template v-else-if="placeholder.is_selectable && placeholder.source_model">
+                                    <SelectDropdown
+                                        :id="placeholder.name"
+                                        v-model="emailForm.template_data[placeholder.name]"
+                                        :options="sourceModelsData[placeholder.source_model.split('\\').pop()] || []"
+                                        :placeholder="`Select a ${placeholder.name}`"
+                                        :value-key="placeholder.trackBy ?? 'id'"
+                                        :label-key="placeholder.source_attribute"
+                                        :allow-empty="true"
+                                        class="mt-1"
+                                    />
+                                    <div v-if="loadingSourceModels" class="text-xs text-gray-500 mt-1">
+                                        Loading {{ placeholder.source_model.split('\\').pop() }}...
+                                    </div>
+                                </template>
+                                <template v-else-if="placeholder.is_dynamic && placeholder.is_link">
+                                    <TextInput
+                                        :id="placeholder.name"
+                                        type="url"
+                                        class="mt-1 block w-full"
+                                        v-model="emailForm.template_data[placeholder.name]"
+                                        placeholder="Enter URL"
+                                    />
+                                </template>
+                                <template v-else>
+                                    <TextInput
+                                        :id="placeholder.name"
+                                        type="text"
+                                        class="mt-1 block w-full"
+                                        v-model="emailForm.template_data[placeholder.name]"
+                                    />
+                                </template>
+                                <InputError :message="errors[`template_data.${placeholder.name}`] ? errors[`template_data.${placeholder.name}`][0] : ''" class="mt-2" />
+                            </div>
                         </div>
-                    </div>
-                    <!-- Preview Section for Templates -->
-                    <div class="mt-6">
-                        <div class="flex justify-between items-center mb-3">
-                            <h4 class="text-md font-semibold text-gray-800">Email Preview</h4>
-                            <PrimaryButton @click="fetchPreview" :disabled="previewLoading">
-                                {{ previewLoading ? 'Loading...' : 'Refresh Preview' }}
-                            </PrimaryButton>
-                        </div>
-                        <div class="bg-gray-100 p-4 rounded-lg shadow-inner min-h-[300px]" v-html="previewContent"></div>
                     </div>
                 </div>
 
-                <!-- CUSTOM/RICH-TEXT EDITING UI -->
-                <div v-else>
-                    <InputLabel for="edit_body" value="Email Body" />
-                    <EmailEditor id="edit_body" v-model="localFormData.body" placeholder="Edit your email here..." height="300px" class="mt-1" />
-                    <InputError :message="errors.body ? errors.body[0] : ''" class="mt-2" />
+                <!-- Bottom Section: Email Preview -->
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="text-md font-semibold text-gray-800">Email Preview</h4>
+                        <PrimaryButton
+                            @click="fetchPreview"
+                            :disabled="!emailForm.template_id || emailForm.client_ids.length === 0 || previewLoading"
+                            :class="{ 'opacity-50 cursor-not-allowed': !emailForm.template_id || emailForm.client_ids.length === 0 || previewLoading }"
+                        >
+                            <span v-if="previewLoading" class="flex items-center">
+                                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Loading...
+                            </span>
+                            <span v-else>
+                                Refresh Preview
+                            </span>
+                        </PrimaryButton>
+                    </div>
+                    <div class="bg-gray-100 p-4 rounded-lg shadow-inner min-h-[300px]">
+                        <div v-if="previewLoading" class="flex items-center justify-center h-full">
+                            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+                        </div>
+                        <div v-else v-html="previewContent"></div>
+                    </div>
                 </div>
             </div>
         </template>
