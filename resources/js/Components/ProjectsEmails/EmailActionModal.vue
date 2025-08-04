@@ -54,6 +54,7 @@ const emit = defineEmits(['close', 'submitted', 'error', 'fetchEmails']); // Add
 
 // Create a local reactive copy of formData to be mutated by the form inputs
 const localFormData = reactive({});
+const renderedBodyLoading = ref(false);
 
 // State for the Insert Link modal
 const showInsertLinkModal = ref(false);
@@ -83,8 +84,28 @@ watch(() => props.show, (newValue) => {
         for (const key in localFormData) {
             delete localFormData[key];
         }
+
         // Deep copy initialFormData.
         Object.assign(localFormData, JSON.parse(JSON.stringify(props.initialFormData)));
+
+        // Handle templated emails: if a template_id exists, fetch and render the body.
+        if (localFormData.template_id && localFormData.template_data && props.projectId && localFormData.client_id) {
+            renderedBodyLoading.value = true;
+            window.axios.post(`/api/projects/${props.projectId}/email-preview`, {
+                template_id: localFormData.template_id,
+                template_data: localFormData.template_data,
+                client_id: localFormData.client_id
+            })
+                .then(response => {
+                    localFormData.body = response.data.body_html;
+                    renderedBodyLoading.value = false;
+                })
+                .catch(error => {
+                    console.error('Failed to fetch rendered email body:', error);
+                    localFormData.body = 'Error rendering email body.';
+                    renderedBodyLoading.value = false;
+                });
+        }
     }
 }, { immediate: true });
 
@@ -187,15 +208,12 @@ const emailError = ref({});
 const saving = ref(false);
 
 const saveEmail = async () => {
-
     saving.value = true;
     try {
         await window.axios.post(`/api/emails/${props.emailId}/update`, {
             subject: localFormData.subject,
             body: localFormData.body
         });
-        // Use a simple notification here since it's not a form submission via BaseFormModal
-        // Assuming 'success' utility is available globally or imported
         if (typeof success === 'function') {
             success('Email approved successfully!');
         } else {
@@ -203,9 +221,9 @@ const saveEmail = async () => {
         }
 
         saving.value = false;
-
+        emit('fetchEmails');
+        handleClose();
     } catch (error) {
-
         saving.value = false;
 
         if (error.response && error.response.data.message) {
@@ -214,7 +232,6 @@ const saveEmail = async () => {
             emailError.value = 'Failed to approve email.';
             console.error('Error approving email directly:', error);
         }
-        // Assuming 'error' utility is available globally or imported
         if (typeof error === 'function') {
             error(emailError.value);
         }
@@ -223,22 +240,17 @@ const saveEmail = async () => {
 
 const saveEmailAndApprove = async () => {
     try {
-        // This is a direct API call for "Edit & Approve" specifically
-        // It bypasses BaseFormModal's internal submission
         const response = await window.axios.post(`/api/emails/${props.emailId}/edit-and-approve`, {
             subject: localFormData.subject,
-            body: processedHtmlBody.value // Use the processed body for saving
+            body: processedHtmlBody.value
         });
-
-        // Use a simple notification here since it's not a form submission via BaseFormModal
-        // Assuming 'success' utility is available globally or imported
-        if (typeof success === 'function') { // Check if 'success' is a defined global function
+        if (typeof success === 'function') {
             success('Email updated and approved successfully!');
         } else {
-            alert('Email updated and approved successfully!'); // Fallback alert
+            alert('Email updated and approved successfully!');
         }
-        emit('submitted', response.data); // Emit submitted event for parent to refresh
-        handleClose(); // Close the modal
+        emit('submitted', response.data);
+        handleClose();
     } catch (error) {
         let errorMessage = 'Failed to approve email.';
         if (error.response && error.response.data.message) {
@@ -246,27 +258,22 @@ const saveEmailAndApprove = async () => {
         } else if (error.message) {
             errorMessage = error.message;
         }
-        // Assuming 'error' utility is available globally or imported
-        if (typeof errorGlobal === 'function') { // Check for global 'error' function
+        if (typeof errorGlobal === 'function') {
             errorGlobal(errorMessage);
         } else {
             console.error('Error approving email directly:', error);
-            alert(errorMessage); // Fallback alert
+            alert(errorMessage);
         }
         emit('error', error);
     }
 };
 
-// New function to preview email
 const previewEmail = () => {
     if (props.emailId) {
-        // Construct the URL using a base path or a named route if you have one on the frontend
-        const previewUrl = `/emails/${props.emailId}/preview`; // Adjust if your base URL is different
+        const previewUrl = `/emails/${props.emailId}/preview`;
         window.open(previewUrl, '_blank');
     } else {
-        // Handle cases where email ID is not available (e.g., trying to preview a new unsaved email)
         console.warn('Cannot preview email: Email ID not available.');
-        // Optionally show an alert or notification to the user
     }
 };
 </script>
@@ -305,7 +312,10 @@ const previewEmail = () => {
                     </div>
 
                     <InputLabel for="edit_body" value="Email Body" class="sr-only" />
-                    <EmailEditor id="edit_body" v-model="localFormData.body" placeholder="Edit your email here..." height="300px" />
+                    <div v-if="renderedBodyLoading" class="min-h-[300px] flex items-center justify-center bg-gray-50 rounded-md">
+                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+                    </div>
+                    <EmailEditor v-else id="edit_body" v-model="localFormData.body" placeholder="Edit your email here..." height="300px" />
                     <InputError :message="errors.body ? errors.body[0] : ''" class="mt-2" />
                 </div>
 

@@ -15,15 +15,6 @@ const props = defineProps({
         type: Number,
         required: true,
     },
-    // projectClients is no longer passed to ComposeEmailModal directly from here
-    // as ComposeEmailModal will fetch its own clients.
-    // However, ProjectEmailsTab itself still needs it for general context if any
-    // other part of its functionality depends on it (e.g., if you later add filtering by client).
-    // For now, removing it from here as it's primarily used by compose.
-    // projectClients: {
-    //     type: Array,
-    //     default: () => [],
-    // },
     canViewEmails: {
         type: Boolean,
         required: true,
@@ -125,28 +116,52 @@ const fetchProjectEmails = async () => {
     }
 };
 
-const viewEmail = (email) => {
-    selectedEmail.value = email;
+const viewEmail = async (email) => {
+    selectedEmail.value = null; // Clear old email data
     showEmailDetailsModal.value = true;
+    try {
+        const response = await window.axios.get(`/api/emails/${email.id}`);
+        // The API now returns an object with 'subject' and 'body_html'
+        selectedEmail.value = {
+            ...email, // Keep existing properties
+            subject: response.data.subject,
+            body: response.data.body_html,
+        };
+    } catch (error) {
+        console.error('Failed to fetch full email details:', error);
+        selectedEmail.value = {
+            subject: 'Error',
+            body: 'Failed to load email content.',
+            created_at: new Date().toISOString(),
+            status: 'error',
+            sender: { name: 'System' },
+        };
+    }
 };
 
 // --- EmailActionModal related functions (now only Edit/Reject) ---
 
-const openEditEmailModal = (email) => {
-    selectedEmail.value = email; // Keep selected email for context
-    actionModalTitle.value = 'Edit and Approve Email';
-    actionModalApiEndpoint.value = `/api/emails/${email.id}/edit-and-approve`;
-    actionModalHttpMethod.value = 'post';
-    actionModalSubmitButtonText.value = 'Approve & Send';
-    actionModalSuccessMessage.value = 'Email updated and approved successfully!';
-    // Initialize form data for editing
-    let emailBody = email.body || '';
-    Object.assign(actionModalInitialData, {
-        subject: email.subject,
-        body: emailBody,
-    });
-    showActionModal.value = true;
-    showEmailDetailsModal.value = false; // Close details modal
+const openEditEmailModal = async (email) => {
+    // Fetch the complete email data from the backend first
+    try {
+        const response = await window.axios.get(`/api/emails/${email.id}`);
+        const fullEmail = response.data;
+
+        selectedEmail.value = fullEmail;
+        actionModalTitle.value = 'Edit and Approve Email';
+        actionModalApiEndpoint.value = `/api/emails/${fullEmail.id}/edit-and-approve`;
+        actionModalHttpMethod.value = 'post';
+        actionModalSubmitButtonText.value = 'Approve & Send';
+        actionModalSuccessMessage.value = 'Email updated and approved successfully!';
+
+        // Pass the full email object to the modal
+        Object.assign(actionModalInitialData, fullEmail);
+        showActionModal.value = true;
+        showEmailDetailsModal.value = false; // Close details modal
+    } catch (error) {
+        console.error('Failed to fetch email details for editing:', error);
+        emailError.value = 'Failed to load email for editing.';
+    }
 };
 
 const openRejectEmailModal = (email) => {
@@ -306,12 +321,11 @@ onMounted(() => {
                                 'px-2 py-1 rounded-full text-xs font-medium': true,
                                 'bg-green-100 text-green-800': email.status === 'sent',
                                 'bg-yellow-100 text-yellow-800': email.status === 'pending_approval',
-                                'bg-blue-200 text-blue-900': email.status === 'pending_approval_received',
                                 'bg-red-100 text-red-800': email.status === 'rejected',
                                 'bg-gray-100 text-gray-800': email.status === 'draft'
                             }"
                         >
-                            {{ email.status.replace('_', ' ').toUpperCase() }}
+                            {{ email.status ? email.status.replace('_', ' ').toUpperCase() : 'N/A' }}
                         </span>
                     </td>
                     <td class="px-4 py-3 text-right">
@@ -350,7 +364,7 @@ onMounted(() => {
                                             'bg-red-100 text-red-800': selectedEmail.status === 'rejected',
                                             'bg-gray-100 text-gray-800': selectedEmail.status === 'draft'
                                         }">
-                                        {{ selectedEmail.status.replace('_', ' ').toUpperCase() }}
+                                        {{ selectedEmail.status ? selectedEmail.status.replace('_', ' ').toUpperCase() : 'N/A' }}
                                     </span>
                                 </p>
                             </div>
