@@ -24,9 +24,13 @@ const props = defineProps({
         type: Boolean,
         required: true,
     },
+    tasksFilter: {
+        type: String,
+        default: 'all',
+    },
 });
 
-const emit = defineEmits(['tasksUpdated', 'openTaskDetailSidebar', 'open-create-task-modal']);
+const emit = defineEmits(['tasksUpdated', 'openTaskDetailSidebar', 'open-create-task-modal', 'filter-changed']);
 
 const tasks = ref([]);
 const loadingTasks = ref(true);
@@ -344,6 +348,35 @@ watch(() => props.taskTypes, () => {
 watch(() => props.milestones, () => {
     // No explicit action needed here
 });
+
+// Watch tasksFilter prop to update internal filters
+watch(() => props.tasksFilter, (newFilter) => {
+    if (newFilter === 'due-overdue') {
+        // Set filters to show only due and overdue tasks
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Reset other filters first
+        taskFilters.status = '';
+        taskFilters.assigned_to_user_id = null;
+        taskFilters.milestone_id = null;
+
+        // Set due date filter to show overdue and due today tasks
+        taskFilters.due_date_range = 'overdue';
+
+        // Highlight overdue and due today tasks in the UI
+        // This is handled by the CSS classes in the template
+    } else if (newFilter === 'all') {
+        // Reset all filters
+        taskFilters.status = '';
+        taskFilters.assigned_to_user_id = null;
+        taskFilters.milestone_id = null;
+        taskFilters.due_date_range = '';
+    }
+
+    // Emit the filter change back to parent
+    emit('filter-changed', newFilter);
+});
 </script>
 
 <template>
@@ -522,8 +555,13 @@ watch(() => props.milestones, () => {
                 </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                <tr v-for="task in filteredTasks" :key="task.id" class="hover:bg-gray-50 transition-colors">
-                    <td class="px-4 py-3 text-sm text-gray-900">{{ task.title }}</td>
+                <tr v-for="task in filteredTasks" :key="task.id"
+                    class="hover:bg-gray-50 transition-colors"
+                    :class="{
+                        'bg-red-50': task.due_date && new Date(task.due_date) < new Date(),
+                        'bg-yellow-50': task.due_date && new Date(task.due_date).toDateString() === new Date().toDateString()
+                    }">
+                    <td class="px-4 py-3 text-sm text-gray-900">{{ task.name }}</td>
                     <td class="px-4 py-3 text-sm text-gray-700">
                         <span
                             :class="{

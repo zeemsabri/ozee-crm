@@ -362,4 +362,45 @@ class TaskController extends Controller
 
         return response()->json($task);
     }
+
+    /**
+     * Get tasks assigned to the authenticated user.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getAssignedTasks()
+    {
+        // Get the authenticated user
+        $user = Auth::user();
+
+        // Get tasks assigned to the user
+        $tasks = Task::with(['milestone.project', 'taskType'])
+            ->where('assigned_to_user_id', $user->id)
+            ->where('status', '!=', 'Done')
+            ->where('status', '!=', 'Archived')
+            ->orderBy('due_date', 'asc')
+            ->get();
+
+        // Transform the tasks to include project information
+        $transformedTasks = $tasks->map(function ($task) {
+            return [
+                'id' => $task->id,
+                'name' => $task->name,
+                'description' => $task->description,
+                'status' => $task->status,
+                'due_date' => $task->due_date,
+                'project_id' => $task->milestone->project_id ?? null,
+                'milestone' => $task->milestone ? [
+                    'id' => $task->milestone->id,
+                    'name' => $task->milestone->name
+                ] : null,
+                'project' => $task->milestone && $task->milestone->project ? [
+                    'id' => $task->milestone->project->id,
+                    'name' => $task->milestone->project->name
+                ] : null
+            ];
+        });
+
+        return response()->json($transformedTasks);
+    }
 }

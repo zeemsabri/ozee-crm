@@ -409,11 +409,13 @@ class EmailController extends Controller
             $mailable = new ClientEmail($mailablePayload, $senderDetails, $companyDetails, $template);
             $finalRenderedBody = $mailable->render();
 
-            $gmailMessageId = $this->gmailService->sendEmail(
-                $clientEmailAddress,
-                $subject,
-                $finalRenderedBody
-            );
+            if($email->status === 'pending_approval') {
+                $gmailMessageId = $this->gmailService->sendEmail(
+                    $clientEmailAddress,
+                    $subject,
+                    $finalRenderedBody
+                );
+            }
 
             $email->update([
                 'status' => 'sent',

@@ -8,6 +8,8 @@ import NotesModal from '@/Components/NotesModal.vue';
 import AvailabilityPrompt from '@/Components/Availability/AvailabilityPrompt.vue';
 import TextInput from '@/Components/TextInput.vue';
 import StandupModal from '@/Components/StandupModal.vue';
+import TaskNotificationPrompt from '@/Components/TaskNotificationPrompt.vue';
+import { openTaskDetailSidebar } from '@/Utils/sidebar';
 
 const authUser = computed(() => usePage().props.auth.user);
 
@@ -49,6 +51,13 @@ const selectedProjectId = ref(null);
 // Standup modal state
 const showStandupModal = ref(false);
 const selectedProjectIdForStandup = ref(null);
+
+// Assigned tasks state
+const assignedTasks = ref([]);
+const loadingAssignedTasks = ref(true);
+const assignedTasksError = ref('');
+const expandAssignedTasks = ref(false);
+const assignedTasksSearchQuery = ref('');
 
 // Helper function to format dates for display
 const formatDateDisplay = (dateString) => {
@@ -277,11 +286,97 @@ const handleStandupAdded = () => {
     // fetchTaskStatistics();
 };
 
+// --- Assigned Tasks Logic ---
+
+// Fetches all tasks assigned to the current user
+const fetchAssignedTasks = async () => {
+    loadingAssignedTasks.value = true;
+    assignedTasksError.value = '';
+    try {
+        const response = await axios.get('/api/assigned-tasks');
+        assignedTasks.value = response.data;
+    } catch (err) {
+        assignedTasksError.value = 'Failed to load assigned tasks';
+        console.error('Error fetching assigned tasks:', err);
+    } finally {
+        loadingAssignedTasks.value = false;
+    }
+};
+
+// Computed property for client-side task filtering
+const filteredAssignedTasks = computed(() => {
+    if (!assignedTasksSearchQuery.value) {
+        return assignedTasks.value; // If no search query, return all tasks
+    }
+    const lowerCaseQuery = assignedTasksSearchQuery.value.toLowerCase();
+    return assignedTasks.value.filter(task =>
+        task.name.toLowerCase().includes(lowerCaseQuery) ||
+        (task.milestone?.name && task.milestone.name.toLowerCase().includes(lowerCaseQuery)) ||
+        (task.project?.name && task.project.name.toLowerCase().includes(lowerCaseQuery))
+    );
+});
+
+// Toggles the visibility of the assigned tasks section and fetches data if expanding
+const toggleAssignedTasks = () => {
+    expandAssignedTasks.value = !expandAssignedTasks.value;
+    if (expandAssignedTasks.value && assignedTasks.value.length === 0) { // Only fetch if not already fetched
+        fetchAssignedTasks();
+    }
+};
+
+// Opens the task detail sidebar for a specific task
+const viewTaskDetails = (taskId, projectId) => {
+    openTaskDetailSidebar(taskId, projectId);
+};
+
+// Reference to the assigned tasks section for scrolling
+const assignedTasksRef = ref(null);
+
+// Filter for assigned tasks - can be 'all', 'due-overdue'
+const assignedTasksFilter = ref('all');
+
+// Filtered assigned tasks based on the current filter
+const filteredAssignedTasksWithFilter = computed(() => {
+    if (assignedTasksFilter.value === 'due-overdue') {
+        return filteredAssignedTasks.value.filter(task =>
+            (task.due_date && new Date(task.due_date) < new Date()) || // overdue
+            (task.due_date && new Date(task.due_date).toDateString() === new Date().toDateString()) // due today
+        );
+    }
+    return filteredAssignedTasks.value;
+});
+
+// Handle view button click from notification prompt
+const handleViewDueAndOverdueTasks = () => {
+    // Expand the assigned tasks section if not already expanded
+    if (!expandAssignedTasks.value) {
+        expandAssignedTasks.value = true;
+        // Need to wait for the DOM to update before scrolling
+        setTimeout(() => {
+            // Set filter to show only due and overdue tasks
+            assignedTasksFilter.value = 'due-overdue';
+            // Scroll to the assigned tasks section
+            if (assignedTasksRef.value) {
+                assignedTasksRef.value.scrollIntoView({ behavior: 'smooth' });
+            }
+        }, 100);
+    } else {
+        // Set filter to show only due and overdue tasks
+        assignedTasksFilter.value = 'due-overdue';
+        // Scroll to the assigned tasks section
+        if (assignedTasksRef.value) {
+            assignedTasksRef.value.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+};
+
 // --- Lifecycle Hook ---
 onMounted(() => {
     // Initial fetch for summary stats (these are always displayed or used for total counts)
     fetchTaskStatistics(); // To get total_due_tasks count initially
     fetchWeeklyAvailability();
+    // Fetch assigned tasks count for initial display
+    fetchAssignedTasks();
     // Projects are only fetched when the user expands the section for the first time
 });
 </script>
@@ -290,20 +385,15 @@ onMounted(() => {
     <Head title="Dashboard" />
 
     <AuthenticatedLayout>
-        <template #header>
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between py-4">
-                <h2 class="font-bold text-3xl text-gray-800 leading-tight mb-2 sm:mb-0">
-                    Your Dashboard
-                </h2>
-                <div class="text-left sm:text-right">
-                    <p class="text-md text-gray-600">Welcome back, <span class="font-semibold text-indigo-700">{{ authUser.name }}</span>!</p>
-                    <p class="text-sm text-gray-500">Role: <span class="font-medium text-gray-700">{{ authUser.role_data ? authUser.role_data.name : 'N/A' }}</span></p>
-                </div>
-            </div>
-        </template>
-
         <div class="py-12">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                <!-- Task Notification Prompt -->
+                <TaskNotificationPrompt
+                    :overdue-tasks="assignedTasks.filter(task => task.due_date && new Date(task.due_date) < new Date()).length"
+                    :due-today-tasks="assignedTasks.filter(task => task.due_date && new Date(task.due_date).toDateString() === new Date().toDateString()).length"
+                    @view-tasks="handleViewDueAndOverdueTasks"
+                />
+
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
                     <!-- Welcome Card / Quick Stats -->
@@ -328,9 +418,6 @@ onMounted(() => {
                             </svg>
                         </div>
                         <p class="text-sm text-gray-600 mt-4">Tasks currently due across all your projects.</p>
-                        <button @click="toggleTasks" class="mt-6 inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition ease-in-out duration-150">
-                            {{ expandTasks ? 'Collapse Details' : 'View All Due Tasks' }}
-                        </button>
                     </div>
 
                     <!-- Availability Prompt (Conditionally displayed, spans full width) -->
@@ -384,15 +471,125 @@ onMounted(() => {
                         </div>
                     </div>
 
+                    <!-- Assigned Tasks Card -->
+                    <div ref="assignedTasksRef" class="md:col-span-3 bg-white overflow-hidden shadow-xl sm:rounded-lg p-8 transition-all duration-300 hover:shadow-2xl">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+                            <div>
+                                <h3 class="text-xl font-semibold text-gray-900 mb-2">Your Assigned Tasks</h3>
+                                <div class="flex space-x-4 mt-2">
+                                    <div class="flex items-center">
+                                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-red-800 font-medium text-xs mr-2">
+                                            {{ assignedTasks.filter(task => task.due_date && new Date(task.due_date) < new Date()).length }}
+                                        </span>
+                                        <span class="text-sm text-gray-600">Overdue</span>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-yellow-100 text-yellow-800 font-medium text-xs mr-2">
+                                            {{ assignedTasks.filter(task => task.due_date && new Date(task.due_date).toDateString() === new Date().toDateString()).length }}
+                                        </span>
+                                        <span class="text-sm text-gray-600">Due Today</span>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-800 font-medium text-xs mr-2">
+                                            {{ assignedTasks.filter(task => task.status === 'In Progress').length }}
+                                        </span>
+                                        <span class="text-sm text-gray-600">In Progress</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-4">
+                                <div v-if="expandAssignedTasks && assignedTasksFilter === 'due-overdue'" class="text-sm text-amber-600 font-medium">
+                                    Showing due and overdue tasks
+                                    <button @click="assignedTasksFilter = 'all'" class="ml-2 text-blue-600 hover:text-blue-800 underline">
+                                        Show all
+                                    </button>
+                                </div>
+                                <button
+                                    @click="toggleAssignedTasks"
+                                    class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition ease-in-out duration-150 w-48"
+                                >
+                                    {{ expandAssignedTasks ? 'Collapse Tasks' : 'View My Tasks (' + assignedTasks.length + ')' }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="expandAssignedTasks" class="mt-4">
+                            <div class="mb-6">
+                                <TextInput
+                                    v-model="assignedTasksSearchQuery"
+                                    placeholder="Search tasks by name, milestone, or project..."
+                                    class="w-full"
+                                    :disabled="loadingAssignedTasks"
+                                />
+                            </div>
+
+                            <div v-if="assignedTasksError" class="text-center text-sm text-red-500 py-6">{{ assignedTasksError }}</div>
+                            <div v-else-if="filteredAssignedTasksWithFilter.length === 0 && !loadingAssignedTasks" class="text-center text-sm text-gray-500 py-6">
+                                {{ assignedTasksFilter === 'due-overdue' ? 'No due or overdue tasks found.' : 'No assigned tasks found matching your search.' }}
+                            </div>
+                            <div v-else class="mt-3 overflow-x-auto rounded-lg border border-gray-200 shadow-sm relative">
+                                <!-- Loading overlay for assigned tasks -->
+                                <div v-if="loadingAssignedTasks" class="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg z-10">
+                                    <svg class="animate-spin h-8 w-8 text-purple-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span class="ml-3 text-purple-700">Loading assigned tasks...</span>
+                                </div>
+
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Name</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Milestone</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                    <tr v-for="task in filteredAssignedTasksWithFilter" :key="task.id"
+                                        class="hover:bg-gray-50 transition-colors duration-100"
+                                        :class="{
+                                            'bg-red-50': task.due_date && new Date(task.due_date) < new Date(),
+                                            'bg-yellow-50': task.due_date && new Date(task.due_date).toDateString() === new Date().toDateString()
+                                        }">
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{{ task.name }}</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                                            {{ task.milestone?.name || 'N/A' }}
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                                            {{ task.project?.name || 'N/A' }}
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                                            {{ task.due_date ? formatDateDisplay(task.due_date) : 'No due date' }}
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm">
+                                            <div class="flex space-x-2">
+                                                <PrimaryButton
+                                                    @click="viewTaskDetails(task.id, task.project_id)"
+                                                    class="px-3 py-1 text-xs leading-4 bg-purple-600 hover:bg-purple-700"
+                                                >
+                                                    View
+                                                </PrimaryButton>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Projects Card -->
                     <div class="md:col-span-3 bg-white overflow-hidden shadow-xl sm:rounded-lg p-8 transition-all duration-300 hover:shadow-2xl">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
                             <h3 class="text-xl font-semibold text-gray-900 mb-2 sm:mb-0">Your Projects</h3>
                             <button
                                 @click="toggleProjects"
-                                class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition ease-in-out duration-150"
+                                class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition ease-in-out duration-150 w-48"
                             >
-                                {{ expandProjects ? 'Collapse Projects' : 'Expand All Projects' }} ({{ projectCount }} total)
+                                {{ expandProjects ? 'Collapse Projects' : 'View My Projects (' + projectCount + ')' }}
                             </button>
                         </div>
 
@@ -464,9 +661,9 @@ onMounted(() => {
                             <h3 class="text-xl font-semibold text-gray-900 mb-2 sm:mb-0">Due Tasks Breakdown</h3>
                             <button
                                 @click="toggleTasks"
-                                class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition ease-in-out duration-150"
+                                class="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition ease-in-out duration-150 w-48"
                             >
-                                {{ expandTasks ? 'Collapse Tasks' : 'Expand All Tasks' }} ({{ taskStats.total_due_tasks }} total)
+                                {{ expandTasks ? 'Collapse Tasks' : 'My Task Summary' }}
                             </button>
                         </div>
 

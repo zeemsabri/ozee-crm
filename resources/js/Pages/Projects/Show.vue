@@ -41,6 +41,9 @@ import DeliverableDetailSidebar from '@/Components/ProjectsDeliverables/Delivera
 import SeoReportTab from '@/Components/ProjectsSeoReports/SeoReportTab.vue'; // Adjust path as needed
 import CreateSeoReportModal from "@/Components/ProjectsSeoReports/CreateSeoReportModal.vue";
 
+// Task notification import
+import ProjectTaskNotificationPrompt from '@/Components/ProjectTaskNotificationPrompt.vue';
+
 // Currency utilities and SelectDropdown
 import SelectDropdown from '@/Components/SelectDropdown.vue'; // For currency switcher
 import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency'; // Import displayCurrency
@@ -170,6 +173,15 @@ const currencyOptions = [
 // State for due and overdue tasks
 const tasksDueToday = ref([]);
 
+// Reference to the tasks tab section for scrolling
+const tasksTabRef = ref(null);
+
+// Reference to the navigation section for scrolling
+const navigationRef = ref(null);
+
+// Filter for tasks - can be 'all', 'due-overdue'
+const tasksFilter = ref('all');
+
 // Function to fetch due and overdue tasks for the project
 const fetchDueAndOverdueTasks = async () => {
     try {
@@ -178,6 +190,23 @@ const fetchDueAndOverdueTasks = async () => {
     } catch (error) {
         console.error('Error fetching due and overdue tasks:', error);
     }
+};
+
+// Handle view button click from notification prompt
+const handleViewDueAndOverdueTasks = () => {
+    // Switch to the tasks tab
+    selectedTab.value = 'tasks';
+
+    // Set filter to show only due and overdue tasks
+    tasksFilter.value = 'due-overdue';
+
+    // Need to wait for the DOM to update before scrolling
+    setTimeout(() => {
+        // Scroll to the navigation section instead of tasks section
+        if (navigationRef.value && navigationRef.value.scrollIntoView) {
+            navigationRef.value.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, 100);
 };
 
 const latestNotes = computed(() => {
@@ -408,6 +437,13 @@ onMounted(async () => {
                 {{ generalError }}
             </div>
             <div v-else class="space-y-8">
+                <!-- Task notification prompt for due and overdue tasks -->
+                <ProjectTaskNotificationPrompt
+                    :overdue-tasks="tasksDueToday.filter(task => new Date(task.due_date) < new Date()).length"
+                    :due-today-tasks="tasksDueToday.filter(task => new Date(task.due_date).toDateString() === new Date().toDateString()).length"
+                    @view-tasks="handleViewDueAndOverdueTasks"
+                />
+
                 <ProjectGeneralInfoCard
                     :project="project"
                     :project-id="projectId"
@@ -466,6 +502,7 @@ onMounted(async () => {
                     />
                 </div>
                 <ProjectTabsNavigation
+                    ref="navigationRef"
                     v-model:selectedTab="selectedTab"
                     :can-view-emails="canViewEmails"
                     :can-view-notes="canViewNotes"
@@ -633,12 +670,15 @@ onMounted(async () => {
 
                 <ProjectTasksTab
                     v-if="selectedTab === 'tasks'"
+                    ref="tasksTabRef"
                     :project-id="projectId"
                     :project-users="project.users || []"
                     :can-manage-projects="canManageProjects"
+                    :tasks-filter="tasksFilter"
                     @tasksUpdated="handleTasksUpdated"
                     @openTaskDetailSidebar="openTaskDetailSidebar"
                     @open-create-task-modal="openGlobalCreateTaskModal"
+                    @filter-changed="(newFilter) => tasksFilter = newFilter"
                 />
 
                 <ProjectEmailsTab

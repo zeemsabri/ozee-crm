@@ -196,6 +196,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Task Management Routes
     Route::get('task-statistics', [TaskController::class, 'getTaskStatistics']);
+    Route::get('assigned-tasks', [TaskController::class, 'getAssignedTasks']);
     Route::get('projects/{projectId}/due-and-overdue-tasks', [TaskController::class, 'getProjectDueAndOverdueTasks']);
 
     // Apply ProcessTags middleware to store and update methods

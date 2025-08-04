@@ -1,5 +1,7 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, onMounted } from 'vue';
+
+const navElement = ref(null);
 
 const props = defineProps({
     selectedTab: {
@@ -30,12 +32,24 @@ const currentTab = computed({
     get: () => props.selectedTab,
     set: (value) => emit('update:selectedTab', value),
 });
+
+// Method to get the navigation element for scrolling
+const scrollIntoView = (options) => {
+    if (navElement.value) {
+        navElement.value.scrollIntoView(options);
+    }
+};
+
+// Expose methods and refs to parent component
+defineExpose({
+    scrollIntoView
+});
 </script>
 
 <template>
     <div class="bg-white p-4 rounded-xl shadow-md mb-6">
         <div class="border-b border-gray-200">
-            <nav class="-mb-px flex space-x-8 overflow-x-auto">
+            <nav class="-mb-px flex space-x-8 overflow-x-auto" ref="navElement">
                 <button
                     @click="currentTab = null"
                     :class="[
