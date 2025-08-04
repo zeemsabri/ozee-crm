@@ -217,7 +217,7 @@ trait HandlesTemplatedEmails
             $renderedContent = $this->renderEmailContent($email, false);
             $subject = $renderedContent['subject'];
             $body = $renderedContent['body'];
-
+            $body = nl2br($body);
             // Get the sender details
             $sender = $email->sender;
             $senderDetails = [
@@ -226,8 +226,7 @@ trait HandlesTemplatedEmails
             ];
 
             // Load all reusable data from the new config file
-            $config = config('email');
-            dd($config);
+            $config = config('branding');
 
             // Combine all data into a single array for the view
             $data = [
@@ -239,7 +238,7 @@ trait HandlesTemplatedEmails
                 'senderRole' => $senderDetails['role'],
                 'senderPhone' => $config['company']['phone'],
                 'senderWebsite' => $config['company']['website'],
-                'companyLogoUrl' => $config['company']['logo_url'],
+                'companyLogoUrl' => asset($config['company']['logo_url']),
                 'socialIcons' => $config['social_icons'],
                 'brandPrimaryColor' => $config['branding']['brand_primary_color'],
                 'brandSecondaryColor' => $config['branding']['brand_secondary_color'],

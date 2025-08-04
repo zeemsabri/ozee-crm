@@ -138,7 +138,7 @@ class SendEmailController extends Controller
                 'senderPhone' => $config['company']['phone'],
                 'senderWebsite' => $config['company']['website'],
                 'signatureTagline' => $config['signature']['tagline'],
-                'companyLogoUrl' => $config['company']['logo_url'],
+                'companyLogoUrl' => asset($config['company']['logo_url']),
                 'socialIcons' => $config['social_icons'],
                 'brandPrimaryColor' => $config['branding']['brand_primary_color'],
                 'brandSecondaryColor' => $config['branding']['brand_secondary_color'],

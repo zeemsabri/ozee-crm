@@ -153,7 +153,7 @@ class EmailPreviewController extends Controller
             // --- Use reusable information from the branding config ---
             'senderPhone' => $brandingConfig['company']['phone'],
             'senderWebsite' => $brandingConfig['company']['website'],
-            'companyLogoUrl' => $brandingConfig['company']['logo_url'],
+            'companyLogoUrl' => asset($brandingConfig['company']['logo_url']),
             'brandPrimaryColor' => $brandingConfig['branding']['brand_primary_color'],
             'brandSecondaryColor' => $brandingConfig['branding']['brand_secondary_color'],
             'textColorPrimary' => $brandingConfig['branding']['text_color_primary'],
