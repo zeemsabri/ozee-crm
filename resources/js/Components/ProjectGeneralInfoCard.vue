@@ -466,9 +466,15 @@ const sendMagicLink = async () => {
     <!-- New Compose Email Modal -->
     <ComposeEmailModal
         :show="showComposeEmailModal"
+        :title="'Compose New Email'"
+        :api-endpoint="'/api/emails'"
+        :http-method="'post'"
+        :submit-button-text="'Submit for Approval'"
+        :success-message="'Email submitted for approval successfully!'"
         :project-id="projectId"
-        :clients="projectClients"
         @close="showComposeEmailModal = false"
+        @submitted="showComposeEmailModal = false"
+        @error="(error) => console.error('Email submission error:', error)"
     />
 </template>
 

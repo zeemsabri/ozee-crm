@@ -56,7 +56,6 @@ const actionModalApiEndpoint = ref('');
 const actionModalHttpMethod = ref('post');
 const actionModalSubmitButtonText = ref('');
 const actionModalSuccessMessage = ref('');
-const actionModalInitialData = reactive({});
 
 // State for the new ComposeEmailModal
 const showComposeEmailModal = ref(false);
@@ -152,17 +151,15 @@ const viewEmail = async (email) => {
 // --- EmailActionModal related functions (now only Edit/Reject) ---
 
 const openEditEmailModal = async (email) => {
-    // Fetch the complete email data from the backend first
     try {
-        console.log('Fetching email content for editing, email ID:', email.id);
+        console.log('Opening email editor for email ID:', email.id);
+        selectedEmail.value = email;
+
+        // Check if this is a template-based email by fetching minimal data
         const response = await window.axios.get(`/api/emails/${email.id}/edit-content`);
-        const fullEmail = response.data;
-        console.log('Received email content:', fullEmail);
+        const emailData = response.data;
 
-        selectedEmail.value = fullEmail;
-
-        // Check if this is a template-based email
-        if (fullEmail.template_id) {
+        if (emailData.template_id) {
             console.log('Opening template-based email editor for email ID:', email.id);
 
             // Set up the EditTemplateEmailModal
@@ -170,7 +167,7 @@ const openEditEmailModal = async (email) => {
             editTemplateApiEndpoint.value = `/api/emails/${email.id}/edit-and-approve`;
             editTemplateSubmitButtonText.value = 'Approve & Send';
             editTemplateSuccessMessage.value = 'Email updated and approved successfully!';
-            editTemplateClientId.value = fullEmail.client_id;
+            editTemplateClientId.value = emailData.client_id;
 
             // Show the template editor modal
             showEditTemplateEmailModal.value = true;
@@ -183,36 +180,12 @@ const openEditEmailModal = async (email) => {
             actionModalSubmitButtonText.value = 'Approve & Send';
             actionModalSuccessMessage.value = 'Email updated and approved successfully!';
 
-            // Clear existing properties in actionModalInitialData
-            for (const key in actionModalInitialData) {
-                delete actionModalInitialData[key];
-            }
-
-            // Pass the full email object to the modal
-            Object.assign(actionModalInitialData, {
-                subject: fullEmail.subject,
-                body: fullEmail.body_html,
-                body_html: fullEmail.body_html, // Add body_html explicitly to ensure it's available
-                template_id: fullEmail.template_id,
-                template_data: fullEmail.template_data,
-                client_id: fullEmail.client_id
-            });
-
-            console.log('Prepared initialFormData for modal:', actionModalInitialData);
-            console.log('Body content available:', {
-                'body_html from API': fullEmail.body_html,
-                'body in initialFormData': actionModalInitialData.body,
-                'body_html in initialFormData': actionModalInitialData.body_html
-            });
-
-            // First set the data, then show the modal
-            setTimeout(() => {
-                showActionModal.value = true;
-                showEmailDetailsModal.value = false; // Close details modal
-            }, 100);
+            // Show the modal - it will fetch its own data
+            showActionModal.value = true;
+            showEmailDetailsModal.value = false; // Close details modal
         }
     } catch (error) {
-        console.error('Failed to fetch email details for editing:', error);
+        console.error('Failed to determine email type:', error);
         emailError.value = 'Failed to load email for editing.';
     }
 };
@@ -224,10 +197,6 @@ const openRejectEmailModal = (email) => {
     actionModalHttpMethod.value = 'post';
     actionModalSubmitButtonText.value = 'Reject Email';
     actionModalSuccessMessage.value = 'Email rejected successfully!';
-    // Initialize form data for rejection
-    Object.assign(actionModalInitialData, {
-        rejection_reason: '',
-    });
     showActionModal.value = true;
     showEmailDetailsModal.value = false; // Close details modal
 };
@@ -375,7 +344,6 @@ onMounted(() => {
             :title="actionModalTitle"
             :api-endpoint="actionModalApiEndpoint"
             :http-method="actionModalHttpMethod"
-            :initial-form-data="actionModalInitialData"
             :submit-button-text="actionModalSubmitButtonText"
             :success-message="actionModalSuccessMessage"
             :email-id="selectedEmail?.id"
@@ -383,6 +351,7 @@ onMounted(() => {
             @close="handleActionModalClose"
             @submitted="handleActionModalSubmitted"
             @error="(err) => console.error('EmailActionModal error:', err)"
+            @fetchEmails="fetchProjectEmails"
         />
 
         <EditTemplateEmailModal

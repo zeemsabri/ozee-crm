@@ -39,18 +39,6 @@ const loadingSourceModels = ref(false);
 const previewContent = ref('');
 const previewLoading = ref(false);
 
-// State for the Insert Link modal
-const showInsertLinkModal = ref(false);
-const linkText = ref('');
-const linkUrl = ref('');
-const linkError = ref('');
-
-// State for the Insert List modal
-const showInsertListModal = ref(false);
-const listItemsInput = ref(''); // Raw text input for list items
-const listType = ref('bullet'); // 'bullet' or 'numbered'
-const listError = ref('');
-
 // --- COMPUTED PROPERTIES ---
 const selectedTemplate = computed(() => {
     return templates.value.find(template => template.id === localFormData.template_id);
@@ -264,102 +252,6 @@ const fetchPreview = async () => {
     }
 };
 
-// --- Insert Link functionality ---
-const openInsertLinkModal = () => {
-    linkText.value = '';
-    linkUrl.value = '';
-    linkError.value = '';
-    showInsertLinkModal.value = true;
-};
-
-const insertLinkIntoEditor = () => {
-    if (!linkText.value.trim()) {
-        linkError.value = 'Link text cannot be empty.';
-        return;
-    }
-    let urlToInsert = linkUrl.value.trim();
-    if (!urlToInsert.startsWith('http://') && !urlToInsert.startsWith('https://')) {
-        urlToInsert = 'http://' + urlToInsert; // Default to http if no protocol
-    }
-
-    // Basic URL validation
-    try {
-        new URL(urlToInsert);
-    } catch (e) {
-        linkError.value = 'Please enter a valid URL (e.g., https://example.com or www.example.com).';
-        return;
-    }
-
-    // For dynamic placeholders, we'll add the link to the appropriate field
-    if (selectedTemplate.value && inputPlaceholders.value.length > 0) {
-        // Find the first dynamic placeholder that's not a dropdown or multi-select
-        const dynamicPlaceholder = inputPlaceholders.value.find(
-            p => p.is_dynamic && !p.is_selectable && !p.is_repeatable
-        );
-
-        if (dynamicPlaceholder) {
-            // Format the link and add it to the placeholder's value
-            const formattedLink = `[${linkText.value.trim()}] {${urlToInsert}}`;
-            const currentValue = localFormData.template_data[dynamicPlaceholder.name] || '';
-            localFormData.template_data[dynamicPlaceholder.name] = currentValue + formattedLink;
-        }
-    }
-
-    showInsertLinkModal.value = false;
-    linkText.value = '';
-    linkUrl.value = '';
-    linkError.value = '';
-
-    // Update preview after inserting link
-    fetchPreview();
-};
-
-// --- Insert List functionality ---
-const openInsertListModal = () => {
-    listItemsInput.value = '';
-    listType.value = 'bullet';
-    listError.value = '';
-    showInsertListModal.value = true;
-};
-
-const insertListIntoEditor = () => {
-    const items = listItemsInput.value.split('\n').map(item => item.trim()).filter(item => item !== '');
-
-    if (items.length === 0) {
-        listError.value = 'Please enter at least one list item.';
-        return;
-    }
-
-    // Format the list items into a structured string for useEmailTemplate
-    const listTag = listType.value === 'bullet' ? 'ul' : 'ol';
-    let formattedList = `<${listTag}>`;
-    items.forEach(item => {
-        formattedList += `<li>${item}</li>`;
-    });
-    formattedList += `</${listTag}>`;
-
-    // For dynamic placeholders, we'll add the list to the appropriate field
-    if (selectedTemplate.value && inputPlaceholders.value.length > 0) {
-        // Find the first dynamic placeholder that's not a dropdown or multi-select
-        const dynamicPlaceholder = inputPlaceholders.value.find(
-            p => p.is_dynamic && !p.is_selectable && !p.is_repeatable
-        );
-
-        if (dynamicPlaceholder) {
-            // Add the formatted list to the placeholder's value
-            const currentValue = localFormData.template_data[dynamicPlaceholder.name] || '';
-            localFormData.template_data[dynamicPlaceholder.name] = currentValue + formattedList;
-        }
-    }
-
-    showInsertListModal.value = false;
-    listItemsInput.value = '';
-    listError.value = '';
-
-    // Update preview after inserting list
-    fetchPreview();
-};
-
 const handleClose = () => { emit('close'); };
 const handleSubmit = (response) => { emit('submitted', response); };
 const handleError = (error) => { emit('error', error); };
@@ -424,14 +316,6 @@ onMounted(() => {
             <div>
                 <h4 class="text-md font-semibold text-gray-800 mb-3 border-b pb-2">Editing Template Fields</h4>
 
-                <div class="mb-2 flex justify-end space-x-2">
-                    <SecondaryButton type="button" @click="openInsertListModal">
-                        Insert List
-                    </SecondaryButton>
-                    <SecondaryButton type="button" @click="openInsertLinkModal">
-                        Insert Link
-                    </SecondaryButton>
-                </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
                     <div v-for="placeholder in inputPlaceholders" :key="placeholder.id">
                         <InputLabel :for="placeholder.name" :value="placeholder.name" />
@@ -494,49 +378,4 @@ onMounted(() => {
             </div>
         </template>
     </BaseFormModal>
-
-    <Modal :show="showInsertLinkModal" @close="showInsertLinkModal = false" max-width="md">
-        <div class="p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Insert Link</h3>
-            <div v-if="linkError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                <span class="block sm:inline">{{ linkError }}</span>
-            </div>
-            <div class="mb-4">
-                <InputLabel for="link_text" value="Link Text" />
-                <TextInput id="link_text" type="text" class="mt-1 block w-full" v-model="linkText" @keyup.enter="insertLinkIntoEditor" />
-            </div>
-            <div class="mb-6">
-                <InputLabel for="link_url" value="URL" />
-                <TextInput id="link_url" type="text" class="mt-1 block w-full" v-model="linkUrl" placeholder="e.g., https://www.example.com" @keyup.enter="insertLinkIntoEditor" />
-            </div>
-            <div class="flex justify-end space-x-3">
-                <SecondaryButton @click="showInsertLinkModal = false">Cancel</SecondaryButton>
-                <PrimaryButton @click="insertLinkIntoEditor">Insert</PrimaryButton>
-            </div>
-        </div>
-    </Modal>
-
-    <Modal :show="showInsertListModal" @close="showInsertListModal = false" max-width="md">
-        <div class="p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Insert List</h3>
-            <div v-if="listError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                <span class="block sm:inline">{{ listError }}</span>
-            </div>
-            <div class="mb-4">
-                <InputLabel for="list_items" value="List Items (one per line)" />
-                <textarea id="list_items" rows="6" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="listItemsInput" placeholder="Enter each list item on a new line"></textarea>
-            </div>
-            <div class="mb-6">
-                <InputLabel for="list_type" value="List Type" />
-                <select id="list_type" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="listType">
-                    <option value="bullet">Bulleted List</option>
-                    <option value="numbered">Numbered List</option>
-                </select>
-            </div>
-            <div class="flex justify-end space-x-3">
-                <SecondaryButton @click="showInsertListModal = false">Cancel</SecondaryButton>
-                <PrimaryButton @click="insertListIntoEditor">Insert List</PrimaryButton>
-            </div>
-        </div>
-    </Modal>
 </template>

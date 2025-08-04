@@ -338,8 +338,8 @@ class EmailController extends Controller
                 'subject' => 'sometimes|required|string|max:255',
                 'body' => 'sometimes|required|string',
                 'composition_type' => 'sometimes|string|in:custom,template',
-                'template_id' => 'sometimes|exists:email_templates,id',
-                'template_data' => 'sometimes|array',
+                'template_id' => 'nullable|exists:email_templates,id',
+                'template_data' => 'nullable|array',
             ]);
 
             // Determine if we're dealing with a template-based email or a regular HTML email
@@ -901,6 +901,24 @@ class EmailController extends Controller
     private function isJson($string) {
         json_decode($string);
         return (json_last_error() == JSON_ERROR_NONE);
+    }
+
+    /**
+     * Preview an email exactly how the recipient will see it.
+     * Accessible by: Super Admin, Manager (or whoever needs to preview emails)
+     */
+    public function reviewEmail(Email $email)
+    {
+        try {
+            // Use the trait method to render the full email preview as a JSON response
+            return $this->renderFullEmailPreviewResponse($email);
+        } catch (Exception $e) {
+            Log::error('Error previewing email: ' . $e->getMessage(), [
+                'email_id' => $email->id,
+                'error' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Error generating email preview: ' . $e->getMessage()], 500);
+        }
     }
 
     /**

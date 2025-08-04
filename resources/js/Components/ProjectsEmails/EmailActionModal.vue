@@ -1,5 +1,5 @@
 <script setup>
-import {reactive, watch, computed, ref} from 'vue';
+import {reactive, computed, ref, onMounted, watch} from 'vue';
 import BaseFormModal from '@/Components/BaseFormModal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -29,10 +29,6 @@ const props = defineProps({
         type: String,
         default: 'post',
     },
-    initialFormData: {
-        type: Object,
-        default: () => ({}),
-    },
     submitButtonText: {
         type: String,
         default: 'Save',
@@ -56,37 +52,51 @@ const emit = defineEmits(['close', 'submitted', 'error', 'fetchEmails']); // Add
 // Create a local reactive copy of formData to be mutated by the form inputs
 const localFormData = reactive({});
 const renderedBodyLoading = ref(false);
+const loading = ref(false);
 
-// Initialize localFormData from props.initialFormData when component is created
-watch(() => props.initialFormData, (newValue) => {
-    // Clear existing properties
-    for (const key in localFormData) {
-        delete localFormData[key];
+// Fetch email data when the modal is shown
+const fetchEmailData = async () => {
+    if (!props.emailId) return;
+
+    loading.value = true;
+    try {
+        // Clear existing properties
+        for (const key in localFormData) {
+            delete localFormData[key];
+        }
+
+        // For rejection modal, initialize with empty rejection reason
+        if (props.title === 'Reject Email') {
+            Object.assign(localFormData, {
+                rejection_reason: ''
+            });
+            loading.value = false;
+            return;
+        }
+
+        // For edit modal, fetch the email data
+        const response = await window.axios.get(`/api/emails/${props.emailId}/edit-content`);
+        const emailData = response.data;
+
+        // Handle the case where body_html is provided instead of body
+        if (emailData.body_html && !emailData.body) {
+            emailData.body = emailData.body_html;
+        }
+
+        Object.assign(localFormData, emailData);
+        console.log('Fetched email data:', localFormData);
+    } catch (error) {
+        console.error('Failed to fetch email data:', error);
+        emit('error', error);
+    } finally {
+        loading.value = false;
     }
+};
 
-    // Deep copy initialFormData to avoid reference issues
-    const formData = JSON.parse(JSON.stringify(newValue));
-
-    // Handle the case where body_html is provided instead of body
-    if (formData.body_html && !formData.body) {
-        formData.body = formData.body_html;
-        console.log('Mapped body_html to body:', formData.body);
-    }
-
-    // If we still don't have a body, check if we have a body in the original props
-    if (!formData.body && props.initialFormData.body) {
-        formData.body = props.initialFormData.body;
-        console.log('Using props.initialFormData.body directly:', formData.body);
-    }
-
-    Object.assign(localFormData, formData);
-    console.log('Updated localFormData:', localFormData);
-}, { immediate: true });
-
-// Watch for changes in show prop to ensure modal is properly initialized
+// Watch for changes in show prop to fetch data when modal opens
 watch(() => props.show, (newValue) => {
-    if (!newValue) {
-        // Reset any state when modal is closed if needed
+    if (newValue && props.emailId) {
+        fetchEmailData();
     }
 });
 
@@ -98,16 +108,6 @@ const showInsertListModal = ref(false);
 // This is the raw HTML fragment that will be processed by useEmailTemplate
 const editorBodyContent = computed(() => {
     console.log('editorBodyContent computed property called');
-    // Use props directly if localFormData.body is empty
-    if (!localFormData.body && props.initialFormData.body) {
-        console.log('Using props.initialFormData.body directly:', props.initialFormData.body);
-        return props.initialFormData.body;
-    }
-    // Use props.initialFormData.body_html as fallback if body is not available
-    if (!localFormData.body && props.initialFormData.body_html) {
-        console.log('Using props.initialFormData.body_html directly:', props.initialFormData.body_html);
-        return props.initialFormData.body_html;
-    }
     console.log('Using localFormData.body:', localFormData.body);
     return localFormData.body || '';
 });
@@ -178,12 +178,7 @@ const saveEmail = async () => {
         });
 
         console.log('Email saved successfully');
-
-        if (typeof success === 'function') {
-            success('Email approved successfully!');
-        } else {
-            console.log('Email approved successfully!');
-        }
+        alert('Email saved successfully!');
 
         saving.value = false;
         emit('fetchEmails');
@@ -192,19 +187,18 @@ const saveEmail = async () => {
         saving.value = false;
         console.error('Error saving email:', error);
 
+        let errorMessage = 'Failed to save email.';
         if (error.response && error.response.data.message) {
-            emailError.value = error.response.data.message;
-        } else {
-            emailError.value = 'Failed to approve email.';
-            console.error('Error approving email directly:', error);
+            errorMessage = error.response.data.message;
         }
-        if (typeof error === 'function') {
-            error(emailError.value);
-        }
+
+        emailError.value = errorMessage;
+        alert(errorMessage);
     }
 };
 
 const saveEmailAndApprove = async () => {
+    saving.value = true;
     try {
         console.log('Approving email with ID:', props.emailId);
         console.log('Email data for approval:', {
@@ -218,15 +212,13 @@ const saveEmailAndApprove = async () => {
         });
 
         console.log('Email approved successfully:', response.data);
+        alert('Email updated and approved successfully!');
 
-        if (typeof success === 'function') {
-            success('Email updated and approved successfully!');
-        } else {
-            alert('Email updated and approved successfully!');
-        }
+        saving.value = false;
         emit('submitted', response.data);
         handleClose();
     } catch (error) {
+        saving.value = false;
         console.error('Error approving email:', error);
 
         let errorMessage = 'Failed to approve email.';
@@ -235,12 +227,9 @@ const saveEmailAndApprove = async () => {
         } else if (error.message) {
             errorMessage = error.message;
         }
-        if (typeof errorGlobal === 'function') {
-            errorGlobal(errorMessage);
-        } else {
-            console.error('Error approving email directly:', error);
-            alert(errorMessage);
-        }
+
+        emailError.value = errorMessage;
+        alert(errorMessage);
         emit('error', error);
     }
 };
