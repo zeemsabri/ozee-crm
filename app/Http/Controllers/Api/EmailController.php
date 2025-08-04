@@ -4,27 +4,33 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\Concerns\HandlesTemplatedEmails;
 use App\Mail\ClientEmail;
 use App\Models\Email;
+use App\Models\EmailTemplate;
 use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\Client;
 use App\Services\GmailService;
+use App\Services\MagicLinkService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\View;
 
 class EmailController extends Controller
 {
     protected GmailService $gmailService;
-    use HasProjectPermissions;
+    protected MagicLinkService $magicLinkService;
 
-    public function __construct(GmailService $gmailService)
+    use HasProjectPermissions, HandlesTemplatedEmails;
+
+    public function __construct(GmailService $gmailService, MagicLinkService $magicLinkService)
     {
-        // We'll use manual authorization in methods, as `authorizeResource` is a bit limited for custom actions like approve/reject
         $this->gmailService = $gmailService;
+        $this->magicLinkService = $magicLinkService;
     }
 
     /**
@@ -44,9 +50,6 @@ class EmailController extends Controller
                     ->where('contractor_id', $user->id); // Optionally, only conversations where they are the primary contractor
             });
         }
-        // Super Admin, Manager, Employee (if allowed to view emails) see all relevant emails,
-        // The Policy will handle what is displayed based on permissions.
-        // For now, let's assume Super Admin/Manager see all, Employees see none (or read-only filtered).
 
         $emails = $emailsQuery->orderBy('created_at', 'desc')->get(); // Or paginate
 
@@ -154,7 +157,7 @@ class EmailController extends Controller
     }
 
     /**
-     * Store a newly created email using a template, saving only the template and dynamic data.
+     * Store a newly created email using a template, saving only the template and template data.
      */
     public function storeTemplatedEmail(Request $request)
     {
@@ -232,9 +235,11 @@ class EmailController extends Controller
         }
     }
 
+
     /**
      * Display the specified email.
      * Accessible by: Super Admin, Manager (any); Employee (any); Contractor (if on associated project)
+     * This method now returns a JSON response with the rendered subject and body HTML.
      */
     public function show(Email $email)
     {
@@ -243,7 +248,13 @@ class EmailController extends Controller
             return response()->json(['message' => 'Unauthorized to view this email.'], 403);
         }
 
-        return response()->json($email->load(['conversation.project.client', 'sender', 'approver']));
+//        try {
+            // Use the trait method to render the full email preview as a JSON response
+            return $this->renderFullEmailPreviewResponse($email);
+//        } catch (Exception $e) {
+//            Log::error('Error showing email: ' . $e->getMessage(), ['email_id' => $email->id, 'error' => $e->getTraceAsString()]);
+//            return response()->json(['message' => 'Error generating email view: ' . $e->getMessage()], 500);
+//        }
     }
 
     /**
@@ -326,40 +337,9 @@ class EmailController extends Controller
                 'body' => 'sometimes|required|string',
             ]);
 
-            // Handle templated emails
-            if ($email->template_id) {
-                // Get the client for the conversation
-                $recipientClient = $email->conversation->client;
-                if (!$recipientClient) {
-                    throw new Exception('Recipient client not found for email ID: ' . $email->id);
-                }
-
-                // Get the template and dynamic data
-                $template = EmailTemplate::with('placeholders')->findOrFail($email->template_id);
-                $templateData = json_decode($email->template_data, true) ?? [];
-
-                // Render the subject and body using the template
-                $subject = $this->populateAllPlaceholders(
-                    $template->subject,
-                    $template,
-                    $templateData,
-                    $recipientClient,
-                    $email->conversation->project,
-                    true
-                );
-                $renderedBody = $this->populateAllPlaceholders(
-                    $template->body_html,
-                    $template,
-                    $templateData,
-                    $recipientClient,
-                    $email->conversation->project,
-                    true
-                );
-            } else {
-                // Handle regular emails
-                $subject = $validated['subject'] ?? $email->subject;
-                $renderedBody = $validated['body'] ?? $email->body;
-            }
+            // If a template is used, the body from the request is the newly edited HTML.
+            $renderedBody = $validated['body'] ?? $email->body;
+            $subject = $validated['subject'] ?? $email->subject;
 
             $email->update($validated);
 
@@ -504,7 +484,7 @@ class EmailController extends Controller
                 'email_id' => $email->id,
                 'error' => $e->getTraceAsString(),
             ]);
-            return response()->json(['message' => 'Failed to edit and approve received email: ' . e->getMessage()], 500);
+            return response()->json(['message' => 'Failed to edit and approve received email: ' . $e->getMessage()], 500);
         }
     }
 
@@ -571,7 +551,7 @@ class EmailController extends Controller
             $email->update([
                 'status' => 'rejected',
                 'rejection_reason' => $validated['rejection_reason'],
-                'approved_by' => $user->id, // Record who rejected it
+                'approved_by' => $user->id,
             ]);
 
             Log::info('Email rejected', ['email_id' => $email->id, 'rejection_reason' => $validated['rejection_reason'], 'rejected_by' => $user->id]);
@@ -638,21 +618,25 @@ class EmailController extends Controller
         $simplifiedEmails = $pendingEmails->map(function ($email) {
             return [
                 'id' => $email->id,
-                'project' => $email->conversation->project ? [
-                    'id' => $email->conversation->project->id,
-                    'name' => $email->conversation->project->name
-                ] : null,
-                'client' => $email->conversation->client ? [
-                    'id' => $email->conversation->client->id,
-                    'name' => $email->conversation->client->name
-                ] : null,
                 'subject' => $email->subject,
                 'sender' => $email->sender ? [
                     'id' => $email->sender->id,
                     'name' => $email->sender->name
                 ] : null,
                 'created_at' => $email->created_at,
+                'status' => $email->status,
+                'type'  => $email->type,
                 'body' => $email->body,
+                'rejection_reason' => $email->rejection_reason,
+                'approver' => $email->approver ? [
+                    'id' => $email->approver->id,
+                    'name' => $email->approver->name
+                ] : null,
+                'sent_at' => $email->sent_at,
+                'template_id' => $email->template_id,
+                'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
+                'project_id' => $email->conversation->project_id ?? null,
+                'client_id' => $email->conversation->client_id ?? null,
             ];
         });
 
@@ -672,7 +656,6 @@ class EmailController extends Controller
 
     /**
      * Display rejected emails with limited information.
-     * Only returns subject, body, rejection_reason, created_at
      */
     public function rejectedSimplified()
     {
@@ -734,8 +717,8 @@ class EmailController extends Controller
             ->whereIn('status', ['approved', 'pending_approval', 'sent']);
 
         $emails = $emails->whereIn('conversation_id', $conversationIds)
-        ->orderBy('created_at', 'desc')
-        ->get();
+            ->orderBy('created_at', 'desc')
+            ->get();
 
 
         return response()->json($emails);
@@ -758,8 +741,6 @@ class EmailController extends Controller
     public function getProjectEmailsSimplified($projectId, Request $request)
     {
         $user = Auth::user();
-        $role = $user->getRoleForProject($projectId);
-
         $project = Project::findOrFail($projectId);
 
         if ($user->isContractor() && !$user->projects->contains($project->id)) {
@@ -769,9 +750,12 @@ class EmailController extends Controller
         $conversations = $project->conversations;
         $conversationIds = $conversations->pluck('id')->toArray();
 
-        $query = Email::with(['sender:id,name'])
-//            ->whereIn('status', ['approved', 'pending_approval', 'sent'])
-            ->whereIn('conversation_id', $conversationIds);
+        // Eager load the conversation with client and project IDs for the frontend
+        $query = Email::with([
+            'sender:id,name',
+            'conversation:id,client_id,project_id',
+            'conversation.client:id,name'
+        ])->whereIn('conversation_id', $conversationIds);
 
         if ($request->has('type') && !empty($request->type)) {
             $query->where('type', $request->type);
@@ -789,7 +773,7 @@ class EmailController extends Controller
             $searchTerm = $request->search;
             $query->where(function($q) use ($searchTerm) {
                 $q->where('subject', 'like', "%{$searchTerm}%")
-                  ->orWhere('body', 'like', "%{$searchTerm}%");
+                    ->orWhere('body', 'like', "%{$searchTerm}%");
             });
         }
 
@@ -801,16 +785,13 @@ class EmailController extends Controller
 
         $emails = $query->get();
 
-        if(!$user->hasPermission('approve_emails')) {
-            foreach ($emails as $email) {
-                if(in_array($email->status, ['pending_approval_received']))
-                {
-                    $email->body = 'Please ask project admin to approve this email';
-                }
-            }
-        }
+        $simplifiedEmails = $emails->map(function ($email) use ($user) {
+            $body = $email->body;
 
-        $simplifiedEmails = $emails->map(function ($email) {
+            if (!$user->hasPermission('approve_emails') && in_array($email->status, ['pending_approval_received'])) {
+                $body = 'Please ask project admin to approve this email';
+            }
+
             return [
                 'id' => $email->id,
                 'subject' => $email->subject,
@@ -821,7 +802,7 @@ class EmailController extends Controller
                 'created_at' => $email->created_at,
                 'status' => $email->status,
                 'type'  => $email->type,
-                'body' => $email->body,
+                'body' => $body,
                 'rejection_reason' => $email->rejection_reason,
                 'approver' => $email->approver ? [
                     'id' => $email->approver->id,
@@ -830,10 +811,57 @@ class EmailController extends Controller
                 'sent_at' => $email->sent_at,
                 'template_id' => $email->template_id,
                 'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
+                'project_id' => $email->conversation->project_id ?? null,
+                'client_id' => $email->conversation->client_id ?? null,
             ];
         });
 
         return response()->json($simplifiedEmails);
+    }
+
+    /**
+     * Renders a full email (subject and body) for final sending.
+     *
+     * @param Email $email
+     * @param array $validated
+     * @return array
+     * @throws Exception
+     */
+    private function renderEmail(Email $email, array $validated)
+    {
+        // Handle templated emails
+        if ($email->template_id) {
+            $recipientClient = $email->conversation->client;
+            if (!$recipientClient) {
+                throw new Exception('Recipient client not found for email ID: ' . $email->id);
+            }
+
+            $template = EmailTemplate::with('placeholders')->findOrFail($email->template_id);
+            $templateData = json_decode($email->template_data, true) ?? [];
+
+            $subject = $this->populateAllPlaceholders(
+                $template->subject,
+                $template,
+                $templateData,
+                $recipientClient,
+                $email->conversation->project,
+                true
+            );
+            $renderedBody = $this->populateAllPlaceholders(
+                $template->body_html,
+                $template,
+                $templateData,
+                $recipientClient,
+                $email->conversation->project,
+                true
+            );
+        } else {
+            // Handle regular emails
+            $subject = $validated['subject'] ?? $email->subject;
+            $renderedBody = $validated['body'] ?? $email->body;
+        }
+
+        return [$subject, $renderedBody];
     }
 
     /**
@@ -854,81 +882,14 @@ class EmailController extends Controller
     public function previewEmail(Email $email)
     {
         try {
-            // Check if the email is based on a template
-            if ($email->template_id) {
-                // Get the template and dynamic data
-                $template = EmailTemplate::with('placeholders')->findOrFail($email->template_id);
-                $templateData = json_decode($email->template_data, true) ?? [];
-
-                // Get the recipient client
-                $recipientClient = $email->conversation->client;
-                if (!$recipientClient) {
-                    throw new Exception('Recipient client not found for email ID: ' . $email->id);
-                }
-
-                // Render the body from the template and dynamic data
-                $renderedBody = $this->populateAllPlaceholders(
-                    $template->body_html,
-                    $template,
-                    $templateData,
-                    $recipientClient,
-                    $email->conversation->project,
-                    false // It's a preview, not a final send
-                );
-                $subject = $this->populateAllPlaceholders(
-                    $template->subject,
-                    $template,
-                    $templateData,
-                    $recipientClient,
-                    $email->conversation->project,
-                    false
-                );
-            } else {
-                // Use the stored body for non-templated emails
-                $renderedBody = $email->body;
-                $subject = $email->subject;
-            }
-
-            $sender = $email->sender;
-            $senderDetails = [
-                'name' => $sender->name ?? 'Original Sender',
-                'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
-            ];
-
-            $companyDetails = [
-                'phone' => '+61 456 639 389',
-                'website' => 'ozeeweb.com.au',
-                'logo_url' => asset('logo.png'),
-                'brand_primary_color' => '#1a73e8',
-                'brand_secondary_color' => '#fbbc05',
-                'text_color_primary' => '#1a202c',
-                'text_color_secondary' => '#4a5568',
-                'border_color' => '#e5e7eb',
-                'background_color' => '#f9fafb',
-            ];
-
-            $recipientClient = $email->conversation->client;
-            $clientName = $recipientClient->name ?? 'Valued Client';
-
-            $mailablePayload = [
-                'subject' => $subject,
-                'body' => $renderedBody,
-                'greeting_type' => 'full_name',
-                'custom_greeting_name' => '',
-                'clientName' => $clientName,
-            ];
-
-            $mailable = new ClientEmail($mailablePayload, $senderDetails, $companyDetails);
-            $fullHtml = $mailable->render();
-
-            return response($fullHtml)->header('Content-Type', 'text/html');
-
+            // Use the trait method to render the full email preview as a JSON response
+            return $this->renderFullEmailPreviewResponse($email);
         } catch (Exception $e) {
             Log::error('Error previewing email: ' . $e->getMessage(), [
                 'email_id' => $email->id,
                 'error' => $e->getTraceAsString(),
             ]);
-            return response('Error generating email preview: ' . $e->getMessage(), 500);
+            return response()->json(['message' => 'Error generating email preview: ' . $e->getMessage()], 500);
         }
     }
 }

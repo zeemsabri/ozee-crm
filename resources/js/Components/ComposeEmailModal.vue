@@ -37,10 +37,8 @@ const emailForm = reactive({
     template_id: null,
     template_data: {},
     project_id: props.projectId,
-    // Initialize client_ids as an array of objects
     client_ids: [],
     subject: '',
-    // body is no longer needed here as we are only saving variables
     greeting_name: '',
     custom_greeting_name: '',
     status: 'pending_approval',
@@ -104,7 +102,6 @@ const fetchPreview = async () => {
             template_data: emailForm.template_data,
         });
         previewContent.value = response.data.body_html;
-        // Capture the subject from the preview response
         if (response.data.subject) {
             emailForm.subject = response.data.subject;
         }
@@ -154,12 +151,9 @@ watch(selectedTemplate, (newTemplate) => {
 });
 
 const prepareFormData = async () => {
-    // A defensive check to ensure client_ids is an array of objects
-    // This is needed because some cases may result in an array of primitive IDs.
-    if (Array.isArray(emailForm.client_ids)) {
-        emailForm.client_ids = emailForm.client_ids.map(client => {
-            return typeof client === 'object' && client !== null ? client : { id: client };
-        });
+    // If client_ids contains objects, extract the ids only for a cleaner payload
+    if (Array.isArray(emailForm.client_ids) && emailForm.client_ids.length > 0 && typeof emailForm.client_ids[0] === 'object') {
+        emailForm.client_ids = emailForm.client_ids.map(client => client.id);
     }
 
     // Set subject from template only if it hasn't been set by the preview
@@ -167,17 +161,11 @@ const prepareFormData = async () => {
         emailForm.subject = selectedTemplate.value.subject || '';
     }
 
-    // Set greeting_name from the first selected client if available
     if (emailForm.client_ids.length > 0) {
         const firstClient = emailForm.client_ids[0];
-        if (typeof firstClient === 'object' && firstClient !== null) {
-            emailForm.greeting_name = firstClient.name || '';
-        } else {
-            // This fallback should not be needed with the check above, but it's a good practice
-            const clientObj = props.clients.find(client => client.id === firstClient);
-            if (clientObj) {
-                emailForm.greeting_name = clientObj.name || '';
-            }
+        const clientObj = props.clients.find(client => client.id === firstClient);
+        if (clientObj) {
+            emailForm.greeting_name = clientObj.name || '';
         }
     }
 

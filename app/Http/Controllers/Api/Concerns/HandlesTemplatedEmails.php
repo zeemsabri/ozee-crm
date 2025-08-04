@@ -6,9 +6,13 @@ use App\Models\Client;
 use App\Models\EmailTemplate;
 use App\Models\PlaceholderDefinition;
 use App\Models\Project;
+use App\Models\Email;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
+use Exception;
 
 trait HandlesTemplatedEmails
 {
@@ -155,5 +159,111 @@ trait HandlesTemplatedEmails
         // If no valid link exists, generate a new one for the final send.
         return $this->magicLinkService->generateMagicLink($email, $projectId);
     }
-}
 
+    /**
+     * Renders the subject and body for an email.
+     *
+     * @param Email $email
+     * @param bool $isFinalSend
+     * @return array
+     * @throws Exception
+     */
+    public function renderEmailContent(Email $email, bool $isFinalSend = false)
+    {
+        if ($email->template_id) {
+            $recipientClient = $email->conversation->client;
+            if (!$recipientClient) {
+                throw new Exception('Recipient client not found for email ID: ' . $email->id);
+            }
+
+            $template = EmailTemplate::with('placeholders')->findOrFail($email->template_id);
+            $templateData = json_decode($email->template_data, true) ?? [];
+
+            $subject = $this->populateAllPlaceholders(
+                $template->subject,
+                $template,
+                $templateData,
+                $recipientClient,
+                $email->conversation->project,
+                $isFinalSend
+            );
+            $body = $this->populateAllPlaceholders(
+                $template->body_html,
+                $template,
+                $templateData,
+                $recipientClient,
+                $email->conversation->project,
+                $isFinalSend
+            );
+        } else {
+            $subject = $email->subject;
+            $body = $email->body;
+        }
+
+        return ['subject' => $subject, 'body' => $body];
+    }
+
+    /**
+     * Renders a full email preview with the correct template and returns a JSON response for a saved email.
+     *
+     * @param Email $email
+     * @return \Illuminate\Http\JsonResponse
+     * @throws Exception
+     */
+    public function renderFullEmailPreviewResponse(Email $email)
+    {
+//        try {
+            // Render the email content (subject and body) first
+            $renderedContent = $this->renderEmailContent($email, false);
+            $subject = $renderedContent['subject'];
+            $body = $renderedContent['body'];
+
+            // Get the sender details
+            $sender = $email->sender;
+            $senderDetails = [
+                'name' => $sender->name ?? 'Original Sender',
+                'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
+            ];
+
+            // Load all reusable data from the new config file
+            $config = config('email');
+            dd($config);
+
+            // Combine all data into a single array for the view
+            $data = [
+                'emailData' => [
+                    'subject' => $subject,
+                ],
+                'bodyContent' => $body,
+                'senderName' => $senderDetails['name'],
+                'senderRole' => $senderDetails['role'],
+                'senderPhone' => $config['company']['phone'],
+                'senderWebsite' => $config['company']['website'],
+                'companyLogoUrl' => $config['company']['logo_url'],
+                'socialIcons' => $config['social_icons'],
+                'brandPrimaryColor' => $config['branding']['brand_primary_color'],
+                'brandSecondaryColor' => $config['branding']['brand_secondary_color'],
+                'backgroundColor' => $config['branding']['background_color'],
+                'textColorPrimary' => $config['branding']['text_color_primary'],
+                'textColorSecondary' => $config['branding']['text_color_secondary'],
+                'borderColor' => $config['branding']['border_color'],
+                'reviewLink' => 'https://www.example.com/review', // Example review link
+            ];
+
+            // Use only one template for all emails
+            $fullHtml = View::make('emails.email_template', $data)->render();
+
+            return response()->json([
+                'subject' => $subject,
+                'body_html' => $fullHtml,
+            ]);
+
+//        } catch (Exception $e) {
+//            Log::error('Error rendering full email preview: ' . $e->getMessage(), [
+//                'email_id' => $email->id,
+//                'error' => $e->getTraceAsString(),
+//            ]);
+//            return response()->json(['message' => 'Error generating email view: ' . $e->getMessage()], 500);
+//        }
+    }
+}
