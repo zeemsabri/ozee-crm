@@ -212,7 +212,7 @@ trait HandlesTemplatedEmails
      */
     public function renderFullEmailPreviewResponse(Email $email)
     {
-//        try {
+        try {
             // Render the email content (subject and body) first
             $renderedContent = $this->renderEmailContent($email, false);
             $subject = $renderedContent['subject'];
@@ -225,9 +225,8 @@ trait HandlesTemplatedEmails
                 'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
             ];
 
-            // Load all reusable data from the new config file
-            $config = config('email');
-            dd($config);
+            // Load all reusable data from the new branding config file
+            $config = config('branding');
 
             // Combine all data into a single array for the view
             $data = [
@@ -239,6 +238,7 @@ trait HandlesTemplatedEmails
                 'senderRole' => $senderDetails['role'],
                 'senderPhone' => $config['company']['phone'],
                 'senderWebsite' => $config['company']['website'],
+                'signatureTagline' => $config['signature']['tagline'],
                 'companyLogoUrl' => $config['company']['logo_url'],
                 'socialIcons' => $config['social_icons'],
                 'brandPrimaryColor' => $config['branding']['brand_primary_color'],
@@ -247,7 +247,7 @@ trait HandlesTemplatedEmails
                 'textColorPrimary' => $config['branding']['text_color_primary'],
                 'textColorSecondary' => $config['branding']['text_color_secondary'],
                 'borderColor' => $config['branding']['border_color'],
-                'reviewLink' => 'https://www.example.com/review', // Example review link
+                'reviewLink' => $config['reviewLink'] ?? null
             ];
 
             // Use only one template for all emails
@@ -258,12 +258,12 @@ trait HandlesTemplatedEmails
                 'body_html' => $fullHtml,
             ]);
 
-//        } catch (Exception $e) {
-//            Log::error('Error rendering full email preview: ' . $e->getMessage(), [
-//                'email_id' => $email->id,
-//                'error' => $e->getTraceAsString(),
-//            ]);
-//            return response()->json(['message' => 'Error generating email view: ' . $e->getMessage()], 500);
-//        }
+        } catch (Exception $e) {
+            Log::error('Error rendering full email preview: ' . $e->getMessage(), [
+                'email_id' => $email->id,
+                'error' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Error generating email view: ' . $e->getMessage()], 500);
+        }
     }
 }
