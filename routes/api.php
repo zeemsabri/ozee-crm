@@ -155,6 +155,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('emails/rejected-simplified', [EmailController::class, 'rejectedSimplified']);
     Route::get('projects/{project}/emails', [EmailController::class, 'getProjectEmails']);
     Route::get('projects/{project}/emails-simplified', [EmailController::class, 'getProjectEmailsSimplified']);
+    Route::get('emails/{email}/edit-content', [EmailController::class, 'getEmailContent']);
     Route::post('emails/{email}/approve', [EmailController::class, 'approve']);
     Route::post('emails/{email}/edit-and-approve', [EmailController::class, 'editAndApprove']);
     Route::post('emails/{email}/reject', [EmailController::class, 'reject']);
@@ -276,6 +277,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('projects/{project}/email-preview', [SendEmailController::class, 'preview']);
     Route::post('emails/templated', [EmailController::class, 'storeTemplatedEmail']);
     Route::get('projects/{project}/model-data/{shortModelName}', [\App\Http\Controllers\Api\ModelDataController::class, 'index']);
+
+    // Route for fetching source model data for email templates
+    Route::get('source-models/{modelName}', [\App\Http\Controllers\Api\ModelDataController::class, 'getSourceModelData']);
 
 
 });

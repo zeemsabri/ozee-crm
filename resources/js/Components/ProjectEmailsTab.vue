@@ -2,13 +2,15 @@
 import { ref, onMounted, reactive, computed, watch } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
-import Modal from '@/Components/Modal.vue'; // Keep for view-only modal
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import { usePermissions, useAuthUser } from '@/Directives/permissions'; // Import useAuthUser
 import EmailActionModal from './ProjectsEmails/EmailActionModal.vue';
 import ComposeEmailModal from './ProjectsEmails/ComponseEmailModal.vue';
+import EditTemplateEmailModal from './ProjectsEmails/EditTemplateEmailModal.vue';
+import EmailDetailsModal from './ProjectsEmails/EmailDetailsModal.vue';
+import EmailList from './ProjectsEmails/EmailList.vue';
 
 const props = defineProps({
     projectId: {
@@ -58,6 +60,14 @@ const actionModalInitialData = reactive({});
 
 // State for the new ComposeEmailModal
 const showComposeEmailModal = ref(false);
+
+// State for the EditTemplateEmailModal
+const showEditTemplateEmailModal = ref(false);
+const editTemplateEmailId = ref(null);
+const editTemplateApiEndpoint = ref('');
+const editTemplateSubmitButtonText = ref('');
+const editTemplateSuccessMessage = ref('');
+const editTemplateClientId = ref(null);
 
 // Get authenticated user (still needed for permissions, not for signature directly here)
 const authUser = useAuthUser();
@@ -144,20 +154,63 @@ const viewEmail = async (email) => {
 const openEditEmailModal = async (email) => {
     // Fetch the complete email data from the backend first
     try {
-        const response = await window.axios.get(`/api/emails/${email.id}`);
+        console.log('Fetching email content for editing, email ID:', email.id);
+        const response = await window.axios.get(`/api/emails/${email.id}/edit-content`);
         const fullEmail = response.data;
+        console.log('Received email content:', fullEmail);
 
         selectedEmail.value = fullEmail;
-        actionModalTitle.value = 'Edit and Approve Email';
-        actionModalApiEndpoint.value = `/api/emails/${fullEmail.id}/edit-and-approve`;
-        actionModalHttpMethod.value = 'post';
-        actionModalSubmitButtonText.value = 'Approve & Send';
-        actionModalSuccessMessage.value = 'Email updated and approved successfully!';
 
-        // Pass the full email object to the modal
-        Object.assign(actionModalInitialData, fullEmail);
-        showActionModal.value = true;
-        showEmailDetailsModal.value = false; // Close details modal
+        // Check if this is a template-based email
+        if (fullEmail.template_id) {
+            console.log('Opening template-based email editor for email ID:', email.id);
+
+            // Set up the EditTemplateEmailModal
+            editTemplateEmailId.value = email.id;
+            editTemplateApiEndpoint.value = `/api/emails/${email.id}/edit-and-approve`;
+            editTemplateSubmitButtonText.value = 'Approve & Send';
+            editTemplateSuccessMessage.value = 'Email updated and approved successfully!';
+            editTemplateClientId.value = fullEmail.client_id;
+
+            // Show the template editor modal
+            showEditTemplateEmailModal.value = true;
+            showEmailDetailsModal.value = false; // Close details modal
+        } else {
+            // Regular email - use the standard EmailActionModal
+            actionModalTitle.value = 'Edit and Approve Email';
+            actionModalApiEndpoint.value = `/api/emails/${email.id}/edit-and-approve`;
+            actionModalHttpMethod.value = 'post';
+            actionModalSubmitButtonText.value = 'Approve & Send';
+            actionModalSuccessMessage.value = 'Email updated and approved successfully!';
+
+            // Clear existing properties in actionModalInitialData
+            for (const key in actionModalInitialData) {
+                delete actionModalInitialData[key];
+            }
+
+            // Pass the full email object to the modal
+            Object.assign(actionModalInitialData, {
+                subject: fullEmail.subject,
+                body: fullEmail.body_html,
+                body_html: fullEmail.body_html, // Add body_html explicitly to ensure it's available
+                template_id: fullEmail.template_id,
+                template_data: fullEmail.template_data,
+                client_id: fullEmail.client_id
+            });
+
+            console.log('Prepared initialFormData for modal:', actionModalInitialData);
+            console.log('Body content available:', {
+                'body_html from API': fullEmail.body_html,
+                'body in initialFormData': actionModalInitialData.body,
+                'body_html in initialFormData': actionModalInitialData.body_html
+            });
+
+            // First set the data, then show the modal
+            setTimeout(() => {
+                showActionModal.value = true;
+                showEmailDetailsModal.value = false; // Close details modal
+            }, 100);
+        }
     } catch (error) {
         console.error('Failed to fetch email details for editing:', error);
         emailError.value = 'Failed to load email for editing.';
@@ -203,6 +256,17 @@ const handleComposeEmailModalSubmitted = async (responseData) => {
     await fetchProjectEmails(); // Refresh email list
     showComposeEmailModal.value = false; // Close the modal
     emit('resetOpenCompose'); // Important to reset the parent's `openCompose` prop
+};
+
+// Handlers for EditTemplateEmailModal
+const handleEditTemplateEmailModalClose = () => {
+    showEditTemplateEmailModal.value = false;
+};
+
+const handleEditTemplateEmailModalSubmitted = async (responseData) => {
+    console.log('Template email edited and submitted successfully:', responseData);
+    await fetchProjectEmails(); // Refresh email list
+    showEditTemplateEmailModal.value = false; // Close the modal
 };
 
 watch(() => props.openCompose, (newValue) => {
@@ -281,120 +345,21 @@ onMounted(() => {
             </div>
         </div>
 
-        <div v-if="loadingEmails" class="text-center text-gray-600 text-sm animate-pulse py-4">
-            Loading email data...
-        </div>
-        <div v-else-if="emailError" class="text-center text-red-600 text-sm font-medium py-4">
-            {{ emailError }}
-        </div>
-        <div v-else-if="emails.length" class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                <tr v-for="email in emails" :key="email.id" class="hover:bg-gray-50 transition-colors">
-                    <td class="px-4 py-3 text-sm text-gray-900">{{ email.subject }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-700">{{ email.sender?.name || 'N/A' }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-700">{{ new Date(email.created_at).toLocaleDateString() }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-700">
-                        <span
-                            :class="{
-                                'px-2 py-1 rounded-full text-xs font-medium': true,
-                                'bg-blue-100 text-blue-800': email.type === 'sent',
-                                'bg-purple-100 text-purple-800': email.type === 'received'
-                            }"
-                        >
-                            {{ email.type ? email.type.toUpperCase() : 'N/A' }}
-                        </span>
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700">
-                        <span
-                            :class="{
-                                'px-2 py-1 rounded-full text-xs font-medium': true,
-                                'bg-green-100 text-green-800': email.status === 'sent',
-                                'bg-yellow-100 text-yellow-800': email.status === 'pending_approval',
-                                'bg-red-100 text-red-800': email.status === 'rejected',
-                                'bg-gray-100 text-gray-800': email.status === 'draft'
-                            }"
-                        >
-                            {{ email.status ? email.status.replace('_', ' ').toUpperCase() : 'N/A' }}
-                        </span>
-                    </td>
-                    <td class="px-4 py-3 text-right">
-                        <SecondaryButton class="text-indigo-600 hover:text-indigo-800" @click="viewEmail(email)">
-                            View
-                        </SecondaryButton>
-                    </td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-        <p v-else class="text-gray-400 text-sm">No email communication found.</p>
+        <EmailList
+            :emails="emails"
+            :loading="loadingEmails"
+            :error="emailError"
+            @view="viewEmail"
+        />
 
-        <Modal :show="showEmailDetailsModal" @close="showEmailDetailsModal = false">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Email Details</h3>
-                    <button @click="showEmailDetailsModal = false" class="text-gray-400 hover:text-gray-500">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div v-if="selectedEmail" class="space-y-4">
-                    <div class="border-b pb-4">
-                        <h4 class="text-xl font-medium text-gray-900 mb-2">{{ selectedEmail.subject }}</h4>
-                        <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <p class="text-gray-600">From: <span class="text-gray-900">{{ selectedEmail.sender?.name || 'N/A' }}</span></p>
-                                <p class="text-gray-600 mt-1">Status:
-                                    <span :class="{
-                                            'px-2 py-1 rounded-full text-xs font-medium': true,
-                                            'bg-green-100 text-green-800': selectedEmail.status === 'sent',
-                                            'bg-yellow-100 text-yellow-800': selectedEmail.status === 'pending_approval',
-                                            'bg-red-100 text-red-800': selectedEmail.status === 'rejected',
-                                            'bg-gray-100 text-gray-800': selectedEmail.status === 'draft'
-                                        }">
-                                        {{ selectedEmail.status ? selectedEmail.status.replace('_', ' ').toUpperCase() : 'N/A' }}
-                                    </span>
-                                </p>
-                            </div>
-                            <div>
-                                <p class="text-gray-600">Date: <span class="text-gray-900">{{ new Date(selectedEmail.created_at).toLocaleString() }}</span></p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="prose max-w-none">
-                        <div v-html="selectedEmail.body"></div>
-                    </div>
-
-                    <div v-if="selectedEmail.rejection_reason" class="mt-4 p-4 bg-red-50 rounded-md">
-                        <h5 class="font-medium text-red-800">Rejection Reason:</h5>
-                        <p class="text-red-700">{{ selectedEmail.rejection_reason }}</p>
-                    </div>
-
-                    <div v-if="selectedEmail.approver" class="mt-4 text-sm text-gray-600">
-                        <p>Approved/Rejected by: {{ selectedEmail.approver.name }}</p>
-                        <p v-if="selectedEmail.sent_at">Sent at: {{ new Date(selectedEmail.sent_at).toLocaleString() }}</p>
-                    </div>
-
-                    <div v-if="(selectedEmail.status === 'pending_approval' || selectedEmail.status === 'pending_approval_received') && canApproveEmails" class="mt-6 flex justify-end space-x-2">
-                        <PrimaryButton @click="openEditEmailModal(selectedEmail)" class="bg-blue-600 hover:bg-blue-700">Edit & Approve</PrimaryButton>
-                        <SecondaryButton @click="openRejectEmailModal(selectedEmail)" class="text-red-600 hover:text-red-800">Reject</SecondaryButton>
-                    </div>
-                </div>
-            </div>
-        </Modal>
+        <EmailDetailsModal
+            :show="showEmailDetailsModal"
+            :email="selectedEmail"
+            :can-approve-emails="canApproveEmails"
+            @close="showEmailDetailsModal = false"
+            @edit="openEditEmailModal"
+            @reject="openRejectEmailModal"
+        />
 
         <ComposeEmailModal
             :show="showComposeEmailModal"
@@ -418,6 +383,21 @@ onMounted(() => {
             @close="handleActionModalClose"
             @submitted="handleActionModalSubmitted"
             @error="(err) => console.error('EmailActionModal error:', err)"
+        />
+
+        <EditTemplateEmailModal
+            :show="showEditTemplateEmailModal"
+            title="Edit Template Email"
+            :api-endpoint="editTemplateApiEndpoint"
+            http-method="post"
+            :submit-button-text="editTemplateSubmitButtonText"
+            :success-message="editTemplateSuccessMessage"
+            :email-id="editTemplateEmailId"
+            :project-id="projectId"
+            :client-id="editTemplateClientId"
+            @close="handleEditTemplateEmailModalClose"
+            @submitted="handleEditTemplateEmailModalSubmitted"
+            @error="(err) => console.error('EditTemplateEmailModal error:', err)"
         />
     </div>
 </template>

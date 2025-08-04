@@ -250,8 +250,8 @@ class EmailController extends Controller
         }
 
 //        try {
-            // Use the trait method to render the full email preview as a JSON response
-            return $this->renderFullEmailPreviewResponse($email);
+        // Use the trait method to render the full email preview as a JSON response
+        return $this->renderFullEmailPreviewResponse($email);
 //        } catch (Exception $e) {
 //            Log::error('Error showing email: ' . $e->getMessage(), ['email_id' => $email->id, 'error' => $e->getTraceAsString()]);
 //            return response()->json(['message' => 'Error generating email view: ' . $e->getMessage()], 500);
@@ -324,6 +324,7 @@ class EmailController extends Controller
     {
         $approver = Auth::user();
 
+
         if (!$approver) {
             return response()->json(['error' => 'No authenticated user found for approval.'], 401);
         }
@@ -336,13 +337,39 @@ class EmailController extends Controller
             $validated = $request->validate([
                 'subject' => 'sometimes|required|string|max:255',
                 'body' => 'sometimes|required|string',
+                'composition_type' => 'sometimes|string|in:custom,template',
+                'template_id' => 'sometimes|exists:email_templates,id',
+                'template_data' => 'sometimes|array',
             ]);
 
-            // If a template is used, the body from the request is the newly edited HTML.
-            $renderedBody = $validated['body'] ?? $email->body;
-            $subject = $validated['subject'] ?? $email->subject;
+            // Determine if we're dealing with a template-based email or a regular HTML email
+            $isTemplateEmail = ($request->input('composition_type') === 'template' || $email->template_id);
 
-            $email->update($validated);
+            if ($isTemplateEmail) {
+                // For template-based emails
+                $templateId = $validated['template_id'] ?? $email->template_id;
+                $templateData = $validated['template_data'] ?? json_decode($email->template_data, true) ?? [];
+
+                // Update the email with template data
+                $email->update([
+                    'subject' => $validated['subject'] ?? $email->subject,
+                    'template_id' => $templateId,
+                    'template_data' => json_encode($templateData),
+                ]);
+
+                // Render the email content using the template
+                $renderedContent = $this->renderEmailContent($email, true);
+                $subject = $renderedContent['subject'];
+                $renderedBody = $renderedContent['body'];
+                $template = 'email_template';
+            } else {
+                // For regular HTML emails
+                $renderedBody = $validated['body'] ?? $email->body;
+                $subject = $validated['subject'] ?? $email->subject;
+
+                $email->update($validated);
+                $template = 'email_template';
+            }
 
             $sender = $email->sender;
             $senderDetails = [
@@ -377,7 +404,7 @@ class EmailController extends Controller
                 'clientName' => $clientName,
             ];
 
-            $mailable = new ClientEmail($mailablePayload, $senderDetails, $companyDetails);
+            $mailable = new ClientEmail($mailablePayload, $senderDetails, $companyDetails, $template);
             $finalRenderedBody = $mailable->render();
 
             $gmailMessageId = $this->gmailService->sendEmail(
@@ -891,6 +918,41 @@ class EmailController extends Controller
                 'error' => $e->getTraceAsString(),
             ]);
             return response()->json(['message' => 'Error generating email preview: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get email content for editing in EmailActionModal.
+     * Returns the rendered content using renderEmailContent from HandlesTemplatedEmail.
+     * Accessible by: Super Admin, Manager, Contractor (if on associated project)
+     *
+     * @param Email $email
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getEmailContent(Email $email)
+    {
+        $user = Auth::user();
+        if ($user->isContractor() && !$user->projects->contains($email->conversation->project_id)) {
+            return response()->json(['message' => 'Unauthorized to view this email.'], 403);
+        }
+
+        try {
+            // Use the renderEmailContent method from HandlesTemplatedEmails trait
+            $renderedContent = $this->renderEmailContent($email, false);
+
+            return response()->json([
+                'subject' => $renderedContent['subject'],
+                'body_html' => $renderedContent['body'],
+                'template_id' => $email->template_id,
+                'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
+                'client_id' => $email->conversation->client_id
+            ]);
+        } catch (Exception $e) {
+            Log::error('Error getting email content for editing: ' . $e->getMessage(), [
+                'email_id' => $email->id,
+                'error' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Error getting email content: ' . $e->getMessage()], 500);
         }
     }
 }

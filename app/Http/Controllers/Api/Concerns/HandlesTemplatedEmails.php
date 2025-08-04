@@ -195,10 +195,13 @@ trait HandlesTemplatedEmails
                 $email->conversation->project,
                 $isFinalSend
             );
+
         } else {
             $subject = $email->subject;
             $body = $email->body;
         }
+
+        $body = nl2br($body);
 
         return ['subject' => $subject, 'body' => $body];
     }
@@ -217,7 +220,6 @@ trait HandlesTemplatedEmails
             $renderedContent = $this->renderEmailContent($email, false);
             $subject = $renderedContent['subject'];
             $body = $renderedContent['body'];
-            $body = nl2br($body);
             // Get the sender details
             $sender = $email->sender;
             $senderDetails = [

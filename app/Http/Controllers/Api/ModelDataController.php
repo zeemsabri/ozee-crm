@@ -46,4 +46,37 @@ class ModelDataController extends Controller
             return response()->json(['message' => 'Failed to fetch model data: ' . $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Get a list of items for a specific model without project context.
+     * Used by email templates to populate dropdowns and multi-selects.
+     *
+     * @param string $modelName The fully qualified model name or short name
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getSourceModelData(string $modelName)
+    {
+        try {
+            // Handle both fully qualified model names and short names
+            if (strpos($modelName, '\\') === false) {
+                $className = 'App\\Models\\' . Str::studly($modelName);
+            } else {
+                $className = $modelName;
+            }
+
+            if (!class_exists($className)) {
+                return response()->json(['message' => 'Model not found: ' . $className], 404);
+            }
+
+            $model = new $className();
+            $query = $model->newQuery();
+
+            // Limit the number of records to prevent performance issues
+            $data = $query->limit(100)->get();
+
+            return response()->json($data);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to fetch source model data: ' . $e->getMessage()], 500);
+        }
+    }
 }
