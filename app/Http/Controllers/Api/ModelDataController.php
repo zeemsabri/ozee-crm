@@ -19,7 +19,7 @@ class ModelDataController extends Controller
      */
     public function index(Project $project, string $shortModelName)
     {
-        try {
+//        try {
             $className = 'App\\Models\\' . Str::studly($shortModelName);
 
             if (!class_exists($className)) {
@@ -30,9 +30,15 @@ class ModelDataController extends Controller
             $query = $model->newQuery();
 
             // Check if the model should be filtered by project_id
-            $projectScopedModels = ['Project', 'ShareableResource']; // Add other project-scoped models here
+            $projectScopedModels = ['Project', 'ShareableResource', 'Task']; // Add other project-scoped models here
             if ($project && !in_array(Str::studly($shortModelName), $projectScopedModels)) {
                     $query->where('project_id', $project->id);
+            }
+
+            if($shortModelName === 'Task') {
+                $query->whereHas('milestone', function ($q) use ($project) {
+                    $q->where('project_id', $project->id);
+                });
             }
 
             if($shortModelName === 'Project') {
@@ -42,9 +48,9 @@ class ModelDataController extends Controller
             $data = $query->get();
 
             return response()->json($data);
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Failed to fetch model data: ' . $e->getMessage()], 500);
-        }
+//        } catch (\Exception $e) {
+//            return response()->json(['message' => 'Failed to fetch model data: ' . $e->getMessage()], 500);
+//        }
     }
 
     /**
