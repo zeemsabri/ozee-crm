@@ -16,7 +16,7 @@ return [
         'phone' => '+61 456 639 389',
         'website' => 'ozeeweb.com.au',
         'address' => 'Thornlie, WA, 6108 Australia',
-        'logo_url' => asset('logo.png'), // Use asset() helper for public assets
+        'logo_url' => '/logo.png', // Use asset() helper for public assets
     ],
 
     'branding' => [
