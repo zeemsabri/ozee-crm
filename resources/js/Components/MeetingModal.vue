@@ -20,6 +20,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    projectName: {
+        type: String,
+        default: 'Project'
+    }
 });
 
 const emit = defineEmits(['close', 'saved']);
@@ -91,6 +95,24 @@ const form = reactive({
     enable_recording: false,
 });
 
+// Computed property for the full title with the project name appended
+const fullTitle = computed({
+    get() {
+        return form.summary ? `${form.summary} - ${props.projectName}` : '';
+    },
+    set(value) {
+        // This setter is needed for v-model. It's a bit of a hack but it's the
+        // best way to handle this without a separate field.
+        const projectSuffix = ` - ${props.projectName}`;
+        if (value.endsWith(projectSuffix)) {
+            form.summary = value.slice(0, -projectSuffix.length);
+        } else {
+            form.summary = value;
+        }
+    }
+});
+
+
 // Reset form to default values
 const resetForm = () => {
     form.summary = '';
@@ -147,6 +169,9 @@ const formatDateForBackend = (isoDate) => {
 const formatDataForApi = (formData) => {
     const dataToSend = { ...formData }; // Create a copy
 
+    // Use the computed fullTitle for the summary
+    dataToSend.summary = fullTitle.value;
+
     dataToSend.start_datetime = formatDateForBackend(formData.start_datetime);
     dataToSend.end_datetime = formatDateForBackend(formData.end_datetime);
 
@@ -167,6 +192,31 @@ const handleSubmissionError = (error) => {
     console.error("DEBUG: MeetingModal submission error:", error);
     // You could add more specific error handling here if required, e.g., for Google Calendar API issues
 };
+
+// Preview data for the sidebar
+const formattedDateRange = computed(() => {
+    if (!form.start_datetime || !form.end_datetime) return '';
+    const start = new Date(form.start_datetime);
+    const end = new Date(form.end_datetime);
+    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const timeOptions = { hour: '2-digit', minute: '2-digit' };
+
+    const startDate = start.toLocaleDateString(undefined, dateOptions);
+    const startTime = start.toLocaleTimeString(undefined, timeOptions);
+    const endTime = end.toLocaleTimeString(undefined, timeOptions);
+
+    if (start.toDateString() === end.toDateString()) {
+        return `${startDate}, ${startTime} - ${endTime}`;
+    } else {
+        return `${startDate} ${startTime} - ${end.toLocaleDateString(undefined, dateOptions)} ${endTime}`;
+    }
+});
+
+const previewAttendees = computed(() => {
+    return props.projectUsers
+        .filter(user => form.attendee_user_ids.includes(user.id))
+        .map(user => user.name);
+});
 </script>
 
 <template>
@@ -184,126 +234,179 @@ const handleSubmissionError = (error) => {
         @error="handleSubmissionError"
     >
         <template #default="{ errors }">
-            <div class="mt-6 space-y-6">
-                <div>
-                    <InputLabel for="summary" value="Meeting Title" />
-                    <TextInput
-                        id="summary"
-                        v-model="form.summary"
-                        type="text"
-                        class="mt-1 block w-full"
-                        placeholder="Project Status Meeting"
-                        required
-                    />
-                    <InputError :message="errors.summary ? errors.summary[0] : ''" class="mt-2" />
-                </div>
-
-                <div>
-                    <InputLabel for="description" value="Description" />
-                    <textarea
-                        id="description"
-                        v-model="form.description"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        rows="3"
-                        placeholder="Meeting agenda and details..."
-                    ></textarea>
-                    <InputError :message="errors.description ? errors.description[0] : ''" class="mt-2" />
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
+                <!-- Left Side: Form Fields -->
+                <div class="space-y-6">
                     <div>
-                        <InputLabel for="start_datetime" value="Start Date & Time" />
+                        <InputLabel for="summary" value="Meeting Title" />
+                        <p class="mt-1 text-sm text-gray-500 mb-2">
+                            Enter a short, descriptive title for the meeting (e.g., Project Standup). The project name will be added automatically.
+                        </p>
                         <TextInput
-                            id="start_datetime"
-                            v-model="form.start_datetime"
-                            type="datetime-local"
+                            id="summary"
+                            v-model="form.summary"
+                            type="text"
                             class="mt-1 block w-full"
+                            placeholder="e.g., Project Standup"
                             required
                         />
-                        <InputError :message="errors.start_datetime ? errors.start_datetime[0] : ''" class="mt-2" />
+                        <InputError :message="errors.summary ? errors.summary[0] : ''" class="mt-2" />
                     </div>
 
                     <div>
-                        <InputLabel for="end_datetime" value="End Date & Time" />
-                        <TextInput
-                            id="end_datetime"
-                            v-model="form.end_datetime"
-                            type="datetime-local"
-                            class="mt-1 block w-full"
-                            required
+                        <InputLabel for="description" value="Description" />
+                        <p class="mt-1 text-sm text-gray-500 mb-2">
+                            Enter a short, descriptive agenda of the meeting.
+                        </p>
+                        <textarea
+                            id="description"
+                            v-model="form.description"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            rows="3"
+                            placeholder="Meeting agenda and details..."
+                        ></textarea>
+                        <InputError :message="errors.description ? errors.description[0] : ''" class="mt-2" />
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <InputLabel for="start_datetime" value="Start Date & Time" />
+                            <TextInput
+                                id="start_datetime"
+                                v-model="form.start_datetime"
+                                type="datetime-local"
+                                class="mt-1 block w-full"
+                                required
+                            />
+                            <InputError :message="errors.start_datetime ? errors.start_datetime[0] : ''" class="mt-2" />
+                        </div>
+
+                        <div>
+                            <InputLabel for="end_datetime" value="End Date & Time" />
+                            <TextInput
+                                id="end_datetime"
+                                v-model="form.end_datetime"
+                                type="datetime-local"
+                                class="mt-1 block w-full"
+                                required
+                            />
+                            <InputError :message="errors.end_datetime ? errors.end_datetime[0] : ''" class="mt-2" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <InputLabel for="attendees" value="Attendees" />
+                        <CustomMultiSelect
+                            id="attendees"
+                            v-model="form.attendee_user_ids"
+                            :options="props.projectUsers"
+                            label-key="name"
+                            track-by="id"
+                            placeholder="Select attendees"
+                            class="mt-1"
                         />
-                        <InputError :message="errors.end_datetime ? errors.end_datetime[0] : ''" class="mt-2" />
+                        <p class="mt-1 text-sm text-gray-500">
+                            Select project members to invite to this meeting
+                        </p>
+                        <InputError :message="errors['attendee_user_ids'] ? errors['attendee_user_ids'][0] : ''" class="mt-2" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="location" value="Location (Optional)" />
+                        <TextInput
+                            id="location"
+                            v-model="form.location"
+                            type="text"
+                            class="mt-1 block w-full"
+                            placeholder="Office, Conference Room, etc."
+                        />
+                        <InputError :message="errors.location ? errors.location[0] : ''" class="mt-2" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="timezone" value="Timezone" />
+                        <SelectDropdown
+                            id="timezone"
+                            v-model="form.timezone"
+                            :options="allTimezones"
+                            value-key="value"
+                            label-key="label"
+                            placeholder="Select timezone"
+                            class="mt-1"
+                        />
+                        <p class="mt-1 text-sm text-gray-500">
+                            Select your timezone for this meeting
+                        </p>
+                        <InputError :message="errors.timezone ? errors.timezone[0] : ''" class="mt-2" />
+                    </div>
+
+                    <div class="flex items-center">
+                        <input
+                            id="with_google_meet"
+                            v-model="form.with_google_meet"
+                            type="checkbox"
+                            class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <label for="with_google_meet" class="ml-2 block text-sm text-gray-900">
+                            Create Google Meet video conference
+                        </label>
+                    </div>
+
+                    <div class="flex items-center">
+                        <input
+                            id="enable_recording"
+                            v-model="form.enable_recording"
+                            type="checkbox"
+                            class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <label for="enable_recording" class="ml-2 block text-sm text-gray-900">
+                            Enable recording and transcript
+                        </label>
                     </div>
                 </div>
 
-                <div>
-                    <InputLabel for="attendees" value="Attendees" />
-                    <!--Use your CustomMultiSelect here--><CustomMultiSelect
-                    id="attendees"
-                    v-model="form.attendee_user_ids"
-                    :options="props.projectUsers"
-                    label-key="name"
-                    track-by="id"
-                    placeholder="Select attendees"
-                    class="mt-1"
-                />
-                    <p class="mt-1 text-sm text-gray-500">
-                        Select project members to invite to this meeting
-                    </p>
-                    <InputError :message="errors['attendee_user_ids'] ? errors['attendee_user_ids'][0] : ''" class="mt-2" />
-                </div>
-
-                <div>
-                    <InputLabel for="location" value="Location (Optional)" />
-                    <TextInput
-                        id="location"
-                        v-model="form.location"
-                        type="text"
-                        class="mt-1 block w-full"
-                        placeholder="Office, Conference Room, etc."
-                    />
-                    <InputError :message="errors.location ? errors.location[0] : ''" class="mt-2" />
-                </div>
-
-                <div>
-                    <InputLabel for="timezone" value="Timezone" />
-                    <!--Use SelectDropdown for timezone--><SelectDropdown
-                    id="timezone"
-                    v-model="form.timezone"
-                    :options="allTimezones"
-                    value-key="value"
-                    label-key="label"
-                    placeholder="Select timezone"
-                    class="mt-1"
-                />
-                    <p class="mt-1 text-sm text-gray-500">
-                        Select your timezone for this meeting
-                    </p>
-                    <InputError :message="errors.timezone ? errors.timezone[0] : ''" class="mt-2" />
-                </div>
-
-                <div class="flex items-center">
-                    <input
-                        id="with_google_meet"
-                        v-model="form.with_google_meet"
-                        type="checkbox"
-                        class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <label for="with_google_meet" class="ml-2 block text-sm text-gray-900">
-                        Create Google Meet video conference
-                    </label>
-                </div>
-
-                <div class="flex items-center">
-                    <input
-                        id="enable_recording"
-                        v-model="form.enable_recording"
-                        type="checkbox"
-                        class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <label for="enable_recording" class="ml-2 block text-sm text-gray-900">
-                        Enable recording and transcript
-                    </label>
+                <!-- Right Side: Live Preview -->
+                <div class="space-y-6 bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
+                    <h4 class="text-xl font-bold text-gray-800">Meeting Preview</h4>
+                    <div class="space-y-4">
+                        <div>
+                            <h5 class="font-semibold text-sm text-gray-600 mb-1">Title</h5>
+                            <p class="text-gray-900 font-medium break-words">{{ fullTitle || 'Untitled Meeting' }}</p>
+                        </div>
+                        <div>
+                            <h5 class="font-semibold text-sm text-gray-600 mb-1">Date & Time</h5>
+                            <p class="text-gray-900">{{ formattedDateRange || 'No date and time selected.' }}</p>
+                            <p v-if="form.timezone" class="text-xs text-gray-500 mt-1">Timezone: {{ form.timezone }}</p>
+                        </div>
+                        <div v-if="form.description">
+                            <h5 class="font-semibold text-sm text-gray-600 mb-1">Description</h5>
+                            <p class="text-gray-900 whitespace-pre-wrap">{{ form.description }}</p>
+                        </div>
+                        <div v-if="previewAttendees.length > 0">
+                            <h5 class="font-semibold text-sm text-gray-600 mb-1">Attendees</h5>
+                            <div class="flex flex-wrap gap-2">
+                                <span
+                                    v-for="attendeeName in previewAttendees"
+                                    :key="attendeeName"
+                                    class="px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800"
+                                >
+                                    {{ attendeeName }}
+                                </span>
+                            </div>
+                        </div>
+                        <div v-if="form.location">
+                            <h5 class="font-semibold text-sm text-gray-600 mb-1">Location</h5>
+                            <p class="text-gray-900">{{ form.location }}</p>
+                        </div>
+                        <div>
+                            <h5 class="font-semibold text-sm text-gray-600 mb-1">Options</h5>
+                            <ul class="list-disc list-inside space-y-1 text-gray-900">
+                                <li v-if="form.with_google_meet">Google Meet enabled</li>
+                                <li v-if="form.enable_recording">Recording and transcript enabled</li>
+                                <li v-if="!form.with_google_meet && !form.enable_recording">No special options selected.</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
         </template>

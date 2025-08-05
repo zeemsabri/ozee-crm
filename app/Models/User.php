@@ -305,6 +305,18 @@ class User extends Authenticatable
     }
 
     /**
+     * Get the meetings that the user is invited to.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     */
+    public function meetings()
+    {
+        return $this->belongsToMany(Meeting::class, 'meeting_attendees')
+            ->withPivot('notification_sent', 'notification_sent_at')
+            ->withTimestamps();
+    }
+
+    /**
      * Get the bonus transactions for the user.
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany

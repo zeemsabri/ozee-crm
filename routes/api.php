@@ -98,6 +98,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('projects/{project}/notes/{note}/replies', [ProjectReadController::class, 'getNoteReplies']);
     Route::get('projects/{project}/tasks', [ProjectReadController::class, 'getTasks']);
     Route::get('/projects/{project}/meetings', [ProjectReadController::class, 'getProjectMeetings']);
+    Route::get('/user/meetings', [ProjectReadController::class, 'getUserMeetings']);
 
     // Project Section Read Routes
     Route::get('projects/{project}/sections/basic', [ProjectReadController::class, 'getBasicInfo']);

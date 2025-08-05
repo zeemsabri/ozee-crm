@@ -1111,6 +1111,29 @@ class ProjectActionController extends Controller
 
             $meeting->save();
             $data['meeting_id'] = $meeting->id;
+
+            // Save attendees if provided and send notifications
+            if ($request->has('attendee_user_ids') && is_array($request->input('attendee_user_ids'))) {
+                $attendeeIds = $request->input('attendee_user_ids');
+                foreach ($attendeeIds as $attendeeId) {
+                    $attendee = $meeting->attendees()->create([
+                        'user_id' => $attendeeId,
+                        'notification_sent' => false,
+                    ]);
+
+                    // Send notification to the attendee
+                    $user = \App\Models\User::find($attendeeId);
+                    if ($user) {
+                        $user->notify(new \App\Notifications\MeetingInvitation($meeting, $attendee));
+
+                        // Update notification status
+                        $attendee->notification_sent = true;
+                        $attendee->notification_sent_at = now();
+                        $attendee->save();
+                    }
+                }
+            }
+
             return response()->json($data, 201);
         }
 

@@ -707,8 +707,29 @@ class ProjectReadController extends Controller
         if (!$this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
-
+        $now = NOW()->addHour();
         $meetings = $project->meetings()
+            ->where('start_time', '>', $now)
+            ->orderBy('start_time', 'asc')
+            ->get();
+
+        return response()->json($meetings);
+    }
+
+    /**
+     * Get meetings that the authenticated user is invited to.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getUserMeetings()
+    {
+        $user = Auth::user();
+        $now = NOW();
+
+        // Get meetings where the user is an attendee
+        $meetings = $user->meetings()
+            ->with(['project:id,name', 'creator:id,name'])
+            ->where('start_time', '>', $now)
             ->orderBy('start_time', 'asc')
             ->get();
 
