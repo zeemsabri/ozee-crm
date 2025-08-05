@@ -63,8 +63,8 @@ class GmailService
                 $newTokens = $this->client->getAccessToken();
 
                 // Update stored tokens with the new access token and its expiry
-                $tokens['access_token'] = $newTokens['access_token'];
-                $tokens['expires_in'] = $newTokens['expires_in'];
+                $tokens['access_token'] = $newTokens['access_token'] ?? null;
+                $tokens['expires_in'] = $newTokens['expires_in'] ?? null;
                 $tokens['created_at'] = now()->timestamp; // Update creation time
 
                 // If Google ever issues a new refresh token (rare, but good to check)
