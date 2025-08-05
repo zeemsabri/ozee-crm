@@ -131,6 +131,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects/{project}/meetings', [ProjectActionController::class, 'createProjectMeeting']);
     Route::delete('/projects/{project}/meetings/{googleEventId}', [ProjectActionController::class, 'deleteProjectMeeting']);
     Route::patch('projects/{project}/convert-payment-type', [ProjectActionController::class, 'convertPaymentType']); // Moved PATCH route
+    Route::post('projects/{project}/archive', [ProjectActionController::class, 'archive']);
+    Route::post('projects/{id}/restore', [ProjectActionController::class, 'restore']);
 
     // Project Section Update Routes
     Route::put('projects/{project}/sections/basic', [ProjectActionController::class, 'updateBasicInfo'])->middleware(['process.tags']);

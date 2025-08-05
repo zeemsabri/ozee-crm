@@ -1301,4 +1301,79 @@ class ProjectActionController extends Controller
             return response()->json(['message' => 'Failed to upload documents: ' . $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Archive a project (soft delete).
+     *
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function archive(Project $project)
+    {
+        try {
+            // Check if user has permission to archive projects
+            $user = Auth::user();
+            if (!$user->can('delete', $project)) {
+                return response()->json([
+                    'message' => 'You do not have permission to archive this project.',
+                    'success' => false
+                ], 403);
+            }
+
+            $project->delete(); // This will soft delete the project
+
+            return response()->json([
+                'message' => 'Project archived successfully',
+                'success' => true
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error archiving project: ' . $e->getMessage(), [
+                'project_id' => $project->id,
+                'error' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'message' => 'Failed to archive project: ' . $e->getMessage(),
+                'success' => false
+            ], 500);
+        }
+    }
+
+    /**
+     * Restore an archived project.
+     *
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function restore($id)
+    {
+        try {
+            // Find the project with trashed (soft deleted) records
+            $project = Project::withTrashed()->findOrFail($id);
+
+            // Check if user has permission to restore projects
+            $user = Auth::user();
+            if (!$user->can('restore', $project)) {
+                return response()->json([
+                    'message' => 'You do not have permission to restore this project.',
+                    'success' => false
+                ], 403);
+            }
+
+            $project->restore(); // Restore the soft deleted project
+
+            return response()->json([
+                'message' => 'Project restored successfully',
+                'success' => true
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error restoring project: ' . $e->getMessage(), [
+                'project_id' => $id,
+                'error' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'message' => 'Failed to restore project: ' . $e->getMessage(),
+                'success' => false
+            ], 500);
+        }
+    }
 }

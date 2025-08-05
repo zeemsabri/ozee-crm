@@ -1,3 +1,4 @@
+<!-- TaskList.vue -->
 <script setup>
 import { ref, computed, watch } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -141,11 +142,11 @@ const unblockTask = async (task) => {
 
 const deleteTask = async (task) => {
     try {
-        if (await taskState.deleteTask(task)) {
-            emit('task-updated', null);
-        }
+        await taskState.deleteTask(task);
+        emit('task-updated', null); // Signal parent to refresh the list
     } catch (error) {
         console.error('Error deleting task:', error);
+        // The taskState utility handles notifications
     }
 };
 
@@ -184,129 +185,129 @@ const formatDate = (dateString) => {
         <div class="bg-white overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
-                    <tr>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Name</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Milestone</th>
-                        <th v-if="showProjectColumn" scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
+                <tr>
+                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Name</th>
+                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Milestone</th>
+                    <th v-if="showProjectColumn" scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    <tr v-for="task in filteredActiveTasks" :key="task.id"
-                        class="hover:bg-gray-50 transition-colors"
-                        :class="{
+                <tr v-for="task in filteredActiveTasks" :key="task.id"
+                    class="hover:bg-gray-50 transition-colors"
+                    :class="{
                             'bg-red-50': task.due_date && new Date(task.due_date) < new Date(),
                             'bg-yellow-50': task.due_date && new Date(task.due_date).toDateString() === new Date().toDateString()
                         }">
-                        <td class="px-4 py-3 text-sm text-gray-900">{{ task.name }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-700">
+                    <td class="px-4 py-3 text-sm text-gray-900">{{ task.name }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700">
                             <span
                                 class="px-2 py-1 rounded-full text-xs font-medium"
                                 :class="taskState.getTaskStatusClasses(task.status)"
                             >
                                 {{ task.status }}
                             </span>
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-700">
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-700">
                             <span
                                 class="px-2 py-1 rounded-full text-xs font-medium"
                                 :class="taskState.getTaskPriorityClasses(task.priority)"
                             >
                                 {{ taskState.formatPriority(task.priority) }}
                             </span>
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-700">
-                            {{ task.milestone?.name || 'N/A' }}
-                        </td>
-                        <td v-if="showProjectColumn" class="px-4 py-3 text-sm text-gray-700">
-                            {{ task.project?.name || 'N/A' }}
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-700">
-                            {{ formatDate(task.due_date) }}
-                        </td>
-                        <td class="px-4 py-3">
-                            <div class="flex space-x-2">
-                                <PrimaryButton
-                                    @click="viewTaskDetails(task)"
-                                    class="px-2 py-0.5 text-xs leading-4 bg-purple-500 hover:bg-purple-600"
-                                >
-                                    View
-                                </PrimaryButton>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-700">
+                        {{ task.milestone?.name || 'N/A' }}
+                    </td>
+                    <td v-if="showProjectColumn" class="px-4 py-3 text-sm text-gray-700">
+                        {{ task.project?.name || 'N/A' }}
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-700">
+                        {{ formatDate(task.due_date) }}
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex space-x-2">
+                            <PrimaryButton
+                                @click="viewTaskDetails(task)"
+                                class="px-2 py-0.5 text-xs leading-4 bg-purple-500 hover:bg-purple-600"
+                            >
+                                View
+                            </PrimaryButton>
 
-                                <!-- Start Button -->
-                                <PrimaryButton
-                                    v-if="task.status === 'To Do'"
-                                    @click="startTask(task)"
-                                    class="px-2 py-0.5 text-xs leading-4 bg-blue-500 hover:bg-blue-600"
-                                >
-                                    Start
-                                </PrimaryButton>
+                            <!-- Start Button -->
+                            <PrimaryButton
+                                v-if="task.status === 'To Do'"
+                                @click="startTask(task)"
+                                class="px-2 py-0.5 text-xs leading-4 bg-blue-500 hover:bg-blue-600"
+                            >
+                                Start
+                            </PrimaryButton>
 
-                                <!-- Pause Button -->
-                                <PrimaryButton
-                                    v-if="task.status === 'In Progress'"
-                                    @click="pauseTask(task)"
-                                    class="px-2 py-0.5 text-xs leading-4 bg-orange-500 hover:bg-orange-600"
-                                >
-                                    Pause
-                                </PrimaryButton>
+                            <!-- Pause Button -->
+                            <PrimaryButton
+                                v-if="task.status === 'In Progress'"
+                                @click="pauseTask(task)"
+                                class="px-2 py-0.5 text-xs leading-4 bg-orange-500 hover:bg-orange-600"
+                            >
+                                Pause
+                            </PrimaryButton>
 
-                                <!-- Resume Button -->
-                                <PrimaryButton
-                                    v-if="task.status === 'Paused'"
-                                    @click="resumeTask(task)"
-                                    class="px-2 py-0.5 text-xs leading-4 bg-blue-500 hover:bg-blue-600"
-                                >
-                                    Resume
-                                </PrimaryButton>
+                            <!-- Resume Button -->
+                            <PrimaryButton
+                                v-if="task.status === 'Paused'"
+                                @click="resumeTask(task)"
+                                class="px-2 py-0.5 text-xs leading-4 bg-blue-500 hover:bg-blue-600"
+                            >
+                                Resume
+                            </PrimaryButton>
 
-                                <!-- Block Button -->
-                                <PrimaryButton
-                                    v-if="task.status !== 'Blocked' && task.status !== 'Done'"
-                                    @click="openBlockTaskModal(task)"
-                                    class="px-2 py-0.5 text-xs leading-4 bg-red-500 hover:bg-red-600"
-                                >
-                                    Block
-                                </PrimaryButton>
+                            <!-- Block Button -->
+                            <PrimaryButton
+                                v-if="task.status !== 'Blocked' && task.status !== 'Done'"
+                                @click="openBlockTaskModal(task)"
+                                class="px-2 py-0.5 text-xs leading-4 bg-red-500 hover:bg-red-600"
+                            >
+                                Block
+                            </PrimaryButton>
 
-                                <!-- Unblock Button -->
-                                <PrimaryButton
-                                    v-if="task.status === 'Blocked'"
-                                    @click="unblockTask(task)"
-                                    class="px-2 py-0.5 text-xs leading-4 bg-green-500 hover:bg-green-600"
-                                >
-                                    Unblock
-                                </PrimaryButton>
+                            <!-- Unblock Button -->
+                            <PrimaryButton
+                                v-if="task.status === 'Blocked'"
+                                @click="unblockTask(task)"
+                                class="px-2 py-0.5 text-xs leading-4 bg-green-500 hover:bg-green-600"
+                            >
+                                Unblock
+                            </PrimaryButton>
 
-                                <!-- Complete Button -->
-                                <PrimaryButton
-                                    v-if="task.status === 'In Progress'"
-                                    @click="completeTask(task)"
-                                    class="px-2 py-0.5 text-xs leading-4 bg-green-500 hover:bg-green-600"
-                                >
-                                    Complete
-                                </PrimaryButton>
+                            <!-- Complete Button -->
+                            <PrimaryButton
+                                v-if="task.status === 'In Progress'"
+                                @click="completeTask(task)"
+                                class="px-2 py-0.5 text-xs leading-4 bg-green-500 hover:bg-green-600"
+                            >
+                                Complete
+                            </PrimaryButton>
 
-                                <!-- Delete Button (only for To Do tasks) -->
-                                <PrimaryButton
-                                    v-if="task.status === 'To Do'"
-                                    @click="deleteTask(task)"
-                                    class="px-2 py-0.5 text-xs leading-4 bg-red-500 hover:bg-red-600"
-                                    :disabled="task.status !== 'To Do'"
-                                >
-                                    Delete
-                                </PrimaryButton>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr v-if="filteredActiveTasks.length === 0">
-                        <td :colspan="showProjectColumn ? 7 : 6" class="px-4 py-8 text-center text-gray-500">
-                            No active tasks found.
-                        </td>
-                    </tr>
+                            <!-- Delete Button (only for To Do tasks) -->
+                            <PrimaryButton
+                                v-if="task.status === 'To Do'"
+                                @click="deleteTask(task)"
+                                class="px-2 py-0.5 text-xs leading-4 bg-red-500 hover:bg-red-600"
+                                :disabled="task.status !== 'To Do'"
+                            >
+                                Delete
+                            </PrimaryButton>
+                        </div>
+                    </td>
+                </tr>
+                <tr v-if="filteredActiveTasks.length === 0">
+                    <td :colspan="showProjectColumn ? 7 : 6" class="px-4 py-8 text-center text-gray-500">
+                        No active tasks found.
+                    </td>
+                </tr>
                 </tbody>
             </table>
         </div>
@@ -329,68 +330,68 @@ const formatDate = (dateString) => {
             <div v-if="showCompletedTasks" class="bg-white overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
-                        <tr>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Name</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Milestone</th>
-                            <th v-if="showProjectColumn" scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
+                    <tr>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Name</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Milestone</th>
+                        <th v-if="showProjectColumn" scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
-                        <tr v-for="task in filteredCompletedTasks" :key="task.id" class="hover:bg-gray-50 transition-colors">
-                            <td class="px-4 py-3 text-sm text-gray-900">{{ task.name }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-700">
+                    <tr v-for="task in filteredCompletedTasks" :key="task.id" class="hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-3 text-sm text-gray-900">{{ task.name }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700">
                                 <span
                                     class="px-2 py-1 rounded-full text-xs font-medium"
                                     :class="taskState.getTaskStatusClasses(task.status)"
                                 >
                                     {{ task.status }}
                                 </span>
-                            </td>
-                            <td class="px-4 py-3 text-sm text-gray-700">
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-700">
                                 <span
                                     class="px-2 py-1 rounded-full text-xs font-medium"
                                     :class="taskState.getTaskPriorityClasses(task.priority)"
                                 >
                                     {{ taskState.formatPriority(task.priority) }}
                                 </span>
-                            </td>
-                            <td class="px-4 py-3 text-sm text-gray-700">
-                                {{ task.milestone?.name || 'N/A' }}
-                            </td>
-                            <td v-if="showProjectColumn" class="px-4 py-3 text-sm text-gray-700">
-                                {{ task.project?.name || 'N/A' }}
-                            </td>
-                            <td class="px-4 py-3 text-sm text-gray-700">
-                                {{ formatDate(task.due_date) }}
-                            </td>
-                            <td class="px-4 py-3">
-                                <div class="flex space-x-2">
-                                    <PrimaryButton
-                                        @click="viewTaskDetails(task)"
-                                        class="px-2 py-0.5 text-xs leading-4 bg-purple-500 hover:bg-purple-600"
-                                    >
-                                        View
-                                    </PrimaryButton>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-700">
+                            {{ task.milestone?.name || 'N/A' }}
+                        </td>
+                        <td v-if="showProjectColumn" class="px-4 py-3 text-sm text-gray-700">
+                            {{ task.project?.name || 'N/A' }}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-700">
+                            {{ formatDate(task.due_date) }}
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex space-x-2">
+                                <PrimaryButton
+                                    @click="viewTaskDetails(task)"
+                                    class="px-2 py-0.5 text-xs leading-4 bg-purple-500 hover:bg-purple-600"
+                                >
+                                    View
+                                </PrimaryButton>
 
-                                    <!-- Revise Button -->
-                                    <PrimaryButton
-                                        @click="reviseTask(task)"
-                                        class="px-2 py-0.5 text-xs leading-4 bg-yellow-500 hover:bg-yellow-600"
-                                    >
-                                        Revise
-                                    </PrimaryButton>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr v-if="filteredCompletedTasks.length === 0">
-                            <td :colspan="showProjectColumn ? 7 : 6" class="px-4 py-8 text-center text-gray-500">
-                                No completed tasks found.
-                            </td>
-                        </tr>
+                                <!-- Revise Button -->
+                                <PrimaryButton
+                                    @click="reviseTask(task)"
+                                    class="px-2 py-0.5 text-xs leading-4 bg-yellow-500 hover:bg-yellow-600"
+                                >
+                                    Revise
+                                </PrimaryButton>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-if="filteredCompletedTasks.length === 0">
+                        <td :colspan="showProjectColumn ? 7 : 6" class="px-4 py-8 text-center text-gray-500">
+                            No completed tasks found.
+                        </td>
+                    </tr>
                     </tbody>
                 </table>
             </div>

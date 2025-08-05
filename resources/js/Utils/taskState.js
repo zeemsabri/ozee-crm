@@ -1,3 +1,4 @@
+// taskState.js
 /**
  * Task State Management Utility
  *
@@ -106,6 +107,7 @@ export const startTask = async (task) => {
  */
 export const pauseTask = async (task) => {
     if (!task || task.status !== 'In Progress') {
+        notification.warning('Task can only be paused from "In Progress" status.');
         return task;
     }
 
@@ -129,6 +131,7 @@ export const pauseTask = async (task) => {
  */
 export const resumeTask = async (task) => {
     if (!task || task.status !== 'Paused') {
+        notification.warning('Task can only be resumed from "Paused" status.');
         return task;
     }
 
@@ -186,6 +189,12 @@ export const completeTask = async (task) => {
  */
 export const blockTask = async (task, reason) => {
     if (!task || task.status === 'Blocked') {
+        notification.warning('Task is already blocked.');
+        return task;
+    }
+
+    if (task.status === 'Done') {
+        notification.warning('Completed tasks cannot be blocked.');
         return task;
     }
 
@@ -214,6 +223,7 @@ export const blockTask = async (task, reason) => {
  */
 export const unblockTask = async (task) => {
     if (!task || task.status !== 'Blocked') {
+        notification.warning('Task is not in a blocked state.');
         return task;
     }
 
@@ -237,6 +247,7 @@ export const unblockTask = async (task) => {
  */
 export const reviseTask = async (task) => {
     if (!task || task.status !== 'Done') {
+        notification.warning('Only completed tasks can be revised.');
         return task;
     }
 
@@ -286,33 +297,6 @@ export const deleteTask = async (task) => {
         console.error('Error deleting task:', error);
         notification.error('Failed to delete task. Please try again.');
         throw error;
-    }
-};
-
-/**
- * Get the appropriate action button based on task status
- *
- * @param {Object} task - The task object
- * @returns {Object} - Button configuration { type, label, action, disabled }
- */
-export const getTaskActionButton = (task) => {
-    if (!task) {
-        return { type: 'primary', label: 'Start', action: 'start', disabled: true };
-    }
-
-    switch (task.status) {
-        case 'To Do':
-            return { type: 'primary', label: 'Start', action: 'start', disabled: false };
-        case 'In Progress':
-            return { type: 'warning', label: 'Pause', action: 'pause', disabled: false };
-        case 'Paused':
-            return { type: 'primary', label: 'Resume', action: 'resume', disabled: false };
-        case 'Blocked':
-            return { type: 'danger', label: 'Unblock', action: 'unblock', disabled: false };
-        case 'Done':
-            return { type: 'success', label: 'Completed', action: null, disabled: true };
-        default:
-            return { type: 'primary', label: 'Start', action: 'start', disabled: true };
     }
 };
 

@@ -1,3 +1,4 @@
+<!-- ProjectTasksTab.vue -->
 <script setup>
 import { ref, onMounted, computed, reactive, watch } from 'vue'; // Added 'watch'
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -7,6 +8,7 @@ import SelectDropdown from '@/Components/SelectDropdown.vue';
 import TaskList from '@/Components/TaskList.vue';
 import * as taskState from '@/Utils/taskState.js';
 import * as notification from '@/Utils/notification.js';
+import Modal from '@/Components/Modal.vue';
 
 // Import the new/modified modal components
 import EditTaskModal from '@/Components/ProjectTasks/EditTaskModal.vue'; // Renamed
@@ -299,10 +301,9 @@ const handleTaskSaved = () => {
 };
 
 // View Task Details Sidebar
-const viewTaskDetails = (task) => {
-    console.log('ProjectTasksTab: Task object:', task);
-    console.log('ProjectTasksTab: Emitting open-task-detail-sidebar for taskId:', task.id, 'projectId:', props.projectId);
-    emit('openTaskDetailSidebar', task.id, props.projectId);
+const viewTaskDetails = (taskId) => {
+    console.log('ProjectTasksTab: Emitting openTaskDetailSidebar for taskId:', taskId, 'projectId:', props.projectId);
+    emit('openTaskDetailSidebar', taskId, props.projectId, props.projectUsers);
 };
 
 // Milestone Form Modal
@@ -328,55 +329,6 @@ const handleTaskNoteAdded = () => {
     fetchProjectTasks();
 };
 
-// Mark Task as Completed
-const markTaskAsCompleted = async (task) => {
-    try {
-        await window.axios.post(`/api/tasks/${task.id}/complete`);
-        await fetchProjectTasks();
-    } catch (error) {
-        console.error('Error marking task as completed:', error);
-        alert('Failed to mark task as completed. Please try again.');
-    }
-};
-
-// Start Task (change status to In Progress)
-const startTask = async (task) => {
-    try {
-        notification.info('Starting task...');
-        await window.axios.post(`/api/tasks/${task.id}/start`);
-        notification.success('Task started successfully');
-        await fetchProjectTasks();
-    } catch (error) {
-        console.error('Error starting task:', error);
-        notification.error('Failed to start task. Please try again.');
-    }
-};
-
-// Pause Task (change status from In Progress to Paused)
-const pauseTask = async (task) => {
-    try {
-        notification.info('Pausing task...');
-        await window.axios.post(`/api/tasks/${task.id}/pause`);
-        notification.success('Task paused successfully');
-        await fetchProjectTasks();
-    } catch (error) {
-        console.error('Error pausing task:', error);
-        notification.error('Failed to pause task. Please try again.');
-    }
-};
-
-// Resume Task (change status from Paused to In Progress)
-const resumeTask = async (task) => {
-    try {
-        notification.info('Resuming task...');
-        await window.axios.post(`/api/tasks/${task.id}/resume`);
-        notification.success('Task resumed successfully');
-        await fetchProjectTasks();
-    } catch (error) {
-        console.error('Error resuming task:', error);
-        notification.error('Failed to resume task. Please try again.');
-    }
-};
 
 // Open Block Task Modal
 const openBlockTaskModal = (task) => {
@@ -404,54 +356,6 @@ const blockTask = async () => {
     } catch (error) {
         console.error('Error blocking task:', error);
         notification.error('Failed to block task. Please try again.');
-    }
-};
-
-// Unblock Task (change status from Blocked back to previous status)
-const unblockTask = async (task) => {
-    try {
-        notification.info('Unblocking task...');
-        await window.axios.post(`/api/tasks/${task.id}/unblock`);
-        notification.success('Task unblocked successfully');
-        await fetchProjectTasks();
-    } catch (error) {
-        console.error('Error unblocking task:', error);
-        notification.error('Failed to unblock task. Please try again.');
-    }
-};
-
-// Delete Task (only for To Do tasks)
-const deleteTask = async (task) => {
-    if (task.status !== 'To Do') {
-        notification.warning('Only tasks in To Do status can be deleted');
-        return;
-    }
-
-    if (!confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
-        return;
-    }
-
-    try {
-        notification.info('Deleting task...');
-        await window.axios.delete(`/api/tasks/${task.id}`);
-        notification.success('Task deleted successfully');
-        await fetchProjectTasks();
-    } catch (error) {
-        console.error('Error deleting task:', error);
-        notification.error('Failed to delete task. Please try again.');
-    }
-};
-
-// Revise Task (change status from Done back to To Do)
-const reviseTask = async (task) => {
-    try {
-        notification.info('Revising task...');
-        await window.axios.post(`/api/tasks/${task.id}/revise`);
-        notification.success('Task revised successfully');
-        await fetchProjectTasks();
-    } catch (error) {
-        console.error('Error revising task:', error);
-        notification.error('Failed to revise task. Please try again.');
     }
 };
 

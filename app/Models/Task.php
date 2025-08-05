@@ -25,7 +25,7 @@ class Task extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'description', 'status', 'assigned_to_user_id', 'due_date', 'priority'])
+            ->logOnly(['name', 'description', 'status', 'assigned_to_user_id', 'due_date', 'priority', 'block_reason'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->setDescriptionForEvent(function(string $eventName) {
@@ -56,7 +56,8 @@ class Task extends Model
             } elseif ($oldStatus === 'Paused' && $newStatus === 'In Progress') {
                 return 'Task was resumed';
             } elseif ($newStatus === 'Blocked') {
-                return 'Task was blocked';
+                $blockReason = $this->block_reason ? ": {$this->block_reason}" : '';
+                return "Task was blocked{$blockReason}";
             } elseif ($oldStatus === 'Blocked' && ($newStatus === 'To Do' || $newStatus === 'In Progress')) {
                 return 'Task was unblocked';
             } elseif ($newStatus === 'Done') {
@@ -88,8 +89,8 @@ class Task extends Model
             return "Task due date changed from '{$oldFormatted}' to '{$newFormatted}'";
         }
 
-        if (isset($changes['block_reason'])) {
-            return "Task blocking reason was updated";
+        if (isset($changes['block_reason']) && !isset($changes['status'])) {
+            return "Task blocking reason was updated: {$this->block_reason}";
         }
 
         return 'Task was updated';

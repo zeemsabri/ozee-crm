@@ -22,18 +22,34 @@ class ProjectReadController extends Controller
     /**
      * Display a listing of the projects.
      *
+     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
+        $withTrashed = $request->has('with_trashed') && $request->with_trashed === 'true';
 
         if ($user->isSuperAdmin() || $user->isManager()) {
-            $projects = Project::with(['clients', 'users' => function ($query) {
+            $query = Project::query();
+
+            // Include trashed (archived) projects if requested
+            if ($withTrashed) {
+                $query->withTrashed();
+            }
+
+            $projects = $query->with(['clients', 'users' => function ($query) {
                 $query->withPivot('role_id');
             }, 'transactions', 'notes'])->get();
         } else {
-            $projects = $user->projects()->with(['clients', 'users' => function ($query) {
+            $query = $user->projects();
+
+            // Include trashed (archived) projects if requested
+            if ($withTrashed) {
+                $query->withTrashed();
+            }
+
+            $projects = $query->with(['clients', 'users' => function ($query) {
                 $query->withPivot('role_id');
             }, 'transactions', 'notes'])->get();
         }

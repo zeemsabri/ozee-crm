@@ -27,12 +27,20 @@ const formatDate = (dateString) => {
 
 // Get appropriate icon based on activity description
 const getActivityIcon = (description) => {
+    console.log(description);
     if (description.includes('created')) return '🆕';
     if (description.includes('started')) return '🚀';
+    if (description.includes('paused')) return '⏸️';
+    if (description.includes('resumed')) return '▶️';
+    if (description.includes('unblocked')) return '🔓';
+    if (description.includes('blocked')) return '⛔';
     if (description.includes('completed')) return '✅';
+    if (description.includes('revised')) return '🔄';
     if (description.includes('deleted')) return '🗑️';
-    if (description.includes('updated')) return '📝';
     if (description.includes('assigned')) return '👤';
+    if (description.includes('updated')) return '📝';
+    if (description.includes('added note')) return '🗒️';
+    if (description.includes('commented')) return '💬';
     return '📋'; // Default icon
 };
 </script>
