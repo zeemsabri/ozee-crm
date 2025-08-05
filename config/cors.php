@@ -19,7 +19,7 @@ return [
 
     'allowed_methods' => ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 
-    'allowed_origins' => ['http://localhost:5174', 'https://crm.ozeeweb.com.au'],
+    'allowed_origins' => ['http://localhost:5173', 'https://crm.ozeeweb.com.au', 'https://wireframe.ozeeweb.com.au'],
 
     'allowed_origins_patterns' => [],
 
