@@ -63,7 +63,7 @@ class WireframeController extends Controller
                     return $query->where('project_id', $projectId);
                 }),
             ],
-            'data' => 'required|json',
+            'data' => 'sometimes|json',
         ]);
 
         if ($validator->fails()) {
