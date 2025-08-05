@@ -177,7 +177,7 @@ const duplicateComponent = (id) => {
 };
 
 const handleMouseMove = (e) => {
-    const { type, dragStart, startPos, marqueeStart, id, direction, initialRect, originalPositions } = interaction.value;
+    const { type, dragStart, resizeStart, marqueeStart, id, direction, initialRect, originalPositions } = interaction.value;
     if (!type) return;
 
     if (type === 'pan') {
@@ -199,8 +199,8 @@ const handleMouseMove = (e) => {
             })
         }), true);
     } else if (type === 'resize') {
-        const dx = (e.clientX - startPos.x) / scale.value;
-        const dy = (e.clientY - startPos.y) / scale.value;
+        const dx = (e.clientX - resizeStart.x) / scale.value;
+        const dy = (e.clientY - resizeStart.y) / scale.value;
         let { x, y, width, height } = initialRect;
         if (direction.includes('right')) width = initialRect.width + dx;
         if (direction.includes('left')) { width = initialRect.width - dx; x = initialRect.x + dx; }
@@ -356,8 +356,6 @@ const handleKeyDown = (e) => {
         e.preventDefault();
         isPanning.value = true;
         interaction.value = { type: 'pan', dragStart: { x: e.clientX, y: e.clientY } };
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
     }
 };
 
@@ -365,8 +363,6 @@ const handleKeyUp = (e) => {
     if (e.code === 'Space') {
         isPanning.value = false;
         interaction.value = {};
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
     }
 };
 

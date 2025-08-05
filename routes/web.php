@@ -42,6 +42,12 @@ Route::get('/', function (Request $request) {
     ]);
 });
 
+Route::get('/wireframe', function () {
+    return Inertia::render('Wireframe', [
+        'message' => 'An unexpected error occurred.'
+    ]);
+})->name('wireframe');
+
 // Public route for handling the magic link (this is the new client dashboard route)
 // This route will render the ClientDashboard.vue component
 Route::get('/client/dashboard/{token}', [MagicLinkController::class, 'handleMagicLink'])
