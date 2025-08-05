@@ -12,11 +12,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
+use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 
 class Task extends Model
 {
-    use HasFactory, Taggable, SoftDeletes;
+    use HasFactory, Taggable, SoftDeletes, LogsActivity;
 
     /**
      * Configure the activity log options for this model
