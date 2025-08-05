@@ -397,14 +397,7 @@ class EmailController extends Controller
             $email->update([
                 'status' => 'sent',
                 'approved_by' => $approver->id,
-                'sent_at' => now(),
-                'message_id' => $gmailMessageId,
-            ]);
-
-            Log::info('Email edited and approved', [
-                'email_id' => $email->id,
-                'gmail_message_id' => $gmailMessageId,
-                'approved_by' => $approver->id,
+                'sent_at' => now()
             ]);
 
             return response()->json(['message' => 'Email updated and approved successfully!', 'email' => $email->load('approver')]);
@@ -892,7 +885,8 @@ class EmailController extends Controller
     {
         try {
             // Use the trait method to render the full email preview as a JSON response
-            return $this->renderFullEmailPreviewResponse($email);
+            $emai = $this->renderFullEmailPreviewResponse($email);
+
         } catch (Exception $e) {
             Log::error('Error previewing email: ' . $e->getMessage(), [
                 'email_id' => $email->id,
