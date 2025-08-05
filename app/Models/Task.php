@@ -17,7 +17,7 @@ use Spatie\Activitylog\LogOptions;
 
 class Task extends Model
 {
-    use HasFactory, Taggable, SoftDeletes, LogsActivity;
+    use HasFactory, Taggable, SoftDeletes;
 
     /**
      * Configure the activity log options for this model
