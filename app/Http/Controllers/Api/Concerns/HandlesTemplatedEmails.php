@@ -215,7 +215,7 @@ trait HandlesTemplatedEmails
      */
     public function renderFullEmailPreviewResponse(Email $email)
     {
-//        try {
+        try {
             // Render the email content (subject and body) first
             $renderedContent = $this->renderEmailContent($email, false);
             $subject = $renderedContent['subject'];
@@ -227,44 +227,96 @@ trait HandlesTemplatedEmails
                 'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
             ];
 
-            // Load all reusable data from the new config file
-            $config = config('branding');
-
             // Combine all data into a single array for the view
-            $data = [
-                'emailData' => [
-                    'subject' => $subject,
-                ],
-                'bodyContent' => $body,
-                'senderName' => $senderDetails['name'],
-                'senderRole' => $senderDetails['role'],
-                'senderPhone' => $config['company']['phone'],
-                'senderWebsite' => $config['company']['website'],
-                'companyLogoUrl' => asset($config['company']['logo_url']),
-                'socialIcons' => $config['social_icons'],
-                'brandPrimaryColor' => $config['branding']['brand_primary_color'],
-                'brandSecondaryColor' => $config['branding']['brand_secondary_color'],
-                'backgroundColor' => $config['branding']['background_color'],
-                'textColorPrimary' => $config['branding']['text_color_primary'],
-                'textColorSecondary' => $config['branding']['text_color_secondary'],
-                'borderColor' => $config['branding']['border_color'],
-                'reviewLink' => 'https://www.example.com/review', // Example review link
-            ];
+            $data = $this->getData($subject, $body, $senderDetails);
 
-            // Use only one template for all emails
-            $fullHtml = View::make('emails.email_template', $data)->render();
+            $fullHtml = $this->renderHtmlTemplate($data);
 
             return response()->json([
                 'subject' => $subject,
                 'body_html' => $fullHtml,
             ]);
 
-//        } catch (Exception $e) {
-//            Log::error('Error rendering full email preview: ' . $e->getMessage(), [
-//                'email_id' => $email->id,
-//                'error' => $e->getTraceAsString(),
-//            ]);
-//            return response()->json(['message' => 'Error generating email view: ' . $e->getMessage()], 500);
-//        }
+        } catch (Exception $e) {
+            Log::error('Error rendering full email preview: ' . $e->getMessage(), [
+                'email_id' => $email->id,
+                'error' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Error generating email view: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function renderHtmlTemplate($data, $template = 'email_template')
+    {
+        return  View::make('emails.' . $template, $data)->render();
+    }
+
+    public function getCustomEmailReadyForSending(Email $email)
+    {
+        try {
+            // Render the email content (subject and body) first
+            $renderedContent = $this->renderEmailContent($email, true);
+            $subject = $renderedContent['subject'];
+            $body = $renderedContent['body'];
+            // Get the sender details
+            $sender = $email->sender;
+            $senderDetails = [
+                'name' => $sender->name ?? 'Original Sender',
+                'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
+            ];
+
+            // Combine all data into a single array for the view
+            $data = $this->getData($subject, $body, $senderDetails);
+
+            // Use only one template for all emails
+            $fullHtml = $this->renderHtmlTemplate($data);
+
+            return response()->json([
+                'subject' => $subject,
+                'body_html' => $fullHtml,
+            ]);
+
+        } catch (Exception $e) {
+            Log::error('Error rendering full email preview: ' . $e->getMessage(), [
+                'email_id' => $email->id,
+                'error' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Error generating email view: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function getSenderDetails(Email $email)
+    {
+        $sender = $email->sender;
+        return [
+            'name' => $sender->name ?? 'Original Sender',
+            'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
+        ];
+    }
+
+    public function getData($subject, $body, $senderDetails)
+    {
+        // Load all reusable data from the new config file
+        $config = config('branding');
+
+        return [
+            'emailData' => [
+                'subject' => $subject,
+            ],
+            'bodyContent' => $body,
+            'senderName' => $senderDetails['name'],
+            'senderRole' => $senderDetails['role'],
+            'senderPhone' => $config['company']['phone'],
+            'senderWebsite' => $config['company']['website'],
+            'companyLogoUrl' => asset($config['company']['logo_url']),
+            'socialIcons' => $config['social_icons'],
+            'brandPrimaryColor' => $config['branding']['brand_primary_color'],
+            'brandSecondaryColor' => $config['branding']['brand_secondary_color'],
+            'backgroundColor' => $config['branding']['background_color'],
+            'textColorPrimary' => $config['branding']['text_color_primary'],
+            'textColorSecondary' => $config['branding']['text_color_secondary'],
+            'borderColor' => $config['branding']['border_color'],
+            'reviewLink' => null
+        ];
     }
 }

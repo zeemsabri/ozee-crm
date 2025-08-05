@@ -1,1 +1,0 @@
-import{_ as o,i as e,o as c}from"./app-D6uJ9OU4.js";const t={},n={height:"628",src:"/logo_header.png",alt:"OZEE Logo"};function r(s,_){return c(),e("img",n)}const i=o(t,[["render",r]]);export{i as A};

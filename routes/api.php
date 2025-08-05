@@ -273,8 +273,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('placeholder-definitions', PlaceholderDefinitionController::class)->middleware('permission:manage_placeholder_definitions');
 
 
-    // New route for sending emails from a template
-    Route::post('send-email', [SendEmailController::class, 'sendEmail']);
     Route::post('projects/{project}/email-preview', [SendEmailController::class, 'preview']);
     Route::post('emails/templated', [EmailController::class, 'storeTemplatedEmail']);
     Route::get('projects/{project}/model-data/{shortModelName}', [\App\Http\Controllers\Api\ModelDataController::class, 'index']);

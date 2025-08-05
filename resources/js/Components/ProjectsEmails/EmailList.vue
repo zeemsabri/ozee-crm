@@ -67,7 +67,9 @@ const viewEmail = (email) => {
                                 'bg-green-100 text-green-800': email.status === 'sent',
                                 'bg-yellow-100 text-yellow-800': email.status === 'pending_approval',
                                 'bg-red-100 text-red-800': email.status === 'rejected',
-                                'bg-gray-100 text-gray-800': email.status === 'draft'
+                                'bg-gray-100 text-gray-800': email.status === 'draft',
+                                'bg-purple-200 text-white-800': email.status === 'pending_approval_received',
+                                'bg-blue-100 text-white-800': email.status === 'received'
                             }"
                         >
                             {{ email.status ? email.status.replace('_', ' ').toUpperCase() : 'N/A' }}

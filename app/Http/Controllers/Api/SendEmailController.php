@@ -33,51 +33,6 @@ class SendEmailController extends Controller
     }
 
     /**
-     * Send an email based on a template and dynamic data.
-     *
-     * @param Request $request
-     * @param Project $project
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function sendEmail(Request $request, Project $project)
-    {
-        $validatedData = $request->validate([
-            'template_id' => 'required|exists:email_templates,id',
-            'clients' => 'required|array',
-            'clients.*' => 'exists:clients,id',
-            'template_data' => 'nullable|array',
-        ]);
-
-        try {
-            $template = EmailTemplate::with('placeholders')->findOrFail($validatedData['template_id']);
-            $recipients = Client::whereIn('id', $validatedData['clients'])->get();
-            $templateData = $validatedData['template_data'] ?? [];
-
-            foreach ($recipients as $recipient) {
-                // Populate the subject and body for the final send
-                $subject = $this->populateAllPlaceholders($template->subject, $template, $templateData, $recipient, $project, true);
-                $bodyHtml = $this->populateAllPlaceholders($template->body_html, $template, $templateData, $recipient, $project, true);
-
-                $formattedBodyHtml = nl2br($bodyHtml);
-
-                $emailData = [
-                    'subject' => $subject,
-                    'bodyContent' => $formattedBodyHtml,
-                    'senderName' => Auth::user()?->name,
-                ];
-
-                // Mail::to($recipient->email)->send(new GenericTemplateMail($emailData));
-            }
-
-            return response()->json(['message' => 'Emails sent successfully.'], 200);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to send email: ' . $e->getMessage());
-            return response()->json(['message' => 'Failed to send email: ' . $e->getMessage()], 500);
-        }
-    }
-
-    /**
      * Preview an email based on a template and dynamic data.
      *
      * @param Request $request
@@ -124,33 +79,9 @@ class SendEmailController extends Controller
                 'role' => $this->getProjectRoleName($sender, $project) ?? 'Staff',
             ];
 
-            // Load all reusable data from the branding config file
-            $config = config('branding');
+            $data = $this->getData($subject, $bodyHtml, $senderDetails);
 
-            // Combine all data into a single array for the view
-            $data = [
-                'emailData' => [
-                    'subject' => $subject,
-                ],
-                'bodyContent' => $bodyHtml, // The populated body content
-                'senderName' => $senderDetails['name'],
-                'senderRole' => $senderDetails['role'],
-                'senderPhone' => $config['company']['phone'],
-                'senderWebsite' => $config['company']['website'],
-                'signatureTagline' => $config['signature']['tagline'],
-                'companyLogoUrl' => asset($config['company']['logo_url']),
-                'socialIcons' => $config['social_icons'],
-                'brandPrimaryColor' => $config['branding']['brand_primary_color'],
-                'brandSecondaryColor' => $config['branding']['brand_secondary_color'],
-                'backgroundColor' => $config['branding']['background_color'],
-                'textColorPrimary' => $config['branding']['text_color_primary'],
-                'textColorSecondary' => $config['branding']['text_color_secondary'],
-                'borderColor' => $config['branding']['border_color'],
-                'reviewLink' => 'https://www.example.com/review', // Example review link
-            ];
-
-            // Use the single, consolidated template for the preview
-            $fullHtml = View::make('emails.email_template', $data)->render();
+            $fullHtml = $this->renderHtmlTemplate($data);
 
             return response()->json([
                 'subject' => $subject,

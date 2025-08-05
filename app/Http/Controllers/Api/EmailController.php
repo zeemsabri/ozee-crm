@@ -268,13 +268,13 @@ class EmailController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user->isSuperAdmin() && !$user->isManager()) {
-            if ($user->isContractor() && $email->sender_id === $user->id && in_array($email->status, ['draft', 'rejected'])) {
-                // Allow contractor to update their own draft or rejected emails
-            } else {
-                return response()->json(['message' => 'Unauthorized to update this email.'], 403);
-            }
-        }
+//        if (!$user->isSuperAdmin() && !$user->isManager()) {
+//            if ($user->isContractor() && $email->sender_id === $user->id && in_array($email->status, ['draft', 'rejected'])) {
+//                // Allow contractor to update their own draft or rejected emails
+//            } else {
+//                return response()->json(['message' => 'Unauthorized to update this email.'], 403);
+//            }
+//        }
 
         try {
             $validated = $request->validate([
@@ -346,6 +346,7 @@ class EmailController extends Controller
 
             // Determine if we're dealing with a template-based email or a regular HTML email
             $isTemplateEmail = ($request->input('composition_type') === 'template' || $email->template_id);
+            $senderDetails = $this->getSenderDetails($email);
 
             if ($isTemplateEmail) {
                 // For template-based emails
@@ -364,50 +365,26 @@ class EmailController extends Controller
                 $subject = $renderedContent['subject'];
                 $renderedBody = $renderedContent['body'];
                 $template = 'email_template';
+
             } else {
                 // For regular HTML emails
                 $renderedBody = $validated['body'] ?? $email->body;
                 $subject = $validated['subject'] ?? $email->subject;
 
+
                 $email->update($validated);
                 $template = 'email_template';
             }
 
-            $sender = $email->sender;
-            $senderDetails = [
-                'name' => $sender->name ?? 'Unknown Sender',
-                'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
-            ];
-
-            $companyDetails = [
-                'phone' => '+61 456 639 389',
-                'website' => 'ozeeweb.com.au',
-                'logo_url' => asset('logo.png'),
-                'brand_primary_color' => '#1a73e8',
-                'brand_secondary_color' => '#fbbc05',
-                'text_color_primary' => '#1a202c',
-                'text_color_secondary' => '#4a5568',
-                'border_color' => '#e5e7eb',
-                'background_color' => '#f9fafb',
-            ];
+            $data = $this->getData($subject, $renderedBody, $senderDetails);
+            $finalRenderedBody = $this->renderHtmlTemplate($data, $template);
 
             $recipientClient = $email->conversation->client;
             if (!$recipientClient) {
                 throw new Exception('Recipient client not found for email ID: ' . $email->id);
             }
+
             $clientEmailAddress = $recipientClient->email;
-            $clientName = $recipientClient->name ?? 'Valued Client';
-
-            $mailablePayload = [
-                'subject' => $subject,
-                'body' => $renderedBody,
-                'greeting_type' => $request->input('greeting_type', 'full_name'),
-                'custom_greeting_name' => $request->input('custom_greeting_name', ''),
-                'clientName' => $clientName,
-            ];
-
-            $mailable = new ClientEmail($mailablePayload, $senderDetails, $companyDetails, $template);
-            $finalRenderedBody = $mailable->render();
 
             if($email->status === 'pending_approval') {
                 $gmailMessageId = $this->gmailService->sendEmail(
