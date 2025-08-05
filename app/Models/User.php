@@ -31,9 +31,9 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
-    protected $guarded = [
-        'global_permissions',
-    ];
+//    protected $guarded = [
+//        'global_permissions',
+//    ];
 
     protected $hidden = [
         'password',
@@ -46,6 +46,7 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'role_id' => 'integer', // Cast role_id as integer
+//        'global_permissions' => 'json',
     ];
 
     protected $with = ['role']; // Always load the role relationship
