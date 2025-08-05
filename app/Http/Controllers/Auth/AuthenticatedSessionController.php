@@ -30,6 +30,7 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse|JsonResponse
     {
+
         $request->authenticate();
 
         $request->session()->regenerate();
@@ -56,6 +57,32 @@ class AuthenticatedSessionController extends Controller
     }
 
     /**
+     * Handle an incoming authentication request.
+     */
+    public function storeapp(LoginRequest $request): RedirectResponse|JsonResponse
+    {
+        $request->authenticate();
+
+        $request->session()->regenerate();
+
+        // Load the user's role with permissions to ensure they're available immediately after login
+        $user = $request->user();
+        $user->load(['role.permissions']);
+
+        // Revoke old tokens if you want only one active token per device
+        // auth()->user()->tokens()->delete();
+
+        // Create a new token for the authenticated user
+        $token = $user->createToken($request->email)->plainTextToken;
+
+        return response()->json([
+            'user' => $user->load('projects'), // Load projects so the frontend has immediate access
+            'token' => $token,
+            'role' => $user->role, // Explicitly send role
+        ]);
+    }
+
+    /**
      * Destroy an authenticated session.
      */
     public function destroy(Request $request): RedirectResponse
@@ -67,5 +94,45 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    /**
+     * Handle an incoming authentication request from third-party applications.
+     * Returns only a token without session management.
+     */
+    public function getToken(LoginRequest $request): JsonResponse
+    {
+        $request->authenticate();
+
+        // Load the user with role and permissions
+        $user = $request->user();
+        $user->load(['role.permissions']);
+
+        // Create a token for the authenticated user
+        $token = $user->createToken('third-party-app')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ],
+            'role' => $user->role->name,
+        ]);
+    }
+
+    /**
+     * Revoke the user's API token.
+     * Used for API logout functionality for third-party applications.
+     */
+    public function revokeToken(Request $request): JsonResponse
+    {
+        // Revoke the current token
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'message' => 'Token revoked successfully',
+        ]);
     }
 }

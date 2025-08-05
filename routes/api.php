@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\BonusConfigurationGroupController;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientAction;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientReader;
 use App\Http\Controllers\Api\Client\SeoReportController;
+use App\Http\Controllers\Api\ComponentController;
 use App\Http\Controllers\Api\EmailTemplateController;
 use App\Http\Controllers\Api\ImageUploadController;
 use App\Http\Controllers\Api\PlaceholderDefinitionController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\Api\ProjectDashboard\ProjectDeliverableAction;
 use App\Http\Controllers\Api\SendEmailController;
 use App\Http\Controllers\Api\ShareableResourceController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\WireframeController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -39,9 +41,19 @@ use App\Http\Controllers\NotificationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+
+Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
 // Public Authentication Routes (NO auth:sanctum middleware)
 Route::post('/login', [AuthenticatedSessionController::class, 'store'])
     ->middleware(['guest', 'web']);
+
+// API Token Authentication for third-party applications
+Route::post('/token', [AuthenticatedSessionController::class, 'getToken'])
+    ->middleware('guest');
+
+// API Token Logout for third-party applications
+Route::post('/logout-token', [AuthenticatedSessionController::class, 'revokeToken'])
+    ->middleware('auth:sanctum');
 
 Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
     ->middleware('guest');
@@ -291,6 +303,29 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route for fetching source model data for email templates
     Route::get('source-models/{modelName}', [\App\Http\Controllers\Api\ModelDataController::class, 'getSourceModelData']);
 
+    // Wireframe Routes
+    Route::prefix('projects/{projectId}/wireframes')->group(function () {
+        Route::get('/', [WireframeController::class, 'index']);
+        Route::get('latest', [WireframeController::class, 'latest']);
+        Route::get('{id}', [WireframeController::class, 'show']);
+        Route::post('/', [WireframeController::class, 'store']);
+        Route::put('{id}', [WireframeController::class, 'update']);
+        Route::post('{id}/publish', [WireframeController::class, 'publish']);
+        Route::post('{id}/versions', [WireframeController::class, 'newVersion']);
+        Route::get('{id}/versions', [WireframeController::class, 'versions']);
+        Route::put('{id}/versions/{versionNumber}', [WireframeController::class, 'updateVersion']);
+        Route::delete('{id}', [WireframeController::class, 'destroy']);
+        Route::get('{id}/logs', [WireframeController::class, 'logs']);
+    });
+
+    // Component Routes
+    Route::prefix('components')->group(function () {
+        Route::get('/', [ComponentController::class, 'index']);
+        Route::post('/', [ComponentController::class, 'store']);
+        Route::get('{id}', [ComponentController::class, 'show']);
+        Route::put('{id}', [ComponentController::class, 'update']);
+        Route::delete('{id}', [ComponentController::class, 'destroy']);
+    });
 
 });
 
