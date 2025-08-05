@@ -535,24 +535,8 @@ class ProjectReadController extends Controller
             ->orderBy('due_date', 'asc')
             ->get();
 
-        $formattedTasks = $tasks->map(function ($task) {
-            return [
-                'id' => $task->id,
-                'title' => $task->name,
-                'description' => $task->description,
-                'status' => $task->status,
-                'assigned_to' => $task->assignedTo ? $task->assignedTo->name : 'Unassigned',
-                'due_date' => $task->due_date ? $task->due_date->format('Y-m-d') : null,
-                'milestone' => $task->milestone ? $task->milestone->name : null,
-                'task_type' => $task->taskType ? $task->taskType->name : null,
-                'tags' => $task->tags->pluck('name'),
-                'subtasks_count' => $task->subtasks->count(),
-                'create_time' => $task->created_at->toISOString(),
-                'update_time' => $task->updated_at->toISOString(),
-            ];
-        });
-
-        return response()->json($formattedTasks);
+        // Return the full task objects with relationships instead of formatted data
+        return response()->json($tasks);
     }
 
     /**

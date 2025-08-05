@@ -5,6 +5,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import TagInput from '@/Components/TagInput.vue';
 import MilestoneFormModal from './MilestoneFormModal.vue'; // Import the MilestoneFormModal
 
 const props = defineProps({
@@ -26,9 +27,17 @@ const taskForm = reactive({
     task_type_id: null,
     milestone_id: null,
     project_id: props.projectId, // Initialize with prop
+    priority: 'medium', // Default priority
+    tags: [], // For tag IDs
+    tags_data: [], // For tag objects with id and name
 });
 
 const taskStatuses = ['To Do', 'In Progress', 'Done', 'Blocked', 'Archived'];
+const priorityOptions = [
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+];
 
 // Data for dropdowns, fetched dynamically
 const projects = ref([]);
@@ -65,6 +74,9 @@ watch(() => props.show, async (newValue) => {
             task_type_id: null,
             milestone_id: null,
             project_id: props.projectId, // Re-set project_id from prop
+            priority: 'medium', // Reset to default priority
+            tags: [], // Reset tags
+            tags_data: [], // Reset tags data
         });
 
         // If no projectId passed, fetch projects for selection
@@ -250,6 +262,21 @@ const milestoneOptions = computed(() => milestones.value);
                     <InputError :message="errors.status ? errors.status[0] : ''" class="mt-2" />
                 </div>
 
+                <!-- Task Priority -->
+                <div>
+                    <InputLabel for="task-priority" value="Priority" />
+                    <SelectDropdown
+                        id="task-priority"
+                        v-model="taskForm.priority"
+                        :options="priorityOptions"
+                        value-key="value"
+                        label-key="label"
+                        placeholder="Select priority"
+                        class="mt-1"
+                    />
+                    <InputError :message="errors.priority ? errors.priority[0] : ''" class="mt-2" />
+                </div>
+
                 <!-- Due Date -->
                 <div>
                     <InputLabel for="task-due-date" value="Due Date" />
@@ -328,6 +355,18 @@ const milestoneOptions = computed(() => milestones.value);
                         </button>
                     </div>
                     <InputError :message="errors.milestone_id ? errors.milestone_id[0] : ''" class="mt-2" />
+                </div>
+
+                <!-- Tags -->
+                <div>
+                    <TagInput
+                        v-model="taskForm.tags"
+                        :initialTags="taskForm.tags_data"
+                        label="Tags"
+                        placeholder="Search or add tags"
+                        :error="errors.tags ? errors.tags[0] : ''"
+                        :disabled="!taskForm.project_id"
+                    />
                 </div>
             </div>
         </template>

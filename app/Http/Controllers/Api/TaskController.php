@@ -183,13 +183,13 @@ class TaskController extends Controller
             'due_date' => 'nullable|date',
             'status' => 'required|in:To Do,In Progress,Done,Blocked,Archived',
             'task_type_id' => 'required|exists:task_types,id',
-            'milestone_id' => 'required|exists:milestones,id',
-            'tags' => 'nullable|array',
-            'tags.*' => 'nullable|string',
+            'milestone_id' => 'required|exists:milestones,id'
         ]);
 
         // Create the task
         $task = Task::create($validated);
+
+        $task->syncTags($request->tags ?? []);
 
         // Attach tags if provided
         if (isset($validated['tags']) && is_array($validated['tags'])) {
@@ -232,6 +232,16 @@ class TaskController extends Controller
      */
     public function update(Request $request, Task $task)
     {
+        // Check if task is completed and trying to change priority or assignment
+        if ($task->status === 'Done') {
+            if ($request->has('priority') || $request->has('assigned_to_user_id')) {
+                return response()->json([
+                    'message' => 'Cannot change priority or assignment for a completed task. Use the Revise button to change the task status first.',
+                    'status' => 'error'
+                ], 422);
+            }
+        }
+
         // Validate the request
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
@@ -240,17 +250,13 @@ class TaskController extends Controller
             'due_date' => 'nullable|date',
             'status' => 'sometimes|required|in:To Do,In Progress,Done,Blocked,Archived',
             'task_type_id' => 'sometimes|required|exists:task_types,id',
-            'milestone_id' => 'nullable|exists:milestones,id',
-            'tags' => 'nullable|array',
+            'milestone_id' => 'nullable|exists:milestones,id'
         ]);
 
         // Update the task
         $task->update($validated);
 
-//        // Sync tags if provided
-//        if (isset($validated['tags'])) {
-//            $task->tags()->sync($validated['tags']);
-//        }
+        $task->syncTags($request->tags ?? []);
 
         // Load relationships
         $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
@@ -266,6 +272,12 @@ class TaskController extends Controller
      */
     public function destroy(Task $task)
     {
+        // Log activity with the authenticated user as causer
+        activity()
+            ->causedBy(Auth::user())
+            ->performedOn($task)
+            ->log('Task was deleted');
+
         // Delete the task (this will also delete related subtasks due to cascade)
         $task->delete();
 
@@ -307,6 +319,15 @@ class TaskController extends Controller
      */
     public function markAsCompleted(Task $task)
     {
+        // Check if task can be completed (must be in progress)
+        if ($task->status !== 'In Progress') {
+            return response()->json([
+                'message' => 'Task must be started before it can be completed',
+                'status' => 'error'
+            ], 422);
+        }
+
+        // The LogsActivity trait will automatically log this activity
         $task->markAsCompleted(Auth::user());
 
         // Load relationships
@@ -323,6 +344,7 @@ class TaskController extends Controller
      */
     public function start(Task $task)
     {
+        // The LogsActivity trait will automatically log this activity
         $task->start(Auth::user());
 
         // Load relationships
@@ -334,12 +356,105 @@ class TaskController extends Controller
     /**
      * Block a task (change status to Blocked).
      *
+     * @param Request $request
      * @param Task $task
      * @return \Illuminate\Http\JsonResponse
      */
-    public function block(Task $task)
+    public function block(Request $request, Task $task)
     {
-        $task->block();
+        // Validate the request
+        $validated = $request->validate([
+            'reason' => 'required|string|max:255',
+        ]);
+
+        // Save the current status before blocking
+        $previousStatus = $task->status;
+
+        // Update task status and reason
+        $task->previous_status = $previousStatus;
+        $task->status = 'Blocked';
+        $task->block_reason = $validated['reason'];
+        $task->save();
+
+        // Load relationships
+        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+
+        return response()->json($task);
+    }
+
+    /**
+     * Unblock a task (change status back to previous status or To Do).
+     *
+     * @param Task $task
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function unblock(Task $task)
+    {
+        // Check if task is blocked
+        if ($task->status !== 'Blocked') {
+            return response()->json([
+                'message' => 'Only blocked tasks can be unblocked',
+                'status' => 'error'
+            ], 422);
+        }
+
+        // Restore previous status or default to To Do
+        $task->status = $task->previous_status ?: 'To Do';
+        $task->block_reason = null;
+        $task->previous_status = null;
+        $task->save();
+
+        // Load relationships
+        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+
+        return response()->json($task);
+    }
+
+    /**
+     * Pause a task (change status from In Progress to Paused).
+     *
+     * @param Task $task
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function pause(Task $task)
+    {
+        // Check if task is in progress
+        if ($task->status !== 'In Progress') {
+            return response()->json([
+                'message' => 'Only tasks in progress can be paused',
+                'status' => 'error'
+            ], 422);
+        }
+
+        // Update task status
+        $task->status = 'Paused';
+        $task->save();
+
+        // Load relationships
+        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+
+        return response()->json($task);
+    }
+
+    /**
+     * Resume a task (change status from Paused to In Progress).
+     *
+     * @param Task $task
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function resume(Task $task)
+    {
+        // Check if task is paused
+        if ($task->status !== 'Paused') {
+            return response()->json([
+                'message' => 'Only paused tasks can be resumed',
+                'status' => 'error'
+            ], 422);
+        }
+
+        // Update task status
+        $task->status = 'In Progress';
+        $task->save();
 
         // Load relationships
         $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
@@ -368,6 +483,32 @@ class TaskController extends Controller
      *
      * @return \Illuminate\Http\JsonResponse
      */
+    /**
+     * Revise a completed task (change status back to To Do).
+     *
+     * @param Task $task
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function revise(Task $task)
+    {
+        // Check if task is completed
+        if ($task->status !== 'Done') {
+            return response()->json([
+                'message' => 'Only completed tasks can be revised',
+                'status' => 'error'
+            ], 422);
+        }
+
+        // Change status back to To Do
+        $task->status = 'To Do';
+        $task->save();
+
+        // Load relationships
+        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+
+        return response()->json($task);
+    }
+
     public function getAssignedTasks()
     {
         // Get the authenticated user

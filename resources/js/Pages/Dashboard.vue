@@ -9,7 +9,10 @@ import AvailabilityPrompt from '@/Components/Availability/AvailabilityPrompt.vue
 import TextInput from '@/Components/TextInput.vue';
 import StandupModal from '@/Components/StandupModal.vue';
 import TaskNotificationPrompt from '@/Components/TaskNotificationPrompt.vue';
+import TaskList from '@/Components/TaskList.vue';
 import { openTaskDetailSidebar } from '@/Utils/sidebar';
+import * as taskState from '@/Utils/taskState.js';
+import * as notification from '@/Utils/notification.js';
 
 const authUser = computed(() => usePage().props.auth.user);
 
@@ -293,8 +296,7 @@ const fetchAssignedTasks = async () => {
     loadingAssignedTasks.value = true;
     assignedTasksError.value = '';
     try {
-        const response = await axios.get('/api/assigned-tasks');
-        assignedTasks.value = response.data;
+        assignedTasks.value = await taskState.fetchAssignedTasks();
     } catch (err) {
         assignedTasksError.value = 'Failed to load assigned tasks';
         console.error('Error fetching assigned tasks:', err);
@@ -324,9 +326,26 @@ const toggleAssignedTasks = () => {
     }
 };
 
-// Opens the task detail sidebar for a specific task
-const viewTaskDetails = (taskId, projectId) => {
-    openTaskDetailSidebar(taskId, projectId);
+// Handler for task updates from TaskList component
+const handleTaskUpdated = async (updatedTask) => {
+    // Refresh the tasks list to reflect the changes
+    await fetchAssignedTasks();
+};
+
+// Handler for opening task details from TaskList component
+const handleOpenTaskDetail = (taskId, taskProjectId) => {
+    if (taskProjectId) {
+        // If projectId is passed directly, use it
+        openTaskDetailSidebar(taskId, taskProjectId);
+    } else {
+        // Fallback to finding the task in assignedTasks
+        const task = assignedTasks.value.find(t => t.id === taskId);
+        if (task) {
+            openTaskDetailSidebar(taskId, task.project_id);
+        } else {
+            console.error('Task not found and no projectId provided');
+        }
+    }
 };
 
 // Reference to the assigned tasks section for scrolling
@@ -514,20 +533,12 @@ onMounted(() => {
                         </div>
 
                         <div v-if="expandAssignedTasks" class="mt-4">
-                            <div class="mb-6">
-                                <TextInput
-                                    v-model="assignedTasksSearchQuery"
-                                    placeholder="Search tasks by name, milestone, or project..."
-                                    class="w-full"
-                                    :disabled="loadingAssignedTasks"
-                                />
-                            </div>
 
                             <div v-if="assignedTasksError" class="text-center text-sm text-red-500 py-6">{{ assignedTasksError }}</div>
-                            <div v-else-if="filteredAssignedTasksWithFilter.length === 0 && !loadingAssignedTasks" class="text-center text-sm text-gray-500 py-6">
-                                {{ assignedTasksFilter === 'due-overdue' ? 'No due or overdue tasks found.' : 'No assigned tasks found matching your search.' }}
+                            <div v-else-if="assignedTasks.length === 0 && !loadingAssignedTasks" class="text-center text-sm text-gray-500 py-6">
+                                {{ assignedTasksFilter === 'due-overdue' ? 'No due or overdue tasks found.' : 'No assigned tasks found.' }}
                             </div>
-                            <div v-else class="mt-3 overflow-x-auto rounded-lg border border-gray-200 shadow-sm relative">
+                            <div v-else class="relative">
                                 <!-- Loading overlay for assigned tasks -->
                                 <div v-if="loadingAssignedTasks" class="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg z-10">
                                     <svg class="animate-spin h-8 w-8 text-purple-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -537,46 +548,12 @@ onMounted(() => {
                                     <span class="ml-3 text-purple-700">Loading assigned tasks...</span>
                                 </div>
 
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
-                                    <tr>
-                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Name</th>
-                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Milestone</th>
-                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
-                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody class="bg-white divide-y divide-gray-200">
-                                    <tr v-for="task in filteredAssignedTasksWithFilter" :key="task.id"
-                                        class="hover:bg-gray-50 transition-colors duration-100"
-                                        :class="{
-                                            'bg-red-50': task.due_date && new Date(task.due_date) < new Date(),
-                                            'bg-yellow-50': task.due_date && new Date(task.due_date).toDateString() === new Date().toDateString()
-                                        }">
-                                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{{ task.name }}</td>
-                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                                            {{ task.milestone?.name || 'N/A' }}
-                                        </td>
-                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                                            {{ task.project?.name || 'N/A' }}
-                                        </td>
-                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                                            {{ task.due_date ? formatDateDisplay(task.due_date) : 'No due date' }}
-                                        </td>
-                                        <td class="px-4 py-3 whitespace-nowrap text-sm">
-                                            <div class="flex space-x-2">
-                                                <PrimaryButton
-                                                    @click="viewTaskDetails(task.id, task.project_id)"
-                                                    class="px-3 py-1 text-xs leading-4 bg-purple-600 hover:bg-purple-700"
-                                                >
-                                                    View
-                                                </PrimaryButton>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    </tbody>
-                                </table>
+                                <TaskList
+                                    :tasks="assignedTasks"
+                                    :show-project-column="true"
+                                    @task-updated="handleTaskUpdated"
+                                    @open-task-detail="handleOpenTaskDetail"
+                                />
                             </div>
                         </div>
                     </div>

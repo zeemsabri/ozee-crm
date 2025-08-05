@@ -8,56 +8,52 @@ import ProjectMeetingsList from '@/Components/ProjectMeetingsList.vue';
 import DailyStandups from '@/Components/DailyStandups/DailyStandups.vue';
 import MeetingModal from '@/Components/MeetingModal.vue';
 import StandupModal from '@/Components/StandupModal.vue';
-import NotesModal from '@/Components/NotesModal.vue'; // For adding standalone notes
-import ProjectMagicLinkModal from '@/Components/ProjectMagicLinkModal.vue'; // New component
+import NotesModal from '@/Components/NotesModal.vue';
+import ProjectMagicLinkModal from '@/Components/ProjectMagicLinkModal.vue';
 
-// Imported new components
 import ProjectGeneralInfoCard from '@/Components/ProjectGeneralInfoCard.vue';
 import ProjectStatsCards from '@/Components/ProjectStatsCards.vue';
 import ProjectTabsNavigation from '@/Components/ProjectTabsNavigation.vue';
-import ProjectTasksTab from '@/Components/ProjectTasks/ProjectTasksTab.vue'; // Updated path
+import ProjectTasksTab from '@/Components/ProjectTasks/ProjectTasksTab.vue';
 import ProjectEmailsTab from '@/Components/ProjectEmailsTab.vue';
 import ProjectNotesTab from '@/Components/ProjectNotesTab.vue';
-import ProjectFinancialsCard from '@/Components/ProjectOverviewCards/ProjectFinancialsCard.vue'; // New
-import ProjectClientsCard from '@/Components/ProjectOverviewCards/ProjectClientsCard.vue'; // New
-import ProjectTeamCard from '@/Components/ProjectOverviewCards/ProjectTeamCard.vue'; // New
-import UserFinancialsCard from '@/Components/ProjectOverviewCards/UserFinancialCard.vue'; // New
-import UserTransactionsModal from '@/Components/ProjectFinancials/UserTransactionsModal.vue'; // New
+import ProjectFinancialsCard from '@/Components/ProjectOverviewCards/ProjectFinancialsCard.vue';
+import ProjectClientsCard from '@/Components/ProjectOverviewCards/ProjectClientsCard.vue';
+import ProjectTeamCard from '@/Components/ProjectOverviewCards/ProjectTeamCard.vue';
+import UserFinancialsCard from '@/Components/ProjectOverviewCards/UserFinancialCard.vue';
+import UserTransactionsModal from '@/Components/ProjectFinancials/UserTransactionsModal.vue';
 
-// NEW: Import the standalone ComposeEmailModal
-import ComposeEmailModal from '@/Components/ProjectsEmails/ComponseEmailModal.vue'; // Adjust path if necessary
+import ComposeEmailModal from '@/Components/ProjectsEmails/ComponseEmailModal.vue';
 
-// NEW: Import the new global components
-import RightSidebar from '@/Components/RightSidebar.vue'; // New global sidebar component
-import TaskDetailSidebar from '@/Components/ProjectTasks/TaskDetailSidebar.vue'; // New task detail component for sidebar
-import CreateTaskModal from '@/Components/ProjectTasks/CreateTaskModal.vue'; // New standalone create task modal
+// Removed the imports for RightSidebar and TaskDetailSidebar/DeliverableDetailSidebar.
+// We will rely on the global one in AuthenticatedLayout.vue.
 
-// NEW: Import Deliverables components
-import ProjectDeliverablesTab from '@/Components/ProjectsDeliverables/ProjectDeliverableTab.vue'; // Adjust path
-import CreateDeliverableModal from '@/Components/ProjectsDeliverables/CreateDeliverableModal.vue'; // Adjust path
-import DeliverableDetailSidebar from '@/Components/ProjectsDeliverables/DeliverableDetailSidebar.vue'; // NEW: Deliverable detail sidebar
+import CreateTaskModal from '@/Components/ProjectTasks/CreateTaskModal.vue';
+import ProjectDeliverablesTab from '@/Components/ProjectsDeliverables/ProjectDeliverableTab.vue';
+import CreateDeliverableModal from '@/Components/ProjectsDeliverables/CreateDeliverableModal.vue';
+// import DeliverableDetailSidebar from '@/Components/ProjectsDeliverables/DeliverableDetailSidebar.vue'; // Removed
 
-// SEO Import
-import SeoReportTab from '@/Components/ProjectsSeoReports/SeoReportTab.vue'; // Adjust path as needed
+import SeoReportTab from '@/Components/ProjectsSeoReports/SeoReportTab.vue';
 import CreateSeoReportModal from "@/Components/ProjectsSeoReports/CreateSeoReportModal.vue";
 
-// Task notification import
 import ProjectTaskNotificationPrompt from '@/Components/ProjectTaskNotificationPrompt.vue';
 
-// Currency utilities and SelectDropdown
-import SelectDropdown from '@/Components/SelectDropdown.vue'; // For currency switcher
-import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency'; // Import displayCurrency
+import SelectDropdown from '@/Components/SelectDropdown.vue';
+import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency';
 
 import { useAuthUser, useProjectRole, usePermissions, fetchProjectPermissions } from '@/Directives/permissions';
 import PrimaryButton from "@/Components/PrimaryButton.vue";
+import SecondaryButton from "@/Components/SecondaryButton.vue";
+import TaskList from '@/Components/TaskList.vue';
 
-// Use the permission utilities
+// Import the global sidebar utility
+import { sidebarState, openTaskDetailSidebar, closeTaskDetailSidebar } from '@/Utils/sidebar';
+import * as taskState from '@/Utils/taskState.js';
+
 const authUser = useAuthUser();
 
-// Get project ID from Inertia page props
 const projectId = usePage().props.id;
 
-// Project data (still holds overview data from main /api/projects/{id} call)
 const project = ref({
     clients: [],
     users: [],
@@ -65,34 +61,26 @@ const project = ref({
     transactions: [],
     documents: [],
     meetings: [],
-    tasks: [], // Ensure tasks is initialized for ProjectStatsCards
-    emails: [], // Ensure emails is initialized for ProjectStatsCards
-    deliverables: [], // Initialize deliverables array
+    tasks: [],
+    emails: [],
+    deliverables: [],
 });
-const loading = ref(true); // For the main page load
+const loading = ref(true);
 const generalError = ref('');
 
-// Modals managed by Show.vue or passed down
 const showEditModal = ref(false);
 const showMeetingModal = ref(false);
 const showStandupModal = ref(false);
 const showAddNoteModal = ref(false);
 const showMagicLinkModal = ref(false);
-const showUserTransactionsModal = ref(false); // New state for user transactions modal
+const showUserTransactionsModal = ref(false);
 const showComposeEmailModal = ref(false);
 const showCreateDeliverableModal = ref(false);
 
-// NEW: State for the RightSidebar and TaskDetailSidebar
-const showRightSidebar = ref(false);
-const selectedTaskIdForSidebar = ref(null);
-const selectedDeliverableIdForSidebar = ref(null); // NEW: State for Deliverable Detail Sidebar
-
-// NEW: State for the global CreateTaskModal
 const showGlobalCreateTaskModal = ref(false);
 
-// SEO Report Modals
 const showCreateSeoReportModal = ref(false);
-const selectedSeoReportInitialData = ref(null); // To pass data for editing
+const selectedSeoReportInitialData = ref(null);
 
 const statusOptions = [
     { value: 'active', label: 'Active' },
@@ -114,19 +102,11 @@ const sourceOptions = [
     { value: 'Referral', label: 'Referral' },
 ];
 
-// Ref for meetings list component to call its methods
 const meetingsListComponent = ref(null);
-
-// Track which tab is currently selected (null means main overview)
 const selectedTab = ref(null);
-
-// Get the user's project-specific role for permission checks
 const userProjectRole = useProjectRole(project);
-
-// Set up permission checking functions
 const { canDo, canView } = usePermissions(projectId, userProjectRole);
 
-// Centralized permission checks based on project role and global permissions
 const isSuperAdmin = computed(() => authUser.value?.role_data?.slug === 'super-admin');
 
 const canManageProjects = computed(() => {
@@ -137,30 +117,21 @@ const canEditProject = computed(() => {
     return canDo('edit_projects').value || isSuperAdmin.value;
 });
 
-
 const canViewEmails = computed(() => canView('emails').value);
 const canComposeEmails = computed(() => canDo('compose_emails').value);
 const canApproveEmails = computed(() => canDo('approve_emails').value);
 const canViewNotes = computed(() => canView('project_notes').value);
 const canAddNotes = computed(() => canDo('add_project_notes').value);
-
-// Permissions for Deliverables
 const canViewDeliverables = computed(() => canView('deliverables').value);
 const canCreateDeliverables = computed(() => canDo('create_deliverables').value);
-
-// Permissions for SEO Reports (NEW)
 const canViewSeoReports = computed(() => canView('seo_reports').value);
-const canCreateSeoReports = computed(() => canDo('create_seo_reports').value); // Assuming a permission for creating SEO reports
-
-
-// Permissions for new financial/client/user cards
+const canCreateSeoReports = computed(() => canDo('create_seo_reports').value);
 const canViewClientContacts = computed(() => canView('client_contacts').value);
 const canViewUsers = computed(() => canView('users').value);
 const canViewProjectServicesAndPayments = computed(() => canView('project_financial', userProjectRole).value);
 const canViewProjectTransactions = computed(() => canView('project_transactions').value);
-const canViewClientFinancial = computed(() => canView('client_financial').value); // For contract details
+const canViewClientFinancial = computed(() => canView('client_financial').value);
 
-// Currency options (moved here from currency.js for display in SelectDropdown)
 const currencyOptions = [
     { value: 'PKR', label: 'PKR' },
     { value: 'AUD', label: 'AUD' },
@@ -170,62 +141,49 @@ const currencyOptions = [
     { value: 'GBP', label: 'GBP' },
 ];
 
-// State for due and overdue tasks
 const tasksDueToday = ref([]);
-
-// Reference to the tasks tab section for scrolling
 const tasksTabRef = ref(null);
-
-// Reference to the navigation section for scrolling
 const navigationRef = ref(null);
-
-// Filter for tasks - can be 'all', 'due-overdue'
 const tasksFilter = ref('all');
 
-// Function to fetch due and overdue tasks for the project
 const fetchDueAndOverdueTasks = async () => {
     try {
-        const response = await window.axios.get(`/api/projects/${projectId}/due-and-overdue-tasks`);
-        tasksDueToday.value = response.data;
+        tasksDueToday.value = await taskState.fetchDueAndOverdueTasks(projectId);
     } catch (error) {
         console.error('Error fetching due and overdue tasks:', error);
     }
 };
 
-// Handle view button click from notification prompt
 const handleViewDueAndOverdueTasks = () => {
-    // Switch to the tasks tab
     selectedTab.value = 'tasks';
-
-    // Set filter to show only due and overdue tasks
     tasksFilter.value = 'due-overdue';
-
-    // Need to wait for the DOM to update before scrolling
     setTimeout(() => {
-        // Scroll to the navigation section instead of tasks section
         if (navigationRef.value && navigationRef.value.scrollIntoView) {
             navigationRef.value.scrollIntoView({ behavior: 'smooth' });
         }
     }, 100);
 };
 
+// Handle task updates from the TaskList component in the Due & Overdue Tasks section
+const handleDueTaskUpdated = async () => {
+    await fetchDueAndOverdueTasks();
+};
+
 const latestNotes = computed(() => {
     if (!project.value.notes) return [];
     return [...project.value.notes]
-        .filter(note => note.type !== 'standup') // Exclude standups from general notes overview
-        .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
+        .filter(note => note.type !== 'standup')
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
         .slice(0, 3);
 });
 
-// State for latest emails
 const latestEmails = ref([]);
 
-// Function to fetch latest emails
 const fetchLatestEmails = async () => {
     try {
         const response = await window.axios.get(`/api/projects/${projectId}/emails-simplified`, {
             params: {
-                limit: 5 // Get only the latest 5 emails
+                limit: 5
             }
         });
         latestEmails.value = response.data;
@@ -234,19 +192,18 @@ const fetchLatestEmails = async () => {
     }
 };
 
-// Data fetching for the entire project
 const fetchProjectData = async () => {
     loading.value = true;
     generalError.value = '';
     try {
-        // Fetch full project details including relationships the user has access to
-        const response = await window.axios.get(`/api/projects/${projectId}`); // This hits the show method
+        const response = await window.axios.get(`/api/projects/${projectId}`);
         project.value = response.data;
         console.log('Full project data received (Show.vue main fetch):', project.value);
 
-        // Fetch due and overdue tasks after project data is loaded
         await fetchDueAndOverdueTasks();
-
+        if (canViewEmails.value) {
+            await fetchLatestEmails();
+        }
     } catch (error) {
         generalError.value = 'Failed to load project data.';
         console.error('Error fetching project data:', error);
@@ -258,22 +215,18 @@ const fetchProjectData = async () => {
     }
 };
 
-// Handle project update from ProjectForm
 const handleProjectSubmit = (updatedProject) => {
     project.value = updatedProject;
     showEditModal.value = false;
-    //alert('Project updated successfully!'); // Use a proper notification system
-    fetchProjectData(); // Re-fetch to ensure all relationships/permissions are updated
+    fetchProjectData();
 };
 
-// Handlers for child component emits to update parent state or re-fetch data
 const handleTasksUpdated = (updatedTasks) => {
     project.value.tasks = updatedTasks;
 };
 
 const handleEmailsUpdated = (updatedEmails) => {
     project.value.emails = updatedEmails;
-    // Refresh the latest emails section using the simplified endpoint
     if (canViewEmails.value) {
         fetchLatestEmails();
     }
@@ -283,10 +236,7 @@ const handleNotesUpdated = (updatedNotes) => {
     project.value.notes = updatedNotes;
 };
 
-// Handler for Deliverables updates
 const handleDeliverablesUpdated = () => {
-    // When deliverables are updated (e.g., new one added), re-fetch project data
-    // to ensure any related counts/statuses on the overview are fresh.
     fetchProjectData();
 }
 
@@ -297,93 +247,80 @@ const handleMeetingSaved = () => {
 };
 
 const handleStandupAdded = () => {
-    fetchProjectData(); // Re-fetch project notes/standups to update overview
+    fetchProjectData();
 };
 
 const handleChangeTab = (tabName) => {
     selectedTab.value = tabName;
-    // Close any open sidebars when changing tabs
+    // We can use the global close function now
     closeTaskDetailSidebar();
-    closeDeliverableDetailSidebar();
+    // closeDeliverableDetailSidebar(); // This function would also be in the sidebar.js file
 };
 
 const handleViewUserTransactions = () => {
     showUserTransactionsModal.value = true;
 };
 
-// This function now directly opens the new standalone ComposeEmailModal
 const handleComposeEmailAction = () => {
     showComposeEmailModal.value = true;
-    selectedTab.value = 'emails'; // Optionally switch to emails tab when composing
+    selectedTab.value = 'emails';
 }
 
-// Handler for when ComposeEmailModal is submitted/closed
 const handleComposeEmailSubmitted = async () => {
     showComposeEmailModal.value = false;
-    await fetchProjectData(); // Refresh all project data including emails
-
-    // Refresh the latest emails section using the simplified endpoint
-    if (canViewEmails.value) {
-        await fetchLatestEmails();
-    }
+    await fetchProjectData();
 };
 
 const handleComposeEmailClose = () => {
     showComposeEmailModal.value = false;
 };
 
-// Handlers for TaskDetailSidebar
-const openTaskDetailSidebar = (taskId) => {
-    selectedTaskIdForSidebar.value = taskId;
-    selectedDeliverableIdForSidebar.value = null; // Ensure deliverable sidebar is closed
-    showRightSidebar.value = true;
+// Use the global utility function to open the task detail sidebar
+const handleOpenTaskDetailSidebar = (taskId, taskProjectId) => {
+    // Use the taskProjectId if provided, otherwise use the current projectId
+    const useProjectId = taskProjectId || projectId;
+    openTaskDetailSidebar(taskId, useProjectId, project.value.users);
 };
 
-const closeTaskDetailSidebar = () => {
-    showRightSidebar.value = false;
-    selectedTaskIdForSidebar.value = null;
-};
+// We don't need a local close function anymore, as the sidebar itself emits the close event
+// which is handled by AuthenticatedLayout.
 
+// Handlers for task updates/deletions from the sidebar are now here
 const handleTaskDetailUpdated = () => {
-    // A task was updated from the sidebar, refresh the main task list
     fetchProjectData();
 };
 
-const handleTaskDeleted = (deletedTaskId) => {
-    // Filter out the deleted task from the local tasks array if it exists
-    project.value.tasks = project.value.tasks.filter(task => task.id !== deletedTaskId);
-    fetchProjectData(); // Re-fetch to ensure all counts are updated
-    closeTaskDetailSidebar(); // Close sidebar after deletion
-};
-
-// NEW: Handlers for DeliverableDetailSidebar
-const openDeliverableDetailSidebar = (deliverableId) => {
-    selectedDeliverableIdForSidebar.value = deliverableId;
-    selectedTaskIdForSidebar.value = null; // Ensure task sidebar is closed
-    showRightSidebar.value = true;
-};
-
-const closeDeliverableDetailSidebar = () => {
-    showRightSidebar.value = false;
-    selectedDeliverableIdForSidebar.value = null;
-};
-
-const handleDeliverableDetailUpdated = () => {
-    // A deliverable was updated from the sidebar, refresh the main deliverables list
+const handleTaskDeleted = () => {
     fetchProjectData();
 };
 
-// Handlers for global CreateTaskModal
+// Handlers for DeliverableDetailSidebar
+// const openDeliverableDetailSidebar = (deliverableId) => {
+//     openDeliverableDetailSidebar(deliverableId, projectId, project.value.users);
+// };
+
+// const handleDeliverableDetailUpdated = () => {
+//     fetchProjectData();
+// };
+
+// Watch the global sidebar state to react to changes
+watch(sidebarState, (newState, oldState) => {
+    // If a task was updated or deleted from the sidebar, refresh the data
+    if (oldState.taskId && !newState.taskId) {
+        fetchProjectData();
+    }
+}, { deep: true });
+
+
 const openGlobalCreateTaskModal = () => {
     showGlobalCreateTaskModal.value = true;
 };
 
 const handleGlobalCreateTaskSaved = () => {
     showGlobalCreateTaskModal.value = false;
-    fetchProjectData(); // Refresh tasks after creation
+    fetchProjectData();
 };
 
-// Handlers for SEO Report Modal
 const openCreateSeoReportModal = (initialData = null) => {
     selectedSeoReportInitialData.value = initialData;
     showCreateSeoReportModal.value = true;
@@ -391,38 +328,20 @@ const openCreateSeoReportModal = (initialData = null) => {
 
 const handleSeoReportSaved = () => {
     showCreateSeoReportModal.value = false;
-    // Trigger a refresh of the SeoReportTab to show the updated data
-    // This can be done by re-fetching all project data or by having SeoReportTab
-    // listen to this event. For simplicity, we can just re-fetch here if needed,
-    // but the SeoReportTab is already designed to re-fetch on its own when `selectedMonth` changes.
-    // So, we just need to ensure the modal closes.
-    // If you need to force a re-render/re-fetch in SeoReportTab, you might need a more direct method.
-    // For now, let's assume SeoReportTab's watch on `selectedMonth` and its internal `fetchAvailableMonths`
-    // and `fetchSeoReport` are sufficient.
-    // A more explicit way would be to emit an event from here that SeoReportTab listens to.
-    // For now, we rely on the reactivity of selectedMonth and the tab's internal refresh.
 };
 
 
 onMounted(async () => {
     console.log('Show.vue mounted, fetching initial data...');
-    // Fetch project-specific permissions first, as other data fetches depend on it
     try {
         await fetchProjectPermissions(projectId);
         console.log('Project permissions fetched (includes global)');
     } catch (error) {
         console.error(`Error fetching permissions for project ${projectId}:`, error);
     }
-
     await fetchCurrencyRates();
     await fetchProjectData();
-
-    if (canViewEmails.value) {
-        await fetchLatestEmails();
-    }
 });
-
-
 </script>
 
 <template>
@@ -437,7 +356,6 @@ onMounted(async () => {
                 {{ generalError }}
             </div>
             <div v-else class="space-y-8">
-                <!-- Task notification prompt for due and overdue tasks -->
                 <ProjectTaskNotificationPrompt
                     :overdue-tasks="tasksDueToday.filter(task => new Date(task.due_date) < new Date()).length"
                     :due-today-tasks="tasksDueToday.filter(task => new Date(task.due_date).toDateString() === new Date().toDateString()).length"
@@ -518,41 +436,13 @@ onMounted(async () => {
                                 View All Tasks →
                             </button>
                         </div>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
-                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="task in tasksDueToday" :key="task.id" class="hover:bg-gray-50 transition-colors">
-                                    <td class="px-4 py-3 text-sm text-gray-900">{{ task.name }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-700">
-                                        <span :class="{
-                                            'px-2 py-1 rounded-full text-xs font-medium': true,
-                                            'bg-yellow-100 text-yellow-800': task.status === 'To Do',
-                                            'bg-blue-100 text-blue-800': task.status === 'In Progress',
-                                            'bg-green-100 text-green-800': task.status === 'Done',
-                                            'bg-red-100 text-red-800': task.status === 'Blocked',
-                                            'bg-gray-100 text-gray-800': task.status === 'Archived'
-                                        }">
-                                            {{ task.status }}
-                                        </span>
-                                    </td>
-                                    <td class="px-4 py-3 text-sm text-gray-700">{{ task.assigned_to?.name }}</td>
-                                    <td class="px-4 py-3 text-right">
-                                        <button @click="openTaskDetailSidebar(task.id)" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
-                                            View/Edit
-                                        </button>
-                                    </td>
-                                </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                        <TaskList
+                            :tasks="tasksDueToday"
+                            :project-id="projectId"
+                            :show-project-column="false"
+                            @task-updated="handleDueTaskUpdated"
+                            @open-task-detail="handleOpenTaskDetailSidebar"
+                        />
                     </div>
                     <div v-else class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
                         <div class="flex justify-between items-center mb-4">
@@ -676,7 +566,7 @@ onMounted(async () => {
                     :can-manage-projects="canManageProjects"
                     :tasks-filter="tasksFilter"
                     @tasksUpdated="handleTasksUpdated"
-                    @openTaskDetailSidebar="openTaskDetailSidebar"
+                    @openTaskDetailSidebar="handleOpenTaskDetailSidebar"
                     @open-create-task-modal="openGlobalCreateTaskModal"
                     @filter-changed="(newFilter) => tasksFilter = newFilter"
                 />
@@ -710,17 +600,15 @@ onMounted(async () => {
                     @changeTab="handleChangeTab"
                 />
 
-                <!-- Deliverables Tab Content -->
                 <ProjectDeliverablesTab
                     v-if="selectedTab === 'deliverables'"
                     :project-id="projectId"
                     :can-create-deliverables="canCreateDeliverables"
                     :can-view-deliverables="canViewDeliverables"
                     @deliverablesUpdated="handleDeliverablesUpdated"
-                    @openDeliverableDetailSidebar="openDeliverableDetailSidebar"
+                    @openDeliverableDetailSidebar="handleOpenDeliverableDetailSidebar"
                 />
 
-                <!-- SEO Reports Tab Content (NEW) -->
                 <SeoReportTab
                     v-if="selectedTab === 'seo-reports'"
                     :project-id="projectId"
@@ -785,33 +673,6 @@ onMounted(async () => {
             @submitted="handleComposeEmailSubmitted"
             @error="(err) => console.error('Error composing email:', err)"
         />
-
-        <!-- Global Right Sidebar -->
-        <RightSidebar
-            :show="showRightSidebar"
-            @update:show="showRightSidebar = $event"
-            :title="selectedTaskIdForSidebar ? 'Task Details' : (selectedDeliverableIdForSidebar ? 'Deliverable Details' : 'Details')"
-            :initialWidth="50"
-        >
-            <template #content>
-                <!-- Conditionally render TaskDetailSidebar or DeliverableDetailSidebar -->
-                <TaskDetailSidebar
-                    v-if="selectedTaskIdForSidebar"
-                    :task-id="selectedTaskIdForSidebar"
-                    :project-users="project.users || []"
-                    @close="closeTaskDetailSidebar"
-                    @task-updated="handleTaskDetailUpdated"
-                    @task-deleted="handleTaskDeleted"
-                />
-                <DeliverableDetailSidebar
-                    v-else-if="selectedDeliverableIdForSidebar"
-                    :project-id="projectId"
-                    :deliverable-id="selectedDeliverableIdForSidebar"
-                    @close="closeDeliverableDetailSidebar"
-                    @deliverable-updated="handleDeliverableDetailUpdated"
-                />
-            </template>
-        </RightSidebar>
 
         <!-- Global Create Task Modal -->
         <CreateTaskModal

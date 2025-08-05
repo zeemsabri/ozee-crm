@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\BonusConfigurationGroupController;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientAction;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientReader;
@@ -199,13 +200,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('assigned-tasks', [TaskController::class, 'getAssignedTasks']);
     Route::get('projects/{projectId}/due-and-overdue-tasks', [TaskController::class, 'getProjectDueAndOverdueTasks']);
 
+    // Activity Log Routes
+    Route::get('activities', [ActivityController::class, 'index']);
+
     // Apply ProcessTags middleware to store and update methods
-    Route::apiResource('tasks', TaskController::class);
+    Route::apiResource('tasks', TaskController::class)->middleware(['process.tags']);
     Route::post('tasks/{task}/notes', [TaskController::class, 'addNote']);
-    Route::post('tasks/{task}/complete', [TaskController::class, 'markAsCompleted']);
+    Route::patch('tasks/{task}/complete', [TaskController::class, 'markAsCompleted']);
     Route::post('tasks/{task}/start', [TaskController::class, 'start']);
+    Route::post('tasks/{task}/pause', [TaskController::class, 'pause']);
+    Route::post('tasks/{task}/resume', [TaskController::class, 'resume']);
     Route::post('tasks/{task}/block', [TaskController::class, 'block']);
+    Route::post('tasks/{task}/unblock', [TaskController::class, 'unblock']);
     Route::post('tasks/{task}/archive', [TaskController::class, 'archive']);
+    Route::post('tasks/{task}/revise', [TaskController::class, 'revise']);
 
     // Subtask Management Routes
     Route::apiResource('subtasks', SubtaskController::class);
