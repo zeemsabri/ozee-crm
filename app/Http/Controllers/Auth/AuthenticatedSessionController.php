@@ -38,35 +38,6 @@ class AuthenticatedSessionController extends Controller
         $user = $request->user();
         $user->load(['role.permissions']);
 
-        // Add global permissions to the user object
-        $globalPermissions = [];
-
-        // For super admin users, load all permissions from the database
-        if ($user->isSuperAdmin()) {
-            $allPermissions = \App\Models\Permission::all();
-            foreach ($allPermissions as $permission) {
-                $globalPermissions[] = [
-                    'id' => $permission->id,
-                    'name' => $permission->name,
-                    'slug' => $permission->slug,
-                    'category' => $permission->category
-                ];
-            }
-        }
-        // For regular users, load permissions based on their role
-        else if ($user->role && $user->role->permissions) {
-            foreach ($user->role->permissions as $permission) {
-                $globalPermissions[] = [
-                    'id' => $permission->id,
-                    'name' => $permission->name,
-                    'slug' => $permission->slug,
-                    'category' => $permission->category
-                ];
-            }
-        }
-
-        $user->global_permissions = $globalPermissions;
-
         if ($request->wantsJson() || $request->isXmlHttpRequest()) {
             // Revoke old tokens if you want only one active token per device
             // auth()->user()->tokens()->delete();
