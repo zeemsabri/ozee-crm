@@ -42,11 +42,11 @@ Route::get('/', function (Request $request) {
     ]);
 });
 
-Route::get('/wireframe', function () {
-    return Inertia::render('Wireframe', [
-        'message' => 'An unexpected error occurred.'
-    ]);
-})->name('wireframe');
+//Route::get('/wireframe', function () {
+//    return Inertia::render('Wireframe', [
+//        'message' => 'An unexpected error occurred.'
+//    ]);
+//})->name('wireframe');
 
 // Public route for handling the magic link (this is the new client dashboard route)
 // This route will render the ClientDashboard.vue component
@@ -285,6 +285,33 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'id' => $id,
         ]);
     })->name('projects.show')->middleware('permission:view_projects');
+
+    // Project Wireframe Page
+    Route::get('/projects/{project}/wireframe', function ($project) {
+        return Inertia::render('Projects/Show', [
+            'id' => $project,
+            'showWireframe' => true,
+        ]);
+    })->name('projects.wireframe')->middleware('permission:view_projects');
+
+    // Project Wireframe with Version Page
+    Route::get('/projects/{project}/wireframe/{wireframe}', function ($project, $wireframe) {
+        return Inertia::render('Projects/Show', [
+            'id' => $project,
+            'showWireframe' => true,
+            'wireframeId' => $wireframe,
+        ]);
+    })->name('projects.wireframe.show')->middleware('permission:view_projects');
+
+    // Project Wireframe with Version Page
+    Route::get('/projects/{project}/wireframe/{wireframe}/version/{version}', function ($project, $wireframe, $version) {
+        return Inertia::render('Projects/Show', [
+            'id' => $project,
+            'showWireframe' => true,
+            'wireframeId' => $wireframe,
+            'versionNumber' => $version,
+        ]);
+    })->name('projects.wireframe.version')->middleware('permission:view_projects');
 
     // Task Types Management Page
     Route::get('/task-types', function () {
