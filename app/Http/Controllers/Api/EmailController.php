@@ -11,9 +11,11 @@ use App\Models\EmailTemplate;
 use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\Client;
+use App\Models\Role;
 use App\Services\GmailService;
 use App\Services\MagicLinkService;
 use Exception;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
@@ -387,7 +389,7 @@ class EmailController extends Controller
             $clientEmailAddress = $recipientClient->email;
 
             if($email->status === 'pending_approval') {
-                $gmailMessageId = $this->gmailService->sendEmail(
+                $this->gmailService->sendEmail(
                     $clientEmailAddress,
                     $subject,
                     $finalRenderedBody
@@ -879,13 +881,40 @@ class EmailController extends Controller
 
     /**
      * Preview an email exactly how the recipient will see it.
-     * Accessible by: Super Admin, Manager (or whoever needs to preview emails)
+     * Accessible by:
+     * - For 'sent' emails: Email creator, users with approve_emails permission globally or for the project
+     * - For 'received' emails: Users with approve_received_emails permission globally or for the project
      */
     public function reviewEmail(Email $email)
     {
+        $user = Auth::user();
+
+        // Check for null user and email upfront
+        if (!Auth::check() || !$email) {
+            return response()->json(['message' => 'Unauthorized or invalid email.'], 403);
+        }
+
+        // Or even better, use the authorize() method which handles the 403 response for you
         try {
-            // Use the trait method to render the full email preview as a JSON response
-            $emai = $this->renderFullEmailPreviewResponse($email);
+            $this->authorize('approveOrView', $email);
+        } catch (AuthorizationException $e) {
+            return response()->json(['message' => 'Unauthorized to view this email.'], 403);
+        }
+
+        try {
+            // Use the trait method to render the email content
+            $renderedContent = $this->renderEmailContent($email, false);
+            $subject = $renderedContent['subject'];
+            $body = $renderedContent['body'];
+
+            // Get the sender details
+            $senderDetails = $this->getSenderDetails($email);
+
+            // Combine all data into a single array for the view
+            $data = $this->getData($subject, $body, $senderDetails);
+
+            // Return the view with the complete data
+            return View('emails.email_template', $data);
 
         } catch (Exception $e) {
             Log::error('Error previewing email: ' . $e->getMessage(), [

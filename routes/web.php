@@ -58,7 +58,7 @@ Route::get('/magic-link-error', function () {
 // --- NEW: Public Email Preview Route for Development ---
 Route::get('/email-preview/{slug?}', [EmailPreviewController::class, 'preview'])->name('email.preview');
 
-Route::get('/emails/{email}/preview', [EmailController::class, 'previewEmail'])
+Route::get('/emails/{email}/preview', [EmailController::class, 'reviewEmail'])
     ->middleware(['auth']) // Add any necessary middleware for access control
     ->name('emails.preview');
 

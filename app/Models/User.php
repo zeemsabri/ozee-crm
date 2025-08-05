@@ -477,4 +477,22 @@ class User extends Authenticatable
         return Role::find($roleId)->name ?? 'Staff';
 
     }
+
+    // In your App/Models/User.php
+    public function hasProjectPermission($projectId, $permissionSlug)
+    {
+        $projectRole = $this->getRoleForProject($projectId);
+
+        if (!$projectRole) {
+            return false;
+        }
+
+        $role = Role::find($projectRole); // Assuming getRoleForProject returns the role ID
+
+        if (!$role) {
+            return false;
+        }
+
+        return $role->permissions()->where('slug', $permissionSlug)->exists();
+    }
 }

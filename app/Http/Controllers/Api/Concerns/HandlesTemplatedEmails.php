@@ -215,17 +215,14 @@ trait HandlesTemplatedEmails
      */
     public function renderFullEmailPreviewResponse(Email $email)
     {
+
         try {
             // Render the email content (subject and body) first
             $renderedContent = $this->renderEmailContent($email, false);
             $subject = $renderedContent['subject'];
             $body = $renderedContent['body'];
             // Get the sender details
-            $sender = $email->sender;
-            $senderDetails = [
-                'name' => $sender->name ?? 'Original Sender',
-                'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
-            ];
+            $senderDetails = $this->getSenderDetails($email);
 
             // Combine all data into a single array for the view
             $data = $this->getData($subject, $body, $senderDetails);
@@ -259,11 +256,8 @@ trait HandlesTemplatedEmails
             $subject = $renderedContent['subject'];
             $body = $renderedContent['body'];
             // Get the sender details
-            $sender = $email->sender;
-            $senderDetails = [
-                'name' => $sender->name ?? 'Original Sender',
-                'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
-            ];
+
+            $senderDetails = $this->getSenderDetails($email);
 
             // Combine all data into a single array for the view
             $data = $this->getData($subject, $body, $senderDetails);
