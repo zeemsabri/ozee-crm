@@ -268,17 +268,9 @@ class EmailController extends Controller
      */
     public function update(Request $request, Email $email)
     {
-        $user = Auth::user();
-
-//        if (!$user->isSuperAdmin() && !$user->isManager()) {
-//            if ($user->isContractor() && $email->sender_id === $user->id && in_array($email->status, ['draft', 'rejected'])) {
-//                // Allow contractor to update their own draft or rejected emails
-//            } else {
-//                return response()->json(['message' => 'Unauthorized to update this email.'], 403);
-//            }
-//        }
 
         try {
+
             $validated = $request->validate([
                 'subject' => 'sometimes|required|string|max:255',
                 'body' => 'sometimes|required|string',
@@ -286,18 +278,14 @@ class EmailController extends Controller
                 'rejection_reason' => 'nullable|string', // Admin might clear this on re-submit
             ]);
 
-            if ($user->isContractor() && $email->sender_id === $user->id && $email->status === 'rejected' && ($validated['status'] ?? null) === 'pending_approval') {
-                $email->update(array_merge($validated, ['rejection_reason' => null])); // Clear reason on re-submit
-                Log::info('Contractor re-submitted email for approval', ['email_id' => $email->id, 'user_id' => $user->id]);
-            } else if ($user->isSuperAdmin() || $user->isManager()) {
-                $email->update($validated);
-                Log::info('Email updated by admin/manager', ['email_id' => $email->id, 'user_id' => $user->id]);
-            } else {
-                return response()->json(['message' => 'Unauthorized to perform this update for this email status.'], 403);
-            }
+            $this->authorize('resubmit', $email);
+
+            $email->update(array_merge($validated, ['rejection_reason' => null])); // Clear reason on re-submit
 
             $email->load('conversation'); // Reload relationships for response
+
             return response()->json($email);
+
         } catch (ValidationException $e) {
             return response()->json([
                 'message' => 'Validation failed',

@@ -65,9 +65,18 @@ class EmailPolicy
      */
     public function resubmit(User $user, Email $email): bool
     {
-        return $user->hasPermission('resubmit_emails') &&
-               $user->id === $email->sender_id &&
-               $email->status === 'rejected';
+
+        // The sender can always view their own sent email.
+        if ($user->id === $email->sender_id) {
+            return true;
+        }
+
+        return $this->userHasProjectPermission($user, 'resubmit_email', $email->conversation->project_id);
+
+//        return $user->hasPermission('resubmit_emails') &&
+//               $user->id === $email->sender_id &&
+//               $email->status === 'rejected';
+
     }
 
     /**
@@ -159,6 +168,7 @@ class EmailPolicy
         // Default to false if the email type is not 'sent' or 'received'
         return false;
     }
+
 
     /**
      * Helper method to check project-specific permission.
