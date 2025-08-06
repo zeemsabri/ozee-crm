@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Traits\GoogleApiAuthTrait;
 use Google\Client as GoogleClient;
 use Google\Service\HangoutsChat; // This is the Google Chat Service class
 use Google\Service\HangoutsChat\Space;
@@ -16,84 +17,7 @@ use Exception;
 
 class GoogleChatService
 {
-    protected GoogleClient $client;
-    protected string $userEmail; // The email of the Google Workspace account being used by the app
-
-    /**
-     * @throws Exception
-     */
-    public function __construct()
-    {
-        $this->client = new GoogleClient();
-        $this->client->setClientId(env('GOOGLE_CLIENT_ID'));
-        $this->client->setClientSecret(env('GOOGLE_CLIENT_SECRET'));
-        $this->client->setRedirectUri(env('GOOGLE_REDIRECT_URI')); // Required for client initialization
-        // Scopes are added during the OAuth flow in GoogleAuthController, but the client needs to know them for validation
-        $this->client->addScope('https://www.googleapis.com/auth/chat.spaces');
-        $this->client->addScope('https://www.googleapis.com/auth/chat.messages');
-
-        $this->loadAndSetAccessToken();
-    }
-
-    /**
-     * Loads tokens from storage and sets them on the Google Client.
-     * Refreshes the access token if it's expired using the refresh token.
-     *
-     * @throws Exception If tokens are not found or cannot be refreshed.
-     */
-    protected function loadAndSetAccessToken(): void
-    {
-        if (!Storage::disk('local')->exists('google_tokens.json')) {
-            throw new Exception('Google tokens not found. Please run the OAuth authorization flow first via /google/redirect.');
-        }
-
-        $tokens = json_decode(Storage::disk('local')->get('google_tokens.json'), true);
-
-        if (empty($tokens['access_token'])) {
-            throw new Exception('Access token not found in google_tokens.json. Re-authorize.');
-        }
-
-        // Set the current access token
-        $this->client->setAccessToken($tokens['access_token']);
-
-        // Check if the access token is expired
-        if ($this->client->isAccessTokenExpired()) {
-            Log::info('Google access token expired for Chat Service, attempting to refresh.');
-            if (empty($tokens['refresh_token'])) {
-                throw new Exception('Refresh token not found. User needs to re-authorize for Google Chat.');
-            }
-
-            try {
-                // Use the refresh token to get a new access token
-                $this->client->fetchAccessTokenWithRefreshToken($tokens['refresh_token']);
-                $newTokens = $this->client->getAccessToken();
-
-                // Update stored tokens with the new access token and its expiry
-                $tokens['access_token'] = $newTokens['access_token'] ?? null;
-                $tokens['expires_in'] = $newTokens['expires_in'] ?? null;
-                $tokens['created_at'] = now()->timestamp; // Update creation time
-
-                // If Google ever issues a new refresh token (rare, but good to check)
-                if (isset($newTokens['refresh_token'])) {
-                    $tokens['refresh_token'] = $newTokens['refresh_token'];
-                    Log::info('Google refresh token updated for Chat Service.');
-                }
-
-                Storage::disk('local')->put('google_tokens.json', json_encode($tokens, JSON_PRETTY_PRINT));
-                Log::info('Google access token refreshed successfully for Chat Service.');
-
-            } catch (Exception $e) {
-                Log::error('Failed to refresh Google access token for Chat Service: ' . $e->getMessage(), ['exception' => $e]);
-                throw new Exception('Failed to refresh Google access token for Google Chat. Please re-authorize.');
-            }
-        }
-
-        $this->userEmail = $tokens['email'] ?? '';
-        if (empty($this->userEmail)) {
-            Log::warning('Could not determine authorized user\'s email for Chat Service. Ensure it was saved during initial auth.');
-            throw new Exception("Could not determine authorized user's email for Google Chat. Re-authorize or check token storage.");
-        }
-    }
+    use GoogleApiAuthTrait;
 
     /**
      * Creates a new Google Chat space.

@@ -65,7 +65,7 @@ class GoogleAuthController extends Controller
                 'access_token' => $googleUser->token,
                 'refresh_token' => $googleUser->refreshToken, // This is key for long-term access without re-auth
                 'expires_in' => $googleUser->expiresIn,       // Time until access token expires (in seconds)
-                'created_at' => now()->timestamp,             // Timestamp when token was obtained
+                'created' => now()->timestamp,             // Timestamp when token was obtained
                 'email' => $googleUser->email,                // The email of the authorized Google account
             ];
 

@@ -17,28 +17,6 @@ class GoogleCalendarService
 {
     use GoogleApiAuthTrait;
 
-    protected $calendarService;
-    protected $calendarId; // Default calendar ID, typically 'primary'
-
-    public function __construct()
-    {
-        $this->initializeGoogleClient();
-        $this->calendarService = new Calendar($this->getGoogleClient());
-        $this->calendarId = 'primary'; // Default to the user's primary calendar
-    }
-
-    /**
-     * Set the calendar ID to use for operations.
-     *
-     * @param string $calendarId
-     * @return $this
-     */
-    public function setCalendarId(string $calendarId): self
-    {
-        $this->calendarId = $calendarId;
-        return $this;
-    }
-
     /**
      * Create a new Google Calendar event.
      *

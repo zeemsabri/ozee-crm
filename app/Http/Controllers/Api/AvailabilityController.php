@@ -353,7 +353,7 @@ class AvailabilityController extends Controller
         // --- Final Response ---
         return response()->json([
             'should_show_prompt' => $shouldShowPrompt,
-            'should_block_user' => $shouldBlockUser,
+            'should_block_user' => false,
             'current_week_start' => $currentWeekStart->format('Y-m-d'),
             'current_week_end' => $currentWeekEnd->format('Y-m-d'),
             'next_week_start' => $nextWeekStart->format('Y-m-d'),
