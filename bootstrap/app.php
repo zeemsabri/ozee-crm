@@ -15,9 +15,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
 
-        $middleware->statefulApi(); // For Sanctum SPA authentication
-
-        $middleware->trustProxies(at: '*');
+//        $middleware->statefulApi(); // For Sanctum SPA authentication
+//
+//        $middleware->trustProxies(at: '*');
 
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
