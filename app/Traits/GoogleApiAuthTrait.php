@@ -21,8 +21,8 @@ trait GoogleApiAuthTrait
         // Load the stored tokens
         $tokens = json_decode(Storage::disk('local')->get('google_tokens.json'), true);
         $this->client = new GoogleClient();
-        $this->client->setAccessToken($tokens['access_token']);
-        $this->authorizedEmail = $tokens['email'];
+        $this->client->setAccessToken($tokens['access_token'] ?? null);
+        $this->authorizedEmail = $tokens['email'] ?? null;
 
         // Check if token is expired and refresh if necessary
         if ($this->client->isAccessTokenExpired()) {
