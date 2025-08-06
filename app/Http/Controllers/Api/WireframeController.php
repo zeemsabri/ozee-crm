@@ -63,12 +63,15 @@ class WireframeController extends Controller
                     return $query->where('project_id', $projectId);
                 }),
             ],
-            'data' => 'required|json',
+            'data' => 'sometimes|json',
         ]);
+
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
+
+        $data = '{"canvasSize": {"width": 1280, "height": 720}, "components": []}';
 
         $wireframe = Wireframe::create([
             'project_id' => $projectId,
@@ -78,7 +81,7 @@ class WireframeController extends Controller
         $version = WireframeVersion::create([
             'wireframe_id' => $wireframe->id,
             'version_number' => 1,
-            'data' => json_decode($request->data, true),
+            'data' => json_decode($request->data ?? $data, true),
             'status' => 'draft',
         ]);
 
@@ -237,7 +240,7 @@ class WireframeController extends Controller
      *
      * @param  int  $projectId
      * @param  int  $id
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\JsonResponse
      */
     public function publish($projectId, $id)
     {
@@ -338,7 +341,7 @@ class WireframeController extends Controller
      *
      * @param  int  $projectId
      * @param  int  $id
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\JsonResponse
      */
     public function versions($projectId, $id)
     {

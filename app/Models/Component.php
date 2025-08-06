@@ -20,6 +20,7 @@ class Component extends Model
     protected $fillable = [
         'name',
         'type',
+        'category',
         'definition',
         'icon_id',
     ];

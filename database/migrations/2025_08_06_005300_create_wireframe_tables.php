@@ -40,6 +40,7 @@ return new class extends Migration
             $table->id();
             $table->string('name')->unique();
             $table->string('type');
+            $table->string('category');
             $table->json('definition');
             $table->foreignId('icon_id')->nullable()->constrained()->onDelete('set null');
             $table->timestamps();
