@@ -2,10 +2,14 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
+import axios from 'axios';
 import NotesModal from '@/Components/NotesModal.vue';
 import StandupModal from '@/Components/StandupModal.vue';
+import GoogleNotesModal from '@/Components/GoogleAccount/GoogleNotesModal.vue';
+import GoogleStandupModal from '@/Components/GoogleAccount/GoogleStandupModal.vue';
 import TaskNotificationPrompt from '@/Components/TaskNotificationPrompt.vue';
 import AvailabilityPrompt from '@/Components/Availability/AvailabilityPrompt.vue';
+import GoogleAccountPrompt from '@/Components/GoogleAccount/GoogleAccountPrompt.vue';
 import * as taskState from '@/Utils/taskState.js';
 
 // Import Dashboard Components
@@ -24,13 +28,38 @@ const props = defineProps({
     projectCount: Number,
 });
 
+// Google account state
+const hasGoogleCredentials = ref(false);
+const isCheckingGoogleCredentials = ref(true);
+
 // Notes modal state
 const showNotesModal = ref(false);
+const showGoogleNotesModal = ref(false);
 const selectedProjectId = ref(null);
+const selectedSpaceName = ref(null);
 
 // Standup modal state
 const showStandupModal = ref(false);
+const showGoogleStandupModal = ref(false);
 const selectedProjectIdForStandup = ref(null);
+const selectedSpaceNameForStandup = ref(null);
+
+// Check if the user has Google credentials
+const checkGoogleCredentials = async () => {
+    try {
+        isCheckingGoogleCredentials.value = true;
+        console.log('Checking Google credentials...');
+        const response = await axios.get('/api/user/google-chat/check-credentials');
+        console.log('Google credentials response:', response.data);
+        hasGoogleCredentials.value = response.data.has_credentials;
+        console.log('hasGoogleCredentials set to:', hasGoogleCredentials.value);
+    } catch (error) {
+        console.error('Error checking Google credentials:', error);
+        hasGoogleCredentials.value = false;
+    } finally {
+        isCheckingGoogleCredentials.value = false;
+    }
+};
 
 // Reference to the assigned tasks section for scrolling and method calls
 const assignedTasksCardRef = ref(null);
@@ -52,26 +81,50 @@ const handleTaskCountsUpdated = ({ overdue, dueToday }) => {
 // Fetch data on component mount
 onMounted(() => {
     // We no longer need to fetch assigned tasks here, as the child component handles it.
+
+    // Check if the user has Google credentials
+    checkGoogleCredentials();
 });
 
 // --- Notes Modal Logic ---
-const openNotesModal = (projectId) => {
+const openNotesModal = (projectId, spaceName = null) => {
     selectedProjectId.value = projectId;
-    showNotesModal.value = true;
+    selectedSpaceName.value = spaceName;
+
+    if (hasGoogleCredentials.value && spaceName) {
+        showGoogleNotesModal.value = true;
+    } else {
+        showNotesModal.value = true;
+    }
 };
 
 const handleNoteAdded = () => {
     // This will trigger a re-fetch in the ProjectsCard component
 };
 
+const handleGoogleNoteAdded = () => {
+    showGoogleNotesModal.value = false;
+    // This will trigger a re-fetch in the ProjectsCard component
+};
+
 // --- Standup Modal Logic ---
-const openStandupModal = (projectId) => {
+const openStandupModal = (projectId, spaceName = null) => {
     selectedProjectIdForStandup.value = projectId;
-    showStandupModal.value = true;
+    selectedSpaceNameForStandup.value = spaceName;
+
+    if (hasGoogleCredentials.value && spaceName) {
+        showGoogleStandupModal.value = true;
+    } else {
+        showStandupModal.value = true;
+    }
 };
 
 const handleStandupAdded = () => {
     showStandupModal.value = false;
+};
+
+const handleGoogleStandupAdded = () => {
+    showGoogleStandupModal.value = false;
 };
 
 // Handle view button click from notification prompt
@@ -114,6 +167,11 @@ const handleViewMeetingsAndScroll = () => {
                     <!-- Availability Prompt (Conditionally displayed, spans full width) -->
                     <div class="md:col-span-3">
                         <AvailabilityPrompt />
+                    </div>
+
+                    <!-- Google Account Prompt (Conditionally displayed, spans full width) -->
+                    <div class="md:col-span-3">
+                        <GoogleAccountPrompt />
                     </div>
 
                     <!-- Dashboard Overview Card -->
@@ -169,6 +227,24 @@ const handleViewMeetingsAndScroll = () => {
             :project-id="selectedProjectIdForStandup"
             @close="showStandupModal = false"
             @standup-added="handleStandupAdded"
+        />
+
+        <!-- Google Notes Modal -->
+        <GoogleNotesModal
+            :show="showGoogleNotesModal"
+            :project-id="selectedProjectId"
+            :space-name="selectedSpaceName"
+            @close="showGoogleNotesModal = false"
+            @note-added="handleGoogleNoteAdded"
+        />
+
+        <!-- Google Standup Modal -->
+        <GoogleStandupModal
+            :show="showGoogleStandupModal"
+            :project-id="selectedProjectIdForStandup"
+            :space-name="selectedSpaceNameForStandup"
+            @close="showGoogleStandupModal = false"
+            @standup-added="handleGoogleStandupAdded"
         />
     </AuthenticatedLayout>
 </template>

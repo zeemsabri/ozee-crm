@@ -196,6 +196,16 @@ Route::middleware('auth:sanctum')->group(function () {
         }
     });
 
+    // Google User Chat Routes
+    Route::prefix('user/google-chat')->group(function () {
+        Route::get('/check-credentials', [\App\Http\Controllers\GoogleChatUserController::class, 'checkGoogleCredentials']);
+        Route::post('/spaces', [\App\Http\Controllers\GoogleChatUserController::class, 'createSpace']);
+        Route::post('/spaces/members', [\App\Http\Controllers\GoogleChatUserController::class, 'addMembers']);
+        Route::post('/messages', [\App\Http\Controllers\GoogleChatUserController::class, 'sendMessage']);
+        Route::post('/standups', [\App\Http\Controllers\GoogleChatUserController::class, 'sendStandup']);
+        Route::post('/notes', [\App\Http\Controllers\GoogleChatUserController::class, 'sendNote']);
+    });
+
     Route::apiResource('users', UserController::class);
 
     // Permission Management Routes

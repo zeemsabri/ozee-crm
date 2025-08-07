@@ -109,6 +109,16 @@ Route::get('/magic-link-error', function () {
 // --- NEW: Public Email Preview Route for Development ---
 Route::get('/email-preview/{slug?}', [EmailPreviewController::class, 'preview'])->name('email.preview');
 
+// Privacy Policy Route - publicly accessible
+Route::get('/privacy-policy', function () {
+    return Inertia::render('PrivacyPolicy');
+})->name('privacy.policy');
+
+// Test Google Auth Flow Route - for development only
+Route::get('/test-google-auth', function () {
+    return view('test-google-auth');
+});
+
 Route::get('/emails/{email}/preview', [EmailController::class, 'reviewEmail'])
     ->middleware(['auth']) // Add any necessary middleware for access control
     ->name('emails.preview');
@@ -123,6 +133,13 @@ Route::get('/google/redirect', [GoogleAuthController::class, 'redirectToGoogle']
 // but the controller handles associating with a logged-in user or storing generally.
 // For this MVP, we are storing to file, so no direct user login needed for this specific route.
 Route::get('/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])->name('google.callback');
+
+// --- Google User OAuth Routes (for user-based authentication) ---
+use App\Http\Controllers\GoogleUserAuthController;
+Route::get('/user/google/redirect', [GoogleUserAuthController::class, 'redirectToGoogle'])->name('user.google.redirect');
+Route::get('/google/usercallback', [GoogleUserAuthController::class, 'handleCallback'])->name('user.google.callback');
+Route::get('/user/google/check', [GoogleUserAuthController::class, 'checkGoogleConnection'])->name('user.google.check');
+Route::post('/user/google/disconnect', [GoogleUserAuthController::class, 'disconnectGoogle'])->name('user.google.disconnect');
 
 Route::get('/receive-test-emails', [EmailTestController::class, 'receiveTestEmails'])->name('receive-test-email');
 

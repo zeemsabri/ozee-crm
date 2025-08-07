@@ -305,6 +305,9 @@ const closeModal = () => {
                         <p class="mt-2 text-gray-400">
                             &copy; {{ new Date().getFullYear() }} OZEE CRM. All rights reserved.
                         </p>
+                        <p class="mt-2 text-gray-400">
+                            <Link :href="route('privacy.policy')" class="text-indigo-400 hover:text-indigo-300">Privacy Policy</Link>
+                        </p>
                     </div>
                 </div>
             </div>

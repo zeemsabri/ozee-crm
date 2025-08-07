@@ -506,4 +506,22 @@ class User extends Authenticatable
 
         return $role->permissions()->where('slug', $permissionSlug)->exists();
     }
+
+    /**
+     * Get the Google account associated with the user.
+     */
+    public function googleAccount()
+    {
+        return $this->hasOne(GoogleAccounts::class);
+    }
+
+    /**
+     * Check if the user has Google credentials.
+     *
+     * @return bool
+     */
+    public function hasGoogleCredentials()
+    {
+        return $this->googleAccount()->exists();
+    }
 }
