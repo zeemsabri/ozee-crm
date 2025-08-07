@@ -23,7 +23,52 @@ use App\Http\Controllers\Api\MagicLinkController; // Import for magic link funct
 | contains the "web" middleware group. Now create something great!
 |
 */
-
+$sourceOptions = [
+    [
+        'label'  =>  'UpWork',
+        'value' =>  'UpWork'
+    ],
+    [
+        'label'  =>  'AirTasker',
+        'value' =>  'AirTasker'
+    ],
+    [
+        'label'  =>  'Direct',
+        'value' =>  'Direct'
+    ],
+    [
+        'label'  =>  'Agency',
+        'value' =>  'Agency'
+    ],
+    [
+        'label'  =>  'Reference',
+        'value' =>  'Reference'
+    ],
+    [
+        'label'  =>  'Wix Marketplace',
+        'value' =>  'Wix Marketplace'
+    ],
+    [
+        'label'  =>  'Fiver',
+        'value' =>  'Fiver'
+    ],
+    [
+        'label'  =>  'Social Media',
+        'value' =>  'Social Media'
+    ],
+    [
+        'label'  =>  'Advertising',
+        'value' =>  'Advertising'
+    ],
+    [
+        'label'  =>  'Website',
+        'value' =>  'Website'
+    ],
+    [
+        'label'  =>  'Other',
+        'value' =>  'Other'
+    ]
+];
 // Default welcome page or client dashboard if token is present
 Route::get('/', function (Request $request) {
 //    // Check if token parameter is present in the URL
@@ -88,7 +133,7 @@ Route::get('/magic-link', [MagicLinkController::class, 'handleMagicLink'])->name
 Route::get('/client/dashboard', [ClientDashboardController::class, 'index'])->name('client.dashboard');
 // Authenticated routes group for Inertia pages that require a logged-in user
 // The 'verified' middleware ensures the user's email is verified (optional, remove if not needed for MVP)
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) {
 
     // Admin routes for role and permission management
     Route::prefix('admin')->name('admin.')->middleware(['permission:manage_roles'])->group(function () {
@@ -268,14 +313,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('projects.index')->middleware('permission:view_projects');
 
     // Projects Create Page
-    Route::get('/projects/create', function () {
-        return Inertia::render('Projects/Create');
+    Route::get('/projects/create', function () use ($sourceOptions) {
+        return Inertia::render('Projects/Create', [
+            'sourceOptions' => $sourceOptions,
+        ]);
     })->name('projects.create')->middleware('permission:create_projects');
 
     // Projects Edit Page
-    Route::get('/projects/{project}/edit', function (Project $project) {
+    Route::get('/projects/{project}/edit', function (Project $project) use ($sourceOptions) {
         return Inertia::render('Projects/Edit', [
             'project' => $project,
+            'sourceOptions' => $sourceOptions,
         ]);
     })->name('projects.edit')->middleware('permission:create_projects');
 
