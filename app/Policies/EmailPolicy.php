@@ -71,11 +71,7 @@ class EmailPolicy
             return true;
         }
 
-        return $this->userHasProjectPermission($user, 'resubmit_email', $email->conversation->project_id);
-
-//        return $user->hasPermission('resubmit_emails') &&
-//               $user->id === $email->sender_id &&
-//               $email->status === 'rejected';
+        return $this->userHasProjectPermission($user, 'resubmit_emails', $email->conversation->project_id);
 
     }
 
