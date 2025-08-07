@@ -8,6 +8,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Collection; // Import Collection for getClientsAttribute
+use App\Services\GoogleUserService;
 
 class User extends Authenticatable
 {
@@ -516,12 +517,39 @@ class User extends Authenticatable
     }
 
     /**
-     * Check if the user has Google credentials.
+     * Check if the user has valid Google credentials.
      *
      * @return bool
      */
     public function hasGoogleCredentials()
     {
-        return $this->googleAccount()->exists();
+        $googleAccount = $this->googleAccount()->first();
+
+        // If no credentials exist, return false
+        if (!$googleAccount) {
+            return false;
+        }
+
+        // If credentials are not expired, they're valid
+        if (!$googleAccount->isExpired()) {
+            return true;
+        }
+
+        // If credentials are expired, try to refresh them
+        try {
+            $googleUserService = app(GoogleUserService::class);
+            $googleUserService->refreshToken($googleAccount);
+            return true;
+        } catch (\Exception $e) {
+            // Log the error for debugging
+            \Illuminate\Support\Facades\Log::error('Failed to refresh Google token: ' . $e->getMessage(), [
+                'user_id' => $this->id,
+                'google_account_id' => $googleAccount->id,
+                'exception' => $e,
+            ]);
+
+            // If refresh fails, credentials are invalid
+            return false;
+        }
     }
 }

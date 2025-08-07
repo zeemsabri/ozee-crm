@@ -7,6 +7,7 @@ use Google\Client as GoogleClient;
 use Google\Service\Calendar;
 use Google\Service\Drive;
 use Google\Service\Gmail;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 
@@ -70,11 +71,23 @@ trait GoogleApiAuthTrait
     protected function initializeGoogleClient()
     {
         // Load the stored tokens
-        $tokens = Storage::disk('local')->get('google_tokens.json');
-        $parsedToken = json_decode($tokens, true);
-        $this->client = new GoogleClient();
-        $this->client->setAccessToken($tokens);
-        $this->authorizedEmail = 'info@ozeeweb.com.au' ?? null;
+
+        $googleAccount = request()->user()->googleAccount;
+        if($googleAccount) {
+            $tokens = $googleAccount->tokens;
+            $this->client = new GoogleClient();
+            $this->client->setAccessToken(collect($tokens)->toJson());
+            $this->authorizedEmail = $googleAccount->email ?? null;
+        } else {
+
+            $tokens = Storage::disk('local')->get('google_tokens.json');
+            $parsedToken = json_decode($tokens, true);
+            $this->client = new GoogleClient();
+            $this->client->setAccessToken($tokens);
+            $this->authorizedEmail = 'info@ozeeweb.com.au' ?? null;
+
+        }
+
         // Check if token is expired and refresh if necessary
         if ($this->client->isAccessTokenExpired()) {
             try {

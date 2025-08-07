@@ -38,7 +38,6 @@ class GoogleUserAuthController extends Controller
      */
     public function redirectToGoogle()
     {
-        // Define the scopes needed for user login
         $scopes = [
             'profile',
             'https://www.googleapis.com/auth/chat.spaces',
@@ -49,8 +48,10 @@ class GoogleUserAuthController extends Controller
         return Socialite::driver('google')
             ->scopes($scopes)
             ->with(['access_type' => 'offline', 'prompt' => 'consent'])
-            ->stateless()
+            ->redirectUrl(env('USER_REDIRECT_URL'))
             ->redirect();
+        return redirect()->away($this->googleUserService->getAuthUrl());
+//            ->with('success', 'Google account connected successfully.');
     }
 
     /**
@@ -62,7 +63,7 @@ class GoogleUserAuthController extends Controller
     public function handleCallback(Request $request)
     {
         try {
-            // Get the authenticated user
+             //Get the authenticated user
             $user = Auth::user();
 
             // If not authenticated through the web session, try to find user from state
@@ -79,7 +80,7 @@ class GoogleUserAuthController extends Controller
             }
 
             // Get the Google user
-            $googleUser = Socialite::driver('google')->stateless()->user();
+           $googleUser = Socialite::driver('google')->redirectUrl(env('USER_REDIRECT_URL'))->stateless()->user();
 
             // Store or update the user's Google credentials
             GoogleAccounts::updateOrCreate(

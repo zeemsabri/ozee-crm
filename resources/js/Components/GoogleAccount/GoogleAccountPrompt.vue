@@ -38,8 +38,8 @@ onMounted(() => {
 </script>
 
 <template>
-    <!-- Always show during development -->
-    <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
+    <!-- Only show when user doesn't have valid Google credentials -->
+    <div v-if="showPrompt" class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
         <div class="p-6 bg-white border-b border-gray-200">
             <div class="flex items-center">
                 <div class="flex-shrink-0 bg-blue-100 rounded-md p-3">

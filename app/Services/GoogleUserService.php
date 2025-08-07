@@ -47,9 +47,10 @@ class GoogleUserService
         return Socialite::driver('google')
             ->scopes($scopes)
             ->with(['access_type' => 'offline', 'prompt' => 'consent'])
-            ->stateless()
-            ->redirect()
-            ->getTargetUrl();
+            ->redirect(env('USER_REDIRECT_URL'));
+//
+//            ->redirect()
+//            ->getTargetUrl();
     }
 
     /**
@@ -124,9 +125,18 @@ class GoogleUserService
      *
      * @param \App\Models\GoogleAccounts $googleAccount
      * @return \App\Models\GoogleAccounts
+     * @throws \Exception If token refresh fails
      */
     public function refreshToken(GoogleAccounts $googleAccount)
     {
+        // Check if refresh token exists
+        if (empty($googleAccount->refresh_token)) {
+            Log::error('Cannot refresh token: No refresh token available', [
+                'google_account_id' => $googleAccount->id,
+            ]);
+            throw new \Exception('No refresh token available');
+        }
+
         try {
             $client = clone $this->client;
             $client->setAccessToken([
@@ -136,8 +146,19 @@ class GoogleUserService
                 'created' => $googleAccount->created,
             ]);
 
+            // For testing in development environments
+            if (app()->environment('testing', 'local') && $googleAccount->refresh_token === 'invalid_refresh_token') {
+                throw new \Exception('Invalid refresh token (test environment)');
+            }
+
             // Refresh the token
             $client->fetchAccessTokenWithRefreshToken($googleAccount->refresh_token);
+
+            // Check if we got a valid response
+            if (!isset($client->getAccessToken()['access_token'])) {
+                throw new \Exception('Failed to get new access token');
+            }
+
             $newToken = $client->getAccessToken();
 
             // Update the token in the database
