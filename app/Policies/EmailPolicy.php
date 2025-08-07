@@ -90,7 +90,7 @@ class EmailPolicy
      */
     public function editAndApprove(User $user, Email $email): bool
     {
-        return $user->hasPermission('approve_emails') && $user->hasPermission('edit_emails');
+        return $this->userHasProjectPermission($user, ['approve_emails', 'resubmit_emails'], $email->conversation?->project_id);
     }
 
     /**
@@ -170,7 +170,7 @@ class EmailPolicy
      * Helper method to check project-specific permission.
      * This should probably be a reusable trait or method on the User model.
      */
-    private function userHasProjectPermission(User $user, $permission, $projectId): bool
+    private function userHasProjectPermission(User $user, String|Array $permission, $projectId): bool
     {
         // This logic is adapted from your ProjectPolicy's helper method.
         $project = \App\Models\Project::with(['users' => function ($query) use ($user) {
@@ -185,6 +185,10 @@ class EmailPolicy
 
         if (!$projectRole) {
             return false;
+        }
+
+        if(is_array($permission)) {
+            return (bool) $projectRole->permissions->whereIn('slug', $permission)->count();
         }
 
         return $projectRole->permissions->contains('slug', $permission);
