@@ -285,6 +285,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- NEW: Email Templates API Routes ---
     // Protect these routes with a new permission: 'manage_email_templates'
+    Route::get('email-templates', [EmailTemplateController::class, 'index']);
     Route::apiResource('email-templates', EmailTemplateController::class)->middleware('permission:manage_email_templates');
     Route::post('email-templates/{emailTemplate}/placeholders', [EmailTemplateController::class, 'syncPlaceholders'])->middleware('permission:manage_email_templates');
     // We can also add a route to get a preview of the rendered template.
