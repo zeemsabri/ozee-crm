@@ -287,9 +287,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Protect these routes with a new permission: 'manage_email_templates'
 //    Route::get('email-templates', [EmailTemplateController::class, 'index']);
     Route::apiResource('email-templates', EmailTemplateController::class);
-    Route::post('email-templates/{emailTemplate}/placeholders', [EmailTemplateController::class, 'syncPlaceholders'])->middleware('permission:manage_email_templates');
+    Route::post('email-templates/{emailTemplate}/placeholders', [EmailTemplateController::class, 'syncPlaceholders']);
     // We can also add a route to get a preview of the rendered template.
-    Route::post('email-templates/{emailTemplate}/preview', [EmailTemplateController::class, 'preview'])->middleware('permission:manage_email_templates');
+    Route::post('email-templates/{emailTemplate}/preview', [EmailTemplateController::class, 'preview']);
 
     // --- NEW: Placeholder Definitions API Routes ---
     // Protected by 'manage_placeholder_definitions' permission
