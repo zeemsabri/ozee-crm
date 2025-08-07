@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Traits\GoogleApiAuthTrait;
 use Google\Client;
-use Google\Service\Gmail;
 use Google\Service\Gmail\Message;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -26,7 +25,6 @@ class GmailService
      */
     public function sendEmail(string $to, string $subject, string $body): string
     {
-        $service = new Gmail($this->client);
 
         // Construct the raw email message in RFC 2822 format.
         // This format is required by the Gmail API for sending raw messages.
@@ -44,7 +42,7 @@ class GmailService
 
         try {
             // 'me' refers to the authenticated user's mailbox (the one linked via OAuth)
-            $sentMessage = $service->users_messages->send('me', $message);
+            $sentMessage = $this->gmailService->users_messages->send('me', $message);
             Log::info('Email sent successfully via Gmail API', ['to' => $to, 'subject' => $subject, 'message_id' => $sentMessage->getId()]);
             return $sentMessage->getId();
         } catch (Exception $e) {
@@ -62,11 +60,10 @@ class GmailService
      */
     public function listMessages(int $maxResults = 10, string $query = 'is:inbox'): array
     {
-        $service = new Gmail($this->client);
         $messageIds = [];
         try {
             // 'me' refers to the authenticated user's mailbox
-            $response = $service->users_messages->listUsersMessages('me', [
+            $response = $this->gmailService->users_messages->listUsersMessages('me', [
                 'maxResults' => $maxResults,
                 'q' => $query,
             ]);
@@ -93,10 +90,10 @@ class GmailService
      */
     public function getMessage(string $messageId): array
     {
-        $service = new Gmail($this->client);
+
         try {
             // 'format' => 'full' fetches all headers and body parts.
-            $message = $service->users_messages->get('me', $messageId, ['format' => 'full']);
+            $message = $this->gmailService->users_messages->get('me', $messageId, ['format' => 'full']);
 
             $payload = $message->getPayload();
             $headers = $payload->getHeaders();

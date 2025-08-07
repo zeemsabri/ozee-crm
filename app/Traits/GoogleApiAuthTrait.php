@@ -6,6 +6,7 @@ use Google\Client;
 use Google\Client as GoogleClient;
 use Google\Service\Calendar;
 use Google\Service\Drive;
+use Google\Service\Gmail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 
@@ -20,11 +21,19 @@ trait GoogleApiAuthTrait
 
     protected $calendarId;
 
+    protected $gmailService;
+
     public function __construct()
     {
         $this->initializeGoogleClient();
         $this->setDriveScope();
         $this->setCalendarScope();
+        $this->setGmailScope();
+    }
+
+    private function setGmailScope()
+    {
+        $this->gmailService = new Gmail($this->getGoogleClient());
     }
 
     private function setDriveScope()
@@ -65,18 +74,19 @@ trait GoogleApiAuthTrait
         $parsedToken = json_decode($tokens, true);
         $this->client = new GoogleClient();
         $this->client->setAccessToken($tokens);
-        $this->authorizedEmail = $parsedToken['email'] ?? null;
+        $this->authorizedEmail = 'info@ozeeweb.com.au' ?? null;
         // Check if token is expired and refresh if necessary
         if ($this->client->isAccessTokenExpired()) {
             try {
 
                 $tokens = $this->getNewTokens($parsedToken['refresh_token']);
+
                 $newTokens = [
                     'access_token' => $this->client->getAccessToken()['access_token'],
                     'refresh_token' => $tokens['refresh_token'] ?? null,
                     'expires_in' => $tokens['expires_in'] ?? 3600,
                     'created' => now()->timestamp,
-                    'email' => $tokens['email'] ?? null,
+                    'email' => 'info@ozeeweb.com.au' ?? null,
                 ];
                 Storage::disk('local')->put('google_tokens.json', json_encode($newTokens, JSON_PRETTY_PRINT));
                 Log::info('Google access token refreshed', ['email' => $this->authorizedEmail]);
