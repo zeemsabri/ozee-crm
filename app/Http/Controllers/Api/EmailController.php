@@ -316,6 +316,7 @@ class EmailController extends Controller
     {
         $approver = Auth::user();
 
+        $this->authorize('editAndApprove', $email);
 
         if (!$approver) {
             return response()->json(['error' => 'No authenticated user found for approval.'], 401);
