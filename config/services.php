@@ -39,7 +39,7 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('GOOGLE_REDIRECT_URI'),
-        'user_redirect' =>  env('GOOGLE_USER_REDIRECT_URI', env('APP_URL').'/google/usercallback'),
+        'user_redirect' =>  env('USER_REDIRECT_URL', env('APP_URL').'/google/usercallback'),
         'primary_email' =>  env('GOOGLE_PRIMARY_EMAIL', 'info@ozeeweb.com.au'),
     ],
 
