@@ -69,7 +69,17 @@ class EmailObserver
             $projectId = $email->conversation->project_id;
 
             // Get all users with view_emails permission for this project
+            $usersWithApprovalPermission = PermissionHelper::getAllUsersWithPermission('approve_emails', $projectId)
+                ->merge(PermissionHelper::getAllUsersWithPermission('approve_received_emails', $projectId));
+
+            // Send notification to each user
+            foreach ($usersWithApprovalPermission as $userToNotify) {
+                $userToNotify->notify(new EmailApproved($email, true));
+            }
+
             $usersToNotify = PermissionHelper::getAllUsersWithPermission('view_emails', $projectId);
+
+            $usersToNotify = $usersToNotify->diff($usersWithApprovalPermission);
 
             // Send notification to each user
             foreach ($usersToNotify as $userToNotify) {
@@ -81,9 +91,6 @@ class EmailObserver
             $correlationId = 'email_approval_' . $email->id;
 
             // Find all users who would have received the original notification
-            $usersWithApprovalPermission = PermissionHelper::getAllUsersWithPermission('approve_emails', $projectId)
-                ->merge(PermissionHelper::getAllUsersWithPermission('approve_received_emails', $projectId));
-
             foreach ($usersWithApprovalPermission as $user) {
                 $user->unreadNotifications
                     ->where('data.correlation_id', $correlationId)

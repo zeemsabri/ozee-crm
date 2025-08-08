@@ -735,4 +735,23 @@ class ProjectReadController extends Controller
 
         return response()->json($meetings);
     }
+
+    /**
+     * Get standups for the authenticated user for today.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getUserStandups()
+    {
+        $user = Auth::user();
+        $today = now()->format('Y-m-d');
+
+        // Get all standups for the authenticated user created today
+        $standups = ProjectNote::where('user_id', $user->id)
+            ->where('type', 'standup')
+            ->whereDate('created_at', $today)
+            ->get();
+
+        return response()->json($standups);
+    }
 }

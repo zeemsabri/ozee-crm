@@ -47,14 +47,21 @@ class TestController extends Controller
     {
         $user = User::first();
         $email = Email::first();
-        if($request->notify === 'approval') {
-            $user->notify(new EmailApprovalRequired($email));
-        }
 
-//        $task = Task::first();
-        if($request->notify === 'approved') {
-            $user->notify(new EmailApproved($email));
-        }
+//        $email->status = 'pending_approval';
+//        $email->save();
+
+        $email->status = 'approved';
+        $email->save();
+
+//        if($request->notify === 'approval') {
+//            $user->notify(new EmailApprovalRequired($email));
+//        }
+//
+////        $task = Task::first();
+//        if($request->notify === 'approved') {
+//            $user->notify(new EmailApproved($email));
+//        }
 
         return 'done';
     }

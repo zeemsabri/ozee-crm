@@ -48,14 +48,8 @@ const fetchMeetingsToday = async () => {
 const fetchStandupsToday = async () => {
     loadingStandups.value = true;
     try {
-        const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
-        const response = await axios.get('/api/project-notes', {
-            params: {
-                type: 'standup',
-                date: today,
-                user_id: authUser.value.id
-            }
-        });
+        // We don't need to send user_id or date as the backend will handle that
+        const response = await axios.get('/api/user/standups');
         standupCount.value = response.data.length;
     } catch (err) {
         console.error('Error fetching standups:', err);

@@ -17,15 +17,18 @@ class EmailApproved extends Notification implements ShouldQueue, ShouldBroadcast
     protected $email;
     private array $payload;
 
+    private $clear;
+
     /**
      * Create a new notification instance.
      *
      * @param Email $email
      * @return void
      */
-    public function __construct(Email $email)
+    public function __construct(Email $email, $clear = null)
     {
         $this->email = $email;
+        $this->clear = $clear;
         $this->setPayload();
     }
 
@@ -67,7 +70,7 @@ class EmailApproved extends Notification implements ShouldQueue, ShouldBroadcast
             ? 'A received email has been approved: ' . $this->email->subject
             : 'An email has been approved: ' . $this->email->subject;
 
-        return [
+        $payload = [
             'title' => $title,
             'view_id' => Str::random(7),
             'project_name' => $projectName,
@@ -80,10 +83,15 @@ class EmailApproved extends Notification implements ShouldQueue, ShouldBroadcast
             'email_subject' => $this->email->subject,
             'email_type' => $emailType,
             'button_label'  =>  'View Project',
-            'clears_notification_type' => 'email_approval',
             'correlation_id' => 'email_approval_' . $this->email->id,
             'url' => url('/projects/' . $project->id)
         ];
+
+        if(ISSET($this->clear)) {
+            $payload['clears_notification_type'] = 'email_approval';
+        }
+
+        return $payload;
     }
 
     /**
