@@ -52,7 +52,7 @@ class TestController extends Controller
         }
 
 //        $task = Task::first();
-        if($request->approved === 'approved') {
+        if($request->notify === 'approved') {
             $user->notify(new EmailApproved($email));
         }
 
