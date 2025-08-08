@@ -543,7 +543,6 @@ class User extends Authenticatable
      */
     public function hasGoogleCredentials()
     {
-        return true;
         $googleAccount = $this->googleAccount()->first();
 
         // If no credentials exist, return false

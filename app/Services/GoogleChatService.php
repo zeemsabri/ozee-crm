@@ -144,9 +144,7 @@ class GoogleChatService
      */
     public function sendMessage(string $spaceName, string $messageText, array $cards = []): array
     {
-        $this->setGoogleChatScope(
-//            Auth::user()
-        );
+        $this->setGoogleChatScope(Auth::user());
         $service = new HangoutsChat($this->client);
         $message = new Message();
         $message->setText($messageText);
