@@ -34,7 +34,7 @@ return [
         [
             'name' => 'LinkedIn',
             'url' => 'https://www.linkedin.com/company/ozee-web',
-            'iconUrl' => 'in.svg'
+            'iconUrl' => '/in.svg'
         ],
         [
             'name' => 'Instagram',
