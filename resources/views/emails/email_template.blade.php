@@ -51,19 +51,6 @@
             border-bottom-right-radius: 8px;
             border-top: 1px solid {{ $borderColor ?? '#e5e7eb' }};
         }
-        .button-container {
-            text-align: center;
-            margin: 20px 0;
-        }
-        .button {
-            display: inline-block;
-            padding: 10px 20px;
-            background-color: {{ $brandPrimaryColor }};
-            color: #ffffff;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: bold;
-        }
         .signature-block {
             font-family: 'Inter', sans-serif;
             padding: 20px;
@@ -100,7 +87,7 @@
 
         <!-- Signature Block -->
         <div class="signature-block">
-            <table role="presentation" cellspacing="0" cellpadding="0" width="100%">
+            <table role="presentation">
                 <tr>
                     <td colspan="2" style="vertical-align: top;">
                         <p style="margin: 0; font-size: 18px; color: {{ $textColorPrimary }}; line-height: 1.2;">Best Regards</p>
