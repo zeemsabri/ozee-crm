@@ -121,7 +121,9 @@
                             <div style="margin-top: 15px; text-align: left;" class="social-icons">
                                 @foreach($socialIcons as $social)
                                     <a href="{{ $social['url'] }}" target="_blank" style="display: inline-block; margin-right: 8px; color: {{ $brandPrimaryColor }}; text-decoration: none;">
-                                        <img src="{{ $social['iconUrl'] }}" alt="{{ $social['name'] }}" style="vertical-align: middle;" width="24" height="24">
+                                        <img src="{{ config('app.url') . $social['iconUrl'] }}"
+                                             alt="{{ $social['name'] }}" style="vertical-align: middle;" width="24"
+                                             height="24">
                                     </a>
                                 @endforeach
                             </div>

@@ -24,22 +24,22 @@ return [
         [
             'name' => 'Facebook',
             'url' => 'https://www.facebook.com/ozeeweb.and.digital/',
-            'iconUrl' => 'https://placehold.co/24x24/3b5998/ffffff?text=f'
+            'iconUrl' => '/fb.svg'
         ],
         [
             'name' => 'Twitter',
             'url' => 'https://x.com/OZee_Web',
-            'iconUrl' => 'https://placehold.co/24x24/1da1f2/ffffff?text=t'
+            'iconUrl' => '/ig.svg'
         ],
         [
             'name' => 'LinkedIn',
             'url' => 'https://www.linkedin.com/company/ozee-web',
-            'iconUrl' => 'https://placehold.co/24x24/0077b5/ffffff?text=in'
+            'iconUrl' => 'in.svg'
         ],
         [
             'name' => 'Instagram',
             'url' => 'https://www.instagram.com/ozee_web_and_digital/',
-            'iconUrl' => 'https://placehold.co/24x24/833ab4/ffffff?text=ig'
+            'iconUrl' => '/x.svg'
         ],
     ],
 
