@@ -103,7 +103,7 @@ class EmailPolicy
              return true;
          }
 
-         return $this->userHasProjectPermission($user, 'approve_email', $email->conversation?->project_id);
+         return $this->userHasProjectPermission($user, 'approve_emails', $email->conversation?->project_id);
     }
 
     /**
