@@ -299,15 +299,7 @@ const closeModal = () => {
                         </p>
                     </div>
                     <div class="mt-8 md:mt-0 text-right">
-                        <p class="text-gray-400">
-                            Built with Laravel v{{ laravelVersion }} (PHP v{{ phpVersion }})
-                        </p>
-                        <p class="mt-2 text-gray-400">
-                            &copy; {{ new Date().getFullYear() }} OZEE CRM. All rights reserved.
-                        </p>
-                        <p class="mt-2 text-gray-400">
-                            <Link :href="route('privacy.policy')" class="text-indigo-400 hover:text-indigo-300">Privacy Policy</Link>
-                        </p>
+
                     </div>
                 </div>
             </div>
