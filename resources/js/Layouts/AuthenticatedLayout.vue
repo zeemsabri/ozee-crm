@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import PushNotificationContainer from '@/Components/PushNotificationContainer.vue';
+import StandardNotificationContainer from '@/Components/StandardNotificationContainer.vue'; // Import the new component
 import AvailabilityBlocker from '@/Components/Availability/AvailabilityBlocker.vue';
 import { usePage, router } from '@inertiajs/vue3';
 import { setStandardNotificationContainer } from '@/Utils/notification';
@@ -24,6 +25,9 @@ const addResource = ref(false);
 const allProjectsForSidebar = ref([]);
 const loadingAllProjects = ref(true);
 const activeProjectId = computed(() => usePage().props.id || null);
+
+// Create a new ref for the standard notification container
+const standardNotificationContainerRef = ref(null);
 
 const setAxiosAuthHeader = async () => {
     const token = localStorage.getItem('authToken');
@@ -85,8 +89,6 @@ const handleProjectSelected = (projectId) => {
     router.visit(route('projects.show', projectId));
 };
 
-const notificationContainerRef = ref(null);
-
 const unreadNotificationCount = computed(() => {
     return notificationSidebarState.value.notifications.filter(n => !n.isRead).length;
 });
@@ -101,8 +103,9 @@ const handleTaskDeleted = (taskId) => {
 
 onMounted(() => {
     setAxiosAuthHeader();
-    if (notificationContainerRef.value) {
-        setStandardNotificationContainer(notificationContainerRef.value);
+    // Set the standard notification container to the new component instance
+    if (standardNotificationContainerRef.value) {
+        setStandardNotificationContainer(standardNotificationContainerRef.value);
     }
     fetchAllProjects();
     fetchNotificationsFromDatabase();
@@ -111,11 +114,12 @@ onMounted(() => {
 
 <template>
     <div class="flex h-screen overflow-hidden">
-        <!-- Push Notification Container (visible only when the notifications sidebar is not open) -->
-        <PushNotificationContainer
-            ref="notificationContainerRef"
-            :sidebar-is-open="notificationSidebarState.show"
-        />
+        <!-- Standard Toast Notifications -->
+        <StandardNotificationContainer ref="standardNotificationContainerRef" />
+
+        <!-- Push Notifications (no longer needs a ref for standard notifications) -->
+        <PushNotificationContainer :sidebar-is-open="notificationSidebarState.show" />
+
         <AvailabilityBlocker />
         <LeftSidebar
             :all-projects="allProjectsForSidebar"

@@ -64,6 +64,8 @@ Route::post('/reset-password', [NewPasswordController::class, 'store'])
 // Client Magic Link Route (accessible without authentication)
 Route::post('/client-magic-link', [MagicLinkController::class, 'sendClientMagicLink']);
 
+Route::get('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
+
 // Authenticated API Routes (behind auth:sanctum middleware for internal users)
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {

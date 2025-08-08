@@ -2,9 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Email;
+use App\Models\Task;
 use App\Models\User;
 use App\Models\Project;
+use App\Notifications\EmailApprovalRequired;
+use App\Notifications\EmailApproved;
+use App\Notifications\TaskAssigned;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class TestController extends Controller
 {
@@ -35,5 +41,15 @@ class TestController extends Controller
                 'role' => $userRole
             ]
         ]);
+    }
+
+    public function playGourd()
+    {
+        $user = User::first();
+        $email = Email::first();
+        $user->notify(new EmailApprovalRequired($email));
+//        $task = Task::first();
+        $user->notify(new EmailApproved($email));
+        return 'done';
     }
 }
