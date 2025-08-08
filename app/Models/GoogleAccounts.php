@@ -61,4 +61,14 @@ class GoogleAccounts extends Model
         // Token is expired if current time is greater than created time + expires_in
         return time() > ($this->created + $this->expires_in);
     }
+
+    public function getTokensAttribute()
+    {
+        return json_encode([
+            'access_token' =>  $this->access_token,
+            'refresh_token' =>  $this->refresh_token,
+            'expires_in'    =>  $this->expires_in,
+            'created'   =>  $this->created
+        ]);
+    }
 }

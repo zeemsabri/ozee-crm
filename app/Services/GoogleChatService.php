@@ -17,7 +17,13 @@ use Exception;
 
 class GoogleChatService
 {
-    use GoogleApiAuthTrait;
+
+    protected GoogleClient $client;
+
+    public function __construct(GoogleClient $client)
+    {
+        $this->client = $client;
+    }
 
     /**
      * Creates a new Google Chat space.
@@ -151,20 +157,22 @@ class GoogleChatService
             Log::warning('Card messages are not fully implemented. Only text will be sent.');
         }
 
-        try {
-            $sentMessage = $service->spaces_messages->create($spaceName, $message);
-            Log::info('Message sent to Google Chat space', ['space_name' => $spaceName, 'message_id' => $sentMessage->getName()]);
-            // Convert Message object to array manually for consistency
-            return [
-                'name' => $sentMessage->getName(),
-                'text' => $sentMessage->getText(),
-                'sender' => $sentMessage->getSender(),
-                'createTime' => $sentMessage->getCreateTime()
-            ];
-        } catch (Exception $e) {
-            Log::error('Failed to send message to Google Chat: ' . $e->getMessage(), ['space_name' => $spaceName, 'exception' => $e]);
-            throw new Exception('Failed to send message to Google Chat: ' . $e->getMessage());
-        }
+        Log::info(json_encode($this->client->getAccessToken()));
+        Log::info(json_encode($this->client->isAccessTokenExpired()));
+//        try {
+//            $sentMessage = $service->spaces_messages->create($spaceName, $message);
+//            Log::info('Message sent to Google Chat space', ['space_name' => $spaceName, 'message_id' => $sentMessage->getName()]);
+//            // Convert Message object to array manually for consistency
+//            return [
+//                'name' => $sentMessage->getName(),
+//                'text' => $sentMessage->getText(),
+//                'sender' => $sentMessage->getSender(),
+//                'createTime' => $sentMessage->getCreateTime()
+//            ];
+//        } catch (Exception $e) {
+//            Log::error('Failed to send message to Google Chat: ' . $e->getMessage(), ['space_name' => $spaceName, 'exception' => $e]);
+//            throw new Exception('Failed to send message to Google Chat: ' . $e->getMessage());
+//        }
     }
 
     /**

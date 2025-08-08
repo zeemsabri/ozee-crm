@@ -79,3 +79,24 @@ export const formatDate = (dateString) => {
         return date.toLocaleDateString('en-GB'); // dd/mm/yyyy format
     }
 };
+
+/**
+ * Alias for error notification (for backward compatibility)
+ * @param {string} message - The notification message
+ * @param {number} duration - How long the notification should be displayed (in ms)
+ * @returns {string|null} The notification ID or null if the container is not set
+ */
+export const showErrorNotification = (message, duration = 5000) => {
+    return error(message, duration);
+};
+
+
+/**
+ * Alias for success notification (for backward compatibility)
+ * @param {string} message - The notification message
+ * @param {number} duration - How long the notification should be displayed (in ms)
+ * @returns {string|null} The notification ID or null if the container is not set
+ */
+export const showSuccessNotification = (message, duration = 5000) => {
+    return success(message, duration);
+};

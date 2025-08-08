@@ -72,7 +72,7 @@ trait GoogleApiAuthTrait
     {
         // Load the stored tokens
 
-        $googleAccount = request()->user()->googleAccount;
+        $googleAccount = null;
         if($googleAccount) {
             $tokens = $googleAccount->tokens;
             $this->client = new GoogleClient();

@@ -137,7 +137,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('projects/{project}/detach-clients', [ProjectActionController::class, 'detach-clients']);
     Route::post('projects/{project}/transactions', [\App\Http\Controllers\Api\TransactionsController::class, 'addTransactions']);
     Route::patch('projects/{project}/transactions/{transaction}/process-payment', [\App\Http\Controllers\Api\TransactionsController::class, 'processPayment']);
-    Route::post('projects/{project}/notes', [ProjectActionController::class, 'addNotes']);
+    Route::post('projects/{project}/notes', [ProjectActionController::class, 'addNotes'])->middleware('google.chat.auth');
     Route::post('projects/{project}/notes/{note}/reply', [ProjectActionController::class, 'replyToNote']);
     Route::post('projects/{project}/document', [ProjectActionController::class, 'uploadDocuments'])->name('singleDocument');
     Route::post('projects/{project}/documents', [ProjectActionController::class, 'uploadDocuments'])->name('multipleDocuments');

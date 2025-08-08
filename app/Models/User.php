@@ -516,6 +516,26 @@ class User extends Authenticatable
         return $this->hasOne(GoogleAccounts::class);
     }
 
+    public function getGoogleAccessTokenAttribute()
+    {
+        return $this->googleAccount()->first()?->access_token;
+    }
+
+    public function getGoogleRefreshTokenAttribute()
+    {
+        return $this->googleAccount()->first()?->refresh_token;
+    }
+
+    public function getGoogleExpiresInAttribute()
+    {
+        return $this->googleAccount()->first()?->expires_in;
+    }
+
+    public function getGoogleEmailAttribute()
+    {
+        return $this->googleAccount()->first()?->email;
+    }
+
     /**
      * Check if the user has valid Google credentials.
      *

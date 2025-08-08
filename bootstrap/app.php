@@ -27,7 +27,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'permission' => CheckPermission::class,
             'auth.magiclink' => \App\Http\Middleware\VerifyMagicLinkToken::class,
-            'process.tags' => \App\Http\Middleware\ProcessTags::class
+            'process.tags' => \App\Http\Middleware\ProcessTags::class,
+            'google.chat.auth' => \App\Http\Middleware\AuthenticateGoogleChat::class,
         ]);
 
         //

@@ -546,7 +546,9 @@ class ProjectActionController extends Controller
      */
     public function addNotes(Request $request, Project $project)
     {
+
         $user = Auth::user();
+
         if (!$this->canAddProjectNotes($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to add notes.'], 403);
         }
