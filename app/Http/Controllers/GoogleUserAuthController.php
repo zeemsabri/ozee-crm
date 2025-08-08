@@ -45,6 +45,8 @@ class GoogleUserAuthController extends Controller
             'https://www.googleapis.com/auth/chat.memberships',
         ];
 
+        Log::info('redirect url' . env('USER_REDIRECT_URL', config('services.google.user_redirect')) );
+
         return Socialite::driver('google')
             ->scopes($scopes)
             ->with(['access_type' => 'offline', 'prompt' => 'consent'])
