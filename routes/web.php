@@ -111,7 +111,7 @@ Route::get('/email-preview/{slug?}', [EmailPreviewController::class, 'preview'])
 
 // Privacy Policy Route - publicly accessible
 Route::get('/privacy-policy', function () {
-    return Inertia::render('PrivacyPolicy');
+    return view('privacy-policy');
 })->name('privacy.policy');
 
 // Test Google Auth Flow Route - for development only
