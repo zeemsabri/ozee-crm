@@ -129,7 +129,7 @@ trait GoogleApiAuthTrait
             // Store the updated tokens
             if ($user) {
                 $user->googleAccount()->firstOrCreate(['email' => $updateData['email']])->update($updateData);
-            } elseif ($this->authorizedEmail === env('GOOGLE_PRIMARY_EMAIL', 'services.google.primary_email')) {
+            } elseif ($this->authorizedEmail === env('GOOGLE_PRIMARY_EMAIL', config('services.google.primary_email'))) {
                 Storage::disk('local')->put('google_tokens.json', json_encode($updateData, JSON_PRETTY_PRINT));
             }
 
