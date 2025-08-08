@@ -43,13 +43,19 @@ class TestController extends Controller
         ]);
     }
 
-    public function playGourd()
+    public function playGourd(Request $request)
     {
         $user = User::first();
         $email = Email::first();
-        $user->notify(new EmailApprovalRequired($email));
+        if($request->notify === 'approval') {
+            $user->notify(new EmailApprovalRequired($email));
+        }
+
 //        $task = Task::first();
-        $user->notify(new EmailApproved($email));
+        if($request->approved === 'approved') {
+            $user->notify(new EmailApproved($email));
+        }
+
         return 'done';
     }
 }
