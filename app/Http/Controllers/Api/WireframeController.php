@@ -75,10 +75,37 @@ class WireframeController extends Controller
             'name' => $request->name,
         ]);
 
+        $data = $request->data ?? json_encode('{
+                                "wireframe": {
+                                    "id": 8,
+                                    "project_id": 2,
+                                    "name": "Home",
+                                    "created_at": "2025-08-07T17:34:22.000000Z",
+                                    "updated_at": "2025-08-07T17:34:22.000000Z"
+                                },
+                                "versions": [
+                                    {
+                                        "id": 1,
+                                        "wireframe_id": 8,
+                                        "version_number": 1,
+                                        "data": {
+                                            "canvasSize": {
+                                                "width": 1280,
+                                                "height": 720
+                                            },
+                                            "components": []
+                                        },
+                                        "status": "published",
+                                        "created_at": "2025-08-07T17:34:22.000000Z",
+                                        "updated_at": "2025-08-07T17:45:47.000000Z",
+                                        "name": null
+                                    }
+                                ]
+                            }');
         $version = WireframeVersion::create([
             'wireframe_id' => $wireframe->id,
             'version_number' => 1,
-            'data' => json_decode($request->data, true),
+            'data' => json_decode($data, true),
             'status' => 'draft',
         ]);
 
