@@ -539,13 +539,7 @@ class EmailController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user->isSuperAdmin() && !$user->isManager()) {
-            return response()->json(['message' => 'Unauthorized to reject emails.'], 403);
-        }
-
-        if ($email->status !== 'pending_approval') {
-            return response()->json(['message' => 'Email is not in pending approval status.'], 400);
-        }
+       $this->authorize('reject', $email);
 
         try {
             $validated = $request->validate([
@@ -558,16 +552,20 @@ class EmailController extends Controller
                 'approved_by' => $user->id,
             ]);
 
-            Log::info('Email rejected', ['email_id' => $email->id, 'rejection_reason' => $validated['rejection_reason'], 'rejected_by' => $user->id]);
             return response()->json(['message' => 'Email rejected successfully!', 'email' => $email->load('approver')], 200);
+
         } catch (ValidationException $e) {
+
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $e->errors(),
             ], 422);
+
         } catch (\Exception $e) {
+
             Log::error('Error rejecting email: ' . $e->getMessage(), ['email_id' => $email->id, 'error' => $e->getTraceAsString()]);
             return response()->json(['message' => 'Failed to reject email: ' . $e->getMessage()], 500);
+
         }
     }
 

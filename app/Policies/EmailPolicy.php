@@ -94,7 +94,11 @@ class EmailPolicy
      */
     public function reject(User $user, Email $email): bool
     {
-        return $user->hasPermission('approve_emails');
+         if($user->hasPermission('approve_emails')) {
+             return true;
+         }
+
+         return $this->userHasProjectPermission($user, 'approve_email', $email->conversation?->project_id);
     }
 
     /**
