@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\GoogleAuthController; // Import our Google Auth controller (for web routes)
 use App\Http\Controllers\Api\MagicLinkController; // Import for magic link functionality
-
+use App\Http\Controllers\GoogleUserAuthController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -135,7 +135,7 @@ Route::get('/google/redirect', [GoogleAuthController::class, 'redirectToGoogle']
 Route::get('/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])->name('google.callback');
 
 // --- Google User OAuth Routes (for user-based authentication) ---
-use App\Http\Controllers\GoogleUserAuthController;
+
 Route::get('/user/google/redirect', [GoogleUserAuthController::class, 'redirectToGoogle'])->name('user.google.redirect');
 Route::get('/google/usercallback', [GoogleUserAuthController::class, 'handleCallback'])->name('user.google.callback');
 Route::get('/user/google/check', [GoogleUserAuthController::class, 'checkGoogleConnection'])->name('user.google.check');

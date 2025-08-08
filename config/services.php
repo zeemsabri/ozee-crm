@@ -39,6 +39,8 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('GOOGLE_REDIRECT_URI'),
+        'user_redirect' =>  env('GOOGLE_USER_REDIRECT_URI'),
+        'primary_email' =>  env('GOOGLE_PRIMARY_EMAIL'),
     ],
 
     'exchange_rates' => [

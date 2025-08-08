@@ -48,10 +48,8 @@ class GoogleUserAuthController extends Controller
         return Socialite::driver('google')
             ->scopes($scopes)
             ->with(['access_type' => 'offline', 'prompt' => 'consent'])
-            ->redirectUrl(env('USER_REDIRECT_URL'))
+            ->redirectUrl(env('USER_REDIRECT_URL', 'services.google.user_redirect'))
             ->redirect();
-        return redirect()->away($this->googleUserService->getAuthUrl());
-//            ->with('success', 'Google account connected successfully.');
     }
 
     /**
