@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resize Handle Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .test-steps {
+            margin-top: 20px;
+            line-height: 1.6;
+        }
+        .test-steps ol {
+            padding-left: 20px;
+        }
+        .test-steps li {
+            margin-bottom: 10px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Resize Handle Test</h1>
+        <p>This page helps verify that the resize handle functionality is working correctly in the wireframe editor.</p>
+
+        <div class="test-steps">
+            <h2>Test Steps:</h2>
+            <ol>
+                <li>Open the <a href="wireframe.html" target="_blank">wireframe editor</a> in a new tab.</li>
+                <li>Add a component (e.g., Container, Button, etc.) to the canvas.</li>
+                <li>Click on the component to select it. You should see blue resize handles at the corners.</li>
+                <li>Try dragging any of the resize handles to resize the component. The component should resize accordingly.</li>
+                <li>Open the Properties panel on the right side and try changing the Width and Height values. The component should resize accordingly.</li>
+                <li>Verify that both methods of resizing (handles and property inputs) work correctly.</li>
+            </ol>
+        </div>
+
+        <a href="wireframe.html" class="button" target="_blank">Open Wireframe Editor</a>
+    </div>
+</body>
+</html>

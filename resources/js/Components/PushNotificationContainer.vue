@@ -1,35 +1,43 @@
 <template>
-    <div class="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-4" v-if="!sidebarIsOpen">
-        <!-- Notifications are stacked here -->
-        <div v-for="notification in visibleNotifications" :key="notification.id" class="w-full max-w-sm">
-            <div class="bg-white rounded-xl shadow-lg p-5 flex items-start space-x-4 border border-gray-200">
+    <div class="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-2" v-if="!sidebarIsOpen">
+        <!-- Container for the notifications -->
+        <div
+            class="notification-list w-full max-w-xs space-y-2"
+            v-if="!isMinimized && visibleNotifications.length > 0"
+        >
+            <!-- Notifications are stacked here -->
+            <div
+                v-for="notification in visibleNotifications"
+                :key="notification.id"
+                class="bg-white rounded-lg shadow-lg p-3 flex items-start space-x-3 border border-gray-200 transition-opacity duration-300 opacity-60 hover:opacity-100"
+            >
                 <!-- Content section -->
                 <div class="flex-1 min-w-0">
                     <!-- Title, Project Name -->
-                    <div class="flex items-start justify-between gap-2 mb-2">
+                    <div class="flex items-start justify-between gap-2 mb-1">
                         <div class="flex-1 min-w-0">
-                            <h3 v-if="notification.title" class="text-lg font-semibold text-gray-900 truncate">
+                            <h3 v-if="notification.title" class="text-base font-semibold text-gray-800 truncate">
                                 {{ notification.title }}
                             </h3>
-                            <p v-if="notification.project_name" class="text-sm text-gray-500">
+                            <p v-if="notification.project_name" class="text-xs text-gray-500">
                                 {{ notification.project_name }}
                             </p>
                         </div>
                     </div>
 
                     <!-- Description -->
-                    <p v-if="notification.message" class="text-sm text-gray-600 mb-2">
+                    <p v-if="notification.message" class="text-xs text-gray-600 mb-2">
                         {{ notification.message }}
                     </p>
 
                     <!-- Due date and action button -->
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-3 space-y-2 sm:space-y-0">
+                    <div class="flex items-center justify-between mt-2">
                         <div v-if="notification.due_date" class="text-xs text-gray-500 font-medium">
                             Due: {{ formatDate(notification.due_date) }}
                         </div>
                         <button
                             @click="handleButtonClick(notification)"
-                            class="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 shadow-md"
+                            class="px-2.5 py-1 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors duration-200 shadow"
                         >
                             {{ notification.button_label || "View" }}
                         </button>
@@ -37,16 +45,26 @@
                 </div>
             </div>
         </div>
+
+        <!-- Minimize / Show Button -->
+        <div class="flex justify-end w-full max-w-xs" v-if="visibleNotifications.length > 0">
+            <button @click="toggleMinimize" class="bg-white/80 backdrop-blur-sm text-gray-600 hover:text-gray-900 text-xs font-bold py-1 px-3 rounded-full shadow-md transition-all duration-300">
+                <span v-if="isMinimized">Show ({{ formattedCountdown }})</span>
+                <span v-else>Minimize</span>
+            </button>
+        </div>
     </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, getCurrentInstance } from 'vue';
-import { setPushNotificationContainer } from '@/Utils/notification';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { openTaskDetailSidebar } from '@/Utils/sidebar';
-import { markNotificationAndRefetch, notificationSidebarState } from '@/Utils/notification-sidebar';
+import {
+    notificationSidebarState,
+    markNotificationAndRefetch,
+    markToastAsSeen
+} from '@/Utils/notification-sidebar';
 import { formatDate } from '@/Utils/notification';
-import { watch } from 'vue';
 
 const props = defineProps({
     sidebarIsOpen: {
@@ -55,59 +73,71 @@ const props = defineProps({
     }
 });
 
-// The local array to hold notifications for the push container
-const localNotifications = ref([]);
+// --- STATE (Minimize functionality only) ---
+const isMinimized = ref(false);
+const minimizeTimer = ref(null);
+const minimizeCountdown = ref(0);
+const countdownInterval = ref(null);
 
-// The maximum number of notifications to display at once
+// --- COMPUTED ---
 const maxVisible = 3;
 
-// A computed property to get only the visible notifications for the toast container
+// This component now reads directly from the global state.
+// It only shows notifications that are flagged as a new push.
 const visibleNotifications = computed(() => {
-    // Only show unread notifications as toasts
-    return localNotifications.value.filter(n => !n.isRead).slice(0, maxVisible);
+    return notificationSidebarState.value.notifications
+        .filter(n => n.isNewPush)
+        .slice(0, maxVisible);
 });
 
-// Watch the global state for changes to hide notifications in the local array
-watch(() => notificationSidebarState.value.notifications, (newNotifications) => {
-    // When the global state changes (e.g., a notification is read),
-    // update our local notifications.
-    const newUnread = newNotifications.filter(n => !n.isRead);
-    localNotifications.value = [...newUnread];
+const formattedCountdown = computed(() => {
+    const minutes = Math.floor(minimizeCountdown.value / 60);
+    const seconds = minimizeCountdown.value % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 });
 
-/**
- * Extracts the taskId from a given URL string.
- * @param {string} url - The URL string.
- * @returns {number|null} The task ID or null if not found.
- */
+// --- METHODS ---
+
 const getTaskIdFromUrl = (url) => {
+    if (!url) return null;
     const match = url.match(/\/task\/(\d+)/);
     return match ? parseInt(match[1]) : null;
 };
 
-/**
- * Extracts the projectId from a given URL string.
- * @param {string} url - The URL string.
- * @returns {number|null} The project ID or null if not found.
- */
 const getProjectIdFromUrl = (url) => {
+    if (!url) return null;
     const match = url.match(/\/project\/(\d+)\//);
     return match ? parseInt(match[1]) : null;
 };
 
-/**
- * This function is now responsible for adding the notification to the local state.
- * @param {object} payload - The notification payload from the push event.
- */
-const addNotification = (payload) => {
-    localNotifications.value.push(payload);
+const toggleMinimize = () => {
+    isMinimized.value = !isMinimized.value;
+
+    clearTimeout(minimizeTimer.value);
+    clearInterval(countdownInterval.value);
+
+    if (isMinimized.value) {
+        minimizeTimer.value = setTimeout(() => {
+            isMinimized.value = false;
+            clearInterval(countdownInterval.value);
+        }, 300000); // 5 minutes
+
+        minimizeCountdown.value = 300;
+        countdownInterval.value = setInterval(() => {
+            if (minimizeCountdown.value > 0) {
+                minimizeCountdown.value--;
+            } else {
+                clearInterval(countdownInterval.value);
+            }
+        }, 1000);
+    }
 };
 
-/**
- * Handles the click event for the notification's action button.
- */
 const handleButtonClick = async (notification) => {
-    // Mark the notification as read on the backend and re-fetch
+    // Mark the toast as "seen" to remove it from the push container view.
+    markToastAsSeen(notification.id);
+
+    // Mark as read in the database
     await markNotificationAndRefetch(notification.view_id);
 
     const taskId = notification.task_id || getTaskIdFromUrl(notification.url);
@@ -116,27 +146,16 @@ const handleButtonClick = async (notification) => {
     if (taskId && projectId) {
         openTaskDetailSidebar(taskId, projectId);
     } else {
-        console.warn('Could not open task sidebar. Falling back to opening URL in new tab.');
+        console.warn('Could not open task sidebar. Falling back to redirecting.');
         if (notification.url) {
-            window.open(notification.url, '_blank');
+            window.location.href = notification.url;
         }
     }
 };
 
-// Expose the addNotification method so it can be called from outside
-defineExpose({
-    addNotification
-});
-
-// Use onMounted to ensure the component is fully ready before setting the global reference.
-onMounted(() => {
-    const instance = getCurrentInstance();
-    if (instance) {
-        setPushNotificationContainer(instance.exposed);
-    }
+// --- LIFECYCLE ---
+onUnmounted(() => {
+    clearTimeout(minimizeTimer.value);
+    clearInterval(countdownInterval.value);
 });
 </script>
-
-<style scoped>
-/* Scoped styles... */
-</style>

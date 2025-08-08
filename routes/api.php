@@ -64,6 +64,8 @@ Route::post('/reset-password', [NewPasswordController::class, 'store'])
 // Client Magic Link Route (accessible without authentication)
 Route::post('/client-magic-link', [MagicLinkController::class, 'sendClientMagicLink']);
 
+Route::get('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
+
 // Authenticated API Routes (behind auth:sanctum middleware for internal users)
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
@@ -295,10 +297,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- NEW: Email Templates API Routes ---
     // Protect these routes with a new permission: 'manage_email_templates'
-    Route::apiResource('email-templates', EmailTemplateController::class)->middleware('permission:manage_email_templates');
-    Route::post('email-templates/{emailTemplate}/placeholders', [EmailTemplateController::class, 'syncPlaceholders'])->middleware('permission:manage_email_templates');
+//    Route::get('email-templates', [EmailTemplateController::class, 'index']);
+    Route::apiResource('email-templates', EmailTemplateController::class);
+    Route::post('email-templates/{emailTemplate}/placeholders', [EmailTemplateController::class, 'syncPlaceholders']);
     // We can also add a route to get a preview of the rendered template.
-    Route::post('email-templates/{emailTemplate}/preview', [EmailTemplateController::class, 'preview'])->middleware('permission:manage_email_templates');
+    Route::post('email-templates/{emailTemplate}/preview', [EmailTemplateController::class, 'preview']);
 
     // --- NEW: Placeholder Definitions API Routes ---
     // Protected by 'manage_placeholder_definitions' permission

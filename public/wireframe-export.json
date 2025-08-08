@@ -1,0 +1,101 @@
+{
+  "components": [
+    {
+      "id": "ddcd7546-7086-4d8c-ab2f-cf074abf9a0a",
+      "type": "Container",
+      "position": {
+        "x": 120,
+        "y": 200
+      },
+      "size": {
+        "width": 400,
+        "height": 200
+      },
+      "content": {}
+    },
+    {
+      "id": "99ea1743-4462-42b7-be12-3c82de596cb0",
+      "type": "Heading",
+      "position": {
+        "x": 120,
+        "y": 140
+      },
+      "size": {
+        "width": 300,
+        "height": 50
+      },
+      "content": {
+        "text": "Main Heading"
+      }
+    },
+    {
+      "id": "28197183-d4a7-4b21-b12d-af0c4359befb",
+      "type": "Paragraph",
+      "position": {
+        "x": 120,
+        "y": 240
+      },
+      "size": {
+        "width": 300,
+        "height": 100
+      },
+      "content": {
+        "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+      }
+    },
+    {
+      "id": "14ef4a33-d4c1-4653-a736-c7bdd1e9f5d6",
+      "type": "Icon",
+      "position": {
+        "x": 80,
+        "y": 160
+      },
+      "size": {
+        "width": 40,
+        "height": 40
+      },
+      "content": {}
+    },
+    {
+      "id": "45f25a5f-7b75-429f-8979-416c18deff9f",
+      "type": "HorizontalRule",
+      "position": {
+        "x": 80,
+        "y": 340
+      },
+      "size": {
+        "width": 400,
+        "height": 10
+      },
+      "content": {}
+    },
+    {
+      "id": "ef89fe16-29e9-4c0e-8a6e-278e3124b36c",
+      "type": "Navbar",
+      "position": {
+        "x": 100,
+        "y": 40
+      },
+      "size": {
+        "width": 800,
+        "height": 60
+      },
+      "content": {
+        "logo": "Logo",
+        "links": "Home,About,Services,Contact"
+      }
+    }
+  ],
+  "selectedIds": [],
+  "canvasSize": {
+    "width": 1280,
+    "height": 720
+  },
+  "view": {
+    "scale": 1,
+    "panOffset": {
+      "x": 0,
+      "y": 0
+    }
+  }
+}
