@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue';
+import { ref, onMounted, watch, computed, nextTick } from 'vue';
 import axios from 'axios';
 import { success, error } from '@/Utils/notification';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -11,6 +11,7 @@ import InputError from '@/Components/InputError.vue';
 import Modal from '@/Components/Modal.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import TextareaInput from '@/Components/TextareaInput.vue';
+import { TrashIcon } from '@heroicons/vue/20/solid';
 
 const props = defineProps({
     projectId: {
@@ -37,13 +38,13 @@ const props = defineProps({
 
 // State for deliverables and deliverable types
 const deliverables = ref([]);
-const deliverableTypes = ref([]); // New state for dynamic types
+const deliverableTypes = ref([]);
 const isLoading = ref(true);
 const milestones = ref([]);
 
 // Form state
 const showForm = ref(false);
-const formMode = ref('create'); // 'create' or 'edit'
+const formMode = ref('create');
 const currentDeliverable = ref({
     id: null,
     name: '',
@@ -51,10 +52,13 @@ const currentDeliverable = ref({
     milestone_id: null,
     status: 'pending',
     due_date: '',
-    details: {}
+    details: {
+        deliverable_type_key: null,
+        checklist: [],
+    }
 });
 const formErrors = ref({});
-const dynamicInputStrings = ref({});
+const checklistInputRefs = ref([]);
 
 // Status options
 const statusOptions = [
@@ -64,10 +68,10 @@ const statusOptions = [
     { value: 'cancelled', label: 'Cancelled' }
 ];
 
-// Computed property for the fields of the currently selected deliverable type
-const dynamicFields = computed(() => {
-    const selectedType = deliverableTypes.value.find(type => type.id === currentDeliverable.value.details?.deliverable_type_id);
-    return selectedType?.fields || [];
+// Computed property for the placeholder of the currently selected deliverable type
+const checklistPlaceholder = computed(() => {
+    const selectedType = deliverableTypes.value.find(type => type.key === currentDeliverable.value.details?.deliverable_type_key);
+    return selectedType?.checklistItemPlaceholder || 'e.g., Task 1, Task 2, Task 3';
 });
 
 // Load deliverables, milestones, and deliverable types when component mounts or projectId changes
@@ -78,15 +82,12 @@ async function fetchData() {
 
     isLoading.value = true;
     try {
-        // Fetch project deliverables
         const deliverablesResponse = await axios.get(`/api/projects/${props.projectId}/project-deliverables`);
         deliverables.value = deliverablesResponse.data;
 
-        // Fetch milestones for the dropdown
         const milestonesResponse = await axios.get(`/api/projects/${props.projectId}/milestones`);
         milestones.value = milestonesResponse.data;
 
-        // Fetch the user-defined deliverable types
         const deliverableTypesResponse = await axios.get(`/api/project-deliverable-types`);
         deliverableTypes.value = deliverableTypesResponse.data;
 
@@ -108,30 +109,37 @@ function openCreateForm() {
         status: 'pending',
         due_date: '',
         details: {
-            deliverable_type_id: null,
+            deliverable_type_key: null,
+            checklist: [{ name: '', completed: false }], // Always start with one empty item
         }
     };
     formErrors.value = {};
     showForm.value = true;
-    // Initialize local state for dynamic inputs
-    dynamicInputStrings.value = {};
 }
 
 function openEditForm(deliverable) {
     formMode.value = 'edit';
-    // Deep copy to ensure changes in the modal don't affect the list until saved
-    currentDeliverable.value = { ...deliverable, details: { ...deliverable.details } };
+    currentDeliverable.value = JSON.parse(JSON.stringify(deliverable));
+    if (!currentDeliverable.value.details.checklist) {
+        currentDeliverable.value.details.checklist = [];
+    }
+    // Ensure there is always an empty input field for new items
+    if (currentDeliverable.value.details.checklist.length === 0 || currentDeliverable.value.details.checklist[currentDeliverable.value.details.checklist.length - 1].name !== '') {
+        currentDeliverable.value.details.checklist.push({ name: '', completed: false });
+    }
     formErrors.value = {};
     showForm.value = true;
+}
 
-    // Initialize local state for dynamic inputs from the deliverable data
-    const tempStrings = {};
-    for (const field of dynamicFields.value) {
-        if (field.type === 'array-text' && currentDeliverable.value.details[field.key]) {
-            tempStrings[field.key] = currentDeliverable.value.details[field.key].join(', ');
-        }
+function removeChecklistItem(index) {
+    currentDeliverable.value.details.checklist.splice(index, 1);
+}
+
+function handleChecklistInput(index) {
+    // If the user types in the last empty item, add a new one
+    if (index === currentDeliverable.value.details.checklist.length - 1) {
+        currentDeliverable.value.details.checklist.push({ name: '', completed: false });
     }
-    dynamicInputStrings.value = tempStrings;
 }
 
 async function saveDeliverable() {
@@ -139,22 +147,16 @@ async function saveDeliverable() {
 
     try {
         let response;
-        // Process the dynamic input strings back into arrays before saving
-        for (const field of dynamicFields.value) {
-            if (field.type === 'array-text') {
-                const stringValue = dynamicInputStrings.value[field.key];
-                if (stringValue) {
-                    currentDeliverable.value.details[field.key] = stringValue.split(',').map(s => s.trim());
-                } else {
-                    currentDeliverable.value.details[field.key] = [];
-                }
-            }
-        }
+
+        // Filter out any empty checklist items before sending
+        const filteredChecklist = currentDeliverable.value.details.checklist.filter(item => item.name.trim() !== '');
 
         const payload = {
             ...currentDeliverable.value,
-            // Convert details object to JSON string for backend
-            details: JSON.stringify(currentDeliverable.value.details)
+            details: {
+                ...currentDeliverable.value.details,
+                checklist: filteredChecklist
+            }
         };
 
         if (formMode.value === 'create') {
@@ -165,7 +167,6 @@ async function saveDeliverable() {
             success('Project deliverable updated successfully');
         }
 
-        // Refresh the list
         await fetchData();
         showForm.value = false;
     } catch (err) {
@@ -175,6 +176,24 @@ async function saveDeliverable() {
         } else {
             error('Failed to save project deliverable');
         }
+    }
+}
+
+async function toggleChecklistItem(deliverable, index) {
+    const newStatus = !deliverable.details.checklist[index].completed;
+    deliverable.details.checklist[index].completed = newStatus;
+
+    try {
+        const payload = {
+            ...deliverable,
+            details: deliverable.details,
+        };
+        await axios.put(`/api/project-deliverables/${deliverable.id}`, payload);
+        success('Checklist item updated!');
+    } catch (err) {
+        console.error('Error updating checklist item:', err);
+        error('Failed to update checklist item');
+        deliverable.details.checklist[index].completed = !newStatus;
     }
 }
 
@@ -210,12 +229,10 @@ function formatDate(dateString) {
             </PrimaryButton>
         </div>
 
-        <!-- Loading state -->
         <div v-if="isLoading" class="flex justify-center py-8">
             <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
         </div>
 
-        <!-- Empty state -->
         <div v-else-if="deliverables.length === 0" class="bg-white p-8 rounded-lg text-center border border-dashed border-gray-300">
             <p class="text-gray-600 text-lg">No deliverables have been added to this project yet.</p>
             <PrimaryButton
@@ -227,7 +244,6 @@ function formatDate(dateString) {
             </PrimaryButton>
         </div>
 
-        <!-- Deliverables list -->
         <div v-else class="space-y-6">
             <div v-for="deliverable in deliverables" :key="deliverable.id"
                  class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-lg transition-all duration-300">
@@ -254,15 +270,19 @@ function formatDate(dateString) {
                         <p v-if="deliverable.description" class="mt-4 text-base text-gray-600">
                             {{ deliverable.description }}
                         </p>
-                        <!-- Dynamic Details Display -->
-                        <div v-if="deliverable.details && Object.keys(deliverable.details).length > 1"
+                        <div v-if="deliverable.details?.checklist && deliverable.details.checklist.length > 0"
                              class="mt-4 p-3 bg-gray-100 rounded-lg text-sm text-gray-700 border border-gray-200">
-                            <p class="font-semibold text-gray-900 mb-2">Deliverable Details:</p>
-                            <ul class="list-disc list-inside space-y-1">
-                                <li v-for="(value, key) in deliverable.details" :key="key" v-if="key !== 'deliverable_type_id'">
-                                    <span class="font-medium text-gray-800">{{ key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }}:</span>
-                                    <span class="ml-1 text-gray-700">
-                                        {{ Array.isArray(value) ? value.join(', ') : value }}
+                            <p class="font-semibold text-gray-900 mb-2">Checklist:</p>
+                            <ul class="space-y-1">
+                                <li v-for="(item, index) in deliverable.details.checklist" :key="index" class="flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        :checked="item.completed"
+                                        @change="toggleChecklistItem(deliverable, index)"
+                                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                    />
+                                    <span :class="{ 'line-through text-gray-500': item.completed }">
+                                        {{ item.name }}
                                     </span>
                                 </li>
                             </ul>
@@ -281,7 +301,6 @@ function formatDate(dateString) {
             </div>
         </div>
 
-        <!-- Create/Edit Modal -->
         <Modal :show="showForm" @close="showForm = false" maxWidth="2xl">
             <div class="p-6 bg-white rounded-lg">
                 <h3 class="text-2xl font-bold text-gray-900 mb-6">
@@ -289,7 +308,6 @@ function formatDate(dateString) {
                 </h3>
 
                 <form @submit.prevent="saveDeliverable" class="space-y-6">
-                    <!-- General Fields -->
                     <div>
                         <InputLabel for="name" value="Name" />
                         <TextInput
@@ -348,57 +366,50 @@ function formatDate(dateString) {
                         <InputError :message="formErrors.due_date?.[0]" class="mt-2" />
                     </div>
 
-                    <!-- Dynamic Fields for Details JSON -->
                     <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                        <h4 class="text-lg font-semibold text-indigo-800 mb-4">Deliverable Specifics</h4>
+                        <h4 class="text-lg font-semibold text-indigo-800 mb-4">Deliverable Checklist</h4>
                         <div>
-                            <InputLabel for="deliverable_type_id" value="Deliverable Type" />
+                            <InputLabel for="deliverable_type_key" value="Deliverable Type" />
                             <SelectDropdown
-                                id="deliverable_type_id"
-                                v-model="currentDeliverable.details.deliverable_type_id"
+                                id="deliverable_type_key"
+                                v-model="currentDeliverable.details.deliverable_type_key"
                                 :options="deliverableTypes"
-                                valueKey="id"
+                                valueKey="key"
                                 labelKey="name"
                                 placeholder="Select a Deliverable Type"
                                 class="mt-1 block w-full"
                                 required
-                                @update:modelValue="currentDeliverable.details = { deliverable_type_id: $event }"
+                                @update:modelValue="currentDeliverable.details = { deliverable_type_key: $event, checklist: [{ name: '', completed: false }] }"
                             />
                         </div>
 
-                        <!-- Conditionally rendered fields based on deliverable type using a v-for loop -->
-                        <div v-for="field in dynamicFields" :key="field.key" class="mt-4">
-                            <InputLabel :for="field.key" :value="field.label" />
-                            <template v-if="field.type === 'textarea'">
-                                <TextareaInput
-                                    :id="field.key"
-                                    v-model="currentDeliverable.details[field.key]"
-                                    :placeholder="field.placeholder"
-                                    rows="3"
-                                />
-                            </template>
-                            <template v-else-if="field.type === 'array-text'">
-                                <TextInput
-                                    :id="field.key"
-                                    v-model="dynamicInputStrings[field.key]"
-                                    type="text"
-                                    :placeholder="field.placeholder"
-                                    class="mt-1 block w-full"
-                                />
-                            </template>
-                            <template v-else>
-                                <TextInput
-                                    :id="field.key"
-                                    v-model="currentDeliverable.details[field.key]"
-                                    :type="field.type"
-                                    :placeholder="field.placeholder"
-                                    class="mt-1 block w-full"
-                                />
-                            </template>
+                        <div class="mt-4">
+                            <InputLabel value="Checklist Items" />
+                            <ul class="space-y-2">
+                                <li v-for="(item, index) in currentDeliverable.details.checklist" :key="index" class="flex items-center space-x-2">
+                                    <TextInput
+                                        v-model="item.name"
+                                        type="text"
+                                        class="flex-1"
+                                        :placeholder="index === currentDeliverable.details.checklist.length - 1 ? checklistPlaceholder : ''"
+                                        @input="handleChecklistInput(index)"
+                                        @keyup.enter.prevent="() => {
+                                            if (index < currentDeliverable.details.checklist.length - 1) {
+                                                nextTick(() => {
+                                                    checklistInputRefs[index + 1]?.focus();
+                                                });
+                                            }
+                                        }"
+                                        :ref="el => { if (el) checklistInputRefs[index] = el }"
+                                    />
+                                    <DangerButton type="button" @click="removeChecklistItem(index)" v-if="currentDeliverable.details.checklist.length > 1">
+                                        <TrashIcon class="h-4 w-4" />
+                                    </DangerButton>
+                                </li>
+                            </ul>
                         </div>
                     </div>
 
-                    <!-- Form Actions -->
                     <div class="flex justify-end space-x-3 mt-6">
                         <SecondaryButton @click="showForm = false" :disabled="isSaving">
                             Cancel

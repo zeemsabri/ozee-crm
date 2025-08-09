@@ -72,7 +72,7 @@ const canViewProjectClients = canView('project_clients', userProjectRole);
 const canViewProjectTransactions = canView('project_transactions', userProjectRole);
 const canViewProjectDeliverables = canView('project_deliverables');
 const canManageProjectDeliverables = canManage('project_deliverables');
-console.log(canManageProjectDeliverables);
+
 // Tab management state
 const activeTab = ref('basic');
 

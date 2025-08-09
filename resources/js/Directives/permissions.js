@@ -481,7 +481,6 @@ export const usePermissions = (projectId = null) => {
             return false;
           } else if (process.env.NODE_ENV !== 'production') {
             // In non-production environments, log when project permissions are missing
-            console.warn(`Project permissions not found for project ID ${projectIdValue} when checking permission: ${permissionSlug}`);
           }
         }
 
