@@ -14,6 +14,7 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
+
     protected $fillable = [
         'name',
         'email',
@@ -25,6 +26,7 @@ class User extends Authenticatable
         'google_expires_in',
         'role_id', // Foreign key to roles table
         'timezone',
+        'user_type',
     ];
 
     /**
@@ -46,6 +48,7 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'role_id' => 'integer', // Cast role_id as integer
+        'user_type' => 'string',
     ];
 
     protected $with = ['role']; // Always load the role relationship
@@ -571,5 +574,45 @@ class User extends Authenticatable
             // If refresh fails, credentials are invalid
             return false;
         }
+    }
+
+    /**
+     * Get the points ledger entries for the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function points()
+    {
+        return $this->hasMany(PointsLedger::class);
+    }
+
+    /**
+     * Get the monthly points for the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function monthlyPoints()
+    {
+        return $this->hasMany(MonthlyPoints::class);
+    }
+
+    /**
+     * Get the kudos sent by the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function kudosSent()
+    {
+        return $this->hasMany(Kudos::class, 'sender_id');
+    }
+
+    /**
+     * Get the kudos received by the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function kudosReceived()
+    {
+        return $this->hasMany(Kudos::class, 'recipient_id');
     }
 }

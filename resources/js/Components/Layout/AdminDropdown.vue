@@ -40,12 +40,6 @@ const canAccessClients = canDo('create_clients');
                 <DropdownLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')">
                     Projects
                 </DropdownLink>
-                <DropdownLink v-if="canApproveEmails" :href="route('emails.pending')" :active="route().current('emails.pending')">
-                    Approve Emails
-                </DropdownLink>
-                <DropdownLink v-if="canComposeEmails" :href="route('emails.rejected')" :active="route().current('emails.rejected')">
-                    Rejected Emails
-                </DropdownLink>
                 <DropdownLink v-if="canManageUsers" :href="route('availability.index')" :active="route().current('availability.index')">
                     Weekly Availability
                 </DropdownLink>
@@ -57,9 +51,6 @@ const canAccessClients = canDo('create_clients');
                 </DropdownLink>
                 <DropdownLink v-if="canManageTaskTypes" :href="route('task-types.index')" :active="route().current('task-types.index')">
                     Task Types
-                </DropdownLink>
-                <DropdownLink v-if="canDo('manage_bonus_configuration')" :href="route('bonus-configuration.index')" :active="route().current('bonus-configuration.index')">
-                    Bonus Configuration
                 </DropdownLink>
                 <DropdownLink v-if="canDo('manage_email_templates')" :href="route('email-templates.index')" :active="route().current('email-templates.index')">
                     Email Templates

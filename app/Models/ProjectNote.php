@@ -139,4 +139,14 @@ class ProjectNote extends Model
     {
         return $this->creator?->name;
     }
+
+    /**
+     * Get the points ledger entries for this note.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\MorphMany
+     */
+    public function points()
+    {
+        return $this->morphMany(PointsLedger::class, 'pointable');
+    }
 }

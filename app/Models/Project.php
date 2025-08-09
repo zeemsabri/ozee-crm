@@ -34,6 +34,8 @@ class Project extends Model
         'logo_google_drive_file_id',
         'documents',
         'timezone',
+        'project_tier_id',
+        'profit_margin_percentage',
     ];
 
     protected $casts = [
@@ -336,5 +338,25 @@ class Project extends Model
     public function deliverables()
     {
         return $this->hasMany(Deliverable::class);
+    }
+
+    /**
+     * Get the tier associated with the project.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     */
+    public function tier()
+    {
+        return $this->belongsTo(ProjectTier::class, 'project_tier_id');
+    }
+
+    /**
+     * Get the points ledger entries for the project.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function points()
+    {
+        return $this->hasMany(PointsLedger::class);
     }
 }
