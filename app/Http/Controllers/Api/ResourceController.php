@@ -99,6 +99,7 @@ class ResourceController extends Controller
                 'visible_to_client' => $validated['visible_to_client'] ?? false,
             ]);
 
+
             if ($validated['type'] === 'link') {
                 $resource->url = $validated['url'];
             } else {
@@ -108,18 +109,21 @@ class ResourceController extends Controller
                 $filePath = $file->getPathname();
 
                 // Upload to Google Drive
-                $fileId = $this->googleDriveService->uploadFile(
+                $googleResponse = $this->googleDriveService->uploadFile(
                     $filePath,
                     $fileName,
                     $project->google_drive_folder_id
                 );
 
-                $resource->file_id = $fileId;
-                $resource->url = "https://drive.google.com/file/d/{$fileId}/view";
+                if(!ISSET($googleResponse['id'])) {
+                    throw new \Exception('Failed to upload file to Google Drive');
+                }
+                $resource->url = "https://drive.google.com/file/d/{$googleResponse['id']}/view";
             }
 
             // Save the resource
             $project->resources()->save($resource);
+
 
             return response()->json([
                 'success' => true,

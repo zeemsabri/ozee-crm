@@ -2,9 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Email;
+use App\Models\Task;
 use App\Models\User;
 use App\Models\Project;
+use App\Notifications\EmailApprovalRequired;
+use App\Notifications\EmailApproved;
+use App\Notifications\TaskAssigned;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class TestController extends Controller
 {
@@ -35,5 +41,28 @@ class TestController extends Controller
                 'role' => $userRole
             ]
         ]);
+    }
+
+    public function playGourd(Request $request)
+    {
+        $user = User::first();
+        $email = Email::first();
+
+//        $email->status = 'pending_approval';
+//        $email->save();
+
+        $email->status = 'approved';
+        $email->save();
+
+//        if($request->notify === 'approval') {
+//            $user->notify(new EmailApprovalRequired($email));
+//        }
+//
+////        $task = Task::first();
+//        if($request->notify === 'approved') {
+//            $user->notify(new EmailApproved($email));
+//        }
+
+        return 'done';
     }
 }

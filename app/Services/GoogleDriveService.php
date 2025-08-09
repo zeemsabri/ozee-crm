@@ -10,14 +10,6 @@ class GoogleDriveService
 {
     use GoogleApiAuthTrait;
 
-    protected $driveService;
-
-    public function __construct()
-    {
-        $this->initializeGoogleClient();
-        $this->driveService = new Drive($this->getGoogleClient());
-    }
-
     /**
      * Create a folder in Google Drive.
      *
@@ -117,16 +109,16 @@ class GoogleDriveService
      */
     public function deleteFile(string $fileId): void
     {
-        try {
+//        try {
             $this->driveService->files->delete($fileId);
             Log::info('Google Drive file/folder deleted', ['file_id' => $fileId]);
-        } catch (\Exception $e) {
-            Log::error('Error deleting Google Drive file/folder: ' . $e->getMessage(), [
-                'file_id' => $fileId,
-                'error' => $e->getTraceAsString(),
-            ]);
-            throw $e;
-        }
+//        } catch (\Exception $e) {
+//            Log::error('Error deleting Google Drive file/folder: ' . $e->getMessage(), [
+//                'file_id' => $fileId,
+//                'error' => $e->getTraceAsString(),
+//            ]);
+//            throw $e;
+//        }
     }
 
     /**

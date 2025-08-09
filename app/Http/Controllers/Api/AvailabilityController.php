@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\UserAvailability;
 use App\Models\User;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -266,6 +267,7 @@ class AvailabilityController extends Controller
     {
         $user = Auth::user();
         $today = Carbon::now();
+        $isWeekday = $today->isWeekday();
 
         // --- Define Time Periods ---
         // Current Calendar Week (Monday to Sunday)
@@ -277,7 +279,6 @@ class AvailabilityController extends Controller
         $nextWeekEnd = Carbon::now()->addWeek()->endOfWeek();
 
         // --- Check Current Week's Availability ---
-        // Get availability entries for the current week (Monday to Friday only for completeness)
         $currentWeekAvailabilities = UserAvailability::where('user_id', $user->id)
             ->whereBetween('date', [$currentWeekStart->format('Y-m-d'), $currentWeekEnd->format('Y-m-d')])
             ->get();
@@ -292,7 +293,6 @@ class AvailabilityController extends Controller
         $allCurrentWeekdaysCovered = count(array_unique($currentWeekdaysWithAvailability)) >= 5;
 
         // --- Check Next Week's Availability ---
-        // Get availability entries for next week (Monday to Friday only for completeness)
         $nextWeekAvailabilities = UserAvailability::where('user_id', $user->id)
             ->whereBetween('date', [$nextWeekStart->format('Y-m-d'), $nextWeekEnd->format('Y-m-d')])
             ->get();
@@ -308,37 +308,46 @@ class AvailabilityController extends Controller
 
         // --- Prompt Visibility Logic ---
         $shouldShowPrompt = false;
-        // Prompt only shown Thursday to Saturday
         $isThursdayToSaturday = $today->dayOfWeek >= Carbon::THURSDAY && $today->dayOfWeek <= Carbon::SATURDAY;
 
         if ($isThursdayToSaturday) {
-            // Show prompt if it's Thursday-Saturday AND next week's availability isn't fully covered yet
             $shouldShowPrompt = !$allNextWeekdaysCovered;
-        } else {
-            // Monday to Wednesday: No prompt if current week is covered.
-            // If current week ISN'T covered, you might still want a prompt or block, but the requirements
-            // only mention Thursday for the *next week's* prompt.
-            // Based on "Current calendar week... if we have the availability then we don't show prompt or block until Thursday"
-            // this implies no prompt or block for the *next week's* availability.
-            $shouldShowPrompt = false; // Prompt for next week is NOT shown Mon-Wed
         }
 
         // --- User Blocking Logic ---
         $shouldBlockUser = false;
-        // Blocking starts from Friday if next week's availability is incomplete
-        $isFridayOnwards = $today->dayOfWeek >= Carbon::FRIDAY;
+        $isNewUser = $user->created_at->greaterThan(Carbon::now()->subDays(7));
 
-        // Block if it's Friday or later AND next week's availability is not covered
-        if ($isFridayOnwards) {
-            $shouldBlockUser = !$allNextWeekdaysCovered;
-        } else {
-            // Monday to Thursday: No blocking for next week's availability
-            // However, on Monday-Thursday, if the *current week's* availability isn't complete,
-            // this function doesn't handle blocking for that. The prompt is for next week.
-            // Based on "Current calendar week... if we have the availability then we don't show prompt or block until Thursday"
-            // this means blocking for *current week's* availability (if not present) is deferred or handled elsewhere.
-            // This function focuses on *next week's* submission deadlines.
-            $shouldBlockUser = false;
+        if ($isWeekday) {
+            // Get all required weekdays from the start of the week up to today
+            $requiredWeekdays = collect([]);
+            $tempDate = $currentWeekStart->copy();
+            while ($tempDate->lte($today)) {
+                if ($tempDate->isWeekday()) {
+                    $requiredWeekdays->push($tempDate->dayOfWeek);
+                }
+                $tempDate->addDay();
+            }
+
+            // Get weekdays for which the user has provided availability
+            $providedAvailabilityDays = collect($currentWeekAvailabilities)->map(function($availability) {
+                return Carbon::parse($availability->date)->dayOfWeek;
+            });
+
+            // Check if any required weekday is missing availability
+            $missingDays = $requiredWeekdays->diff($providedAvailabilityDays)->all();
+
+            if (count($missingDays) > 0) {
+                $shouldBlockUser = true;
+            }
+        }
+
+        // Existing blocking logic for Friday onwards (for next week's availability) - this is a hard deadline
+        $isFridayOnwards = $today->dayOfWeek >= Carbon::FRIDAY;
+        if ($isFridayOnwards && !$isNewUser) {
+            if (!$allNextWeekdaysCovered) {
+                $shouldBlockUser = true;
+            }
         }
 
         // --- Final Response ---

@@ -58,6 +58,39 @@ Delete Clients"
                                 <InputError class="mt-2" :message="form.errors.permissions" />
                             </div>
 
+                            <div class="mb-6">
+                                <InputLabel for="roles" value="Assign to Roles (Optional)" />
+                                <div class="mt-2 max-h-60 overflow-y-auto p-2 border border-gray-300 rounded-md">
+                                    <div v-if="!roles || roles.length === 0" class="text-gray-500 text-sm">
+                                        No roles available.
+                                    </div>
+                                    <div v-else class="space-y-2">
+                                        <div v-for="role in roles" :key="role.id" class="flex items-start">
+                                            <div class="flex items-center h-5">
+                                                <input
+                                                    :id="`role-${role.id}`"
+                                                    type="checkbox"
+                                                    :value="role.id"
+                                                    v-model="form.roles"
+                                                    class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                                />
+                                            </div>
+                                            <div class="ml-3 text-sm">
+                                                <label :for="`role-${role.id}`" class="font-medium text-gray-700">
+                                                    {{ role.name }}
+                                                    <span class="text-xs text-gray-500">({{ role.type }})</span>
+                                                </label>
+                                                <p v-if="role.description" class="text-gray-500">{{ role.description }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="mt-1 text-sm text-gray-500">
+                                    Select roles to automatically assign these permissions to them.
+                                </p>
+                                <InputError class="mt-2" :message="form.errors.roles" />
+                            </div>
+
                             <div class="flex items-center justify-end mt-4">
                                 <Link
                                     :href="route('admin.permissions.index')"
@@ -93,12 +126,14 @@ import TextInput from '@/Components/TextInput.vue';
 
 const props = defineProps({
     categories: Array,
+    roles: Array,
 });
 
 const newCategory = ref('');
 const form = useForm({
     category: '',
     permissions: '',
+    roles: [],
 });
 
 // Watch for changes to the category selection

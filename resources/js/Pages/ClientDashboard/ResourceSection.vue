@@ -86,7 +86,7 @@ const fetchResources = async () => {
     isLoading.value = true;
     apiError.value = null;
     try {
-        const response = await fetch(`/api/client-api/project/${props.projectId}/shareable-resources`, {
+        const response = await fetch(`/api/client-api/project/${props.projectId}/shareable-resources?visible_to_client=true`, {
             headers: {
                 'Authorization': `Bearer ${props.initialAuthToken}`,
                 'Content-Type': 'application/json',

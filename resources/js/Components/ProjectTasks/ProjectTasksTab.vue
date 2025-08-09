@@ -1,9 +1,14 @@
+<!-- ProjectTasksTab.vue -->
 <script setup>
 import { ref, onMounted, computed, reactive, watch } from 'vue'; // Added 'watch'
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import TaskList from '@/Components/TaskList.vue';
+import * as taskState from '@/Utils/taskState.js';
+import * as notification from '@/Utils/notification.js';
+import Modal from '@/Components/Modal.vue';
 
 // Import the new/modified modal components
 import EditTaskModal from '@/Components/ProjectTasks/EditTaskModal.vue'; // Renamed
@@ -24,9 +29,13 @@ const props = defineProps({
         type: Boolean,
         required: true,
     },
+    tasksFilter: {
+        type: String,
+        default: 'all',
+    },
 });
 
-const emit = defineEmits(['tasksUpdated', 'openTaskDetailSidebar', 'open-create-task-modal']);
+const emit = defineEmits(['tasksUpdated', 'openTaskDetailSidebar', 'open-create-task-modal', 'filter-changed']);
 
 const tasks = ref([]);
 const loadingTasks = ref(true);
@@ -40,6 +49,11 @@ const showMilestoneModal = ref(false);
 
 const showTaskNoteModal = ref(false);
 const taskForNote = ref(null); // The specific task to add a note to
+
+// Block task modal
+const showBlockTaskModal = ref(false);
+const selectedTaskForBlock = ref(null);
+const blockReason = ref('');
 
 // Task data needed for modals and details
 const taskTypes = ref([]);
@@ -105,6 +119,9 @@ const sortedMilestones = computed(() => {
 // Computed property for filtered tasks (remains the same logic)
 const filteredTasks = computed(() => {
     if (!tasks.value.length) return [];
+
+    // Debug the tasks array structure
+    console.log('ProjectTasksTab: Tasks array:', tasks.value);
 
     return tasks.value.filter(task => {
         // Status filter
@@ -215,8 +232,9 @@ const fetchProjectTasks = async () => {
     loadingTasks.value = true;
     tasksError.value = '';
     try {
-        const response = await window.axios.get(`/api/projects/${props.projectId}/tasks`);
-        tasks.value = response.data;
+        const rawTasks = await taskState.fetchProjectTasks(props.projectId);
+        console.log('ProjectTasksTab: Raw API response from fetchProjectTasks:', rawTasks);
+        tasks.value = rawTasks;
         emit('tasksUpdated', tasks.value); // Emit updated tasks to parent (e.g., Show.vue)
     } catch (error) {
         tasksError.value = 'Failed to load tasks data.';
@@ -227,6 +245,12 @@ const fetchProjectTasks = async () => {
     } finally {
         loadingTasks.value = false;
     }
+};
+
+// Handle task updates from TaskList component
+const handleTaskUpdated = async (updatedTask) => {
+    // Refresh the tasks list to reflect the changes
+    await fetchProjectTasks();
 };
 
 // Fetch task types (for task modal)
@@ -277,9 +301,9 @@ const handleTaskSaved = () => {
 };
 
 // View Task Details Sidebar
-const viewTaskDetails = (task) => {
-    console.log('ProjectTasksTab: Emitting open-task-detail-sidebar for taskId:', task.id);
-    emit('openTaskDetailSidebar', task.id);
+const viewTaskDetails = (taskId) => {
+    console.log('ProjectTasksTab: Emitting openTaskDetailSidebar for taskId:', taskId, 'projectId:', props.projectId);
+    emit('openTaskDetailSidebar', taskId, props.projectId, props.projectUsers);
 };
 
 // Milestone Form Modal
@@ -305,25 +329,33 @@ const handleTaskNoteAdded = () => {
     fetchProjectTasks();
 };
 
-// Mark Task as Completed
-const markTaskAsCompleted = async (task) => {
-    try {
-        await window.axios.post(`/api/tasks/${task.id}/complete`);
-        await fetchProjectTasks();
-    } catch (error) {
-        console.error('Error marking task as completed:', error);
-        alert('Failed to mark task as completed. Please try again.');
-    }
+
+// Open Block Task Modal
+const openBlockTaskModal = (task) => {
+    selectedTaskForBlock.value = task;
+    blockReason.value = '';
+    showBlockTaskModal.value = true;
 };
 
-// Start Task (change status to In Progress)
-const startTask = async (task) => {
+// Block Task (change status to Blocked)
+const blockTask = async () => {
+    if (!selectedTaskForBlock.value) return;
+    if (!blockReason.value.trim()) {
+        notification.warning('Please provide a reason for blocking the task');
+        return;
+    }
+
     try {
-        await window.axios.post(`/api/tasks/${task.id}/start`);
+        notification.info('Blocking task...');
+        await window.axios.post(`/api/tasks/${selectedTaskForBlock.value.id}/block`, {
+            reason: blockReason.value
+        });
+        notification.success('Task blocked successfully');
+        showBlockTaskModal.value = false;
         await fetchProjectTasks();
     } catch (error) {
-        console.error('Error starting task:', error);
-        alert('Failed to start task. Please try again.');
+        console.error('Error blocking task:', error);
+        notification.error('Failed to block task. Please try again.');
     }
 };
 
@@ -343,6 +375,35 @@ watch(() => props.taskTypes, () => {
 });
 watch(() => props.milestones, () => {
     // No explicit action needed here
+});
+
+// Watch tasksFilter prop to update internal filters
+watch(() => props.tasksFilter, (newFilter) => {
+    if (newFilter === 'due-overdue') {
+        // Set filters to show only due and overdue tasks
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Reset other filters first
+        taskFilters.status = '';
+        taskFilters.assigned_to_user_id = null;
+        taskFilters.milestone_id = null;
+
+        // Set due date filter to show overdue and due today tasks
+        taskFilters.due_date_range = 'overdue';
+
+        // Highlight overdue and due today tasks in the UI
+        // This is handled by the CSS classes in the template
+    } else if (newFilter === 'all') {
+        // Reset all filters
+        taskFilters.status = '';
+        taskFilters.assigned_to_user_id = null;
+        taskFilters.milestone_id = null;
+        taskFilters.due_date_range = '';
+    }
+
+    // Emit the filter change back to parent
+    emit('filter-changed', newFilter);
 });
 </script>
 
@@ -510,80 +571,13 @@ watch(() => props.milestones, () => {
 
         <!-- Tasks Table -->
         <div v-else-if="tasks.length" class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Milestone</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                <tr v-for="task in filteredTasks" :key="task.id" class="hover:bg-gray-50 transition-colors">
-                    <td class="px-4 py-3 text-sm text-gray-900">{{ task.title }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-700">
-                        <span
-                            :class="{
-                                'px-2 py-1 rounded-full text-xs font-medium': true,
-                                'bg-yellow-100 text-yellow-800': task.status === 'To Do',
-                                'bg-blue-100 text-blue-800': task.status === 'In Progress',
-                                'bg-green-100 text-green-800': task.status === 'Done',
-                                'bg-red-100 text-red-800': task.status === 'Blocked',
-                                'bg-gray-100 text-gray-800': task.status === 'Archived'
-                            }"
-                        >
-                            {{ task.status }}
-                        </span>
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700">{{ task.assigned_to }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-700">
-                        {{ task.due_date ? task.due_date : 'N/A' }}
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700">
-                        {{ task.milestone || 'N/A' }}
-                    </td>
-                    <td class="px-4 py-3 text-right">
-                        <div class="flex justify-end space-x-2">
-                            <button
-                                @click="viewTaskDetails(task)"
-                                class="text-purple-600 hover:text-purple-800 text-sm font-medium"
-                            >
-                                View
-                            </button>
-                            <button
-                                @click="editTask(task)"
-                                class="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                            >
-                                Edit
-                            </button>
-                            <button
-                                @click="openAddTaskNoteModal(task)"
-                                class="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                            >
-                                Add Note
-                            </button>
-                            <button
-                                v-if="task.status === 'To Do'"
-                                @click="startTask(task)"
-                                class="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                            >
-                                Start
-                            </button>
-                            <button
-                                v-if="task.status !== 'Done'"
-                                @click="markTaskAsCompleted(task)"
-                                class="text-green-600 hover:text-green-800 text-sm font-medium"
-                            >
-                                Complete
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-                </tbody>
-            </table>
+            <TaskList
+                :tasks="filteredTasks"
+                :project-id="projectId"
+                :show-project-column="false"
+                @task-updated="handleTaskUpdated"
+                @open-task-detail="viewTaskDetails"
+            />
         </div>
 
         <!-- Empty State -->
@@ -624,5 +618,39 @@ watch(() => props.milestones, () => {
             @close="showTaskNoteModal = false"
             @note-added="handleTaskNoteAdded"
         />
+
+        <!-- Block Task Modal -->
+        <Modal :show="showBlockTaskModal" @close="showBlockTaskModal = false">
+            <div class="p-6">
+                <h2 class="text-lg font-medium text-gray-900 mb-4">
+                    Block Task
+                </h2>
+
+                <div class="mb-4">
+                    <p class="text-sm text-gray-600 mb-2">
+                        Please provide a reason for blocking this task:
+                    </p>
+                    <textarea
+                        v-model="blockReason"
+                        class="w-full rounded-md shadow-sm border-gray-300 focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                        rows="3"
+                        placeholder="Enter reason for blocking..."
+                    ></textarea>
+                </div>
+
+                <div class="flex justify-end space-x-3">
+                    <SecondaryButton @click="showBlockTaskModal = false">
+                        Cancel
+                    </SecondaryButton>
+                    <PrimaryButton
+                        @click="blockTask"
+                        :disabled="!blockReason.trim()"
+                        class="bg-red-600 hover:bg-red-700"
+                    >
+                        Block Task
+                    </PrimaryButton>
+                </div>
+            </div>
+        </Modal>
     </div>
 </template>

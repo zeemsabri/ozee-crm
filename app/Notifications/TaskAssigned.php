@@ -9,12 +9,14 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\BroadcastMessage;
+use Illuminate\Support\Str;
 
 class TaskAssigned extends Notification implements ShouldQueue, ShouldBroadcast
 {
     use Queueable;
 
     protected $task;
+    private array $payload;
 
     /**
      * Create a new notification instance.
@@ -25,6 +27,13 @@ class TaskAssigned extends Notification implements ShouldQueue, ShouldBroadcast
     public function __construct(Task $task)
     {
         $this->task = $task;
+        $this->setPaylaod();
+    }
+
+    private function setPaylaod()
+    {
+        $this->payload = $this->getPayload();
+        return $this;
     }
 
     /**
@@ -36,7 +45,7 @@ class TaskAssigned extends Notification implements ShouldQueue, ShouldBroadcast
     public function via($notifiable)
     {
         // Add 'broadcast' to the array of channels
-        return ['mail', 'database', 'broadcast'];
+        return ['database', 'broadcast'];
     }
 
     /**
@@ -67,18 +76,13 @@ class TaskAssigned extends Notification implements ShouldQueue, ShouldBroadcast
             ->line('Thank you for using our application!');
     }
 
-    /**
-     * Get the broadcastable representation of the notification.
-     *
-     * @param  mixed  $notifiable
-     * @return BroadcastMessage
-     */
-    public function toBroadcast($notifiable)
+    public function getPayload()
     {
         $project = $this->task->milestone?->project ?? null;
         $projectName = $project?->name ?? null;
-        return new BroadcastMessage([
-            'title' => $this->task->name ,
+        return ([
+            'title' => $this->task->name,
+            'view_id'   =>  Str::random(7),
             'project_name'  =>  $projectName,
             'message' => 'You have been assigned a new task: ' . $this->task->name,
             'project_id'    =>  $this->task->milestong?->project_id,
@@ -87,9 +91,20 @@ class TaskAssigned extends Notification implements ShouldQueue, ShouldBroadcast
             'priority'  =>  'low',
             'task_id' => $this->task->id,
             'task_name' => $this->task->name,
+            'button_label' =>   'View Task',
             'due_date' => $this->task->due_date ? $this->task->due_date->format('Y-m-d') : null,
             'url' => url('/project/' . $project?->id . '/task/' . $this->task->id)
         ]);
+    }
+    /**
+     * Get the broadcastable representation of the notification.
+     *
+     * @param  mixed  $notifiable
+     * @return BroadcastMessage
+     */
+    public function toBroadcast($notifiable)
+    {
+        return new BroadcastMessage($this->payload);
     }
 
     /**
@@ -100,15 +115,6 @@ class TaskAssigned extends Notification implements ShouldQueue, ShouldBroadcast
      */
     public function toArray($notifiable)
     {
-        return [
-            'task_id' => $this->task->id,
-            'task_name' => $this->task->name,
-            'description' => $this->task->description,
-            'due_date' => $this->task->due_date ? $this->task->due_date->format('Y-m-d') : null,
-            'milestone_id' => $this->task->milestone_id,
-            'milestone_name' => $this->task->milestone ? $this->task->milestone->name : null,
-            'project_id' => $this->task->milestone ? $this->task->milestone->project_id : null,
-            'project_name' => $this->task->milestone && $this->task->milestone->project ? $this->task->milestone->project->name : null,
-        ];
+        return $this->payload;
     }
 }

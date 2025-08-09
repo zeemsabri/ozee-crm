@@ -73,7 +73,7 @@
                                                                 {{ role.name }}
                                                             </span>
                                                             <span
-                                                                v-if="permission.roles.length > 3"
+                                                                v-if="permission.roles && permission.roles.length > 3"
                                                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
                                                             >
                                                                 +{{ permission.roles.length - 3 }} more

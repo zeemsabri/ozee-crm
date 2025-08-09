@@ -16,7 +16,8 @@ const props = defineProps({
     },
     projectId: {
         type: Number,
-        required: true,
+        required: false,
+        default: null,
     },
     clients: {
         type: Array,
@@ -27,6 +28,10 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const templates = ref([]);
+const projects = ref([]);
+const projectsLoading = ref(false);
+const clientsData = ref([]);
+const clientsLoading = ref(false);
 const previewContent = ref('');
 const previewLoading = ref(false);
 const validationErrors = ref({});
@@ -35,17 +40,27 @@ const loadingSourceModels = ref(false);
 
 const emailForm = reactive({
     template_id: null,
-    recipients: [],
-    dynamic_data: {},
+    template_data: {},
+    project_id: props.projectId || null,
+    client_ids: [],
+    subject: '',
+    greeting_name: '',
+    custom_greeting_name: '',
+    status: 'pending_approval',
 });
 
-const { canDo } = usePermissions(props.projectId);
+const { canDo } = usePermissions(emailForm.project_id);
 
 const selectedTemplate = computed(() => {
     return templates.value.find(template => template.id === emailForm.template_id);
 });
 
 const fetchSourceModelsData = async (template) => {
+    if (!emailForm.project_id) {
+        console.error('Cannot fetch source model data: No project selected');
+        return;
+    }
+
     loadingSourceModels.value = true;
     sourceModelsData.value = {};
     const modelNames = new Set();
@@ -58,7 +73,7 @@ const fetchSourceModelsData = async (template) => {
     try {
         const promises = Array.from(modelNames).map(modelName => {
             const shortModelName = modelName.split('\\').pop();
-            const url = `/api/projects/${props.projectId}/model-data/${shortModelName}`;
+            const url = `/api/projects/${emailForm.project_id}/model-data/${shortModelName}`;
             return window.axios.get(url).then(response => {
                 sourceModelsData.value[shortModelName] = response.data;
             });
@@ -81,19 +96,25 @@ const fetchTemplates = async () => {
 };
 
 const fetchPreview = async () => {
-    if (!emailForm.template_id || emailForm.recipients.length === 0) {
-        previewContent.value = '<p class="text-gray-500 italic">Select a template and at least one recipient to see a preview.</p>';
+    if (!emailForm.template_id || emailForm.client_ids.length === 0 || !emailForm.project_id) {
+        previewContent.value = '<p class="text-gray-500 italic">Select a project, template, and at least one recipient to see a preview.</p>';
         return;
     }
 
     previewLoading.value = true;
     try {
-        const response = await window.axios.post(`/api/projects/${props.projectId}/email-preview`, {
+        const firstClient = emailForm.client_ids[0];
+        const clientId = typeof firstClient === 'object' ? firstClient.id : firstClient;
+
+        const response = await window.axios.post(`/api/projects/${emailForm.project_id}/email-preview`, {
             template_id: emailForm.template_id,
-            recipient_id: emailForm.recipients[0],
-            dynamic_data: emailForm.dynamic_data,
+            client_id: clientId,
+            template_data: emailForm.template_data,
         });
         previewContent.value = response.data.body_html;
+        if (response.data.subject) {
+            emailForm.subject = response.data.subject;
+        }
     } catch (error) {
         console.error('Failed to fetch email preview:', error);
         previewContent.value = '<p class="text-red-500 italic">Error loading preview.</p>';
@@ -106,33 +127,68 @@ watch(() => props.show, (newValue) => {
     if (newValue) {
         Object.assign(emailForm, {
             template_id: null,
-            recipients: [],
-            dynamic_data: {},
+            template_data: {},
+            project_id: props.projectId || null,
+            client_ids: [],
+            subject: '',
+            greeting_name: '',
+            custom_greeting_name: '',
+            status: 'pending_approval',
         });
         previewContent.value = '';
         validationErrors.value = {};
         sourceModelsData.value = {};
         fetchTemplates();
+
+        // If projectId is not provided, fetch projects
+        if (!props.projectId) {
+            fetchProjects();
+        }
     }
 });
 
 watch(selectedTemplate, (newTemplate) => {
-    emailForm.dynamic_data = {};
+    emailForm.template_data = {};
     if (newTemplate && newTemplate.placeholders) {
         newTemplate.placeholders.forEach(placeholder => {
             if (placeholder.is_dynamic) {
-                emailForm.dynamic_data[placeholder.name] = '';
+                emailForm.template_data[placeholder.name] = '';
             } else if (placeholder.is_repeatable || placeholder.is_selectable) {
                 if(placeholder.is_repeatable) {
-                    emailForm.dynamic_data[placeholder.name] = [];
+                    emailForm.template_data[placeholder.name] = [];
                 } else {
-                    emailForm.dynamic_data[placeholder.name] = null;
+                    emailForm.template_data[placeholder.name] = null;
                 }
             }
         });
         fetchSourceModelsData(newTemplate);
     }
 });
+
+const prepareFormData = async () => {
+    // If client_ids contains objects, extract the ids only for a cleaner payload
+    if (Array.isArray(emailForm.client_ids) && emailForm.client_ids.length > 0 && typeof emailForm.client_ids[0] === 'object') {
+        emailForm.client_ids = emailForm.client_ids.map(client => client.id);
+    }
+
+    // Set subject from template only if it hasn't been set by the preview
+    if (!emailForm.subject && selectedTemplate.value) {
+        emailForm.subject = selectedTemplate.value.subject || '';
+    }
+
+    if (emailForm.client_ids.length > 0) {
+        const firstClient = emailForm.client_ids[0];
+        // Check both props.clients and clientsData for the client
+        const clientsToSearch = props.clients.length > 0 ? props.clients : clientsData.value;
+        const clientObj = clientsToSearch.find(client => client.id === firstClient);
+        if (clientObj) {
+            emailForm.greeting_name = clientObj.name || '';
+        }
+    }
+
+    console.log('Form data prepared:', JSON.stringify(emailForm));
+    return true;
+};
 
 const handleSubmitted = () => {
     emit('close');
@@ -153,10 +209,54 @@ const inputPlaceholders = computed(() => {
     return selectedTemplate.value ? selectedTemplate.value.placeholders.filter(p => p.is_dynamic || p.is_repeatable || p.is_selectable) : [];
 });
 
-const apiEndpoint = computed(() => `/api/projects/${props.projectId}/send-email`);
+const apiEndpoint = computed(() => `/api/emails/templated`);
+
+const fetchProjects = async () => {
+    projectsLoading.value = true;
+    try {
+        const response = await window.axios.get('/api/projects-simplified');
+        projects.value = response.data;
+    } catch (error) {
+        console.error('Failed to fetch projects:', error);
+    } finally {
+        projectsLoading.value = false;
+    }
+};
+
+const fetchClients = async (projectId) => {
+    if (!projectId) return;
+
+    clientsLoading.value = true;
+    clientsData.value = [];
+    try {
+        const response = await window.axios.get(`/api/projects/${projectId}/sections/clients?type=clients`);
+        clientsData.value = response.data;
+    } catch (error) {
+        console.error('Failed to fetch clients:', error);
+    } finally {
+        clientsLoading.value = false;
+    }
+};
+
+watch(() => emailForm.project_id, (newProjectId) => {
+    // Clear template, recipients and dynamic placeholders when project changes
+    emailForm.template_id = null;
+    emailForm.template_data = {};
+    emailForm.client_ids = [];
+    previewContent.value = '';
+
+    if (newProjectId) {
+        fetchClients(newProjectId);
+    } else {
+        clientsData.value = [];
+    }
+});
 
 onMounted(() => {
     fetchTemplates();
+    if (!props.projectId) {
+        fetchProjects();
+    }
 });
 </script>
 
@@ -167,15 +267,35 @@ onMounted(() => {
         :api-endpoint="apiEndpoint"
         http-method="post"
         :form-data="emailForm"
-        :submit-button-text="'Send Email'"
-        success-message="Email sent successfully!"
+        :submit-button-text="'Submit for Approval'"
+        success-message="Email submitted for approval successfully!"
         @close="closeModal"
         @submitted="handleSubmitted"
+        :before-submit="prepareFormData"
     >
         <template #default="{ errors }">
             <div class="flex flex-col space-y-6">
-                <!-- Top Section: Template and Recipient Selection -->
+                <!-- Top Section: Project, Template and Recipient Selection -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <!-- Project Selection (only shown if projectId is not provided) -->
+                    <div v-if="!props.projectId">
+                        <InputLabel for="project" value="Select Project" />
+                        <SelectDropdown
+                            id="project"
+                            v-model="emailForm.project_id"
+                            :options="projects"
+                            placeholder="Select a project"
+                            value-key="id"
+                            label-key="name"
+                            :allow-empty="true"
+                            class="mt-1"
+                        />
+                        <div v-if="projectsLoading" class="text-xs text-gray-500 mt-1">
+                            Loading projects...
+                        </div>
+                        <InputError :message="errors.project_id ? errors.project_id[0] : ''" class="mt-2" />
+                    </div>
+
                     <!-- Template Selection -->
                     <div>
                         <InputLabel for="template" value="Select Template" />
@@ -194,17 +314,22 @@ onMounted(() => {
 
                     <!-- Recipient Selection (multi select box) -->
                     <div>
-                        <InputLabel for="recipients" value="Recipients" />
+                        <InputLabel for="client_ids" value="Recipients" />
                         <CustomMultiSelect
-                            id="recipients"
-                            v-model="emailForm.recipients"
-                            :options="clients"
+                            id="client_ids"
+                            v-model="emailForm.client_ids"
+                            :options="props.clients.length > 0 ? props.clients : clientsData"
                             placeholder="Select clients to send to"
                             label-key="name"
                             track-by="id"
+                            :preserve-search="true"
+                            :object-value="true"
                             class="mt-1"
                         />
-                        <InputError :message="errors.recipients ? errors.recipients[0] : ''" class="mt-2" />
+                        <div v-if="clientsLoading" class="text-xs text-gray-500 mt-1">
+                            Loading clients...
+                        </div>
+                        <InputError :message="errors.client_ids ? errors.client_ids[0] : ''" class="mt-2" />
                     </div>
                 </div>
 
@@ -218,7 +343,7 @@ onMounted(() => {
                                 <template v-if="placeholder.is_repeatable && placeholder.source_model">
                                     <CustomMultiSelect
                                         :id="placeholder.name"
-                                        v-model="emailForm.dynamic_data[placeholder.name]"
+                                        v-model="emailForm.template_data[placeholder.name]"
                                         :options="sourceModelsData[placeholder.source_model.split('\\').pop()] || []"
                                         :placeholder="`Select one or more ${placeholder.name}`"
                                         :label-key="placeholder.source_attribute"
@@ -232,7 +357,7 @@ onMounted(() => {
                                 <template v-else-if="placeholder.is_selectable && placeholder.source_model">
                                     <SelectDropdown
                                         :id="placeholder.name"
-                                        v-model="emailForm.dynamic_data[placeholder.name]"
+                                        v-model="emailForm.template_data[placeholder.name]"
                                         :options="sourceModelsData[placeholder.source_model.split('\\').pop()] || []"
                                         :placeholder="`Select a ${placeholder.name}`"
                                         :value-key="placeholder.trackBy ?? 'id'"
@@ -249,7 +374,7 @@ onMounted(() => {
                                         :id="placeholder.name"
                                         type="url"
                                         class="mt-1 block w-full"
-                                        v-model="emailForm.dynamic_data[placeholder.name]"
+                                        v-model="emailForm.template_data[placeholder.name]"
                                         placeholder="Enter URL"
                                     />
                                 </template>
@@ -258,10 +383,10 @@ onMounted(() => {
                                         :id="placeholder.name"
                                         type="text"
                                         class="mt-1 block w-full"
-                                        v-model="emailForm.dynamic_data[placeholder.name]"
+                                        v-model="emailForm.template_data[placeholder.name]"
                                     />
                                 </template>
-                                <InputError :message="errors[`dynamic_data.${placeholder.name}`] ? errors[`dynamic_data.${placeholder.name}`][0] : ''" class="mt-2" />
+                                <InputError :message="errors[`template_data.${placeholder.name}`] ? errors[`template_data.${placeholder.name}`][0] : ''" class="mt-2" />
                             </div>
                         </div>
                     </div>
@@ -273,8 +398,8 @@ onMounted(() => {
                         <h4 class="text-md font-semibold text-gray-800">Email Preview</h4>
                         <PrimaryButton
                             @click="fetchPreview"
-                            :disabled="!emailForm.template_id || emailForm.recipients.length === 0 || previewLoading"
-                            :class="{ 'opacity-50 cursor-not-allowed': !emailForm.template_id || emailForm.recipients.length === 0 || previewLoading }"
+                            :disabled="!emailForm.project_id || !emailForm.template_id || emailForm.client_ids.length === 0 || previewLoading"
+                            :class="{ 'opacity-50 cursor-not-allowed': !emailForm.project_id || !emailForm.template_id || emailForm.client_ids.length === 0 || previewLoading }"
                         >
                             <span v-if="previewLoading" class="flex items-center">
                                 <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

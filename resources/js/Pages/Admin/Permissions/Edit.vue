@@ -74,6 +74,151 @@
                                 <InputError class="mt-2" :message="form.errors.category" />
                             </div>
 
+                            <!-- Roles Section -->
+                            <div class="mb-6">
+                                <InputLabel for="roles" value="Assign to Roles" />
+                                <div class="mt-2 max-h-60 overflow-y-auto p-2 border border-gray-300 rounded-md">
+                                    <div v-if="!roles || roles.length === 0" class="text-gray-500 text-sm">
+                                        No roles available.
+                                    </div>
+                                    <div v-else class="space-y-2">
+                                        <div v-for="role in roles" :key="role.id" class="flex items-start">
+                                            <div class="flex items-center h-5">
+                                                <input
+                                                    :id="`role-${role.id}`"
+                                                    type="checkbox"
+                                                    :value="role.id"
+                                                    v-model="form.roles"
+                                                    class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                                />
+                                            </div>
+                                            <div class="ml-3 text-sm">
+                                                <label :for="`role-${role.id}`" class="font-medium text-gray-700">
+                                                    {{ role.name }}
+                                                    <span class="text-xs text-gray-500">({{ role.type }})</span>
+                                                </label>
+                                                <p v-if="role.description" class="text-gray-500">{{ role.description }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="mt-1 text-sm text-gray-500">
+                                    Select roles to assign this permission to them.
+                                </p>
+                                <InputError class="mt-2" :message="form.errors.roles" />
+                            </div>
+
+                            <!-- Users with this Permission Section -->
+                            <div class="mb-6">
+                                <h3 class="text-lg font-medium text-gray-900 mb-4">Users with this Permission</h3>
+
+                                <!-- Application Users -->
+                                <div v-if="applicationUsers && applicationUsers.length > 0" class="mb-6">
+                                    <h4 class="font-medium text-gray-700 mb-2">Application Users</h4>
+                                    <div class="overflow-x-auto">
+                                        <table class="min-w-full divide-y divide-gray-200">
+                                            <thead class="bg-gray-50">
+                                                <tr>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Name
+                                                    </th>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Email
+                                                    </th>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Role
+                                                    </th>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Actions
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="bg-white divide-y divide-gray-200">
+                                                <tr v-for="user in applicationUsers" :key="user.id">
+                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                        <div class="text-sm font-medium text-gray-900">{{ user.name }}</div>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                        <div class="text-sm text-gray-500">{{ user.email }}</div>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                        <div class="text-sm text-gray-500">
+                                                            {{ roles.find(r => r.id === user.role_id)?.name || 'Unknown Role' }}
+                                                        </div>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        <button
+                                                            @click="revokePermission(user.id, 'application')"
+                                                            class="text-red-600 hover:text-red-900"
+                                                        >
+                                                            Revoke
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- Project Users -->
+                                <div v-if="projectUsers && projectUsers.length > 0" class="mb-6">
+                                    <h4 class="font-medium text-gray-700 mb-2">Project Users</h4>
+                                    <div class="overflow-x-auto">
+                                        <table class="min-w-full divide-y divide-gray-200">
+                                            <thead class="bg-gray-50">
+                                                <tr>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Name
+                                                    </th>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Email
+                                                    </th>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Project
+                                                    </th>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Role
+                                                    </th>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Actions
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="bg-white divide-y divide-gray-200">
+                                                <tr v-for="user in projectUsers" :key="`${user.id}-${user.project_id}`">
+                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                        <div class="text-sm font-medium text-gray-900">{{ user.name }}</div>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                        <div class="text-sm text-gray-500">{{ user.email }}</div>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                        <div class="text-sm text-gray-500">{{ user.project_name }}</div>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap">
+                                                        <div class="text-sm text-gray-500">
+                                                            {{ roles.find(r => r.id === user.role_id)?.name || 'Unknown Role' }}
+                                                        </div>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        <button
+                                                            @click="revokePermission(user.id, 'project', user.project_id)"
+                                                            class="text-red-600 hover:text-red-900"
+                                                        >
+                                                            Revoke
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div v-if="(!applicationUsers || applicationUsers.length === 0) && (!projectUsers || projectUsers.length === 0)" class="text-sm text-gray-500 p-4 bg-gray-50 rounded-lg">
+                                    No users have been assigned this permission.
+                                </div>
+                            </div>
+
                             <div class="flex items-center justify-end mt-4">
                                 <Link
                                     :href="route('admin.permissions.index')"
@@ -100,7 +245,7 @@
 
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -110,6 +255,10 @@ import TextInput from '@/Components/TextInput.vue';
 const props = defineProps({
     permission: Object,
     categories: Array,
+    roles: Array,
+    permissionRoles: Array,
+    applicationUsers: Array,
+    projectUsers: Array,
 });
 
 const newCategory = ref('');
@@ -118,6 +267,7 @@ const form = useForm({
     slug: props.permission.slug,
     description: props.permission.description || '',
     category: props.permission.category,
+    roles: props.permissionRoles || [],
 });
 
 // Watch for changes to the category selection
@@ -126,6 +276,36 @@ watch(() => form.category, (value) => {
         newCategory.value = '';
     }
 });
+
+// Loading state for revoke actions
+const isRevoking = ref(false);
+
+// Function to revoke a permission from a user
+const revokePermission = (userId, roleType, projectId = null) => {
+    if (isRevoking.value) return;
+
+    isRevoking.value = true;
+
+    const data = {
+        user_id: userId,
+        permission_id: props.permission.id,
+        role_type: roleType
+    };
+
+    if (projectId) {
+        data.project_id = projectId;
+    }
+
+    router.post(route('admin.permissions.revoke-user'), data, {
+        preserveScroll: true,
+        onSuccess: () => {
+            isRevoking.value = false;
+        },
+        onError: () => {
+            isRevoking.value = false;
+        }
+    });
+};
 
 const submit = () => {
     // If a new category is being added, use that value

@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\BonusConfigurationGroupController;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientAction;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientReader;
 use App\Http\Controllers\Api\Client\SeoReportController;
+use App\Http\Controllers\Api\ComponentController;
 use App\Http\Controllers\Api\EmailTemplateController;
 use App\Http\Controllers\Api\ImageUploadController;
 use App\Http\Controllers\Api\PlaceholderDefinitionController;
@@ -11,6 +13,7 @@ use App\Http\Controllers\Api\ProjectDashboard\ProjectDeliverableAction;
 use App\Http\Controllers\Api\SendEmailController;
 use App\Http\Controllers\Api\ShareableResourceController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\WireframeController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -21,6 +24,7 @@ use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\EmailController;
+use App\Http\Controllers\Api\InboxController;
 use App\Http\Controllers\Api\ProjectReadController; // New Import
 use App\Http\Controllers\Api\ProjectActionController; // New Import
 use App\Http\Controllers\Api\RoleController;
@@ -34,12 +38,23 @@ use App\Http\Controllers\Api\BonusConfigurationController;
 use App\Http\Controllers\Api\ResourceController;
 use App\Http\Controllers\Api\MagicLinkController;
 use App\Http\Controllers\Api\ModelDataController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+
+Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
 // Public Authentication Routes (NO auth:sanctum middleware)
 Route::post('/login', [AuthenticatedSessionController::class, 'store'])
     ->middleware(['guest', 'web']);
+
+// API Token Authentication for third-party applications
+Route::post('/token', [AuthenticatedSessionController::class, 'getToken'])
+    ->middleware('guest');
+
+// API Token Logout for third-party applications
+Route::post('/logout-token', [AuthenticatedSessionController::class, 'revokeToken'])
+    ->middleware('auth:sanctum');
 
 Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
     ->middleware('guest');
@@ -50,11 +65,19 @@ Route::post('/reset-password', [NewPasswordController::class, 'store'])
 // Client Magic Link Route (accessible without authentication)
 Route::post('/client-magic-link', [MagicLinkController::class, 'sendClientMagicLink']);
 
+Route::get('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
+
 // Authenticated API Routes (behind auth:sanctum middleware for internal users)
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    // Notifications Routes
+    // Other routes...
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/{viewId}/read', [NotificationController::class, 'markAsReadByViewId']);
+    Route::delete('/notifications/{notificationId}', [NotificationController::class, 'destroy']);
 
     // Tag Management Routes
     Route::get('/tags/search', [\App\Http\Controllers\TagController::class, 'search']);
@@ -90,6 +113,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('projects/{project}/notes/{note}/replies', [ProjectReadController::class, 'getNoteReplies']);
     Route::get('projects/{project}/tasks', [ProjectReadController::class, 'getTasks']);
     Route::get('/projects/{project}/meetings', [ProjectReadController::class, 'getProjectMeetings']);
+    Route::get('/user/meetings', [ProjectReadController::class, 'getUserMeetings']);
+    Route::get('/user/standups', [ProjectReadController::class, 'getUserStandups']);
 
     // Project Section Read Routes
     Route::get('projects/{project}/sections/basic', [ProjectReadController::class, 'getBasicInfo']);
@@ -123,6 +148,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects/{project}/meetings', [ProjectActionController::class, 'createProjectMeeting']);
     Route::delete('/projects/{project}/meetings/{googleEventId}', [ProjectActionController::class, 'deleteProjectMeeting']);
     Route::patch('projects/{project}/convert-payment-type', [ProjectActionController::class, 'convertPaymentType']); // Moved PATCH route
+    Route::post('projects/{project}/archive', [ProjectActionController::class, 'archive']);
+    Route::post('projects/{id}/restore', [ProjectActionController::class, 'restore']);
 
     // Project Section Update Routes
     Route::put('projects/{project}/sections/basic', [ProjectActionController::class, 'updateBasicInfo'])->middleware(['process.tags']);
@@ -148,12 +175,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('emails/rejected-simplified', [EmailController::class, 'rejectedSimplified']);
     Route::get('projects/{project}/emails', [EmailController::class, 'getProjectEmails']);
     Route::get('projects/{project}/emails-simplified', [EmailController::class, 'getProjectEmailsSimplified']);
+    Route::get('emails/{email}/edit-content', [EmailController::class, 'getEmailContent']);
     Route::post('emails/{email}/approve', [EmailController::class, 'approve']);
     Route::post('emails/{email}/edit-and-approve', [EmailController::class, 'editAndApprove']);
     Route::post('emails/{email}/reject', [EmailController::class, 'reject']);
     Route::post('emails/{email}/update', [EmailController::class, 'update']);
     Route::post('emails/{email}/resubmit', [EmailController::class, 'resubmit']);
     Route::apiResource('emails', EmailController::class)->except(['destroy']);
+
+    // Inbox Routes
+    Route::get('inbox/new-emails', [InboxController::class, 'newEmails']);
+    Route::get('inbox/all-emails', [InboxController::class, 'allEmails']);
+    Route::get('inbox/waiting-approval', [InboxController::class, 'waitingApproval']);
+    Route::post('inbox/emails/{email}/mark-as-read', [InboxController::class, 'markAsRead']);
 
     // Google Auth Status Endpoint
     Route::get('/google/status', function () {
@@ -172,6 +206,16 @@ Route::middleware('auth:sanctum')->group(function () {
         }
     });
 
+    // Google User Chat Routes
+    Route::prefix('user/google-chat')->group(function () {
+        Route::get('/check-credentials', [\App\Http\Controllers\GoogleChatUserController::class, 'checkGoogleCredentials']);
+        Route::post('/spaces', [\App\Http\Controllers\GoogleChatUserController::class, 'createSpace']);
+        Route::post('/spaces/members', [\App\Http\Controllers\GoogleChatUserController::class, 'addMembers']);
+        Route::post('/messages', [\App\Http\Controllers\GoogleChatUserController::class, 'sendMessage']);
+        Route::post('/standups', [\App\Http\Controllers\GoogleChatUserController::class, 'sendStandup']);
+        Route::post('/notes', [\App\Http\Controllers\GoogleChatUserController::class, 'sendNote']);
+    });
+
     Route::apiResource('users', UserController::class);
 
     // Permission Management Routes
@@ -188,15 +232,23 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Task Management Routes
     Route::get('task-statistics', [TaskController::class, 'getTaskStatistics']);
+    Route::get('assigned-tasks', [TaskController::class, 'getAssignedTasks']);
     Route::get('projects/{projectId}/due-and-overdue-tasks', [TaskController::class, 'getProjectDueAndOverdueTasks']);
 
+    // Activity Log Routes
+    Route::get('activities', [ActivityController::class, 'index']);
+
     // Apply ProcessTags middleware to store and update methods
-    Route::apiResource('tasks', TaskController::class);
+    Route::apiResource('tasks', TaskController::class)->middleware(['process.tags']);
     Route::post('tasks/{task}/notes', [TaskController::class, 'addNote']);
-    Route::post('tasks/{task}/complete', [TaskController::class, 'markAsCompleted']);
+    Route::patch('tasks/{task}/complete', [TaskController::class, 'markAsCompleted']);
     Route::post('tasks/{task}/start', [TaskController::class, 'start']);
+    Route::post('tasks/{task}/pause', [TaskController::class, 'pause']);
+    Route::post('tasks/{task}/resume', [TaskController::class, 'resume']);
     Route::post('tasks/{task}/block', [TaskController::class, 'block']);
+    Route::post('tasks/{task}/unblock', [TaskController::class, 'unblock']);
     Route::post('tasks/{task}/archive', [TaskController::class, 'archive']);
+    Route::post('tasks/{task}/revise', [TaskController::class, 'revise']);
 
     // Subtask Management Routes
     Route::apiResource('subtasks', SubtaskController::class);
@@ -253,10 +305,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- NEW: Email Templates API Routes ---
     // Protect these routes with a new permission: 'manage_email_templates'
-    Route::apiResource('email-templates', EmailTemplateController::class)->middleware('permission:manage_email_templates');
-    Route::post('email-templates/{emailTemplate}/placeholders', [EmailTemplateController::class, 'syncPlaceholders'])->middleware('permission:manage_email_templates');
+//    Route::get('email-templates', [EmailTemplateController::class, 'index']);
+    Route::apiResource('email-templates', EmailTemplateController::class);
+    Route::post('email-templates/{emailTemplate}/placeholders', [EmailTemplateController::class, 'syncPlaceholders']);
     // We can also add a route to get a preview of the rendered template.
-    Route::post('email-templates/{emailTemplate}/preview', [EmailTemplateController::class, 'preview'])->middleware('permission:manage_email_templates');
+    Route::post('email-templates/{emailTemplate}/preview', [EmailTemplateController::class, 'preview']);
 
     // --- NEW: Placeholder Definitions API Routes ---
     // Protected by 'manage_placeholder_definitions' permission
@@ -264,11 +317,36 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('placeholder-definitions', PlaceholderDefinitionController::class)->middleware('permission:manage_placeholder_definitions');
 
 
-    // New route for sending emails from a template
-    Route::post('send-email', [SendEmailController::class, 'sendEmail']);
     Route::post('projects/{project}/email-preview', [SendEmailController::class, 'preview']);
+    Route::post('emails/templated', [EmailController::class, 'storeTemplatedEmail']);
     Route::get('projects/{project}/model-data/{shortModelName}', [\App\Http\Controllers\Api\ModelDataController::class, 'index']);
 
+    // Route for fetching source model data for email templates
+    Route::get('source-models/{modelName}', [\App\Http\Controllers\Api\ModelDataController::class, 'getSourceModelData']);
+
+    // Wireframe Routes
+    Route::prefix('projects/{projectId}/wireframes')->group(function () {
+        Route::get('/', [WireframeController::class, 'index']);
+        Route::get('latest', [WireframeController::class, 'latest']);
+        Route::get('{id}', [WireframeController::class, 'show']);
+        Route::post('/', [WireframeController::class, 'store']);
+        Route::put('{id}', [WireframeController::class, 'update']);
+        Route::post('{id}/publish', [WireframeController::class, 'publish']);
+        Route::post('{id}/versions', [WireframeController::class, 'newVersion']);
+        Route::get('{id}/versions', [WireframeController::class, 'versions']);
+        Route::put('{id}/versions/{versionNumber}', [WireframeController::class, 'updateVersion']);
+        Route::delete('{id}', [WireframeController::class, 'destroy']);
+        Route::get('{id}/logs', [WireframeController::class, 'logs']);
+    });
+
+    // Component Routes
+    Route::prefix('components')->group(function () {
+        Route::get('/', [ComponentController::class, 'index']);
+        Route::post('/', [ComponentController::class, 'store']);
+        Route::get('{id}', [ComponentController::class, 'show']);
+        Route::put('{id}', [ComponentController::class, 'update']);
+        Route::delete('{id}', [ComponentController::class, 'destroy']);
+    });
 
 });
 
@@ -288,6 +366,7 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
 
     // SEO Reports API Routes
     Route::get('/projects/{project}/seo-reports/available-months', [SeoReportController::class, 'getAvailableMonths']);
+    Route::get('/projects/{project}/seo-reports/count', [SeoReportController::class, 'getCount']);
     Route::get('/projects/{project}/seo-reports/{yearMonth}', [SeoReportController::class, 'show']);
     // TODO: Add more reader endpoints as needed (e.g., announcements, invoices, comments for a deliverable)
 

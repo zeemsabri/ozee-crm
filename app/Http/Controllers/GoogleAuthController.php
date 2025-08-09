@@ -10,6 +10,7 @@ use Google\Client as GoogleClient;
 use Google\Service\Gmail;
 use Illuminate\Support\Facades\Storage; // To store tokens temporarily
 use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
 
 class GoogleAuthController extends Controller
 {
@@ -50,7 +51,7 @@ class GoogleAuthController extends Controller
      * Google redirects back to this URL after the user grants/denies permission.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return \Inertia\Response
      */
     public function handleGoogleCallback(Request $request)
     {
@@ -65,7 +66,7 @@ class GoogleAuthController extends Controller
                 'access_token' => $googleUser->token,
                 'refresh_token' => $googleUser->refreshToken, // This is key for long-term access without re-auth
                 'expires_in' => $googleUser->expiresIn,       // Time until access token expires (in seconds)
-                'created_at' => now()->timestamp,             // Timestamp when token was obtained
+                'created' => now()->timestamp,             // Timestamp when token was obtained
                 'email' => $googleUser->email,                // The email of the authorized Google account
             ];
 
@@ -74,11 +75,11 @@ class GoogleAuthController extends Controller
 
             Log::info('Google authorization successful', ['email' => $googleUser->email, 'token_file' => 'google_tokens.json']);
 
-            return response()->json([
+            return Inertia::render('GoogleAuthSuccess', [
                 'message' => 'Google authorization successful! Tokens stored in storage/app/google_tokens.json.',
                 'authorized_email' => $googleUser->email,
                 'note' => 'You can now proceed with sending/receiving tests.',
-            ], 200);
+            ]);
 
         } catch (\Exception $e) {
             // Log the full error for debugging purposes.
@@ -87,10 +88,12 @@ class GoogleAuthController extends Controller
                 'trace' => $e->getTraceAsString(),
                 'request_url' => $request->fullUrl(),
             ]);
-            return response()->json([
+            return Inertia::render('GoogleAuthSuccess', [
                 'message' => 'Google authorization failed. Please check your logs for details.',
-                'error' => $e->getMessage(),
-            ], 500);
+                'authorized_email' => '',
+                'note' => $e->getMessage(),
+                'error' => true
+            ]);
         }
     }
 }

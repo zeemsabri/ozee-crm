@@ -1,3 +1,3 @@
 <template>
-    <img height="1200" src="/logo.png" alt="OZEE Logo" />
+    <img height="628" src="/logo_header.png" alt="OZEE Logo" />
 </template>

@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\GoogleAuthController; // Import our Google Auth controller (for web routes)
 use App\Http\Controllers\Api\MagicLinkController; // Import for magic link functionality
-
+use App\Http\Controllers\GoogleUserAuthController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -23,7 +23,52 @@ use App\Http\Controllers\Api\MagicLinkController; // Import for magic link funct
 | contains the "web" middleware group. Now create something great!
 |
 */
-
+$sourceOptions = [
+    [
+        'label'  =>  'UpWork',
+        'value' =>  'UpWork'
+    ],
+    [
+        'label'  =>  'AirTasker',
+        'value' =>  'AirTasker'
+    ],
+    [
+        'label'  =>  'Direct',
+        'value' =>  'Direct'
+    ],
+    [
+        'label'  =>  'Agency',
+        'value' =>  'Agency'
+    ],
+    [
+        'label'  =>  'Reference',
+        'value' =>  'Reference'
+    ],
+    [
+        'label'  =>  'Wix Marketplace',
+        'value' =>  'Wix Marketplace'
+    ],
+    [
+        'label'  =>  'Fiver',
+        'value' =>  'Fiver'
+    ],
+    [
+        'label'  =>  'Social Media',
+        'value' =>  'Social Media'
+    ],
+    [
+        'label'  =>  'Advertising',
+        'value' =>  'Advertising'
+    ],
+    [
+        'label'  =>  'Website',
+        'value' =>  'Website'
+    ],
+    [
+        'label'  =>  'Other',
+        'value' =>  'Other'
+    ]
+];
 // Default welcome page or client dashboard if token is present
 Route::get('/', function (Request $request) {
 //    // Check if token parameter is present in the URL
@@ -42,6 +87,12 @@ Route::get('/', function (Request $request) {
     ]);
 });
 
+//Route::get('/wireframe', function () {
+//    return Inertia::render('Wireframe', [
+//        'message' => 'An unexpected error occurred.'
+//    ]);
+//})->name('wireframe');
+
 // Public route for handling the magic link (this is the new client dashboard route)
 // This route will render the ClientDashboard.vue component
 Route::get('/client/dashboard/{token}', [MagicLinkController::class, 'handleMagicLink'])
@@ -58,7 +109,17 @@ Route::get('/magic-link-error', function () {
 // --- NEW: Public Email Preview Route for Development ---
 Route::get('/email-preview/{slug?}', [EmailPreviewController::class, 'preview'])->name('email.preview');
 
-Route::get('/emails/{email}/preview', [EmailController::class, 'previewEmail'])
+// Privacy Policy Route - publicly accessible
+Route::get('/privacy-policy', function () {
+    return view('privacy-policy');
+})->name('privacy.policy');
+
+// Test Google Auth Flow Route - for development only
+Route::get('/test-google-auth', function () {
+    return view('test-google-auth');
+});
+
+Route::get('/emails/{email}/preview', [EmailController::class, 'reviewEmail'])
     ->middleware(['auth']) // Add any necessary middleware for access control
     ->name('emails.preview');
 
@@ -73,6 +134,13 @@ Route::get('/google/redirect', [GoogleAuthController::class, 'redirectToGoogle']
 // For this MVP, we are storing to file, so no direct user login needed for this specific route.
 Route::get('/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])->name('google.callback');
 
+// --- Google User OAuth Routes (for user-based authentication) ---
+
+Route::get('/user/google/redirect', [GoogleUserAuthController::class, 'redirectToGoogle'])->name('user.google.redirect');
+Route::get('/google/usercallback', [GoogleUserAuthController::class, 'handleCallback'])->name('user.google.callback');
+Route::get('/user/google/check', [GoogleUserAuthController::class, 'checkGoogleConnection'])->name('user.google.check');
+Route::post('/user/google/disconnect', [GoogleUserAuthController::class, 'disconnectGoogle'])->name('user.google.disconnect');
+
 Route::get('/receive-test-emails', [EmailTestController::class, 'receiveTestEmails'])->name('receive-test-email');
 
 // Magic Link Route - accessible without authentication
@@ -82,7 +150,7 @@ Route::get('/magic-link', [MagicLinkController::class, 'handleMagicLink'])->name
 Route::get('/client/dashboard', [ClientDashboardController::class, 'index'])->name('client.dashboard');
 // Authenticated routes group for Inertia pages that require a logged-in user
 // The 'verified' middleware ensures the user's email is verified (optional, remove if not needed for MVP)
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) {
 
     // Admin routes for role and permission management
     Route::prefix('admin')->name('admin.')->middleware(['permission:manage_roles'])->group(function () {
@@ -102,17 +170,52 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/roles', [\App\Http\Controllers\Api\RoleController::class, 'store'])->name('roles.store');
 
         Route::get('/roles/{role}', function (\App\Models\Role $role) {
-            $role->load(['permissions', 'users']);
+            $role->load('permissions');
+
+            // Get users with this role as their application role
+            $applicationUsers = \App\Models\User::where('role_id', $role->id)->get();
+
+            // Get users with this role as their project role
+            $projectUsers = [];
+            if ($role->type === 'project') {
+                $projectUsers = \Illuminate\Support\Facades\DB::table('users')
+                    ->join('project_user', 'users.id', '=', 'project_user.user_id')
+                    ->join('projects', 'project_user.project_id', '=', 'projects.id')
+                    ->where('project_user.role_id', $role->id)
+                    ->select('users.*', 'projects.name as project_name', 'projects.id as project_id')
+                    ->get();
+            }
+
             return Inertia::render('Admin/Roles/Show', [
-                'role' => $role
+                'role' => $role,
+                'applicationUsers' => $applicationUsers,
+                'projectUsers' => $projectUsers
             ]);
         })->name('roles.show');
 
         Route::get('/roles/{role}/edit', function (\App\Models\Role $role) {
+            $role->load('permissions');
+
+            // Get users with this role as their application role
+            $applicationUsers = \App\Models\User::where('role_id', $role->id)->get();
+
+            // Get users with this role as their project role
+            $projectUsers = [];
+            if ($role->type === 'project') {
+                $projectUsers = \Illuminate\Support\Facades\DB::table('users')
+                    ->join('project_user', 'users.id', '=', 'project_user.user_id')
+                    ->join('projects', 'project_user.project_id', '=', 'projects.id')
+                    ->where('project_user.role_id', $role->id)
+                    ->select('users.*', 'projects.name as project_name', 'projects.id as project_id')
+                    ->get();
+            }
+
             return Inertia::render('Admin/Roles/Edit', [
                 'role' => $role,
                 'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category'),
-                'rolePermissions' => $role->permissions->pluck('id')->toArray()
+                'rolePermissions' => $role->permissions->pluck('id')->toArray(),
+                'applicationUsers' => $applicationUsers,
+                'projectUsers' => $projectUsers
             ]);
         })->name('roles.edit');
 
@@ -129,6 +232,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::post('/roles/{role}/permissions', [\App\Http\Controllers\Api\RoleController::class, 'updatePermissions'])->name('roles.updatePermissions');
 
+        // Route for revoking a role from a user
+        Route::post('/roles/revoke-user', [\App\Http\Controllers\Admin\RoleController::class, 'revokeUser'])->name('roles.revoke-user');
+
+        // Route for revoking a permission from a user
+        Route::post('/permissions/revoke-user', [\App\Http\Controllers\Admin\PermissionController::class, 'revokeUser'])->name('permissions.revoke-user');
+
         // Permission management routes
         Route::get('/permissions', function () {
             return Inertia::render('Admin/Permissions/Index', [
@@ -138,7 +247,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('/permissions/create', function () {
             return Inertia::render('Admin/Permissions/Create', [
-                'categories' => \App\Models\Permission::select('category')->distinct()->pluck('category')
+                'categories' => \App\Models\Permission::select('category')->distinct()->pluck('category'),
+                'roles' => \App\Models\Role::all()
             ]);
         })->name('permissions.create');
 
@@ -146,16 +256,46 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('/permissions/bulk-create', function () {
             return Inertia::render('Admin/Permissions/BulkCreate', [
-                'categories' => \App\Models\Permission::select('category')->distinct()->pluck('category')
+                'categories' => \App\Models\Permission::select('category')->distinct()->pluck('category'),
+                'roles' => \App\Models\Role::all()
             ]);
         })->name('permissions.bulk-create');
 
         Route::post('/permissions/bulk', [\App\Http\Controllers\Admin\PermissionController::class, 'bulkStore'])->name('permissions.bulk-store');
 
         Route::get('/permissions/{permission}/edit', function (\App\Models\Permission $permission) {
+            $permission->load('roles');
+
+            // Get all roles for selection
+            $roles = \App\Models\Role::all();
+            $permissionRoles = $permission->roles->pluck('id')->toArray();
+
+            // Get all roles that have this permission
+            $rolesWithPermission = $permission->roles;
+
+            // Get users with application roles that have this permission
+            $applicationUsers = \App\Models\User::whereIn('role_id', $rolesWithPermission->where('type', 'application')->pluck('id'))->get();
+
+            // Get users with project roles that have this permission
+            $projectUsers = [];
+            $projectRoleIds = $rolesWithPermission->where('type', 'project')->pluck('id')->toArray();
+
+            if (!empty($projectRoleIds)) {
+                $projectUsers = \Illuminate\Support\Facades\DB::table('users')
+                    ->join('project_user', 'users.id', '=', 'project_user.user_id')
+                    ->join('projects', 'project_user.project_id', '=', 'projects.id')
+                    ->whereIn('project_user.role_id', $projectRoleIds)
+                    ->select('users.*', 'projects.name as project_name', 'projects.id as project_id')
+                    ->get();
+            }
+
             return Inertia::render('Admin/Permissions/Edit', [
                 'permission' => $permission,
-                'categories' => \App\Models\Permission::select('category')->distinct()->pluck('category')
+                'categories' => \App\Models\Permission::select('category')->distinct()->pluck('category'),
+                'roles' => $roles,
+                'permissionRoles' => $permissionRoles,
+                'applicationUsers' => $applicationUsers,
+                'projectUsers' => $projectUsers
             ]);
         })->name('permissions.edit');
 
@@ -190,14 +330,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('projects.index')->middleware('permission:view_projects');
 
     // Projects Create Page
-    Route::get('/projects/create', function () {
-        return Inertia::render('Projects/Create');
+    Route::get('/projects/create', function () use ($sourceOptions) {
+        return Inertia::render('Projects/Create', [
+            'sourceOptions' => $sourceOptions,
+        ]);
     })->name('projects.create')->middleware('permission:create_projects');
 
     // Projects Edit Page
-    Route::get('/projects/{project}/edit', function (Project $project) {
+    Route::get('/projects/{project}/edit', function (Project $project) use ($sourceOptions) {
         return Inertia::render('Projects/Edit', [
             'project' => $project,
+            'sourceOptions' => $sourceOptions,
         ]);
     })->name('projects.edit')->middleware('permission:create_projects');
 
@@ -207,6 +350,33 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'id' => $id,
         ]);
     })->name('projects.show')->middleware('permission:view_projects');
+
+    // Project Wireframe Page
+    Route::get('/projects/{project}/wireframe', function ($project) {
+        return Inertia::render('Projects/Show', [
+            'id' => $project,
+            'showWireframe' => true,
+        ]);
+    })->name('projects.wireframe')->middleware('permission:view_projects');
+
+    // Project Wireframe with Version Page
+    Route::get('/projects/{project}/wireframe/{wireframe}', function ($project, $wireframe) {
+        return Inertia::render('Projects/Show', [
+            'id' => $project,
+            'showWireframe' => true,
+            'wireframeId' => $wireframe,
+        ]);
+    })->name('projects.wireframe.show')->middleware('permission:view_projects');
+
+    // Project Wireframe with Version Page
+    Route::get('/projects/{project}/wireframe/{wireframe}/version/{version}', function ($project, $wireframe, $version) {
+        return Inertia::render('Projects/Show', [
+            'id' => $project,
+            'showWireframe' => true,
+            'wireframeId' => $wireframe,
+            'versionNumber' => $version,
+        ]);
+    })->name('projects.wireframe.version')->middleware('permission:view_projects');
 
     // Task Types Management Page
     Route::get('/task-types', function () {
@@ -226,6 +396,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/emails/rejected', function () {
         return Inertia::render('Emails/Rejected');
     })->name('emails.rejected')->middleware('permission:compose_emails'); // New route for rejected emails
+
+    // Inbox Page
+    Route::get('/inbox', function () {
+        return Inertia::render('Emails/Inbox/Index');
+    })->name('inbox')->middleware('permission:view_emails');
 
     Route::get('/users', function () {
         return Inertia::render('Users/Index');

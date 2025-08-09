@@ -5,6 +5,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import TagInput from '@/Components/TagInput.vue';
 
 const props = defineProps({
     show: Boolean,
@@ -27,10 +28,18 @@ const taskForm = reactive({
     status: 'To Do',
     task_type_id: null,
     milestone_id: null,
-    // Tags removed as per original TaskFormModal.vue comment
+    priority: 'medium', // Default priority
+    tags: [], // For tag IDs
+    tags_data: [], // For tag objects with id and name
 });
 
 const taskStatuses = ['To Do', 'In Progress', 'Done', 'Blocked', 'Archived'];
+
+const priorityOptions = [
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+];
 
 // Computed properties for BaseFormModal
 const modalTitle = computed(() => 'Edit Task'); // Always 'Edit Task' now
@@ -69,21 +78,59 @@ watch(() => [props.show, props.selectedTask], ([newShow, newTask], [oldShow, old
         }
 
 
+        // Convert tag names to tag objects if needed
+        let tagsData = [];
+        if (newTask.tags && Array.isArray(newTask.tags)) {
+            if (newTask.tags.length > 0) {
+                // Check if tags are already objects or just strings
+                if (typeof newTask.tags[0] === 'string') {
+                    // Convert tag names to tag objects
+                    tagsData = newTask.tags.map(tagName => ({
+                        id: `new_${tagName.replace(/\s+/g, '-').toLowerCase()}_${Date.now()}`,
+                        name: tagName
+                    }));
+                } else if (typeof newTask.tags[0] === 'object') {
+                    // Tags are already objects
+                    tagsData = newTask.tags;
+                }
+            }
+        }
+
         Object.assign(taskForm, {
-            name: newTask.title,
+            name: newTask.title || '',
             description: newTask.description || '',
             assigned_to_user_id: assignedToUserId,
             due_date: newTask.due_date || null,
-            status: newTask.status,
+            status: newTask.status || 'To Do',
             task_type_id: taskTypeId,
             milestone_id: milestoneId,
-            // tags: newTask.tags || [] // If tags are needed, re-enable
+            priority: newTask.priority || 'medium',
+            tags: tagsData.map(tag => tag.id),
+            tags_data: tagsData
+        });
+
+        // Debug log to help diagnose tag issues
+        console.log('Task data loaded:', {
+            taskId: newTask.id,
+            title: newTask.title,
+            originalTags: newTask.tags,
+            processedTags: tagsData,
+            formTags: taskForm.tags,
+            formTagsData: taskForm.tags_data
         });
     } else if (!newShow) {
         // Reset form when modal closes
         Object.assign(taskForm, {
-            name: '', description: '', assigned_to_user_id: null, due_date: null,
-            status: 'To Do', task_type_id: null, milestone_id: null, //tags: []
+            name: '',
+            description: '',
+            assigned_to_user_id: null,
+            due_date: null,
+            status: 'To Do',
+            task_type_id: null,
+            milestone_id: null,
+            priority: 'medium',
+            tags: [],
+            tags_data: []
         });
     }
 }, { immediate: true });
@@ -184,6 +231,21 @@ const milestoneOptions = computed(() => {
                     <InputError :message="errors.status ? errors.status[0] : ''" class="mt-2" />
                 </div>
 
+                <!-- Task Priority -->
+                <div>
+                    <InputLabel for="task-priority" value="Priority" />
+                    <SelectDropdown
+                        id="task-priority"
+                        v-model="taskForm.priority"
+                        :options="priorityOptions"
+                        value-key="value"
+                        label-key="label"
+                        placeholder="Select priority"
+                        class="mt-1"
+                    />
+                    <InputError :message="errors.priority ? errors.priority[0] : ''" class="mt-2" />
+                </div>
+
                 <!-- Due Date -->
                 <div>
                     <InputLabel for="task-due-date" value="Due Date" />
@@ -255,6 +317,17 @@ const milestoneOptions = computed(() => {
                         :allow-empty="true"
                     />
                     <InputError :message="errors.milestone_id ? errors.milestone_id[0] : ''" class="mt-2" />
+                </div>
+
+                <!-- Tags -->
+                <div>
+                    <TagInput
+                        v-model="taskForm.tags"
+                        :initialTags="taskForm.tags_data"
+                        label="Tags"
+                        placeholder="Search or add tags"
+                        :error="errors.tags ? errors.tags[0] : ''"
+                    />
                 </div>
             </div>
         </template>

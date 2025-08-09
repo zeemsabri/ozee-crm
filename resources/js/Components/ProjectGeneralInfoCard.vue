@@ -270,19 +270,10 @@ const sendMagicLink = async () => {
                     Schedule Meeting
                 </PrimaryButton>
                 <PrimaryButton
-                    v-if="canManageProjects || isSuperAdmin"
                     class="bg-blue-400 hover:bg-blue-600 transition-colors"
                     @click="handOpenCompose"
                 >
                     Compose Email
-                </PrimaryButton>
-                <PrimaryButton
-                    v-if="canManageProjects "
-                    class="bg-purple-600 hover:bg-purple-700 transition-colors"
-                    @click="openMagicLinkModal"
-                    :disabled="sendingMagicLink"
-                >
-                    {{ sendingMagicLink ? 'Sending...' : 'Send Magic Link' }}
                 </PrimaryButton>
             </div>
         </div>
@@ -466,9 +457,16 @@ const sendMagicLink = async () => {
     <!-- New Compose Email Modal -->
     <ComposeEmailModal
         :show="showComposeEmailModal"
-        :project-id="projectId"
+        :title="'Compose New Email'"
+        :api-endpoint="'/api/emails/templated'"
+        :http-method="'post'"
         :clients="projectClients"
+        :submit-button-text="'Submit for Approval'"
+        :success-message="'Email submitted for approval successfully!'"
+        :project-id="projectId"
         @close="showComposeEmailModal = false"
+        @submitted="showComposeEmailModal = false"
+        @error="(error) => console.error('Email submission error:', error)"
     />
 </template>
 
