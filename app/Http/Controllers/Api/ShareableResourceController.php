@@ -26,7 +26,7 @@ class ShareableResourceController extends Controller
 
         // Filter by visibility if provided
         if ($request->has('visible_to_client')) {
-            $query->where('visible_to_client', $request->visible_to_client);
+            $query->where('visible_to_client', false);
         }
 
         // Filter by tag if provided
