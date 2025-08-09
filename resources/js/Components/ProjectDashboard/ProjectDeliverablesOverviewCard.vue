@@ -213,6 +213,7 @@ const toggleCollapse = () => {
 
                         <div v-if="expandedDeliverables[deliverable.id]" class="mt-4 pl-8">
                             <ChecklistComponent
+                                checkListStyle="list"
                                 v-if="deliverable.details?.checklist && deliverable.details.checklist.length > 0"
                                 :items="deliverable.details.checklist"
                                 :api-endpoint="`/api/project-deliverables/${deliverable.id}`"

@@ -51,6 +51,10 @@ const props = defineProps({
     payloadTransformer: {
         type: Function,
         default: null
+    },
+    checkListStyle: {
+        type: String,
+        default: 'checklist'
     }
 });
 
@@ -110,6 +114,7 @@ async function toggleChecklistItem(index) {
         <ul :class="itemsContainerClass">
             <li v-for="(item, index) in localItems" :key="index" :class="itemClass">
                 <input
+                    v-if="checkListStyle === 'checklist'"
                     type="checkbox"
                     :checked="item.completed"
                     @change="toggleChecklistItem(index)"
