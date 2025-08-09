@@ -189,7 +189,7 @@ onMounted(async () => {
         // fetchClientData(`project/${props.projectId}/invoices`, invoices), // Uncomment if you have invoices API
         // fetchClientData(`announcements`, announcements), // Uncomment if you have announcements API
         fetchClientData(`project/${props.projectId}/deliverables`, deliverables),
-        fetchClientData(`project/${props.projectId}/shareable-resources`, shareableResources), // Fetch shareable resources
+        fetchClientData(`project/${props.projectId}/shareable-resources?visible_to_client?true`, shareableResources), // Fetch shareable resources
         fetchClientData(`project/${props.projectId}`, projectData)
     ]);
 
