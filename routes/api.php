@@ -324,6 +324,16 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route for fetching source model data for email templates
     Route::get('source-models/{modelName}', [\App\Http\Controllers\Api\ModelDataController::class, 'getSourceModelData']);
 
+    // Project Deliverables Routes
+    Route::get('projects/{projectId}/project-deliverables', [\App\Http\Controllers\Api\ProjectDeliverableController::class, 'index']);
+    Route::post('projects/{projectId}/project-deliverables', [\App\Http\Controllers\Api\ProjectDeliverableController::class, 'store']);
+    Route::get('project-deliverables/{id}', [\App\Http\Controllers\Api\ProjectDeliverableController::class, 'show']);
+    Route::put('project-deliverables/{id}', [\App\Http\Controllers\Api\ProjectDeliverableController::class, 'update']);
+    Route::delete('project-deliverables/{id}', [\App\Http\Controllers\Api\ProjectDeliverableController::class, 'destroy']);
+    Route::get('project-deliverable-types', function () {
+       return config('project_deliverable_types');
+    });
+
     // Wireframe Routes
     Route::prefix('projects/{projectId}/wireframes')->group(function () {
         Route::get('/', [WireframeController::class, 'index']);

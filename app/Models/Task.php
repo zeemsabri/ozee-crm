@@ -295,6 +295,14 @@ class Task extends Model
         return $this->belongsTo(Milestone::class);
     }
 
+    /**
+     * Get the project deliverable associated with this task.
+     */
+    public function projectDeliverable()
+    {
+        return $this->belongsTo(ProjectDeliverable::class);
+    }
+
     public function getProjectIdAttribute()
     {
         return $this->milestone?->project_id;
