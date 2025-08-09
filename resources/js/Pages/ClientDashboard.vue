@@ -47,6 +47,7 @@ const invoices = ref([]);
 const announcements = ref([]);
 const deliverables = ref([]);
 const shareableResources = ref([]); // Reactive data for shareable resources
+const seoReportsCount = ref(0); // Count of SEO reports for the project
 const error = ref(null); // To store any API errors
 const projectData = ref({});
 
@@ -192,6 +193,27 @@ onMounted(async () => {
         fetchClientData(`project/${props.projectId}`, projectData)
     ]);
 
+    // Fetch SEO reports count
+    try {
+        const response = await fetch(`/api/client-api/projects/${props.projectId}/seo-reports/count`, {
+            headers: {
+                'Authorization': `Bearer ${props.initialAuthToken}`,
+                'Accept': 'application/json',
+            },
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            seoReportsCount.value = data.count || 0;
+        } else {
+            console.error('Error fetching SEO reports count');
+            seoReportsCount.value = 0;
+        }
+    } catch (err) {
+        console.error('Error fetching SEO reports count:', err);
+        seoReportsCount.value = 0;
+    }
+
     isLoading.value = false;
 });
 
@@ -233,6 +255,7 @@ provide('activityService', { addActivity: addActivity }); // Provided for child 
                 :announcements="announcements"
                 :deliverables="deliverables"
                 :shareableResources="shareableResources"
+                :seo-reports-count="seoReportsCount"
                 @open-deliverable-viewer="handleOpenDeliverableViewer"
                 :project-data="projectData"
             />

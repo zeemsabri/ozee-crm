@@ -35,6 +35,10 @@ const props = defineProps({
         type: Array,
         default: () => []
     },
+    seoReportsCount: {
+        type: Number,
+        default: 0
+    },
     projectData: {
         type: [Object, null],
         default: () => ({})
@@ -56,10 +60,7 @@ const pendingApprovalsCount = computed(() => {
 });
 
 const newReportsAvailableCount = computed(() => {
-    return props.deliverables.filter(d =>
-        d.type === 'report' &&
-        (!d.client_interaction || !d.client_interaction.read_at)
-    ).length;
+    return props.seoReportsCount;
 });
 
 // --- Filtered Data for Sections ---
@@ -307,6 +308,18 @@ const formatDate = (dateString) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+const projectInitials = computed(() => {
+    if (props.projectData.name) {
+        return props.projectData.name
+            .split(' ')
+            .map(word => word[0])
+            .join('')
+            .toUpperCase()
+            .slice(0, 2);
+    }
+    return 'CD'; // Default initials if project name is also missing
+});
+
 </script>
 
 <template>
@@ -314,11 +327,22 @@ const formatDate = (dateString) => {
         <!-- Header Section -->
         <header class="bg-white rounded-xl shadow-lg p-4 mb-6 flex flex-col sm:flex-row items-center justify-between">
             <div class="flex items-center mb-4 sm:mb-0">
-                <img v-if="projectData.logo" :src="projectData.logo" alt="Project Logo" class="w-12 h-12 rounded-full mr-3 border-2 border-indigo-500 p-0.5">
+                <img
+                    v-if="projectData.logo"
+                    :src="projectData.logo"
+                    alt="Project Logo"
+                    class="w-12 h-12 rounded-full mr-3 border-2 border-indigo-500 p-0.5"
+                >
+                <div
+                    v-else
+                    class="w-12 h-12 rounded-full mr-3 border-2 border-indigo-500 p-0.5 flex items-center justify-center bg-gray-200 text-indigo-700 font-bold text-lg"
+                >
+                    {{ projectInitials }}
+                </div>
+
                 <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">{{ projectData.name || 'Client Dashboard' }}</h1>
             </div>
 
-            <!-- Quick Stats -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full sm:w-auto">
                 <div class="bg-indigo-500 text-white p-3 rounded-lg shadow-md flex items-center justify-center text-center">
                     <span class="text-xl font-bold">{{ totalTickets }}</span>
@@ -330,7 +354,7 @@ const formatDate = (dateString) => {
                 </div>
                 <div class="bg-green-500 text-white p-3 rounded-lg shadow-md flex items-center justify-center text-center">
                     <span class="text-xl font-bold">{{ newReportsAvailableCount }}</span>
-                    <span class="ml-2 text-sm">New Reports</span>
+                    <span class="ml-2 text-sm">SEO Reports</span>
                 </div>
             </div>
         </header>

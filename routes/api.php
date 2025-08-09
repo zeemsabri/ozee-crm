@@ -366,6 +366,7 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
 
     // SEO Reports API Routes
     Route::get('/projects/{project}/seo-reports/available-months', [SeoReportController::class, 'getAvailableMonths']);
+    Route::get('/projects/{project}/seo-reports/count', [SeoReportController::class, 'getCount']);
     Route::get('/projects/{project}/seo-reports/{yearMonth}', [SeoReportController::class, 'show']);
     // TODO: Add more reader endpoints as needed (e.g., announcements, invoices, comments for a deliverable)
 
