@@ -96,7 +96,6 @@ watch(() => props.show, (newVal) => {
         }
     }
 });
-
 </script>
 
 <template>
@@ -109,51 +108,52 @@ watch(() => props.show, (newVal) => {
             leave-from-class="translate-x-0"
             leave-to-class="translate-x-full"
         >
-            <div
-                v-if="show"
-                class="fixed inset-0 z-50 flex"
-                :class="{ 'pointer-events-none': !show }"
-            >
-                <!-- Overlay -->
-<!--                <div-->
-<!--                    class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity"-->
-<!--                    @click="closeSidebar"-->
-<!--                ></div>-->
-
-                <!-- Sidebar Content -->
+            <div v-if="show" class="sidebar-wrapper">
+                <!-- Overlay - Separated from the sliding content -->
                 <div
-                    class="relative ml-auto h-full bg-white shadow-xl flex flex-col rounded-l-xl"
-                    :style="{ width: isMobile ? '100%' : `${sidebarWidth}vw` }"
+                    class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity z-[99]"
+                    @click="closeSidebar"
+                ></div>
+
+                <!-- Sidebar Container -->
+                <div
+                    class="fixed inset-0 z-[100] flex pointer-events-none"
                 >
-                    <!-- Resizing Handle (only on desktop) -->
+                    <!-- Sidebar Content -->
                     <div
-                        v-if="!isMobile"
-                        class="absolute left-0 top-0 h-full w-2 cursor-col-resize -ml-1 z-10"
-                        @pointerdown="handleMouseDown"
-                        title="Drag to resize"
-                    ></div>
+                        class="relative ml-auto h-full bg-white shadow-xl flex flex-col rounded-l-xl pointer-events-auto"
+                        :style="{ width: isMobile ? '100%' : `${sidebarWidth}vw` }"
+                    >
+                        <!-- Resizing Handle (only on desktop) -->
+                        <div
+                            v-if="!isMobile"
+                            class="absolute left-0 top-0 h-full w-2 cursor-col-resize -ml-1 z-10"
+                            @pointerdown="handleMouseDown"
+                            title="Drag to resize"
+                        ></div>
 
-                    <!-- Header -->
-                    <div class="flex items-center justify-between p-4 border-b border-gray-200 bg-white rounded-tl-xl sticky top-0 z-20">
-                        <h3 class="text-xl font-semibold text-gray-900">{{ title }}</h3>
-                        <button
-                            @click="closeSidebar"
-                            class="text-gray-400 hover:text-gray-600 transition-colors"
-                        >
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
+                        <!-- Header -->
+                        <div class="flex items-center justify-between p-4 border-b border-gray-200 bg-white rounded-tl-xl sticky top-0 z-20">
+                            <h3 class="text-xl font-semibold text-gray-900">{{ title }}</h3>
+                            <button
+                                @click="closeSidebar"
+                                class="text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
 
-                    <!-- Content Area -->
-                    <div class="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-rounded scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                        <slot name="content"></slot>
-                    </div>
+                        <!-- Content Area -->
+                        <div class="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-rounded scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                            <slot name="content"></slot>
+                        </div>
 
-                    <!-- Footer -->
-                    <div v-if="$slots.footer" class="p-4 border-t border-gray-200 bg-white sticky bottom-0 z-20">
-                        <slot name="footer"></slot>
+                        <!-- Footer -->
+                        <div v-if="$slots.footer" class="p-4 border-t border-gray-200 bg-white sticky bottom-0 z-20">
+                            <slot name="footer"></slot>
+                        </div>
                     </div>
                 </div>
             </div>

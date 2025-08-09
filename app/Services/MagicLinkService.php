@@ -36,4 +36,20 @@ class MagicLinkService
             ['token' => $token]
         );
     }
+
+    /**
+     * Get an existing, non-expired magic link for a given email and project.
+     *
+     * @param string $email
+     * @param int $projectId
+     * @return MagicLink|null
+     */
+    public function getValidMagicLink(string $email, int $projectId): ?MagicLink
+    {
+        return MagicLink::where('email', $email)
+            ->where('project_id', $projectId)
+            ->where('used', false)
+            ->where('expires_at', '>', now())
+            ->first();
+    }
 }

@@ -1,82 +1,65 @@
 <?php
 
-// This script tests the fix for the "Indirect modification of overloaded property" error
-// in the ProjectController's show method
-
-// Import necessary classes
-require_once __DIR__ . '/vendor/autoload.php';
-
+use App\Helpers\PermissionHelper;
 use App\Models\Project;
 use App\Models\User;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
-echo "Testing fix for pivot property modification issue\n";
-echo "------------------------------------------------\n\n";
+// This script tests the fixed PermissionHelper::getUsersWithProjectPermission method
 
-// Find a test project
+echo "Testing PermissionHelper::getUsersWithProjectPermission fix\n\n";
+
+// Get a project ID to test with
 $project = Project::first();
+
 if (!$project) {
-    echo "No projects found. Please create a project first.\n";
-    exit(1);
+    echo "No projects found in the database. Please create a project first.\n";
+    exit;
 }
 
-echo "Found project: {$project->name} (ID: {$project->id})\n\n";
+echo "Using project ID: {$project->id}\n";
 
-// Find a user to test with
-$user = User::first();
-if (!$user) {
-    echo "No users found. Please create a user first.\n";
-    exit(1);
+// Get a permission slug to test with
+$permission = DB::table('permissions')->first();
+
+if (!$permission) {
+    echo "No permissions found in the database. Please create permissions first.\n";
+    exit;
 }
 
-echo "Found user: {$user->name} (ID: {$user->id})\n\n";
+$permissionSlug = $permission->slug;
+echo "Using permission slug: {$permissionSlug}\n\n";
 
-// Log in as the user
-Auth::login($user);
-echo "Logged in as {$user->name}\n\n";
-
-// Call the ProjectController's show method directly
-echo "Calling ProjectController's show method...\n";
+// Test the fixed method
 try {
-    $response = app()->call('\App\Http\Controllers\Api\ProjectController@show', [
-        'project' => $project
-    ]);
+    echo "Testing getUsersWithProjectPermission method...\n";
+    $users = PermissionHelper::getUsersWithProjectPermission($permissionSlug, $project->id);
+    echo "Success! Found " . $users->count() . " users with project permission '{$permissionSlug}' for project {$project->id}\n";
 
-    echo "SUCCESS: ProjectController's show method executed without errors.\n";
-    echo "The fix for the 'Indirect modification of overloaded property' error is working correctly!\n\n";
-
-    // Check if the response contains the expected data
-    $responseData = $response->getData(true);
-
-    // Check if the users array exists in the response
-    if (!isset($responseData['users']) || !is_array($responseData['users'])) {
-        echo "WARNING: Response does not contain users array.\n";
-    } else {
-        echo "Response contains users array with " . count($responseData['users']) . " users.\n";
-
-        // Check if any user has role_data with permissions
-        $hasRoleDataWithPermissions = false;
-        foreach ($responseData['users'] as $responseUser) {
-            if (isset($responseUser['pivot']) &&
-                isset($responseUser['pivot']['role_data']) &&
-                isset($responseUser['pivot']['role_data']['permissions'])) {
-                $hasRoleDataWithPermissions = true;
-                echo "Found user with role_data and permissions in the response.\n";
-                echo "Number of permissions: " . count($responseUser['pivot']['role_data']['permissions']) . "\n";
-                break;
-            }
-        }
-
-        if (!$hasRoleDataWithPermissions) {
-            echo "WARNING: No users with role_data and permissions found in the response.\n";
-            echo "This might be expected if no users have project-specific roles with permissions.\n";
+    // Display the users
+    if ($users->count() > 0) {
+        echo "\nUsers with permission:\n";
+        foreach ($users as $user) {
+            echo "- {$user->name} (ID: {$user->id})\n";
         }
     }
+
+    // Test getAllUsersWithPermission method which uses getUsersWithProjectPermission
+    echo "\nTesting getAllUsersWithPermission method...\n";
+    $allUsers = PermissionHelper::getAllUsersWithPermission($permissionSlug, $project->id);
+    echo "Success! Found " . $allUsers->count() . " users with permission '{$permissionSlug}' (global or project-specific) for project {$project->id}\n";
+
+    // Display the users
+    if ($allUsers->count() > 0) {
+        echo "\nAll users with permission (global or project-specific):\n";
+        foreach ($allUsers as $user) {
+            echo "- {$user->name} (ID: {$user->id})\n";
+        }
+    }
+
 } catch (\Exception $e) {
-    echo "ERROR: An exception occurred while calling the ProjectController's show method:\n";
-    echo $e->getMessage() . "\n";
-    echo "Stack trace:\n" . $e->getTraceAsString() . "\n";
-    exit(1);
+    echo "Error: " . $e->getMessage() . "\n";
+    echo "Stack trace: " . $e->getTraceAsString() . "\n";
 }
 
-echo "\nTest completed successfully.\n";
+echo "\nTest completed.\n";

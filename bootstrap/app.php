@@ -14,6 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+
+//        $middleware->statefulApi(); // For Sanctum SPA authentication
+//
+//        $middleware->trustProxies(at: '*');
+
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
@@ -22,7 +27,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'permission' => CheckPermission::class,
             'auth.magiclink' => \App\Http\Middleware\VerifyMagicLinkToken::class,
-            'process.tags' => \App\Http\Middleware\ProcessTags::class
+            'process.tags' => \App\Http\Middleware\ProcessTags::class,
+            'google.chat.auth' => \App\Http\Middleware\AuthenticateGoogleChat::class,
         ]);
 
         //

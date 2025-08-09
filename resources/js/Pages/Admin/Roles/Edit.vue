@@ -167,6 +167,112 @@
                                 </div>
                             </div>
 
+                            <!-- Users with this Role Section -->
+                            <div class="mb-6 border border-gray-200 rounded-lg overflow-hidden">
+                                <button
+                                    @click.prevent="usersExpanded = !usersExpanded"
+                                    class="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                                >
+                                    <h3 class="text-lg font-semibold text-gray-900">Users with this Role</h3>
+                                    <span class="text-gray-500">
+                                        <span v-if="usersExpanded">▼</span>
+                                        <span v-else>▶</span>
+                                    </span>
+                                </button>
+
+                                <div v-if="usersExpanded" class="p-4">
+                                    <!-- Application Users -->
+                                    <div v-if="applicationUsers && applicationUsers.length > 0" class="mb-6">
+                                        <h4 class="font-medium text-gray-700 mb-2">Application Users</h4>
+                                        <div class="overflow-x-auto">
+                                            <table class="min-w-full divide-y divide-gray-200">
+                                                <thead class="bg-gray-50">
+                                                    <tr>
+                                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            Name
+                                                        </th>
+                                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            Email
+                                                        </th>
+                                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            Actions
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="bg-white divide-y divide-gray-200">
+                                                    <tr v-for="user in applicationUsers" :key="user.id">
+                                                        <td class="px-6 py-4 whitespace-nowrap">
+                                                            <div class="text-sm font-medium text-gray-900">{{ user.name }}</div>
+                                                        </td>
+                                                        <td class="px-6 py-4 whitespace-nowrap">
+                                                            <div class="text-sm text-gray-500">{{ user.email }}</div>
+                                                        </td>
+                                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                            <button
+                                                                @click="revokeRole(user.id, 'application')"
+                                                                class="text-red-600 hover:text-red-900"
+                                                            >
+                                                                Revoke
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <!-- Project Users -->
+                                    <div v-if="projectUsers && projectUsers.length > 0" class="mb-6">
+                                        <h4 class="font-medium text-gray-700 mb-2">Project Users</h4>
+                                        <div class="overflow-x-auto">
+                                            <table class="min-w-full divide-y divide-gray-200">
+                                                <thead class="bg-gray-50">
+                                                    <tr>
+                                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            Name
+                                                        </th>
+                                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            Email
+                                                        </th>
+                                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            Project
+                                                        </th>
+                                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            Actions
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="bg-white divide-y divide-gray-200">
+                                                    <tr v-for="user in projectUsers" :key="`${user.id}-${user.project_id}`">
+                                                        <td class="px-6 py-4 whitespace-nowrap">
+                                                            <div class="text-sm font-medium text-gray-900">{{ user.name }}</div>
+                                                        </td>
+                                                        <td class="px-6 py-4 whitespace-nowrap">
+                                                            <div class="text-sm text-gray-500">{{ user.email }}</div>
+                                                        </td>
+                                                        <td class="px-6 py-4 whitespace-nowrap">
+                                                            <div class="text-sm text-gray-500">{{ user.project_name }}</div>
+                                                        </td>
+                                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                            <button
+                                                                @click="revokeRole(user.id, 'project', user.project_id)"
+                                                                class="text-red-600 hover:text-red-900"
+                                                            >
+                                                                Revoke
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="(!applicationUsers || applicationUsers.length === 0) && (!projectUsers || projectUsers.length === 0)" class="text-sm text-gray-500 p-4 bg-gray-50 rounded-lg">
+                                        No users have been assigned this role.
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="flex items-center justify-end mt-4">
                                 <Link
                                     :href="route('admin.roles.index')"
@@ -193,7 +299,7 @@
 
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -205,12 +311,15 @@ const props = defineProps({
     role: Object,
     permissions: Object,
     rolePermissions: Array,
+    applicationUsers: Array,
+    projectUsers: Array,
 });
 
 // Track expanded state for each section
 const basicInfoExpanded = ref(true);
 const roleTypeExpanded = ref(true);
 const permissionsExpanded = ref(true);
+const usersExpanded = ref(true);
 
 // Track expanded state for each permission category
 const categoryExpanded = ref({});
@@ -273,6 +382,36 @@ const form = useForm({
     type: props.role.type || '',
     permissions: props.rolePermissions || [],
 });
+
+// Loading state for revoke actions
+const isRevoking = ref(false);
+
+// Function to revoke a role from a user
+const revokeRole = (userId, roleType, projectId = null) => {
+    if (isRevoking.value) return;
+
+    isRevoking.value = true;
+
+    const data = {
+        user_id: userId,
+        role_id: props.role.id,
+        role_type: roleType
+    };
+
+    if (projectId) {
+        data.project_id = projectId;
+    }
+
+    router.post(route('admin.roles.revoke-user'), data, {
+        preserveScroll: true,
+        onSuccess: () => {
+            isRevoking.value = false;
+        },
+        onError: () => {
+            isRevoking.value = false;
+        }
+    });
+};
 
 const submit = async () => {
     try {

@@ -72,7 +72,22 @@ class RoleController extends Controller
     public function show(Role $role)
     {
         $role->load('permissions');
-        return view('admin.roles.show', compact('role'));
+
+        // Get users with this role as their application role
+        $applicationUsers = User::where('role_id', $role->id)->get();
+
+        // Get users with this role as their project role
+        $projectUsers = [];
+        if ($role->type === 'project') {
+            $projectUsers = DB::table('users')
+                ->join('project_user', 'users.id', '=', 'project_user.user_id')
+                ->join('projects', 'project_user.project_id', '=', 'projects.id')
+                ->where('project_user.role_id', $role->id)
+                ->select('users.*', 'projects.name as project_name', 'projects.id as project_id')
+                ->get();
+        }
+
+        return view('admin.roles.show', compact('role', 'applicationUsers', 'projectUsers'));
     }
 
     /**
@@ -84,7 +99,21 @@ class RoleController extends Controller
         $permissions = Permission::orderBy('category')->get()->groupBy('category');
         $rolePermissions = $role->permissions->pluck('id')->toArray();
 
-        return view('admin.roles.edit', compact('role', 'permissions', 'rolePermissions'));
+        // Get users with this role as their application role
+        $applicationUsers = User::where('role_id', $role->id)->get();
+
+        // Get users with this role as their project role
+        $projectUsers = [];
+        if ($role->type === 'project') {
+            $projectUsers = DB::table('users')
+                ->join('project_user', 'users.id', '=', 'project_user.user_id')
+                ->join('projects', 'project_user.project_id', '=', 'projects.id')
+                ->where('project_user.role_id', $role->id)
+                ->select('users.*', 'projects.name as project_name', 'projects.id as project_id')
+                ->get();
+        }
+
+        return view('admin.roles.edit', compact('role', 'permissions', 'rolePermissions', 'applicationUsers', 'projectUsers'));
     }
 
     /**
@@ -175,7 +204,21 @@ class RoleController extends Controller
         $permissions = Permission::orderBy('category')->get()->groupBy('category');
         $rolePermissions = $role->permissions->pluck('id')->toArray();
 
-        return view('admin.roles.permissions', compact('role', 'permissions', 'rolePermissions'));
+        // Get users with this role as their application role
+        $applicationUsers = User::where('role_id', $role->id)->get();
+
+        // Get users with this role as their project role
+        $projectUsers = [];
+        if ($role->type === 'project') {
+            $projectUsers = DB::table('users')
+                ->join('project_user', 'users.id', '=', 'project_user.user_id')
+                ->join('projects', 'project_user.project_id', '=', 'projects.id')
+                ->where('project_user.role_id', $role->id)
+                ->select('users.*', 'projects.name as project_name', 'projects.id as project_id')
+                ->get();
+        }
+
+        return view('admin.roles.permissions', compact('role', 'permissions', 'rolePermissions', 'applicationUsers', 'projectUsers'));
     }
 
     /**
@@ -202,6 +245,62 @@ class RoleController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Error updating role permissions: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Revoke a role from a user
+     */
+    public function revokeUser(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'role_id' => 'required|exists:roles,id',
+            'role_type' => 'required|in:application,project',
+            'project_id' => 'required_if:role_type,project|exists:projects,id',
+        ]);
+
+        $userId = $request->user_id;
+        $roleId = $request->role_id;
+        $roleType = $request->role_type;
+
+        DB::beginTransaction();
+        try {
+            if ($roleType === 'application') {
+                // Revoke application role
+                User::where('id', $userId)
+                    ->where('role_id', $roleId)
+                    ->update(['role_id' => null]);
+            } else {
+                // Revoke project role
+                DB::table('project_user')
+                    ->where('user_id', $userId)
+                    ->where('project_id', $request->project_id)
+                    ->where('role_id', $roleId)
+                    ->update(['role_id' => null]);
+            }
+
+            DB::commit();
+
+            if ($request->wantsJson() || $request->header('X-Inertia')) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Role revoked successfully.'
+                ]);
+            }
+
+            return back()->with('success', 'Role revoked successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            if ($request->wantsJson() || $request->header('X-Inertia')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error revoking role: ' . $e->getMessage()
+                ], 500);
+            }
+
+            return back()->with('error', 'Error revoking role: ' . $e->getMessage());
         }
     }
 }

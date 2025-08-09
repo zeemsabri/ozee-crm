@@ -64,7 +64,7 @@ class HandleInertiaRequests extends Middleware
                 }
             }
 
-            $user->global_permissions = $globalPermissions;
+//            $user->global_permissions = $globalPermissions;
         }
 
         return [

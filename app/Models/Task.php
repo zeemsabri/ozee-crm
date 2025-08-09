@@ -6,15 +6,95 @@ use App\Models\Traits\Taggable;
 use App\Notifications\TaskAssigned;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Services\GoogleChatService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class Task extends Model
 {
-    use HasFactory, Taggable;
+    use HasFactory, Taggable, SoftDeletes, LogsActivity;
+
+    /**
+     * Configure the activity log options for this model
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['name', 'description', 'status', 'assigned_to_user_id', 'due_date', 'priority', 'block_reason'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(function(string $eventName) {
+                return match($eventName) {
+                    'created' => 'Task was created',
+                    'updated' => $this->getActivityDescriptionForUpdate(),
+                    'deleted' => 'Task was deleted',
+                    default => $eventName
+                };
+            });
+    }
+
+    /**
+     * Generate a more descriptive message for updates based on what changed
+     */
+    protected function getActivityDescriptionForUpdate(): string
+    {
+        $changes = $this->getDirty();
+
+        if (isset($changes['status'])) {
+            $oldStatus = $this->getOriginal('status');
+            $newStatus = $changes['status'];
+
+            if ($oldStatus === 'To Do' && $newStatus === 'In Progress') {
+                return 'Task was started';
+            } elseif ($oldStatus === 'In Progress' && $newStatus === 'Paused') {
+                return 'Task was paused';
+            } elseif ($oldStatus === 'Paused' && $newStatus === 'In Progress') {
+                return 'Task was resumed';
+            } elseif ($newStatus === 'Blocked') {
+                $blockReason = $this->block_reason ? ": {$this->block_reason}" : '';
+                return "Task was blocked{$blockReason}";
+            } elseif ($oldStatus === 'Blocked' && ($newStatus === 'To Do' || $newStatus === 'In Progress')) {
+                return 'Task was unblocked';
+            } elseif ($newStatus === 'Done') {
+                return 'Task was completed';
+            } elseif ($oldStatus === 'Done' && $newStatus === 'To Do') {
+                return 'Task was revised';
+            } else {
+                return "Task status changed from '{$oldStatus}' to '{$newStatus}'";
+            }
+        }
+
+        if (isset($changes['assigned_to_user_id'])) {
+            $user = User::find($changes['assigned_to_user_id']);
+            $userName = $user ? $user->name : 'someone';
+            return "Task was assigned to {$userName}";
+        }
+
+        if (isset($changes['priority'])) {
+            $oldPriority = $this->getOriginal('priority');
+            $newPriority = $changes['priority'];
+            return "Task priority changed from '{$oldPriority}' to '{$newPriority}'";
+        }
+
+        if (isset($changes['due_date'])) {
+            $oldDueDate = $this->getOriginal('due_date');
+            $newDueDate = $changes['due_date'];
+            $oldFormatted = $oldDueDate ? date('Y-m-d', strtotime($oldDueDate)) : 'none';
+            $newFormatted = $newDueDate ? date('Y-m-d', strtotime($newDueDate)) : 'none';
+            return "Task due date changed from '{$oldFormatted}' to '{$newFormatted}'";
+        }
+
+        if (isset($changes['block_reason']) && !isset($changes['status'])) {
+            return "Task blocking reason was updated: {$this->block_reason}";
+        }
+
+        return 'Task was updated';
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -35,6 +115,10 @@ class Task extends Model
         'chat_message_id',
         'creator_id',
         'creator_type',
+        'priority',
+        'deleted_by',
+        'block_reason',
+        'previous_status',
     ];
 
     /**

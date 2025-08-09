@@ -27,7 +27,7 @@ const props = defineProps({
             { value: 'active', label: 'Active' },
             { value: 'completed', label: 'Completed' },
             { value: 'paid', label: 'Paid' },
-            { value: 'on-hold', label: 'On-hold' },
+            { value: 'on_hold', label: 'On-hold' },
         ]
     },
     sourceOptions: {

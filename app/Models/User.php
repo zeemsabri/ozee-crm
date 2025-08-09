@@ -8,6 +8,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Collection; // Import Collection for getClientsAttribute
+use App\Services\GoogleUserService;
 
 class User extends Authenticatable
 {
@@ -31,9 +32,8 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
-    protected $guarded = [
-        'global_permissions',
-    ];
+//    protected $guarded = [
+//    ];
 
     protected $hidden = [
         'password',
@@ -306,6 +306,18 @@ class User extends Authenticatable
     }
 
     /**
+     * Get the meetings that the user is invited to.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     */
+    public function meetings()
+    {
+        return $this->belongsToMany(Meeting::class, 'meeting_attendees')
+            ->withPivot('notification_sent', 'notification_sent_at')
+            ->withTimestamps();
+    }
+
+    /**
      * Get the bonus transactions for the user.
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
@@ -476,5 +488,88 @@ class User extends Authenticatable
 
         return Role::find($roleId)->name ?? 'Staff';
 
+    }
+
+    // In your App/Models/User.php
+    public function hasProjectPermission($projectId, $permissionSlug)
+    {
+        $projectRole = $this->getRoleForProject($projectId);
+
+        if (!$projectRole) {
+            return false;
+        }
+
+        $role = Role::find($projectRole); // Assuming getRoleForProject returns the role ID
+
+        if (!$role) {
+            return false;
+        }
+
+        return $role->permissions()->where('slug', $permissionSlug)->exists();
+    }
+
+    /**
+     * Get the Google account associated with the user.
+     */
+    public function googleAccount()
+    {
+        return $this->hasOne(GoogleAccounts::class);
+    }
+
+    public function getGoogleAccessTokenAttribute()
+    {
+        return $this->googleAccount()->first()?->access_token;
+    }
+
+    public function getGoogleRefreshTokenAttribute()
+    {
+        return $this->googleAccount()->first()?->refresh_token;
+    }
+
+    public function getGoogleExpiresInAttribute()
+    {
+        return $this->googleAccount()->first()?->expires_in;
+    }
+
+    public function getGoogleEmailAttribute()
+    {
+        return $this->googleAccount()->first()?->email;
+    }
+
+    /**
+     * Check if the user has valid Google credentials.
+     *
+     * @return bool
+     */
+    public function hasGoogleCredentials()
+    {
+        $googleAccount = $this->googleAccount()->first();
+
+        // If no credentials exist, return false
+        if (!$googleAccount) {
+            return false;
+        }
+
+        // If credentials are not expired, they're valid
+        if (!$googleAccount->isExpired()) {
+            return true;
+        }
+
+        // If credentials are expired, try to refresh them
+        try {
+            $googleUserService = app(GoogleUserService::class);
+            $googleUserService->refreshToken($googleAccount);
+            return true;
+        } catch (\Exception $e) {
+            // Log the error for debugging
+            \Illuminate\Support\Facades\Log::error('Failed to refresh Google token: ' . $e->getMessage(), [
+                'user_id' => $this->id,
+                'google_account_id' => $googleAccount->id,
+                'exception' => $e,
+            ]);
+
+            // If refresh fails, credentials are invalid
+            return false;
+        }
     }
 }

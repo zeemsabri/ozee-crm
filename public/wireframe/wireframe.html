@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe Pro</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React and ReactDOM CDNs -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel Standalone for JSX compilation in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
+        }
+        /* Custom scrollbar for a modern look */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        /* Style for the canvas grid background */
+        .grid-background {
+            background-image:
+                linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+                linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        /* Prevents default browser context menu */
+        .canvas-container {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+    const { useState, useEffect, useRef, useCallback, useMemo, useReducer } = React;
+
+    // --- ICONS ---
+    const ICONS = {
+        chevronLeft: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>,
+        chevronRight: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>,
+        hero: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="10" x="3" y="11" rx="2"/><path d="m7 11-4 4"/><path d="M21 11.1c.33.34.66.68 1 1"/><path d="m21 16-4-4"/><path d="M3 21h18"/><path d="M12 3v8"/></svg>,
+        image: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>,
+        text: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 6.1H3"/><path d="M21 12.1H3"/><path d="M15.1 18.1H3"/></svg>,
+        button: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="10" x="3" y="7" rx="2"/><path d="M8 12h8"/></svg>,
+        input: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="8" x="2" y="10" rx="2"/><path d="M8 14h.01"/></svg>,
+        navbar: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="6" x="2" y="4" rx="1"/><path d="M6 8h.01"/><path d="M10 8h.01"/><path d="M14 8h.01"/></svg>,
+        trash: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+        copy: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>,
+        upload: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
+        download: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+        container: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>,
+        heading: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 12h12M6 5v14m12-14v14"/></svg>,
+        hr: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line></svg>,
+        textarea: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h18M3 7h18M3 17h12"/></svg>,
+        checkbox: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>,
+        radio: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle></svg>,
+        select: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="6" rx="2"></rect><path d="m6 8 6 6 6-6"></path></svg>,
+        card: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path></svg>,
+        table: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="12" y1="3" x2="12" y2="21"></line></svg>,
+        modal: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M9 7h6"></path><path d="M9 11h6"></path><path d="M9 15h4"></path></svg>,
+        avatar: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="5"></circle><path d="M20 21a8 8 0 0 0-16 0"></path></svg>,
+    };
+
+    // --- COMPONENT DEFINITIONS ---
+    const COMPONENT_DEFS = {
+        Container: { category: 'Layout', name: "Container", icon: ICONS.container, default: { size: { width: 400, height: 200 }, content: {} }, render: () => <div className="h-full w-full bg-slate-100 border-2 border-dashed border-slate-400 rounded-lg"></div> },
+        Hr: { category: 'Layout', name: "H-Rule", icon: ICONS.hr, default: { size: { width: 400, height: 20 }, content: {} }, render: () => <div className="flex items-center justify-center h-full w-full"><div className="h-0.5 w-full bg-slate-400"></div></div> },
+        Avatar: { category: 'Layout', name: "Avatar", icon: ICONS.avatar, default: { size: { width: 80, height: 80 }, content: {} }, render: () => <div className="h-full w-full bg-slate-200 border-2 border-dashed border-slate-400 rounded-full flex items-center justify-center text-slate-400">{ICONS.avatar}</div> },
+        Heading: { category: 'Typography', name: "Heading", icon: ICONS.heading, default: { size: { width: 300, height: 50 }, content: { text: "Main Heading" } }, render: ({ content }) => <div className="flex items-center h-full"><h1 className="text-2xl font-bold text-slate-800 truncate">{content.text}</h1></div> },
+        Text: { category: 'Typography', name: "Paragraph", icon: ICONS.text, default: { size: { width: 300, height: 100 }, content: { text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua." } }, render: ({ content }) => <div className="p-2"><p className="text-sm text-slate-700">{content.text}</p></div> },
+        Input: { category: 'Forms', name: "Input", icon: ICONS.input, default: { size: { width: 240, height: 40 }, content: { placeholder: "Enter text..." } }, render: ({ content }) => <div className="flex items-center h-full w-full bg-white rounded-md text-sm text-slate-500 border-2 border-dashed border-slate-400 px-3">{content.placeholder}</div> },
+        Textarea: { category: 'Forms', name: "Text Area", icon: ICONS.textarea, default: { size: { width: 240, height: 80 }, content: { placeholder: "Enter more text..." } }, render: ({ content }) => <div className="h-full w-full bg-white rounded-md text-sm text-slate-500 border-2 border-dashed border-slate-400 p-3">{content.placeholder}</div> },
+        Button: { category: 'Forms', name: "Button", icon: ICONS.button, default: { size: { width: 120, height: 40 }, content: { text: "Click Me" } }, render: ({ content }) => <div className="flex items-center justify-center h-full w-full bg-slate-800 text-white rounded-md text-sm font-semibold">{content.text}</div> },
+        Checkbox: { category: 'Forms', name: "Checkbox", icon: ICONS.checkbox, default: { size: { width: 120, height: 24 }, content: { label: "Option" } }, render: ({ content }) => <div className="flex items-center gap-2"><div className="w-5 h-5 border-2 border-slate-400 rounded"></div><span className="text-sm text-slate-700">{content.label}</span></div> },
+        Radio: { category: 'Forms', name: "Radio", icon: ICONS.radio, default: { size: { width: 120, height: 24 }, content: { label: "Choice" } }, render: ({ content }) => <div className="flex items-center gap-2"><div className="w-5 h-5 border-2 border-slate-400 rounded-full"></div><span className="text-sm text-slate-700">{content.label}</span></div> },
+        Select: { category: 'Forms', name: "Select", icon: ICONS.select, default: { size: { width: 180, height: 40 }, content: { text: "Choose an option" } }, render: ({ content }) => <div className="flex items-center justify-between h-full w-full bg-white rounded-md text-sm text-slate-700 border-2 border-dashed border-slate-400 px-3"><span>{content.text}</span><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg></div> },
+        Image: { category: 'Content', name: "Image", icon: ICONS.image, default: { size: { width: 300, height: 200 }, content: { alt: "Placeholder Image" } }, render: ({ content }) => ( <div className="flex items-center justify-center h-full w-full p-4 border-2 border-dashed border-slate-400 bg-slate-100 rounded-lg text-slate-500 font-sans text-sm"> <div className="text-center"> {ICONS.image} <span className="mt-2 block">{content.alt}</span> </div> </div> ) },
+        Navbar: { category: 'Content', name: "Navbar", icon: ICONS.navbar, default: { size: { width: 600, height: 60 }, content: { logo: "Logo", links: "Home,About,Contact" } }, render: ({ content }) => ( <div className="flex items-center justify-between h-full w-full bg-slate-100 rounded-lg text-sm font-medium border-2 border-dashed border-slate-400 px-4"> <div className="font-bold text-slate-800">{content.logo}</div> <div className="flex gap-4 text-slate-600"> {content.links.split(',').map(link => <span key={link}>{link.trim()}</span>)} </div> </div> ) },
+        HeroSection: { category: 'Content', name: "Hero Section", icon: ICONS.hero, default: { size: { width: 500, height: 220 }, content: { heading: "Welcome to Our Site", subheading: "Your amazing subtitle goes here.", buttonText: "Learn More" } }, render: ({ content }) => ( <div className="flex flex-col items-center justify-center h-full p-6 text-center bg-slate-100 border-2 border-dashed border-slate-400 rounded-lg"> <h3 className="text-2xl font-bold text-slate-800">{content.heading}</h3> <p className="text-md text-slate-600 mt-2">{content.subheading}</p> <div className="mt-4 px-4 py-2 bg-slate-800 text-white rounded-md text-sm font-semibold">{content.buttonText}</div> </div> ) },
+        Card: { category: 'Content', name: "Card", icon: ICONS.card, default: { size: { width: 250, height: 300 }, content: { title: "Card Title", text: "Some quick example text to build on the card title." } }, render: ({ content }) => <div className="h-full w-full bg-white border-2 border-dashed border-slate-400 rounded-lg shadow-sm p-4 flex flex-col"><div className="h-32 bg-slate-200 rounded mb-4"></div><h4 className="font-bold text-slate-800 mb-1">{content.title}</h4><p className="text-xs text-slate-600 flex-grow">{content.text}</p></div> },
+        Table: { category: 'Content', name: "Table", icon: ICONS.table, default: { size: { width: 500, height: 200 }, content: { headers: "Col 1,Col 2,Col 3", rows: "Val A,Val B,Val C\nVal D,Val E,Val F" } }, render: ({ content }) => <div className="h-full w-full border-2 border-dashed border-slate-400 rounded-lg p-2 text-xs"><table className="w-full"><thead><tr className="border-b-2 border-dashed border-slate-400">{content.headers.split(',').map(h=><th key={h} className="p-1 text-left font-bold">{h.trim()}</th>)}</tr></thead><tbody>{content.rows.split('\n').map((row, i)=><tr key={i} className="border-b border-dashed border-slate-300">{row.split(',').map((cell, j)=><td key={j} className="p-1">{cell.trim()}</td>)}</tr>)}</tbody></table></div> },
+        Modal: { category: 'Content', name: "Modal", icon: ICONS.modal, default: { size: { width: 400, height: 250 }, content: { title: "Modal Title", text: "This is the modal body text." } }, render: ({ content }) => <div className="h-full w-full bg-white border-2 border-dashed border-slate-400 rounded-lg shadow-lg p-4 flex flex-col"><h4 className="font-bold text-slate-800 mb-2 pb-2 border-b-2 border-dashed border-slate-300">{content.title}</h4><p className="text-sm text-slate-600 py-2 flex-grow">{content.text}</p><div className="flex justify-end gap-2 pt-2 border-t-2 border-dashed border-slate-300"><div className="px-3 py-1 bg-slate-200 rounded text-sm">Close</div><div className="px-3 py-1 bg-slate-800 text-white rounded text-sm">Save</div></div></div> },
+    };
+
+    function getInitialState() {
+        try {
+            const savedState = localStorage.getItem('wireframeState');
+            if (savedState) {
+                const parsed = JSON.parse(savedState);
+                if (parsed && Array.isArray(parsed.components) && parsed.canvasSize) {
+                    return { ...parsed, selectedIds: [] }; // Ensure selectedIds is reset on load
+                }
+            }
+        } catch (e) { console.error("Failed to load state from localStorage", e); }
+        return { components: [], selectedIds: [], canvasSize: { width: 1920, height: 1080 } };
+    }
+
+    // --- STATE MANAGEMENT ---
+    const stateReducer = (state, action) => {
+        switch (action.type) {
+            case 'SET_STATE': {
+                const { newStateFn, isTransient } = action.payload;
+                const currentState = state.history[state.historyIndex];
+                const newState = newStateFn(currentState);
+
+                if (isTransient) {
+                    const newHistory = [...state.history];
+                    newHistory[state.historyIndex] = newState;
+                    return { ...state, history: newHistory };
+                } else {
+                    const newHistory = state.history.slice(0, state.historyIndex + 1);
+                    newHistory.push(newState);
+                    return { history: newHistory, historyIndex: newHistory.length - 1 };
+                }
+            }
+            case 'UNDO':
+                return { ...state, historyIndex: Math.max(0, state.historyIndex - 1) };
+            case 'REDO':
+                return { ...state, historyIndex: Math.min(state.history.length - 1, state.historyIndex + 1) };
+            default:
+                return state;
+        }
+    };
+
+    function useWireframeState() {
+        const [state, dispatch] = useReducer(stateReducer, {
+            history: [getInitialState()],
+            historyIndex: 0
+        });
+
+        const currentFrame = state.history[state.historyIndex];
+        const canUndo = state.historyIndex > 0;
+        const canRedo = state.historyIndex < state.history.length - 1;
+
+        const setState = useCallback((newStateFn, isTransient = false) => {
+            dispatch({ type: 'SET_STATE', payload: { newStateFn, isTransient } });
+        }, []);
+        const undo = useCallback(() => { if(canUndo) dispatch({ type: 'UNDO' }) }, [canUndo]);
+        const redo = useCallback(() => { if(canRedo) dispatch({ type: 'REDO' }) }, [canRedo]);
+
+        useEffect(() => {
+            if (currentFrame) {
+                const stateToSave = { ...currentFrame, selectedIds: [] }; // Don't save selection
+                localStorage.setItem('wireframeState', JSON.stringify(stateToSave));
+            }
+        }, [currentFrame]);
+
+        return { state: currentFrame, setState, undo, redo, canUndo, canRedo };
+    }
+
+    // --- UI COMPONENTS ---
+    const ComponentPalette = ({ onAddComponent }) => {
+        const categorizedComponents = useMemo(() => {
+            return Object.entries(COMPONENT_DEFS).reduce((acc, [type, def]) => {
+                const category = def.category || 'Misc';
+                if (!acc[category]) { acc[category] = []; }
+                acc[category].push({ type, ...def });
+                return acc;
+            }, {});
+        }, []);
+
+        return (
+            <div className="p-4 space-y-4">
+                {Object.entries(categorizedComponents).map(([category, components]) => (
+                    <div key={category}>
+                        <h3 className="text-sm font-semibold text-slate-500 mb-2 px-2">{category}</h3>
+                        <div className="grid grid-cols-2 gap-2">
+                            {components.map(({ type, name, icon }) => (
+                                <button key={type} onClick={() => onAddComponent(type)} className="flex flex-col items-center justify-center p-2 rounded-lg text-slate-600 hover:bg-slate-200 hover:text-slate-800 transition-colors duration-150 text-center" title={`Add ${name}`}>
+                                    <div className="w-8 h-8 flex items-center justify-center">{icon}</div>
+                                    <span className="text-xs mt-1">{name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
+    const PropertyInput = ({ label, value, onChange, readOnly = false }) => {
+        const isNumber = typeof value === 'number' && !readOnly;
+        const displayValue = useMemo(() => {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'object') return JSON.stringify(value, null, 2);
+            return String(value);
+        }, [value]);
+
+        const handleChange = (e) => {
+            const stringValue = e.target.value;
+            if (isNumber) {
+                const num = parseFloat(stringValue);
+                onChange(isNaN(num) ? 0 : num);
+            } else {
+                onChange(stringValue);
+            }
+        };
+
+        const commonProps = { value: displayValue, onChange: handleChange, readOnly, className: "w-full px-2 py-1.5 bg-slate-200 border border-transparent rounded-md text-sm text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all font-mono text-xs" };
+        return ( <div> <label className="block text-xs font-medium text-slate-500 capitalize mb-1">{label}</label> {isNumber ? ( <input {...commonProps} type="number" /> ) : ( <textarea {...commonProps} rows={Math.max(2, displayValue.split('\n').length)} className={`${commonProps.className} resize-y leading-relaxed`} /> )} </div> );
+    };
+
+    const PropertiesPanel = ({ components, selectedIds, onUpdate, onUpdateCanvas, canvasSize }) => {
+        const selectedComponents = components.filter(c => selectedIds.includes(c.id));
+        if (selectedIds.length === 0) {
+            return ( <div className="p-4"> <h3 className="text-sm font-semibold text-slate-500 mb-3 px-2">Canvas</h3> <div className="space-y-3"> <PropertyInput label="Width" value={canvasSize.width} onChange={v => onUpdateCanvas({ ...canvasSize, width: v })} /> <PropertyInput label="Height" value={canvasSize.height} onChange={v => onUpdateCanvas({ ...canvasSize, height: v })} /> </div> </div> );
+        }
+        if (selectedIds.length > 1) {
+            return ( <div className="p-4"> <h3 className="text-sm font-semibold text-slate-500 mb-3 px-2">{selectedIds.length} items selected</h3> </div> );
+        }
+        const component = selectedComponents[0];
+        const componentDef = COMPONENT_DEFS[component.type];
+        if (!componentDef) return null;
+        const handleContentChange = (key, value) => { onUpdate(component.id, { content: { ...component.content, [key]: value } }); };
+        const handleSizeChange = (key, value) => { onUpdate(component.id, { size: { ...component.size, [key]: value } }); }
+        return ( <div className="p-4"> <h3 className="text-sm font-semibold text-slate-500 mb-3 px-2">Properties: {componentDef.name}</h3> <div className="space-y-4"> <div> <h4 className="text-xs font-bold uppercase text-slate-400 mb-2">Content</h4> <div className="space-y-3"> {Object.entries(component.content).map(([key, value]) => ( <PropertyInput key={key} label={key} value={value} onChange={v => handleContentChange(key, v)} /> ))} </div> </div> <div> <h4 className="text-xs font-bold uppercase text-slate-400 mb-2">Layout</h4> <div className="grid grid-cols-2 gap-3"> <PropertyInput label="Width" value={component.size.width} onChange={v => handleSizeChange('width', v)} /> <PropertyInput label="Height" value={component.size.height} onChange={v => handleSizeChange('height', v)} /> <PropertyInput label="X" value={component.position.x} readOnly /> <PropertyInput label="Y" value={component.position.y} readOnly /> </div> </div> </div> </div> );
+    };
+
+    const WireframeComponent = ({ data, isSelected, onMouseDown, onResizeStart }) => {
+        const componentDef = COMPONENT_DEFS[data.type];
+        if (!componentDef) return null;
+        const resizeHandlePositions = { 'top-left': 'top-0 left-0 cursor-nwse-resize', 'top-right': 'top-0 right-0 cursor-nesw-resize', 'bottom-left': 'bottom-0 left-0 cursor-nesw-resize', 'bottom-right': 'bottom-0 right-0 cursor-nwse-resize', };
+        return (
+            <div
+                style={{ left: data.position.x, top: data.position.y, width: data.size.width, height: data.size.height }}
+                className="group absolute"
+                onClick={e => e.stopPropagation()}
+                onMouseDown={e => onMouseDown(e, data.id)}
+                data-component-id={data.id}
+            >
+                <div className={`relative w-full h-full transition-all duration-100 ${isSelected ? 'outline outline-2 outline-blue-500 outline-offset-2 rounded-lg' : ''}`}>
+                    {componentDef.render(data)}
+                </div>
+                {isSelected && Object.entries(resizeHandlePositions).map(([dir, classes]) => (
+                    <div key={dir} className={`absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full -translate-x-1/2 -translate-y-1/2 ${classes}`} onMouseDown={e => onResizeStart(e, data.id, dir)} />
+                ))}
+            </div>
+        );
+    };
+
+    const ContextMenu = ({ menu, onAction }) => { if (!menu.visible) return null; return ( <div style={{ top: menu.y, left: menu.x }} className="absolute z-50 w-36 bg-white rounded-md shadow-lg border border-slate-200 py-1"> <button onClick={() => onAction('duplicate')} className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{ICONS.copy} Duplicate</button> <button onClick={() => onAction('delete')} className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">{ICONS.trash} Delete</button> </div> ); };
+
+    const TopBar = ({ onUndo, onRedo, canUndo, canRedo, onExport, onImport }) => ( <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shadow-sm flex-shrink-0"> <div className="flex items-center gap-2"> <h1 className="text-lg font-bold text-slate-800">Wireframe Pro</h1> </div> <div className="flex items-center gap-2"> <button disabled={!canUndo} onClick={onUndo} className="px-3 py-1.5 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-md shadow-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">Undo</button> <button disabled={!canRedo} onClick={onRedo} className="px-3 py-1.5 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-md shadow-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">Redo</button> </div> <div className="flex items-center gap-2"> <button onClick={onImport} className="flex items-center gap-2 px-3 py-1.5 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-md shadow-sm hover:bg-slate-50">{ICONS.upload} Import</button> <button onClick={onExport} className="flex items-center gap-2 px-3 py-1.5 text-sm font-semibold text-white bg-slate-800 border border-slate-800 rounded-md shadow-sm hover:bg-slate-700">{ICONS.download} Export</button> </div> </div> );
+
+    // --- MAIN APP ---
+    function App() {
+        const { state, setState, undo, redo, canUndo, canRedo } = useWireframeState();
+        const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
+        const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(true);
+        const mainContainerRef = useRef(null);
+        const canvasContainerRef = useRef(null);
+        const interactionRef = useRef({});
+        const [marquee, setMarquee] = useState(null);
+        const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0 });
+
+        if (!state) { return <div>Loading...</div>; }
+
+        const { components, selectedIds, canvasSize } = state;
+        const GRID_SIZE = 20;
+
+        const getCanvasCoordinates = useCallback((e) => {
+            if (!canvasContainerRef.current) return { x: 0, y: 0 };
+            const rect = canvasContainerRef.current.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top,
+            };
+        }, []);
+
+        const addComponent = useCallback((type) => {
+            const def = COMPONENT_DEFS[type];
+            if (!def || !mainContainerRef.current) return;
+            const { width, height } = mainContainerRef.current.getBoundingClientRect();
+            const newPosition = {
+                x: Math.round((mainContainerRef.current.scrollLeft + width / 2) / GRID_SIZE) * GRID_SIZE,
+                y: Math.round((mainContainerRef.current.scrollTop + height / 2) / GRID_SIZE) * GRID_SIZE
+            };
+            const newComponent = { id: crypto.randomUUID(), type, position: newPosition, ...def.default };
+            setState(s => ({ ...s, components: [...s.components, newComponent], selectedIds: [newComponent.id] }));
+        }, [setState]);
+
+        const updateComponent = useCallback((id, updates, isTransient = false) => { setState(s => ({ ...s, components: s.components.map(c => c.id === id ? { ...c, ...updates } : c) }), isTransient); }, [setState]);
+
+        const deleteComponents = useCallback((ids) => { setState(s => ({ ...s, components: s.components.filter(c => !ids.includes(c.id)), selectedIds: s.selectedIds.filter(id => !ids.includes(id)) })); }, [setState]);
+
+        const duplicateComponents = useCallback((ids) => {
+            setState(s => {
+                const newComps = ids.map(id => {
+                    const sourceComp = s.components.find(c => c.id === id);
+                    if (!sourceComp) return null;
+                    return { ...sourceComp, id: crypto.randomUUID(), position: { x: sourceComp.position.x + GRID_SIZE, y: sourceComp.position.y + GRID_SIZE } };
+                }).filter(Boolean);
+                return { ...s, components: [...s.components, ...newComps], selectedIds: newComps.map(c => c.id) };
+            });
+        }, [setState]);
+
+        const handleMouseMove = useCallback((e) => {
+            const { type, dragStart, marqueeStart } = interactionRef.current;
+            if (!type) return;
+
+            if (type === 'drag') {
+                const { x, y } = getCanvasCoordinates(e);
+                const dx = x - dragStart.x;
+                const dy = y - dragStart.y;
+                setState(s => ({
+                    ...s,
+                    components: s.components.map(c => {
+                        if (s.selectedIds.includes(c.id)) {
+                            const originalPos = interactionRef.current.originalPositions[c.id];
+                            return { ...c, position: { x: Math.round((originalPos.x + dx) / GRID_SIZE) * GRID_SIZE, y: Math.round((originalPos.y + dy) / GRID_SIZE) * GRID_SIZE } };
+                        }
+                        return c;
+                    })
+                }), true);
+            } else if (type === 'resize') {
+                const { id, direction, startPos, initialRect } = interactionRef.current;
+                const { x, y } = getCanvasCoordinates(e);
+                const dx = x - startPos.x;
+                const dy = y - startPos.y;
+                let newX = initialRect.x, newY = initialRect.y, newWidth = initialRect.width, newHeight = initialRect.height;
+                if (direction.includes('right')) newWidth = initialRect.width + dx;
+                if (direction.includes('left')) { newWidth = initialRect.width - dx; newX = initialRect.x + dx; }
+                if (direction.includes('bottom')) newHeight = initialRect.height + dy;
+                if (direction.includes('top')) { newHeight = initialRect.height - dy; newY = initialRect.y + dy; }
+
+                newWidth = Math.max(GRID_SIZE * 2, newWidth);
+                newHeight = Math.max(GRID_SIZE * 2, newHeight);
+
+                updateComponent(id, { position: { x: newX, y: newY }, size: { width: newWidth, height: newHeight } }, true);
+            } else if (type === 'marquee') {
+                const { x, y } = getCanvasCoordinates(e);
+                setMarquee({ x: Math.min(x, marqueeStart.x), y: Math.min(y, marqueeStart.y), width: Math.abs(x - marqueeStart.x), height: Math.abs(y - marqueeStart.y) });
+            }
+        }, [setState, updateComponent, getCanvasCoordinates]);
+
+        const handleMouseUp = useCallback((e) => {
+            const { type, marqueeStart } = interactionRef.current;
+            if (type === 'marquee') {
+                const { x, y } = getCanvasCoordinates(e);
+                const marqueeRect = { x: Math.min(x, marqueeStart.x), y: Math.min(y, marqueeStart.y), width: Math.abs(x - marqueeStart.x), height: Math.abs(y - marqueeStart.y) };
+                const selected = components.filter(c => {
+                    const compRect = { ...c.position, width: c.size.width, height: c.size.height };
+                    return compRect.x < marqueeRect.x + marqueeRect.width && compRect.x + compRect.width > marqueeRect.x && compRect.y < marqueeRect.y + marqueeRect.height && compRect.y + compRect.height > marqueeRect.y;
+                }).map(c => c.id);
+                setState(s => ({ ...s, selectedIds: selected }));
+                setMarquee(null);
+            }
+            if (type === 'drag' || type === 'resize') {
+                setState(s => ({...s}), false); // Commit final position
+            }
+            interactionRef.current = {};
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        }, [components, setState, handleMouseMove, getCanvasCoordinates]);
+
+        const handleCanvasMouseDown = useCallback((e) => {
+            interactionRef.current = { type: 'marquee', marqueeStart: getCanvasCoordinates(e) };
+            setState(s => ({ ...s, selectedIds: [] }));
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }, [setState, handleMouseMove, handleMouseUp, getCanvasCoordinates]);
+
+        const handleComponentMouseDown = useCallback((e, id) => {
+            e.stopPropagation();
+            const newSelectedIds = e.shiftKey ? (selectedIds.includes(id) ? selectedIds.filter(sid => sid !== id) : [...selectedIds, id]) : (selectedIds.includes(id) ? selectedIds : [id]);
+            setState(s => ({ ...s, selectedIds: newSelectedIds }));
+
+            interactionRef.current = { type: 'drag', dragStart: getCanvasCoordinates(e), originalPositions: components.reduce((acc, c) => ({...acc, [c.id]: c.position}), {}) };
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }, [components, selectedIds, setState, handleMouseMove, handleMouseUp, getCanvasCoordinates]);
+
+        const handleResizeStart = useCallback((e, id, direction) => {
+            e.stopPropagation();
+            const component = components.find(c => c.id === id);
+            if (!component) return;
+            interactionRef.current = { type: 'resize', id, direction, startPos: getCanvasCoordinates(e), initialRect: { ...component.position, ...component.size } };
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }, [components, handleMouseMove, handleMouseUp, getCanvasCoordinates]);
+
+        useEffect(() => {
+            const handleKeyDown = (e) => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                if (selectedIds.length > 0 && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); deleteComponents(selectedIds); }
+                if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undo(); }
+                if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'Z' && e.shiftKey))) { e.preventDefault(); redo(); }
+            };
+            window.addEventListener('keydown', handleKeyDown);
+            return () => { window.removeEventListener('keydown', handleKeyDown); };
+        }, [selectedIds, deleteComponents, undo, redo]);
+
+        const handleContextAction = useCallback((action) => {
+            const { id } = interactionRef.current;
+            if (!id) return;
+            if (action === 'delete') deleteComponents([id]);
+            if (action === 'duplicate') duplicateComponents([id]);
+            interactionRef.current = {};
+            setContextMenu({ visible: false });
+        }, [deleteComponents, duplicateComponents]);
+
+        const handleContextMenu = useCallback((e) => {
+            e.preventDefault();
+            const target = e.target.closest('[data-component-id]');
+            if (target) {
+                const componentId = target.dataset.componentId;
+                if (componentId) {
+                    setState(s => ({ ...s, selectedIds: [componentId] }));
+                    setContextMenu({ visible: true, x: e.clientX, y: e.clientY });
+                    interactionRef.current = { id: componentId };
+                }
+            } else {
+                setContextMenu({ visible: false });
+            }
+        }, [setState]);
+
+        return (
+            <div className="h-screen w-screen flex flex-col bg-slate-50 overflow-hidden">
+                <TopBar onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} onExport={() => {}} onImport={() => {}} />
+                <div className="flex flex-grow min-h-0">
+                    <aside className={`relative bg-white border-r border-slate-200 flex-shrink-0 transition-all duration-300 ease-in-out ${isLeftSidebarCollapsed ? 'w-14' : 'w-60'}`}>
+                        <button onClick={() => setIsLeftSidebarCollapsed(!isLeftSidebarCollapsed)} className="absolute top-1/2 -right-4 z-10 w-8 h-8 flex items-center justify-center bg-white border border-slate-300 rounded-full shadow-md hover:bg-slate-100 transition-colors -translate-y-1/2"> {isLeftSidebarCollapsed ? ICONS.chevronRight : ICONS.chevronLeft} </button>
+                        <div className={`transition-opacity duration-200 overflow-y-auto h-full ${isLeftSidebarCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}> {!isLeftSidebarCollapsed && <ComponentPalette onAddComponent={addComponent} />} </div>
+                    </aside>
+
+                    <main ref={mainContainerRef} className="flex-grow bg-slate-100 overflow-auto" onContextMenu={handleContextMenu}>
+                        <div ref={canvasContainerRef} className="relative grid-background" style={{ width: canvasSize.width, height: canvasSize.height }} onMouseDown={handleCanvasMouseDown}>
+                            {components.map(component => ( <WireframeComponent key={component.id} data={component} isSelected={selectedIds.includes(component.id)} onMouseDown={handleComponentMouseDown} onResizeStart={handleResizeStart} /> ))}
+                            {marquee && <div className="absolute border border-blue-500 bg-blue-500 bg-opacity-20 pointer-events-none" style={{ left: marquee.x, top: marquee.y, width: marquee.width, height: marquee.height }}></div>}
+                        </div>
+                        <ContextMenu menu={contextMenu} onAction={handleContextAction} />
+                    </main>
+
+                    <aside className={`relative bg-white border-l border-slate-200 flex-shrink-0 transition-all duration-300 ease-in-out ${isRightSidebarCollapsed ? 'w-14' : 'w-72'}`}>
+                        <button onClick={() => setIsRightSidebarCollapsed(!isRightSidebarCollapsed)} className="absolute top-1/2 -left-4 z-10 w-8 h-8 flex items-center justify-center bg-white border border-slate-300 rounded-full shadow-md hover:bg-slate-100 transition-colors -translate-y-1/2"> {isRightSidebarCollapsed ? ICONS.chevronLeft : ICONS.chevronRight} </button>
+                        <div className={`transition-opacity duration-200 overflow-y-auto h-full ${isRightSidebarCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}> {!isRightSidebarCollapsed && <PropertiesPanel components={components} selectedIds={selectedIds} onUpdate={updateComponent} onUpdateCanvas={(newSize) => setState(s => ({...s, canvasSize: newSize }))} canvasSize={canvasSize} />} </div>
+                    </aside>
+                </div>
+            </div>
+        );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+
+</script>
+</body>
+</html>

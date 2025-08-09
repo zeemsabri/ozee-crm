@@ -26,13 +26,15 @@ class ClientEmail extends Mailable
     public string $textColorSecondary;
     public string $borderColor;
     public string $backgroundColor;
+    public string $emailTemplate;
 
     /**
      * Create a new message instance.
      */
-    public function __construct(array $emailData, array $senderDetails, array $companyDetails)
+    public function __construct(array $emailData, array $senderDetails, array $companyDetails, string $emailTemplate)
     {
         $this->emailData = $emailData;
+        $this->emailTemplate = $emailTemplate;
 
         // Sender Details
         $this->senderName = $senderDetails['name'] ?? 'Sender Name';
@@ -66,7 +68,7 @@ class ClientEmail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'emails.client_approval_email',
+            view: 'emails.' . $this->emailTemplate,
             with: [
                 'bodyContent' => $this->emailData['body'],
                 'greetingType' => $this->emailData['greeting_type'],

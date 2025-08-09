@@ -1,28 +1,45 @@
-import { ref } from 'vue';
+// A simple centralized state and utility for managing a global right sidebar.
+import { reactive } from 'vue';
 
-// Global state for the task detail sidebar
-export const sidebarState = ref({
+const sidebarState = reactive({
     show: false,
     taskId: null,
     projectId: null,
+    projectUsers: [],
+    // Add other state as needed for different sidebar components, e.g.,
+    // deliverableId: null,
 });
 
-/**
- * Opens the task detail sidebar with the given taskId and projectId.
- * @param {number} taskId
- * @param {number} projectId
- */
-export const openTaskDetailSidebar = (taskId, projectId) => {
-    sidebarState.value.taskId = taskId;
-    sidebarState.value.projectId = projectId;
-    sidebarState.value.show = true;
+const openTaskDetailSidebar = (taskId, projectId, projectUsers) => {
+    console.log('Opening task sidebar with:', { taskId, projectId, projectUsers: projectUsers?.length || 0 });
+    sidebarState.taskId = taskId;
+    sidebarState.projectId = projectId;
+    sidebarState.projectUsers = projectUsers;
+    sidebarState.show = true;
 };
 
-/**
- * Closes the task detail sidebar.
- */
-export const closeTaskDetailSidebar = () => {
-    sidebarState.value.show = false;
-    sidebarState.value.taskId = null;
-    sidebarState.value.projectId = null;
+const closeTaskDetailSidebar = () => {
+    sidebarState.taskId = null;
+    sidebarState.projectId = null;
+    sidebarState.projectUsers = [];
+    sidebarState.show = false;
+};
+
+// You can add more functions for other sidebar types, like this:
+// const openDeliverableDetailSidebar = (deliverableId) => {
+//     sidebarState.deliverableId = deliverableId;
+//     sidebarState.show = true;
+// };
+//
+// const closeDeliverableDetailSidebar = () => {
+//     sidebarState.deliverableId = null;
+//     sidebarState.show = false;
+// };
+
+export {
+    sidebarState,
+    openTaskDetailSidebar,
+    closeTaskDetailSidebar,
+    // openDeliverableDetailSidebar,
+    // closeDeliverableDetailSidebar
 };

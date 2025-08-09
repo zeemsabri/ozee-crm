@@ -20,6 +20,7 @@ import { success, error } from '@/Utils/notification';
 const projects = ref([]);
 const loading = ref(true);
 const generalError = ref('');
+const activeTab = ref('active'); // 'active' or 'archived'
 
 // Filter & Search states
 const searchQuery = ref('');
@@ -91,8 +92,8 @@ const fetchInitialData = async () => {
     loading.value = true;
     generalError.value = '';
     try {
-        // Only fetch projects for the list page
-        const projectsResponse = await window.axios.get('/api/projects');
+        // Fetch projects including trashed (archived) projects
+        const projectsResponse = await window.axios.get('/api/projects?with_trashed=true');
         projects.value = projectsResponse.data;
 
     } catch (error) {
@@ -109,6 +110,13 @@ const fetchInitialData = async () => {
 // --- Computed Filtered Projects ---
 const filteredProjects = computed(() => {
     let filtered = projects.value;
+
+    // First filter by active/archived tab
+    if (activeTab.value === 'active') {
+        filtered = filtered.filter(project => project.deleted_at === null);
+    } else if (activeTab.value === 'archived') {
+        filtered = filtered.filter(project => project.deleted_at !== null);
+    }
 
     // Apply search query
     if (searchQuery.value) {
@@ -179,6 +187,44 @@ const getStatusBadgeClass = (status) => {
         case 'on_hold': return 'bg-red-100 text-red-800';
         case 'archived': return 'bg-gray-100 text-gray-800';
         default: return 'bg-gray-100 text-gray-800';
+    }
+};
+
+// --- Archive Project ---
+const archiveProject = async (project) => {
+    if (!canDo('delete_projects').value) {
+        error('You do not have permission to archive this project.');
+        return;
+    }
+
+    try {
+        await window.axios.post(`/api/projects/${project.id}/archive`);
+        // Refresh the projects list
+        await fetchInitialData();
+        success('Project archived successfully!');
+    } catch (err) {
+        generalError.value = err.response?.data?.message || 'Failed to archive project.';
+        console.error('Error archiving project:', err);
+        error('Failed to archive project.');
+    }
+};
+
+// --- Restore Project ---
+const restoreProject = async (project) => {
+    if (!canDo('delete_projects').value) {
+        error('You do not have permission to restore this project.');
+        return;
+    }
+
+    try {
+        await window.axios.post(`/api/projects/${project.id}/restore`);
+        // Refresh the projects list
+        await fetchInitialData();
+        success('Project restored successfully!');
+    } catch (err) {
+        generalError.value = err.response?.data?.message || 'Failed to restore project.';
+        console.error('Error restoring project:', err);
+        error('Failed to restore project.');
     }
 };
 
@@ -263,6 +309,36 @@ onMounted(() => {
                         <span class="block sm:inline">{{ generalError }}</span>
                     </div>
                     <div v-else>
+                        <!-- Tabs for Active/Archived Projects -->
+                        <div class="mb-6 border-b border-gray-200">
+                            <ul class="flex flex-wrap -mb-px text-sm font-medium text-center">
+                                <li class="mr-2">
+                                    <a href="#"
+                                       @click.prevent="activeTab = 'active'"
+                                       :class="[
+                                           'inline-block p-4 rounded-t-lg border-b-2',
+                                           activeTab === 'active'
+                                               ? 'text-blue-600 border-blue-600 active'
+                                               : 'border-transparent hover:text-gray-600 hover:border-gray-300'
+                                       ]">
+                                        Active Projects
+                                    </a>
+                                </li>
+                                <li class="mr-2">
+                                    <a href="#"
+                                       @click.prevent="activeTab = 'archived'"
+                                       :class="[
+                                           'inline-block p-4 rounded-t-lg border-b-2',
+                                           activeTab === 'archived'
+                                               ? 'text-blue-600 border-blue-600 active'
+                                               : 'border-transparent hover:text-gray-600 hover:border-gray-300'
+                                       ]">
+                                        Archived Projects
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+
                         <!-- Project Statistics Cards -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                             <div class="bg-blue-50 p-6 rounded-lg shadow-sm border border-blue-200 flex items-center justify-between">
@@ -409,7 +485,24 @@ onMounted(() => {
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div class="flex items-center space-x-2">
                                             <Link :href="route('projects.edit', project.id)" v-permission="'manage_projects'" class="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:border-indigo-700 focus:ring active:bg-indigo-700 transition ease-in-out duration-150">Edit</Link>
-<!--                                            <DangerButton v-permission="'delete_projects'" @click="confirmProjectDeletion(project)">Delete</DangerButton>-->
+
+                                            <!-- Archive button (only shown for non-archived projects) -->
+                                            <button
+                                                v-if="activeTab === 'active'"
+                                                v-permission="'delete_projects'"
+                                                @click="archiveProject(project)"
+                                                class="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:border-gray-700 focus:ring active:bg-gray-700 transition ease-in-out duration-150">
+                                                Archive
+                                            </button>
+
+                                            <!-- Restore button (only shown for archived projects) -->
+                                            <button
+                                                v-if="activeTab === 'archived'"
+                                                v-permission="'delete_projects'"
+                                                @click="restoreProject(project)"
+                                                class="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:border-green-700 focus:ring active:bg-green-700 transition ease-in-out duration-150">
+                                                Restore
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>

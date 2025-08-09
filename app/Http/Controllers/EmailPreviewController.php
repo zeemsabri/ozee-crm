@@ -9,6 +9,7 @@ use App\Models\PlaceholderDefinition;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Log; // Added for error logging
 
 class EmailPreviewController extends Controller
 {
@@ -16,7 +17,7 @@ class EmailPreviewController extends Controller
      * Renders a specific email template with sample data for preview.
      *
      * @param string $slug The slug of the email template to preview.
-     * @return \Illuminate\Contracts\View\View
+     * @return \Illuminate\Contracts\View\View|\Illuminate\Http\Response
      */
     public function preview($slug = 'deliverables-for-approval')
     {
@@ -41,26 +42,21 @@ class EmailPreviewController extends Controller
             $project = (object)['name' => 'Sample Project'];
         }
 
+        // --- Load reusable branding information from the config file ---
+        $brandingConfig = config('branding');
+        if (is_null($brandingConfig)) {
+            // Log an error if the branding config file is missing
+            Log::error('Branding config file not found.');
+            return response('Branding configuration missing.', 500);
+        }
+
+        // --- Hardcoded sample data for placeholder replacement logic ---
+        // These are specific to the template and are not part of the reusable branding config
         $senderName = 'Jane Smith';
         $senderRole = 'Project Manager';
-        $senderPhone = '123-456-7890';
-        $senderWebsite = 'example.com';
-        $companyLogoUrl = 'https://placehold.co/100x100/5d50c6/ffffff?text=LOGO';
-        $brandPrimaryColor = '#5d50c6';
-        $brandSecondaryColor = 'rgba(128, 90, 213, 0.1)';
-        $textColorPrimary = '#333333';
-        $textColorSecondary = '#555555';
-        $backgroundColor = '#f4f4f4';
-        $borderColor = '#e5e7eb';
-        $reviewLink = 'https://example.com/review';
         $actionButtonUrl = 'https://example.com/action';
         $actionButtonText = 'View Deliverables';
-        $socialIcons = [
-            ['name' => 'Facebook', 'url' => 'https://facebook.com', 'iconUrl' => 'https://placehold.co/24x24/3b5998/ffffff?text=f'],
-            ['name' => 'Twitter', 'url' => 'https://twitter.com', 'iconUrl' => 'https://placehold.co/24x24/1da1f2/ffffff?text=t'],
-            ['name' => 'LinkedIn', 'url' => 'https://linkedin.com', 'iconUrl' => 'https://placehold.co/24x24/0077b5/ffffff?text=in'],
-            ['name' => 'Instagram', 'url' => 'https://instagram.com', 'iconUrl' => 'https://placehold.co/24x24/833ab4/ffffff?text=ig'],
-        ];
+
 
         // --- Dynamic Placeholder Replacement Logic ---
         $bodyContent = $template->body_html;
@@ -128,7 +124,7 @@ class EmailPreviewController extends Controller
                         }
                     } catch (\Exception $e) {
                         // Log the error but don't break the preview
-                        \Log::error("Failed to get data for placeholder '{$placeholderName}': " . $e->getMessage());
+                        Log::error("Failed to get data for placeholder '{$placeholderName}': " . $e->getMessage());
                     }
                 }
             } else {
@@ -143,9 +139,6 @@ class EmailPreviewController extends Controller
         $subject = str_replace(array_keys($replacements), array_values($replacements), $subject);
         $bodyContent = str_replace(array_keys($replacements), array_values($replacements), $bodyContent);
 
-        // --- NEW: Convert newlines to HTML <br> tags
-        $bodyContent = nl2br($bodyContent);
-
         // Render the main blade view with all the necessary data
         return View::make('emails.email_template', [
             'emailData' => ['subject' => $subject],
@@ -154,19 +147,22 @@ class EmailPreviewController extends Controller
             'projectName' => $project->name,
             'senderName' => $senderName,
             'senderRole' => $senderRole,
-            'senderPhone' => $senderPhone,
-            'senderWebsite' => $senderWebsite,
-            'companyLogoUrl' => $companyLogoUrl,
-            'brandPrimaryColor' => $brandPrimaryColor,
-            'brandSecondaryColor' => $brandSecondaryColor,
-            'textColorPrimary' => $textColorPrimary,
-            'textColorSecondary' => $textColorSecondary,
-            'backgroundColor' => $backgroundColor,
-            'borderColor' => $borderColor,
-            'reviewLink' => $reviewLink,
             'actionButtonUrl' => $actionButtonUrl,
             'actionButtonText' => $actionButtonText,
-            'socialIcons' => $socialIcons,
+
+            // --- Use reusable information from the branding config ---
+            'senderPhone' => $brandingConfig['company']['phone'],
+            'senderWebsite' => $brandingConfig['company']['website'],
+            'companyLogoUrl' => asset($brandingConfig['company']['logo_url']),
+            'brandPrimaryColor' => $brandingConfig['branding']['brand_primary_color'],
+            'brandSecondaryColor' => $brandingConfig['branding']['brand_secondary_color'],
+            'textColorPrimary' => $brandingConfig['branding']['text_color_primary'],
+            'textColorSecondary' => $brandingConfig['branding']['text_color_secondary'],
+            'backgroundColor' => $brandingConfig['branding']['background_color'],
+            'borderColor' => $brandingConfig['branding']['border_color'],
+            'socialIcons' => $brandingConfig['social_icons'],
+            'signatureTagline' => $brandingConfig['signature']['tagline'],
+            'reviewLink' => 'https://example.com/review', // This can also be added to config if desired
         ]);
     }
 }

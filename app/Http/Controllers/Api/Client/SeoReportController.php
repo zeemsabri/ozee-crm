@@ -99,4 +99,15 @@ class SeoReportController extends Controller
 
         return response()->json($formattedDates, 200);
     }
+
+    /**
+     * Get the total count of SEO reports for a project.
+     */
+    public function getCount(Request $request, Project $project)
+    {
+        // Count the number of SEO reports for this project
+        $count = SeoReport::where('project_id', $project->id)->count();
+
+        return response()->json(['count' => $count], 200);
+    }
 }

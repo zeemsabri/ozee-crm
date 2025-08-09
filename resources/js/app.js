@@ -57,13 +57,13 @@ createInertiaApp({
 
         // Create a separate Vue app instance for the PushNotificationContainer
         // and mount it directly to the body.
-        const notificationAppInstance = createApp({
-            render: () => h(PushNotificationContainer)
-        });
-        const notificationMountPoint = document.createElement('div');
-        notificationMountPoint.id = 'push-notification-mount-point';
-        document.body.appendChild(notificationMountPoint);
-        notificationAppInstance.mount(notificationMountPoint);
+        // const notificationAppInstance = createApp({
+        //     render: () => h(PushNotificationContainer)
+        // });
+        // const notificationMountPoint = document.createElement('div');
+        // notificationMountPoint.id = 'push-notification-mount-point';
+        // document.body.appendChild(notificationMountPoint);
+        // notificationAppInstance.mount(notificationMountPoint);
 
         // Fetch global permissions immediately after app initialization
         if (props.initialPage.props.auth && props.initialPage.props.auth.user) {
