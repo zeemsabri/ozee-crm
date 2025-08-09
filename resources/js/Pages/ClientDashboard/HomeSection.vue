@@ -316,7 +316,7 @@ const formatDate = (dateString) => {
     <div class="min-h-screen bg-gray-100 font-inter text-gray-800 p-4 sm:p-6 lg:p-8">
         <!-- Header Section -->
         <header class="bg-white rounded-xl shadow-lg p-4 mb-6 flex flex-col sm:flex-row items-center justify-between">
-<!--            <div class="flex items-center mb-4 sm:mb-0">-->
+            <div class="flex items-center mb-4 sm:mb-0">
 <!--                <img-->
 <!--                    v-if="projectData.logo"-->
 <!--                    :src="projectData.logo"-->
@@ -330,8 +330,8 @@ const formatDate = (dateString) => {
 <!--                    {{ projectInitials }}-->
 <!--                </div>-->
 
-<!--                <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">{{ projectData.name || 'Client Dashboard' }}</h1>-->
-<!--            </div>-->
+                <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">{{ projectData.name || 'Client Dashboard' }}</h1>
+            </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full sm:w-auto">
                 <div class="bg-indigo-500 text-white p-3 rounded-lg shadow-md flex items-center justify-center text-center">
