@@ -35,10 +35,15 @@ const props = defineProps({
         type: String,
         default: 'Operation successful!',
     },
-    // New prop to allow custom data formatting before API call
+    // Function to format data before API call
     formatDataForApi: {
         type: Function,
         default: (data) => data, // Default to a function that returns data as-is
+    },
+    // Function to run before submission (can be async)
+    beforeSubmit: {
+        type: Function,
+        default: () => true, // Default to a function that returns true
     },
     showFooter: {
         type: Boolean,
@@ -68,6 +73,13 @@ const handleSubmit = async () => {
     generalError.value = '';
 
     try {
+        // Run beforeSubmit hook if provided
+        const shouldContinue = await props.beforeSubmit();
+        if (shouldContinue === false) {
+            isSubmitting.value = false;
+            return;
+        }
+
         // Apply custom formatting if a function is provided
         const dataToSend = props.formatDataForApi(props.formData);
 

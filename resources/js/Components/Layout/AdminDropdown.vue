@@ -11,6 +11,7 @@ const canManageUsers = canDo('create_users');
 const canManageRoles = canDo('manage_roles');
 const canManageTaskTypes = canDo('manage_task_types');
 const canAccessClients = canDo('create_clients');
+const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_project_tiers');
 </script>
 
 <template>
@@ -63,6 +64,9 @@ const canAccessClients = canDo('create_clients');
                 </DropdownLink>
                 <DropdownLink v-if="canDo('manage_permissions')" :href="route('admin.permissions.index')">
                     Manage Permissions
+                </DropdownLink>
+                <DropdownLink v-if="canManageProjectTiers" href="/admin/project-tiers">
+                    Project Tiers
                 </DropdownLink>
             </template>
         </Dropdown>

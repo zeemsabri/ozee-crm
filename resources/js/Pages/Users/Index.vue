@@ -10,19 +10,22 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
-import {usePermissions} from "@/Directives/permissions.js";
-// No specific SelectInput component needed if using native <select> for simplicity
+import { usePermissions } from "@/Directives/permissions.js";
 
 // Access authenticated user
 const authUser = computed(() => usePage().props.auth.user);
 const { canDo, canView, canManage } = usePermissions();
-
 
 // Reactive state
 const users = ref([]);
 const loading = ref(true);
 const errors = ref({});
 const generalError = ref('');
+
+// Search and filter state
+const searchQuery = ref('');
+const selectedRole = ref('');
+const selectedProject = ref('');
 
 // Modals state
 const showCreateModal = ref(false);
@@ -38,6 +41,7 @@ const userForm = reactive({
     password_confirmation: '',
     role: 'contractor', // String role for backward compatibility
     role_id: 4, // Default role_id for contractor - will be updated when roles are fetched
+    user_type: 'contractor', // Default user type
 });
 
 // State for user being deleted
@@ -46,21 +50,76 @@ const userToDelete = ref(null);
 // Role options for dropdown
 const roleOptions = ref([]);
 
-// Fetch roles from the database
+// All unique projects for the filter dropdown
+const projectOptions = computed(() => {
+    const allProjects = users.value.flatMap(user => user.projects || []);
+    const uniqueProjects = [...new Set(allProjects.map(p => p.id))];
+    return uniqueProjects.map(id => {
+        const project = allProjects.find(p => p.id === id);
+        return { value: project.id, label: project.name };
+    });
+});
+
+// --- COMPUTED PROPERTIES FOR STATS ---
+const totalUsers = computed(() => users.value.length);
+const totalManagers = computed(() => users.value.filter(user =>
+    user.role_data?.slug === 'manager' ||
+    user.role === 'manager' ||
+    user.role === 'manager-role' ||
+    user.role === 'manager_role'
+).length);
+const totalEmployees = computed(() => users.value.filter(user =>
+    user.role_data?.slug === 'employee' ||
+    user.role === 'employee'
+).length);
+const totalContractors = computed(() => users.value.filter(user =>
+    user.role_data?.slug === 'contractor' ||
+    user.role === 'contractor'
+).length);
+
+// Filtered and searched users
+const filteredUsers = computed(() => {
+    let filtered = users.value;
+
+    // Filter by role
+    if (selectedRole.value) {
+        filtered = filtered.filter(user => {
+            const userRoleId = user.role_data?.id || (roleOptions.value.find(r => r.slug === user.role)?.value);
+            return userRoleId === selectedRole.value;
+        });
+    }
+
+    // Filter by project
+    if (selectedProject.value) {
+        filtered = filtered.filter(user =>
+            user.projects && user.projects.some(p => p.id === selectedProject.value)
+        );
+    }
+
+    // Filter by search query
+    if (searchQuery.value) {
+        const query = searchQuery.value.toLowerCase();
+        filtered = filtered.filter(user =>
+            user.name.toLowerCase().includes(query) ||
+            user.email.toLowerCase().includes(query)
+        );
+    }
+
+    return filtered;
+});
+
+
+// --- Fetch Roles ---
 const fetchRoles = async () => {
     try {
-        // Specify 'application' role type for user management
         const response = await window.axios.get('/api/roles?type=application');
         roleOptions.value = response.data.map(role => ({
-            // Use role_id as the value for the new role system
             value: role.id,
-            // Keep the slug (converted to underscore) as a data attribute for backward compatibility
             slug: role.slug.replace(/-/g, '_'),
             label: role.name
         }));
     } catch (error) {
         console.error('Error fetching roles:', error);
-        // Fallback to hardcoded roles if API fails
         roleOptions.value = [
             { value: 1, slug: 'super_admin', label: 'Super Admin' },
             { value: 2, slug: 'manager', label: 'Manager' },
@@ -74,15 +133,15 @@ const fetchRoles = async () => {
 const isSuperAdmin = computed(() => {
     if (!authUser.value) return false;
     return authUser.value.role_data?.slug === 'super-admin' ||
-           authUser.value.role === 'super_admin' ||
-           authUser.value.role === 'super-admin';
+        authUser.value.role === 'super_admin' ||
+        authUser.value.role === 'super-admin';
 });
 const isManager = computed(() => {
     if (!authUser.value) return false;
     return authUser.value.role_data?.slug === 'manager' ||
-           authUser.value.role === 'manager' ||
-           authUser.value.role === 'manager-role' ||
-           authUser.value.role === 'manager_role';
+        authUser.value.role === 'manager' ||
+        authUser.value.role === 'manager-role' ||
+        authUser.value.role === 'manager_role';
 });
 
 const canDeleteUsers = computed(() => isSuperAdmin.value);
@@ -118,12 +177,11 @@ const openCreateModal = () => {
     userForm.email = '';
     userForm.password = '';
     userForm.password_confirmation = '';
-    // Set default role to contractor or first available role from roleOptions
-    // Find contractor role by slug for backward compatibility
     const contractorRole = roleOptions.value.find(role => role.slug === 'contractor');
     userForm.role_id = contractorRole?.value ||
-                      (roleOptions.value.length > 0 ? roleOptions.value[0].value : 4); // 4 is fallback contractor ID
-    userForm.role = contractorRole?.slug || 'contractor'; // Keep role string for backward compatibility
+        (roleOptions.value.length > 0 ? roleOptions.value[0].value : 4);
+    userForm.role = contractorRole?.slug || 'contractor';
+    userForm.user_type = 'contractor';
     errors.value = {};
     generalError.value = '';
     showCreateModal.value = true;
@@ -136,8 +194,9 @@ const createUser = async () => {
         const response = await window.axios.post('/api/users', userForm);
         users.value.push(response.data);
         showCreateModal.value = false;
-        alert('User created successfully!');
-        fetchUsers(); // Refresh the list to ensure correct permissions/relationships are shown
+        // Use a custom message box instead of alert()
+        console.log('User created successfully!');
+        fetchUsers();
     } catch (error) {
         if (error.response && error.response.status === 422) {
             errors.value = error.response.data.errors;
@@ -156,28 +215,20 @@ const openEditModal = (userToEdit) => {
     userForm.name = userToEdit.name;
     userForm.email = userToEdit.email;
 
-    // Set role_id from user's role_data if available
     if (userToEdit.role_data && userToEdit.role_data.id) {
         userForm.role_id = userToEdit.role_data.id;
-
-        // Set role string from role_data.slug for backward compatibility
         userForm.role = userToEdit.role_data.slug.replace(/-/g, '_');
     } else {
-        // Fallback: find role by slug for backward compatibility
-        // Make sure userToEdit.role is a string before using replace
         const roleSlug = typeof userToEdit.role === 'string'
             ? userToEdit.role.replace(/-/g, '_')
-            : 'employee'; // Default to employee if role is not a string
-
+            : 'employee';
         const matchingRole = roleOptions.value.find(role => role.slug === roleSlug);
         userForm.role_id = matchingRole?.value ||
-                          (roleOptions.value.length > 0 ? roleOptions.value[0].value : null);
-
-        // Keep role string for backward compatibility
+            (roleOptions.value.length > 0 ? roleOptions.value[0].value : null);
         userForm.role = roleSlug;
     }
-
-    userForm.password = ''; // Clear passwords for edit
+    userForm.user_type = userToEdit.user_type || 'employee';
+    userForm.password = '';
     userForm.password_confirmation = '';
     errors.value = {};
     generalError.value = '';
@@ -189,7 +240,6 @@ const updateUser = async () => {
     generalError.value = '';
     try {
         const payload = { ...userForm };
-        // Don't send password if empty (no change)
         if (!payload.password) {
             delete payload.password;
             delete payload.password_confirmation;
@@ -201,8 +251,8 @@ const updateUser = async () => {
             users.value[index] = response.data;
         }
         showEditModal.value = false;
-        alert('User updated successfully!');
-        fetchUsers(); // Refresh the list to ensure correct permissions/relationships are shown
+        console.log('User updated successfully!');
+        fetchUsers();
     } catch (error) {
         if (error.response && error.response.status === 422) {
             errors.value = error.response.data.errors;
@@ -228,7 +278,7 @@ const deleteUser = async () => {
         users.value = users.value.filter(u => u.id !== userToDelete.value.id);
         showDeleteModal.value = false;
         userToDelete.value = null;
-        alert('User deleted successfully!');
+        console.log('User deleted successfully!');
     } catch (error) {
         generalError.value = 'Failed to delete user.';
         if (error.response && error.response.data.message) {
@@ -246,6 +296,20 @@ const updateRoleString = () => {
     }
 };
 
+// Function to get the collapsed project summary string
+const getProjectSummary = (userProjects) => {
+    if (!userProjects || userProjects.length === 0) {
+        return 'None';
+    }
+    const projectNames = userProjects.map(p => p.name);
+    if (projectNames.length <= 2) {
+        return projectNames.join(', ');
+    }
+    const remainingCount = projectNames.length - 2;
+    return `${projectNames[0]}, ${projectNames[1]} and ${remainingCount} more`;
+};
+
+
 // Fetch users and roles when component is mounted
 onMounted(() => {
     fetchUsers();
@@ -261,71 +325,163 @@ onMounted(() => {
             <h2 class="font-semibold text-xl text-gray-800 leading-tight">Users</h2>
         </template>
 
-        <div class="py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6 text-gray-900">
-                        <h3 class="text-2xl font-bold mb-4">Manage Users</h3>
+        <div class="py-6 sm:py-12">
+            <div class="px-4 sm:px-6 lg:px-8">
+                <!-- User Statistics Section -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                        <div>
+                            <h4 class="text-gray-500 font-medium">Total Users</h4>
+                            <p class="text-3xl font-bold text-gray-900 mt-1">{{ totalUsers }}</p>
+                        </div>
+                        <svg class="h-10 w-10 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M12 4.354a4 4 0 100 5.292m7 12.247A8.998 8.998 0 0112 21c-2.404 0-4.639-.906-6.364-2.482M12 21a8.998 8.998 0 006.364-2.482M12 21a8.998 8.998 0 01-6.364-2.482m-4.062-8.083A8.998 8.998 0 0112 12a8.998 8.998 0 018.126 4.917m-16.252 0C3.766 12.391 7.29 9 12 9s8.234 3.391 8.126 8.917"></path>
+                        </svg>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                        <div>
+                            <h4 class="text-gray-500 font-medium">Managers</h4>
+                            <p class="text-3xl font-bold text-gray-900 mt-1">{{ totalManagers }}</p>
+                        </div>
+                        <svg class="h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h-6a1 1 0 01-1-1v-4a1 1 0 011-1h6a1 1 0 011 1v4a1 1 0 01-1 1zm0 0l2 2m-2-2l-2 2"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9a2 2 0 11-4 0 2 2 0 014 0zm0 0a2 2 0 10-4 0m8 0a2 2 0 11-4 0 2 2 0 014 0zm0 0a2 2 0 10-4 0m-4 12v-1a4 4 0 014-4h4a4 4 0 014 4v1"></path>
+                        </svg>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                        <div>
+                            <h4 class="text-gray-500 font-medium">Employees</h4>
+                            <p class="text-3xl font-bold text-gray-900 mt-1">{{ totalEmployees }}</p>
+                        </div>
+                        <svg class="h-10 w-10 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.5a2.25 2.25 0 00-2.25-2.25H15m0-1.5v3.75m0-3.75a3.75 3.75 0 00-3.75-3.75H8.25m0 0a3.75 3.75 0 013.75 3.75M8.25 9.75v3.75m-4.5 0a3.75 3.75 0 013.75-3.75H12a3.75 3.75 0 013.75 3.75m-4.5 0h4.5m-4.5 0a3.75 3.75 0 01-3.75-3.75H8.25m-3.75 3.75H4.5M12 18a2.25 2.25 0 002.25-2.25V15m0 0h3.75m-3.75 0v3.75m0-3.75a2.25 2.25 0 00-2.25-2.25H9.75m-3.75 2.25H6m0 0a2.25 2.25 0 00-2.25-2.25h-1.5m3.75 2.25v3.75m0 0h-1.5M6 21a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v1.5m1.5-1.5h1.5M6 21v1.5"></path>
+                        </svg>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                        <div>
+                            <h4 class="text-gray-500 font-medium">Contractors</h4>
+                            <p class="text-3xl font-bold text-gray-900 mt-1">{{ totalContractors }}</p>
+                        </div>
+                        <svg class="h-10 w-10 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v2a2 2 0 01-2 2m-4-2H8m4 0h.01M17 11v-4a2 2 0 00-2-2m2 5v2m-4-2h-.01M3 20.25a2.25 2.25 0 01-2.25-2.25V8.25a2.25 2.25 0 012.25-2.25H18.75A2.25 2.25 0 0121 8.25v9.75a2.25 2.25 0 01-2.25 2.25H3.75z"></path>
+                        </svg>
+                    </div>
+                </div>
 
-                        <div v-if="canCreateUsers" class="mb-6">
-                            <PrimaryButton @click="openCreateModal">
-                                Create New User
-                            </PrimaryButton>
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="p-6">
+                        <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
+                            <h3 class="text-2xl font-bold text-gray-900">Manage Users</h3>
+                            <div v-if="canCreateUsers" class="mt-4 sm:mt-0">
+                                <PrimaryButton @click="openCreateModal">
+                                    Create New User
+                                </PrimaryButton>
+                            </div>
                         </div>
 
-                        <div v-if="loading" class="text-gray-600">Loading users...</div>
-                        <div v-else-if="generalError" class="text-red-600">{{ generalError }}</div>
-                        <div v-else-if="users.length === 0" class="text-gray-600">No users found.</div>
+                        <!-- Search and Filter Section -->
+                        <div class="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="col-span-1 lg:col-span-2">
+                                <TextInput
+                                    id="search"
+                                    type="text"
+                                    class="w-full"
+                                    placeholder="Search by name or email..."
+                                    v-model="searchQuery"
+                                />
+                            </div>
+                            <select v-model="selectedRole" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm w-full">
+                                <option value="">All Roles</option>
+                                <option v-for="option in roleOptions" :key="option.value" :value="option.value">
+                                    {{ option.label }}
+                                </option>
+                            </select>
+                            <select v-model="selectedProject" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm w-full">
+                                <option value="">All Projects</option>
+                                <option v-for="option in projectOptions" :key="option.value" :value="option.value">
+                                    {{ option.label }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <div v-if="loading" class="text-center p-8">
+                            <p class="text-gray-600">Loading users...</p>
+                        </div>
+                        <div v-else-if="generalError" class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded" role="alert">
+                            <p>{{ generalError }}</p>
+                        </div>
+                        <div v-else-if="filteredUsers.length === 0" class="text-center p-8">
+                            <p class="text-gray-600">No users found matching your criteria.</p>
+                        </div>
                         <div v-else>
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Projects</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="userItem in users" :key="userItem.id">
-                                    <td class="px-6 py-4 whitespace-nowrap">{{ userItem.name }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap">{{ userItem.email }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap capitalize">{{ userItem.role_data?.name || (typeof userItem.role === 'string' ? userItem.role.replace(/_|-/g, ' ') : 'Employee') }}</td>
-                                    <td class="px-6 py-4">
-                                            <span v-if="userItem.projects && userItem.projects.length">
-                                                {{ userItem.projects.map(p => p.name).join(', ') }}
-                                            </span>
-                                        <span v-else class="text-gray-400">None</span>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div class="flex items-center space-x-2">
-                                            <PrimaryButton
-                                                v-if="(isSuperAdmin ||
-                                                      (isManager &&
-                                                        ((userItem.role_data?.slug === 'employee' || userItem.role_data?.slug === 'contractor') ||
-                                                         (typeof userItem.role === 'string' &&
-                                                          (userItem.role.replace(/-/g, '_') === 'employee' || userItem.role.replace(/-/g, '_') === 'contractor')))) ||
-                                                      authUser.id === userItem.id)"
-                                                @click="openEditModal(userItem)">
-                                                Edit
-                                            </PrimaryButton>
-                                            <DangerButton
-                                                v-if="isSuperAdmin && userItem.id !== authUser.id"
-                                                @click="confirmUserDeletion(userItem)">
-                                                Delete
-                                            </DangerButton>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                <div v-for="userItem in filteredUsers" :key="userItem.id" class="bg-gray-50 rounded-lg shadow-sm p-6 flex flex-col justify-between relative">
+                                    <div>
+                                        <div class="flex items-center space-x-4 mb-4">
+                                            <div class="flex-shrink-0">
+                                                <div class="h-10 w-10 bg-indigo-500 rounded-full flex items-center justify-center text-white font-bold">{{ userItem.name.charAt(0) }}</div>
+                                            </div>
+                                            <div>
+                                                <p class="text-lg font-semibold text-gray-900">{{ userItem.name }}</p>
+                                                <p class="text-sm text-gray-500">{{ userItem.email }}</p>
+                                            </div>
                                         </div>
-                                    </td>
-                                </tr>
-                                </tbody>
-                            </table>
+
+                                        <div class="text-sm mb-4 flex space-x-4">
+                                            <p><span class="font-medium text-gray-800">Role:</span> <span class="capitalize">{{ userItem.role_data?.name || (typeof userItem.role === 'string' ? userItem.role.replace(/_|-/g, ' ') : 'Employee') }}</span></p>
+                                            <p><span class="font-medium text-gray-800">Type:</span> <span class="capitalize">{{ userItem.user_type || 'Employee' }}</span></p>
+                                        </div>
+
+                                        <!-- Projects with hover summary -->
+                                        <div class="text-sm text-gray-600">
+                                            <p class="font-medium text-gray-800 inline">Projects:</p>
+                                            <div class="group relative mt-1 inline-block ml-1">
+                                                <p class="truncate">{{ getProjectSummary(userItem.projects) }}</p>
+                                                <div v-if="userItem.projects && userItem.projects.length > 2" class="absolute z-10 bottom-full left-0 mb-2 w-full p-2 bg-gray-800 text-white text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <ul class="list-none p-0 m-0">
+                                                        <li v-for="project in userItem.projects" :key="project.id" class="whitespace-nowrap">{{ project.name }}</li>
+                                                    </ul>
+                                                    <div class="absolute w-3 h-3 bg-gray-800 transform rotate-45 -bottom-1 left-4"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Action icons top right corner -->
+                                    <div class="absolute top-4 right-4 flex space-x-2">
+                                        <button
+                                            v-if="(isSuperAdmin ||
+                                                  (isManager &&
+                                                    ((userItem.role_data?.slug === 'employee' || userItem.role_data?.slug === 'contractor') ||
+                                                     (typeof userItem.role === 'string' &&
+                                                      (userItem.role.replace(/-/g, '_') === 'employee' || userItem.role.replace(/-/g, '_') === 'contractor')))) ||
+                                                  authUser.id === userItem.id)"
+                                            @click="openEditModal(userItem)"
+                                            class="p-1 rounded-full text-gray-400 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                                            title="Edit User">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.794.793-2.828-2.828.794-.793zm-5.646 12.016v.538h.538l8.53-8.529-1.39-1.389-8.53 8.529z"></path>
+                                            </svg>
+                                        </button>
+                                        <button
+                                            v-if="isSuperAdmin && userItem.id !== authUser.id"
+                                            @click="confirmUserDeletion(userItem)"
+                                            class="p-1 rounded-full text-gray-400 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                                            title="Delete User">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- Modals remain the same, but with minor class updates for consistency -->
         <Modal :show="showCreateModal" @close="showCreateModal = false">
             <div class="p-6">
                 <h2 class="text-lg font-medium text-gray-900 mb-4">Create New User</h2>
@@ -359,6 +515,14 @@ onMounted(() => {
                             </option>
                         </select>
                         <InputError :message="errors.role_id ? errors.role_id[0] : (errors.role ? errors.role[0] : '')" class="mt-2" />
+                    </div>
+                    <div class="mb-4">
+                        <InputLabel for="create_user_type" value="User Type" />
+                        <select id="create_user_type" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="userForm.user_type">
+                            <option value="employee">Employee</option>
+                            <option value="contractor">Contractor</option>
+                        </select>
+                        <InputError :message="errors.user_type ? errors.user_type[0] : ''" class="mt-2" />
                     </div>
                     <div class="mt-6 flex justify-end">
                         <SecondaryButton @click="showCreateModal = false">Cancel</SecondaryButton>
@@ -402,6 +566,14 @@ onMounted(() => {
                             </option>
                         </select>
                         <InputError :message="errors.role_id ? errors.role_id[0] : (errors.role ? errors.role[0] : '')" class="mt-2" />
+                    </div>
+                    <div class="mb-4">
+                        <InputLabel for="edit_user_type" value="User Type" />
+                        <select id="edit_user_type" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="userForm.user_type">
+                            <option value="employee">Employee</option>
+                            <option value="contractor">Contractor</option>
+                        </select>
+                        <InputError :message="errors.user_type ? errors.user_type[0] : ''" class="mt-2" />
                     </div>
                     <div class="mt-6 flex justify-end">
                         <SecondaryButton @click="showEditModal = false">Cancel</SecondaryButton>

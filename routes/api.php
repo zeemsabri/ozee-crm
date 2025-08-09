@@ -73,6 +73,9 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
 
+    // Test Form Route for BaseFormModal testing
+    Route::post('/test-form', [\App\Http\Controllers\Api\TestFormController::class, 'store']);
+
     // Notifications Routes
     // Other routes...
     Route::get('/notifications', [NotificationController::class, 'index']);
@@ -229,6 +232,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('roles/{role}/permissions', [RoleController::class, 'updatePermissions'])
         ->middleware('permission:manage_permissions')
         ->name('roles.updatePermissions');
+
+    // Project Tier Management Routes
+    Route::apiResource('project-tiers', \App\Http\Controllers\Api\ProjectTierController::class);
 
     // Task Management Routes
     Route::get('task-statistics', [TaskController::class, 'getTaskStatistics']);

@@ -152,8 +152,34 @@ Route::get('/client/dashboard', [ClientDashboardController::class, 'index'])->na
 // The 'verified' middleware ensures the user's email is verified (optional, remove if not needed for MVP)
 Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) {
 
-    // Admin routes for role and permission management
-    Route::prefix('admin')->name('admin.')->middleware(['permission:manage_roles'])->group(function () {
+    // Test route for BaseFormModal demonstration
+    Route::get('/test/form-modal', function () {
+        return Inertia::render('Test/FormModalTest');
+    })->name('test.form-modal');
+
+    // Admin routes
+    Route::prefix('admin')->name('admin.')->group(function () {
+        // Project Tier management routes - requires view_project_tiers permission
+        Route::get('/project-tiers', [\App\Http\Controllers\Admin\ProjectTierController::class, 'index'])
+            ->middleware(['permission:view_project_tiers'])
+            ->name('project-tiers.index');
+
+        // The following routes require create/edit/delete permissions
+        Route::post('/project-tiers', [\App\Http\Controllers\Admin\ProjectTierController::class, 'store'])
+            ->middleware(['permission:create_project_tiers'])
+            ->name('project-tiers.store');
+
+        Route::put('/project-tiers/{projectTier}', [\App\Http\Controllers\Admin\ProjectTierController::class, 'update'])
+            ->middleware(['permission:edit_project_tiers'])
+            ->name('project-tiers.update');
+
+        Route::delete('/project-tiers/{projectTier}', [\App\Http\Controllers\Admin\ProjectTierController::class, 'destroy'])
+            ->middleware(['permission:delete_project_tiers'])
+            ->name('project-tiers.destroy');
+
+
+        // Role management routes - requires manage_roles permission
+        Route::middleware(['permission:manage_roles'])->group(function () {
         // Role management routes
         Route::get('/roles', function () {
             return Inertia::render('Admin/Roles/Index', [
@@ -302,6 +328,8 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         Route::put('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'update'])->name('permissions.update');
         Route::delete('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'destroy'])->name('permissions.destroy');
     });
+
+});
     // Your existing dashboard route
     Route::get('/dashboard', function () {
         $user = auth()->user();
@@ -443,3 +471,6 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
 
 // Require your existing authentication routes (login, register, logout, etc.)
 require __DIR__.'/auth.php';
+
+// Include admin routes
+require __DIR__.'/admin.php';
