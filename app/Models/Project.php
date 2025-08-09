@@ -337,4 +337,12 @@ class Project extends Model
     {
         return $this->hasMany(Deliverable::class);
     }
+
+    /**
+     * Get the project deliverables for this project.
+     */
+    public function projectDeliverables()
+    {
+        return $this->hasMany(ProjectDeliverable::class);
+    }
 }

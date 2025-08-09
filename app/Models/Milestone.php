@@ -93,4 +93,12 @@ class Milestone extends Model
         $this->status = 'In Progress';
         $this->save();
     }
+
+    /**
+     * Get the project deliverables associated with this milestone.
+     */
+    public function projectDeliverables()
+    {
+        return $this->hasMany(ProjectDeliverable::class);
+    }
 }

@@ -10,6 +10,7 @@ import ProjectEditBasicInfo from '@/Components/ProjectForm/ProjectEditBasicInfo.
 import ProjectFormClientsUsers from '@/Components/ProjectForm/ProjectFormClientsUsers.vue';
 import ProjectFormDocuments from '@/Components/ProjectForm/ProjectFormDocuments.vue';
 import ProjectFormNotes from '@/Components/ProjectForm/ProjectFormNotes.vue';
+import ProjectDeliverables from '@/Components/ProjectForm/ProjectDeliverables.vue';
 import ServicesAndPaymentForm from '@/Components/ServicesAndPaymentForm.vue'; // Assuming this component exists
 import ProjectTransactions from '@/Components/ProjectTransactions.vue'; // Assuming this component exists
 
@@ -69,7 +70,9 @@ const canViewProjectNotes = canView('project_notes', userProjectRole);
 const canViewProjectUsers = canView('project_users', userProjectRole);
 const canViewProjectClients = canView('project_clients', userProjectRole);
 const canViewProjectTransactions = canView('project_transactions', userProjectRole);
-
+const canViewProjectDeliverables = canView('project_deliverables');
+const canManageProjectDeliverables = canManage('project_deliverables');
+console.log(canManageProjectDeliverables);
 // Tab management state
 const activeTab = ref('basic');
 
@@ -206,6 +209,18 @@ onMounted(async () => {
                 >
                     Notes
                 </button>
+                <button
+                    v-if="projectId && (canManageProjectDeliverables || canViewProjectDeliverables)"
+                    @click="switchTab('deliverables')"
+                    :class="[
+                        'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200 whitespace-nowrap',
+                        activeTab === 'deliverables'
+                            ? 'border-indigo-600 text-indigo-700 bg-indigo-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50'
+                    ]"
+                >
+                    Deliverables
+                </button>
             </nav>
         </div>
 
@@ -276,6 +291,16 @@ onMounted(async () => {
                 :canAddProjectNotes="canAddProjectNotes"
                 :canViewProjectNotes="canViewProjectNotes"
                 :is-saving="props.isSaving"
+            />
+
+            <!-- Tab 7: Project Deliverables -->
+            <ProjectDeliverables
+                v-if="activeTab === 'deliverables'"
+                :projectId="projectId"
+                :errors="props.errors"
+                :canManageProjectDeliverables="canManageProjectDeliverables"
+                :canViewProjectDeliverables="canViewProjectDeliverables"
+                :isSaving="props.isSaving"
             />
         </div>
 
