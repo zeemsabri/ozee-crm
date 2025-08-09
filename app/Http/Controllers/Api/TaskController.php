@@ -250,7 +250,8 @@ class TaskController extends Controller
             'due_date' => 'nullable|date',
             'status' => 'sometimes|required|in:To Do,In Progress,Done,Blocked,Archived',
             'task_type_id' => 'sometimes|required|exists:task_types,id',
-            'milestone_id' => 'nullable|exists:milestones,id'
+            'milestone_id' => 'nullable|exists:milestones,id',
+            'details' => 'nullable|array'
         ]);
 
         // Update the task

@@ -13,6 +13,9 @@ import TaskHistoryList from '@/Components/ProjectTasks/TaskHistoryList.vue';
 import * as notification from '@/Utils/notification.js';
 import * as taskState from '@/Utils/taskState.js';
 import Modal from "@/Components/Modal.vue";
+import ChecklistComponent from '@/Components/ChecklistComponent.vue';
+import ChecklistCreator from '@/Components/ChecklistCreator.vue';
+import { SaveIcon } from "lucide-vue-next";
 
 const props = defineProps({
     taskId: {
@@ -56,6 +59,11 @@ const priorityOptions = [
 
 // Modals
 const showTaskNoteModal = ref(false);
+
+// Checklist creation
+const showChecklistCreator = ref(false);
+const newChecklist = ref([{ name: '', completed: false }]);
+const isSavingChecklist = ref(false);
 
 const fetchTaskDetails = async () => {
     loadingTask.value = true;
@@ -246,6 +254,64 @@ const reviseTask = async () => {
     }
 };
 
+// Toggle checklist creator visibility
+const toggleChecklistCreator = () => {
+    showChecklistCreator.value = !showChecklistCreator.value;
+    if (showChecklistCreator.value) {
+        // Initialize with existing checklist if available
+        if (task.value.details?.checklist && task.value.details.checklist.length > 0) {
+            newChecklist.value = JSON.parse(JSON.stringify(task.value.details.checklist));
+            // Ensure there's an empty item at the end for adding new items
+            if (newChecklist.value[newChecklist.value.length - 1].name !== '') {
+                newChecklist.value.push({ name: '', completed: false });
+            }
+        } else {
+            // Start with one empty item
+            newChecklist.value = [{ name: '', completed: false }];
+        }
+    }
+};
+
+// Save checklist to task details
+const saveChecklist = async () => {
+    if (isSavingChecklist.value) return;
+
+    isSavingChecklist.value = true;
+
+    try {
+        // Filter out empty checklist items
+        const filteredChecklist = newChecklist.value.filter(item => item.name.trim() !== '');
+
+        // Prepare the payload
+        const payload = {
+            details: {
+                ...task.value.details,
+                checklist: filteredChecklist
+            }
+        };
+
+        // Make API call
+        const response = await window.axios.patch(`/api/tasks/${task.value.id}`, payload);
+
+        // Update local task data
+        task.value = response.data;
+
+        // Hide checklist creator
+        showChecklistCreator.value = false;
+
+        // Show success notification
+        notification.success('Checklist saved successfully');
+
+        // Notify parent of update
+        emit('task-updated', task.value);
+    } catch (err) {
+        console.error('Error saving checklist:', err);
+        notification.error('Failed to save checklist');
+    } finally {
+        isSavingChecklist.value = false;
+    }
+};
+
 const blockTask = async () => {
     // This will open a modal in the parent component to get the reason
     // We need to emit an event to the parent to handle this.
@@ -421,6 +487,59 @@ const latestBlockActivity = computed(() => {
                             <p>{{ latestBlockActivity.reason }}</p>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Task Checklist -->
+            <div class="space-y-4 p-4 bg-white rounded-lg shadow-sm mb-4">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h5 class="text-lg font-semibold text-gray-800">Task Checklist</h5>
+                    <button
+                        @click="toggleChecklistCreator"
+                        class="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center"
+                    >
+                        <span v-if="!showChecklistCreator">{{ task.details?.checklist && task.details.checklist.length > 0 ? 'Edit Checklist' : 'Add Checklist' }}</span>
+                        <span v-else>Cancel</span>
+                    </button>
+                </div>
+
+                <!-- Checklist Creator -->
+                <div v-if="showChecklistCreator" class="mb-4">
+                    <ChecklistCreator
+                        v-model="newChecklist"
+                        placeholder="e.g., Review design, Update documentation"
+                        label="Checklist Items"
+                        density="notes"
+                    />
+                    <div class="flex justify-end mt-4">
+                        <PrimaryButton
+                            @click="saveChecklist"
+                            :disabled="isSavingChecklist"
+                            class="flex items-center space-x-1"
+                        >
+                            <SaveIcon class="h-4 w-4" />
+                            <span>Save Checklist</span>
+                        </PrimaryButton>
+                    </div>
+                </div>
+
+                <!-- Checklist Display -->
+                <ChecklistComponent
+                    v-if="task.details?.checklist && task.details.checklist.length > 0 && !showChecklistCreator"
+                    :items="task.details.checklist"
+                    :api-endpoint="`/api/tasks/${task.id}`"
+                    title="Items to complete:"
+                    :payload-transformer="(items) => ({
+                        details: {
+                            ...task.details,
+                            checklist: items
+                        }
+                    })"
+                />
+
+                <!-- Empty state when no checklist -->
+                <div v-if="(!task.details?.checklist || task.details.checklist.length === 0) && !showChecklistCreator" class="text-gray-500 text-sm py-2">
+                    No checklist items for this task yet. Click "Add Checklist" to create one.
                 </div>
             </div>
 

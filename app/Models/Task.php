@@ -119,6 +119,7 @@ class Task extends Model
         'deleted_by',
         'block_reason',
         'previous_status',
+        'details',
     ];
 
     /**
@@ -129,6 +130,7 @@ class Task extends Model
     protected $casts = [
         'due_date' => 'date',
         'actual_completion_date' => 'date',
+        'details' => 'array',
     ];
 
     /**

@@ -11,7 +11,9 @@ import InputError from '@/Components/InputError.vue';
 import Modal from '@/Components/Modal.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import TextareaInput from '@/Components/TextareaInput.vue';
+import ChecklistComponent from '@/Components/ChecklistComponent.vue';
 import { TrashIcon } from '@heroicons/vue/20/solid';
+import ChecklistCreator from '@/Components/ChecklistCreator.vue';
 
 const props = defineProps({
     projectId: {
@@ -36,6 +38,8 @@ const props = defineProps({
     }
 });
 
+const emit = defineEmits(['checklist-item-toggled']);
+
 // State for deliverables and deliverable types
 const deliverables = ref([]);
 const deliverableTypes = ref([]);
@@ -58,7 +62,6 @@ const currentDeliverable = ref({
     }
 });
 const formErrors = ref({});
-const checklistInputRefs = ref([]);
 
 // Status options
 const statusOptions = [
@@ -131,16 +134,7 @@ function openEditForm(deliverable) {
     showForm.value = true;
 }
 
-function removeChecklistItem(index) {
-    currentDeliverable.value.details.checklist.splice(index, 1);
-}
-
-function handleChecklistInput(index) {
-    // If the user types in the last empty item, add a new one
-    if (index === currentDeliverable.value.details.checklist.length - 1) {
-        currentDeliverable.value.details.checklist.push({ name: '', completed: false });
-    }
-}
+// Checklist item management is now handled by the ChecklistCreator component
 
 async function saveDeliverable() {
     formErrors.value = {};
@@ -179,23 +173,6 @@ async function saveDeliverable() {
     }
 }
 
-async function toggleChecklistItem(deliverable, index) {
-    const newStatus = !deliverable.details.checklist[index].completed;
-    deliverable.details.checklist[index].completed = newStatus;
-
-    try {
-        const payload = {
-            ...deliverable,
-            details: deliverable.details,
-        };
-        await axios.put(`/api/project-deliverables/${deliverable.id}`, payload);
-        success('Checklist item updated!');
-    } catch (err) {
-        console.error('Error updating checklist item:', err);
-        error('Failed to update checklist item');
-        deliverable.details.checklist[index].completed = !newStatus;
-    }
-}
 
 async function deleteDeliverable(id) {
     if (!confirm('Are you sure you want to delete this deliverable?')) return;
@@ -270,23 +247,24 @@ function formatDate(dateString) {
                         <p v-if="deliverable.description" class="mt-4 text-base text-gray-600">
                             {{ deliverable.description }}
                         </p>
-                        <div v-if="deliverable.details?.checklist && deliverable.details.checklist.length > 0"
-                             class="mt-4 p-3 bg-gray-100 rounded-lg text-sm text-gray-700 border border-gray-200">
-                            <p class="font-semibold text-gray-900 mb-2">Checklist:</p>
-                            <ul class="space-y-1">
-                                <li v-for="(item, index) in deliverable.details.checklist" :key="index" class="flex items-center space-x-2">
-                                    <input
-                                        type="checkbox"
-                                        :checked="item.completed"
-                                        @change="toggleChecklistItem(deliverable, index)"
-                                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                                    />
-                                    <span :class="{ 'line-through text-gray-500': item.completed }">
-                                        {{ item.name }}
-                                    </span>
-                                </li>
-                            </ul>
-                        </div>
+                        <ChecklistComponent
+                            v-if="deliverable.details?.checklist && deliverable.details.checklist.length > 0"
+                            :items="deliverable.details.checklist"
+                            :api-endpoint="`/api/project-deliverables/${deliverable.id}`"
+                            title="Deliverable Checklist:"
+                            :payload-transformer="(items, index) => ({
+                                ...deliverable,
+                                details: {
+                                    ...deliverable.details,
+                                    checklist: items
+                                }
+                            })"
+                            @item-toggled="(data) => $emit('checklist-item-toggled', {
+                                deliverable,
+                                index: data.index,
+                                completed: data.completed
+                            })"
+                        />
                     </div>
 
                     <div v-if="canManageProjectDeliverables" class="flex space-x-2">
@@ -383,31 +361,12 @@ function formatDate(dateString) {
                             />
                         </div>
 
-                        <div class="mt-4">
-                            <InputLabel value="Checklist Items" />
-                            <ul class="space-y-2">
-                                <li v-for="(item, index) in currentDeliverable.details.checklist" :key="index" class="flex items-center space-x-2">
-                                    <TextInput
-                                        v-model="item.name"
-                                        type="text"
-                                        class="flex-1"
-                                        :placeholder="index === currentDeliverable.details.checklist.length - 1 ? checklistPlaceholder : ''"
-                                        @input="handleChecklistInput(index)"
-                                        @keyup.enter.prevent="() => {
-                                            if (index < currentDeliverable.details.checklist.length - 1) {
-                                                nextTick(() => {
-                                                    checklistInputRefs[index + 1]?.focus();
-                                                });
-                                            }
-                                        }"
-                                        :ref="el => { if (el) checklistInputRefs[index] = el }"
-                                    />
-                                    <DangerButton type="button" @click="removeChecklistItem(index)" v-if="currentDeliverable.details.checklist.length > 1">
-                                        <TrashIcon class="h-4 w-4" />
-                                    </DangerButton>
-                                </li>
-                            </ul>
-                        </div>
+                        <ChecklistCreator
+                            v-model="currentDeliverable.details.checklist"
+                            :placeholder="checklistPlaceholder"
+                            label="Checklist Items"
+                            containerClass="mt-4"
+                        />
                     </div>
 
                     <div class="flex justify-end space-x-3 mt-6">

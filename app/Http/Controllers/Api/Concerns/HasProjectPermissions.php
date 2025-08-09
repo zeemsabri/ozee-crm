@@ -260,6 +260,21 @@ trait HasProjectPermissions
         return $user->hasPermission('view_project_documents');
     }
 
+
+    protected function canViewProjectDeliverables(User $user, Project $project): bool
+    {
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        $projectRole = $this->getUserProjectRole($user, $project);
+        if($projectRole && $projectRole->permissions->contains('slug', 'view_project_deliverables')) {
+            return true;
+        }
+
+        return $user->hasPermission('view_project_deliverables');
+    }
+
     /**
      * Check if user has permission to view project notes.
      *
