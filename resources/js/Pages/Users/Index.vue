@@ -415,7 +415,7 @@ onMounted(() => {
                         </div>
                         <div v-else>
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                <div v-for="userItem in filteredUsers" :key="userItem.id" class="bg-gray-50 rounded-lg shadow-sm p-6 flex flex-col justify-between relative">
+                                <div v-for="userItem in filteredUsers" :key="userItem.id" class="bg-gray-50 rounded-lg shadow-sm p-6 flex flex-col justify-between relative overflow-hidden">
                                     <div>
                                         <div class="flex items-center space-x-4 mb-4">
                                             <div class="flex-shrink-0">
@@ -434,14 +434,19 @@ onMounted(() => {
 
                                         <!-- Projects with hover summary -->
                                         <div class="text-sm text-gray-600">
-                                            <p class="font-medium text-gray-800 inline">Projects:</p>
-                                            <div class="group relative mt-1 inline-block ml-1">
-                                                <p class="truncate">{{ getProjectSummary(userItem.projects) }}</p>
-                                                <div v-if="userItem.projects && userItem.projects.length > 2" class="absolute z-10 bottom-full left-0 mb-2 w-full p-2 bg-gray-800 text-white text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <p class="font-medium text-gray-800 inline">Projects: <span
+                                                class="font-normal">{{ getProjectSummary(userItem.projects) }}</span>
+                                            </p>
+                                            <div class="group relative inline-block ml-1">
+                                                <div v-if="userItem.projects && userItem.projects.length > 2"
+                                                     class="absolute z-10 bottom-full left-0 mb-2 w-full p-2 bg-gray-800 text-white text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <ul class="list-none p-0 m-0">
-                                                        <li v-for="project in userItem.projects" :key="project.id" class="whitespace-nowrap">{{ project.name }}</li>
+                                                        <li v-for="project in userItem.projects" :key="project.id"
+                                                            class="whitespace-nowrap">{{ project.name }}
+                                                        </li>
                                                     </ul>
-                                                    <div class="absolute w-3 h-3 bg-gray-800 transform rotate-45 -bottom-1 left-4"></div>
+                                                    <div
+                                                        class="absolute w-3 h-3 bg-gray-800 transform rotate-45 -bottom-1 left-4"></div>
                                                 </div>
                                             </div>
                                         </div>

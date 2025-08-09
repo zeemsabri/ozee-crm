@@ -24,7 +24,10 @@ return new class extends Migration
     {
         Schema::table('projects', function (Blueprint $table) {
             $table->dropForeign(['project_tier_id']);
-            $table->dropColumn(['project_tier_id', 'profit_margin_percentage']);
+            $table->dropColumn([
+                'project_tier_id',
+                'profit_margin_percentage'
+            ]);
         });
     }
 };

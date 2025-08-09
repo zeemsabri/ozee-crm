@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { router } from '@inertiajs/vue3';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -53,10 +53,26 @@ const newProjectForm = reactive({
     source: '',
     tags: [],
     tags_data: [], // For initial display of tags if needed (not for new projects)
-    timezone: null
+    timezone: null,
+    project_tier_id: null,
+    profit_margin_percentage: null
 });
 
 const isCreating = ref(false); // Local saving state for this component
+const projectTiers = ref([]); // Store project tiers fetched from API
+
+/**
+ * Fetches project tiers from the API
+ */
+const fetchProjectTiers = async () => {
+    try {
+        const response = await window.axios.get('/api/project-tiers');
+        projectTiers.value = response.data;
+    } catch (err) {
+        console.error('Error fetching project tiers:', err);
+        error('Failed to load project tiers.');
+    }
+};
 
 /**
  * Handles the change event for the logo file input.
@@ -126,6 +142,11 @@ const submitBasicInfo = async () => {
         isCreating.value = false; // End local saving indicator
     }
 };
+
+// Fetch project tiers when component is mounted
+onMounted(() => {
+    fetchProjectTiers();
+});
 </script>
 
 <template>
@@ -254,6 +275,38 @@ const submitBasicInfo = async () => {
                     class="mt-1 block w-full"
                 />
                 <InputError :message="props.errors.timezone ? props.errors.timezone[0] : ''" class="mt-2" />
+            </div>
+
+            <!-- Project Tier -->
+            <div>
+                <InputLabel for="project_tier_id" value="Project Tier" />
+                <SelectDropdown
+                    id="project_tier_id"
+                    v-model="newProjectForm.project_tier_id"
+                    :options="projectTiers"
+                    valueKey="id"
+                    labelKey="name"
+                    placeholder="Select Project Tier"
+                    :disabled="!canManageProjects || isCreating"
+                    class="mt-1 block w-full"
+                />
+                <InputError :message="props.errors.project_tier_id ? props.errors.project_tier_id[0] : ''" class="mt-2" />
+            </div>
+
+            <!-- Profit Margin Percentage -->
+            <div>
+                <InputLabel for="profit_margin_percentage" value="Profit Margin (%)" />
+                <TextInput
+                    id="profit_margin_percentage"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    class="mt-1 block w-full rounded-lg shadow-sm"
+                    v-model="newProjectForm.profit_margin_percentage"
+                    :disabled="!canManageProjects || isCreating"
+                />
+                <InputError :message="props.errors.profit_margin_percentage ? props.errors.profit_margin_percentage[0] : ''" class="mt-2" />
             </div>
 
             <!-- Project Logo -->

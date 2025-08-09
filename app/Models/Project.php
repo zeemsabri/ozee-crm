@@ -47,6 +47,10 @@ class Project extends Model
         'documents' => 'array',
     ];
 
+    protected $hidden = [
+        'profit_margin_percentage',
+    ];
+
     const SUPPORT = 'support';
 
     public function client()

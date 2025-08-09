@@ -177,6 +177,36 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
             ->middleware(['permission:delete_project_tiers'])
             ->name('project-tiers.destroy');
 
+        // Monthly Budget management routes - requires view_monthly_budgets permission
+        Route::get('/monthly-budgets', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'index'])
+            ->middleware(['permission:view_monthly_budgets'])
+            ->name('monthly-budgets.index');
+
+        // The following routes require manage_monthly_budgets permission
+        Route::post('/monthly-budgets', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'store'])
+            ->middleware(['permission:manage_monthly_budgets'])
+            ->name('monthly-budgets.store');
+
+        Route::put('/monthly-budgets/{monthlyBudget}', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'update'])
+            ->middleware(['permission:manage_monthly_budgets'])
+            ->name('monthly-budgets.update');
+
+        Route::delete('/monthly-budgets/{monthlyBudget}', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'destroy'])
+            ->middleware(['permission:manage_monthly_budgets'])
+            ->name('monthly-budgets.destroy');
+
+        // API routes for Monthly Budget management
+        Route::get('/monthly-budgets/all', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'getAllBudgets'])
+            ->middleware(['permission:view_monthly_budgets'])
+            ->name('monthly-budgets.all');
+
+        Route::get('/monthly-budgets/current', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'getCurrentBudget'])
+            ->middleware(['permission:view_monthly_budgets'])
+            ->name('monthly-budgets.current');
+
+        Route::get('/monthly-budgets/{monthlyBudget}', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'show'])
+            ->middleware(['permission:view_monthly_budgets'])
+            ->name('monthly-budgets.show');
 
         // Role management routes - requires manage_roles permission
         Route::middleware(['permission:manage_roles'])->group(function () {

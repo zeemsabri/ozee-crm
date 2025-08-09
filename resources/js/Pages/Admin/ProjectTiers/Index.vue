@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
@@ -11,6 +11,7 @@ import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { usePermissions } from '@/Directives/permissions.js';
+import BaseFormModal from '@/Components/BaseFormModal.vue'; // Import the new component
 
 const { canDo } = usePermissions();
 
@@ -22,7 +23,6 @@ const canDeleteTiers = canDo('delete_project_tiers');
 // Reactive state
 const projectTiers = ref([]);
 const loading = ref(true);
-const errors = ref({});
 const generalError = ref('');
 
 // Modals state
@@ -66,13 +66,9 @@ const openCreateModal = () => {
     showCreateModal.value = true;
 };
 
-const createProjectTier = () => {
-    form.post('/api/project-tiers', {
-        onSuccess: () => {
-            showCreateModal.value = false;
-            fetchProjectTiers();
-        },
-    });
+const handleCreationSuccess = () => {
+    showCreateModal.value = false;
+    fetchProjectTiers();
 };
 
 // --- Edit Project Tier ---
@@ -89,13 +85,9 @@ const openEditModal = (tier) => {
     showEditModal.value = true;
 };
 
-const updateProjectTier = () => {
-    form.put(`/api/project-tiers/${form.id}`, {
-        onSuccess: () => {
-            showEditModal.value = false;
-            fetchProjectTiers();
-        },
-    });
+const handleUpdateSuccess = () => {
+    showEditModal.value = false;
+    fetchProjectTiers();
 };
 
 // --- Delete Project Tier ---
@@ -189,93 +181,126 @@ onMounted(() => {
             </div>
         </div>
 
-        <!-- Create Modal -->
-        <Modal :show="showCreateModal" @close="showCreateModal = false">
-            <div class="p-6">
-                <h2 class="text-lg font-medium text-gray-900 mb-4">Create New Project Tier</h2>
-                <form @submit.prevent="createProjectTier">
-                    <div class="mb-4">
-                        <InputLabel for="create_name" value="Name" />
-                        <TextInput id="create_name" type="text" class="mt-1 block w-full" v-model="form.name" required autofocus />
-                        <InputError :message="form.errors.name" class="mt-2" />
-                    </div>
-                    <div class="mb-4">
-                        <InputLabel for="create_point_multiplier" value="Point Multiplier" />
-                        <TextInput id="create_point_multiplier" type="number" step="0.01" min="0" class="mt-1 block w-full" v-model="form.point_multiplier" required />
-                        <InputError :message="form.errors.point_multiplier" class="mt-2" />
-                    </div>
-                    <div class="mb-4">
-                        <InputLabel for="create_min_profit_margin" value="Minimum Profit Margin (%)" />
-                        <TextInput id="create_min_profit_margin" type="number" step="0.01" min="0" max="100" class="mt-1 block w-full" v-model="form.min_profit_margin_percentage" required />
-                        <InputError :message="form.errors.min_profit_margin_percentage" class="mt-2" />
-                    </div>
-                    <div class="mb-4">
-                        <InputLabel for="create_max_profit_margin" value="Maximum Profit Margin (%)" />
-                        <TextInput id="create_max_profit_margin" type="number" step="0.01" min="0" max="100" class="mt-1 block w-full" v-model="form.max_profit_margin_percentage" required />
-                        <InputError :message="form.errors.max_profit_margin_percentage" class="mt-2" />
-                    </div>
-                    <div class="mb-4">
-                        <InputLabel for="create_min_client_amount" value="Minimum Client Amount (PKR)" />
-                        <TextInput id="create_min_client_amount" type="number" step="0.01" min="0" class="mt-1 block w-full" v-model="form.min_client_amount_pkr" required />
-                        <InputError :message="form.errors.min_client_amount_pkr" class="mt-2" />
-                    </div>
-                    <div class="mb-4">
-                        <InputLabel for="create_max_client_amount" value="Maximum Client Amount (PKR)" />
-                        <TextInput id="create_max_client_amount" type="number" step="0.01" min="0" class="mt-1 block w-full" v-model="form.max_client_amount_pkr" required />
-                        <InputError :message="form.errors.max_client_amount_pkr" class="mt-2" />
-                    </div>
-                    <div class="mt-6 flex justify-end">
-                        <SecondaryButton @click="showCreateModal = false">Cancel</SecondaryButton>
-                        <PrimaryButton class="ms-3" type="submit" :disabled="form.processing">Create Tier</PrimaryButton>
-                    </div>
-                </form>
-            </div>
-        </Modal>
+        <BaseFormModal
+            :show="showCreateModal"
+            title="Create New Project Tier"
+            api-endpoint="/api/project-tiers"
+            http-method="post"
+            :form-data="form"
+            submit-button-text="Create Tier"
+            success-message="Project tier created successfully!"
+            @close="showCreateModal = false"
+            @submitted="handleCreationSuccess"
+        >
+            <template #default="{ errors }">
+                <div class="mb-4">
+                    <InputLabel for="create_name" value="Name" />
+                    <TextInput id="create_name" type="text" class="mt-1 block w-full" v-model="form.name" required autofocus />
+                    <InputError :message="errors.name" class="mt-2" />
+                </div>
+                <div class="mb-4">
+                    <InputLabel for="create_point_multiplier" value="Point Multiplier" />
+                    <p class="text-sm text-gray-600 mb-1">
+                        The multiplier applied to all points earned on projects in this tier (e.g., 1.50 for Tier 1).
+                    </p>
+                    <TextInput id="create_point_multiplier" type="number" step="0.01" min="0" class="mt-1 block w-full" v-model="form.point_multiplier" required />
+                    <InputError :message="errors.point_multiplier" class="mt-2" />
+                </div>
+                <div class="mb-4">
+                    <InputLabel for="create_min_profit_margin" value="Minimum Profit Margin (%)" />
+                    <p class="text-sm text-gray-600 mb-1">
+                        The minimum profit margin a project must have to be in this tier.
+                    </p>
+                    <TextInput id="create_min_profit_margin" type="number" step="0.01" min="0" max="100" class="mt-1 block w-full" v-model="form.min_profit_margin_percentage" required />
+                    <InputError :message="errors.min_profit_margin_percentage" class="mt-2" />
+                </div>
+                <div class="mb-4">
+                    <InputLabel for="create_max_profit_margin" value="Maximum Profit Margin (%)" />
+                    <p class="text-sm text-gray-600 mb-1">
+                        The maximum profit margin a project can have to be in this tier.
+                    </p>
+                    <TextInput id="create_max_profit_margin" type="number" step="0.01" min="0" max="100" class="mt-1 block w-full" v-model="form.max_profit_margin_percentage" required />
+                    <InputError :message="errors.max_profit_margin_percentage" class="mt-2" />
+                </div>
+                <div class="mb-4">
+                    <InputLabel for="create_min_client_amount" value="Minimum Client Amount (PKR)" />
+                    <p class="text-sm text-gray-600 mb-1">
+                        The minimum total agreed-upon amount for a project to qualify for this tier.
+                    </p>
+                    <TextInput id="create_min_client_amount" type="number" step="0.01" min="0" class="mt-1 block w-full" v-model="form.min_client_amount_pkr" required />
+                    <InputError :message="errors.min_client_amount_pkr" class="mt-2" />
+                </div>
+                <div class="mb-4">
+                    <InputLabel for="create_max_client_amount" value="Maximum Client Amount (PKR)" />
+                    <p class="text-sm text-gray-600 mb-1">
+                        The maximum total agreed-upon amount for a project to qualify for this tier.
+                    </p>
+                    <TextInput id="create_max_client_amount" type="number" step="0.01" min="0" class="mt-1 block w-full" v-model="form.max_client_amount_pkr" required />
+                    <InputError :message="errors.max_client_amount_pkr" class="mt-2" />
+                </div>
+            </template>
+        </BaseFormModal>
 
-        <!-- Edit Modal -->
-        <Modal :show="showEditModal" @close="showEditModal = false">
-            <div class="p-6">
-                <h2 class="text-lg font-medium text-gray-900 mb-4">Edit Project Tier</h2>
-                <form @submit.prevent="updateProjectTier">
-                    <div class="mb-4">
-                        <InputLabel for="edit_name" value="Name" />
-                        <TextInput id="edit_name" type="text" class="mt-1 block w-full" v-model="form.name" required autofocus />
-                        <InputError :message="form.errors.name" class="mt-2" />
-                    </div>
-                    <div class="mb-4">
-                        <InputLabel for="edit_point_multiplier" value="Point Multiplier" />
-                        <TextInput id="edit_point_multiplier" type="number" step="0.01" min="0" class="mt-1 block w-full" v-model="form.point_multiplier" required />
-                        <InputError :message="form.errors.point_multiplier" class="mt-2" />
-                    </div>
-                    <div class="mb-4">
-                        <InputLabel for="edit_min_profit_margin" value="Minimum Profit Margin (%)" />
-                        <TextInput id="edit_min_profit_margin" type="number" step="0.01" min="0" max="100" class="mt-1 block w-full" v-model="form.min_profit_margin_percentage" required />
-                        <InputError :message="form.errors.min_profit_margin_percentage" class="mt-2" />
-                    </div>
-                    <div class="mb-4">
-                        <InputLabel for="edit_max_profit_margin" value="Maximum Profit Margin (%)" />
-                        <TextInput id="edit_max_profit_margin" type="number" step="0.01" min="0" max="100" class="mt-1 block w-full" v-model="form.max_profit_margin_percentage" required />
-                        <InputError :message="form.errors.max_profit_margin_percentage" class="mt-2" />
-                    </div>
-                    <div class="mb-4">
-                        <InputLabel for="edit_min_client_amount" value="Minimum Client Amount (PKR)" />
-                        <TextInput id="edit_min_client_amount" type="number" step="0.01" min="0" class="mt-1 block w-full" v-model="form.min_client_amount_pkr" required />
-                        <InputError :message="form.errors.min_client_amount_pkr" class="mt-2" />
-                    </div>
-                    <div class="mb-4">
-                        <InputLabel for="edit_max_client_amount" value="Maximum Client Amount (PKR)" />
-                        <TextInput id="edit_max_client_amount" type="number" step="0.01" min="0" class="mt-1 block w-full" v-model="form.max_client_amount_pkr" required />
-                        <InputError :message="form.errors.max_client_amount_pkr" class="mt-2" />
-                    </div>
-                    <div class="mt-6 flex justify-end">
-                        <SecondaryButton @click="showEditModal = false">Cancel</SecondaryButton>
-                        <PrimaryButton class="ms-3" type="submit" :disabled="form.processing">Update Tier</PrimaryButton>
-                    </div>
-                </form>
-            </div>
-        </Modal>
+        <BaseFormModal
+            :show="showEditModal"
+            title="Edit Project Tier"
+            :api-endpoint="`/api/project-tiers/${form.id}`"
+            http-method="put"
+            :form-data="form"
+            submit-button-text="Update Tier"
+            success-message="Project tier updated successfully!"
+            @close="showEditModal = false"
+            @submitted="handleUpdateSuccess"
+        >
+            <template #default="{ errors }">
+                <div class="mb-4">
+                    <InputLabel for="edit_name" value="Name" />
+                    <TextInput id="edit_name" type="text" class="mt-1 block w-full" v-model="form.name" required autofocus />
+                    <InputError :message="errors.name" class="mt-2" />
+                </div>
+                <div class="mb-4">
+                    <InputLabel for="edit_point_multiplier" value="Point Multiplier" />
+                    <p class="text-sm text-gray-600 mb-1">
+                        The multiplier applied to all points earned on projects in this tier (e.g., 1.50 for Tier 1).
+                    </p>
+                    <TextInput id="edit_point_multiplier" type="number" step="0.01" min="0" class="mt-1 block w-full" v-model="form.point_multiplier" required />
+                    <InputError :message="errors.point_multiplier" class="mt-2" />
+                </div>
+                <div class="mb-4">
+                    <InputLabel for="edit_min_profit_margin" value="Minimum Profit Margin (%)" />
+                    <p class="text-sm text-gray-600 mb-1">
+                        The minimum profit margin a project must have to be in this tier.
+                    </p>
+                    <TextInput id="edit_min_profit_margin" type="number" step="0.01" min="0" max="100" class="mt-1 block w-full" v-model="form.min_profit_margin_percentage" required />
+                    <InputError :message="errors.min_profit_margin_percentage" class="mt-2" />
+                </div>
+                <div class="mb-4">
+                    <InputLabel for="edit_max_profit_margin" value="Maximum Profit Margin (%)" />
+                    <p class="text-sm text-gray-600 mb-1">
+                        The maximum profit margin a project can have to be in this tier.
+                    </p>
+                    <TextInput id="edit_max_profit_margin" type="number" step="0.01" min="0" max="100" class="mt-1 block w-full" v-model="form.max_profit_margin_percentage" required />
+                    <InputError :message="errors.max_profit_margin_percentage" class="mt-2" />
+                </div>
+                <div class="mb-4">
+                    <InputLabel for="edit_min_client_amount" value="Minimum Client Amount (PKR)" />
+                    <p class="text-sm text-gray-600 mb-1">
+                        The minimum total agreed-upon amount for a project to qualify for this tier.
+                    </p>
+                    <TextInput id="edit_min_client_amount" type="number" step="0.01" min="0" class="mt-1 block w-full" v-model="form.min_client_amount_pkr" required />
+                    <InputError :message="errors.min_client_amount_pkr" class="mt-2" />
+                </div>
+                <div class="mb-4">
+                    <InputLabel for="edit_max_client_amount" value="Maximum Client Amount (PKR)" />
+                    <p class="text-sm text-gray-600 mb-1">
+                        The maximum total agreed-upon amount for a project to qualify for this tier.
+                    </p>
+                    <TextInput id="edit_max_client_amount" type="number" step="0.01" min="0" class="mt-1 block w-full" v-model="form.max_client_amount_pkr" required />
+                    <InputError :message="errors.max_client_amount_pkr" class="mt-2" />
+                </div>
+            </template>
+        </BaseFormModal>
 
-        <!-- Delete Modal -->
         <Modal :show="showDeleteModal" @close="showDeleteModal = false">
             <div class="p-6">
                 <h2 class="text-lg font-medium text-gray-900">

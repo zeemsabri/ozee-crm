@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreProjectRequest;
 use App\Models\Project;
+use App\Models\ProjectTier;
 use App\Models\User;
 use App\Models\Meeting;
 use App\Models\ProjectNote;
@@ -842,12 +843,14 @@ class ProjectActionController extends Controller
                 'source' => 'nullable|string|max:255',
                 'google_drive_link' => 'nullable|url', // Keep this validation
                 'project_type'  =>  'required|string|max:30',
-                'timezone'  =>  'nullable|string|max:30'
+                'timezone'  =>  'nullable|string|max:30',
+                'project_tier_id'   =>  'required|exists:project_tiers,id',
             ];
 
             $project->syncTags($request->tags ?? []);
 
             $validated = $request->validate($validationRules);
+
 
             $projectData = [
                 'name' => $validated['name'] ?? $project->name,
@@ -859,7 +862,8 @@ class ProjectActionController extends Controller
                 'source' => $validated['source'] ?? $project->source,
                 'google_drive_link' => $validated['google_drive_link'] ?? $project->google_drive_link,
                 'project_type'  =>  $validated['project_type'] ?? 'Unknown',
-                'timezone'  =>  $validated['timezone'] ?? null
+                'timezone'  =>  $validated['timezone'] ?? null,
+                'project_tier_id'   =>  $validated['project_tier_id'] ?? ProjectTier::first()?->id
             ];
 
             // --- NEW LOGIC FOR GOOGLE DRIVE FOLDER ID ---

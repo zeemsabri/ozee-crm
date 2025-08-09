@@ -220,7 +220,8 @@ class ProjectReadController extends Controller
             'tags_data'  =>  $project->tags->map(function($tag) {
                 return ['id' => $tag->id, 'name' => $tag->name];
             })->values()->all(),
-            'timezone'  =>  $project->timezone
+            'timezone'  =>  $project->timezone,
+            'project_tier_id'   =>  $project->project_tier_id
         ]);
     }
 

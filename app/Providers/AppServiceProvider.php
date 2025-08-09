@@ -5,8 +5,10 @@ namespace App\Providers;
 use App\Models\Client;
 use App\Models\Email;
 use App\Models\Project;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Observers\EmailObserver;
+use App\Observers\TransactionObserver;
 use App\Policies\ClientPolicy;
 use App\Policies\EmailPolicy;
 use App\Policies\ProjectPolicy;
@@ -41,6 +43,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // Register the Email observer
         Email::observe(EmailObserver::class);
+
+        // Register the Transaction observer
+        Transaction::observe(TransactionObserver::class);
 
         Gate::before(function ($user, $ability) {
 

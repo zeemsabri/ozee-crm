@@ -64,11 +64,27 @@ const localProjectForm = reactive({
     source: '',
     tags: [],
     tags_data: [],
-    timezone: null
+    timezone: null,
+    project_tier_id: null,
+    profit_margin_percentage: null
 });
 
 const isSavingLocal = ref(false); // Local saving state for this component's submit button
 const isLoadingLocal = ref(true); // Local loading state for this component's data fetch
+const projectTiers = ref([]); // Store project tiers fetched from API
+
+/**
+ * Fetches project tiers from the API
+ */
+const fetchProjectTiers = async () => {
+    try {
+        const response = await window.axios.get('/api/project-tiers');
+        projectTiers.value = response.data;
+    } catch (err) {
+        console.error('Error fetching project tiers:', err);
+        error('Failed to load project tiers.');
+    }
+};
 
 /**
  * Handles the change event of the file input for the logo.
@@ -99,8 +115,26 @@ const submitBasicInfo = async () => {
     // Append all basic text/non-file/non-array fields
     // Explicitly exclude 'id', 'tags', 'tags_data', and 'logo' from this initial loop
     const fieldsToExclude = ['id', 'tags', 'tags_data', 'logo'];
+
+    // Explicitly add project_tier_id to ensure it's included
+    if (localProjectForm.project_tier_id !== null && localProjectForm.project_tier_id !== undefined) {
+        // Convert to string to ensure consistent type handling
+        const projectTierId = String(localProjectForm.project_tier_id);
+        dataToSubmit.append('project_tier_id', projectTierId);
+        console.log('Added project_tier_id:', projectTierId, 'type:', typeof projectTierId);
+    } else {
+        console.log('project_tier_id is null or undefined:', localProjectForm.project_tier_id);
+    }
+
+    // Add profit_margin_percentage explicitly as well
+    if (localProjectForm.profit_margin_percentage !== null && localProjectForm.profit_margin_percentage !== undefined) {
+        dataToSubmit.append('profit_margin_percentage', localProjectForm.profit_margin_percentage);
+        console.log('Added profit_margin_percentage:', localProjectForm.profit_margin_percentage);
+    }
+
+    // Add the rest of the fields
     for (const key in localProjectForm) {
-        if (!fieldsToExclude.includes(key)) {
+        if (!fieldsToExclude.includes(key) && key !== 'project_tier_id' && key !== 'profit_margin_percentage') {
             if (localProjectForm[key] !== null && localProjectForm[key] !== undefined) {
                 dataToSubmit.append(key, localProjectForm[key]);
             }
@@ -127,6 +161,12 @@ const submitBasicInfo = async () => {
 
     dataToSubmit.append('_method', 'PUT'); // Spoof PUT request for FormData
 
+    // Debug: Log all entries in FormData to verify project_tier_id is included
+    console.log('Form data contents:');
+    for (let [key, value] of dataToSubmit.entries()) {
+        console.log(`${key}: ${value}`);
+    }
+
     try {
         // Make the PUT request to update the existing project
         const response = await window.axios.post(`/api/projects/${props.projectId}/sections/basic`, dataToSubmit, {
@@ -151,7 +191,9 @@ const submitBasicInfo = async () => {
                 source: response.data.source || localProjectForm.source,
                 tags: response.data.tags || localProjectForm.tags,
                 tags_data: response.data.tags_data || localProjectForm.tags_data,
-                timezone: response.data.timezone || localProjectForm.timezone
+                timezone: response.data.timezone || localProjectForm.timezone,
+                project_tier_id: response.data.project_tier_id || localProjectForm.project_tier_id,
+                profit_margin_percentage: response.data.profit_margin_percentage || localProjectForm.profit_margin_percentage
             });
         }
 
@@ -197,7 +239,9 @@ const fetchBasicInfoData = async () => {
                 source: data.source || '',
                 tags: data.tags || [],
                 tags_data: data.tags_data || [],
-                timezone: data.timezone || null
+                timezone: data.timezone || null,
+                project_tier_id: data.project_tier_id || null,
+                profit_margin_percentage: data.profit_margin_percentage || null
             });
         }
     } catch (err) {
@@ -219,6 +263,11 @@ watch(() => props.projectId, async (newId) => {
 
 }, { immediate: true }); // Immediate ensures it runs on initial mount too
 
+// Add a watch on project_tier_id for debugging purposes
+watch(() => localProjectForm.project_tier_id, (newValue) => {
+    console.log('project_tier_id changed:', newValue, 'type:', typeof newValue);
+});
+
 
 
 
@@ -226,6 +275,7 @@ watch(() => props.projectId, async (newId) => {
 onMounted(() => {
     // The watch handler with { immediate: true } will handle the initial fetch
     // when props.projectId is first available.
+    fetchProjectTiers(); // Fetch project tiers on component mount
 });
 </script>
 
@@ -360,6 +410,43 @@ onMounted(() => {
                     class="mt-1 block w-full"
                 />
                 <InputError :message="errors.timezone ? errors.timezone[0] : ''" class="mt-2" />
+            </div>
+
+            <!-- Project Tier -->
+            <div>
+                <InputLabel for="project_tier_id" value="Project Tier" />
+                <SelectDropdown
+                    id="project_tier_id"
+                    v-model="localProjectForm.project_tier_id"
+                    :options="projectTiers"
+                    valueKey="id"
+                    labelKey="name"
+                    placeholder="Select Project Tier"
+                    :disabled="!canManageProjects || isSavingLocal || isSaving"
+                    class="mt-1 block w-full"
+                    @change="(val) => console.log('SelectDropdown change event:', val)"
+                />
+                <InputError :message="errors.project_tier_id ? errors.project_tier_id[0] : ''" class="mt-2" />
+                <!-- Debug display of current project_tier_id value -->
+                <div v-if="localProjectForm.project_tier_id" class="mt-1 text-xs text-gray-500">
+                    Selected tier ID: {{ localProjectForm.project_tier_id }} ({{ typeof localProjectForm.project_tier_id }})
+                </div>
+            </div>
+
+            <!-- Profit Margin Percentage -->
+            <div>
+                <InputLabel for="profit_margin_percentage" value="Profit Margin (%)" />
+                <TextInput
+                    id="profit_margin_percentage"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    class="mt-1 block w-full rounded-lg shadow-sm"
+                    v-model="localProjectForm.profit_margin_percentage"
+                    :disabled="!canManageProjects || isSavingLocal || isSaving"
+                />
+                <InputError :message="errors.profit_margin_percentage ? errors.profit_margin_percentage[0] : ''" class="mt-2" />
             </div>
 
             <!-- Project Logo -->
