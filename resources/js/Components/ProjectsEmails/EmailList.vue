@@ -38,6 +38,7 @@ const viewEmail = (email) => {
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -48,6 +49,7 @@ const viewEmail = (email) => {
                 <tr v-for="email in emails" :key="email.id" class="hover:bg-gray-50 transition-colors">
                     <td class="px-4 py-3 text-sm text-gray-900">{{ email.subject }}</td>
                     <td class="px-4 py-3 text-sm text-gray-700">{{ email.sender?.name || 'N/A' }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700">{{ email.conversation?.project?.name || 'N/A' }}</td>
                     <td class="px-4 py-3 text-sm text-gray-700">{{ new Date(email.created_at).toLocaleDateString() }}</td>
                     <td class="px-4 py-3 text-sm text-gray-700">
                         <span

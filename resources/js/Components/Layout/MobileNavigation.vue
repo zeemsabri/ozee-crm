@@ -59,6 +59,10 @@ const handleLogoutError = (error) => {
                     Dashboard
                 </ResponsiveNavLink>
 
+                <ResponsiveNavLink v-if="canDo('view_emails')" :href="route('inbox')" :active="route().current('inbox')">
+                    Inbox
+                </ResponsiveNavLink>
+
                 <ResponsiveNavLink v-if="canAccessClients" :href="route('clients.index')" :active="route().current('clients.index')">
                     Clients
                 </ResponsiveNavLink>

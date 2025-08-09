@@ -84,7 +84,7 @@ const fetchEmailData = async () => {
         }
 
         Object.assign(localFormData, emailData);
-        console.log('Fetched email data:', localFormData);
+
     } catch (error) {
         console.error('Failed to fetch email data:', error);
         emit('error', error);
@@ -107,8 +107,6 @@ const showInsertListModal = ref(false);
 // Ref to hold the content directly from the EmailEditor (what the user types)
 // This is the raw HTML fragment that will be processed by useEmailTemplate
 const editorBodyContent = computed(() => {
-    console.log('editorBodyContent computed property called');
-    console.log('Using localFormData.body:', localFormData.body);
     return localFormData.body || '';
 });
 

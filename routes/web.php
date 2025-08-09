@@ -397,6 +397,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('Emails/Rejected');
     })->name('emails.rejected')->middleware('permission:compose_emails'); // New route for rejected emails
 
+    // Inbox Page
+    Route::get('/inbox', function () {
+        return Inertia::render('Emails/Inbox/Index');
+    })->name('inbox')->middleware('permission:view_emails');
+
     Route::get('/users', function () {
         return Inertia::render('Users/Index');
     })->name('users.index')->middleware('permission:create_users');

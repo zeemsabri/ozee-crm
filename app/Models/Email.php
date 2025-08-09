@@ -11,6 +11,28 @@ class Email extends Model
 {
     use HasFactory, Taggable, SoftDeletes;
 
+    /**
+     * Get all interactions for this email.
+     */
+    public function interactions()
+    {
+        return $this->morphMany(UserInteraction::class, 'interactable');
+    }
+
+    /**
+     * Check if the email has been read by a specific user.
+     *
+     * @param int $userId
+     * @return bool
+     */
+    public function isReadBy($userId)
+    {
+        return $this->interactions()
+            ->where('user_id', $userId)
+            ->where('interaction_type', 'read')
+            ->exists();
+    }
+
     protected $fillable = [
         'conversation_id',
         'sender_id',

@@ -24,6 +24,7 @@ use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\EmailController;
+use App\Http\Controllers\Api\InboxController;
 use App\Http\Controllers\Api\ProjectReadController; // New Import
 use App\Http\Controllers\Api\ProjectActionController; // New Import
 use App\Http\Controllers\Api\RoleController;
@@ -181,6 +182,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('emails/{email}/update', [EmailController::class, 'update']);
     Route::post('emails/{email}/resubmit', [EmailController::class, 'resubmit']);
     Route::apiResource('emails', EmailController::class)->except(['destroy']);
+
+    // Inbox Routes
+    Route::get('inbox/new-emails', [InboxController::class, 'newEmails']);
+    Route::get('inbox/all-emails', [InboxController::class, 'allEmails']);
+    Route::get('inbox/waiting-approval', [InboxController::class, 'waitingApproval']);
+    Route::post('inbox/emails/{email}/mark-as-read', [InboxController::class, 'markAsRead']);
 
     // Google Auth Status Endpoint
     Route::get('/google/status', function () {

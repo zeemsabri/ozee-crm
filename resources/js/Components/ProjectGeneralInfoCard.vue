@@ -270,19 +270,10 @@ const sendMagicLink = async () => {
                     Schedule Meeting
                 </PrimaryButton>
                 <PrimaryButton
-                    v-if="canManageProjects || isSuperAdmin"
                     class="bg-blue-400 hover:bg-blue-600 transition-colors"
                     @click="handOpenCompose"
                 >
                     Compose Email
-                </PrimaryButton>
-                <PrimaryButton
-                    v-if="canManageProjects "
-                    class="bg-purple-600 hover:bg-purple-700 transition-colors"
-                    @click="openMagicLinkModal"
-                    :disabled="sendingMagicLink"
-                >
-                    {{ sendingMagicLink ? 'Sending...' : 'Send Magic Link' }}
                 </PrimaryButton>
             </div>
         </div>

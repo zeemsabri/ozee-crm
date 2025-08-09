@@ -16,7 +16,8 @@ const props = defineProps({
     },
     projectId: {
         type: Number,
-        required: true,
+        required: false,
+        default: null,
     },
     clients: {
         type: Array,
@@ -27,6 +28,10 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const templates = ref([]);
+const projects = ref([]);
+const projectsLoading = ref(false);
+const clientsData = ref([]);
+const clientsLoading = ref(false);
 const previewContent = ref('');
 const previewLoading = ref(false);
 const validationErrors = ref({});
@@ -36,7 +41,7 @@ const loadingSourceModels = ref(false);
 const emailForm = reactive({
     template_id: null,
     template_data: {},
-    project_id: props.projectId,
+    project_id: props.projectId || null,
     client_ids: [],
     subject: '',
     greeting_name: '',
@@ -44,13 +49,18 @@ const emailForm = reactive({
     status: 'pending_approval',
 });
 
-const { canDo } = usePermissions(props.projectId);
+const { canDo } = usePermissions(emailForm.project_id);
 
 const selectedTemplate = computed(() => {
     return templates.value.find(template => template.id === emailForm.template_id);
 });
 
 const fetchSourceModelsData = async (template) => {
+    if (!emailForm.project_id) {
+        console.error('Cannot fetch source model data: No project selected');
+        return;
+    }
+
     loadingSourceModels.value = true;
     sourceModelsData.value = {};
     const modelNames = new Set();
@@ -63,7 +73,7 @@ const fetchSourceModelsData = async (template) => {
     try {
         const promises = Array.from(modelNames).map(modelName => {
             const shortModelName = modelName.split('\\').pop();
-            const url = `/api/projects/${props.projectId}/model-data/${shortModelName}`;
+            const url = `/api/projects/${emailForm.project_id}/model-data/${shortModelName}`;
             return window.axios.get(url).then(response => {
                 sourceModelsData.value[shortModelName] = response.data;
             });
@@ -86,8 +96,8 @@ const fetchTemplates = async () => {
 };
 
 const fetchPreview = async () => {
-    if (!emailForm.template_id || emailForm.client_ids.length === 0) {
-        previewContent.value = '<p class="text-gray-500 italic">Select a template and at least one recipient to see a preview.</p>';
+    if (!emailForm.template_id || emailForm.client_ids.length === 0 || !emailForm.project_id) {
+        previewContent.value = '<p class="text-gray-500 italic">Select a project, template, and at least one recipient to see a preview.</p>';
         return;
     }
 
@@ -96,7 +106,7 @@ const fetchPreview = async () => {
         const firstClient = emailForm.client_ids[0];
         const clientId = typeof firstClient === 'object' ? firstClient.id : firstClient;
 
-        const response = await window.axios.post(`/api/projects/${props.projectId}/email-preview`, {
+        const response = await window.axios.post(`/api/projects/${emailForm.project_id}/email-preview`, {
             template_id: emailForm.template_id,
             client_id: clientId,
             template_data: emailForm.template_data,
@@ -118,7 +128,7 @@ watch(() => props.show, (newValue) => {
         Object.assign(emailForm, {
             template_id: null,
             template_data: {},
-            project_id: props.projectId,
+            project_id: props.projectId || null,
             client_ids: [],
             subject: '',
             greeting_name: '',
@@ -129,6 +139,11 @@ watch(() => props.show, (newValue) => {
         validationErrors.value = {};
         sourceModelsData.value = {};
         fetchTemplates();
+
+        // If projectId is not provided, fetch projects
+        if (!props.projectId) {
+            fetchProjects();
+        }
     }
 });
 
@@ -163,7 +178,9 @@ const prepareFormData = async () => {
 
     if (emailForm.client_ids.length > 0) {
         const firstClient = emailForm.client_ids[0];
-        const clientObj = props.clients.find(client => client.id === firstClient);
+        // Check both props.clients and clientsData for the client
+        const clientsToSearch = props.clients.length > 0 ? props.clients : clientsData.value;
+        const clientObj = clientsToSearch.find(client => client.id === firstClient);
         if (clientObj) {
             emailForm.greeting_name = clientObj.name || '';
         }
@@ -194,8 +211,52 @@ const inputPlaceholders = computed(() => {
 
 const apiEndpoint = computed(() => `/api/emails/templated`);
 
+const fetchProjects = async () => {
+    projectsLoading.value = true;
+    try {
+        const response = await window.axios.get('/api/projects-simplified');
+        projects.value = response.data;
+    } catch (error) {
+        console.error('Failed to fetch projects:', error);
+    } finally {
+        projectsLoading.value = false;
+    }
+};
+
+const fetchClients = async (projectId) => {
+    if (!projectId) return;
+
+    clientsLoading.value = true;
+    clientsData.value = [];
+    try {
+        const response = await window.axios.get(`/api/projects/${projectId}/sections/clients?type=clients`);
+        clientsData.value = response.data;
+    } catch (error) {
+        console.error('Failed to fetch clients:', error);
+    } finally {
+        clientsLoading.value = false;
+    }
+};
+
+watch(() => emailForm.project_id, (newProjectId) => {
+    // Clear template, recipients and dynamic placeholders when project changes
+    emailForm.template_id = null;
+    emailForm.template_data = {};
+    emailForm.client_ids = [];
+    previewContent.value = '';
+
+    if (newProjectId) {
+        fetchClients(newProjectId);
+    } else {
+        clientsData.value = [];
+    }
+});
+
 onMounted(() => {
     fetchTemplates();
+    if (!props.projectId) {
+        fetchProjects();
+    }
 });
 </script>
 
@@ -214,8 +275,27 @@ onMounted(() => {
     >
         <template #default="{ errors }">
             <div class="flex flex-col space-y-6">
-                <!-- Top Section: Template and Recipient Selection -->
+                <!-- Top Section: Project, Template and Recipient Selection -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <!-- Project Selection (only shown if projectId is not provided) -->
+                    <div v-if="!props.projectId">
+                        <InputLabel for="project" value="Select Project" />
+                        <SelectDropdown
+                            id="project"
+                            v-model="emailForm.project_id"
+                            :options="projects"
+                            placeholder="Select a project"
+                            value-key="id"
+                            label-key="name"
+                            :allow-empty="true"
+                            class="mt-1"
+                        />
+                        <div v-if="projectsLoading" class="text-xs text-gray-500 mt-1">
+                            Loading projects...
+                        </div>
+                        <InputError :message="errors.project_id ? errors.project_id[0] : ''" class="mt-2" />
+                    </div>
+
                     <!-- Template Selection -->
                     <div>
                         <InputLabel for="template" value="Select Template" />
@@ -238,7 +318,7 @@ onMounted(() => {
                         <CustomMultiSelect
                             id="client_ids"
                             v-model="emailForm.client_ids"
-                            :options="clients"
+                            :options="props.clients.length > 0 ? props.clients : clientsData"
                             placeholder="Select clients to send to"
                             label-key="name"
                             track-by="id"
@@ -246,6 +326,9 @@ onMounted(() => {
                             :object-value="true"
                             class="mt-1"
                         />
+                        <div v-if="clientsLoading" class="text-xs text-gray-500 mt-1">
+                            Loading clients...
+                        </div>
                         <InputError :message="errors.client_ids ? errors.client_ids[0] : ''" class="mt-2" />
                     </div>
                 </div>
@@ -315,8 +398,8 @@ onMounted(() => {
                         <h4 class="text-md font-semibold text-gray-800">Email Preview</h4>
                         <PrimaryButton
                             @click="fetchPreview"
-                            :disabled="!emailForm.template_id || emailForm.client_ids.length === 0 || previewLoading"
-                            :class="{ 'opacity-50 cursor-not-allowed': !emailForm.template_id || emailForm.client_ids.length === 0 || previewLoading }"
+                            :disabled="!emailForm.project_id || !emailForm.template_id || emailForm.client_ids.length === 0 || previewLoading"
+                            :class="{ 'opacity-50 cursor-not-allowed': !emailForm.project_id || !emailForm.template_id || emailForm.client_ids.length === 0 || previewLoading }"
                         >
                             <span v-if="previewLoading" class="flex items-center">
                                 <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

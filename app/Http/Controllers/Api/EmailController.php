@@ -940,10 +940,10 @@ class EmailController extends Controller
      */
     public function getEmailContent(Email $email)
     {
+
         $user = Auth::user();
-        if ($user->isContractor() && !$user->projects->contains($email->conversation->project_id)) {
-            return response()->json(['message' => 'Unauthorized to view this email.'], 403);
-        }
+
+        $this->authorize('approveOrView', $email);
 
         try {
             // Use the renderEmailContent method from HandlesTemplatedEmails trait
@@ -954,7 +954,9 @@ class EmailController extends Controller
                 'body_html' => $renderedContent['body'],
                 'template_id' => $email->template_id,
                 'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
-                'client_id' => $email->conversation->client_id
+                'client_id' => $email->conversation->client_id,
+                'type'  =>  $email->type,
+                'status'    =>  $email->status
             ]);
         } catch (Exception $e) {
             Log::error('Error getting email content for editing: ' . $e->getMessage(), [

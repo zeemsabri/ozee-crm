@@ -43,6 +43,14 @@ const canManageRoles = canDo('manage_roles');
                             Dashboard
                         </NavLink>
 
+                        <NavLink
+                            v-if="canDo('view_emails')"
+                            :href="route('inbox')"
+                            :active="route().current('inbox')"
+                        >
+                            Inbox
+                        </NavLink>
+
                         <AdminDropdown v-if="canManageRoles" />
                     </div>
                 </div>
