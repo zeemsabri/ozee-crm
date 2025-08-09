@@ -83,8 +83,50 @@ const projectClients = ref([]);
 const loadingClients = ref(false);
 const clientsError = ref('');
 
+// Meetings State
+const meetings = ref([]);
+const loadingMeetings = ref(false);
+const userTimezone = ref('');
+
 // Set up permission checking functions
 const { canDo } = usePermissions(props.projectId);
+
+const detectUserTimezone = () => {
+    try {
+        userTimezone.value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch (error) {
+        console.error('Error detecting user timezone:', error);
+        userTimezone.value = 'UTC';
+    }
+};
+
+const fetchMeetings = async () => {
+    loadingMeetings.value = true;
+    try {
+        const response = await window.axios.get(`/api/projects/${props.projectId}/meetings`);
+        meetings.value = response.data;
+    } catch (error) {
+        console.error('Error fetching project meetings:', error);
+    } finally {
+        loadingMeetings.value = false;
+    }
+};
+
+const formatMeetingTime = (timeString) => {
+    if (!timeString) return '';
+
+    try {
+        const options = {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+            timeZone: userTimezone.value
+        };
+        return new Date(timeString).toLocaleString(undefined, options);
+    } catch (error) {
+        console.error('Error formatting meeting time:', error);
+        return new Date(timeString).toLocaleString();
+    }
+};
 
 // Fetch resources for the project
 const fetchResources = async () => {
@@ -172,6 +214,8 @@ const handleClickOutside = (event) => {
 
 onMounted(() => {
     fetchResources();
+    detectUserTimezone();
+    fetchMeetings();
     document.addEventListener('click', handleClickOutside);
 });
 
@@ -330,8 +374,8 @@ const sendMagicLink = async () => {
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div class="col-span-2">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div class="col-span-1 md:col-span-2">
                 <p class="text-gray-600 text-base leading-relaxed">{{ project.description || 'No description provided.' }}</p>
 
                 <div class="mt-6 flex flex-wrap gap-2 items-center">
@@ -390,11 +434,37 @@ const sendMagicLink = async () => {
                 </div>
             </div>
 
-            <div class="space-y-6 text-sm text-gray-700 md:border-l md:border-gray-200 md:pl-8 hidden">
-                <p><strong class="text-gray-900 font-semibold">Source:</strong> {{ project.source || 'N/A' }}</p>
-                <p v-if="project.website"><strong class="text-gray-900 font-semibold">Website:</strong> <a :href="project.website" target="_blank" class="text-indigo-600 hover:underline">{{ project.website }}</a></p>
-                <p v-if="project.social_media_link"><strong class="text-gray-900 font-semibold">Social Media:</strong> <a :href="project.social_media_link" target="_blank" class="text-indigo-600 hover:underline">{{ project.social_media_link }}</a></p>
-                <p v-if="project.google_drive_link"><strong class="text-gray-900 font-semibold">Google Drive:</strong> <a :href="project.google_drive_link" target="_blank" class="text-indigo-600 hover:underline">Open Folder</a></p>
+            <div class="col-span-1 border-l border-gray-200 pl-8">
+                <h5 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Upcoming Meetings</h5>
+                <div v-if="loadingMeetings" class="text-gray-500 text-sm">
+                    Loading meetings...
+                </div>
+                <div v-else-if="meetings.length === 0" class="text-gray-500 text-sm">
+                    No upcoming meetings scheduled.
+                </div>
+                <div v-else class="space-y-3 max-h-[300px] overflow-y-auto">
+                    <div v-for="meeting in meetings" :key="meeting.id"
+                         class="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+                        <h5 class="font-medium text-gray-900 truncate">{{ meeting.summary }}</h5>
+                        <p class="text-sm text-gray-600">
+                            {{ formatMeetingTime(meeting.start_time) }}
+                        </p>
+                        <div class="flex space-x-2 mt-2">
+                            <a :href="meeting.google_event_link" target="_blank"
+                               class="text-blue-600 hover:text-blue-800" title="View in Google Calendar">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </a>
+                            <a v-if="meeting.google_meet_link" :href="meeting.google_meet_link" target="_blank"
+                               class="text-green-600 hover:text-green-800" title="Join Google Meet">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

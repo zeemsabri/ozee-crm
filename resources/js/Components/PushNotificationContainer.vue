@@ -78,6 +78,7 @@ const isMinimized = ref(false);
 const minimizeTimer = ref(null);
 const minimizeCountdown = ref(0);
 const countdownInterval = ref(null);
+const STORAGE_KEY = 'notification_minimized_state';
 
 // --- COMPUTED ---
 const maxVisible = 3;
@@ -117,9 +118,20 @@ const toggleMinimize = () => {
     clearInterval(countdownInterval.value);
 
     if (isMinimized.value) {
+        // Calculate expiry time (5 minutes from now)
+        const expiryTime = Date.now() + 300000;
+
+        // Store minimized state and expiry time in localStorage
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            isMinimized: true,
+            expiryTime: expiryTime
+        }));
+
         minimizeTimer.value = setTimeout(() => {
             isMinimized.value = false;
             clearInterval(countdownInterval.value);
+            // Clear localStorage when timer expires
+            localStorage.removeItem(STORAGE_KEY);
         }, 300000); // 5 minutes
 
         minimizeCountdown.value = 300;
@@ -130,6 +142,9 @@ const toggleMinimize = () => {
                 clearInterval(countdownInterval.value);
             }
         }, 1000);
+    } else {
+        // Clear localStorage when notifications are shown again
+        localStorage.removeItem(STORAGE_KEY);
     }
 };
 
@@ -154,6 +169,51 @@ const handleButtonClick = async (notification) => {
 };
 
 // --- LIFECYCLE ---
+onMounted(() => {
+    // Check if we have a stored minimized state
+    const storedState = localStorage.getItem(STORAGE_KEY);
+
+    if (storedState) {
+        try {
+            const { isMinimized: storedMinimized, expiryTime } = JSON.parse(storedState);
+
+            // Calculate remaining time
+            const now = Date.now();
+            const remainingTime = expiryTime - now;
+
+            // Only restore if the timer hasn't expired
+            if (remainingTime > 0) {
+                isMinimized.value = storedMinimized;
+
+                // Convert remaining milliseconds to seconds for the countdown
+                minimizeCountdown.value = Math.floor(remainingTime / 1000);
+
+                // Set up the timer to show notifications again when the time expires
+                minimizeTimer.value = setTimeout(() => {
+                    isMinimized.value = false;
+                    clearInterval(countdownInterval.value);
+                    localStorage.removeItem(STORAGE_KEY);
+                }, remainingTime);
+
+                // Set up the countdown interval
+                countdownInterval.value = setInterval(() => {
+                    if (minimizeCountdown.value > 0) {
+                        minimizeCountdown.value--;
+                    } else {
+                        clearInterval(countdownInterval.value);
+                    }
+                }, 1000);
+            } else {
+                // Timer has expired, remove from localStorage
+                localStorage.removeItem(STORAGE_KEY);
+            }
+        } catch (error) {
+            console.error('Error restoring notification minimized state:', error);
+            localStorage.removeItem(STORAGE_KEY);
+        }
+    }
+});
+
 onUnmounted(() => {
     clearTimeout(minimizeTimer.value);
     clearInterval(countdownInterval.value);

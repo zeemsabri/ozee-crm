@@ -327,6 +327,7 @@ onMounted(async () => {
                 <div class="flex flex-col lg:flex-row gap-6">
                     <!-- Left and middle content column -->
                     <div class="flex-1 space-y-6">
+
                         <ProjectGeneralInfoCard
                             :project="project"
                             :project-id="projectId"
@@ -340,7 +341,6 @@ onMounted(async () => {
                             @resource-saved="fetchProjectData"
                             @open-compose-modal="handleComposeEmailAction"
                         />
-                        <ProjectMeetingsList :project-id="projectId" ref="meetingsListComponent" />
                         <ProjectStatsCards :tasks="project.tasks || []" :emails="project.emails || []" />
 
                         <div class="flex justify-end items-center">
