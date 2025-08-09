@@ -67,10 +67,10 @@ class ProjectDeliverableController extends Controller
     public function update(Request $request, string $id)
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
+            'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
             'milestone_id' => 'nullable|exists:milestones,id',
-            'status' => 'required|string|in:pending,in_progress,completed,cancelled',
+            'status' => 'sometimes|string|in:pending,in_progress,completed,cancelled',
             'due_date' => 'nullable|date',
             'details' => 'nullable|array',
         ]);
