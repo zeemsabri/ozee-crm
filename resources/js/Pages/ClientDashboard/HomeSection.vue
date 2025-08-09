@@ -308,17 +308,7 @@ const formatDate = (dateString) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-const projectInitials = computed(() => {
-    if (props.projectData.name) {
-        return props.projectData.name
-            .split(' ')
-            .map(word => word[0])
-            .join('')
-            .toUpperCase()
-            .slice(0, 2);
-    }
-    return 'CD'; // Default initials if project name is also missing
-});
+
 
 </script>
 
@@ -326,22 +316,22 @@ const projectInitials = computed(() => {
     <div class="min-h-screen bg-gray-100 font-inter text-gray-800 p-4 sm:p-6 lg:p-8">
         <!-- Header Section -->
         <header class="bg-white rounded-xl shadow-lg p-4 mb-6 flex flex-col sm:flex-row items-center justify-between">
-            <div class="flex items-center mb-4 sm:mb-0">
-                <img
-                    v-if="projectData.logo"
-                    :src="projectData.logo"
-                    alt="Project Logo"
-                    class="w-12 h-12 rounded-full mr-3 border-2 border-indigo-500 p-0.5"
-                >
-                <div
-                    v-else
-                    class="w-12 h-12 rounded-full mr-3 border-2 border-indigo-500 p-0.5 flex items-center justify-center bg-gray-200 text-indigo-700 font-bold text-lg"
-                >
-                    {{ projectInitials }}
-                </div>
+<!--            <div class="flex items-center mb-4 sm:mb-0">-->
+<!--                <img-->
+<!--                    v-if="projectData.logo"-->
+<!--                    :src="projectData.logo"-->
+<!--                    alt="Project Logo"-->
+<!--                    class="w-12 h-12 rounded-full mr-3 border-2 border-indigo-500 p-0.5"-->
+<!--                >-->
+<!--                <div-->
+<!--                    v-else-->
+<!--                    class="w-12 h-12 rounded-full mr-3 border-2 border-indigo-500 p-0.5 flex items-center justify-center bg-gray-200 text-indigo-700 font-bold text-lg"-->
+<!--                >-->
+<!--                    {{ projectInitials }}-->
+<!--                </div>-->
 
-                <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">{{ projectData.name || 'Client Dashboard' }}</h1>
-            </div>
+<!--                <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">{{ projectData.name || 'Client Dashboard' }}</h1>-->
+<!--            </div>-->
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full sm:w-auto">
                 <div class="bg-indigo-500 text-white p-3 rounded-lg shadow-md flex items-center justify-center text-center">
