@@ -89,6 +89,8 @@ class EmailTestController extends Controller
                 ->orderByDesc('sent_at')
                 ->first();
 
+            Log::info('Last received email:', ['email_id' => $lastReceivedEmail->id ?? 'none', 'sent_at' => $lastReceivedEmail->sent_at ?? 'none']);;
+
             $query = 'is:inbox';
             if ($lastReceivedEmail) {
                 // Convert the sent_at timestamp to a Gmail-compatible date format (e.g., Y/m/d H:i:s or Y/m/d)
