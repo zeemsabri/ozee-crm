@@ -131,6 +131,7 @@ class EmailTestController extends Controller
             foreach ($messageIds as $messageId) {
                 $emailDetails = $this->gmailService->getMessage($messageId);
 
+                Log::info(json_encode($emailDetails, JSON_PRETTY_PRINT));
                 // IMPORTANT: Check if the email is *actually* newer than the last processed email.
                 // Gmail's 'after' query is based on the internal date, but your `sent_at` might be slightly different
                 // or you might have fetched an email from the same minute. Avoid re-processing.
