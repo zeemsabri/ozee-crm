@@ -119,6 +119,7 @@ class Task extends Model
         'deleted_by',
         'block_reason',
         'previous_status',
+        'details',
     ];
 
     /**
@@ -129,6 +130,7 @@ class Task extends Model
     protected $casts = [
         'due_date' => 'date',
         'actual_completion_date' => 'date',
+        'details' => 'array',
     ];
 
     /**
@@ -293,6 +295,14 @@ class Task extends Model
     public function milestone()
     {
         return $this->belongsTo(Milestone::class);
+    }
+
+    /**
+     * Get the project deliverable associated with this task.
+     */
+    public function projectDeliverable()
+    {
+        return $this->belongsTo(ProjectDeliverable::class);
     }
 
     public function getProjectIdAttribute()

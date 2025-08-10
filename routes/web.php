@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\EmailController;
 use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\EmailPreviewController;
 use App\Http\Controllers\EmailTestController;
+use App\Http\Controllers\EmailTrackingController;
 use App\Http\Controllers\ProfileController;
 use App\Models\Project;
 use Illuminate\Foundation\Application;
@@ -148,6 +149,9 @@ Route::get('/magic-link', [MagicLinkController::class, 'handleMagicLink'])->name
 
 // Client Dashboard Route - accessible without authentication
 Route::get('/client/dashboard', [ClientDashboardController::class, 'index'])->name('client.dashboard');
+
+// Route for the email tracking pixel
+Route::get('/email/track/{id}', [EmailTrackingController::class, 'track'])->name('email.track');
 // Authenticated routes group for Inertia pages that require a logged-in user
 // The 'verified' middleware ensures the user's email is verified (optional, remove if not needed for MVP)
 Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) {

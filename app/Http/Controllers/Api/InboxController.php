@@ -47,6 +47,7 @@ class InboxController extends Controller
                 ->where('user_interactions.interaction_type', 'read');
         })
         ->with(['sender', 'conversation.project', 'approver'])
+        ->select('emails.*') // Ensure all columns including read_at are selected
         ->orderBy('created_at', 'desc')
         ->get();
 
@@ -143,9 +144,10 @@ class InboxController extends Controller
 
         $emails = $query->with(['sender', 'conversation.project', 'approver'])
             ->orderBy('created_at', 'desc')
+            ->select('emails.*') // Ensure all columns including read_at are selected
             ->paginate($perPage, ['*'], 'page', $page);
 
-        // Add a flag to indicate if each email has been read
+        // Add a flag to indicate if each email has been read and include read_at timestamp
         $emails->getCollection()->each(function ($email) use ($user) {
             $email->is_read = $email->isReadBy($user->id);
         });
@@ -172,6 +174,7 @@ class InboxController extends Controller
             ->where('sender_type', 'App\\Models\\User')
             ->where('status', 'pending_approval')
             ->with(['sender', 'conversation', 'conversation.project'])
+            ->select('emails.*') // Ensure all columns including read_at are selected
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -181,6 +184,7 @@ class InboxController extends Controller
         })
             ->where('status', 'pending_approval_received')
             ->with(['sender', 'conversation', 'conversation.project'])
+            ->select('emails.*') // Ensure all columns including read_at are selected
             ->orderBy('created_at', 'desc')
             ->get();
 

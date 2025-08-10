@@ -52,6 +52,7 @@ class Email extends Model
 
     protected $casts = [
         'sent_at' => 'datetime',
+        'read_at' => 'datetime',
         'to' => 'array', // If 'to' can store multiple recipients as JSON
         'template_data' => 'array',
     ];

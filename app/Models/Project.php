@@ -345,6 +345,14 @@ class Project extends Model
     }
 
     /**
+     * Get the project deliverables for this project.
+     */
+    public function projectDeliverables()
+    {
+        return $this->hasMany(ProjectDeliverable::class);
+    }
+
+    /**
      * Get the tier associated with the project.
      *
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo

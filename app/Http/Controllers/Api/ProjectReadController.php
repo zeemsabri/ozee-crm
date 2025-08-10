@@ -76,6 +76,7 @@ class ProjectReadController extends Controller
      */
     public function show(Project $project)
     {
+
         $user = Auth::user();
 
         if (!$this->canAccessProject($user, $project)) {
@@ -181,6 +182,11 @@ class ProjectReadController extends Controller
                 $note->reply_count = $note->replyCount();
             });
             $filteredProject['notes'] = $project->notes;
+        }
+
+        if($this->canViewProjectDeliverables($user, $project)) {
+            $project->load('projectDeliverables');
+            $filteredProject['deliverables'] = $project->deliverables;
         }
 
         if ($this->canViewClientFinancial($user, $project)) {

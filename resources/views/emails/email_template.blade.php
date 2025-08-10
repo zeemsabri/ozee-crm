@@ -135,5 +135,8 @@
         <p>{{ $companyAddress ?? 'Thornlie, WA, 6108 Australia' }}</p>
     </div>
 </div>
+@if(isset($emailTrackingUrl))
+    <img src="{{ $emailTrackingUrl }}" alt="" width="1" height="1" style="display: none;"/>
+@endif
 </body>
 </html>

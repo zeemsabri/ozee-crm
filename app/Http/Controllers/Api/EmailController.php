@@ -367,7 +367,7 @@ class EmailController extends Controller
                 $template = 'email_template';
             }
 
-            $data = $this->getData($subject, $renderedBody, $senderDetails);
+            $data = $this->getData($subject, $renderedBody, $senderDetails, $email, true);
             $finalRenderedBody = $this->renderHtmlTemplate($data, $template);
 
             $recipientClient = $email->conversation->client;

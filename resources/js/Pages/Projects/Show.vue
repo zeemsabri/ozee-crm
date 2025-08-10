@@ -10,6 +10,7 @@ import MeetingModal from '@/Components/MeetingModal.vue';
 import StandupModal from '@/Components/StandupModal.vue';
 import NotesModal from '@/Components/NotesModal.vue';
 import ProjectMagicLinkModal from '@/Components/ProjectMagicLinkModal.vue';
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/20/solid';
 
 import ProjectGeneralInfoCard from '@/Components/ProjectGeneralInfoCard.vue';
 import ProjectStatsCards from '@/Components/ProjectStatsCards.vue';
@@ -24,34 +25,24 @@ import UserFinancialsCard from '@/Components/ProjectOverviewCards/UserFinancialC
 import UserTransactionsModal from '@/Components/ProjectFinancials/UserTransactionsModal.vue';
 
 import ComposeEmailModal from '@/Components/ProjectsEmails/ComponseEmailModal.vue';
-
-// Removed the imports for RightSidebar and TaskDetailSidebar/DeliverableDetailSidebar.
-// We will rely on the global one in AuthenticatedLayout.vue.
-
 import CreateTaskModal from '@/Components/ProjectTasks/CreateTaskModal.vue';
-import ProjectDeliverablesTab from '@/Components/ProjectsDeliverables/ProjectDeliverableTab.vue';
-import CreateDeliverableModal from '@/Components/ProjectsDeliverables/CreateDeliverableModal.vue';
-// import DeliverableDetailSidebar from '@/Components/ProjectsDeliverables/DeliverableDetailSidebar.vue'; // Removed
-
 import SeoReportTab from '@/Components/ProjectsSeoReports/SeoReportTab.vue';
 import CreateSeoReportModal from "@/Components/ProjectsSeoReports/CreateSeoReportModal.vue";
 
 import ProjectTaskNotificationPrompt from '@/Components/ProjectTaskNotificationPrompt.vue';
-
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency';
-
 import { useAuthUser, useProjectRole, usePermissions, fetchProjectPermissions } from '@/Directives/permissions';
 import PrimaryButton from "@/Components/PrimaryButton.vue";
 import SecondaryButton from "@/Components/SecondaryButton.vue";
 import TaskList from '@/Components/TaskList.vue';
-
-// Import the global sidebar utility
 import { sidebarState, openTaskDetailSidebar, closeTaskDetailSidebar } from '@/Utils/sidebar';
 import * as taskState from '@/Utils/taskState.js';
 
-const authUser = useAuthUser();
+// New import for the deliverables overview card
+import ProjectDeliverablesOverviewCard from '@/Components/ProjectDashboard/ProjectDeliverablesOverviewCard.vue';
 
+const authUser = useAuthUser();
 const projectId = usePage().props.id;
 
 const project = ref({
@@ -65,6 +56,12 @@ const project = ref({
     emails: [],
     deliverables: [],
 });
+
+// State for Project Deliverables panel
+const hasDeliverables = ref(false);
+const isDeliverablesCollapsed = ref(false);
+const deliverablesWidth = ref(25); // Default width percentage
+const isResizing = ref(false);
 const loading = ref(true);
 const generalError = ref('');
 
@@ -75,10 +72,8 @@ const showAddNoteModal = ref(false);
 const showMagicLinkModal = ref(false);
 const showUserTransactionsModal = ref(false);
 const showComposeEmailModal = ref(false);
-const showCreateDeliverableModal = ref(false);
 
 const showGlobalCreateTaskModal = ref(false);
-
 const showCreateSeoReportModal = ref(false);
 const selectedSeoReportInitialData = ref(null);
 
@@ -87,19 +82,6 @@ const statusOptions = [
     { value: 'completed', label: 'Completed' },
     { value: 'on_hold', label: 'On Hold' },
     { value: 'archived', label: 'Archived' },
-];
-const departmentOptions = [
-    { value: 'Website Designing', label: 'Website Designing' },
-    { value: 'SEO', label: 'SEO' },
-    { value: 'Social Media', 'label': 'Social Media' },
-    { value: 'Content Writing', label: 'Content Writing' },
-    { value: 'Graphic Design', label: 'Graphic Design' },
-];
-const sourceOptions = [
-    { value: 'UpWork', label: 'UpWork' },
-    { value: 'Direct', label: 'Direct Client' },
-    { value: 'Wix Marketplace', label: 'Wix Marketplace' },
-    { value: 'Referral', label: 'Referral' },
 ];
 
 const meetingsListComponent = ref(null);
@@ -164,7 +146,6 @@ const handleViewDueAndOverdueTasks = () => {
     }, 100);
 };
 
-// Handle task updates from the TaskList component in the Due & Overdue Tasks section
 const handleDueTaskUpdated = async () => {
     await fetchDueAndOverdueTasks();
 };
@@ -199,6 +180,10 @@ const fetchProjectData = async () => {
         const response = await window.axios.get(`/api/projects/${projectId}`);
         project.value = response.data;
         console.log('Full project data received (Show.vue main fetch):', project.value);
+
+        // Check if project has deliverables
+        hasDeliverables.value = project.value.deliverables && project.value.deliverables.length > 0;
+        isDeliverablesCollapsed.value = !hasDeliverables.value;
 
         await fetchDueAndOverdueTasks();
         if (canViewEmails.value) {
@@ -236,6 +221,7 @@ const handleNotesUpdated = (updatedNotes) => {
     project.value.notes = updatedNotes;
 };
 
+// This handler will be triggered when a deliverable is created/updated/deleted
 const handleDeliverablesUpdated = () => {
     fetchProjectData();
 }
@@ -252,9 +238,7 @@ const handleStandupAdded = () => {
 
 const handleChangeTab = (tabName) => {
     selectedTab.value = tabName;
-    // We can use the global close function now
     closeTaskDetailSidebar();
-    // closeDeliverableDetailSidebar(); // This function would also be in the sidebar.js file
 };
 
 const handleViewUserTransactions = () => {
@@ -275,37 +259,42 @@ const handleComposeEmailClose = () => {
     showComposeEmailModal.value = false;
 };
 
-// Use the global utility function to open the task detail sidebar
+const toggleDeliverablesPanel = () => {
+    isDeliverablesCollapsed.value = !isDeliverablesCollapsed.value;
+};
+
+const startResizing = (event) => {
+    isResizing.value = true;
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', stopResizing);
+    // Prevent text selection during resize
+    event.preventDefault();
+};
+
+const handleMouseMove = (event) => {
+    if (!isResizing.value) return;
+
+    // Calculate width based on mouse position relative to window width
+    const containerWidth = document.documentElement.clientWidth;
+    const newWidth = Math.min(Math.max(10, (1 - (event.clientX / containerWidth)) * 100), 50);
+    deliverablesWidth.value = newWidth;
+};
+
+const stopResizing = () => {
+    isResizing.value = false;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', stopResizing);
+
+    // Save the width to localStorage
+    localStorage.setItem(`project_${projectId}_deliverables_width`, deliverablesWidth.value);
+};
+
 const handleOpenTaskDetailSidebar = (taskId, taskProjectId) => {
-    // Use the taskProjectId if provided, otherwise use the current projectId
     const useProjectId = taskProjectId || projectId;
     openTaskDetailSidebar(taskId, useProjectId, project.value.users);
 };
 
-// We don't need a local close function anymore, as the sidebar itself emits the close event
-// which is handled by AuthenticatedLayout.
-
-// Handlers for task updates/deletions from the sidebar are now here
-const handleTaskDetailUpdated = () => {
-    fetchProjectData();
-};
-
-const handleTaskDeleted = () => {
-    fetchProjectData();
-};
-
-// Handlers for DeliverableDetailSidebar
-// const openDeliverableDetailSidebar = (deliverableId) => {
-//     openDeliverableDetailSidebar(deliverableId, projectId, project.value.users);
-// };
-
-// const handleDeliverableDetailUpdated = () => {
-//     fetchProjectData();
-// };
-
-// Watch the global sidebar state to react to changes
 watch(sidebarState, (newState, oldState) => {
-    // If a task was updated or deleted from the sidebar, refresh the data
     if (oldState.taskId && !newState.taskId) {
         fetchProjectData();
     }
@@ -339,6 +328,13 @@ onMounted(async () => {
     } catch (error) {
         console.error(`Error fetching permissions for project ${projectId}:`, error);
     }
+
+    // Load saved width from localStorage if available
+    const savedWidth = localStorage.getItem(`project_${projectId}_deliverables_width`);
+    if (savedWidth !== null) {
+        deliverablesWidth.value = parseFloat(savedWidth);
+    }
+
     await fetchCurrencyRates();
     await fetchProjectData();
 });
@@ -362,52 +358,85 @@ onMounted(async () => {
                 {{ generalError }}
             </div>
             <div v-else class="space-y-8">
-                <ProjectTaskNotificationPrompt
-                    :overdue-tasks="tasksDueToday.filter(task => new Date(task.due_date) < new Date()).length"
-                    :due-today-tasks="tasksDueToday.filter(task => new Date(task.due_date).toDateString() === new Date().toDateString()).length"
-                    @view-tasks="handleViewDueAndOverdueTasks"
-                />
+                <!-- Main Content Layout (Flexbox for dynamic resizing) -->
+                <div class="flex flex-col lg:flex-row gap-6">
+                    <!-- Left and middle content column -->
+                    <div class="flex-1 space-y-6">
 
-                <ProjectGeneralInfoCard
-                    :project="project"
-                    :project-id="projectId"
-                    :can-manage-projects="canManageProjects"
-                    :is-super-admin="isSuperAdmin"
-                    :can-edit-projects="canEditProject"
-                    @open-edit-modal="showEditModal = true"
-                    @open-standup-modal="showStandupModal = true"
-                    @open-meeting-modal="showMeetingModal = true"
-                    @open-magic-link-modal="showMagicLinkModal = true"
-                    @resource-saved="fetchProjectData"
-                    @open-compose-modal="handleComposeEmailAction"
-                />
+                        <ProjectGeneralInfoCard
+                            :project="project"
+                            :project-id="projectId"
+                            :can-manage-projects="canManageProjects"
+                            :is-super-admin="isSuperAdmin"
+                            :can-edit-projects="canEditProject"
+                            @open-edit-modal="showEditModal = true"
+                            @open-standup-modal="showStandupModal = true"
+                            @open-meeting-modal="showMeetingModal = true"
+                            @open-magic-link-modal="showMagicLinkModal = true"
+                            @resource-saved="fetchProjectData"
+                            @open-compose-modal="handleComposeEmailAction"
+                        />
+                        <ProjectStatsCards :tasks="project.tasks || []" :emails="project.emails || []" />
 
-                <ProjectMeetingsList :project-id="projectId" ref="meetingsListComponent" />
+                        <div class="flex justify-end items-center">
+                            <SelectDropdown
+                                id="display-currency-switcher"
+                                v-model="displayCurrency"
+                                :options="currencyOptions"
+                                value-key="value"
+                                label-key="label"
+                                class="w-20"
+                                containerClasses="max-w-[150px]"
+                            />
+                        </div>
 
-                <ProjectStatsCards :tasks="project.tasks || []" :emails="project.emails || []" />
+
+                            <ProjectFinancialsCard
+                                v-if="canViewProjectServicesAndPayments && canViewProjectTransactions"
+                                :project-id="projectId"
+                                :can-view-project-services-and-payments="canViewProjectServicesAndPayments"
+                                :can-view-project-transactions="canViewProjectTransactions"
+                            />
 
 
-                <div class="flex justify-end items-center mb-5">
-                    <SelectDropdown
-                        id="display-currency-switcher"
-                        v-model="displayCurrency"
-                        :options="currencyOptions"
-                        value-key="value"
-                        label-key="label"
-                        class="w-20"
-                        containerClasses="max-w-[150px]"
-                    />
+                    </div>
+
+                    <!-- Right Column for Deliverables (Dynamic width) -->
+                    <div v-if="canViewDeliverables"
+                         class="relative transition-all duration-300"
+                         :style="!isDeliverablesCollapsed ? `width: ${deliverablesWidth}%` : ''"
+                         :class="{ 'w-full lg:flex-none': !isDeliverablesCollapsed, 'w-16': isDeliverablesCollapsed }">
+                        <div class="flex h-full w-full">
+                            <!-- Collapsed Vertical Panel -->
+                            <div v-if="isDeliverablesCollapsed"
+                                 class="w-16 h-full flex items-center justify-center bg-white rounded-xl shadow-lg border border-gray-200 cursor-pointer transition-all duration-300 transform hover:scale-105"
+                                 @click="toggleDeliverablesPanel">
+                                <span class="font-bold text-gray-500 text-sm" style="writing-mode: vertical-rl; text-orientation: sideways;">Project Deliverables</span>
+                            </div>
+
+                            <!-- Expanded Card -->
+                            <div v-else class="transition-all duration-300 w-full relative">
+                                <!-- Resize Handle -->
+                                <div
+                                    class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500 hover:w-1.5 z-10 transition-all"
+                                    @mousedown="startResizing"
+                                    :class="{ 'bg-indigo-500 w-1.5': isResizing, 'bg-gray-300': !isResizing }"
+                                    title="Drag to adjust width"
+                                ></div>
+
+                                <ProjectDeliverablesOverviewCard
+                                    :project-id="projectId"
+                                    :can-view-project-deliverables="canViewDeliverables"
+                                    :is-collapsed="isDeliverablesCollapsed"
+                                    @update:is-collapsed="toggleDeliverablesPanel"
+                                />
+                            </div>
+
+                        </div>
+                    </div>
                 </div>
 
-                <ProjectFinancialsCard
-                    v-if="canViewProjectServicesAndPayments && canViewProjectTransactions"
-                    :project-id="projectId"
-                    :can-view-project-services-and-payments="canViewProjectServicesAndPayments"
-                    :can-view-project-transactions="canViewProjectTransactions"
-                />
-
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
+                <div class="grid grid-cols-3 gap-4">
 
                     <ProjectClientsCard
                         v-if="canViewClientContacts"
@@ -425,6 +454,8 @@ onMounted(async () => {
                         @viewUserTransactions="handleViewUserTransactions"
                     />
                 </div>
+
+                <!-- Main Tabs Section -->
                 <ProjectTabsNavigation
                     ref="navigationRef"
                     v-model:selectedTab="selectedTab"
@@ -435,6 +466,12 @@ onMounted(async () => {
                 />
 
                 <div v-if="selectedTab === null">
+                    <ProjectTaskNotificationPrompt
+                        :overdue-tasks="tasksDueToday.filter(task => new Date(task.due_date) < new Date()).length"
+                        :due-today-tasks="tasksDueToday.filter(task => new Date(task.due_date).toDateString() === new Date().toDateString()).length"
+                        @view-tasks="handleViewDueAndOverdueTasks"
+                    />
+
                     <div v-if="tasksDueToday.length > 0" class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow mb-6">
                         <div class="flex justify-between items-center mb-4">
                             <h4 class="text-lg font-semibold text-gray-900">Due & Overdue Tasks</h4>
@@ -606,14 +643,14 @@ onMounted(async () => {
                     @changeTab="handleChangeTab"
                 />
 
-                <ProjectDeliverablesTab
-                    v-if="selectedTab === 'deliverables'"
-                    :project-id="projectId"
-                    :can-create-deliverables="canCreateDeliverables"
-                    :can-view-deliverables="canViewDeliverables"
-                    @deliverablesUpdated="handleDeliverablesUpdated"
-                    @openDeliverableDetailSidebar="handleOpenDeliverableDetailSidebar"
-                />
+                <!--                <ProjectDeliverablesTab-->
+                <!--                    v-if="selectedTab === 'deliverables'"-->
+                <!--                    :project-id="projectId"-->
+                <!--                    :can-create-deliverables="canCreateDeliverables"-->
+                <!--                    :can-view-deliverables="canViewDeliverables"-->
+                <!--                    @deliverablesUpdated="handleDeliverablesUpdated"-->
+                <!--                    @openDeliverableDetailSidebar="handleOpenDeliverableDetailSidebar"-->
+                <!--                />-->
 
                 <SeoReportTab
                     v-if="selectedTab === 'seo-reports'"
@@ -628,7 +665,7 @@ onMounted(async () => {
             <ProjectForm
                 :show="showEditModal"
                 :project="project"
-                :statusOptions="statusOptions" :departmentOptions="departmentOptions" :sourceOptions="sourceOptions"
+                :statusOptions="statusOptions"
                 :clientRoleOptions="[]" :userRoleOptions="[]" :paymentTypeOptions="[]"
                 @close="showEditModal = false"
                 @submit="handleProjectSubmit"
@@ -681,7 +718,6 @@ onMounted(async () => {
             @error="(err) => console.error('Error composing email:', err)"
         />
 
-        <!-- Global Create Task Modal -->
         <CreateTaskModal
             :show="showGlobalCreateTaskModal"
             :project-id="projectId"
@@ -689,15 +725,6 @@ onMounted(async () => {
             @saved="handleGlobalCreateTaskSaved"
         />
 
-        <!-- Create Deliverable Modal -->
-        <CreateDeliverableModal
-            :show="showCreateDeliverableModal"
-            :project-id="projectId"
-            @close="showCreateDeliverableModal = false"
-            @saved="handleDeliverableSaved"
-        />
-
-        <!-- Create/Edit SEO Report Modal -->
         <CreateSeoReportModal
             :project-id="projectId"
             :show="showCreateSeoReportModal"
@@ -710,7 +737,6 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* Custom styles for subtle enhancements */
 th, td {
     min-width: 120px;
 }
