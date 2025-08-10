@@ -42,6 +42,7 @@ const userForm = reactive({
     role: 'contractor', // String role for backward compatibility
     role_id: 4, // Default role_id for contractor - will be updated when roles are fetched
     user_type: 'contractor', // Default user type
+    timezone: '',
 });
 
 // State for user being deleted
@@ -182,6 +183,11 @@ const openCreateModal = () => {
         (roleOptions.value.length > 0 ? roleOptions.value[0].value : 4);
     userForm.role = contractorRole?.slug || 'contractor';
     userForm.user_type = 'contractor';
+    try {
+        userForm.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    } catch (e) {
+        userForm.timezone = '';
+    }
     errors.value = {};
     generalError.value = '';
     showCreateModal.value = true;
@@ -214,6 +220,7 @@ const openEditModal = (userToEdit) => {
     userForm.id = userToEdit.id;
     userForm.name = userToEdit.name;
     userForm.email = userToEdit.email;
+    userForm.timezone = userToEdit.timezone || '';
 
     if (userToEdit.role_data && userToEdit.role_data.id) {
         userForm.role_id = userToEdit.role_data.id;
@@ -529,6 +536,11 @@ onMounted(() => {
                         </select>
                         <InputError :message="errors.user_type ? errors.user_type[0] : ''" class="mt-2" />
                     </div>
+                    <div class="mb-4">
+                        <InputLabel for="create_timezone" value="Timezone" />
+                        <TextInput id="create_timezone" type="text" class="mt-1 block w-full" v-model="userForm.timezone" placeholder="e.g., America/New_York" />
+                        <InputError :message="errors.timezone ? errors.timezone[0] : ''" class="mt-2" />
+                    </div>
                     <div class="mt-6 flex justify-end">
                         <SecondaryButton @click="showCreateModal = false">Cancel</SecondaryButton>
                         <PrimaryButton class="ms-3" type="submit">Create User</PrimaryButton>
@@ -579,6 +591,11 @@ onMounted(() => {
                             <option value="contractor">Contractor</option>
                         </select>
                         <InputError :message="errors.user_type ? errors.user_type[0] : ''" class="mt-2" />
+                    </div>
+                    <div class="mb-4">
+                        <InputLabel for="edit_timezone" value="Timezone" />
+                        <TextInput id="edit_timezone" type="text" class="mt-1 block w-full" v-model="userForm.timezone" placeholder="e.g., Europe/London" />
+                        <InputError :message="errors.timezone ? errors.timezone[0] : ''" class="mt-2" />
                     </div>
                     <div class="mt-6 flex justify-end">
                         <SecondaryButton @click="showEditModal = false">Cancel</SecondaryButton>

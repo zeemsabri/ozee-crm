@@ -3,10 +3,10 @@
 namespace App\Services;
 
 use App\Models\Kudo;
-use App\Models\PointLedger;
+use App\Models\PointsLedger;
 use App\Models\Project;
 use App\Models\Task;
-use App\Models\Standup;
+use App\Models\ProjectNote as Standup;
 use App\Models\MonthlyPoint;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -30,7 +30,7 @@ class PointsService
      * @param float $basePoints The base points to be awarded.
      * @param string $description A description of the points awarded.
      * @param object $pointable The model instance associated with the points (e.g., Standup, Task).
-     * @return PointLedger
+     * @return PointsLedger
      */
     private function awardPoints($userId, $projectId, $basePoints, $description, $pointable)
     {
@@ -43,7 +43,7 @@ class PointsService
         $multiplier = $project->projectTier->point_multiplier ?? 1.0;
         $finalPoints = $basePoints * $multiplier;
 
-        return PointLedger::create([
+        return PointsLedger::create([
             'user_id' => $userId,
             'project_id' => $projectId,
             'points_awarded' => $finalPoints,
@@ -164,7 +164,7 @@ class PointsService
             ->count();
 
         // If they have 5 on-time standups and haven't received the bonus yet for this week
-        if ($onTimeStandups === 5 && !PointLedger::where('user_id', $userId)
+        if ($onTimeStandups === 5 && !PointsLedger::where('user_id', $userId)
                 ->where('description', 'Weekly Standup Streak Bonus')
                 ->whereDate('created_at', '>=', $startOfWeek)
                 ->exists()) {

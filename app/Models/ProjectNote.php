@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\StandupSubmittedEvent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -12,6 +13,15 @@ use App\Models\Traits\Taggable;
 class ProjectNote extends Model
 {
     use HasFactory, Taggable;
+
+    const STANDUP = 'standup';
+    const KUDOS = 'kudos';
+    const GENERAL = 'general';
+    const TYPES = [
+        self::STANDUP,
+        self::KUDOS,
+        self::GENERAL,
+    ];
 
     protected $fillable = [
         'project_id',
@@ -60,6 +70,8 @@ class ProjectNote extends Model
                     $note->creator_type = get_class($client);
                 }
             }
+
+            StandupSubmittedEvent::dispatch($note);
             // Fallback: If no creator is identified, you might want to log, throw an error,
             // or assign a default (e.g., an 'admin' user or null if nullable).
             // For now, if no creator, it remains unset, allowing database to handle nullability.

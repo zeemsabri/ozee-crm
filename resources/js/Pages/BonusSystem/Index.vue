@@ -39,6 +39,37 @@ onMounted(() => {
     let projectTiersChartInstance;
     let bonusTiersChartInstance;
 
+    // Utility: add reveal class to elements we want to animate on scroll
+    const applyRevealClasses = () => {
+        const selectors = ['section', '.card-bg', '.timeline-item', '.cta-card'];
+        selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => el.classList.add('reveal-on-scroll'));
+        });
+        // Also add to header title and paragraph
+        document.querySelectorAll('header h1, header p').forEach(el => el.classList.add('reveal-on-scroll'));
+    };
+
+    // Utility: setup intersection observer for reveal-on-scroll
+    const setupScrollReveal = () => {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('in-view');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.15 });
+
+        document.querySelectorAll('.reveal-on-scroll').forEach(el => observer.observe(el));
+    };
+
+    // Utility: quick fade animation on newly shown content containers
+    const playFade = (el) => {
+        if (!el) return;
+        el.classList.add('anim-fade-in');
+        setTimeout(() => el.classList.remove('anim-fade-in'), 700);
+    };
+
     const wrapLabel = (label, max_width) => {
         if (label.length <= max_width) return label;
         const words = label.split(' ');
@@ -157,21 +188,32 @@ onMounted(() => {
         if (lang === 'ur') {
             contentEnglish.classList.add('hidden');
             contentUrdu.classList.remove('hidden');
-            englishBtn.classList.remove('active');
-            urduBtn.classList.add('active');
+            englishBtn?.classList.remove('active');
+            urduBtn?.classList.add('active');
+            playFade(contentUrdu);
         } else {
             contentUrdu.classList.add('hidden');
             contentEnglish.classList.remove('hidden');
-            urduBtn.classList.remove('active');
-            englishBtn.classList.add('active');
+            urduBtn?.classList.remove('active');
+            englishBtn?.classList.add('active');
+            playFade(contentEnglish);
         }
         createCharts(lang);
+        // retrigger chart container appear animation
+        document.querySelectorAll('.chart-container').forEach(c => {
+            c.classList.remove('chart-appear');
+            void c.offsetWidth; // reflow to restart animation
+            c.classList.add('chart-appear');
+        });
     };
 
     englishBtn?.addEventListener('click', () => toggleLanguage('en'));
     urduBtn?.addEventListener('click', () => toggleLanguage('ur'));
 
     toggleLanguage('en');
+    // Setup reveal-on-scroll
+    applyRevealClasses();
+    setupScrollReveal();
 });
 </script>
 <template>
@@ -663,4 +705,54 @@ onMounted(() => {
     height: 100%;
     border-radius: 9999px;
 }
+
+/* Animations and effects */
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes shimmerGradient {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
+}
+@keyframes pulseGlow {
+    from { box-shadow: 0 0 0 rgba(0,0,0,0.2); transform: scale(1); }
+    to { box-shadow: 0 0 20px rgba(155, 89, 182, 0.35); transform: scale(1.03); }
+}
+
+/* Header gradient text with subtle shimmer */
+.bonus-root header h1 {
+    background: linear-gradient(90deg, var(--brand-purple), var(--brand-blue), var(--brand-orange));
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmerGradient 6s linear infinite;
+}
+
+/* Scroll reveal utility */
+.reveal-on-scroll { opacity: 0; transform: translateY(20px); transition: opacity .6s ease, transform .6s ease; }
+.reveal-on-scroll.in-view { opacity: 1; transform: translateY(0); }
+
+/* Quick fade class used on language switch */
+.anim-fade-in { animation: fadeUp .6s ease forwards; }
+
+/* Chart appear animation */
+.chart-container { opacity: 0; transform: translateY(10px); transition: opacity .6s ease, transform .6s ease; }
+.chart-container.chart-appear { opacity: 1; transform: translateY(0); }
+
+/* Language buttons hover/active glow */
+.bonus-root .language-toggle-btn { box-shadow: 0 0 0 rgba(0,0,0,0); transform: translateY(0); }
+.bonus-root .language-toggle-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,0.3); }
+
+/* Subtle pulse on timeline dots */
+.bonus-root .timeline-dot { animation: pulseGlow 3.5s ease-in-out infinite alternate; }
+
+/* CTA button pop on hover */
+.bonus-root .cta-card button { transition: transform .25s ease, box-shadow .25s ease; }
+.bonus-root .cta-card button:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 12px 24px rgba(0,0,0,0.35); }
 </style>

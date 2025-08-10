@@ -39,6 +39,14 @@ class AuthenticatedSessionController extends Controller
         $user = $request->user();
         $user->load(['role.permissions']);
 
+        // Update user's timezone (if provided) and last login timestamp
+        $timezone = $request->input('timezone');
+        if ($timezone && is_string($timezone)) {
+            $user->timezone = $timezone;
+        }
+        $user->last_login_at = now();
+        $user->save();
+
         if ($request->wantsJson() || $request->isXmlHttpRequest()) {
             // Revoke old tokens if you want only one active token per device
             // auth()->user()->tokens()->delete();
@@ -68,6 +76,14 @@ class AuthenticatedSessionController extends Controller
         // Load the user's role with permissions to ensure they're available immediately after login
         $user = $request->user();
         $user->load(['role.permissions']);
+
+        // Update user's timezone (if provided) and last login timestamp
+        $timezone = $request->input('timezone');
+        if ($timezone && is_string($timezone)) {
+            $user->timezone = $timezone;
+        }
+        $user->last_login_at = now();
+        $user->save();
 
         // Revoke old tokens if you want only one active token per device
         // auth()->user()->tokens()->delete();

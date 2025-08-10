@@ -49,6 +49,7 @@ class User extends Authenticatable
         'password' => 'hashed',
         'role_id' => 'integer', // Cast role_id as integer
         'user_type' => 'string',
+        'last_login_at' => 'datetime',
     ];
 
     protected $with = ['role']; // Always load the role relationship
@@ -593,7 +594,7 @@ class User extends Authenticatable
      */
     public function monthlyPoints()
     {
-        return $this->hasMany(MonthlyPoints::class);
+        return $this->hasMany(MonthlyPoint::class);
     }
 
     /**
@@ -603,7 +604,7 @@ class User extends Authenticatable
      */
     public function kudosSent()
     {
-        return $this->hasMany(Kudos::class, 'sender_id');
+        return $this->hasMany(Kudo::class, 'sender_id');
     }
 
     /**
@@ -613,6 +614,6 @@ class User extends Authenticatable
      */
     public function kudosReceived()
     {
-        return $this->hasMany(Kudos::class, 'recipient_id');
+        return $this->hasMany(Kudo::class, 'recipient_id');
     }
 }

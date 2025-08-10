@@ -66,7 +66,7 @@ class MonthlyBudget extends Model
      */
     public function monthlyPoints()
     {
-        return $this->hasMany(MonthlyPoints::class, ['year', 'month'], ['year', 'month']);
+        return $this->hasMany(MonthlyPoint::class, ['year', 'month'], ['year', 'month']);
     }
 
     /**
