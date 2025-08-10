@@ -131,7 +131,9 @@ class EmailTestController extends Controller
             foreach ($messageIds as $messageId) {
                 $emailDetails = $this->gmailService->getMessage($messageId);
 
-                Log::info('Date time is: ' . json_encode($emailDetails['date']));
+                $date = Carbon::parse($emailDetails['date'])->setTimezone('UTC');
+
+                $emailDetails['date'] = $date;
                 // IMPORTANT: Check if the email is *actually* newer than the last processed email.
                 // Gmail's 'after' query is based on the internal date, but your `sent_at` might be slightly different
                 // or you might have fetched an email from the same minute. Avoid re-processing.
