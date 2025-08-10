@@ -60,6 +60,8 @@ const project = ref({
 // State for Project Deliverables panel
 const hasDeliverables = ref(false);
 const isDeliverablesCollapsed = ref(false);
+const deliverablesWidth = ref(25); // Default width percentage
+const isResizing = ref(false);
 const loading = ref(true);
 const generalError = ref('');
 
@@ -261,6 +263,32 @@ const toggleDeliverablesPanel = () => {
     isDeliverablesCollapsed.value = !isDeliverablesCollapsed.value;
 };
 
+const startResizing = (event) => {
+    isResizing.value = true;
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', stopResizing);
+    // Prevent text selection during resize
+    event.preventDefault();
+};
+
+const handleMouseMove = (event) => {
+    if (!isResizing.value) return;
+
+    // Calculate width based on mouse position relative to window width
+    const containerWidth = document.documentElement.clientWidth;
+    const newWidth = Math.min(Math.max(10, (1 - (event.clientX / containerWidth)) * 100), 50);
+    deliverablesWidth.value = newWidth;
+};
+
+const stopResizing = () => {
+    isResizing.value = false;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', stopResizing);
+
+    // Save the width to localStorage
+    localStorage.setItem(`project_${projectId}_deliverables_width`, deliverablesWidth.value);
+};
+
 const handleOpenTaskDetailSidebar = (taskId, taskProjectId) => {
     const useProjectId = taskProjectId || projectId;
     openTaskDetailSidebar(taskId, useProjectId, project.value.users);
@@ -300,6 +328,13 @@ onMounted(async () => {
     } catch (error) {
         console.error(`Error fetching permissions for project ${projectId}:`, error);
     }
+
+    // Load saved width from localStorage if available
+    const savedWidth = localStorage.getItem(`project_${projectId}_deliverables_width`);
+    if (savedWidth !== null) {
+        deliverablesWidth.value = parseFloat(savedWidth);
+    }
+
     await fetchCurrencyRates();
     await fetchProjectData();
 });
@@ -355,18 +390,22 @@ onMounted(async () => {
                             />
                         </div>
 
-                        <ProjectFinancialsCard
-                            v-if="canViewProjectServicesAndPayments && canViewProjectTransactions"
-                            :project-id="projectId"
-                            :can-view-project-services-and-payments="canViewProjectServicesAndPayments"
-                            :can-view-project-transactions="canViewProjectTransactions"
-                        />
+
+                            <ProjectFinancialsCard
+                                v-if="canViewProjectServicesAndPayments && canViewProjectTransactions"
+                                :project-id="projectId"
+                                :can-view-project-services-and-payments="canViewProjectServicesAndPayments"
+                                :can-view-project-transactions="canViewProjectTransactions"
+                            />
+
+
                     </div>
 
                     <!-- Right Column for Deliverables (Dynamic width) -->
                     <div v-if="canViewDeliverables"
                          class="relative transition-all duration-300"
-                         :class="{ 'w-full lg:w-1/3': !isDeliverablesCollapsed, 'w-16': isDeliverablesCollapsed }">
+                         :style="!isDeliverablesCollapsed ? `width: ${deliverablesWidth}%` : ''"
+                         :class="{ 'w-full lg:flex-none': !isDeliverablesCollapsed, 'w-16': isDeliverablesCollapsed }">
                         <div class="flex h-full w-full">
                             <!-- Collapsed Vertical Panel -->
                             <div v-if="isDeliverablesCollapsed"
@@ -376,7 +415,15 @@ onMounted(async () => {
                             </div>
 
                             <!-- Expanded Card -->
-                            <div v-else class="transition-all duration-300 w-full">
+                            <div v-else class="transition-all duration-300 w-full relative">
+                                <!-- Resize Handle -->
+                                <div
+                                    class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500 hover:w-1.5 z-10 transition-all"
+                                    @mousedown="startResizing"
+                                    :class="{ 'bg-indigo-500 w-1.5': isResizing, 'bg-gray-300': !isResizing }"
+                                    title="Drag to adjust width"
+                                ></div>
+
                                 <ProjectDeliverablesOverviewCard
                                     :project-id="projectId"
                                     :can-view-project-deliverables="canViewDeliverables"
@@ -387,6 +434,25 @@ onMounted(async () => {
 
                         </div>
                     </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-4">
+
+                    <ProjectClientsCard
+                        v-if="canViewClientContacts"
+                        :project-id="projectId"
+                        :can-view-client-contacts="canViewClientContacts"
+                    />
+
+                    <ProjectTeamCard
+                        :project-id="projectId"
+                        :can-view-users="true"
+                    />
+
+                    <UserFinancialsCard
+                        :project-id="projectId"
+                        @viewUserTransactions="handleViewUserTransactions"
+                    />
                 </div>
 
                 <!-- Main Tabs Section -->

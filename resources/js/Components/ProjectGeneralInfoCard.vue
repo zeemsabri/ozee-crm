@@ -387,7 +387,7 @@ const sendMagicLink = async () => {
                         <ShareIcon class="h-5 w-5" />
                         <span class="ml-1 text-sm font-medium">Share</span>
                     </button>
-                    <button @click="emit('openComposeModal')" class="flex items-center p-2 rounded-full text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors" title="Compose Email">
+                    <button @click="handOpenCompose" class="flex items-center p-2 rounded-full text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors" title="Compose Email">
                         <PaperAirplaneIcon class="h-5 w-5" />
                         <span class="ml-1 text-sm font-medium">Compose Email</span>
                     </button>

@@ -1,6 +1,7 @@
 <script setup>
 import { defineProps, defineEmits } from 'vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import moment from 'moment';
 
 const props = defineProps({
     emails: {
@@ -42,6 +43,7 @@ const viewEmail = (email) => {
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Read At</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
                 </thead>
@@ -76,6 +78,9 @@ const viewEmail = (email) => {
                         >
                             {{ email.status ? email.status.replace('_', ' ').toUpperCase() : 'N/A' }}
                         </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-700">
+                        {{ email.read_at ? moment(email.read_at).format('MMM D, YYYY h:mm A') : 'Not read' }}
                     </td>
                     <td class="px-4 py-3 text-right">
                         <SecondaryButton class="text-indigo-600 hover:text-indigo-800" @click="viewEmail(email)">

@@ -288,12 +288,12 @@ trait HandlesTemplatedEmails
         ];
     }
 
-    public function getData($subject, $body, $senderDetails)
+    public function getData($subject, $body, $senderDetails, $email = null, $isFinalSend = false)
     {
         // Load all reusable data from the new config file
         $config = config('branding');
 
-        return [
+        $data =  [
             'emailData' => [
                 'subject' => $subject,
             ],
@@ -312,5 +312,12 @@ trait HandlesTemplatedEmails
             'borderColor' => $config['branding']['border_color'],
             'reviewLink' => null
         ];
+
+        // Add the tracking URL only for final sends
+        if ($isFinalSend && $email) {
+            $data['emailTrackingUrl'] = route('email.track', ['id' => $email->id]);
+        }
+
+        return $data;
     }
 }
