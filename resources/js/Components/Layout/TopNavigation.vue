@@ -51,6 +51,14 @@ const canManageRoles = canDo('manage_roles');
                             Inbox
                         </NavLink>
 
+                        <NavLink
+                            v-if="canDo('view_own_points')"
+                            :href="route('bonus-system.index')"
+                            :active="route().current('bonus-system.index')"
+                        >
+                            Bonus System
+                        </NavLink>
+
                         <AdminDropdown v-if="canManageRoles" />
                     </div>
                 </div>

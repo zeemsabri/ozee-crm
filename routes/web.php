@@ -364,6 +364,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
     });
 
 });
+
+    Route::get('/bonus_system', function () {
+        return Inertia::render('BonusSystem/Index');
+    });
+
     // Your existing dashboard route
     Route::get('/dashboard', function () {
         $user = auth()->user();
@@ -481,6 +486,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
     Route::get('/bonus-configuration', function () {
         return Inertia::render('BonusConfiguration/Index');
     })->name('bonus-configuration.index')->middleware('permission:manage_bonus_configuration');
+
+    // Bonus System Page
+    Route::get('/bonus-system', function () {
+        return Inertia::render('BonusSystem/Index');
+    })->name('bonus-system.index')->middleware('permission:view_own_points');
 
     Route::get('/shareable-resources', function () {
         return Inertia::render('ShareableResources/Index');

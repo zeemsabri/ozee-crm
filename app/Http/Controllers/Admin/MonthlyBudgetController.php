@@ -36,12 +36,23 @@ class MonthlyBudgetController extends Controller
             'year' => 'required|integer|min:2000|max:2100',
             'month' => 'required|integer|min:1|max:12',
             'total_budget_pkr' => 'required|numeric|min:0',
+            'number_of_employees' => 'required|integer|min:0',
+            'number_of_contractors' => 'required|integer|min:0',
+            'employee_pool_input' => 'nullable|string|max:50',
+
+            'employee_bonus_pool_pkr' => 'required|numeric|min:0',
+            'contractor_bonus_pool_pkr' => 'required|numeric|min:0',
             'consistent_contributor_pool_pkr' => 'required|numeric|min:0',
             'high_achiever_pool_pkr' => 'required|numeric|min:0',
+
             'team_total_points' => 'required|numeric|min:0',
             'points_value_pkr' => 'required|numeric|min:0',
-            'most_improved_award_pkr' => 'required|numeric|min:0',
+
             'first_place_award_pkr' => 'required|numeric|min:0',
+            'second_place_award_pkr' => 'required|numeric|min:0',
+            'third_place_award_pkr' => 'required|numeric|min:0',
+            'most_improved_award_pkr' => 'required|numeric|min:0',
+            'contractor_of_the_month_award_pkr' => 'required|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -60,7 +71,15 @@ class MonthlyBudgetController extends Controller
             ], 422);
         }
 
-        $monthlyBudget = MonthlyBudget::create($request->all());
+        // Ensure points_value_pkr is aligned with provided pools and points
+        $data = $request->all();
+        if (isset($data['team_total_points']) && isset($data['consistent_contributor_pool_pkr'])) {
+            $teamPoints = (float) $data['team_total_points'];
+            $ccPool = (float) $data['consistent_contributor_pool_pkr'];
+            $data['points_value_pkr'] = ($teamPoints > 0) ? $ccPool / $teamPoints : 0;
+        }
+
+        $monthlyBudget = MonthlyBudget::create($data);
 
         return response()->json([
             'message' => 'Monthly budget created successfully!',
@@ -94,19 +113,38 @@ class MonthlyBudgetController extends Controller
 
         $validator = Validator::make($request->all(), [
             'total_budget_pkr' => 'required|numeric|min:0',
+            'number_of_employees' => 'required|integer|min:0',
+            'number_of_contractors' => 'required|integer|min:0',
+            'employee_pool_input' => 'nullable|string|max:50',
+
+            'employee_bonus_pool_pkr' => 'required|numeric|min:0',
+            'contractor_bonus_pool_pkr' => 'required|numeric|min:0',
             'consistent_contributor_pool_pkr' => 'required|numeric|min:0',
             'high_achiever_pool_pkr' => 'required|numeric|min:0',
+
             'team_total_points' => 'required|numeric|min:0',
             'points_value_pkr' => 'required|numeric|min:0',
-            'most_improved_award_pkr' => 'required|numeric|min:0',
+
             'first_place_award_pkr' => 'required|numeric|min:0',
+            'second_place_award_pkr' => 'required|numeric|min:0',
+            'third_place_award_pkr' => 'required|numeric|min:0',
+            'most_improved_award_pkr' => 'required|numeric|min:0',
+            'contractor_of_the_month_award_pkr' => 'required|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $monthlyBudget->update($request->all());
+        // Ensure points_value_pkr is aligned with provided pools and points
+        $data = $request->all();
+        if (isset($data['team_total_points']) && isset($data['consistent_contributor_pool_pkr'])) {
+            $teamPoints = (float) $data['team_total_points'];
+            $ccPool = (float) $data['consistent_contributor_pool_pkr'];
+            $data['points_value_pkr'] = ($teamPoints > 0) ? $ccPool / $teamPoints : 0;
+        }
+
+        $monthlyBudget->update($data);
 
         return response()->json([
             'message' => 'Monthly budget updated successfully!',
