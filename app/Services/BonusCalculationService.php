@@ -34,11 +34,11 @@ class BonusCalculationService
 
         $employees = $leaderboard->filter(function ($item) {
             return $item->user->user_type === 'employee';
-        });
+        })->values(); // Reset the keys to be zero-indexed
 
         $contractors = $leaderboard->filter(function ($item) {
             return $item->user->user_type === 'contractor';
-        });
+        })->values(); // Reset the keys to be zero-indexed
 
         // Calculate and process all employee bonuses
         $employeeBonusSummary = $this->calculateEmployeeBonuses($employees, $monthlyBudget);
@@ -65,33 +65,35 @@ class BonusCalculationService
      */
     private function calculateEmployeeBonuses(Collection $employees, MonthlyBudget $monthlyBudget): array
     {
-        $bonuses = [];
-        $highAchievers = $employees->take(3);
-
-        // High Achiever Awards
+        $employeeAwards = [];
         $awards = [
             1 => $monthlyBudget->first_place_award_pkr,
             2 => $monthlyBudget->second_place_award_pkr,
             3 => $monthlyBudget->third_place_award_pkr,
         ];
-        foreach ($highAchievers as $rank => $employeePoints) {
-            $bonuses[] = [
-                'user_id' => $employeePoints->user_id,
-                'name' => $employeePoints->user->name,
-                'points' => $employeePoints->total_points,
-                'award' => "Top Performer #{$employeePoints->rank}",
-                'amount' => $awards[$employeePoints->rank],
+
+        // --- First Pass: Assign specific awards to the initialized entries ---
+
+        // High Achiever Awards
+        $highAchievers = $employees->take(3);
+        foreach ($highAchievers as $index => $employeePoints) {
+            $rank = $index + 1;
+            $userId = $employeePoints->user_id;
+
+            // Check and initialize the user's awards array if it doesn't exist
+            if (!isset($employeeAwards[$userId])) {
+                $employeeAwards[$userId] = [
+                    'user_id' => $userId,
+                    'name' => $employeePoints->user->name,
+                    'points' => $employeePoints->total_points,
+                    'awards' => [],
+                ];
+            }
+            $employeeAwards[$userId]['awards'][] = [
+                'award' => "Top Performer #{$rank}",
+                'amount' => $awards[$rank],
             ];
         }
-
-        // Most Improved Award - This would require fetching previous month's data. For now, it's a manager's manual selection.
-        $bonuses[] = [
-            'user_id' => null,
-            'name' => 'Manager to Select',
-            'points' => null,
-            'award' => 'Most Improved',
-            'amount' => $monthlyBudget->most_improved_award_pkr,
-        ];
 
         // Consistent Contributor Tiered Bonus
         $consistentPool = $monthlyBudget->consistent_contributor_pool_pkr;
@@ -123,17 +125,40 @@ class BonusCalculationService
 
         foreach ($qualifyingEmployees as $qualifyingEmployee) {
             $finalAmount = $qualifyingEmployee['target_bonus'] * $multiplier;
-            $bonuses[] = [
-                'user_id' => $qualifyingEmployee['employee_points']->user_id,
-                'name' => $qualifyingEmployee['employee_points']->user->name,
-                'points' => $qualifyingEmployee['employee_points']->total_points,
+            $userId = $qualifyingEmployee['employee_points']->user_id;
+
+            // This is the key fix: Initialize the array if the user hasn't been added yet
+            if (!isset($employeeAwards[$userId])) {
+                $employeeAwards[$userId] = [
+                    'user_id' => $userId,
+                    'name' => $qualifyingEmployee['employee_points']->user->name,
+                    'points' => $qualifyingEmployee['employee_points']->total_points,
+                    'awards' => [],
+                ];
+            }
+
+            $employeeAwards[$userId]['awards'][] = [
                 'award' => "Consistent Contributor ({$qualifyingEmployee['tier']} Tier)",
                 'amount' => $finalAmount,
                 'adjusted' => $multiplier < 1,
             ];
         }
 
-        return $bonuses;
+        // Most Improved Award (placeholder)
+        $mostImprovedAwardUser = 'most_improved_user';
+        $employeeAwards[$mostImprovedAwardUser] = [
+            'user_id' => null,
+            'name' => 'Manager to Select',
+            'points' => null,
+            'awards' => [
+                [
+                    'award' => 'Most Improved',
+                    'amount' => $monthlyBudget->most_improved_award_pkr,
+                ],
+            ],
+        ];
+
+        return array_values($employeeAwards);
     }
 
     /**
@@ -145,29 +170,41 @@ class BonusCalculationService
      */
     private function calculateContractorBonuses(Collection $contractors, MonthlyBudget $monthlyBudget): array
     {
-        $bonuses = [];
+        $contractorAwards = [];
 
         // Contractor of the Month
         if ($contractors->isNotEmpty()) {
             $topContractor = $contractors->first();
-            $bonuses[] = [
-                'user_id' => $topContractor->user_id,
-                'name' => $topContractor->user->name,
-                'points' => $topContractor->total_points,
+            $userId = $topContractor->user_id;
+
+            if (!isset($contractorAwards[$userId])) {
+                $contractorAwards[$userId] = [
+                    'user_id' => $userId,
+                    'name' => $topContractor->user->name,
+                    'points' => $topContractor->total_points,
+                    'awards' => [],
+                ];
+            }
+            $contractorAwards[$userId]['awards'][] = [
                 'award' => 'Contractor of the Month',
                 'amount' => $monthlyBudget->contractor_of_the_month_award_pkr,
             ];
         }
 
-        // Project Performance Bonus Pool
-        $bonuses[] = [
+        // Project Performance Bonus Pool (This is a pool, not an individual award)
+        $performancePoolUser = 'performance_pool_user';
+        $contractorAwards[$performancePoolUser] = [
             'user_id' => null,
             'name' => 'N/A',
             'points' => null,
-            'award' => 'Project Performance Bonus Pool',
-            'amount' => $monthlyBudget->contractor_bonus_pool_pkr - $monthlyBudget->contractor_of_the_month_award_pkr,
+            'awards' => [
+                [
+                    'award' => 'Project Performance Bonus Pool',
+                    'amount' => $monthlyBudget->contractor_bonus_pool_pkr - $monthlyBudget->contractor_of_the_month_award_pkr,
+                ],
+            ],
         ];
 
-        return $bonuses;
+        return array_values($contractorAwards);
     }
 }

@@ -204,6 +204,14 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
             ->middleware(['permission:view_monthly_budgets'])
             ->name('monthly-budgets.all');
 
+        // Bonus Calculator routes
+        Route::get('/bonus-calculator', [\App\Http\Controllers\Admin\BonusCalculatorController::class, 'index'])
+            ->middleware(['permission:view_monthly_budgets'])
+            ->name('bonus-calculator.index');
+        Route::get('/bonus-calculator/calculate', [\App\Http\Controllers\Admin\BonusCalculatorController::class, 'calculate'])
+            ->middleware(['permission:view_monthly_budgets'])
+            ->name('bonus-calculator.calculate');
+
         Route::get('/monthly-budgets/current', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'getCurrentBudget'])
             ->middleware(['permission:view_monthly_budgets'])
             ->name('monthly-budgets.current');

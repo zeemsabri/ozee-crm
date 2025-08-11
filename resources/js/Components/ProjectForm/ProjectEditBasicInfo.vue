@@ -413,7 +413,7 @@ onMounted(() => {
             </div>
 
             <!-- Project Tier -->
-            <div v-if="canDo('')">
+            <div>
                 <InputLabel for="project_tier_id" value="Project Tier" />
                 <SelectDropdown
                     id="project_tier_id"
