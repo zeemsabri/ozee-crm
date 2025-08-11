@@ -18,7 +18,7 @@ const props = defineProps({
     }
 });
 
-const emit = defineEmits(['openCreateTaskModal', 'openAddResource', 'openNotificationsSidebar']);
+const emit = defineEmits(['openCreateTaskModal', 'openAddResource', 'openNotificationsSidebar', 'open-kudo-modal']);
 
 const showingNavigationDropdown = ref(false);
 const user = computed(() => usePage().props.auth.user);
@@ -28,17 +28,17 @@ const canManageRoles = canDo('manage_roles');
 </script>
 
 <template>
-    <nav class="border-b border-gray-100 bg-white z-10 relative">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <nav class="border-b border-gray-100 bg-white z-10 relative w-full">
+        <div class="w-full px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 justify-between">
-                <div class="flex">
+                <div class="flex flex-1 min-w-0">
                     <div class="flex shrink-0 items-center">
                         <Link :href="route('dashboard')">
                             <ApplicationLogo class="block h-16 w-auto fill-current text-gray-800" />
                         </Link>
                     </div>
 
-                    <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                    <div class="hidden sm:-my-px sm:ms-10 sm:flex sm:flex-wrap sm:gap-4 overflow-x-auto no-scrollbar">
                         <NavLink :href="route('dashboard')" :active="route().current('dashboard')">
                             Dashboard
                         </NavLink>

@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Events\KudoApprovedEvent;
+use App\Listeners\AwardKudoPointsListener;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -32,6 +34,10 @@ class EventServiceProvider extends ServiceProvider
         // Bonus system event mappings
         StandupSubmittedEvent::class => [
             StandupSubmittedListener::class,
+        ],
+
+        KudoApprovedEvent::class => [
+            AwardKudoPointsListener::class
         ],
 
         TaskCompletedEvent::class => [

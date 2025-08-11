@@ -203,7 +203,6 @@ class PointsService
                 self::BASE_POINTS_KUDOS,
                 'Peer Kudos (Approved)',
                 $kudo,
-                'paid',
                 ['comment' => $kudo->comment]
             );
         }

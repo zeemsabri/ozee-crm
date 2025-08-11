@@ -30,12 +30,9 @@ class KudoController extends Controller
     public function mine(Request $request)
     {
         $user = $request->user();
+        // Return kudos received by the user (not including soft-deleted), with both approved and pending
         $kudos = Kudo::with(['sender', 'recipient', 'project'])
-            ->where(function ($q) use ($user) {
-                $q->where('recipient_id', $user->id)
-                    ->orWhere('sender_id', $user->id);
-            })
-            ->where('is_approved', true)
+            ->where('recipient_id', $user->id)
             ->orderByDesc('id')
             ->get();
 

@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Events\KudoApprovedEvent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Log;
 
 class Kudo extends Model
 {
@@ -29,6 +31,18 @@ class Kudo extends Model
         'comment',
         'is_approved',
     ];
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::updating(function ($kudo) {
+            if ($kudo->isDirty('is_approved') && $kudo->is_approved) {
+                KudoApprovedEvent::dispatch($kudo);
+            }
+        });
+    }
+
 
     /**
      * The attributes that should be cast.

@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import { ref, onMounted, computed } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import DangerButton from '@/Components/DangerButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { usePermissions } from '@/Directives/permissions';
 
@@ -17,96 +18,157 @@ const pendingKudos = ref([]);
 const myKudos = ref([]);
 
 const fetchData = async () => {
-  loading.value = true;
-  error.value = '';
-  try {
-    if (canApprove) {
-      const { data } = await window.axios.get('/api/kudos/pending');
-      pendingKudos.value = data || [];
-    } else {
-      const { data } = await window.axios.get('/api/kudos/mine');
-      myKudos.value = data || [];
+    loading.value = true;
+    error.value = '';
+    try {
+        // Always load my received kudos
+        const mineResp = await window.axios.get('/api/kudos/mine');
+        myKudos.value = mineResp.data || [];
+
+        // Load pending approvals only if user can approve
+        if (canApprove) {
+            const pendingResp = await window.axios.get('/api/kudos/pending');
+            pendingKudos.value = pendingResp.data || [];
+        }
+    } catch (e) {
+        error.value = 'Failed to load kudos.';
+    } finally {
+        loading.value = false;
     }
-  } catch (e) {
-    error.value = 'Failed to load kudos.';
-  } finally {
-    loading.value = false;
-  }
 };
 
 const approve = async (kudo) => {
-  try {
-    await window.axios.post(`/api/kudos/${kudo.id}/approve`);
-    successMessage.value = 'Kudo approved';
-    await fetchData();
-  } catch (e) {
-    error.value = e?.response?.data?.message || 'Failed to approve kudo';
-  }
+    try {
+        await window.axios.post(`/api/kudos/${kudo.id}/approve`);
+        successMessage.value = 'Kudo approved!';
+        await fetchData();
+    } catch (e) {
+        error.value = e?.response?.data?.message || 'Failed to approve kudo';
+    }
 };
 
 const rejectKudo = async (kudo) => {
-  try {
-    await window.axios.post(`/api/kudos/${kudo.id}/reject`);
-    successMessage.value = 'Kudo rejected';
-    await fetchData();
-  } catch (e) {
-    error.value = e?.response?.data?.message || 'Failed to reject kudo';
-  }
+    try {
+        await window.axios.post(`/api/kudos/${kudo.id}/reject`);
+        successMessage.value = 'Kudo rejected.';
+        await fetchData();
+    } catch (e) {
+        error.value = e?.response?.data?.message || 'Failed to reject kudo';
+    }
 };
+
+// Computed properties for the stats cards
+const totalKudosReceived = computed(() => myKudos.value.length);
+const approvedKudosCount = computed(() => myKudos.value.filter(k => k.is_approved).length);
+const pendingKudosCount = computed(() => myKudos.value.filter(k => !k.is_approved).length);
 
 onMounted(fetchData);
 </script>
 
 <template>
-  <Head title="Kudos" />
-  <AuthenticatedLayout>
-    <template #header>
-      <h2 class="font-semibold text-xl text-gray-800 leading-tight">Kudos</h2>
-    </template>
+    <Head title="Kudos" />
+    <AuthenticatedLayout>
+        <template #header>
+            <h2 class="font-semibold text-xl text-gray-800 leading-tight">Kudos</h2>
+        </template>
 
-    <div class="py-12">
-      <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-        <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-          <div class="p-6 text-gray-900">
-            <div v-if="successMessage" class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
-              <span class="block sm:inline">{{ successMessage }}</span>
+        <div class="py-12 bg-gray-50">
+            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-8">
+
+                <!-- Success/Error Messages -->
+                <div v-if="successMessage" class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg relative" role="alert">
+                    <span class="block sm:inline">{{ successMessage }}</span>
+                </div>
+                <div v-if="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
+                    <span class="block sm:inline">{{ error }}</span>
+                </div>
+
+                <!-- The Power of Recognition Section -->
+                <div class="bg-white rounded-lg shadow-lg p-8 text-center animate-fade-in-up">
+                    <p class="text-4xl font-bold text-gray-800 mb-2">The Power of Recognition!</p>
+                    <p class="text-lg text-gray-600">Giving and receiving Kudos builds a culture of appreciation and teamwork.</p>
+                </div>
+
+                <div v-if="loading" class="text-center text-gray-600">
+                    <svg class="animate-spin h-8 w-8 text-gray-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="mt-2">Loading kudos...</p>
+                </div>
+
+                <template v-else>
+                    <!-- Pending Kudos for Manager -->
+                    <div v-if="canApprove" class="space-y-4">
+                        <h3 class="text-3xl font-extrabold text-gray-800">Kudos Pending Approval ✨</h3>
+                        <div v-if="pendingKudos.length === 0" class="p-6 text-gray-600 border border-gray-200 rounded-lg bg-white shadow-sm">
+                            No new kudos are waiting for your approval.
+                        </div>
+                        <div v-else class="grid md:grid-cols-2 gap-4">
+                            <div v-for="k in pendingKudos" :key="k.id" class="bg-white rounded-xl shadow-lg p-6 flex flex-col justify-between transition-all duration-300 hover:shadow-xl">
+                                <div>
+                                    <div class="flex items-center space-x-2 text-sm text-gray-500 mb-2">
+                                        <span>From: <strong>{{ k.sender?.name }}</strong></span>
+                                        <span>→</span>
+                                        <span>To: <strong>{{ k.recipient?.name }}</strong></span>
+                                    </div>
+                                    <div class="font-semibold text-lg text-gray-900 mb-2">Project: {{ k.project?.name || 'N/A' }}</div>
+                                    <p class="text-gray-700 italic border-l-4 border-yellow-400 pl-3">"{{ k.comment }}"</p>
+                                </div>
+                                <div class="mt-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                                    <PrimaryButton @click="approve(k)" class="w-full sm:w-auto">Approve</PrimaryButton>
+                                    <DangerButton @click="rejectKudo(k)" class="w-full sm:w-auto">Reject</DangerButton>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- My Kudos Section -->
+                    <div class="space-y-4">
+                        <h3 class="text-3xl font-extrabold text-gray-800">Kudos I've Received 💖</h3>
+
+                        <!-- Stats Cards -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div class="bg-white rounded-lg shadow-md p-6 text-center border-b-4 border-purple-400">
+                                <p class="text-4xl font-bold text-gray-800">{{ totalKudosReceived }}</p>
+                                <p class="text-sm text-gray-500">Total Kudos</p>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md p-6 text-center border-b-4 border-green-400">
+                                <p class="text-4xl font-bold text-gray-800">{{ approvedKudosCount }}</p>
+                                <p class="text-sm text-gray-500">Approved Kudos</p>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-md p-6 text-center border-b-4 border-yellow-400">
+                                <p class="text-4xl font-bold text-gray-800">{{ pendingKudosCount }}</p>
+                                <p class="text-sm text-gray-500">Pending Kudos</p>
+                            </div>
+                        </div>
+
+                        <div v-if="myKudos.length === 0" class="p-6 text-gray-600 border border-gray-200 rounded-lg bg-white shadow-sm">
+                            You haven't received any kudos yet. Keep up the great work!
+                        </div>
+                        <div v-else class="grid md:grid-cols-2 gap-4">
+                            <div v-for="k in myKudos" :key="k.id" class="bg-white rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl">
+                                <div class="flex items-start justify-between mb-4">
+                                    <div class="flex items-center space-x-3">
+                                        <span class="text-3xl">🎉</span>
+                                        <div>
+                                            <div class="font-semibold text-lg text-gray-900">From: {{ k.sender?.name || 'N/A' }}</div>
+                                            <div class="text-sm text-gray-500">Project: {{ k.project?.name || 'N/A' }}</div>
+                                        </div>
+                                    </div>
+                                    <span
+                                        class="ml-4 inline-flex items-center rounded-full px-3 py-1 text-sm font-bold"
+                                        :class="k.is_approved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800 animate-pulse'"
+                                    >
+                    {{ k.is_approved ? 'Approved' : 'Pending Approval' }}
+                  </span>
+                                </div>
+                                <p class="text-gray-700 italic border-l-4 border-purple-400 pl-3">"{{ k.comment }}"</p>
+                            </div>
+                        </div>
+                    </div>
+                </template>
             </div>
-            <div v-if="error" class="text-red-600 mb-4">{{ error }}</div>
-
-            <div v-if="loading">Loading...</div>
-
-            <template v-else>
-              <div v-if="canApprove">
-                <h3 class="text-2xl font-bold mb-4">Kudos Pending Approval</h3>
-                <div v-if="pendingKudos.length === 0" class="text-gray-600">No pending kudos found.</div>
-                <div v-else class="space-y-4">
-                  <div v-for="k in pendingKudos" :key="k.id" class="border rounded p-4 flex justify-between items-start">
-                    <div>
-                      <div class="font-semibold">Project: {{ k.project?.name || 'N/A' }}</div>
-                      <div class="text-sm text-gray-600">From: {{ k.sender?.name }} → To: {{ k.recipient?.name }}</div>
-                      <div class="mt-2">{{ k.comment }}</div>
-                    </div>
-                    <div class="flex-shrink-0 space-x-2">
-                      <PrimaryButton class="text-xs" @click="approve(k)">Approve</PrimaryButton>
-                      <SecondaryButton class="text-xs" @click="rejectKudo(k)">Reject</SecondaryButton>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div v-else>
-                <h3 class="text-2xl font-bold mb-4">My Approved Kudos</h3>
-                <div v-if="myKudos.length === 0" class="text-gray-600">No kudos yet.</div>
-                <div v-else class="space-y-4">
-                  <div v-for="k in myKudos" :key="k.id" class="border rounded p-4">
-                    <div class="font-semibold">From: {{ k.sender?.name }} on {{ k.project?.name || 'N/A' }}</div>
-                    <div class="mt-2">{{ k.comment }}</div>
-                  </div>
-                </div>
-              </div>
-            </template>
-          </div>
         </div>
-      </div>
-    </div>
-  </AuthenticatedLayout>
+    </AuthenticatedLayout>
 </template>
