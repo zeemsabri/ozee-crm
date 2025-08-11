@@ -219,6 +219,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/notes', [\App\Http\Controllers\GoogleChatUserController::class, 'sendNote']);
     });
 
+    // Leaderboard Routes
+    Route::get('leaderboard/monthly', [\App\Http\Controllers\Api\LeaderboardController::class, 'monthly']);
+
     Route::apiResource('users', UserController::class);
 
     // Permission Management Routes

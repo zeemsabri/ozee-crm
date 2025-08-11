@@ -18,11 +18,11 @@ class BonusService
      */
     public function getMonthlyLeaderboard($year, $month)
     {
-        return MonthlyPoint::with('user')
-            ->where('year', $year)
-            ->where('month', $month)
-            ->orderBy('total_points', 'desc')
-            ->get();
+        return User::with(['monthlyPoints' => function ($query) use ($year, $month) {
+                $query->where('year', $year)
+                    ->where('month', $month)
+                    ->orderBy('total_points', 'desc');
+        }])->get();
     }
 
     /**

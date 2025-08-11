@@ -497,6 +497,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('BonusSystem/Index');
     })->name('bonus-system.index')->middleware('permission:view_own_points');
 
+    // Leaderboard Page
+    Route::get('/leaderboard', function () {
+        return Inertia::render('Leaderboard/Index');
+    })->name('leaderboard.index')->middleware('permission:view_own_points');
+
     Route::get('/shareable-resources', function () {
         return Inertia::render('ShareableResources/Index');
     })->name('shareable-resources.index')->middleware('permission:view_shareable_resources');

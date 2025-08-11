@@ -60,6 +60,14 @@ const canManageRoles = canDo('manage_roles');
                         </NavLink>
 
                         <NavLink
+                            v-if="canDo('view_own_points')"
+                            :href="route('leaderboard.index')"
+                            :active="route().current('leaderboard.index')"
+                        >
+                            Leaderboard
+                        </NavLink>
+
+                        <NavLink
                             v-if="canDo('view_kudos')"
                             :href="route('kudos.index')"
                             :active="route().current('kudos.index')"
