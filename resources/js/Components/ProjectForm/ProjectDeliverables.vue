@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, watch, computed, nextTick } from 'vue';
 import axios from 'axios';
-import { success, error } from '@/Utils/notification';
+import { success, error, confirmPrompt } from '@/Utils/notification';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
@@ -62,6 +62,7 @@ const currentDeliverable = ref({
     }
 });
 const formErrors = ref({});
+const previousTypeKey = ref(null);
 
 // Status options
 const statusOptions = [
@@ -117,6 +118,7 @@ function openCreateForm() {
         }
     };
     formErrors.value = {};
+    previousTypeKey.value = null;
     showForm.value = true;
 }
 
@@ -131,7 +133,35 @@ function openEditForm(deliverable) {
         currentDeliverable.value.details.checklist.push({ name: '', completed: false });
     }
     formErrors.value = {};
+    previousTypeKey.value = currentDeliverable.value.details.deliverable_type_key ?? null;
     showForm.value = true;
+}
+
+async function handleDeliverableTypeChange(newKey) {
+    // Prevent loop if we programmatically revert the value
+    if (newKey === previousTypeKey.value) {
+        return;
+    }
+
+    const list = currentDeliverable.value.details?.checklist || [];
+    const hasMeaningfulItems = list.some(item => (item?.name || '').trim() !== '');
+
+    if (hasMeaningfulItems) {
+        const confirmReset = await confirmPrompt(
+            'Changing the deliverable type may clear your existing checklist items. Do you want to proceed?',
+            { confirmText: 'Proceed', cancelText: 'Cancel', type: 'warning' }
+        );
+        if (!confirmReset) {
+            // Revert selection
+            currentDeliverable.value.details.deliverable_type_key = previousTypeKey.value;
+            return;
+        }
+        // User confirmed: clear checklist to a single empty item
+        currentDeliverable.value.details.checklist = [{ name: '', completed: false }];
+    }
+
+    // Update the previous key to the new one after a successful change
+    previousTypeKey.value = newKey;
 }
 
 // Checklist item management is now handled by the ChecklistCreator component
@@ -357,7 +387,7 @@ function formatDate(dateString) {
                                 placeholder="Select a Deliverable Type"
                                 class="mt-1 block w-full"
                                 required
-                                @update:modelValue="currentDeliverable.details = { deliverable_type_key: $event, checklist: [{ name: '', completed: false }] }"
+                                @update:modelValue="handleDeliverableTypeChange"
                             />
                         </div>
 

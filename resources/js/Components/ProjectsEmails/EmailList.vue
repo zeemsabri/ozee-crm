@@ -2,6 +2,7 @@
 import { defineProps, defineEmits } from 'vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import moment from 'moment';
+import { PaperAirplaneIcon, InboxArrowDownIcon } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
     emails: {
@@ -40,29 +41,28 @@ const viewEmail = (email) => {
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sent At</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Read At</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                 <tr v-for="email in emails" :key="email.id" class="hover:bg-gray-50 transition-colors">
-                    <td class="px-4 py-3 text-sm text-gray-900">{{ email.subject }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">
+                        <div class="flex items-center">
+                            <PaperAirplaneIcon v-if="email.type === 'sent'" class="h-4 w-4 text-blue-500 mr-2" aria-hidden="true" />
+                            <InboxArrowDownIcon v-else-if="email.type === 'received'" class="h-4 w-4 text-purple-500 mr-2" aria-hidden="true" />
+                            <span>{{ email.subject }}</span>
+                        </div>
+                    </td>
                     <td class="px-4 py-3 text-sm text-gray-700">{{ email.sender?.name || 'N/A' }}</td>
                     <td class="px-4 py-3 text-sm text-gray-700">{{ email.conversation?.project?.name || 'N/A' }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-700">{{ new Date(email.created_at).toLocaleDateString() }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700">{{ email.created_at ? moment(email.created_at).format('MMM D, YYYY h:mm A') : 'NA' }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700">{{ email.sent_at ? moment(email.sent_at).format('MMM D, YYYY h:mm A') : 'Not Sent' }}</td>
                     <td class="px-4 py-3 text-sm text-gray-700">
-                        <span
-                            :class="{
-                                'px-2 py-1 rounded-full text-xs font-medium': true,
-                                'bg-blue-100 text-blue-800': email.type === 'sent',
-                                'bg-purple-100 text-purple-800': email.type === 'received'
-                            }"
-                        >
-                            {{ email.type ? email.type.toUpperCase() : 'N/A' }}
-                        </span>
+                        {{ email.read_at ? moment(email.read_at).format('MMM D, YYYY h:mm A') : 'Not read' }}
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-700">
                         <span
@@ -79,9 +79,7 @@ const viewEmail = (email) => {
                             {{ email.status ? email.status.replace('_', ' ').toUpperCase() : 'N/A' }}
                         </span>
                     </td>
-                    <td class="px-4 py-3 text-sm text-gray-700">
-                        {{ email.read_at ? moment(email.read_at).format('MMM D, YYYY h:mm A') : 'Not read' }}
-                    </td>
+
                     <td class="px-4 py-3 text-right">
                         <SecondaryButton class="text-indigo-600 hover:text-indigo-800" @click="viewEmail(email)">
                             View

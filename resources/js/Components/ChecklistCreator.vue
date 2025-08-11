@@ -31,8 +31,12 @@ const emit = defineEmits(['update:modelValue']);
 const items = ref([]);
 const inputRefs = ref([]);
 
+// Guard to prevent emitting while syncing from props
+const isSyncingFromProps = ref(false);
+
 // Watch for changes in props.modelValue and update local items
 watch(() => props.modelValue, (newValue) => {
+    isSyncingFromProps.value = true;
     // We create a deep copy to prevent direct mutation of the prop
     items.value = JSON.parse(JSON.stringify(newValue));
 
@@ -40,10 +44,13 @@ watch(() => props.modelValue, (newValue) => {
     if (items.value.length === 0 || items.value[items.value.length - 1].name.trim() !== '') {
         items.value.push({ name: '', completed: false });
     }
+    // Release the guard after the DOM updates to avoid immediate re-emit
+    nextTick(() => { isSyncingFromProps.value = false; });
 }, { immediate: true, deep: true });
 
 // Watch for changes in local items and emit updates
 watch(() => items.value, (newValue) => {
+    if (isSyncingFromProps.value) return;
     emit('update:modelValue', newValue);
 }, { deep: true });
 

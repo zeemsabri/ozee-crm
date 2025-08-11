@@ -89,6 +89,8 @@ class EmailTestController extends Controller
                 ->orderByDesc('sent_at')
                 ->first();
 
+            Log::info('Last received email:', ['email_id' => $lastReceivedEmail->id ?? 'none', 'sent_at' => $lastReceivedEmail->sent_at ?? 'none']);;
+
             $query = 'is:inbox';
             if ($lastReceivedEmail) {
                 // Convert the sent_at timestamp to a Gmail-compatible date format (e.g., Y/m/d H:i:s or Y/m/d)
@@ -129,6 +131,9 @@ class EmailTestController extends Controller
             foreach ($messageIds as $messageId) {
                 $emailDetails = $this->gmailService->getMessage($messageId);
 
+                $date = Carbon::parse($emailDetails['date'])->setTimezone('UTC');
+
+                $emailDetails['date'] = $date;
                 // IMPORTANT: Check if the email is *actually* newer than the last processed email.
                 // Gmail's 'after' query is based on the internal date, but your `sent_at` might be slightly different
                 // or you might have fetched an email from the same minute. Avoid re-processing.

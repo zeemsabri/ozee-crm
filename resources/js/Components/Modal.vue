@@ -91,6 +91,8 @@ const maxWidthClass = computed(() => {
             class="fixed inset-0 z-[10] overflow-y-auto px-4 py-6 sm:px-0"
             scroll-region
         >
+            <!-- Portal target for notifications so they render above the modal (dialog top layer) -->
+            <div id="modal-notification-portal"></div>
             <div
                 v-show="show"
                 class="fixed inset-0 transform transition-all cursor-pointer"

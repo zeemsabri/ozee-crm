@@ -1,41 +1,132 @@
 <template>
-    <div class="fixed top-4 right-4 z-[100] flex flex-col items-end space-y-3">
-        <!-- Standard toast notifications are stacked here -->
-        <div
-            v-for="notification in notifications"
-            :key="notification.id"
-            class="w-full max-w-sm rounded-md shadow-lg pointer-events-auto"
-            :class="notificationTypeClass(notification.type)"
-        >
-            <div class="p-4">
-                <p class="text-sm font-medium text-white">
-                    {{ notification.message }}
-                </p>
+    <template v-if="teleportTarget">
+        <Teleport :to="teleportTarget">
+            <div class="fixed top-4 right-4 z-[9999] flex flex-col items-end space-y-3">
+                <!-- Standard toast notifications are stacked here -->
+                <div
+                    v-for="notification in notifications"
+                    :key="notification.id"
+                    class="w-full max-w-sm rounded-md shadow-lg pointer-events-auto overflow-hidden"
+                    :class="notificationTypeClass(notification.type)"
+                >
+                    <div class="p-4">
+                        <p class="text-sm font-medium text-white">
+                            {{ notification.message }}
+                        </p>
+                        <div v-if="notification.confirm" class="mt-3 flex gap-2">
+                            <button
+                                class="px-3 py-1 text-sm font-semibold rounded bg-white/90 text-slate-800 hover:bg-white"
+                                @click="handleConfirm(notification.id)"
+                            >
+                                {{ notification.confirm.confirmText || 'Confirm' }}
+                            </button>
+                            <button
+                                class="px-3 py-1 text-sm font-semibold rounded bg-transparent border border-white/70 text-white hover:bg-white/10"
+                                @click="handleCancel(notification.id)"
+                            >
+                                {{ notification.confirm.cancelText || 'Cancel' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+    </template>
+    <template v-else>
+        <div class="fixed top-4 right-4 z-[9999] flex flex-col items-end space-y-3">
+            <!-- Standard toast notifications are stacked here -->
+            <div
+                v-for="notification in notifications"
+                :key="notification.id"
+                class="w-full max-w-sm rounded-md shadow-lg pointer-events-auto overflow-hidden"
+                :class="notificationTypeClass(notification.type)"
+            >
+                <div class="p-4">
+                    <p class="text-sm font-medium text-white">
+                        {{ notification.message }}
+                    </p>
+                    <div v-if="notification.confirm" class="mt-3 flex gap-2">
+                        <button
+                            class="px-3 py-1 text-sm font-semibold rounded bg-white/90 text-slate-800 hover:bg-white"
+                            @click="handleConfirm(notification.id)"
+                        >
+                            {{ notification.confirm.confirmText || 'Confirm' }}
+                        </button>
+                        <button
+                            class="px-3 py-1 text-sm font-semibold rounded bg-transparent border border-white/70 text-white hover:bg-white/10"
+                            @click="handleCancel(notification.id)"
+                        >
+                            {{ notification.confirm.cancelText || 'Cancel' }}
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
+    </template>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 
 // Local state for toast notifications
 const notifications = ref([]);
 
-/**
- * Adds a new standard notification to the list.
- * @param {string} message - The notification message.
- * @param {string} type - The type of notification (success, error, info, warning).
- * @param {number} duration - How long to display the notification in ms.
- */
-const addNotification = (message, type = 'info', duration = 5000) => {
-    const id = crypto.randomUUID();
-    notifications.value.unshift({ id, message, type });
+// Track a teleport target inside any open modal dialog
+const teleportTarget = ref('');
+let observer = null;
 
-    // Automatically remove the notification after the duration
-    setTimeout(() => {
-        removeNotification(id);
-    }, duration);
+const updateTeleportTarget = () => {
+    const targetEl = document.getElementById('modal-notification-portal');
+    teleportTarget.value = targetEl ? '#modal-notification-portal' : '';
+};
+
+onMounted(() => {
+    updateTeleportTarget();
+    // Observe DOM changes to detect when modals open/close
+    observer = new MutationObserver(updateTeleportTarget);
+    observer.observe(document.body, { childList: true, subtree: true });
+});
+
+onUnmounted(() => {
+    if (observer) observer.disconnect();
+});
+
+/**
+ * Adds a new standard or confirm notification to the list.
+ * Overloads:
+ *  - addNotification(message, type, duration)
+ *  - addNotification(configObject)
+ * @returns {string} id of the created notification
+ */
+const addNotification = (messageOrConfig, type = 'info', duration = 5000) => {
+    let config;
+    if (typeof messageOrConfig === 'object' && messageOrConfig !== null) {
+        config = { ...messageOrConfig };
+    } else {
+        config = { message: messageOrConfig, type, duration };
+    }
+
+    const id = config.id || crypto.randomUUID();
+
+    const notification = {
+        id,
+        message: config.message || '',
+        type: config.type || 'info',
+        duration: typeof config.duration === 'number' ? config.duration : 5000,
+        sticky: !!config.sticky,
+        confirm: config.confirm || null, // { confirmText, cancelText, onConfirm, onCancel }
+    };
+
+    notifications.value.unshift(notification);
+
+    // Automatically remove the notification after the duration unless sticky or confirm
+    if (!notification.sticky && !notification.confirm) {
+        setTimeout(() => {
+            removeNotification(id);
+        }, notification.duration);
+    }
+
+    return id;
 };
 
 /**
@@ -47,6 +138,22 @@ const removeNotification = (id) => {
     if (index > -1) {
         notifications.value.splice(index, 1);
     }
+};
+
+const handleConfirm = (id) => {
+    const n = notifications.value.find(n => n.id === id);
+    if (n && n.confirm && typeof n.confirm.onConfirm === 'function') {
+        try { n.confirm.onConfirm(); } catch (_) {}
+    }
+    removeNotification(id);
+};
+
+const handleCancel = (id) => {
+    const n = notifications.value.find(n => n.id === id);
+    if (n && n.confirm && typeof n.confirm.onCancel === 'function') {
+        try { n.confirm.onCancel(); } catch (_) {}
+    }
+    removeNotification(id);
 };
 
 /**

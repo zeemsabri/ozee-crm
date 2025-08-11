@@ -180,7 +180,8 @@ class InboxController extends Controller
 
         // Fetch incoming emails (in accessible projects) that need approval
         $incomingEmails = Email::whereHas('conversation', function ($query) use ($accessibleProjectIds) {
-            $query->whereIn('project_id', $accessibleProjectIds);
+            // It's disabled until we need it
+//            $query->whereIn('project_id', $accessibleProjectIds);
         })
             ->where('status', 'pending_approval_received')
             ->with(['sender', 'conversation', 'conversation.project'])
@@ -200,8 +201,9 @@ class InboxController extends Controller
 
             $email->can_approve = false;
 
-            // Check if the user has permission to approve received emails
-            if ($user->hasProjectPermission($email->conversation?->project->id, 'approve_received_emails')) {
+            // Check if the user has permission to approve received emails in appplicaiton role
+
+            if ($user->hasPermission( 'approve_received_emails')) {
                 $email->can_approve = true;
                 $isAuthorized = true;
             }
