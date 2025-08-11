@@ -60,6 +60,36 @@ export const warning = (message, duration = 5000) => {
 };
 
 /**
+ * Shows a confirmation prompt using the standard notification container.
+ * Falls back to window.confirm if the container is not set.
+ * @param {string} message - Prompt message.
+ * @param {{confirmText?: string, cancelText?: string, type?: string}} options
+ * @returns {Promise<boolean>} resolves true if confirmed, false if canceled
+ */
+export const confirmPrompt = async (message, options = {}) => {
+    const { confirmText = 'Proceed', cancelText = 'Cancel', type = 'warning' } = options;
+
+    if (!standardNotificationContainer) {
+        // Fallback to browser confirm if container is not ready
+        return Promise.resolve(window.confirm(message));
+    }
+
+    return new Promise((resolve) => {
+        standardNotificationContainer.addNotification({
+            message,
+            type,
+            sticky: true,
+            confirm: {
+                confirmText,
+                cancelText,
+                onConfirm: () => resolve(true),
+                onCancel: () => resolve(false),
+            },
+        });
+    });
+};
+
+/**
  * Utility function to format dates.
  * @param {string} dateString - The date string to format.
  * @returns {string} The formatted date string.
