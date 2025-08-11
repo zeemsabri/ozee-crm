@@ -71,11 +71,18 @@ class ProjectNote extends Model
                 }
             }
 
-            StandupSubmittedEvent::dispatch($note);
             // Fallback: If no creator is identified, you might want to log, throw an error,
             // or assign a default (e.g., an 'admin' user or null if nullable).
             // For now, if no creator, it remains unset, allowing database to handle nullability.
 
+        });
+
+        // Dispatch the standup event after the note has been created so it has a persisted ID
+        static::created(function (ProjectNote $note) {
+            // Only dispatch for standup notes (listener also guards, but this avoids unnecessary jobs)
+            if ($note->type === self::STANDUP && $note->creator_type === User::class) {
+                StandupSubmittedEvent::dispatch($note);
+            }
         });
 
     }

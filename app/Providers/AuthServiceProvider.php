@@ -21,6 +21,7 @@ class AuthServiceProvider extends ServiceProvider
         Project::class => ProjectPolicy::class,
         \App\Models\User::class => \App\Policies\UserPolicy::class,
         \App\Models\Email::class => \App\Policies\EmailPolicy::class,
+        \App\Models\Kudo::class => \App\Policies\KudosPolicy::class,
     ];
 
     /**

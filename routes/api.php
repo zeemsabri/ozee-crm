@@ -355,6 +355,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{id}/logs', [WireframeController::class, 'logs']);
     });
 
+    // Kudos Routes
+    Route::get('kudos/pending', [\App\Http\Controllers\Api\KudoController::class, 'pending']);
+    Route::get('kudos/mine', [\App\Http\Controllers\Api\KudoController::class, 'mine']);
+    Route::post('kudos', [\App\Http\Controllers\Api\KudoController::class, 'store']);
+    Route::post('kudos/{kudo}/approve', [\App\Http\Controllers\Api\KudoController::class, 'approve']);
+    Route::post('kudos/{kudo}/reject', [\App\Http\Controllers\Api\KudoController::class, 'reject']);
+
     // Component Routes
     Route::prefix('components')->group(function () {
         Route::get('/', [ComponentController::class, 'index']);

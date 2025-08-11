@@ -59,6 +59,14 @@ const canManageRoles = canDo('manage_roles');
                             Bonus System
                         </NavLink>
 
+                        <NavLink
+                            v-if="canDo('view_kudos')"
+                            :href="route('kudos.index')"
+                            :active="route().current('kudos.index')"
+                        >
+                            Kudos
+                        </NavLink>
+
                         <AdminDropdown v-if="canManageRoles" />
                     </div>
                 </div>
@@ -67,7 +75,7 @@ const canManageRoles = canDo('manage_roles');
                     <PrimaryButton
                         type="button"
                         @click="emit('openCreateTaskModal')"
-                        class="mr-4 px-4 py-2 text-sm"
+                        class="mr-2 px-4 py-2 text-sm"
                     >
                         Add Task
                     </PrimaryButton>
@@ -75,9 +83,19 @@ const canManageRoles = canDo('manage_roles');
                     <PrimaryButton
                         type="button"
                         @click="emit('openAddResource')"
-                        class="mr-4 px-4 py-2 text-sm"
+                        class="mr-2 px-4 py-2 text-sm"
                     >
                         Add Resource
+                    </PrimaryButton>
+
+                    <!-- Fun Kudo Button -->
+                    <PrimaryButton
+                        v-if="canDo('create_kudos')"
+                        type="button"
+                        @click="$emit('open-kudo-modal')"
+                        class="mr-2 px-4 py-2 text-sm bg-orange-500 hover:bg-orange-600"
+                    >
+                        ✨ Give Kudo
                     </PrimaryButton>
 
                     <button

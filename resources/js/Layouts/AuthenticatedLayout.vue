@@ -8,6 +8,7 @@ import { setStandardNotificationContainer } from '@/Utils/notification';
 import CreateTaskModal from "@/Components/ProjectTasks/CreateTaskModal.vue";
 import CreateResourceForm from "@/Components/ShareableResource/CreateForm.vue";
 import NotificationsSidebar from '@/Components/NotificationsSidebar.vue';
+import KudoModal from '@/Components/Kudos/KudoModal.vue';
 import {
     openNotificationsSidebar,
     notificationSidebarState,
@@ -21,6 +22,7 @@ import TaskSidebar from '@/Components/Layout/TaskSidebar.vue';
 const showingNavigationDropdown = ref(false);
 const openCreateTaskModel = ref(false);
 const addResource = ref(false);
+const openKudoModal = ref(false);
 
 const allProjectsForSidebar = ref([]);
 const loadingAllProjects = ref(true);
@@ -134,6 +136,7 @@ onMounted(() => {
                 @open-create-task-modal="openCreateTaskModel = true"
                 @open-add-resource="addResource = true"
                 @open-notifications-sidebar="openNotificationsSidebar"
+                @open-kudo-modal="openKudoModal = true"
             />
 
             <!-- Mobile Navigation -->
@@ -162,6 +165,8 @@ onMounted(() => {
                 api-endpoint="/api/shareable-resources"
                 :show="addResource"
                 @close="addResource = false" />
+
+            <KudoModal :show="openKudoModal" @close="openKudoModal = false" @submitted="openKudoModal = false" />
         </div>
 
         <!-- Task Sidebar -->

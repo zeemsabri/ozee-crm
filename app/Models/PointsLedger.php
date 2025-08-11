@@ -10,6 +10,14 @@ class PointsLedger extends Model
 {
     use HasFactory, SoftDeletes;
 
+    // Status constants
+    public const STATUS_PENDING = 'pending';
+    public const STATUS_REFUNDED = 'refunded';
+    public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_PAID = 'paid';
+    public const STATUS_CONSUMED = 'consumed';
+    public const STATUS_REJECTED = 'rejected';
+
     /**
      * The table associated with the model.
      *
@@ -29,6 +37,8 @@ class PointsLedger extends Model
         'description',
         'pointable_id',
         'pointable_type',
+        'status',
+        'meta',
     ];
 
     /**
@@ -38,6 +48,7 @@ class PointsLedger extends Model
      */
     protected $casts = [
         'points_awarded' => 'decimal:2',
+        'meta' => 'array',
     ];
 
     /**

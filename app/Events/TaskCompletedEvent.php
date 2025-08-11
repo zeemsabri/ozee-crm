@@ -2,6 +2,8 @@
 
 namespace App\Events;
 
+use App\Models\Milestone;
+use App\Models\Task;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -10,57 +12,20 @@ class TaskCompletedEvent
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    /**
-     * The user ID.
-     *
-     * @var int
-     */
-    public $userId;
+    public Task $task;
 
-    /**
-     * The project ID.
-     *
-     * @var int
-     */
-    public $projectId;
-
-    /**
-     * The task ID.
-     *
-     * @var string
-     */
-    public $taskId;
-
-    /**
-     * The completion date.
-     *
-     * @var \DateTime
-     */
-    public $completionDate;
-
-    /**
-     * The due date.
-     *
-     * @var \DateTime
-     */
-    public $dueDate;
+    public Milestone $milestone;
 
     /**
      * Create a new event instance.
      *
-     * @param int $userId
-     * @param int $projectId
-     * @param string $taskId
-     * @param \DateTime $completionDate
-     * @param \DateTime $dueDate
+     * @param Task $task
+     * @param Milestone $milestone
      * @return void
      */
-    public function __construct($userId, $projectId, $taskId, $completionDate, $dueDate)
+    public function __construct($task, $milestone)
     {
-        $this->userId = $userId;
-        $this->projectId = $projectId;
-        $this->taskId = $taskId;
-        $this->completionDate = $completionDate;
-        $this->dueDate = $dueDate;
+        $this->task = $task;
+        $this->milestone = $milestone;
     }
 }

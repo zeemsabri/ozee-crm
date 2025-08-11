@@ -469,6 +469,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('Emails/Inbox/Index');
     })->name('inbox')->middleware('permission:view_emails');
 
+    // Kudos Page (approvals or user's approved kudos)
+    Route::get('/kudos', function () {
+        return Inertia::render('Kudos/Index');
+    })->name('kudos.index')->middleware('permission:view_kudos');
+
     Route::get('/users', function () {
         return Inertia::render('Users/Index');
     })->name('users.index')->middleware('permission:create_users');

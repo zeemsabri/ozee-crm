@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\TaskCompletedEvent;
 use App\Models\Traits\Taggable;
 use App\Notifications\TaskAssigned;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,6 +19,31 @@ use Spatie\Activitylog\LogOptions;
 class Task extends Model
 {
     use HasFactory, Taggable, SoftDeletes, LogsActivity;
+
+    // Task status constants
+    public const STATUS_TO_DO = 'To Do';
+    public const STATUS_IN_PROGRESS = 'In Progress';
+    public const STATUS_PAUSED = 'Paused';
+    public const STATUS_DONE = 'Done';
+    public const STATUS_BLOCKED = 'Blocked';
+    public const STATUS_ARCHIVED = 'Archived';
+
+    // List of valid task statuses
+    public const STATUSES = [
+        self::STATUS_TO_DO,
+        self::STATUS_IN_PROGRESS,
+        self::STATUS_DONE,
+        self::STATUS_BLOCKED,
+        self::STATUS_ARCHIVED,
+    ];
+
+    // List of active (non-final) statuses, useful for UI/filters
+    public const ACTIVE_STATUSES = [
+        self::STATUS_TO_DO,
+        self::STATUS_IN_PROGRESS,
+        self::STATUS_PAUSED,
+        self::STATUS_BLOCKED,
+    ];
 
     /**
      * Configure the activity log options for this model
@@ -271,6 +297,7 @@ class Task extends Model
             // or assign a default (e.g., an 'admin' user or null if nullable).
             // For now, if no creator, it remains unset, allowing database to handle nullability.
         });
+
     }
 
     /**
@@ -327,7 +354,7 @@ class Task extends Model
      */
     public function isCompleted()
     {
-        return $this->status === 'Done';
+        return $this->status === self::STATUS_DONE;
     }
 
     /**
@@ -349,12 +376,18 @@ class Task extends Model
     public function markAsCompleted(User $user = null)
     {
         $oldStatus = $this->status;
-        $this->status = 'Done';
+        $this->status = self::STATUS_DONE;
         $this->actual_completion_date = now();
         $this->save();
 
         // Only send notification if status actually changed
-        if ($oldStatus !== 'Done') {
+        if ($oldStatus !== self::STATUS_DONE) {
+
+            if($this->milestone) {
+                TaskCompletedEvent::dispatch($this, $this->milestone);
+            }
+
+
             try {
                 // Make sure we have the Google Chat space ID
                 if (!$this->google_chat_space_id) {
@@ -440,11 +473,11 @@ class Task extends Model
     public function start(User $user = null)
     {
         $oldStatus = $this->status;
-        $this->status = 'In Progress';
+        $this->status = self::STATUS_IN_PROGRESS;
         $this->save();
 
         // Only send notification if status actually changed
-        if ($oldStatus !== 'In Progress') {
+        if ($oldStatus !== self::STATUS_IN_PROGRESS) {
             try {
                 // Make sure we have the Google Chat space ID
                 if (!$this->google_chat_space_id) {
@@ -528,7 +561,7 @@ class Task extends Model
      */
     public function block()
     {
-        $this->status = 'Blocked';
+        $this->status = self::STATUS_BLOCKED;
         $this->save();
     }
 
@@ -539,7 +572,7 @@ class Task extends Model
      */
     public function archive()
     {
-        $this->status = 'Archived';
+        $this->status = self::STATUS_ARCHIVED;
         $this->save();
     }
 

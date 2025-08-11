@@ -245,8 +245,13 @@ onMounted(() => {
 
         <!-- English Content -->
         <div id="content-english">
+
             <!-- How to Earn Points Section -->
             <section id="how-to-earn" class="mb-20">
+                <div class="text-4xl md:text-5xl font-bold text-center mb-12 brand-blue flex justify-center">
+                    <iframe src="https://drive.google.com/file/d/1boKWXJFsHJqRs8tRS70qN0HM3jWeIshj/preview" width="640"
+                            height="480" allow="autoplay"></iframe>
+                </div>
                 <h2 class="text-4xl md:text-5xl font-bold text-center mb-12 brand-blue">How to Earn Points 🚀</h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div class="card-bg p-8 rounded-2xl shadow-xl hover:shadow-2xl">
