@@ -31,10 +31,11 @@ class TransactionsController extends Controller // Assuming your controller is n
         $validationRules = [
             'description' => 'required|string|max:255',
             'amount' => 'required|numeric|min:0',
-            'user_id' => 'nullable|exists:users,id', // User ID is optional
+            'user_id' => 'required_if:type,expense|exists:users,id', // User ID is required when type is expense
             'currency' =>   'required|string',
             'hours_spent' => 'nullable|numeric|min:0', // Hours spent is optional
             'type' => 'required|in:income,expense,bonus', // Type must be 'income' or 'expense'
+            'transaction_type_id' => 'required|exists:transaction_types,id', // Always required
         ];
 
         // Validate the incoming request data against the defined rules
@@ -50,6 +51,7 @@ class TransactionsController extends Controller // Assuming your controller is n
             'user_id' => $validated['user_id'] ?? null, // Use null if user_id is not provided
             'hours_spent' => $validated['hours_spent'] ?? null, // Use null if hours_spent is not provided
             'type' => $validated['type'],
+            'transaction_type_id' => $validated['transaction_type_id'] ?? null,
         ]);
 
         // Return the newly created transaction as a JSON response with a 201 Created status

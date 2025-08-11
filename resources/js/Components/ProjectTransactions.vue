@@ -7,6 +7,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import BasicPropertyInput from '@/Components/BasicPropertyInput.vue';
 import { success, error } from '@/Utils/notification';
 import { usePermissions, useProjectRole } from '@/Directives/permissions';
 // Import formatCurrency, convertCurrency, conversionRatesToUSD, fetchCurrencyRates, and displayCurrency
@@ -43,6 +44,7 @@ const transactionForm = ref({
     user_id: null,
     hours_spent: '',
     type: 'expense',
+    transaction_type: null, // can be ID or 'new_...'
 });
 
 // Use the imported reactive displayCurrency directly
@@ -57,6 +59,45 @@ const currencyOptions = [
     { value: 'EUR', label: 'EUR' },
     { value: 'GBP', label: 'GBP' },
 ];
+
+// Expendable budget state
+const expendableAmount = ref(null);
+const expendableCurrency = ref('PKR');
+const expendableEdit = ref(false);
+const expendableErrors = ref({});
+
+const fetchExpendableBudget = async () => {
+    try {
+        const { data } = await window.axios.get(`/api/projects/${props.projectId}/expendable-budget`);
+        expendableAmount.value = data.total_expendable_amount;
+        expendableCurrency.value = (data.currency || 'PKR').toUpperCase();
+    } catch (e) {
+        console.error('Error fetching expendable budget', e);
+    }
+};
+
+const saveExpendableBudget = async () => {
+    expendableErrors.value = {};
+    if (expendableAmount.value === null || expendableAmount.value === '' || isNaN(Number(expendableAmount.value)) || Number(expendableAmount.value) < 0) {
+        expendableErrors.value.amount = ['Please enter a valid amount'];
+        return;
+    }
+    try {
+        await window.axios.patch(`/api/projects/${props.projectId}/expendable-budget`, {
+            total_expendable_amount: Number(expendableAmount.value),
+            currency: expendableCurrency.value,
+        });
+        success('Expendable budget updated');
+        expendableEdit.value = false;
+    } catch (e) {
+        if (e.response?.status === 422) {
+            expendableErrors.value = e.response.data.errors || { general: [e.response.data.message] };
+        } else {
+            error('Failed to update expendable budget');
+            console.error(e);
+        }
+    }
+};
 
 // Updated typeOptions to include 'bonus'
 const typeOptions = [
@@ -149,10 +190,25 @@ const saveTransaction = async () => {
     loading.value = true;
 
     try {
+        // Client-side required checks
+        errors.value = {};
+        if (!transactionForm.value.transaction_type) {
+            errors.value.transaction_type_id = ['Transaction Type is required'];
+            return;
+        }
+        if (transactionForm.value.type === 'expense' && !transactionForm.value.user_id) {
+            errors.value.user_id = ['User is required for expense transactions'];
+            return;
+        }
+
         const formData = {
             ...transactionForm.value,
             amount: Number(transactionForm.value.amount),
         };
+        // Normalize field name expected by middleware/controller
+        if (formData.transaction_type !== null && formData.transaction_type !== undefined) {
+            formData.transaction_type = formData.transaction_type; // kept for middleware to translate
+        }
         const response = await window.axios.post(
             `/api/projects/${props.projectId}/transactions`,
             formData
@@ -182,6 +238,7 @@ const resetTransactionForm = () => {
         user_id: null,
         hours_spent: '',
         type: 'expense',
+        transaction_type: null,
     };
 };
 
@@ -403,6 +460,7 @@ onMounted(async () => {
     // Then fetch transactions and users
     fetchTransactions();
     fetchUsers();
+    fetchExpendableBudget();
 });
 
 // Watch for changes in projectId, the global displayCurrency, and conversionRatesToUSD
@@ -452,6 +510,37 @@ watch(currentDisplayCurrency, (newCurrency) => {
                     <div class="p-3 bg-blue-100 rounded-md">
                         <p class="text-sm text-gray-600">Total Income</p>
                         <p class="text-lg font-bold text-blue-800">{{ totalIncome }}</p>
+                    </div>
+                    <!-- Expendable Budget Card -->
+                    <div class="p-3 bg-indigo-100 rounded-md cursor-pointer" @click="expendableEdit = true">
+                        <div class="flex items-center justify-between">
+                            <p class="text-sm text-gray-600">Expendable Budget</p>
+                            <button v-if="expendableEdit" @click.stop="saveExpendableBudget" class="text-indigo-700 hover:text-indigo-900" title="Save">
+                                <!-- Heroicon: Check -->
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3-3a1 1 0 111.414-1.414l2.293 2.293 6.543-6.543a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div v-if="!expendableEdit" class="mt-1">
+                            <p class="text-lg font-bold text-indigo-800">
+                                {{ expendableAmount !== null ? formatCurrency(Number(expendableAmount), expendableCurrency) : 'Not set' }}
+                            </p>
+                            <p v-if="expendableAmount !== null && expendableCurrency.toUpperCase() !== currentDisplayCurrency.toUpperCase()" class="text-xs text-gray-600">
+                                ({{ formatCurrency(convertCurrency(Number(expendableAmount), expendableCurrency, currentDisplayCurrency), currentDisplayCurrency) }})
+                            </p>
+                        </div>
+                        <div v-else class="mt-2 space-y-2">
+                            <div>
+                                <InputLabel for="expendable_amount" value="Amount" />
+                                <TextInput id="expendable_amount" type="number" v-model="expendableAmount" class="mt-1 block w-full" />
+                                <InputError :message="expendableErrors.amount?.[0]" class="mt-1" />
+                            </div>
+                            <div>
+                                <InputLabel for="expendable_currency" value="Currency" />
+                                <SelectDropdown id="expendable_currency" v-model="expendableCurrency" :options="currencyOptions" value-key="value" label-key="label" class="mt-1 block w-full" />
+                            </div>
+                        </div>
                     </div>
                     <div class="p-3 bg-red-100 rounded-md">
                         <p class="text-sm text-gray-600">Total Expenses</p>
@@ -547,6 +636,17 @@ watch(currentDisplayCurrency, (newCurrency) => {
                     />
                     <InputError :message="errors.type?.[0]" class="mt-2" />
                 </div>
+                <div>
+                    <BasicPropertyInput
+                        v-model="transactionForm.transaction_type"
+                        label="Transaction Type"
+                        placeholder="Select or add a transaction type"
+                        :disabled="loading"
+                        :required="true"
+                        search-url="/api/transaction-types/search"
+                    />
+                    <InputError :message="errors.transaction_type_id?.[0]" class="mt-2" />
+                </div>
                 <div v-if="transactionForm.type === 'expense' || transactionForm.type === 'bonus'">
                     <InputLabel for="user_id" value="User" />
                     <SelectDropdown
@@ -605,6 +705,7 @@ watch(currentDisplayCurrency, (newCurrency) => {
                             <p class="text-xs text-gray-500 mt-1">
                                 {{ transaction.type === 'income' ? 'Income' : (transaction.type === 'expense' ? 'Expense' : 'Bonus') }}
                                 on {{ new Date(transaction.created_at).toLocaleDateString() }}
+                                <span v-if="transaction.transaction_type && transaction.transaction_type.name">• Type: {{ transaction.transaction_type.name }}</span>
                             </p>
                         </div>
                         <div class="flex-shrink-0 text-right">

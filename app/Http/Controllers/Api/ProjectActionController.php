@@ -1332,6 +1332,31 @@ class ProjectActionController extends Controller
     }
 
     /**
+     * Update expendable budget for a project (amount and currency)
+     */
+    public function updateExpendableBudget(Request $request, Project $project)
+    {
+        // Authorization aligned with financial operations
+        $this->authorize('manageTransactions', $project);
+
+        $validated = $request->validate([
+            'total_expendable_amount' => 'required|numeric|min:0',
+            'currency' => 'required|string|max:10',
+        ]);
+
+        $project->update([
+            'total_expendable_amount' => $validated['total_expendable_amount'],
+            'currency' => strtoupper($validated['currency']),
+        ]);
+
+        return response()->json([
+            'message' => 'Expendable budget updated successfully',
+            'total_expendable_amount' => $project->total_expendable_amount,
+            'currency' => $project->currency,
+        ]);
+    }
+
+    /**
      * Archive a project (soft delete).
      *
      * @param Project $project

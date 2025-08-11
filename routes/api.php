@@ -125,6 +125,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('projects/{project}/sections/clients', [ProjectReadController::class, 'getClientsAndUsers']);
     Route::get('projects/{project}/sections/users', [ProjectReadController::class, 'getClientsAndUsers']);
     Route::get('projects/{project}/sections/services-payment', [ProjectReadController::class, 'getServicesAndPayment']);
+    Route::get('projects/{project}/expendable-budget', [ProjectReadController::class, 'getExpendableBudget']);
     Route::get('projects/{project}/sections/transactions', [ProjectReadController::class, 'getTransactions']);
     Route::get('projects/{project}/sections/documents', [ProjectReadController::class, 'getDocuments']);
     Route::get('projects/{project}/sections/notes', [ProjectReadController::class, 'getNotes']); // Re-uses getNotes
@@ -140,7 +141,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('projects/{project}/detach-users', [ProjectActionController::class, 'detachUsers'])->name('projects.detach-users');
     Route::post('projects/{project}/attach-clients', [ProjectActionController::class, 'attachClients'])->name('projects.attach-clients');
     Route::post('projects/{project}/detach-clients', [ProjectActionController::class, 'detach-clients']);
-    Route::post('projects/{project}/transactions', [\App\Http\Controllers\Api\TransactionsController::class, 'addTransactions']);
+    Route::post('projects/{project}/transactions', [\App\Http\Controllers\Api\TransactionsController::class, 'addTransactions'])->middleware('process.basic:transaction_type,App\\Models\\TransactionType');
     Route::patch('projects/{project}/transactions/{transaction}/process-payment', [\App\Http\Controllers\Api\TransactionsController::class, 'processPayment']);
     Route::post('projects/{project}/notes', [ProjectActionController::class, 'addNotes']);
     Route::post('projects/{project}/notes/{note}/reply', [ProjectActionController::class, 'replyToNote']);
@@ -151,6 +152,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects/{project}/meetings', [ProjectActionController::class, 'createProjectMeeting']);
     Route::delete('/projects/{project}/meetings/{googleEventId}', [ProjectActionController::class, 'deleteProjectMeeting']);
     Route::patch('projects/{project}/convert-payment-type', [ProjectActionController::class, 'convertPaymentType']); // Moved PATCH route
+    Route::patch('projects/{project}/expendable-budget', [ProjectActionController::class, 'updateExpendableBudget']);
     Route::post('projects/{project}/archive', [ProjectActionController::class, 'archive']);
     Route::post('projects/{id}/restore', [ProjectActionController::class, 'restore']);
 
@@ -278,6 +280,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Task Type Routes
     Route::apiResource('task-types', TaskTypeController::class);
+
+    // Transaction Types Routes (index, store, search)
+    Route::get('transaction-types', [\App\Http\Controllers\Api\TransactionTypeController::class, 'index']);
+    Route::post('transaction-types', [\App\Http\Controllers\Api\TransactionTypeController::class, 'store']);
+    Route::get('transaction-types/search', [\App\Http\Controllers\Api\TransactionTypeController::class, 'search']);
 
     // Availability Management Routes
     Route::apiResource('availabilities', AvailabilityController::class);

@@ -26,6 +26,8 @@ class Project extends Model
         'service_details',
         'source',
         'total_amount',
+        'total_expendable_amount',
+        'currency',
         'contract_details',
         'google_drive_link',
         'google_drive_folder_id',
@@ -43,6 +45,7 @@ class Project extends Model
         'services' => 'array',
         'service_details' => 'array',
         'total_amount' => 'decimal:2',
+        'total_expendable_amount' => 'decimal:2',
         'payment_type' => 'string',
         'documents' => 'array',
     ];

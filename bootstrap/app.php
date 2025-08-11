@@ -29,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth.magiclink' => \App\Http\Middleware\VerifyMagicLinkToken::class,
             'process.tags' => \App\Http\Middleware\ProcessTags::class,
             'google.chat.auth' => \App\Http\Middleware\AuthenticateGoogleChat::class,
+            'process.basic' =>  \App\Http\Middleware\ProcessBasicProperty::class
         ]);
 
         //

@@ -319,8 +319,28 @@ class ProjectReadController extends Controller
             'services' => $project->services,
             'service_details' => $project->service_details,
             'total_amount' => $project->total_amount,
+            'total_expendable_amount' => $project->total_expendable_amount,
+            'currency' => $project->currency,
             'payment_type' => $project->payment_type,
             'contract_details' => $this->canViewClientFinancial($user, $project) ? $project->contract_details : null,
+        ]);
+    }
+
+    /**
+     * Get expendable budget for a project (amount and currency)
+     */
+    public function getExpendableBudget(Project $project)
+    {
+        $user = Auth::user();
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
+        }
+        if (!$this->canViewProjectServicesAndPayments($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to view financial information.'], 403);
+        }
+        return response()->json([
+            'total_expendable_amount' => $project->total_expendable_amount,
+            'currency' => $project->currency,
         ]);
     }
 
@@ -344,7 +364,7 @@ class ProjectReadController extends Controller
         }
 
         // Start building the query for transactions
-        $transactionsQuery = $project->transactions();
+        $transactionsQuery = $project->transactions()->with('transactionType');
 
         // Apply user_id filter if present in the request
         if ($userId) {
