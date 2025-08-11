@@ -1,40 +1,95 @@
 <template>
-    <div class="fixed top-4 right-4 z-[100] flex flex-col items-end space-y-3">
-        <!-- Standard toast notifications are stacked here -->
-        <div
-            v-for="notification in notifications"
-            :key="notification.id"
-            class="w-full max-w-sm rounded-md shadow-lg pointer-events-auto overflow-hidden"
-            :class="notificationTypeClass(notification.type)"
-        >
-            <div class="p-4">
-                <p class="text-sm font-medium text-white">
-                    {{ notification.message }}
-                </p>
-                <div v-if="notification.confirm" class="mt-3 flex gap-2">
-                    <button
-                        class="px-3 py-1 text-sm font-semibold rounded bg-white/90 text-slate-800 hover:bg-white"
-                        @click="handleConfirm(notification.id)"
-                    >
-                        {{ notification.confirm.confirmText || 'Confirm' }}
-                    </button>
-                    <button
-                        class="px-3 py-1 text-sm font-semibold rounded bg-transparent border border-white/70 text-white hover:bg-white/10"
-                        @click="handleCancel(notification.id)"
-                    >
-                        {{ notification.confirm.cancelText || 'Cancel' }}
-                    </button>
+    <template v-if="teleportTarget">
+        <Teleport :to="teleportTarget">
+            <div class="fixed top-4 right-4 z-[9999] flex flex-col items-end space-y-3">
+                <!-- Standard toast notifications are stacked here -->
+                <div
+                    v-for="notification in notifications"
+                    :key="notification.id"
+                    class="w-full max-w-sm rounded-md shadow-lg pointer-events-auto overflow-hidden"
+                    :class="notificationTypeClass(notification.type)"
+                >
+                    <div class="p-4">
+                        <p class="text-sm font-medium text-white">
+                            {{ notification.message }}
+                        </p>
+                        <div v-if="notification.confirm" class="mt-3 flex gap-2">
+                            <button
+                                class="px-3 py-1 text-sm font-semibold rounded bg-white/90 text-slate-800 hover:bg-white"
+                                @click="handleConfirm(notification.id)"
+                            >
+                                {{ notification.confirm.confirmText || 'Confirm' }}
+                            </button>
+                            <button
+                                class="px-3 py-1 text-sm font-semibold rounded bg-transparent border border-white/70 text-white hover:bg-white/10"
+                                @click="handleCancel(notification.id)"
+                            >
+                                {{ notification.confirm.cancelText || 'Cancel' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+    </template>
+    <template v-else>
+        <div class="fixed top-4 right-4 z-[9999] flex flex-col items-end space-y-3">
+            <!-- Standard toast notifications are stacked here -->
+            <div
+                v-for="notification in notifications"
+                :key="notification.id"
+                class="w-full max-w-sm rounded-md shadow-lg pointer-events-auto overflow-hidden"
+                :class="notificationTypeClass(notification.type)"
+            >
+                <div class="p-4">
+                    <p class="text-sm font-medium text-white">
+                        {{ notification.message }}
+                    </p>
+                    <div v-if="notification.confirm" class="mt-3 flex gap-2">
+                        <button
+                            class="px-3 py-1 text-sm font-semibold rounded bg-white/90 text-slate-800 hover:bg-white"
+                            @click="handleConfirm(notification.id)"
+                        >
+                            {{ notification.confirm.confirmText || 'Confirm' }}
+                        </button>
+                        <button
+                            class="px-3 py-1 text-sm font-semibold rounded bg-transparent border border-white/70 text-white hover:bg-white/10"
+                            @click="handleCancel(notification.id)"
+                        >
+                            {{ notification.confirm.cancelText || 'Cancel' }}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    </template>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 
 // Local state for toast notifications
 const notifications = ref([]);
+
+// Track a teleport target inside any open modal dialog
+const teleportTarget = ref('');
+let observer = null;
+
+const updateTeleportTarget = () => {
+    const targetEl = document.getElementById('modal-notification-portal');
+    teleportTarget.value = targetEl ? '#modal-notification-portal' : '';
+};
+
+onMounted(() => {
+    updateTeleportTarget();
+    // Observe DOM changes to detect when modals open/close
+    observer = new MutationObserver(updateTeleportTarget);
+    observer.observe(document.body, { childList: true, subtree: true });
+});
+
+onUnmounted(() => {
+    if (observer) observer.disconnect();
+});
 
 /**
  * Adds a new standard or confirm notification to the list.
