@@ -221,6 +221,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Leaderboard Routes
     Route::get('leaderboard/monthly', [\App\Http\Controllers\Api\LeaderboardController::class, 'monthly']);
+    Route::get('leaderboard/stats', [\App\Http\Controllers\Api\LeaderboardController::class, 'stats']);
 
     Route::apiResource('users', UserController::class);
 
