@@ -276,10 +276,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // Milestone Management Routes
     Route::apiResource('milestones', MilestoneController::class);
     Route::post('milestones/{milestone}/complete', [MilestoneController::class, 'markAsCompleted']);
+    Route::post('milestones/{milestone}/approve', [MilestoneController::class, 'approve']);
+    Route::post('milestones/{milestone}/reopen', [MilestoneController::class, 'reopen']);
     Route::post('milestones/{milestone}/start', [MilestoneController::class, 'start']);
 
     // Project-specific Task Management Routes
     Route::get('projects/{project}/milestones', [MilestoneController::class, 'index']);
+    Route::get('projects/{project}/milestones-with-expendables', [MilestoneController::class, 'milestonesWithExpendables']);
     Route::post('projects/{project}/milestones', [MilestoneController::class, 'store']);
 
     // Task Type Routes

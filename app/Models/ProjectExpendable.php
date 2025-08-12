@@ -40,7 +40,7 @@ class ProjectExpendable extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function expandable()
+    public function expendable()
     {
         return $this->morphTo();
     }

@@ -54,6 +54,25 @@ class MilestoneController extends Controller
     }
 
     /**
+     * Get milestones with their expendables for a project.
+     */
+    public function milestonesWithExpendables(Project $project)
+    {
+        $milestones = $project->milestones()
+            ->with(['expendable'])
+            ->orderBy('completion_date', 'asc')
+            ->get()
+            ->map(function ($m) {
+                $total = $m->expendable->sum('amount');
+                return array_merge($m->toArray(), [
+                    'expendables_total' => $total,
+                ]);
+            });
+
+        return response()->json($milestones);
+    }
+
+    /**
      * Store a newly created resource in storage.
      *
      * @param Request $request
@@ -141,9 +160,27 @@ class MilestoneController extends Controller
      * @param Milestone $milestone
      * @return \Illuminate\Http\JsonResponse
      */
-    public function markAsCompleted(Milestone $milestone)
+    public function markAsCompleted(Request $request, Milestone $milestone)
     {
-        $milestone->markAsCompleted();
+        $validated = $request->validate([
+            'review' => 'required|string',
+        ]);
+
+        // Update milestone status and timestamps
+        $milestone->status = 'Completed';
+        $milestone->actual_completion_date = now();
+        $milestone->mark_completed_at = now();
+        $milestone->save();
+
+        // Create a project note of type 'milestone' and notify
+        $milestone->load('project');
+        if ($milestone->project) {
+            $content = "Milestone '{$milestone->name}' marked complete. Review: " . $validated['review'];
+            \App\Models\ProjectNote::createAndNotify($milestone->project, $content, [
+                'type' => 'milestone',
+                'noteable' => $milestone,
+            ]);
+        }
 
         // Load relationships
         $milestone->load(['tasks']);
@@ -164,6 +201,30 @@ class MilestoneController extends Controller
         // Load relationships
         $milestone->load(['tasks']);
 
+        return response()->json($milestone);
+    }
+
+    /**
+     * Approve a completed milestone.
+     */
+    public function approve(Milestone $milestone)
+    {
+        $milestone->approved_at = now();
+        $milestone->save();
+        $milestone->load('tasks');
+        return response()->json($milestone);
+    }
+
+    /**
+     * Reopen a milestone back to active state.
+     */
+    public function reopen(Milestone $milestone)
+    {
+        $milestone->status = 'In Progress';
+        $milestone->approved_at = null;
+        $milestone->mark_completed_at = null;
+        $milestone->save();
+        $milestone->load('tasks');
         return response()->json($milestone);
     }
 }

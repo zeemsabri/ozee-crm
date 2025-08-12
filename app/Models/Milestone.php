@@ -20,6 +20,8 @@ class Milestone extends Model
         'description',
         'completion_date',
         'actual_completion_date',
+        'mark_completed_at',
+        'approved_at',
         'status',
         'project_id',
     ];
@@ -32,6 +34,8 @@ class Milestone extends Model
     protected $casts = [
         'completion_date' => 'date',
         'actual_completion_date' => 'date',
+        'mark_completed_at' => 'datetime',
+        'approved_at' => 'datetime',
     ];
 
     /**
@@ -108,5 +112,13 @@ class Milestone extends Model
     public function expendable()
     {
         return $this->morphMany(ProjectExpendable::class, 'expandable');
+    }
+
+    /**
+     * Notes associated with this milestone.
+     */
+    public function notes()
+    {
+        return $this->morphMany(ProjectNote::class, 'noteable');
     }
 }

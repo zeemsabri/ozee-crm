@@ -12,6 +12,56 @@ use App\Models\Traits\Taggable;
 
 class ProjectNote extends Model
 {
+    /**
+     * Create a project note (optionally attached to a noteable) and send to Google Chat automatically.
+     *
+     * @param \App\Models\Project $project
+     * @param string $content
+     * @param array $options ['type' => string, 'noteable' => Model|null]
+     * @return static
+     */
+    public static function createAndNotify(Project $project, string $content, array $options = [])
+    {
+        $type = $options['type'] ?? 'note';
+        $noteable = $options['noteable'] ?? null;
+
+        $attributes = [
+            'project_id' => $project->id,
+            'content' => $content,
+            'user_id' => Auth::id(),
+            'type' => $type,
+        ];
+
+        if ($noteable) {
+            $attributes['noteable_id'] = $noteable->getKey();
+            $attributes['noteable_type'] = get_class($noteable);
+        }
+
+        /** @var ProjectNote $createdNote */
+        $createdNote = static::create($attributes);
+
+        // Try sending to Google Chat if space available
+        if ($project->google_chat_id) {
+            try {
+                $user = Auth::user();
+                $prefix = '📝';
+                if ($type === 'standup') $prefix = '🏃‍♂️';
+                if ($type === 'milestone') $prefix = '📌';
+                $messageText = "$prefix *{$user?->name}*: " . $content;
+                $chatService = app(\App\Services\GoogleChatService::class);
+                $response = $chatService->sendMessage($project->google_chat_id, $messageText);
+                $createdNote->chat_message_id = $response['name'] ?? null;
+                $createdNote->save();
+            } catch (\Exception $e) {
+                \Log::error('Failed to send note to Google Chat', [
+                    'project_id' => $project->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $createdNote;
+    }
     use HasFactory, Taggable;
 
     const STANDUP = 'standup';

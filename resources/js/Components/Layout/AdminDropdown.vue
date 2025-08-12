@@ -76,6 +76,7 @@ const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_proje
                                 <DropdownLink v-if="canDo('manage_permissions')" :href="route('admin.permissions.index')" class="!px-2 !py-1.5">Manage Permissions</DropdownLink>
                                 <DropdownLink v-if="canDo('manage_monthly_budgets')" href="/admin/monthly-budgets" class="!px-2 !py-1.5">Monthly Budgets</DropdownLink>
                                 <DropdownLink v-if="canDo('view_monthly_budgets')" href="/admin/bonus-calculator" class="!px-2 !py-1.5">Bonus Calculator</DropdownLink>
+                                <DropdownLink v-if="canDo('manage_projects')" :href="route('admin.project-expendables.index')" class="!px-2 !py-1.5">Project Expendables</DropdownLink>
                             </div>
                         </div>
                     </div>

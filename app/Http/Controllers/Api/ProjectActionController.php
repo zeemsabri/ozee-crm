@@ -561,23 +561,8 @@ class ProjectActionController extends Controller
 
         $notes = [];
         foreach ($validated['notes'] as $note) {
-            $createdNote = $project->notes()->create([
-                'content' =>$note['content'],
-                'user_id' => Auth::id(),
-            ]);
+            $createdNote = ProjectNote::createAndNotify($project, $note['content'], ['type' => 'note']);
             $notes[] = $createdNote;
-
-            if ($project->google_chat_id) {
-                try {
-                    $messageText = "📝 *{$user->name}*: " . $note['content'];
-                    $response = $this->googleChatService->sendMessage($project->google_chat_id, $messageText);
-                    $createdNote->chat_message_id = $response['name'] ?? null;
-                    $createdNote->save();
-                    Log::info('Sent note notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'user_id' => $user->id, 'chat_message_id' => $response['name'] ?? null]);
-                } catch (\Exception $e) {
-                    Log::error('Failed to send note notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
-                }
-            }
         }
 
         return response()->json($notes, 201);

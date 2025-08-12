@@ -186,6 +186,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
             ->middleware(['permission:view_monthly_budgets'])
             ->name('monthly-budgets.index');
 
+        // Project Expendables Page
+        Route::get('/project-expendables', function () {
+            return Inertia::render('Admin/ProjectExpendables/Index');
+        })->name('project-expendables.index')->middleware('permission:manage_projects');
+
         // The following routes require manage_monthly_budgets permission
         Route::post('/monthly-budgets', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'store'])
             ->middleware(['permission:manage_monthly_budgets'])
