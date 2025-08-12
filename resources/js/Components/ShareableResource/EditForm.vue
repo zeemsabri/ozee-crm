@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import BaseFormModal from '@/Components/BaseFormModal.vue'; // Adjust path if necessary
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -62,9 +62,20 @@ const populateForm = () => {
         form.type = props.resource.type || 'website';
         form.thumbnail_url = props.resource.thumbnail_url || '';
         form.visible_to_client = props.resource.visible_to_client !== undefined ? props.resource.visible_to_client : true;
-        form.tags = props.resource.tags || [];
+        // Initialize tags v-model as array of IDs/new_* strings and pass full objects via initialTags prop
+        const incomingTags = props.resource.tags || [];
+        form.tags = Array.isArray(incomingTags) ? incomingTags.map(t => (typeof t === 'object' && t !== null ? t.id : t)).filter(v => v !== undefined && v !== null) : [];
     }
 };
+
+// Watch for changes in the incoming resource and repopulate the form
+watch(
+    () => props.resource,
+    () => {
+        populateForm();
+    },
+    { immediate: true, deep: true }
+);
 
 /**
  * Formats the data before sending it to the API.
@@ -75,7 +86,19 @@ const populateForm = () => {
  * @returns {Object} The formatted data ready for API submission.
  */
 const formatDataForApi = (data) => {
-    return data;
+    // Build payload similar to ProjectEditBasicInfo approach: send ids via 'tags' and also 'tag_ids'
+    const tagIds = Array.isArray(data.tags) ? data.tags : [];
+    return {
+        title: data.title,
+        description: data.description,
+        url: data.url,
+        type: data.type,
+        thumbnail_url: data.thumbnail_url,
+        visible_to_client: data.visible_to_client,
+        // Provide both keys to be safe across controllers/middleware
+        tags: tagIds,
+        tag_ids: tagIds,
+    };
 };
 
 /**
@@ -183,6 +206,7 @@ const handleClose = () => {
                 <div>
                     <TagInput
                         v-model="form.tags"
+                        :initialTags="props.resource?.tags || []"
                         label="Associated Tags"
                         placeholder="Search or add tags"
                         :error="errors.tags ? errors.tags[0] : ''"

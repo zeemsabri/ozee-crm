@@ -58,6 +58,9 @@ const canAccessClients = canDo('create_clients');
                 <DropdownLink v-if="canManageTaskTypes" :href="route('task-types.index')" :active="route().current('task-types.index')">
                     Task Types
                 </DropdownLink>
+                <DropdownLink v-if="canDo('view_shareable_resources')" :href="route('shareable-resources.index')" :active="route().current('shareable-resources.index')">
+                    Shareable Resources
+                </DropdownLink>
                 <DropdownLink v-if="canDo('manage_bonus_configuration')" :href="route('bonus-configuration.index')" :active="route().current('bonus-configuration.index')">
                     Bonus Configuration
                 </DropdownLink>
