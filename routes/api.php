@@ -157,6 +157,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('projects/{project}/expendable-budget', [ProjectActionController::class, 'updateExpendableBudget']);
     Route::post('projects/{project}/archive', [ProjectActionController::class, 'archive']);
     Route::post('projects/{project}/expendables', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'store']);
+    Route::put('projects/{project}/expendables/{expendable}', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'update']);
+    Route::post('projects/{project}/expendables/{expendable}/accept', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'accept']);
+    Route::post('projects/{project}/expendables/{expendable}/reject', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'reject']);
     Route::delete('projects/{project}/expendables/{expendable}', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'destroy']);
     Route::post('projects/{id}/restore', [ProjectActionController::class, 'restore']);
 

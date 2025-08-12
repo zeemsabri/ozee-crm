@@ -740,7 +740,7 @@ class Task extends Model
 
     public function expendable()
     {
-        return $this->morphMany(ProjectExpendable::class, 'expandable');
+        return $this->morphMany(ProjectExpendable::class, 'expendable');
     }
 
     /**

@@ -59,7 +59,9 @@ class MilestoneController extends Controller
     public function milestonesWithExpendables(Project $project)
     {
         $milestones = $project->milestones()
-            ->with(['expendable'])
+            ->with(['expendable', 'expendable.user' => function ($q) {
+                $q->select('id', 'name');
+            }, 'budget'])
             ->orderBy('completion_date', 'asc')
             ->get()
             ->map(function ($m) {
@@ -163,19 +165,18 @@ class MilestoneController extends Controller
     public function markAsCompleted(Request $request, Milestone $milestone)
     {
         $validated = $request->validate([
-            'review' => 'required|string',
+            'reason' => 'required|string|min:100',
         ]);
 
         // Update milestone status and timestamps
         $milestone->status = 'Completed';
-        $milestone->actual_completion_date = now();
-        $milestone->mark_completed_at = now();
+        $milestone->completed_at = now();
         $milestone->save();
 
         // Create a project note of type 'milestone' and notify
         $milestone->load('project');
         if ($milestone->project) {
-            $content = "Milestone '{$milestone->name}' marked complete. Review: " . $validated['review'];
+            $content = "Milestone '{$milestone->name}' marked complete. Review: " . $validated['reason'];
             \App\Models\ProjectNote::createAndNotify($milestone->project, $content, [
                 'type' => 'milestone',
                 'noteable' => $milestone,
@@ -209,7 +210,8 @@ class MilestoneController extends Controller
      */
     public function approve(Milestone $milestone)
     {
-        $milestone->approved_at = now();
+        $milestone->actual_completion_date = now();
+        $milestone->status = Milestone::APPROVED;
         $milestone->save();
         $milestone->load('tasks');
         return response()->json($milestone);
@@ -220,9 +222,8 @@ class MilestoneController extends Controller
      */
     public function reopen(Milestone $milestone)
     {
-        $milestone->status = 'In Progress';
-        $milestone->approved_at = null;
-        $milestone->mark_completed_at = null;
+        $milestone->status = Milestone::IN_PROGRESS;
+        $milestone->completed_at = null;
         $milestone->save();
         $milestone->load('tasks');
         return response()->json($milestone);

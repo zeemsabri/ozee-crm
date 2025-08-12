@@ -28,10 +28,10 @@ return new class extends Migration
             $table->decimal('balance', 15, 2)->default(0);
 
             // Status
-            $table->string('status');
+            $table->string('status')->default('Pending Approval');
 
             // Polymorphic relationship to any model
-            $table->morphs('expendable'); // creates expandable_id and expandable_type with index
+            $table->morphs('expendable'); // creates expendable_id and expendable_type with index
 
             $table->timestamps();
             $table->softDeletes();

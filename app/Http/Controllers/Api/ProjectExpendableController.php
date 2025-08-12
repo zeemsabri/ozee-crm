@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
+use App\Http\Controllers\Api\Concerns\HasFinancialCalculations;
 use App\Http\Controllers\Controller;
+use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectExpendable;
 use Illuminate\Http\Request;
@@ -11,7 +13,7 @@ use Illuminate\Support\Facades\Auth;
 
 class ProjectExpendableController extends Controller
 {
-    use HasProjectPermissions;
+    use HasProjectPermissions, HasFinancialCalculations;
 
     public function index(Project $project)
     {
@@ -39,34 +41,226 @@ class ProjectExpendableController extends Controller
             'description' => 'nullable|string',
             'amount' => 'required|numeric|min:0',
             'currency' => 'required|string|max:10',
-            'status' => 'nullable|string|max:50',
-            'expandable_id' => 'nullable|integer',
-            'expandable_type' => 'nullable|string|max:255',
+            'user_id' => 'nullable|exists:users,id',
+            'expendable_id' => 'nullable|integer',
+            'expendable_type' => 'nullable|string|in:Project,Milestone,Task',
         ]);
 
-        $expendable = $project->expendable()->create([
+        // Determine target model for morph relation
+        $target = null;
+        if (!empty($validated['expendable_type']) && !empty($validated['expendable_id'])) {
+            switch ($validated['expendable_type']) {
+                case 'Milestone':
+                    $target = Milestone::where('id', $validated['expendable_id'])
+                        ->where('project_id', $project->id)
+                        ->firstOrFail();
+                    break;
+                case 'Project':
+                    $target = $project; // attach to project directly
+                    break;
+                default:
+                    $target = $project; // fallback
+            }
+        } else {
+            $target = $project; // default attach to project
+        }
+
+        $payload = [
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
             'project_id' => $project->id,
-            'user_id' => $user->id,
+            // Preserve explicit null for milestone budget and only set when provided
+            'user_id' => array_key_exists('user_id', $validated) ? $validated['user_id'] : null,
             'currency' => strtoupper($validated['currency']),
             'amount' => $validated['amount'],
             'balance' => $validated['amount'],
-            'status' => $validated['status'] ?? 'active'
-        ]);
+            'status' => \App\Models\ProjectExpendable::STATUS_PENDING,
+        ];
+
+        $expendable = $target->expendable()->create($payload);
 
         return response()->json($expendable, 201);
     }
 
-    public function destroy(Project $project, ProjectExpendable $expendable)
+    public function update(Request $request, Project $project, ProjectExpendable $expendable)
     {
         $user = Auth::user();
         if (!$this->canAccessProject($user, $project) || !$this->canManageProjectExpendable($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have permission to delete expendables.'], 403);
+            return response()->json(['message' => 'Unauthorized. You do not have permission to update expendables.'], 403);
         }
 
         if ($expendable->project_id !== $project->id) {
             return response()->json(['message' => 'Expendable does not belong to this project.'], 400);
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'amount' => 'required|numeric|min:0',
+            'currency' => 'required|string|max:10',
+            'user_id' => 'nullable|exists:users,id',
+            'expendable_id' => 'nullable|integer',
+            'expendable_type' => 'nullable|string|in:Project,Milestone,Task',
+        ]);
+
+        // Do not allow changing the owner relationship via update (safety): keep existing expendable_id/type.
+        // However, for milestone budget updates, ensure user_id remains null.
+        $updates = [
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'currency' => strtoupper($validated['currency']),
+            'amount' => $validated['amount'],
+            'balance' => $validated['amount'],
+        ];
+
+        // Only update user_id if explicitly present in the payload; budget updates pass user_id as null explicitly
+        if (array_key_exists('user_id', $validated)) {
+            $updates['user_id'] = $validated['user_id'];
+        }
+
+        $expendable->update($updates);
+
+        return response()->json($expendable->fresh());
+    }
+
+    public function accept(Request $request, Project $project, ProjectExpendable $expendable)
+    {
+        $user = Auth::user();
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        if ($expendable->project_id !== $project->id) {
+            return response()->json(['message' => 'Expendable does not belong to this project.'], 400);
+        }
+
+        $data = $request->validate([
+            'reason' => 'required|string|max:500',
+        ]);
+
+        // Permission: approve_milestone_expendables for user-bound milestone expendables
+        //             approve_expendables for budgets (user_id null) or project-level expendables
+        $isMilestone = $expendable->expendable_type === 'App\\Models\\Milestone' || $expendable->expendable_type === 'Milestone';
+        $isUserBound = !is_null($expendable->user_id);
+
+        if ($isMilestone && $isUserBound) {
+            if (!($user->isSuperAdmin() || $user->hasPermission('approve_milestone_expendables'))) {
+                return response()->json(['message' => 'Unauthorized. You do not have permission to approve milestone expendables.'], 403);
+            }
+            // Enforce milestone budget: approved user-bound expendables must not exceed milestone budget
+            $milestone = $expendable->expendable()->first();
+            if (!$milestone) {
+                return response()->json(['message' => 'Invalid expendable: parent milestone not found.'], 400);
+            }
+            // Get approved milestone budget (user_id null and status Accepted)
+            $budgetItem = $milestone->budget;
+
+            if (!$budgetItem) {
+                return response()->json(['message' => 'No approved milestone budget found. Approve a milestone budget first.'], 422);
+            }
+            // Sum of already accepted user-bound expendables for this milestone
+            $approvedItems = $milestone->expendable()
+                ->where('status', ProjectExpendable::STATUS_ACCEPTED)
+                ->get();
+
+            $approvedTotalInBudgetCurrency = 0.0;
+            foreach ($approvedItems as $item) {
+                $approvedTotalInBudgetCurrency += $this->convertCurrency((float)$item->amount, $item->currency, $budgetItem->currency);
+            }
+            $currentAmountInBudgetCurrency = $this->convertCurrency((float)$expendable->amount, $expendable->currency, $budgetItem->currency);
+            $newTotal = round($approvedTotalInBudgetCurrency + $currentAmountInBudgetCurrency, 2);
+
+            if ($newTotal > (float)$budgetItem->amount + 0.00001) {
+                return response()->json(['message' => 'Approval would exceed the milestone budget.', 'approved_total' => $approvedTotalInBudgetCurrency, 'budget' => (float)$budgetItem->amount], 422);
+            }
+        } else {
+            // For budgets (user_id null) and project-level expendables, require approve_expendables
+            if (!($user->isSuperAdmin() || $user->hasPermission('approve_expendables'))) {
+                return response()->json(['message' => 'Unauthorized. You do not have permission to approve expendables.'], 403);
+            }
+
+            // If approving a milestone budget, ensure it doesn't exceed remaining project budget
+            if ($isMilestone && is_null($expendable->user_id)) {
+                $projectBudgetAmount = (float) ($project->total_expendable_amount ?? 0);
+                $projectBudgetCurrency = strtoupper($project->currency ?? 'USD');
+                if ($projectBudgetAmount <= 0) {
+                    return response()->json(['message' => 'Project expendable budget is not set.'], 422);
+                }
+                // Sum of accepted milestone budgets across project
+                $acceptedMilestoneBudgets = ProjectExpendable::where('project_id', $project->id)
+                    ->whereNull('user_id')
+                    ->where('expendable_type', 'App\\Models\\Milestone')
+                    ->get();
+                $acceptedBudgetsTotal = 0.0;
+                foreach ($acceptedMilestoneBudgets as $b) {
+                    $acceptedBudgetsTotal += $this->convertCurrency((float)$b->amount, $b->currency, $projectBudgetCurrency);
+                }
+                $pendingBudgetInProjectCurrency = $this->convertCurrency((float)$expendable->amount, $expendable->currency, $projectBudgetCurrency);
+                if ($acceptedBudgetsTotal + $pendingBudgetInProjectCurrency > $projectBudgetAmount + 0.00001) {
+                    return response()->json(['message' => 'Milestone budget exceeds the total project expendable budget.', 'project_budget' => $projectBudgetAmount], 422);
+                }
+            }
+        }
+
+        $expendable->accept($data['reason'], $user);
+        return response()->json($expendable->fresh());
+    }
+
+    public function reject(Request $request, Project $project, ProjectExpendable $expendable)
+    {
+        $user = Auth::user();
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        if ($expendable->project_id !== $project->id) {
+            return response()->json(['message' => 'Expendable does not belong to this project.'], 400);
+        }
+
+        $data = $request->validate([
+            'reason' => 'required|string|max:500',
+        ]);
+
+        $isMilestone = $expendable->expendable_type === 'App\\Models\\Milestone' || $expendable->expendable_type === 'Milestone';
+        $isUserBound = !is_null($expendable->user_id);
+        if ($isMilestone && $isUserBound) {
+            if (!($user->isSuperAdmin() || $user->hasPermission('approve_milestone_expendables'))) {
+                return response()->json(['message' => 'Unauthorized. You do not have permission to reject milestone expendables.'], 403);
+            }
+        } else {
+            if (!($user->isSuperAdmin() || $user->hasPermission('approve_expendables'))) {
+                return response()->json(['message' => 'Unauthorized. You do not have permission to reject expendables.'], 403);
+            }
+        }
+
+        $expendable->reject($data['reason'], $user);
+        return response()->json($expendable->fresh());
+    }
+
+    public function destroy(Request $request, Project $project, ProjectExpendable $expendable)
+    {
+        $user = Auth::user();
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        if ($expendable->project_id !== $project->id) {
+            return response()->json(['message' => 'Expendable does not belong to this project.'], 400);
+        }
+
+        // Any authenticated user can delete a rejected expendable
+        if ($expendable->status !== ProjectExpendable::STATUS_REJECTED) {
+            return response()->json(['message' => 'Only rejected expendables can be deleted.'], 422);
+        }
+
+        $reason = $request->input('reason');
+        if ($reason) {
+            activity('project_expendable')
+                ->performedOn($expendable)
+                ->causedBy($user)
+                ->withProperties(['reason' => $reason, 'status' => 'deleted'])
+                ->event('expendable.deleted')
+                ->log("Expendable '{$expendable->name}' deleted");
         }
 
         $expendable->delete();

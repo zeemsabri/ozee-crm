@@ -339,8 +339,8 @@ class ProjectReadController extends Controller
             return response()->json(['message' => 'Unauthorized. You do not have permission to view financial information.'], 403);
         }
         return response()->json([
-            'total_expendable_amount' => $project->total_expendable_amount,
-            'currency' => $project->currency,
+            'total_expendable_amount' => $project->remaining_spendables,
+            'currency' => 'AUD',
         ]);
     }
 

@@ -10,6 +10,17 @@ class Milestone extends Model
 {
     use HasFactory, Taggable;
 
+    const PENDING = 'pending';
+    const APPROVED = 'approved';
+    const REJECTED = 'rejected';
+    const COMPLETED = 'completed';
+    const IN_PROGRESS = 'in progress';
+    const OVERDUE = 'overdue';
+    const CANCELED = 'canceled';
+    const EXPIRED = 'expired';
+    const PENDING_APPROVAL = 'pending approval';
+    const PENDING_REVIEW = 'pending review';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -20,7 +31,7 @@ class Milestone extends Model
         'description',
         'completion_date',
         'actual_completion_date',
-        'mark_completed_at',
+        'completed_at',
         'approved_at',
         'status',
         'project_id',
@@ -107,11 +118,16 @@ class Milestone extends Model
     }
 
     /**
-     * Expandable items related to this milestone (polymorphic).
+     * Expendable items related to this milestone (polymorphic).
      */
     public function expendable()
     {
-        return $this->morphMany(ProjectExpendable::class, 'expandable');
+        return $this->morphMany(ProjectExpendable::class, 'expendable')->whereNotNull('user_id');
+    }
+
+    public function budget()
+    {
+        return $this->morphOne(ProjectExpendable::class, 'expendable')->whereNull('user_id');
     }
 
     /**
