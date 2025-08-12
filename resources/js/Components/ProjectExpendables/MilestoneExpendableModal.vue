@@ -18,6 +18,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    isUserSelectionRequired: {
+        type: Boolean,
+        default: false,
+    },
     projectTotalBudget: Number,
     projectBudgetCurrency: String,
     milestoneStats: Object,
@@ -67,6 +71,12 @@ const validateForm = () => {
     if (!form.value.amount || Number(form.value.amount) <= 0) {
         errors.value.amount = errors.value.amount || [];
         errors.value.amount.push('Amount must be a positive number.');
+        hasError = true;
+    }
+
+    // New validation check for user selection
+    if (props.isUserSelectionRequired && !form.value.user_id) {
+        errors.value.user_id = ['User selection is required for contracts.'];
         hasError = true;
     }
 

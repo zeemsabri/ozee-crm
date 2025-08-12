@@ -75,6 +75,27 @@ class MilestoneController extends Controller
     }
 
     /**
+     * List reasons (notes) attached to a milestone in descending order.
+     */
+    public function reasons(Milestone $milestone)
+    {
+        $notes = $milestone->notes()
+            ->where('type', 'milestone')
+            ->latest()
+            ->get(['id', 'content', 'created_at', 'creator_id', 'creator_type', 'user_id'])
+            ->map(function ($n) {
+                return [
+                    'id' => $n->id,
+                    'content' => $n->content, // decrypted via accessor
+                    'created_at' => $n->created_at,
+                    'creator_name' => $n->creator_name,
+                ];
+            });
+
+        return response()->json($notes);
+    }
+
+    /**
      * Store a newly created resource in storage.
      *
      * @param Request $request
@@ -168,6 +189,17 @@ class MilestoneController extends Controller
             'reason' => 'required|string|min:100',
         ]);
 
+        // Block completion if any contracts are still pending approval
+        $hasPendingContracts = $milestone->expendable()
+            ->where('status', \App\Models\ProjectExpendable::STATUS_PENDING)
+            ->exists();
+        if ($hasPendingContracts) {
+            return response()->json([
+                'message' => 'You must approve or reject all contracts for this milestone before marking it complete.',
+                'code' => 'PENDING_CONTRACTS',
+            ], 422);
+        }
+
         // Update milestone status and timestamps
         $milestone->status = 'Completed';
         $milestone->completed_at = now();
@@ -206,13 +238,54 @@ class MilestoneController extends Controller
     }
 
     /**
+     * Reject a completed milestone.
+     */
+    public function reject(Request $request, Milestone $milestone)
+    {
+        $data = $request->validate([
+            'reason' => 'required|string',
+        ]);
+
+        $milestone->status = Milestone::PENDING;
+        $milestone->save();
+
+        // Create a project note and notify Google Chat
+        $milestone->load('project');
+        if ($milestone->project) {
+            $content = "Milestone '{$milestone->name}' rejected. Reason: " . $data['reason'];
+            \App\Models\ProjectNote::createAndNotify($milestone->project, $content, [
+                'type' => 'milestone',
+                'noteable' => $milestone,
+            ]);
+        }
+
+        $milestone->load('tasks');
+        return response()->json($milestone);
+    }
+
+    /**
      * Approve a completed milestone.
      */
-    public function approve(Milestone $milestone)
+    public function approve(Request $request, Milestone $milestone)
     {
+        $data = $request->validate([
+            'reason' => 'required|string',
+        ]);
+
         $milestone->actual_completion_date = now();
         $milestone->status = Milestone::APPROVED;
         $milestone->save();
+
+        // Create a project note and notify Google Chat
+        $milestone->load('project');
+        if ($milestone->project) {
+            $content = "Milestone '{$milestone->name}' approved. Reason: " . $data['reason'];
+            \App\Models\ProjectNote::createAndNotify($milestone->project, $content, [
+                'type' => 'milestone',
+                'noteable' => $milestone,
+            ]);
+        }
+
         $milestone->load('tasks');
         return response()->json($milestone);
     }
@@ -220,11 +293,26 @@ class MilestoneController extends Controller
     /**
      * Reopen a milestone back to active state.
      */
-    public function reopen(Milestone $milestone)
+    public function reopen(Request $request, Milestone $milestone)
     {
+        $data = $request->validate([
+            'reason' => 'required|string',
+        ]);
+
         $milestone->status = Milestone::IN_PROGRESS;
         $milestone->completed_at = null;
         $milestone->save();
+
+        // Create a project note and notify Google Chat
+        $milestone->load('project');
+        if ($milestone->project) {
+            $content = "Milestone '{$milestone->name}' reopened. Reason: " . $data['reason'];
+            \App\Models\ProjectNote::createAndNotify($milestone->project, $content, [
+                'type' => 'milestone',
+                'noteable' => $milestone,
+            ]);
+        }
+
         $milestone->load('tasks');
         return response()->json($milestone);
     }

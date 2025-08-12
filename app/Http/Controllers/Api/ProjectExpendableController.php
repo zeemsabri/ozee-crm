@@ -118,6 +118,41 @@ class ProjectExpendableController extends Controller
             $updates['user_id'] = $validated['user_id'];
         }
 
+        // Guard: If editing a milestone budget (user_id is null and expendable_type is Milestone),
+        // ensure the new budget is not less than the sum of already approved contracts for that milestone.
+        $isMilestoneBudget = (is_null($expendable->user_id)) && (
+            $expendable->expendable_type === 'App\\Models\\Milestone' || $expendable->expendable_type === 'Milestone'
+        );
+        if ($isMilestoneBudget) {
+            /** @var Milestone|null $milestone */
+            $milestone = $expendable->expendable()->first();
+            if ($milestone) {
+                // Sum of Accepted user-bound expendables for this milestone
+                $approvedItems = $milestone->expendable()
+                    ->whereNotNull('user_id')
+                    ->where('status', ProjectExpendable::STATUS_ACCEPTED)
+                    ->get();
+
+                $targetCurrency = strtoupper($validated['currency']);
+                $approvedTotalInTargetCurrency = 0.0;
+                foreach ($approvedItems as $item) {
+                    $approvedTotalInTargetCurrency += $this->convertCurrency((float)$item->amount, $item->currency, $targetCurrency);
+                }
+
+                // If the new budget is below already approved total, block it
+                if ($approvedTotalInTargetCurrency > ((float)$validated['amount'] + 0.00001)) {
+                    return response()->json([
+                        'message' => 'Milestone budget cannot be less than the total of approved contracts.',
+                        'errors' => [
+                            'amount' => [
+                                'Approved contracts total ' . number_format($approvedTotalInTargetCurrency, 2) . ' ' . $targetCurrency . ' exceeds the provided budget of ' . number_format((float)$validated['amount'], 2) . ' ' . $targetCurrency . '.',
+                            ],
+                        ],
+                    ], 422);
+                }
+            }
+        }
+
         $expendable->update($updates);
 
         return response()->json($expendable->fresh());
