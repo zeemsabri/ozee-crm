@@ -101,4 +101,12 @@ class Milestone extends Model
     {
         return $this->hasMany(ProjectDeliverable::class);
     }
+
+    /**
+     * Expandable items related to this milestone (polymorphic).
+     */
+    public function expendable()
+    {
+        return $this->morphMany(ProjectExpendable::class, 'expandable');
+    }
 }

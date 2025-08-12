@@ -339,6 +339,31 @@ trait HasProjectPermissions
     }
 
 
+    protected function canViewProjectExpendable(User $user, Project $project): bool
+    {
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+        $projectRole = $this->getUserProjectRole($user, $project);
+        if ($projectRole && $projectRole->permissions->contains('slug', 'view_project_expendable')) {
+            return true;
+        }
+        return $user->hasPermission('view_project_expendable');
+    }
+
+    protected function canManageProjectExpendable(User $user, Project $project): bool
+    {
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+        $projectRole = $this->getUserProjectRole($user, $project);
+        if ($projectRole && $projectRole->permissions->contains('slug', 'manage_project_expendable')) {
+            return true;
+        }
+        return $user->hasPermission('manage_project_expendable');
+    }
+
+
     public function canCreateProjects(User $user)
     {
         if ($user->isSuperAdmin()) {

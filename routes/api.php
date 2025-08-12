@@ -121,6 +121,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Project Section Read Routes
     Route::get('projects/{project}/sections/basic', [ProjectReadController::class, 'getBasicInfo']);
+    // Project Expendables
+    Route::get('projects/{project}/expendables', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'index']);
     Route::get('projects/{project}/sections/clients-users', [ProjectReadController::class, 'getClientsAndUsers']);
     Route::get('projects/{project}/sections/clients', [ProjectReadController::class, 'getClientsAndUsers']);
     Route::get('projects/{project}/sections/users', [ProjectReadController::class, 'getClientsAndUsers']);
@@ -154,6 +156,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('projects/{project}/convert-payment-type', [ProjectActionController::class, 'convertPaymentType']); // Moved PATCH route
     Route::patch('projects/{project}/expendable-budget', [ProjectActionController::class, 'updateExpendableBudget']);
     Route::post('projects/{project}/archive', [ProjectActionController::class, 'archive']);
+    Route::post('projects/{project}/expendables', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'store']);
+    Route::delete('projects/{project}/expendables/{expendable}', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'destroy']);
     Route::post('projects/{id}/restore', [ProjectActionController::class, 'restore']);
 
     // Project Section Update Routes

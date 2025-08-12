@@ -738,6 +738,11 @@ class Task extends Model
         return $this->morphMany(ProjectNote::class, 'noteable');
     }
 
+    public function expendable()
+    {
+        return $this->morphMany(ProjectExpendable::class, 'expandable');
+    }
+
     /**
      * Get the creator of the task (User or Client).
      *

@@ -56,6 +56,14 @@ class User extends Authenticatable
 
     protected $appends = ['role_data']; // Add role data to JSON
 
+    /**
+     * Get project expendable created/owned by this user.
+     */
+    public function projectExpendable()
+    {
+        return $this->hasMany(ProjectExpendable::class);
+    }
+
     // --- Role Helper Methods ---
     public function isSuperAdmin(): bool
     {
