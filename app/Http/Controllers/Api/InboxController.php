@@ -170,10 +170,11 @@ class InboxController extends Controller
         $accessibleProjectIds = $this->getAccessibleProjectIds($user);
 
         // Fetch outgoing emails (sent by the user) that need approval
-        $outgoingEmails = Email::where('sender_id', $user->id)
-            ->where('sender_type', 'App\\Models\\User')
+        $outgoingEmails = Email::where('sender_type', 'App\\Models\\User')
             ->where('status', 'pending_approval')
-            ->with(['sender', 'conversation', 'conversation.project'])
+            ->with(['sender', 'conversation' => function ($q) use($accessibleProjectIds) {
+                $q->whereIn('project_id', $accessibleProjectIds);
+            }, 'conversation.project'])
             ->select('emails.*') // Ensure all columns including read_at are selected
             ->orderBy('created_at', 'desc')
             ->get();
