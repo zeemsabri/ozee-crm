@@ -197,7 +197,7 @@ class InboxController extends Controller
 
             // Check if the user has permission to approve received emails in appplicaiton role
 
-            if ($user->hasProjectPermission( $email->conversation->project_id, 'approve_emails')) {
+            if ($email->conversation && $user->hasProjectPermission( $email->conversation->project_id, 'approve_emails')) {
                 $email->can_approve = true;
                 $isAuthorized = true;
             }
