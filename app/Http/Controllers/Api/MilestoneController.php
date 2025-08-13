@@ -59,9 +59,23 @@ class MilestoneController extends Controller
     public function milestonesWithExpendables(Project $project)
     {
         $milestones = $project->milestones()
-            ->with(['expendable', 'expendable.user' => function ($q) {
-                $q->select('id', 'name');
-            }, 'budget'])
+            ->with([
+                'expendable',
+                'expendable.user' => function ($q) {
+                    $q->select('id', 'name');
+                },
+                'budget'
+            ])
+            // Task counts by status
+            ->withCount([
+                'tasks as tasks_todo_count' => function ($q) { $q->where('status', 'To Do'); },
+                'tasks as tasks_in_progress_count' => function ($q) { $q->where('status', 'In Progress'); },
+                'tasks as tasks_paused_count' => function ($q) { $q->where('status', 'Paused'); },
+                'tasks as tasks_blocked_count' => function ($q) { $q->where('status', 'Blocked'); },
+                'tasks as tasks_done_count' => function ($q) { $q->where('status', 'Done'); },
+                'tasks as tasks_archived_count' => function ($q) { $q->where('status', 'Archived'); },
+                'tasks as tasks_total_count'
+            ])
             ->orderBy('completion_date', 'asc')
             ->get()
             ->map(function ($m) {

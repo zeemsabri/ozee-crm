@@ -212,6 +212,7 @@ const isValidDate = (date) => {
                             <div class="flex-1">
                                 <template v-if="!task.isEditingName">
                                     <p @click="editTaskName(index)" class="text-sm font-semibold text-gray-800 truncate cursor-pointer hover:underline">{{ task.name }}</p>
+                                    <p v-if="task.description && task.description.trim().length" class="mt-0.5 text-xs text-gray-600 truncate">{{ task.description }}</p>
                                 </template>
                                 <template v-else>
                                     <input
@@ -225,9 +226,18 @@ const isValidDate = (date) => {
                                 </template>
                             </div>
                             <div class="flex items-center space-x-2 ml-4">
-                                <button type="button" @click="toggleDescription(index)" class="p-1 rounded-full text-gray-400 hover:text-indigo-500 transition-all duration-200 ease-in-out">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
+                                <button
+                                    type="button"
+                                    @click="toggleDescription(index)"
+                                    class="p-1 rounded-full transition-all duration-200 ease-in-out"
+                                    :class="[
+                                        (task.showDescription || (task.description && task.description.trim().length)) ? 'text-indigo-600 hover:text-indigo-700' : 'text-gray-400 hover:text-indigo-500'
+                                    ]"
+                                    title="Add description"
+                                >
+                                    <!-- Heroicons: Document Text -->
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                                        <path d="M19.5 14.25h-15m15-5.25h-15M9 19.5H4.5A1.5 1.5 0 013 18V6a1.5 1.5 0 011.5-1.5H15L21 9v9a1.5 1.5 0 01-1.5 1.5H15"/>
                                     </svg>
                                 </button>
                                 <button type="button" @click="removeTask(index)" class="remove-final-task p-1 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-all duration-200 ease-in-out">
@@ -252,7 +262,7 @@ const isValidDate = (date) => {
                                 <template v-if="isValidDate(tomorrow.toISOString().split('T')[0])">
                                     <button type="button" @click="updateTaskDueDate(index, tomorrow.toISOString().split('T')[0])" class="px-2 py-0.5 rounded-full text-indigo-600 bg-indigo-100 text-xs hover:bg-indigo-200" :class="{ 'bg-indigo-300 font-semibold': task.dueDate === tomorrow.toISOString().split('T')[0] }">Tomorrow</button>
                                 </template>
-                                <input type="date" :value="task.dueDate" @change="updateTaskDueDate(index, $event.target.value)" :min="today.toISOString().split('T')[0]" :max="completionDate" class="p-1 rounded-lg border border-gray-300 text-xs focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition-all duration-200 ease-in-out">
+                                <input type="date" :value="task.dueDate" @change="updateTaskDueDate(index, $event.target.value)" :min="today.toISOString().split('T')[0]" :max="completionDate" required :class="[task.dueDate ? 'border-gray-300' : 'border-red-300', 'p-1 rounded-lg border text-xs focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition-all duration-200 ease-in-out']">
                             </div>
 
                             <!-- Priority Selection -->

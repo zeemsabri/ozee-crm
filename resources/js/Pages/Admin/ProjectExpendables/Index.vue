@@ -66,7 +66,7 @@ const canApproveMilestoneExpendables = canDo('approve_milestone_expendables');
 const canApproveExpendables = canDo('approve_expendables');
 const canApproveMilestones = canDo('approve_milestones');
 
-const currentDisplayCurrency = ref(displayCurrency);
+const currentDisplayCurrency = displayCurrency;
 const projectBudgetAmount = ref(null);
 const projectBudgetCurrency = ref('PKR');
 const users = ref([]);
@@ -80,7 +80,7 @@ const tabs = [
 // -- Computed Properties --
 const filteredMilestones = computed(() => {
     if (!milestones.value) return [];
-    if (activeTab.value === 'active') return milestones.value.filter(m => m.status.toLowerCase() === 'in progress' || m.status.toLowerCase() === 'not started');
+    if (activeTab.value === 'active') return milestones.value.filter(m => m.status.toLowerCase() === 'in progress' || m.status.toLowerCase() === 'not started' || m.status.toLowerCase() === 'pending');
     if (activeTab.value === 'completed') return milestones.value.filter(m => m.status.toLowerCase() === 'completed');
     if (activeTab.value === 'approved') return milestones.value.filter(m => m.status.toLowerCase() === 'approved');
     return milestones.value;
@@ -91,7 +91,7 @@ const approvedTotal = computed(() => {
     return milestones.value.reduce((total, milestone) => {
         if (milestone.status.toLowerCase() !== 'approved') {
             return total + (milestone.expendable || []).filter(e => e.status === 'Accepted').reduce((sum, e) => {
-                return sum + convertCurrency(Number(e.amount || 0), e.currency, currentDisplayCurrency.value);
+                return sum + convertCurrency(parseFloat(e.amount ?? 0), e.currency, currentDisplayCurrency.value);
             }, 0);
         }
         return total;
@@ -102,17 +102,17 @@ const pendingTotal = computed(() => {
     if (!milestones.value || !conversionRatesToUSD.value || Object.keys(conversionRatesToUSD.value).length === 0) return 0;
     return milestones.value.reduce((total, milestone) => {
         return total + (milestone.expendable || []).filter(e => e.status === 'Pending Approval').reduce((sum, e) => {
-            return sum + convertCurrency(Number(e.amount || 0), e.currency, currentDisplayCurrency.value);
+            return sum + convertCurrency(parseFloat(e.amount ?? 0), e.currency, currentDisplayCurrency.value);
         }, 0);
     }, 0);
 });
 
 const remainingBudget = computed(() => {
     if (projectBudgetAmount.value == null) return formatCurrency(0, currentDisplayCurrency.value);
-    const budgetInDisplay = convertCurrency(Number(projectBudgetAmount.value || 0), projectBudgetCurrency.value, currentDisplayCurrency.value);
+    const budgetInDisplay = convertCurrency(parseFloat(projectBudgetAmount.value ?? 0), projectBudgetCurrency.value, currentDisplayCurrency.value);
     const totalApproved = milestones.value.reduce((total, milestone) => {
         return total + (milestone.expendable || []).filter(e => e.status === 'Accepted').reduce((sum, e) => {
-            return sum + convertCurrency(Number(e.amount || 0), e.currency, currentDisplayCurrency.value);
+            return sum + convertCurrency(parseFloat(e.amount ?? 0), e.currency, currentDisplayCurrency.value);
         }, 0);
     }, 0);
     return formatCurrency(budgetInDisplay - totalApproved, currentDisplayCurrency.value);
@@ -360,6 +360,34 @@ const hasPendingContracts = (m) => {
     return m.expendable.some(e => (e?.status || 'Pending Approval') === 'Pending Approval');
 };
 
+const hasAnyContracts = (m) => {
+    return !!(m && Array.isArray(m.expendable) && m.expendable.length > 0);
+};
+
+// Deadline helpers
+const daysUntil = (dateStr) => {
+    try {
+        if (!dateStr) return null;
+        const d = new Date(dateStr);
+        const today = new Date();
+        // Normalize to noon to avoid DST/timezone edge cases
+        const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+        const tt = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0);
+        const msPerDay = 24 * 60 * 60 * 1000;
+        return Math.round((dt - tt) / msPerDay);
+    } catch (e) {
+        return null;
+    }
+};
+
+const daysRemainingText = (dateStr) => {
+    const diff = daysUntil(dateStr);
+    if (diff === null) return '';
+    if (diff < 0) return `Overdue by ${Math.abs(diff)} day${Math.abs(diff) === 1 ? '' : 's'}`;
+    if (diff === 0) return 'Due today';
+    return `${diff} day${diff === 1 ? '' : 's'} remaining`;
+};
+
 // -- Lifecycle Hooks --
 onMounted(async () => {
     const storedCurrency = localStorage.getItem('displayCurrency');
@@ -502,6 +530,18 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                     <div class="flex-grow">
                                         <div class="font-bold text-lg text-gray-900 mb-1">{{ m.name }}</div>
                                         <div class="text-sm text-gray-600" v-if="m.description">{{ m.description }}</div>
+                                        <!-- Completion date and days remaining -->
+                                        <div class="mt-1 text-xs text-gray-500 flex items-center gap-2">
+                                            <span v-if="m.completion_date">
+                                                Due by: <span class="font-medium text-gray-700">{{ new Date(m.completion_date).toLocaleDateString() }}</span>
+                                            </span>
+                                            <span v-else>No completion date</span>
+                                            <span v-if="m.completion_date" :class="[
+                                                daysUntil(m.completion_date) < 0 ? 'text-red-600' : (daysUntil(m.completion_date) === 0 ? 'text-orange-600' : 'text-green-600')
+                                            ]">
+                                                • {{ daysRemainingText(m.completion_date) }}
+                                            </span>
+                                        </div>
                                     </div>
 
                                     <!-- Milestone Summary & Toggle -->
@@ -542,6 +582,33 @@ watch(currentDisplayCurrency, async (newCurrency) => {
 
                                 <!-- Collapsible Content -->
                                 <div v-show="!m._collapsed" class="border-t border-gray-200 p-5 bg-white rounded-b-xl">
+                                    <!-- Task Stats -->
+                                    <div class="mb-5">
+                                        <h5 class="text-sm font-semibold text-gray-800 mb-2">Task Stats</h5>
+                                        <div class="flex flex-wrap gap-2 text-xs">
+                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+                                                Total <span class="font-semibold">{{ m.tasks_total_count || 0 }}</span>
+                                            </span>
+                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 text-slate-700">
+                                                To Do <span class="font-semibold">{{ m.tasks_todo_count || 0 }}</span>
+                                            </span>
+                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                                                In Progress <span class="font-semibold">{{ m.tasks_in_progress_count || 0 }}</span>
+                                            </span>
+                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">
+                                                Paused <span class="font-semibold">{{ m.tasks_paused_count || 0 }}</span>
+                                            </span>
+                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-700">
+                                                Blocked <span class="font-semibold">{{ m.tasks_blocked_count || 0 }}</span>
+                                            </span>
+                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700">
+                                                Done <span class="font-semibold">{{ m.tasks_done_count || 0 }}</span>
+                                            </span>
+                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 text-red-700">
+                                                Archived <span class="font-semibold">{{ m.tasks_archived_count || 0 }}</span>
+                                            </span>
+                                        </div>
+                                    </div>
                                     <div class="flex justify-between items-center mb-4">
                                         <h4 class="text-lg font-semibold text-gray-800">Contracts</h4>
                                         <div class="flex items-center gap-2">
@@ -568,10 +635,10 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                             <div class="flex items-center gap-4 mt-2 sm:mt-0">
                                                 <div class="text-right">
                                                     <span class="font-semibold">
-                                                        {{ formatCurrency(convertCurrency(Number(e.amount || 0), e.currency || currentDisplayCurrency.value, currentDisplayCurrency.value), currentDisplayCurrency) }}
+                                                        {{ formatCurrency(convertCurrency(parseFloat(e.amount ?? 0), e.currency || currentDisplayCurrency, currentDisplayCurrency), currentDisplayCurrency) }}
                                                     </span>
                                                     <span v-if="e.currency && e.currency?.toUpperCase() !== currentDisplayCurrency?.toUpperCase()" class="text-gray-500 block text-xs">
-                                                        ({{ formatCurrency(Number(e.amount || 0), e.currency) }})
+                                                        ({{ formatCurrency(parseFloat(e.amount ?? 0), e.currency) }})
                                                     </span>
                                                 </div>
                                                 <div class="flex gap-1.5">
@@ -602,8 +669,8 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                             <PrimaryButton
                                                 v-if="m.status.toLowerCase() !== 'completed' && activeTab === 'active'"
                                                 @click.stop="markComplete(m)"
-                                                :disabled="hasPendingContracts(m)"
-                                                :title="hasPendingContracts(m) ? 'Approve or reject all contracts before completing the milestone.' : ''"
+                                                :disabled="hasPendingContracts(m) && hasAnyContracts(m)"
+                                                :title="(hasPendingContracts(m) && hasAnyContracts(m)) ? 'Approve or reject all contracts before completing the milestone.' : ''"
                                             >
                                                 Mark Complete
                                             </PrimaryButton>
@@ -611,7 +678,7 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                             <PrimaryButton v-if="m.status.toLowerCase() === 'completed' && activeTab === 'completed' && canApproveMilestones" @click.stop="rejectMilestone(m)" class="bg-red-600 hover:bg-red-700">Reject Milestone</PrimaryButton>
                                             <SecondaryButton v-else-if="m.status.toLowerCase() === 'approved' && activeTab === 'approved' && canApproveMilestones" @click.stop="reopen(m)">Reopen Milestone</SecondaryButton>
                                         </div>
-                                        <p v-if="m.status.toLowerCase() !== 'completed' && activeTab === 'active' && hasPendingContracts(m)" class="text-sm text-red-600">
+                                        <p v-if="m.status.toLowerCase() !== 'completed' && activeTab === 'active' && hasPendingContracts(m) && hasAnyContracts(m)" class="text-sm text-red-600">
                                             You have pending contracts. Approve or reject each contract before marking this milestone complete.
                                         </p>
                                     </div>

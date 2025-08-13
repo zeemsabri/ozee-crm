@@ -557,7 +557,7 @@ class TaskController extends Controller
             'tasks' => 'required|array|min:1',
             'tasks.*.name' => 'required|string|max:255',
             'tasks.*.description' => 'nullable|string',
-            'tasks.*.dueDate' => 'nullable|date',
+            'tasks.*.dueDate' => 'required|date|after_or_equal:today',
             'tasks.*.priority' => 'nullable|string|in:Low,Medium,High',
             'tasks.*.contract_id' => 'required|integer|exists:project_expendables,id',
         ]);
@@ -565,10 +565,7 @@ class TaskController extends Controller
         $created = [];
 
         // Find or create a default Task Type (General)
-        $defaultTaskType = TaskType::firstOrCreate(
-            ['name' => 'General'],
-            ['description' => 'General task type', 'created_by_user_id' => Auth::id()]
-        );
+        $defaultTaskType = TaskType::firstOrCreate(['name' => 'New']);
 
         foreach ($validated['tasks'] as $item) {
             $expendable = ProjectExpendable::with('expendable')->find($item['contract_id']);
@@ -587,6 +584,20 @@ class TaskController extends Controller
             }
 
             $milestone = $expendable->expendable; // Milestone instance
+
+            // Additional validation: due date should not exceed milestone completion date (if set)
+            if (!empty($item['dueDate']) && !empty($milestone->completion_date)) {
+                $due = \Carbon\Carbon::parse($item['dueDate'])->startOfDay();
+                $completion = \Carbon\Carbon::parse($milestone->completion_date)->startOfDay();
+                if ($due->gt($completion)) {
+                    return response()->json([
+                        'message' => 'The task due date may not be after the milestone completion date.',
+                        'contract_id' => $expendable->id,
+                        'dueDate' => $item['dueDate'],
+                        'completion_date' => $milestone->completion_date?->toDateString() ?? (string) $milestone->completion_date,
+                    ], 422);
+                }
+            }
 
             $taskData = [
                 'name' => $item['name'],
