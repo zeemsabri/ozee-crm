@@ -10,6 +10,7 @@ import { success, error, confirmPrompt } from '@/Utils/notification';
 import { formatCurrency, convertCurrency, conversionRatesToUSD, fetchCurrencyRates, displayCurrency } from '@/Utils/currency';
 import MilestoneExpendableModal from "@/Components/ProjectExpendables/MilestoneExpendableModal.vue";
 import ReasonModal from "@/Components/ProjectExpendables/ReasonModal.vue";
+import MilestoneFormModal from '@/Components/ProjectTasks/MilestoneFormModal.vue';
 import Modal from '@/Components/Modal.vue';
 import {
     Square2StackIcon,
@@ -39,6 +40,7 @@ const showReasonModal = ref(false);
 const showReasonsListModal = ref(false);
 const reasonsListLoading = ref(false);
 const reasonsList = ref([]);
+const showMilestoneFormModal = ref(false);
 const activeMilestone = ref(null);
 const activeExpendable = ref(null);
 
@@ -415,7 +417,17 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                 <!-- Milestone Section with Tabs -->
                 <section class="bg-white rounded-xl shadow-sm p-6">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b pb-4 mb-4">
-                        <h3 class="text-xl font-semibold text-gray-900">Project Milestones</h3>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-xl font-semibold text-gray-900">Project Milestones</h3>
+                            <button
+                                v-if="selectedProjectId"
+                                @click="showMilestoneFormModal = true"
+                                class="p-1.5 rounded-full text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+                                title="Add Milestone"
+                            >
+                                <PlusIcon class="h-4 w-4" />
+                            </button>
+                        </div>
                         <div class="flex space-x-2 mt-2 sm:mt-0">
                             <button
                                 v-for="tab in tabs"
@@ -608,6 +620,14 @@ watch(currentDisplayCurrency, async (newCurrency) => {
             :http-method="activeMilestone ? activeMilestone.httpMethod : activeExpendable?.httpMethod"
             @close="onReasonModalClose"
             @submitted="onModalSubmitted"
+        />
+
+        <!-- Create Milestone Modal -->
+        <MilestoneFormModal
+            :show="showMilestoneFormModal"
+            :project-id="Number(selectedProjectId)"
+            @close="showMilestoneFormModal = false"
+            @saved="() => { showMilestoneFormModal = false; loadMilestones(); }"
         />
 
         <Modal :show="showReasonsListModal" @close="() => { showReasonsListModal = false; activeMilestone = null; reasonsList = []; }">
