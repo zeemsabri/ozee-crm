@@ -11,6 +11,8 @@ import { formatCurrency, convertCurrency, conversionRatesToUSD, fetchCurrencyRat
 import MilestoneExpendableModal from "@/Components/ProjectExpendables/MilestoneExpendableModal.vue";
 import ReasonModal from "@/Components/ProjectExpendables/ReasonModal.vue";
 import MilestoneFormModal from '@/Components/ProjectTasks/MilestoneFormModal.vue';
+import BulkTaskModal from '@/Components/ProjectTasks/BulkTaskModal.vue';
+import MilestoneCompletionDateModal from '@/Components/ProjectTasks/MilestoneCompletionDateModal.vue';
 import Modal from '@/Components/Modal.vue';
 import {
     Square2StackIcon,
@@ -41,7 +43,12 @@ const showReasonsListModal = ref(false);
 const reasonsListLoading = ref(false);
 const reasonsList = ref([]);
 const showMilestoneFormModal = ref(false);
+const showBulkTaskModal = ref(false);
+const activeContractId = ref(null);
 const activeMilestone = ref(null);
+const showCompletionDateModal = ref(false);
+const pendingMilestoneForDate = ref(null);
+const pendingContractId = ref(null);
 const activeExpendable = ref(null);
 
 const currencyOptions = [
@@ -135,6 +142,39 @@ const hasMilestoneBudget = (m) => {
 };
 
 // -- Methods --
+const onAddTasksClick = (m, e) => {
+    if (!m || !e) return;
+    if (!m.completion_date) {
+        pendingMilestoneForDate.value = m;
+        pendingContractId.value = e.id;
+        showCompletionDateModal.value = true;
+        return;
+    }
+    activeMilestone.value = m;
+    activeContractId.value = e.id;
+    showBulkTaskModal.value = true;
+};
+
+const onCompletionDateUpdated = (updatedMilestone) => {
+    try {
+        if (updatedMilestone && updatedMilestone.id) {
+            const idx = (milestones.value || []).findIndex(x => x.id === updatedMilestone.id);
+            if (idx !== -1) {
+                // preserve existing nested arrays like expendable/budget if not returned
+                milestones.value[idx] = { ...milestones.value[idx], ...updatedMilestone };
+            }
+        }
+    } catch (err) {
+        console.error('Failed to merge updated milestone', err);
+    }
+    const m = (milestones.value || []).find(x => x.id === (updatedMilestone?.id || pendingMilestoneForDate.value?.id));
+    activeMilestone.value = m || updatedMilestone || pendingMilestoneForDate.value;
+    activeContractId.value = pendingContractId.value;
+    showCompletionDateModal.value = false;
+    showBulkTaskModal.value = true;
+    pendingMilestoneForDate.value = null;
+    pendingContractId.value = null;
+};
 const loadProjects = async () => {
     try {
         const { data } = await window.axios.get('/api/projects-simplified');
@@ -522,10 +562,8 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                                       }">
                                                     {{ e.status || 'Pending Approval' }}
                                                 </span>
-                                                <div class="flex flex-col">
-                                                    <span class="font-medium">{{ e.name }}</span>
-                                                    <span v-if="e.user_name" class="text-xs text-gray-500">Contractor: {{ e.user_name }}</span>
-                                                </div>
+                                                <span v-if="e.user && e.user.name" class="text-gray-600 text-xs sm:text-sm">{{ e.user.name }}</span>
+                                                <span class="font-medium">{{ e.name }}</span>
                                             </div>
                                             <div class="flex items-center gap-4 mt-2 sm:mt-0">
                                                 <div class="text-right">
@@ -537,6 +575,10 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                                     </span>
                                                 </div>
                                                 <div class="flex gap-1.5">
+                                                    <!-- Add Tasks: Only for Approved contracts -->
+                                                    <button v-if="e.status === 'Accepted'" @click.stop="onAddTasksClick(m, e)" class="p-1 rounded-full text-indigo-600 hover:bg-indigo-200 transition-colors" title="Add tasks">
+                                                        <PlusIcon class="h-5 w-5" />
+                                                    </button>
                                                     <!-- Contract Action Buttons -->
                                                     <template v-if="e.status === 'Pending Approval' && activeTab !== 'approved'">
                                                         <button v-if="canApproveMilestoneExpendables || canApproveExpendables" @click.stop="approveExpendable(e)" class="p-1 rounded-full text-green-600 hover:bg-green-200 transition-colors" title="Approve">
@@ -653,5 +695,23 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                 </div>
             </div>
         </Modal>
+
+        <!-- Bulk Task Modal for Contract -->
+        <BulkTaskModal
+            :show="showBulkTaskModal"
+            :contract-id="Number(activeContractId)"
+            :completion-date="activeMilestone?.completion_date ? String(activeMilestone.completion_date).split('T')[0] : null"
+            @close="() => { showBulkTaskModal = false; activeContractId = null; }"
+            @tasks-submitted="() => { showBulkTaskModal = false; activeContractId = null; }"
+        />
+
+        <!-- Set Milestone Completion Date Modal -->
+        <MilestoneCompletionDateModal
+            :show="showCompletionDateModal"
+            :milestone-id="Number(pendingMilestoneForDate?.id || activeMilestone?.id)"
+            :initial-completion-date="pendingMilestoneForDate?.completion_date ? String(pendingMilestoneForDate.completion_date).split('T')[0] : null"
+            @close="() => { showCompletionDateModal = false; pendingMilestoneForDate = null; }"
+            @updated="onCompletionDateUpdated"
+        />
     </AuthenticatedLayout>
 </template>

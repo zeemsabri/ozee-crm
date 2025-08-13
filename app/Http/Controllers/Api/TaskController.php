@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Milestone;
 use App\Models\TaskType;
 use App\Models\Tag;
+use App\Models\ProjectExpendable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -544,5 +545,65 @@ class TaskController extends Controller
         });
 
         return response()->json($transformedTasks);
+    }
+
+    /**
+     * Create multiple tasks from a Project Expendable (contract) reference.
+     * Expects payload: { tasks: [ { name, description?, dueDate?, priority?, contract_id } ] }
+     */
+    public function bulk(Request $request)
+    {
+        $validated = $request->validate([
+            'tasks' => 'required|array|min:1',
+            'tasks.*.name' => 'required|string|max:255',
+            'tasks.*.description' => 'nullable|string',
+            'tasks.*.dueDate' => 'nullable|date',
+            'tasks.*.priority' => 'nullable|string|in:Low,Medium,High',
+            'tasks.*.contract_id' => 'required|integer|exists:project_expendables,id',
+        ]);
+
+        $created = [];
+
+        // Find or create a default Task Type (General)
+        $defaultTaskType = TaskType::firstOrCreate(
+            ['name' => 'General'],
+            ['description' => 'General task type', 'created_by_user_id' => Auth::id()]
+        );
+
+        foreach ($validated['tasks'] as $item) {
+            $expendable = ProjectExpendable::with('expendable')->find($item['contract_id']);
+
+            if (!$expendable) {
+                // Should not happen due to validation, but be safe
+                return response()->json(['message' => 'Contract not found: ' . $item['contract_id']], 404);
+            }
+
+            // Ensure expendable is linked to a Milestone
+            if (!$expendable->expendable || !$expendable->expendable instanceof Milestone) {
+                return response()->json([
+                    'message' => 'Provided contract is not linked to a milestone',
+                    'contract_id' => $expendable->id,
+                ], 422);
+            }
+
+            $milestone = $expendable->expendable; // Milestone instance
+
+            $taskData = [
+                'name' => $item['name'],
+                'description' => $item['description'] ?? null,
+                'due_date' => $item['dueDate'] ?? null,
+                'priority' => $item['priority'] ?? 'Medium',
+                'status' => 'To Do',
+                'task_type_id' => $defaultTaskType->id,
+                'milestone_id' => $milestone->id,
+                'assigned_to_user_id' => $expendable->user_id,
+            ];
+
+            $task = Task::create($taskData);
+            $task->load(['assignedTo', 'taskType', 'milestone']);
+            $created[] = $task;
+        }
+
+        return response()->json(['tasks' => $created], 201);
     }
 }
