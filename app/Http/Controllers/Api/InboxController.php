@@ -194,7 +194,7 @@ class InboxController extends Controller
         $redactedOutgoingEmails = $outgoingEmails->map(function ($email) use ($user) {
 
             $email->can_approve = false;
-
+            $isAuthorized = false;
             // Check if the user has permission to approve received emails in appplicaiton role
 
             if ($email->conversation && $user->hasProjectPermission( $email->conversation->project_id, 'approve_emails')) {
