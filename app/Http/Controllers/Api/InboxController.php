@@ -192,6 +192,21 @@ class InboxController extends Controller
 
         // Loop through the outgoing emails to apply content redaction based on permissions
         $redactedOutgoingEmails = $outgoingEmails->map(function ($email) use ($user) {
+
+            $email->can_approve = false;
+
+            // Check if the user has permission to approve received emails in appplicaiton role
+
+            if ($user->hasProjectPermission( $email->conversation->project_id, 'approve_emails')) {
+                $email->can_approve = true;
+                $isAuthorized = true;
+            }
+
+            // If not authorized, redact the email content
+            if (!$isAuthorized) {
+                $email->can_approve = false;
+            }
+
             // Outgoing emails are authorized for the sender
             return $email;
         });
