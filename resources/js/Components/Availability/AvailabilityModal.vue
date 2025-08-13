@@ -202,6 +202,7 @@ const handleIsAvailableToggle = (isChecked) => {
 };
 
 const applyToAll = () => {
+    console.log('hit');
     const currentDayData = selectedDayData.value;
     for (const dateObj of weekDates.value) {
         const date = dateObj.value;

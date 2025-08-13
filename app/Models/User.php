@@ -14,6 +14,14 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
+    /**
+     * Polymorphic notes attached to this user (ProjectNote noteable morph).
+     */
+    public function notes()
+    {
+        return $this->morphMany(\App\Models\ProjectNote::class, 'noteable');
+    }
+
     protected $fillable = [
         'name',
         'email',

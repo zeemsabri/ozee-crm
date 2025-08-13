@@ -19,6 +19,9 @@ use Exception;
  */
 trait GoogleApiAuthTrait
 {
+
+    const APP_AS_USER = 'app';
+
     /** @var Client The Google client instance. */
     protected $client;
 
@@ -36,6 +39,8 @@ trait GoogleApiAuthTrait
 
     /** @var Gmail The Google Gmail service instance. */
     protected $gmailService;
+
+    protected User|null|string $user = null;
 
     public function __construct()
     {

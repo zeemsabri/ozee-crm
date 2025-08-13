@@ -5,14 +5,23 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\UserAvailability;
 use App\Models\User;
+use App\Models\Project;
+use App\Services\GoogleChatService;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 
 class AvailabilityController extends Controller
 {
+    protected GoogleChatService $googleChatService;
+
+    public function __construct(GoogleChatService $googleChatService)
+    {
+        $this->googleChatService = $googleChatService;
+    }
     /**
      * Display a listing of the resource.
      *
@@ -392,6 +401,7 @@ class AvailabilityController extends Controller
             'availabilities.*.time_slots' => 'required_if:availabilities.*.is_available,true|nullable|array',
             'availabilities.*.time_slots.*.start_time' => 'required_with:availabilities.*.time_slots|string|date_format:H:i',
             'availabilities.*.time_slots.*.end_time' => 'required_with:availabilities.*.time_slots|string|date_format:H:i',
+            'reason_for_late_submission' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -435,6 +445,28 @@ class AvailabilityController extends Controller
                     'date' => $availabilityData['date'],
                     'message' => $e->getMessage()
                 ];
+            }
+        }
+
+        // Notify Management space if a late submission reason was provided
+        $lateReason = trim((string) ($request->input('reason_for_late_submission') ?? ''));
+
+        if ($lateReason !== '') {
+            try {
+                $managementProject = Project::where('name', 'Management')->first();
+                $spaceName = $managementProject?->google_chat_id ?: 'spaces/AAQAK9p35w4';
+                $messageText = "🕑 Late availability submission reason by {$user->name}: {$lateReason}";
+                $this->googleChatService->sendAs(GoogleChatService::APP_AS_USER);
+                $this->googleChatService->sendMessage($spaceName, $messageText);
+                Log::info('Sent late submission reason to Google Chat space', [
+                    'space_name' => $spaceName,
+                    'user_id' => $user->id,
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to send late submission reason to Google Chat', [
+                    'error' => $e->getMessage(),
+                    'exception' => $e,
+                ]);
             }
         }
 
