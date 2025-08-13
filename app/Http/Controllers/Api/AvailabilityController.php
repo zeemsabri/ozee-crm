@@ -68,6 +68,12 @@ class AvailabilityController extends Controller
     {
         $user = Auth::user();
 
+        if ($request->user_id !== $user->id && !$user->isSuperAdmin() && !$user->isManager()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        } else if($request->user_id) {
+            $user = User::find($request->user_id);
+        }
+
         // Validate request data
         $validator = Validator::make($request->all(), [
             'date' => 'required|date',
@@ -153,6 +159,7 @@ class AvailabilityController extends Controller
             'time_slots' => 'required_if:is_available,true|nullable|array',
             'time_slots.*.start_time' => 'required_with:time_slots|string|date_format:H:i',
             'time_slots.*.end_time' => 'required_with:time_slots|string|date_format:H:i',
+            'user_id'   =>  'sometimes|integer|exists:users,id'
         ]);
 
         if ($validator->fails()) {
@@ -352,7 +359,7 @@ class AvailabilityController extends Controller
 
         // --- Final Response ---
         return response()->json([
-            'should_show_prompt' => $shouldShowPrompt,
+            'should_show_prompt' => true,
             'should_block_user' => $shouldBlockUser,
             'current_week_start' => $currentWeekStart->format('Y-m-d'),
             'current_week_end' => $currentWeekEnd->format('Y-m-d'),
