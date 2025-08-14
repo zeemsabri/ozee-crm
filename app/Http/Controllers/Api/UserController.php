@@ -69,6 +69,7 @@ class UserController extends Controller
                 'password' => 'required|string|min:8|confirmed', // 'confirmed' means password_confirmation must match
                 'role' => 'required|in:super-admin,manager,employee,contractor',
                 'timezone' => 'nullable|string|max:255',
+                'user_type' =>  'required|string|in:employee,contractor,admin',
             ]);
 
             // Enforce additional role restrictions based on the current user's role.
@@ -93,6 +94,7 @@ class UserController extends Controller
                 'password' => Hash::make($validated['password']), // Hash the password securely
                 'role_id' => $role->id, // Use role_id instead of role
                 'timezone' => $request->input('timezone'),
+                'user_type' => $request->input('user_type'),
             ]);
 
             Log::info('User created', ['user_id' => $user->id, 'user_email' => $user->email, 'created_by' => Auth::id()]);
@@ -171,7 +173,7 @@ class UserController extends Controller
             }
 
             // Prepare data for update
-            $userData = $request->only(['name', 'email', 'timezone']);
+            $userData = $request->only(['name', 'email', 'timezone', 'user_type']);
             if (isset($validated['password'])) {
                 $userData['password'] = Hash::make($validated['password']); // Hash new password if provided
             }
