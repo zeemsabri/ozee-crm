@@ -250,6 +250,7 @@ class PointsService
             return;
         }
 
+        Log::info('awarding');
         if ($kudo->is_approved) {
             $this->awardPoints(
                 $kudo->recipient_id,

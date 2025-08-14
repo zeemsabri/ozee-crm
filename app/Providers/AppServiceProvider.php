@@ -49,20 +49,10 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::before(function ($user, $ability) {
 
-            // These logs are crucial for debugging. Keep them for now.
-            Log::info('Gate::before check (from AppServiceProvider):', [
-                'user_id' => $user->id ?? 'N/A (guest)',
-                'role' => $user->role ?? 'N/A (guest)',
-                'is_super_admin_method_result' => ($user && method_exists($user, 'isSuperAdmin')) ? $user->isSuperAdmin() : 'N/A (method missing/guest)',
-                'ability' => $ability
-            ]);
-
             // Ensure $user exists and has the isSuperAdmin method before calling it.
             if ($user && method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
-                Log::info('Gate::before - Super Admin bypass activated (from AppServiceProvider).');
                 return true; // Grants all permissions to Super Admins
             }
-            Log::info('Gate::before - No Super Admin bypass (from AppServiceProvider). Policy will be checked.');
 
             return null;
 
