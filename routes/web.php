@@ -501,9 +501,9 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
     })->name('availability.index')->middleware('permission:create_users');
 
     // Bonus Configuration Page
-    Route::get('/bonus-configuration', function () {
-        return Inertia::render('BonusConfiguration/Index');
-    })->name('bonus-configuration.index')->middleware('permission:manage_bonus_configuration');
+//    Route::get('/bonus-configuration', function () {
+//        return Inertia::render('BonusConfiguration/Index');
+//    })->name('bonus-configuration.index')->middleware('permission:manage_bonus_configuration');
 
     // Bonus System Page
     Route::get('/bonus-system', function () {
