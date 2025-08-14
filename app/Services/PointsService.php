@@ -24,6 +24,8 @@ class PointsService
     private const BASE_POINTS_MEETING_ON_TIME = 25;
     private const BASE_POINTS_KUDOS = 25;
     private const WEEKLY_STREAK_BONUS = 100;
+    private const BASE_POINTS_MILESTONE_ON_TIME = 500; // New constant
+    private const BASE_POINTS_MILESTONE_LATE = 100; // New constant
 
     /**
      * Awards points for a user action and logs it in the points ledger.
@@ -83,6 +85,11 @@ class PointsService
     public function awardStandupPoints(Standup $standup)
     {
         $user = User::find($standup->creator_id);
+        if (!$user) {
+            Log::info('User not found for standup.');
+            return;
+        }
+
         $userTime = $this->getUserCarbonTimezone($user);
 
         // Corrected Deduplication Check: Check for a previous standup on the same day for the same user.
@@ -118,6 +125,51 @@ class PointsService
     }
 
     /**
+     * Awards points to a user for an on-time milestone completion.
+     * @param int $userId
+     * @param Milestone $milestone
+     */
+    public function awardMilestoneOnTimePoints($userId, Milestone $milestone)
+    {
+        // Deduplication check
+        if (PointsLedger::where('user_id', $userId)->where('pointable_id', $milestone->id)->where('pointable_type', Milestone::class)->exists()) {
+            Log::info('Points already awarded for this milestone.');
+            return;
+        }
+
+        $this->awardPoints(
+            $userId,
+            $milestone->project_id,
+            self::BASE_POINTS_MILESTONE_ON_TIME,
+            'On-Time Milestone Completion',
+            $milestone
+        );
+    }
+
+    /**
+     * Awards points to a user for a late milestone completion.
+     * @param int $userId
+     * @param Milestone $milestone
+     */
+    public function awardMilestoneLatePoints($userId, Milestone $milestone)
+    {
+        // Deduplication check
+        if (PointsLedger::where('user_id', $userId)->where('pointable_id', $milestone->id)->where('pointable_type', Milestone::class)->exists()) {
+            Log::info('Points already awarded for this milestone.');
+            return;
+        }
+
+        $this->awardPoints(
+            $userId,
+            $milestone->project_id,
+            self::BASE_POINTS_MILESTONE_LATE,
+            'Late Milestone Completion',
+            $milestone
+        );
+    }
+
+
+    /**
      * Calculates and awards points for task completion.
      *
      * @param Task $task
@@ -131,6 +183,10 @@ class PointsService
         }
 
         $user = User::find($task->assigned_to_user_id);
+        if (!$user) {
+            Log::info('User not found for task.');
+            return;
+        }
         $userTime = $this->getUserCarbonTimezone($user);
 
         // Convert due date to user's timezone for comparison
@@ -138,16 +194,13 @@ class PointsService
 
         $completedAt = $task->actual_completion_date ? Carbon::parse($task->actual_completion_date)->setTimezone($user->timezone) : $userTime;
 
-        Log::info('completedAt: '. $completedAt);;
-
-        // The Standup logic needs to check against the completion date in the user's timezone
         $standupOnDueDate = Standup::where('creator_id', $task->assigned_to_user_id)
             ->where('type', ProjectNote::STANDUP)
             ->whereDate('created_at', $completedAt->toDateString())
             ->first();
 
         if (!$standupOnDueDate) {
-            Log::info('No standup found for task completion for ' . $completedAt);
+            Log::info('No standup found for task completion for ' . $completedAt->toDateString());
             return;
         }
 
@@ -185,9 +238,9 @@ class PointsService
     }
 
     /**
-     * Awards points for a manager-approved kudo.
-     *
-     * @param Kudo $kudo
+     * Awards points to a user for an on-time milestone completion.
+     * @param int $userId
+     * @param Milestone $milestone
      */
     public function awardKudosPoints(Kudo $kudo)
     {

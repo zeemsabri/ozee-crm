@@ -47,8 +47,11 @@ class MilestoneController extends Controller
             $query->where('status', $status);
         }
 
-        // Get the milestones
-        $milestones = $query->orderBy('completion_date', 'asc')->get();
+        // Get the milestones: order by completion_date ascending with NULLs last
+        $milestones = $query
+            ->orderByRaw('completion_date IS NULL')
+            ->orderBy('completion_date', 'asc')
+            ->get();
 
         return response()->json($milestones);
     }
@@ -76,6 +79,7 @@ class MilestoneController extends Controller
                 'tasks as tasks_archived_count' => function ($q) { $q->where('status', 'Archived'); },
                 'tasks as tasks_total_count'
             ])
+            ->orderByRaw('completion_date IS NULL')
             ->orderBy('completion_date', 'asc')
             ->get()
             ->map(function ($m) {
@@ -261,6 +265,7 @@ class MilestoneController extends Controller
         ]);
 
         $milestone->status = Milestone::PENDING;
+        $milestone->completed_at = null;
         $milestone->save();
 
         // Create a project note and notify Google Chat
@@ -314,6 +319,7 @@ class MilestoneController extends Controller
         ]);
 
         $milestone->status = Milestone::IN_PROGRESS;
+        $milestone->actual_cmopletion_date = null;
         $milestone->completed_at = null;
         $milestone->save();
 

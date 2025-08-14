@@ -13,6 +13,7 @@ import ReasonModal from "@/Components/ProjectExpendables/ReasonModal.vue";
 import MilestoneFormModal from '@/Components/ProjectTasks/MilestoneFormModal.vue';
 import BulkTaskModal from '@/Components/ProjectTasks/BulkTaskModal.vue';
 import MilestoneCompletionDateModal from '@/Components/ProjectTasks/MilestoneCompletionDateModal.vue';
+import ProjectProgressTimeline from '@/Components/ProjectProgressTimeline.vue';
 import Modal from '@/Components/Modal.vue';
 import {
     Square2StackIcon,
@@ -78,6 +79,46 @@ const tabs = [
 ];
 
 // -- Computed Properties --
+// Milestone ordering and counts
+const nonNullMilestones = computed(() => {
+    return (milestones.value || []).filter(m => !!m.completion_date);
+});
+const orderedNonNullMilestones = computed(() => {
+    // Backend already orders with NULLs last, but ensure ordering on the client too
+    return [...nonNullMilestones.value].sort((a, b) => {
+        const ad = new Date(a.completion_date);
+        const bd = new Date(b.completion_date);
+        return ad - bd;
+    });
+});
+const totalMilestonesCount = computed(() => (milestones.value || []).length);
+const completedMilestonesCount = computed(() => (milestones.value || []).filter(m => {
+    const s = (m.status || '').toLowerCase();
+    return s === 'completed' || s === 'approved';
+}).length);
+const milestoneProgressPct = computed(() => {
+    if (!totalMilestonesCount.value) return 0;
+    return Math.round((completedMilestonesCount.value / totalMilestonesCount.value) * 100);
+});
+
+// Timeline based on earliest and latest non-null completion_date
+const timelineStartDate = computed(() => orderedNonNullMilestones.value.length ? new Date(orderedNonNullMilestones.value[0].completion_date) : null);
+const timelineEndDate = computed(() => orderedNonNullMilestones.value.length ? new Date(orderedNonNullMilestones.value[orderedNonNullMilestones.value.length - 1].completion_date) : null);
+const timelinePercent = computed(() => {
+    if (!timelineStartDate.value || !timelineEndDate.value) return 0;
+    // Normalize to noon to reduce DST issues
+    const toNoon = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+    const start = toNoon(timelineStartDate.value);
+    const end = toNoon(timelineEndDate.value);
+    const todayD = toNoon(new Date());
+    const total = end - start;
+    if (total <= 0) return 100;
+    let pct = ((todayD - start) / total) * 100;
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    return Math.round(pct);
+});
+
 const filteredMilestones = computed(() => {
     if (!milestones.value) return [];
     if (activeTab.value === 'active') return milestones.value.filter(m => m.status.toLowerCase() === 'in progress' || m.status.toLowerCase() === 'not started' || m.status.toLowerCase() === 'pending');
@@ -479,6 +520,9 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                 <p class="text-xs text-blue-600 mt-2">Budget available for new expenditures.</p>
                             </div>
                         </div>
+
+                        <!-- Project Progress & Timeline extracted into a reusable component -->
+                        <ProjectProgressTimeline :milestones="milestones" />
                     </div>
                 </section>
 

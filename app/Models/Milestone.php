@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\MilestoneApprovedEvent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Traits\Taggable;
@@ -48,6 +49,17 @@ class Milestone extends Model
         'mark_completed_at' => 'datetime',
         'approved_at' => 'datetime',
     ];
+
+    protected static function booted()
+    {
+        // Dispatch the standup event after the note has been created so it has a persisted ID
+        static::updated(function (Milestone $milestone) {
+            if($milestone->status === self::APPROVED) {
+                MilestoneApprovedEvent::dispatch($milestone);
+            }
+        });
+
+    }
 
     /**
      * Get the project that owns the milestone.
