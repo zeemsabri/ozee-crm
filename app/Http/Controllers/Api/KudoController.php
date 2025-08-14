@@ -145,13 +145,6 @@ class KudoController extends Controller
 
     private function getProjectsWhereUserHasPermission(User $user, string $permissionSlug)
     {
-        // Load projects where the user has a role that includes the permission
-        $projects = Project::whereHas('users', function ($q) use ($user, $permissionSlug) {
-            $q->where('users.id', $user->id)
-                ->whereHas('roles', function ($q2) use ($permissionSlug) {
-                    // roles() relationship from User? If not available, check via pivot role_id
-                });
-        })->get();
 
         // Fallback approach: We already store role_id on project_user pivot
         $projects = Project::with(['users' => function ($q) use ($user) {
