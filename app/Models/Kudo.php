@@ -36,6 +36,7 @@ class Kudo extends Model
     {
         parent::boot();
 
+        Log::info('Hit Boot');
         static::updating(function ($kudo) {
             Log::info('Kudo updating: ' . $kudo->id);
             if ($kudo->isDirty('is_approved') && $kudo->is_approved) {
