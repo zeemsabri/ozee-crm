@@ -137,6 +137,7 @@ class UserController extends Controller
                 'password' => 'nullable|string|min:8|confirmed', // Password is optional; 'confirmed' requires password_confirmation field
                 'role' => 'sometimes|required|in:super-admin,manager,employee,contractor', // Role can be updated
                 'timezone' => 'nullable|string|max:255',
+                'user_type' =>  'required|string|in:employee,contractor,admin',
             ]);
 
             $currentUser = Auth::user();
