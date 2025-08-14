@@ -93,7 +93,7 @@ class BonusCalculationService
             ],
             'managers_choice_most_improved' => [
                 'award_id' => 'managers_choice_most_improved',
-                'award_name' => 'Managers Choice (Most Improved)',
+                'award_name' => 'Most Improved',
                 'user_type' => 'both',
                 'distributed_pkr' => round($distributedManagersChoiceBonus, 2),
                 'recipients' => $managersChoiceAwards,
@@ -408,7 +408,7 @@ class BonusCalculationService
         $distributedAmount = 0.0;
         $employeeRecommendations = $this->calculateMostImprovedRecommendations($employees, $monthlyBudget);
         $contractorRecommendations = $this->calculateMostImprovedRecommendations($contractors, $monthlyBudget);
-        $combinedRecommendations = $employeeRecommendations->concat($contractorRecommendations)->sortByDesc('point_increase')->values();
+        $combinedRecommendations = $employeeRecommendations->concat($contractorRecommendations->toArray())->sortByDesc('point_increase')->values();
 
         $recommendations = [
             'employees' => $employeeRecommendations->take(5)->toArray(),
@@ -442,8 +442,18 @@ class BonusCalculationService
         }
 
         // Employee Most Improved
-        if ($employeeRecommendations->isNotEmpty() && !in_array($employeeRecommendations->first()['user_id'], $awardedUserIds)) {
-            $winner = $employeeRecommendations->first();
+
+        $employeeWinner = null;
+        foreach($employeeRecommendations as $recommendation) {
+            if(in_array($recommendation['user_id'], $awardedUserIds)) {
+                continue;
+            }
+            $winner = $recommendation;
+            $employeeWinner = $winner['user_id'];
+        }
+
+        if ($employeeRecommendations->isNotEmpty() && $employeeWinner && !in_array($employeeWinner, $awardedUserIds)) {
+            $winner = $employeeRecommendations->where('user_id', $employeeWinner)->first();
             $userPoints = MonthlyPoint::where('user_id', $winner['user_id'])->where('year', $monthlyBudget->year)->where('month', $monthlyBudget->month)->first();
             $calculatedBonus = $winner['point_increase'] * $monthlyBudget->points_value_pkr;
             $bonusAmount = min($calculatedBonus, $employeeMostImprovedPool);

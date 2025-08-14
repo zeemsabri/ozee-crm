@@ -729,7 +729,7 @@ watch(currentDisplayCurrency, (newCurrency) => {
 
                     <div class="flex justify-between items-end text-xs text-gray-600 mt-2 border-t border-gray-200 pt-2">
                         <div>
-                            <span v-if="transaction.user_id" class="block">User: {{ users.find(u => u.id === transaction.user_id)?.name || 'Unknown' }}</span>
+                            <span v-if="transaction.user_id" class="block">User: {{ transaction.user?.name || users.find(u => u.id === transaction.user_id)?.name || 'Unknown' }}</span>
                             <span v-if="transaction.hours_spent" class="block">Hours: {{ transaction.hours_spent }}</span>
                             <span v-if="(transaction.type === 'expense' || transaction.type === 'bonus') && rawTotalIncome > 0" class="block mt-1 text-gray-500">
                                 {{ ((convertCurrency(transaction.amount, transaction.currency, currentDisplayCurrency) / rawTotalIncome) * 100).toFixed(2) }}% of Income

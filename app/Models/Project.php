@@ -140,6 +140,12 @@ class Project extends Model
         return $this->morphMany(ProjectExpendable::class, 'expendable');
     }
 
+
+    public function budget()
+    {
+        return $this->expendable()->whereNull('user_id');
+    }
+
     /**
      * Get the bonus configuration groups associated with this project.
      */
@@ -440,6 +446,11 @@ class Project extends Model
         $approved = (float) $this->approved_milestone_expendables_total;
         $remaining = $budget - $approved;
         return round(max(0, $remaining), 2);
+    }
+
+    public function getTotalBudgetAttribute()
+    {
+        return $this->budget()->sum('amount');
     }
 
 //    protected $appends = [

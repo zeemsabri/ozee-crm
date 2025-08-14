@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\MonthlyBudget;
 use App\Services\BonusCalculationService;
+use App\Services\TransactionBonusService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -31,6 +32,8 @@ class BonusCalculatorController extends Controller
         $year = (int) ($request->query('year') ?? date('Y'));
         $month = (int) ($request->query('month') ?? date('n'));
 
+        $new = new TransactionBonusService($service);
+        $new->createBonusTransactions($year, $month);
         $result = $service->calculateMonthlyBonuses($year, $month);
 
         return response()->json($result);
