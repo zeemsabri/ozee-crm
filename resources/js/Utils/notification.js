@@ -6,6 +6,8 @@ import { addOrUpdateNotification } from '@/Utils/notification-sidebar';
 
 // Reference to the standard notification container component (for toasts)
 let standardNotificationContainer = null;
+// Optional callback to trigger fetching unread notices (e.g., to open full-screen modal)
+let noticeFetcher = null;
 // Push notification container is no longer needed here, as it will read from global state.
 
 /**
@@ -14,6 +16,14 @@ let standardNotificationContainer = null;
  */
 export const setStandardNotificationContainer = (container) => {
     standardNotificationContainer = container;
+};
+
+/**
+ * Set or clear the notice fetcher callback used to refresh notices (full modal use-case)
+ * @param {Function|null} fn - function to call to fetch unread notices, or null to clear
+ */
+export const setNoticeFetcher = (fn) => {
+    noticeFetcher = typeof fn === 'function' ? fn : null;
 };
 
 /**
@@ -40,7 +50,14 @@ export const pushSuccess = (payload) => {
 
     // Check if the payload has the full_modal property set to true
     if (payload.full_modal) {
-        console.log('Notification has full_modal set to true, skipping processing.');
+        console.log('Notification has full_modal set to true, triggering notice fetch instead of showing push.');
+        try {
+            if (noticeFetcher) {
+                noticeFetcher();
+            }
+        } catch (e) {
+            console.warn('Notice fetcher threw an error:', e);
+        }
         return;
     }
 

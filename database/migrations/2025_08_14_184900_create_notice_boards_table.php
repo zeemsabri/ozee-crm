@@ -9,21 +9,19 @@ return new class extends Migration
     public function up(): void
     {
 
-        Schema::create('notice_boards', function (Blueprint $table) {
-            $table->id();
-            $table->string('title');
-            $table->text('description')->nullable();
-            $table->string('url')->nullable();
-            $table->string('type'); // General, Warning, Updates, Final Notice
-            $table->foreignId('created_by')->constrained('users');
-            $table->boolean('visible_to_client')->default(false);
-            $table->timestamps();
-            $table->softDeletes();
+        Schema::table('shareable_resources', function (Blueprint $table) {
+            // First drop the existing type column
+            $table->boolean('notice');
         });
+
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('notice_boards');
+        Schema::table('shareable_resources', function (Blueprint $table) {
+
+            $table->dropColumn('notice');
+
+        });
     }
 };

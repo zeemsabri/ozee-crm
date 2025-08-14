@@ -37,36 +37,36 @@ const checkShouldShowPrompt = async () => {
     error.value = ''; // Clear previous errors
 
     try {
-        ensureAuthHeaders(); // Ensure authentication headers are set before the request
-
-        const response = await axios.get('/api/availability-prompt'); // Fetch data from the API
-
-        // Update reactive state with data from the API response
-        showPrompt.value = response.data.should_show_prompt;
-        shouldBlockUser.value = response.data.should_block_user;
-        allNextWeekdaysCovered.value = response.data.all_next_weekdays_covered; // Renamed for clarity with API
-        currentDay.value = response.data.current_day;
-        isThursdayToSaturday.value = response.data.is_thursday_to_saturday;
-
-        // Generate dates for next week if the prompt is active
-        if (showPrompt.value) {
-            generateNextWeekDates(response.data.next_week_start, response.data.next_week_end);
-        }
-
-        // Store blocking status in localStorage for other components to read.
-        // This is a common pattern for sharing global state in simple setups.
-        localStorage.setItem('shouldBlockUser', shouldBlockUser.value);
-        localStorage.setItem('allNextWeekdaysCovered', allNextWeekdaysCovered.value); // Use the new name
-
-        // Dispatch a custom event to notify other components about the availability status change.
-        // This is a reactive way for loosely coupled components to communicate.
-        const event = new CustomEvent('availability-status-updated', {
-            detail: {
-                shouldBlockUser: shouldBlockUser.value,
-                allNextWeekdaysCovered: allNextWeekdaysCovered.value
-            }
-        });
-        window.dispatchEvent(event);
+        // ensureAuthHeaders(); // Ensure authentication headers are set before the request
+        //
+        // const response = await axios.get('/api/availability-prompt'); // Fetch data from the API
+        //
+        // // Update reactive state with data from the API response
+        // showPrompt.value = response.data.should_show_prompt;
+        // shouldBlockUser.value = response.data.should_block_user;
+        // allNextWeekdaysCovered.value = response.data.all_next_weekdays_covered; // Renamed for clarity with API
+        // currentDay.value = response.data.current_day;
+        // isThursdayToSaturday.value = response.data.is_thursday_to_saturday;
+        //
+        // // Generate dates for next week if the prompt is active
+        // if (showPrompt.value) {
+        //     generateNextWeekDates(response.data.next_week_start, response.data.next_week_end);
+        // }
+        //
+        // // Store blocking status in localStorage for other components to read.
+        // // This is a common pattern for sharing global state in simple setups.
+        // localStorage.setItem('shouldBlockUser', shouldBlockUser.value);
+        // localStorage.setItem('allNextWeekdaysCovered', allNextWeekdaysCovered.value); // Use the new name
+        //
+        // // Dispatch a custom event to notify other components about the availability status change.
+        // // This is a reactive way for loosely coupled components to communicate.
+        // const event = new CustomEvent('availability-status-updated', {
+        //     detail: {
+        //         shouldBlockUser: shouldBlockUser.value,
+        //         allNextWeekdaysCovered: allNextWeekdaysCovered.value
+        //     }
+        // });
+        // window.dispatchEvent(event);
 
     } catch (err) {
         console.error('Error checking availability prompt:', err);

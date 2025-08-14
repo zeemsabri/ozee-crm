@@ -52,9 +52,11 @@ const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_proje
 
                         <!-- Planning Category -->
                         <div>
-                            <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Planning</h4>
+                            <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Planning / Sharing</h4>
                             <div class="space-y-1">
                                 <DropdownLink v-if="canManageUsers" :href="route('availability.index')" :active="route().current('availability.index')" class="!px-2 !py-1.5">Weekly Availability</DropdownLink>
+                                <DropdownLink v-if="canDo('manage_notices')" :href="route('admin.notice-board.index')" class="!px-2 !py-1.5">Notice Board</DropdownLink>
+                                <DropdownLink v-if="canDo('manage_notices')" :href="route('shareable-resources.index')" class="!px-2 !py-1.5">Shareable Resources</DropdownLink>
                             </div>
                         </div>
 
@@ -66,7 +68,6 @@ const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_proje
                                 <DropdownLink v-if="canManageProjectTiers || canDo('create_project_tiers') || canDo('edit_project_tiers')" href="/admin/project-tiers" class="!px-2 !py-1.5">Project Tiers</DropdownLink>
                                 <DropdownLink v-if="canDo('manage_email_templates')" :href="route('email-templates.index')" :active="route().current('email-templates.index')" class="!px-2 !py-1.5">Email Templates</DropdownLink>
                                 <DropdownLink v-if="canDo('manage_placeholder_definitions')" :href="route('placeholder-definitions.index')" :active="route().current('placeholder-definitions.index')" class="!px-2 !py-1.5">Placeholder Definitions</DropdownLink>
-                                <DropdownLink v-if="canDo('manage_notices')" :href="route('admin.notice-board.index')" class="!px-2 !py-1.5">Notice Board</DropdownLink>
                             </div>
                         </div>
 

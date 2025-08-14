@@ -22,7 +22,7 @@ class ProjectExpendableController extends Controller
             return response()->json(['message' => 'Unauthorized. You do not have permission to view expendables.'], 403);
         }
 
-        $expendables = ProjectExpendable::where('project_id', $project->id)
+        $expendables = $project->budget()
             ->latest()
             ->get();
 

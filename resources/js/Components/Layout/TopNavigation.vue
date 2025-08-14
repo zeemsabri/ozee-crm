@@ -44,7 +44,6 @@ const canManageRoles = canDo('manage_roles');
                         </NavLink>
 
                         <NavLink
-                            v-if="canDo('view_emails')"
                             :href="route('inbox')"
                             :active="route().current('inbox')"
                         >
@@ -52,7 +51,6 @@ const canManageRoles = canDo('manage_roles');
                         </NavLink>
 
                         <NavLink
-                            v-if="canDo('view_own_points')"
                             :href="route('bonus-system.index')"
                             :active="route().current('bonus-system.index')"
                         >
@@ -60,7 +58,6 @@ const canManageRoles = canDo('manage_roles');
                         </NavLink>
 
                         <NavLink
-                            v-if="canDo('view_own_points')"
                             :href="route('leaderboard.index')"
                             :active="route().current('leaderboard.index')"
                         >
@@ -68,14 +65,13 @@ const canManageRoles = canDo('manage_roles');
                         </NavLink>
 
                         <NavLink
-                            v-if="canDo('view_kudos')"
                             :href="route('kudos.index')"
                             :active="route().current('kudos.index')"
                         >
                             Kudos
                         </NavLink>
 
-                        <NavLink v-if="canDo('manage_projects')" :href="route('admin.project-expendables.index')" class="!px-2 !py-1.5">Project Expendables</NavLink>
+                        <NavLink v-if="canDo('add_expendables').value " :href="route('project-expendables.index')" class="!px-2 !py-1.5">Project Expendables</NavLink>
 
                         <AdminDropdown v-if="canManageRoles" />
                     </div>

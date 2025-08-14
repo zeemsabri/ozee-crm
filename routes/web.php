@@ -162,6 +162,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('Test/FormModalTest');
     })->name('test.form-modal');
 
+    // Project Expendables Page
+    Route::get('/project-expendables', function () {
+        return Inertia::render('Admin/ProjectExpendables/Index');
+    })->name('project-expendables.index')->middleware('permissionInAnyProject:add_expendables');
+
     // Admin routes
     Route::prefix('admin')->name('admin.')->group(function () {
         // Project Tier management routes - requires view_project_tiers permission
@@ -186,11 +191,6 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         Route::get('/monthly-budgets', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'index'])
             ->middleware(['permission:view_monthly_budgets'])
             ->name('monthly-budgets.index');
-
-        // Project Expendables Page
-        Route::get('/project-expendables', function () {
-            return Inertia::render('Admin/ProjectExpendables/Index');
-        })->name('project-expendables.index')->middleware('permission:manage_projects');
 
         // Notice Board Admin Page
         Route::get('/notice-board', function () {

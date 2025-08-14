@@ -42,11 +42,10 @@ class PermissionController extends Controller
                 }
             }
 
-            // Log the permissions being returned
-            Log::info('Returning user permissions', [
-                'user_id' => $user->id,
-                'permission_count' => count($permissions)
-            ]);
+            $projectIds = $user->projects->pluck('id')->toArray();
+            if($expendablePermission = $user->hasProjectPermissionOnAnyRole($projectIds, 'add_expendables')) {
+                $permissions[]  = $expendablePermission;
+            }
 
             return response()->json([
                 'permissions' => $permissions,

@@ -86,7 +86,55 @@ class NoticeBoardController extends Controller
         if ($type && in_array($type, NoticeBoard::TYPES, true)) {
             $query->where('type', $type);
         }
+
+        // Paginate notices first
         $notices = $query->paginate(15);
+
+        // Collect notice IDs
+        $noticeIds = collect($notices->items())->pluck('id')->all();
+
+        if (!empty($noticeIds)) {
+            // Load interactions for these notices with related user
+            $interactions = UserInteraction::with('user')
+                ->whereIn('interactable_id', $noticeIds)
+                ->where('interactable_type', NoticeBoard::class)
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            // Group by notice then by user
+            $byNotice = $interactions->groupBy('interactable_id');
+
+            // Transform paginator items to include users_with_interactions
+            $transformed = collect($notices->items())->map(function ($notice) use ($byNotice) {
+                $usersWithInteractions = [];
+                $groups = $byNotice->get($notice->id, collect())->groupBy('user_id');
+                foreach ($groups as $userId => $rows) {
+                    $user = optional($rows->first())->user;
+                    if (!$user) { continue; }
+                    $usersWithInteractions[] = [
+                        'user' => [
+                            'id' => $user->id,
+                            'name' => $user->name,
+                            'email' => $user->email,
+                        ],
+                        'interactions' => $rows->map(function ($r) {
+                            return [
+                                'type' => $r->interaction_type,
+                                'created_at' => $r->created_at,
+                            ];
+                        })->values()->all(),
+                    ];
+                }
+
+                // Attach extra field without altering original attributes
+                $notice->setAttribute('users_with_interactions', $usersWithInteractions);
+                return $notice;
+            });
+
+            // Replace paginator collection while keeping metadata
+            $notices->setCollection($transformed);
+        }
+
         return response()->json($notices);
     }
 

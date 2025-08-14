@@ -503,9 +503,27 @@ class User extends Authenticatable
 
     }
 
+    public function hasProjectPermissionOnAnyRole(array $projectIds, $permissionSlug)
+    {
+        foreach($projectIds as $projectId) {
+            if($this->hasProjectPermission($projectId, $permissionSlug)) {
+                $permission = Permission::where('slug', $permissionSlug)->first();
+                return [
+                    'id' => $permission->id,
+                    'name' => $permission->name,
+                    'slug' => $permission->slug,
+                    'category' => $permission->category,
+                    'source' => 'application'
+                ];
+            }
+        }
+        return false;
+    }
+
     // In your App/Models/User.php
     public function hasProjectPermission($projectId, $permissionSlug)
     {
+
         $projectRole = $this->getRoleForProject($projectId);
 
         if (!$projectRole) {
