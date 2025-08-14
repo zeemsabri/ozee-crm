@@ -68,7 +68,6 @@ class KudoController extends Controller
         $user = $request->user();
 
         // If user has global approve_kudos, show all pending
-        dd($user->hasPermission('approve_kudos'));
         if ($user->hasPermission('approve_kudos')) {
             $kudos = Kudo::with(['sender', 'recipient', 'project'])
                 ->where('is_approved', false)
