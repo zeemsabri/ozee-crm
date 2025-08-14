@@ -191,7 +191,7 @@ class PointsService
         $userTime = $this->getUserCarbonTimezone($user);
 
         // Convert due date to user's timezone for comparison
-        $dueDateInUserTimezone = Carbon::parse($task->due_date)->setTimezone($user->timezone);
+        $dueDateInUserTimezone = Carbon::parse($task->due_date)->setTimezone($user->timezone ?? config('app.timezone'));
 
         $completedAt = $task->actual_completion_date ? Carbon::parse($task->actual_completion_date)->setTimezone($user->timezone) : $userTime;
 
