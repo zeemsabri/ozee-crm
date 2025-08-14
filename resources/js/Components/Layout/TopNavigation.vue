@@ -75,6 +75,8 @@ const canManageRoles = canDo('manage_roles');
                             Kudos
                         </NavLink>
 
+                        <NavLink v-if="canDo('manage_projects')" :href="route('admin.project-expendables.index')" class="!px-2 !py-1.5">Project Expendables</NavLink>
+
                         <AdminDropdown v-if="canManageRoles" />
                     </div>
                 </div>

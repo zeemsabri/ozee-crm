@@ -1,245 +1,142 @@
 <script setup>
-import { ref, reactive, watch, computed } from 'vue';
+import { reactive, watch, computed } from 'vue';
 import BaseFormModal from '@/Components/BaseFormModal.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import InputError from '@/Components/InputError.vue';
-
-// Assuming you have these components or can create them
-import TextInput from '@/Components/TextInput.vue';
 import InputLabel from '@/Components/InputLabel.vue';
+import TextInput from '@/Components/TextInput.vue';
+import InputError from '@/Components/InputError.vue';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 
 const props = defineProps({
-    show: {
-        type: Boolean,
-        default: false,
-    },
-    contractId: {
-        type: Number,
-        required: true,
-    },
-    completionDate: {
-        type: String, // YYYY-MM-DD format
-        required: false,
-        default: null,
-    },
+    show: Boolean,
+    projectId: Number,
 });
 
-const emit = defineEmits(['close', 'tasks-submitted']);
+const emit = defineEmits(['close', 'saved']);
 
-const tasks = reactive([]);
-const smartInput = ref('');
-const messageBox = ref({
-    show: false,
-    text: '',
-    type: 'success', // 'success' or 'error'
+const milestoneForm = reactive({
+    name: '',
+    description: '',
+    completion_date: null,
+    status: 'Not Started',
+    project_id: props.projectId
 });
 
-const today = new Date();
-const tomorrow = new Date(today);
-tomorrow.setDate(today.getDate() + 1);
+const localErrors = reactive({ completion_date: null });
 
-// This will hold the task that is currently being created before it's added to the list
-const currentTaskName = ref('');
+const milestoneStatuses = ['Not Started', 'In Progress', 'Completed', 'Overdue'];
 
-// Watch for the modal to close to reset the state
+// Computed properties for BaseFormModal
+const modalTitle = 'Add New Milestone';
+const apiEndpoint = '/api/milestones';
+const httpMethod = 'post';
+const submitButtonText = 'Create Milestone';
+const successMessage = 'Milestone created successfully!';
+
+// Watch for changes in `show` prop to reset form data
 watch(() => props.show, (newValue) => {
-    if (!newValue) {
-        // Reset state when the modal closes
-        tasks.splice(0, tasks.length);
-        smartInput.value = '';
-        currentTaskName.value = '';
-        messageBox.value = { show: false, text: '', type: 'success' };
-    }
-});
-
-// Add the current task to the list
-const addTaskToList = () => {
-    if (currentTaskName.value && currentTaskName.value.trim() !== '') {
-        tasks.push({
-            name: currentTaskName.value,
-            dueDate: '', // No due date set initially
-            priority: 'Medium', // Default to Medium priority
-            contract_id: props.contractId
+    if (newValue) {
+        Object.assign(milestoneForm, {
+            name: '',
+            description: '',
+            completion_date: null,
+            status: 'Not Started',
+            project_id: props.projectId
         });
-        currentTaskName.value = '';
-        messageBox.value.show = false;
+        localErrors.completion_date = null;
     }
-};
+}, { immediate: true });
 
-// Remove a task from the list
-const removeTask = (index) => {
-    tasks.splice(index, 1);
-};
-
-// Update priority of an existing task
-const updateTaskPriority = (index, newPriority) => {
-    tasks[index].priority = newPriority;
-};
-
-// Update due date of an existing task
-const updateTaskDueDate = (index, newDate) => {
-    const todayObj = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const completionDateObj = props.completionDate ? new Date(props.completionDate) : null;
-    const newDateObj = new Date(newDate);
-
-    // Clear previous message
-    messageBox.value.show = false;
-
-    if (completionDateObj && newDateObj > completionDateObj) {
-        messageBox.value = {
-            show: true,
-            text: 'The selected due date is after the milestone completion date.',
-            type: 'error',
-        };
-        tasks[index].dueDate = ''; // Clear the invalid date
-        return;
+// Client-side validation to ensure completion_date is mandatory
+const validateForm = () => {
+    localErrors.completion_date = null;
+    if (!milestoneForm.completion_date) {
+        localErrors.completion_date = ['Completion date is required.'];
+        return false;
     }
-
-    if (newDateObj < todayObj) {
-        messageBox.value = {
-            show: true,
-            text: 'The selected due date cannot be in the past.',
-            type: 'error',
-        };
-        tasks[index].dueDate = ''; // Clear the invalid date
-        return;
-    }
-
-    tasks[index].dueDate = newDate;
+    return true;
 };
 
-
-// Function to format the data for API submission
-const formatDataForApi = (data) => {
-    return { tasks: data };
+// Function to handle the successful submission from BaseFormModal
+const handleSaved = (responseData) => {
+    // The response data here will be the new milestone
+    emit('saved', responseData);
+    emit('close');
 };
 
-const handleSubmit = (close) => {
-    if (tasks.length > 0) {
-        // Check for any tasks without a due date and warn the user
-        const tasksWithoutDueDate = tasks.filter(task => !task.dueDate);
-        if (tasksWithoutDueDate.length > 0) {
-            messageBox.value = {
-                show: true,
-                text: 'Some tasks do not have a due date. They will be submitted without one.',
-                type: 'error', // Use an error or warning style
-            };
-        }
-
-        console.log('Submitting tasks to API:', tasks);
-        messageBox.value = {
-            show: true,
-            text: 'Tasks submitted successfully!',
-            type: 'success',
-        };
-        setTimeout(() => {
-            messageBox.value.show = false;
-            emit('tasks-submitted');
-            close();
-        }, 1500);
-    } else {
-        messageBox.value = {
-            show: true,
-            text: 'Please add at least one task.',
-            type: 'error',
-        };
-    }
-};
-
-const formData = computed(() => tasks);
-
-// Check if a given date is valid for quick select buttons
-const isValidDate = (date) => {
-    const completionDateObj = props.completionDate ? new Date(props.completionDate) : null;
-    const todayObj = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const dateObj = new Date(date);
-
-    const isValid = dateObj >= todayObj && (!completionDateObj || dateObj <= completionDateObj);
-    return isValid;
+// Pass through the close event
+const closeModal = () => {
+    emit('close');
 };
 </script>
 
 <template>
     <BaseFormModal
         :show="show"
-        :title="'Create Tasks in Bulk'"
-        :api-endpoint="'/api/tasks/bulk'"
-        :http-method="'post'"
-        :form-data="formData"
-        :format-data-for-api="formatDataForApi"
-        @close="$emit('close')"
-        @submitted="handleSubmit"
+        :title="modalTitle"
+        :api-endpoint="apiEndpoint"
+        :http-method="httpMethod"
+        :form-data="milestoneForm"
+        :submit-button-text="submitButtonText"
+        :success-message="successMessage"
+        :before-submit="validateForm"
+        @close="closeModal"
+        @submitted="handleSaved"
     >
         <template #default="{ errors }">
             <div class="space-y-4">
-                <!-- Message box -->
-                <div v-if="messageBox.show" class="mb-4 p-4 rounded-lg transition-all duration-300 ease-in-out" :class="{ 'bg-green-100 text-green-700 border border-green-200': messageBox.type === 'success', 'bg-red-100 text-red-700 border border-red-200': messageBox.type === 'error' }">
-                    {{ messageBox.text }}
+                <!-- Milestone Name -->
+                <div>
+                    <InputLabel for="milestone-name" value="Milestone Name" />
+                    <TextInput
+                        id="milestone-name"
+                        v-model="milestoneForm.name"
+                        type="text"
+                        class="mt-1 block w-full"
+                        placeholder="Enter milestone name"
+                        required
+                    />
+                    <InputError :message="errors.name ? errors.name[0] : ''" class="mt-2" />
                 </div>
 
-                <!-- Smart Input Section -->
-                <form @submit.prevent="addTaskToList" class="relative">
+                <!-- Milestone Description -->
+                <div>
+                    <InputLabel for="milestone-description" value="Description" />
+                    <textarea
+                        id="milestone-description"
+                        v-model="milestoneForm.description"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        rows="3"
+                        placeholder="Enter milestone description"
+                    ></textarea>
+                    <InputError :message="errors.description ? errors.description[0] : ''" class="mt-2" />
+                </div>
+
+                <!-- Completion Date -->
+                <div>
+                    <InputLabel for="milestone-completion-date" value="Completion Date" />
                     <TextInput
-                        v-model="currentTaskName"
-                        id="task-name-input"
-                        placeholder="e.g., 'Finish project report'"
-                        class="w-full p-4 pr-12 text-lg border border-gray-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition-all duration-200 ease-in-out"
+                        id="milestone-completion-date"
+                        v-model="milestoneForm.completion_date"
+                        type="date"
+                        class="mt-1 block w-full"
+                        required
                     />
-                    <button type="submit" class="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-indigo-600 hover:text-indigo-800">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                    </button>
-                </form>
+                    <InputError :message="errors.completion_date ? errors.completion_date[0] : (localErrors.completion_date ? localErrors.completion_date[0] : '')" class="mt-2" />
+                </div>
 
-                <hr class="my-6 border-gray-200">
-
-                <!-- Final Task List -->
-                <div v-if="tasks.length > 0" id="final-task-list" class="space-y-3">
-                    <h2 class="text-lg font-semibold text-gray-800">Tasks to Create:</h2>
-                    <div v-for="(task, index) in tasks" :key="index" class="flex flex-col p-4 bg-gray-50 rounded-xl border border-gray-200 group transition-all duration-200 ease-in-out">
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-semibold text-gray-800 truncate">{{ task.name }}</p>
-                            <button type="button" @click="removeTask(index)" class="remove-final-task ml-4 p-1 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-all duration-200 ease-in-out">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                </svg>
-                            </button>
-                        </div>
-                        <div class="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 text-xs text-gray-500 mt-2">
-                            <!-- Date Selection -->
-                            <div class="flex items-center space-x-2">
-                                <span class="font-medium">Due:</span>
-                                <template v-if="isValidDate(today.toISOString().split('T')[0])">
-                                    <button type="button" @click="updateTaskDueDate(index, today.toISOString().split('T')[0])" class="px-2 py-0.5 rounded-full text-indigo-600 bg-indigo-100 text-xs hover:bg-indigo-200" :class="{ 'bg-indigo-300 font-semibold': task.dueDate === today.toISOString().split('T')[0] }">Today</button>
-                                </template>
-                                <template v-if="isValidDate(tomorrow.toISOString().split('T')[0])">
-                                    <button type="button" @click="updateTaskDueDate(index, tomorrow.toISOString().split('T')[0])" class="px-2 py-0.5 rounded-full text-indigo-600 bg-indigo-100 text-xs hover:bg-indigo-200" :class="{ 'bg-indigo-300 font-semibold': task.dueDate === tomorrow.toISOString().split('T')[0] }">Tomorrow</button>
-                                </template>
-                                <input type="date" :value="task.dueDate" @change="updateTaskDueDate(index, $event.target.value)" :min="today.toISOString().split('T')[0]" :max="completionDate" class="p-1 rounded-lg border border-gray-300 text-xs focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition-all duration-200 ease-in-out">
-                            </div>
-
-                            <!-- Priority Selection -->
-                            <div class="flex items-center space-x-2">
-                                <span class="font-medium">Priority:</span>
-                                <button
-                                    type="button"
-                                    @click="updateTaskPriority(index, 'Low')"
-                                    class="px-2 py-0.5 rounded-full text-gray-500 bg-gray-100 text-xs hover:bg-gray-200"
-                                    :class="{ 'bg-gray-200 font-semibold': task.priority === 'Low' }">Low</button>
-                                <button
-                                    type="button"
-                                    @click="updateTaskPriority(index, 'Medium')"
-                                    class="px-2 py-0.5 rounded-full text-blue-600 bg-blue-100 text-xs hover:bg-blue-200"
-                                    :class="{ 'bg-blue-200 font-semibold': task.priority === 'Medium' }">Medium</button>
-                                <button
-                                    type="button"
-                                    @click="updateTaskPriority(index, 'High')"
-                                    class="px-2 py-0.5 rounded-full text-red-600 bg-red-100 text-xs hover:bg-red-200"
-                                    :class="{ 'bg-red-200 font-semibold': task.priority === 'High' }">High</button>
-                            </div>
-                        </div>
-                    </div>
+                <!-- Status -->
+                <div>
+                    <InputLabel for="milestone-status" value="Status" />
+                    <SelectDropdown
+                        id="milestone-status"
+                        v-model="milestoneForm.status"
+                        :options="milestoneStatuses.map(s => ({ value: s, label: s }))"
+                        value-key="value"
+                        label-key="label"
+                        placeholder="Select status"
+                        class="mt-1"
+                    />
+                    <InputError :message="errors.status ? errors.status[0] : ''" class="mt-2" />
                 </div>
             </div>
         </template>

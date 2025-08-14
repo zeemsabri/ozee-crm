@@ -781,6 +781,7 @@ watch(currentDisplayCurrency, async (newCurrency) => {
             :project-id="Number(selectedProjectId)"
             @close="showMilestoneFormModal = false"
             @saved="() => { showMilestoneFormModal = false; loadMilestones(); }"
+            :contract-id="activeContractId"
         />
 
         <Modal :show="showReasonsListModal" @close="() => { showReasonsListModal = false; activeMilestone = null; reasonsList = []; }">

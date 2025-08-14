@@ -1,1 +1,0 @@
-import{s as t,X as s,o,f as l,C as r}from"./app-CwLjNXT3.js";const i={__name:"TabPanel",props:{active:{type:Boolean,default:!1}},setup(e){return(a,n)=>t((o(),l("div",null,[r(a.$slots,"default")],512)),[[s,e.active]])}};export{i as default};
