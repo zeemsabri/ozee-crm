@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+
 
 class NoticeBoard extends ShareableResource
 {
@@ -47,6 +49,14 @@ class NoticeBoard extends ShareableResource
                 $model->notice = true;
             }
         });
+
+        if (static::class === self::class) {
+            static::addGlobalScope('exclude_notice', function (Builder $query) {
+                $query->where(function (Builder $q) {
+                    $q->where('notice', true)->orWhereNull('notice');
+                });
+            });
+        }
     }
 
     // Interactions: read and click tracking
