@@ -36,6 +36,21 @@ class ShareableResource extends Model
     ];
 
     /**
+     * Boot the model and add a global scope to exclude notices.
+     * This applies only to the base ShareableResource model, not subclasses like NoticeBoard.
+     */
+    protected static function booted()
+    {
+        if (static::class === self::class) {
+            static::addGlobalScope('exclude_notice', function (Builder $query) {
+                $query->where(function (Builder $q) {
+                    $q->where('notice', false)->orWhereNull('notice');
+                });
+            });
+        }
+    }
+
+    /**
      * Get the user who created the resource.
      */
     public function creator()
