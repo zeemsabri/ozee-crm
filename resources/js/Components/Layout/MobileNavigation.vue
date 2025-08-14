@@ -96,9 +96,7 @@ const handleLogoutError = (error) => {
                 <ResponsiveNavLink v-if="canDo('manage_permissions')" :href="route('admin.permissions.index')" :active="route().current('admin.permissions.index')">
                     Manage Permissions
                 </ResponsiveNavLink>
-                <ResponsiveNavLink v-if="canDo('manage_bonus_configuration')" :href="route('bonus-configuration.index')" :active="route().current('bonus-configuration.index')">
-                    Bonus Configuration
-                </ResponsiveNavLink>
+
                 <ResponsiveNavLink v-if="canManageTaskTypes" :href="route('task-types.index')" :active="route().current('task-types.index')">
                     Task Types
                 </ResponsiveNavLink>
