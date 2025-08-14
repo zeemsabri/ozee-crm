@@ -20,6 +20,7 @@ class Transaction extends Model
         'type',
         'is_paid',
         'payment_date',
+        'transaction_type_id',
     ];
 
     protected $casts = [
@@ -37,5 +38,10 @@ class Transaction extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function transactionType()
+    {
+        return $this->belongsTo(TransactionType::class);
     }
 }

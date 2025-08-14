@@ -73,6 +73,9 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
 
+    // Test Form Route for BaseFormModal testing
+    Route::post('/test-form', [\App\Http\Controllers\Api\TestFormController::class, 'store']);
+
     // Notifications Routes
     // Other routes...
     Route::get('/notifications', [NotificationController::class, 'index']);
@@ -118,10 +121,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Project Section Read Routes
     Route::get('projects/{project}/sections/basic', [ProjectReadController::class, 'getBasicInfo']);
+    // Project Expendables
+    Route::get('projects/{project}/expendables', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'index']);
     Route::get('projects/{project}/sections/clients-users', [ProjectReadController::class, 'getClientsAndUsers']);
     Route::get('projects/{project}/sections/clients', [ProjectReadController::class, 'getClientsAndUsers']);
     Route::get('projects/{project}/sections/users', [ProjectReadController::class, 'getClientsAndUsers']);
     Route::get('projects/{project}/sections/services-payment', [ProjectReadController::class, 'getServicesAndPayment']);
+    Route::get('projects/{project}/expendable-budget', [ProjectReadController::class, 'getExpendableBudget']);
     Route::get('projects/{project}/sections/transactions', [ProjectReadController::class, 'getTransactions']);
     Route::get('projects/{project}/sections/documents', [ProjectReadController::class, 'getDocuments']);
     Route::get('projects/{project}/sections/notes', [ProjectReadController::class, 'getNotes']); // Re-uses getNotes
@@ -137,7 +143,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('projects/{project}/detach-users', [ProjectActionController::class, 'detachUsers'])->name('projects.detach-users');
     Route::post('projects/{project}/attach-clients', [ProjectActionController::class, 'attachClients'])->name('projects.attach-clients');
     Route::post('projects/{project}/detach-clients', [ProjectActionController::class, 'detach-clients']);
-    Route::post('projects/{project}/transactions', [\App\Http\Controllers\Api\TransactionsController::class, 'addTransactions']);
+    Route::post('projects/{project}/transactions', [\App\Http\Controllers\Api\TransactionsController::class, 'addTransactions'])->middleware('process.basic:transaction_type,App\\Models\\TransactionType');
     Route::patch('projects/{project}/transactions/{transaction}/process-payment', [\App\Http\Controllers\Api\TransactionsController::class, 'processPayment']);
     Route::post('projects/{project}/notes', [ProjectActionController::class, 'addNotes']);
     Route::post('projects/{project}/notes/{note}/reply', [ProjectActionController::class, 'replyToNote']);
@@ -148,7 +154,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects/{project}/meetings', [ProjectActionController::class, 'createProjectMeeting']);
     Route::delete('/projects/{project}/meetings/{googleEventId}', [ProjectActionController::class, 'deleteProjectMeeting']);
     Route::patch('projects/{project}/convert-payment-type', [ProjectActionController::class, 'convertPaymentType']); // Moved PATCH route
+    Route::patch('projects/{project}/expendable-budget', [ProjectActionController::class, 'updateExpendableBudget']);
     Route::post('projects/{project}/archive', [ProjectActionController::class, 'archive']);
+    Route::post('projects/{project}/expendables', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'store']);
+    Route::put('projects/{project}/expendables/{expendable}', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'update']);
+    Route::post('projects/{project}/expendables/{expendable}/accept', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'accept']);
+    Route::post('projects/{project}/expendables/{expendable}/reject', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'reject']);
+    Route::delete('projects/{project}/expendables/{expendable}', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'destroy']);
     Route::post('projects/{id}/restore', [ProjectActionController::class, 'restore']);
 
     // Project Section Update Routes
@@ -216,6 +228,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/notes', [\App\Http\Controllers\GoogleChatUserController::class, 'sendNote']);
     });
 
+    // Leaderboard Routes
+    Route::get('leaderboard/monthly', [\App\Http\Controllers\Api\LeaderboardController::class, 'monthly']);
+    Route::get('leaderboard/stats', [\App\Http\Controllers\Api\LeaderboardController::class, 'stats']);
+
+    Route::post('users/{user}/restore', [UserController::class, 'restore'])->name('users.restore');
     Route::apiResource('users', UserController::class);
 
     // Permission Management Routes
@@ -230,6 +247,9 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:manage_permissions')
         ->name('roles.updatePermissions');
 
+    // Project Tier Management Routes
+    Route::apiResource('project-tiers', \App\Http\Controllers\Api\ProjectTierController::class);
+
     // Task Management Routes
     Route::get('task-statistics', [TaskController::class, 'getTaskStatistics']);
     Route::get('assigned-tasks', [TaskController::class, 'getAssignedTasks']);
@@ -239,6 +259,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('activities', [ActivityController::class, 'index']);
 
     // Apply ProcessTags middleware to store and update methods
+    Route::post('tasks/bulk', [TaskController::class, 'bulk']);
     Route::apiResource('tasks', TaskController::class)->middleware(['process.tags']);
     Route::post('tasks/{task}/notes', [TaskController::class, 'addNote']);
     Route::patch('tasks/{task}/complete', [TaskController::class, 'markAsCompleted']);
@@ -260,14 +281,24 @@ Route::middleware('auth:sanctum')->group(function () {
     // Milestone Management Routes
     Route::apiResource('milestones', MilestoneController::class);
     Route::post('milestones/{milestone}/complete', [MilestoneController::class, 'markAsCompleted']);
+    Route::post('milestones/{milestone}/approve', [MilestoneController::class, 'approve']);
+    Route::post('milestones/{milestone}/reject', [MilestoneController::class, 'reject']);
+    Route::post('milestones/{milestone}/reopen', [MilestoneController::class, 'reopen']);
     Route::post('milestones/{milestone}/start', [MilestoneController::class, 'start']);
+    Route::get('milestones/{milestone}/reasons', [MilestoneController::class, 'reasons']);
 
     // Project-specific Task Management Routes
     Route::get('projects/{project}/milestones', [MilestoneController::class, 'index']);
+    Route::get('projects/{project}/milestones-with-expendables', [MilestoneController::class, 'milestonesWithExpendables']);
     Route::post('projects/{project}/milestones', [MilestoneController::class, 'store']);
 
     // Task Type Routes
     Route::apiResource('task-types', TaskTypeController::class);
+
+    // Transaction Types Routes (index, store, search)
+    Route::get('transaction-types', [\App\Http\Controllers\Api\TransactionTypeController::class, 'index']);
+    Route::post('transaction-types', [\App\Http\Controllers\Api\TransactionTypeController::class, 'store']);
+    Route::get('transaction-types/search', [\App\Http\Controllers\Api\TransactionTypeController::class, 'search']);
 
     // Availability Management Routes
     Route::apiResource('availabilities', AvailabilityController::class);
@@ -286,6 +317,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Shareable Resource Management Routes
     Route::apiResource('shareable-resources', ShareableResourceController::class)->middleware(['process.tags']);
+
+    // Notice Board Routes
+    Route::get('notices', [\App\Http\Controllers\Api\NoticeBoardController::class, 'index'])->middleware('permission:manage_notices');
+    Route::post('notices', [\App\Http\Controllers\Api\NoticeBoardController::class, 'store'])->middleware('permission:manage_notices');
+    Route::get('notices/unread', [\App\Http\Controllers\Api\NoticeBoardController::class, 'unread']);
+    Route::post('notices/acknowledge', [\App\Http\Controllers\Api\NoticeBoardController::class, 'acknowledge']);
+    Route::get('notices/{notice}/redirect', [\App\Http\Controllers\Api\NoticeBoardController::class, 'redirect'])->name('notices.redirect');
 
     // Deliverable Routes
     Route::get('/projects/{project}/deliverables', [ProjectDeliverableAction::class, 'index'])->name('projects.deliverables.index');
@@ -348,6 +386,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('{id}', [WireframeController::class, 'destroy']);
         Route::get('{id}/logs', [WireframeController::class, 'logs']);
     });
+
+    // Kudos Routes
+    Route::get('kudos/pending', [\App\Http\Controllers\Api\KudoController::class, 'pending']);
+    Route::get('kudos/mine', [\App\Http\Controllers\Api\KudoController::class, 'mine']);
+    Route::post('kudos', [\App\Http\Controllers\Api\KudoController::class, 'store']);
+    Route::post('kudos/{kudo}/approve', [\App\Http\Controllers\Api\KudoController::class, 'approve']);
+    Route::post('kudos/{kudo}/reject', [\App\Http\Controllers\Api\KudoController::class, 'reject']);
 
     // Component Routes
     Route::prefix('components')->group(function () {

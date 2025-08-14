@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\StandupSubmittedEvent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -11,7 +12,66 @@ use App\Models\Traits\Taggable;
 
 class ProjectNote extends Model
 {
+    /**
+     * Create a project note (optionally attached to a noteable) and send to Google Chat automatically.
+     *
+     * @param \App\Models\Project $project
+     * @param string $content
+     * @param array $options ['type' => string, 'noteable' => Model|null]
+     * @return static
+     */
+    public static function createAndNotify(Project $project, string $content, array $options = [])
+    {
+        $type = $options['type'] ?? 'note';
+        $noteable = $options['noteable'] ?? null;
+
+        $attributes = [
+            'project_id' => $project->id,
+            'content' => $content,
+            'user_id' => Auth::id(),
+            'type' => $type,
+        ];
+
+        if ($noteable) {
+            $attributes['noteable_id'] = $noteable->getKey();
+            $attributes['noteable_type'] = get_class($noteable);
+        }
+
+        /** @var ProjectNote $createdNote */
+        $createdNote = static::create($attributes);
+
+        // Try sending to Google Chat if space available
+        if ($project->google_chat_id) {
+            try {
+                $user = Auth::user();
+                $prefix = '📝';
+                if ($type === 'standup') $prefix = '🏃‍♂️';
+                if ($type === 'milestone') $prefix = '📌';
+                $messageText = "$prefix *{$user?->name}*: " . $content;
+                $chatService = app(\App\Services\GoogleChatService::class);
+                $response = $chatService->sendMessage($project->google_chat_id, $messageText);
+                $createdNote->chat_message_id = $response['name'] ?? null;
+                $createdNote->save();
+            } catch (\Exception $e) {
+                \Log::error('Failed to send note to Google Chat', [
+                    'project_id' => $project->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $createdNote;
+    }
     use HasFactory, Taggable;
+
+    const STANDUP = 'standup';
+    const KUDOS = 'kudos';
+    const GENERAL = 'general';
+    const TYPES = [
+        self::STANDUP,
+        self::KUDOS,
+        self::GENERAL,
+    ];
 
     protected $fillable = [
         'project_id',
@@ -60,10 +120,19 @@ class ProjectNote extends Model
                     $note->creator_type = get_class($client);
                 }
             }
+
             // Fallback: If no creator is identified, you might want to log, throw an error,
             // or assign a default (e.g., an 'admin' user or null if nullable).
             // For now, if no creator, it remains unset, allowing database to handle nullability.
 
+        });
+
+        // Dispatch the standup event after the note has been created so it has a persisted ID
+        static::created(function (ProjectNote $note) {
+            // Only dispatch for standup notes (listener also guards, but this avoids unnecessary jobs)
+            if ($note->type === self::STANDUP && $note->creator_type === User::class) {
+                StandupSubmittedEvent::dispatch($note);
+            }
         });
 
     }
@@ -138,5 +207,15 @@ class ProjectNote extends Model
     public function getCreatorNameAttribute()
     {
         return $this->creator?->name;
+    }
+
+    /**
+     * Get the points ledger entries for this note.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\MorphMany
+     */
+    public function points()
+    {
+        return $this->morphMany(PointsLedger::class, 'pointable');
     }
 }

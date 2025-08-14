@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bonus Calculator Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+<div id="app" class="py-6">
+    <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+            <div class="p-6 text-gray-900">
+                <!-- Controls Section -->
+                <div class="flex flex-col md:flex-row items-start md:items-end justify-between gap-4 p-4 mb-8 bg-gray-100 rounded-lg">
+                    <div class="flex-1 space-y-4">
+                        <h3 class="text-lg font-semibold text-gray-800">
+                            Total Distributed Bonuses:
+                            <span class="font-bold text-green-600">{{ formatCurrency(stats.total_distributed_bonuses_pkr) }}</span>
+                            <span class="text-sm font-normal text-gray-500">of {{ formatCurrency(stats.total_budget_pkr) }}</span>
+                        </h3>
+                        <div class="flex space-x-2">
+                            <button @click="view = 'leaderboard'" :class="{'bg-blue-500 text-white': view === 'leaderboard'}" class="px-4 py-2 rounded-lg font-semibold text-sm transition-colors duration-200">Leaderboard View</button>
+                            <button @click="view = 'awards'" :class="{'bg-blue-500 text-white': view === 'awards'}" class="px-4 py-2 rounded-lg font-semibold text-sm transition-colors duration-200">Awards View</button>
+                            <button @click="view = 'projects'" :class="{'bg-blue-500 text-white': view === 'projects'}" class="px-4 py-2 rounded-lg font-semibold text-sm transition-colors duration-200">Project View</button>
+                        </div>
+                    </div>
+                    <div class="flex-shrink-0 w-full md:w-auto">
+                        <!-- FiltersForm component is simulated here -->
+                        <div class="flex flex-col md:flex-row items-end justify-between gap-4">
+                            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Year</label>
+                                    <select v-model="year" class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                        <option v-for="option in yearOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Month</label>
+                                    <select v-model="month" class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                        <option v-for="option in monthOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="flex-shrink-0 w-full md:w-auto">
+                                <button @click="calculate" :disabled="loading" class="w-full mt-4 md:mt-0 px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 ease-in-out">
+                                    <span v-if="loading">Calculating...</span>
+                                    <span v-else>Calculate</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="error" class="mt-6 p-3 bg-red-50 text-red-700 rounded">{{ error }}</div>
+
+                <div v-if="result && !error" class="mt-6 space-y-8">
+
+                    <!-- ============================================== -->
+                    <!-- LEADERBOARD VIEW -->
+                    <!-- ============================================== -->
+                    <div v-if="view === 'leaderboard'">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <!-- Employee Leaderboard -->
+                            <div class="space-y-4">
+                                <h3 class="text-2xl font-bold text-gray-800">Employee Leaderboard</h3>
+                                <div v-if="employeesData?.length === 0" class="text-gray-600 p-4 border rounded-lg bg-gray-50">No employee bonuses were calculated for this period.</div>
+                                <div v-else class="grid grid-cols-1 gap-4">
+                                    <div v-for="(employee, index) in employeesData" :key="employee.user_id" class="bg-white p-5 rounded-2xl shadow-md transition-all duration-200 ease-in-out hover:shadow-lg border-l-4 border-blue-500">
+                                        <div class="flex justify-between items-center cursor-pointer" @click="employee.showDetails = !employee.showDetails">
+                                            <div class="flex items-center space-x-4">
+                                                <div :class="getRankBadgeClass(index)" class="w-10 h-10 flex items-center justify-center font-black text-xl rounded-full shadow-inner">
+                                                    {{ index + 1 }}
+                                                </div>
+                                                <div class="flex-1">
+                                                    <h4 class="text-xl font-bold text-gray-800">{{ employee.name }}</h4>
+                                                    <span v-if="employee.points" class="text-sm font-semibold text-gray-600">{{ employee.points }} pts</span>
+                                                    <span v-else class="text-sm font-semibold text-gray-400">Points: (missing)</span>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center space-x-2">
+                                                <span class="text-sm font-bold text-green-600">{{ formatCurrency(employee.awards.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)) }}</span>
+                                                <svg xmlns="http://www.w3.org/2000/svg" :class="{'rotate-180': employee.showDetails}" class="h-5 w-5 text-gray-400 transition-transform duration-200" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                                </svg>
+                                            </div>
+                                        </div>
+                                        <div v-show="employee.showDetails" class="mt-4 border-t border-gray-200 pt-4 space-y-2">
+                                            <div v-for="(award, i) in employee.awards" :key="i" class="flex flex-col items-start text-sm">
+                                                <div class="flex justify-between w-full items-center">
+                                                    <span class="font-medium text-gray-700">{{ award.award }}</span>
+                                                    <span class="font-bold text-green-600">{{ formatCurrency(award.amount) }}</span>
+                                                </div>
+                                                <p v-if="award.details" class="text-xs text-gray-500 mt-1">{{ typeof award.details === 'object' ? award.details.bonus_reason : award.details }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Contractor Leaderboard -->
+                            <div class="space-y-4">
+                                <h3 class="text-2xl font-bold text-gray-800">Contractor Leaderboard</h3>
+                                <div v-if="contractorsData?.length === 0" class="text-gray-600 p-4 border rounded-lg bg-gray-50">No contractor bonuses were calculated for this period.</div>
+                                <div v-else class="grid grid-cols-1 gap-4">
+                                    <div v-for="(contractor, index) in contractorsData" :key="contractor.user_id" class="bg-white p-5 rounded-2xl shadow-md transition-all duration-200 ease-in-out hover:shadow-lg border-l-4 border-teal-500">
+                                        <div class="flex justify-between items-center cursor-pointer" @click="contractor.showDetails = !contractor.showDetails">
+                                            <div class="flex items-center space-x-4">
+                                                <div :class="getRankBadgeClass(index)" class="w-10 h-10 flex items-center justify-center font-black text-xl rounded-full shadow-inner">
+                                                    {{ index + 1 }}
+                                                </div>
+                                                <div class="flex-1">
+                                                    <h4 class="text-xl font-bold text-gray-800">{{ contractor.name }}</h4>
+                                                    <span v-if="contractor.points" class="text-sm font-semibold text-gray-600">{{ contractor.points }} pts</span>
+                                                    <span v-else class="text-sm font-semibold text-gray-400">Points: (missing)</span>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center space-x-2">
+                                                <span class="text-sm font-bold text-green-600">{{ formatCurrency(contractor.awards.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)) }}</span>
+                                                <svg xmlns="http://www.w3.org/2000/svg" :class="{'rotate-180': contractor.showDetails}" class="h-5 w-5 text-gray-400 transition-transform duration-200" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                                </svg>
+                                            </div>
+                                        </div>
+                                        <div v-show="contractor.showDetails" class="mt-4 border-t border-gray-200 pt-4 space-y-2">
+                                            <div v-for="(award, i) in contractor.awards" :key="i" class="flex flex-col items-start text-sm">
+                                                <div class="flex justify-between w-full items-center">
+                                                    <span class="font-medium text-gray-700">{{ award.award }}</span>
+                                                    <span class="font-bold text-green-600">{{ formatCurrency(award.amount) }}</span>
+                                                </div>
+                                                <p v-if="award.details" class="text-xs text-gray-500 mt-1">{{ typeof award.details === 'object' ? award.details.bonus_reason : award.details }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- ============================================== -->
+                    <!-- AWARDS VIEW -->
+                    <!-- ============================================== -->
+                    <div v-else-if="view === 'awards'">
+                        <div class="space-y-6">
+                            <div v-for="(awardUsers, awardKey) in awardsGrouped" :key="awardKey" class="bg-white p-6 rounded-2xl shadow-md border-l-4 border-blue-500">
+                                <h4 class="text-xl font-bold text-gray-800 mb-4">{{ awardKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }}</h4>
+                                <div class="space-y-3">
+                                    <div v-for="user in awardUsers" :key="user.user_id" class="flex flex-col md:flex-row justify-between md:items-center text-sm p-3 bg-gray-50 rounded-lg">
+                                        <div class="flex-1 space-y-1">
+                                            <div class="flex justify-between md:block">
+                                                <span class="font-medium text-gray-700">{{ user.name }} ({{ user.user_type }})</span>
+                                                <span class="font-bold text-green-600 md:hidden">{{ formatCurrency(user.awards[0].amount) }}</span>
+                                            </div>
+                                            <div class="flex items-center space-x-2 text-xs text-gray-500">
+                                                <span class="font-semibold">Points: {{ user.points ? user.points : '(missing)' }}</span>
+                                                <span v-if="user.awards[0]?.details?.total_agreed_amount" class="font-semibold ml-4">Total Agreed: {{ formatCurrency(user.awards[0].details.total_agreed_amount, 0) }}</span>
+                                                <p v-if="user.awards[0]?.details?.bonus_reason" class="text-xs text-gray-500 mt-1">{{ user.awards[0].details.bonus_reason }}</p>
+                                                <p v-else-if="typeof user.awards[0]?.details === 'string'" class="text-xs text-gray-500 mt-1">{{ user.awards[0].details }}</p>
+                                            </div>
+                                        </div>
+                                        <span class="font-bold text-green-600 hidden md:block">{{ formatCurrency(user.awards[0].amount) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- ============================================== -->
+                    <!-- PROJECT VIEW -->
+                    <!-- ============================================== -->
+                    <div v-else-if="view === 'projects'">
+                        <div class="space-y-6">
+                            <div v-for="(users, projectName) in projectsGrouped" :key="projectName" class="bg-white p-6 rounded-2xl shadow-md border-l-4 border-teal-500">
+                                <h4 class="text-xl font-bold text-gray-800 mb-4">{{ projectName }}</h4>
+                                <div class="space-y-3">
+                                    <div v-for="user in users" :key="user.user_id" class="flex justify-between items-center text-sm p-3 bg-gray-50 rounded-lg">
+                                        <span class="font-medium text-gray-700">{{ user.name }} ({{ user.user_type }})</span>
+                                        <span class="font-bold text-green-600">{{ formatCurrency(user.amount) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+        setup() {
+            const currentYear = new Date().getFullYear();
+            const currentMonth = new Date().getMonth() + 1;
+
+            const year = ref(currentYear);
+            const month = ref(currentMonth);
+            const loading = ref(false);
+            const error = ref('');
+            const result = ref(null);
+            const view = ref('leaderboard'); // 'leaderboard', 'awards', 'projects'
+
+            // This is a hard-coded mock of the new API response structure.
+            const mockData = {
+                "stats": {
+                    "total_budget_pkr": "50000.00",
+                    "total_distributed_bonuses_pkr": 3697.8949934618604,
+                    "employee_bonus_pool_allocated_pkr": "12500.00",
+                    "total_employee_bonus_distributed_pkr": 0,
+                    "contractor_bonus_pool_allocated_pkr": "37500.00",
+                    "total_contractor_bonus_distributed_pkr": 2771.6149934618606,
+                    "total_project_performance_bonus_distributed_pkr": 2169.6445934618605,
+                    "total_managers_choice_bonus_distributed_pkr": 926.28
+                },
+                "period": "August 2025",
+                "distributed_bonuses": {
+                    "employee_high_achiever_awards": [
+                        {
+                            "user_id": 1,
+                            "name": "Zeeshan Sabri",
+                            "user_type": "employee",
+                            "points": "2000.00",
+                            "awards": [
+                                { "award": "Top Performer #1", "amount": "3571.43" }
+                            ]
+                        },
+                        {
+                            "user_id": 5,
+                            "name": "Anas Khan",
+                            "user_type": "employee",
+                            "points": "1000.00",
+                            "awards": [
+                                { "award": "Top Performer #2", "amount": "1785.71" }
+                            ]
+                        },
+                        {
+                            "user_id": 7,
+                            "name": "Zainab Aslam",
+                            "user_type": "employee",
+                            "points": "1000.00",
+                            "awards": [
+                                { "award": "Top Performer #3", "amount": "892.86" }
+                            ]
+                        }
+                    ],
+                    "employee_consistent_contributor": [
+                        {
+                            "user_id": 1,
+                            "name": "Zeeshan Sabri",
+                            "user_type": "employee",
+                            "points": "2000.00",
+                            "awards": [
+                                { "award": "Consistent Contributor", "amount": "5357.14" }
+                            ]
+                        }
+                    ],
+                    "contractor_project_performance": [
+                        {
+                            "user_id": 6,
+                            "name": "Sakhi Ghulam",
+                            "user_type": "contractor",
+                            "points": "200.00",
+                            "awards": [
+                                {
+                                    "award": "Project Performance Bonus",
+                                    "amount": 180.63704945515508,
+                                    "details": {
+                                        "project_name": "Demo Project",
+                                        "total_agreed_amount": 3612.740989103101,
+                                        "bonus_reason": "1 milestone(s) completed on time, resulting in a 5% bonus of the total agreed amount."
+                                    }
+                                },
+                                {
+                                    "award": "Project Performance Bonus",
+                                    "amount": 903.1852472757752,
+                                    "details": {
+                                        "project_name": "Management",
+                                        "total_agreed_amount": 18063.704945515503,
+                                        "bonus_reason": "1 milestone(s) completed on time, resulting in a 5% bonus of the total agreed amount."
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "user_id": 2,
+                            "name": "Usama Saeed",
+                            "user_type": "contractor",
+                            "points": "525.00",
+                            "awards": [
+                                {
+                                    "award": "Project Performance Bonus",
+                                    "amount": 180.63704945515508,
+                                    "details": {
+                                        "project_name": "Demo Project",
+                                        "total_agreed_amount": 3612.740989103101,
+                                        "bonus_reason": "1 milestone(s) completed on time, resulting in a 5% bonus of the total agreed amount."
+                                    }
+                                },
+                                {
+                                    "award": "Project Performance Bonus",
+                                    "amount": 903.1852472757752,
+                                    "details": {
+                                        "project_name": "Kelsey Mae Hair",
+                                        "total_agreed_amount": 18063.704945515503,
+                                        "bonus_reason": "1 milestone(s) completed on time, resulting in a 5% bonus of the total agreed amount."
+                                    }
+                                },
+                                {
+                                    "award": "Project Performance Bonus",
+                                    "amount": 1,
+                                    "details": {
+                                        "project_name": "Firefly Life Coaching",
+                                        "total_agreed_amount": 20,
+                                        "bonus_reason": "1 milestone(s) completed on time, resulting in a 5% bonus of the total agreed amount."
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "user_id": 8,
+                            "name": "Abdul Mueed",
+                            "user_type": "contractor",
+                            "points": "25.00",
+                            "awards": [
+                                {
+                                    "award": "Project Performance Bonus",
+                                    "amount": 1,
+                                    "details": {
+                                        "project_name": "Lucas White Flooring",
+                                        "total_agreed_amount": 20,
+                                        "bonus_reason": "1 milestone(s) completed on time, resulting in a 5% bonus of the total agreed amount."
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    "contractor_top_performer": [
+                        {
+                            "user_id": 11,
+                            "name": "Maryam",
+                            "user_type": "contractor",
+                            "points": "1250.00",
+                            "awards": [
+                                { "award": "Top Contractor (Performance-based)", "amount": 279, "details": "Bonus calculated from 1250.00 points at 0.2232 PKR/point." }
+                            ]
+                        },
+                        {
+                            "user_id": 13,
+                            "name": "Kashif",
+                            "user_type": "contractor",
+                            "points": "922.00",
+                            "awards": [
+                                { "award": "Top Contractor (Performance-based)", "amount": 205.7904, "details": "Bonus calculated from 922.00 points at 0.2232 PKR/point." }
+                            ]
+                        },
+                        {
+                            "user_id": 2,
+                            "name": "Usama Saeed",
+                            "user_type": "contractor",
+                            "points": "525.00",
+                            "awards": [
+                                { "award": "Top Contractor (Performance-based)", "amount": 117.18, "details": "Bonus calculated from 525.00 points at 0.2232 PKR/point." }
+                            ]
+                        }
+                    ],
+                    "managers_choice_most_improved": [
+                        {
+                            "user_id": 1,
+                            "name": "Zeeshan Sabri",
+                            "user_type": "employee",
+                            "points": "2000.00",
+                            "awards": [
+                                { "award": "Employee Most Improved", "amount": 440.82, "details": "Bonus for a point increase of 1975 from last month." }
+                            ]
+                        },
+                        {
+                            "user_id": 4,
+                            "name": "Ahmed Khan",
+                            "user_type": "contractor",
+                            "points": "200.00",
+                            "awards": [
+                                { "award": "Contractor Most Improved", "amount": 44.64, "details": "Bonus for a point increase of 200 from last month." }
+                            ]
+                        }
+                    ]
+                },
+                "team_metrics": {
+                    "employees": {
+                        "high_achiever_awards_pool": "7142.86",
+                        "consistent_contributor_pool": "5357.14"
+                    },
+                    "contractors": {
+                        "project_performance_bonus_pool": "37500.00"
+                    },
+                    "managers_choice": {
+                        "bonus_pool": 34728.38500653814,
+                        "distributed_amount": 926.28,
+                        "recommendations": {
+                            "employees": [
+                                { "user_id": 1, "name": "Zeeshan Sabri", "user_type": "employee", "point_increase": 1975 },
+                                { "user_id": 7, "name": "Zainab Aslam", "user_type": "employee", "point_increase": 800 },
+                                { "user_id": 10, "name": "Zeeshan Aziz", "user_type": "employee", "point_increase": 500 },
+                                { "user_id": 9, "name": "Muhammad Subhan", "user_type": "employee", "point_increase": 175 }
+                            ],
+                            "contractors": [
+                                { "user_id": 4, "name": "Ahmed Khan", "user_type": "contractor", "point_increase": 200 }
+                            ],
+                            "combined": [
+                                { "user_id": 1, "name": "Zeeshan Sabri", "user_type": "employee", "point_increase": 1975 },
+                                { "user_id": 7, "name": "Zainab Aslam", "user_type": "employee", "point_increase": 800 },
+                                { "user_id": 10, "name": "Zeeshan Aziz", "user_type": "employee", "point_increase": 500 },
+                                { "user_id": 4, "name": "Ahmed Khan", "user_type": "contractor", "point_increase": 200 },
+                                { "user_id": 9, "name": "Muhammad Subhan", "user_type": "employee", "point_increase": 175 }
+                            ]
+                        }
+                    }
+                }
+            };
+
+            const monthOptions = [
+                { value: 1, label: 'January' }, { value: 2, label: 'February' },
+                { value: 3, label: 'March' }, { value: 4, label: 'April' },
+                { value: 5, label: 'May' }, { value: 6, label: 'June' },
+                { value: 7, label: 'July' }, { value: 8, label: 'August' },
+                { value: 9, label: 'September' }, { value: 10, label: 'October' },
+                { value: 11, label: 'November' }, { value: 12, label: 'December' },
+            ];
+
+            const yearOptions = computed(() => {
+                const start = currentYear - 3;
+                const end = currentYear + 3;
+                const arr = [];
+                for (let y = end; y >= start; y--) {
+                    arr.push({ value: y, label: String(y) });
+                }
+                return arr;
+            });
+
+            const formatCurrency = (n, precision = 2) => {
+                if (n === null || n === undefined) return '-';
+                const numericValue = Number(n);
+                const options = {
+                    style: 'currency',
+                    currency: 'PKR',
+                    maximumFractionDigits: precision,
+                    minimumFractionDigits: precision
+                };
+                try {
+                    return new Intl.NumberFormat('en-PK', options).format(numericValue);
+                } catch (e) {
+                    return `PKR ${numericValue.toFixed(precision)}`;
+                }
+            };
+
+            const calculate = async () => {
+                loading.value = true;
+                error.value = '';
+                result.value = null;
+                try {
+                    // This is a mock implementation.
+                    // In a real application, you would use axios.get like this:
+                    // const { data } = await axios.get('/admin/bonus-calculator/calculate', { params: { year: year.value, month: month.value } });
+                    const data = mockData;
+
+                    if (data && data.error) {
+                        error.value = data.error;
+                    } else {
+                        // The new data structure groups awards, so we need to flatten them for the leaderboard view
+                        const allUsers = {};
+                        for (const awardType in data.distributed_bonuses) {
+                            data.distributed_bonuses[awardType].forEach(user => {
+                                if (!allUsers[user.user_id]) {
+                                    allUsers[user.user_id] = { ...user, awards: [], showDetails: false };
+                                }
+                                allUsers[user.user_id].awards.push(...user.awards);
+                            });
+                        }
+                        result.value = { ...data, distributed_bonuses_flattened: Object.values(allUsers) };
+                    }
+                } catch (e) {
+                    error.value = e?.response?.data?.message || 'Failed to calculate bonuses.';
+                } finally {
+                    loading.value = false;
+                }
+            };
+
+            const employeesData = computed(() => {
+                if (!result.value?.distributed_bonuses_flattened) return [];
+                // Filter and sort employees by total points for the leaderboard
+                return result.value.distributed_bonuses_flattened
+                    .filter(user => user.user_type === 'employee')
+                    .sort((a, b) => (parseFloat(b.points) || 0) - (parseFloat(a.points) || 0));
+            });
+
+            const contractorsData = computed(() => {
+                if (!result.value?.distributed_bonuses_flattened) return [];
+                // Filter and sort contractors by total points for the leaderboard
+                return result.value.distributed_bonuses_flattened
+                    .filter(user => user.user_type === 'contractor')
+                    .sort((a, b) => (parseFloat(b.points) || 0) - (parseFloat(a.points) || 0));
+            });
+
+            const awardsGrouped = computed(() => {
+                if (!result.value?.distributed_bonuses) return {};
+                return result.value.distributed_bonuses;
+            });
+
+            // The data for the projects view is now a bit more complex, need to group by project name
+            const projectsGrouped = computed(() => {
+                if (!result.value?.distributed_bonuses?.contractor_project_performance) return {};
+                const projects = {};
+                result.value.distributed_bonuses.contractor_project_performance.forEach(user => {
+                    user.awards.forEach(award => {
+                        if (award.award === 'Project Performance Bonus' && award.details && award.details.project_name) {
+                            const projectName = award.details.project_name;
+                            if (!projects[projectName]) {
+                                projects[projectName] = [];
+                            }
+                            projects[projectName].push({
+                                user_id: user.user_id,
+                                name: user.name,
+                                user_type: user.user_type,
+                                amount: award.amount,
+                            });
+                        }
+                    });
+                });
+                return projects;
+            });
+
+            const stats = computed(() => result.value?.stats || {});
+
+            const getRankBadgeClass = (index) => {
+                if (index === 0) return 'bg-yellow-400 text-yellow-900 border-yellow-500';
+                if (index === 1) return 'bg-gray-300 text-gray-800 border-gray-400';
+                if (index === 2) return 'bg-yellow-700 text-yellow-50 border-yellow-800';
+                return 'bg-gray-100 text-gray-500 border-gray-300';
+            };
+
+            onMounted(() => {
+                calculate();
+            });
+
+            return {
+                year,
+                month,
+                loading,
+                error,
+                result,
+                view,
+                monthOptions,
+                yearOptions,
+                formatCurrency,
+                calculate,
+                employeesData,
+                contractorsData,
+                awardsGrouped,
+                projectsGrouped,
+                stats,
+                getRankBadgeClass,
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

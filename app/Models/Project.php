@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Traits\Taggable;
+use Illuminate\Support\Facades\Cache;
+use App\Models\CurrencyRate;
 
 class Project extends Model
 {
@@ -34,6 +36,8 @@ class Project extends Model
         'logo_google_drive_file_id',
         'documents',
         'timezone',
+        'project_tier_id',
+        'profit_margin_percentage',
     ];
 
     protected $casts = [
@@ -43,6 +47,10 @@ class Project extends Model
         'total_amount' => 'decimal:2',
         'payment_type' => 'string',
         'documents' => 'array',
+    ];
+
+    protected $hidden = [
+        'profit_margin_percentage',
     ];
 
     const SUPPORT = 'support';
@@ -122,6 +130,20 @@ class Project extends Model
     public function documents()
     {
         return $this->hasMany(Document::class);
+    }
+
+    /**
+     * Get the expendable directly associated with this project.
+     */
+    public function expendable()
+    {
+        return $this->morphMany(ProjectExpendable::class, 'expendable');
+    }
+
+
+    public function budget()
+    {
+        return $this->expendable()->whereNull('user_id');
     }
 
     /**
@@ -345,4 +367,100 @@ class Project extends Model
     {
         return $this->hasMany(ProjectDeliverable::class);
     }
+
+    /**
+     * Get the tier associated with the project.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     */
+    public function tier()
+    {
+        return $this->belongsTo(ProjectTier::class, 'project_tier_id');
+    }
+
+    /**
+     * Get the points ledger entries for the project.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function points()
+    {
+        return $this->hasMany(PointsLedger::class);
+    }
+
+    // ---- Expendables computed attributes ----
+    /**
+     * Convert currency using DB-backed rates (rate_to_usd), cached for 24h.
+     */
+    protected function convertCurrency(float $amount, string $fromCurrency, string $toCurrency): float
+    {
+        $from = strtoupper($fromCurrency);
+        $to = strtoupper($toCurrency);
+        if ($from === $to) {
+            return round($amount, 2);
+        }
+        $rates = Cache::remember('currency_rates_to_usd', 60 * 24, function () {
+            $dbRates = CurrencyRate::all()->pluck('rate_to_usd', 'currency_code')->toArray();
+            if (!isset($dbRates['USD'])) {
+                $dbRates['USD'] = 1.0;
+            }
+            return $dbRates;
+        });
+        $fromRate = $rates[$from] ?? null;
+        $toRate = $rates[$to] ?? null;
+        if (!$fromRate || !$toRate) {
+            return round($amount, 2);
+        }
+        $amountInUSD = $amount * (float) $fromRate;
+        $converted = $amountInUSD / (float) $toRate;
+        return round($converted, 2);
+    }
+
+    /**
+     * Total of approved milestone expendables (user-bound) in the project's currency.
+     */
+    public function getApprovedMilestoneExpendablesTotalAttribute(): float
+    {
+        $convertTo = 'AUD';
+        $items = ProjectExpendable::where('project_id', $this->id)
+            ->where('expendable_type', 'App\\Models\\Milestone')
+            ->whereNotNull('user_id')
+            ->get(['amount', 'currency']);
+
+        $total = 0.0;
+        foreach ($items as $item) {
+            $total += $this->convertCurrency((float) $item->amount, (string) $item->currency, $convertTo);
+        }
+        return round($total, 2);
+    }
+
+    /**
+     * Remaining spendables = project total_expendable_amount - approved milestone expendables (user-bound), in project currency.
+     */
+    public function getRemainingSpendablesAttribute(): float
+    {
+        $budget = (float) ($this->expendable()->sum('amount') ?? 0);
+        if ($budget <= 0) {
+            return 0.0;
+        }
+        $approved = (float) $this->approved_milestone_expendables_total;
+        $remaining = $budget - $approved;
+        return round(max(0, $remaining), 2);
+    }
+
+    public function getTotalBudgetAttribute()
+    {
+        $convertTo = 'AUD';
+        $total = 0.0;
+        foreach ($this->budget()->get() as $item) {
+            $total += $this->convertCurrency((float) $item->amount, (string) $item->currency, $convertTo);
+        }
+        return round($total, 2);
+    }
+
+//    protected $appends = [
+//        // Expose helpful financial aggregates for clients needing quick stats
+//        'approved_milestone_expendables_total',
+//        'remaining_spendables',
+//    ];
 }

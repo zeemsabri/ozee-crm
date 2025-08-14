@@ -56,10 +56,12 @@
 <body class="font-sans antialiased">
 @inertia
 
+@if(isset($page) && ($page['component'] ?? '') === 'Welcome')
 <footer class="py-4 bg-gray-100 text-center text-gray-600 text-sm mt-auto">
     <div class="container mx-auto">
         <p>&copy; {{ date('Y') }} {{ config('app.name', 'Task Management System') }}. All rights reserved. <a href="{{ url('/privacy-policy') }}" class="text-indigo-600 hover:text-indigo-800">Privacy Policy</a></p>
     </div>
 </footer>
+@endif
 </body>
 </html>

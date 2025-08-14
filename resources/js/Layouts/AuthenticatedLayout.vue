@@ -1,13 +1,14 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import PushNotificationContainer from '@/Components/PushNotificationContainer.vue';
-import StandardNotificationContainer from '@/Components/StandardNotificationContainer.vue'; // Import the new component
+import StandardNotificationContainer from '@/Components/StandardNotificationContainer.vue';
 import AvailabilityBlocker from '@/Components/Availability/AvailabilityBlocker.vue';
 import { usePage, router } from '@inertiajs/vue3';
-import { setStandardNotificationContainer } from '@/Utils/notification';
+import { setStandardNotificationContainer, setNoticeFetcher } from '@/Utils/notification';
 import CreateTaskModal from "@/Components/ProjectTasks/CreateTaskModal.vue";
 import CreateResourceForm from "@/Components/ShareableResource/CreateForm.vue";
 import NotificationsSidebar from '@/Components/NotificationsSidebar.vue';
+import KudoModal from '@/Components/Kudos/KudoModal.vue';
 import {
     openNotificationsSidebar,
     notificationSidebarState,
@@ -17,14 +18,20 @@ import LeftSidebar from '@/Components/LeftSidebar.vue';
 import TopNavigation from '@/Components/Layout/TopNavigation.vue';
 import MobileNavigation from '@/Components/Layout/MobileNavigation.vue';
 import TaskSidebar from '@/Components/Layout/TaskSidebar.vue';
+import NoticeboardModal from "@/Components/Notices/NoticeboardModal.vue";
+import { useNotices } from '@/Utils/useNotices.js';
 
 const showingNavigationDropdown = ref(false);
 const openCreateTaskModel = ref(false);
 const addResource = ref(false);
+const openKudoModal = ref(false);
 
 const allProjectsForSidebar = ref([]);
 const loadingAllProjects = ref(true);
 const activeProjectId = computed(() => usePage().props.id || null);
+
+// Use the new composable for all notice logic
+const { showNoticeModal, unreadNotices, fetchUnreadNotices, closeModal } = useNotices();
 
 // Create a new ref for the standard notification container
 const standardNotificationContainerRef = ref(null);
@@ -101,6 +108,10 @@ const handleTaskDeleted = (taskId) => {
     console.log('Task deleted globally.', taskId);
 };
 
+const handleNoticeLinkClick = (notice) => {
+    window.location.href = `/notices/${notice.id}/redirect`;
+};
+
 onMounted(() => {
     setAxiosAuthHeader();
     // Set the standard notification container to the new component instance
@@ -109,6 +120,17 @@ onMounted(() => {
     }
     fetchAllProjects();
     fetchNotificationsFromDatabase();
+
+    // Register notice fetcher for push-triggered full modal
+    setNoticeFetcher(fetchUnreadNotices);
+
+    // Initial fetch for notices
+    fetchUnreadNotices();
+});
+
+onBeforeUnmount(() => {
+    // Clear the registered notice fetcher when layout unmounts
+    setNoticeFetcher(null);
 });
 </script>
 
@@ -134,6 +156,7 @@ onMounted(() => {
                 @open-create-task-modal="openCreateTaskModel = true"
                 @open-add-resource="addResource = true"
                 @open-notifications-sidebar="openNotificationsSidebar"
+                @open-kudo-modal="openKudoModal = true"
             />
 
             <!-- Mobile Navigation -->
@@ -162,6 +185,8 @@ onMounted(() => {
                 api-endpoint="/api/shareable-resources"
                 :show="addResource"
                 @close="addResource = false" />
+
+            <KudoModal :show="openKudoModal" @close="openKudoModal = false" @submitted="openKudoModal = false" />
         </div>
 
         <!-- Task Sidebar -->
@@ -171,5 +196,10 @@ onMounted(() => {
         />
 
         <NotificationsSidebar />
+
+        <!-- The NoticeboardModal now uses the composable's state and functions -->
+        <NoticeboardModal :show="showNoticeModal"
+                          :unreadNotices="unreadNotices"
+                          @close="closeModal" />
     </div>
 </template>

@@ -26,13 +26,9 @@ watch(
         if (props.show) {
             document.body.style.overflow = 'hidden';
             showSlot.value = true;
-
-            dialog.value?.showModal();
         } else {
             document.body.style.overflow = '';
-
             setTimeout(() => {
-                dialog.value?.close();
                 showSlot.value = false;
             }, 200);
         }
@@ -48,7 +44,6 @@ const close = () => {
 const closeOnEscape = (e) => {
     if (e.key === 'Escape') {
         e.preventDefault();
-
         if (props.show) {
             close();
         }
@@ -56,10 +51,8 @@ const closeOnEscape = (e) => {
 };
 
 onMounted(() => document.addEventListener('keydown', closeOnEscape));
-
 onUnmounted(() => {
     document.removeEventListener('keydown', closeOnEscape);
-
     document.body.style.overflow = '';
 });
 
@@ -83,42 +76,32 @@ const maxWidthClass = computed(() => {
 </script>
 
 <template>
-    <dialog
-        class="z-[10] m-0 min-h-full min-w-full overflow-y-auto bg-transparent backdrop:bg-gray-500/75"
-        ref="dialog"
-    >
-        <div
-            class="fixed inset-0 z-[10] overflow-y-auto px-4 py-6 sm:px-0"
-            scroll-region
-        >
-            <!-- Portal target for notifications so they render above the modal (dialog top layer) -->
-            <div id="modal-notification-portal"></div>
-            <div
-                v-show="show"
-                class="fixed inset-0 transform transition-all cursor-pointer"
-                @click="close"
-            ></div>
-
-            <Transition
-                enter-active-class="ease-out duration-300"
-                enter-from-class="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                enter-to-class="opacity-100 translate-y-0 sm:scale-100"
-                leave-active-class="ease-in duration-200"
-                leave-from-class="opacity-100 translate-y-0 sm:scale-100"
-                leave-to-class="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-            >
-                <div
-                    v-show="show"
-                    class="mx-auto mb-6 transform overflow-auto rounded-lg bg-white shadow-xl transition-all
-           w-full sm:w-auto
-           max-w-[80vw] md:max-w-[60vw] lg:max-w-[50vw]
-           h-auto max-h-[90vh] md:max-h-[80vh] lg:max-h-[85vh]
-           flex flex-col p-4"
-                    :class="maxWidthClass"
+    <Transition leave-to-class="opacity-0" enter-from-class="opacity-0">
+        <div v-show="show" class="fixed inset-0 z-[100] transform transition-all">
+            <div class="absolute inset-0 bg-gray-500/75 backdrop-blur-sm transition-opacity" @click="close"></div>
+            <div class="fixed inset-0 z-[10] overflow-y-auto px-4 py-6 sm:px-0">
+                <div id="modal-notification-portal"></div>
+                <Transition
+                    enter-active-class="ease-out duration-300"
+                    enter-from-class="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                    enter-to-class="opacity-100 translate-y-0 sm:scale-100"
+                    leave-active-class="ease-in duration-200"
+                    leave-from-class="opacity-100 translate-y-0 sm:scale-100"
+                    leave-to-class="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                 >
-                    <slot v-if="showSlot" />
-                </div>
-            </Transition>
+                    <div
+                        v-show="show"
+                        class="mx-auto mb-6 transform overflow-auto rounded-lg bg-white shadow-xl transition-all
+               w-full sm:w-auto
+               max-w-[80vw] md:max-w-[60vw] lg:max-w-[50vw]
+               h-auto max-h-[90vh] md:max-h-[80vh] lg:max-h-[85vh]
+               flex flex-col p-4"
+                        :class="maxWidthClass"
+                    >
+                        <slot v-if="showSlot" />
+                    </div>
+                </Transition>
+            </div>
         </div>
-    </dialog>
+    </Transition>
 </template>

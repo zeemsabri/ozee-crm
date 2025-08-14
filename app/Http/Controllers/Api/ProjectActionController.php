@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreProjectRequest;
 use App\Models\Project;
+use App\Models\ProjectTier;
 use App\Models\User;
 use App\Models\Meeting;
 use App\Models\ProjectNote;
@@ -560,23 +561,8 @@ class ProjectActionController extends Controller
 
         $notes = [];
         foreach ($validated['notes'] as $note) {
-            $createdNote = $project->notes()->create([
-                'content' =>$note['content'],
-                'user_id' => Auth::id(),
-            ]);
+            $createdNote = ProjectNote::createAndNotify($project, $note['content'], ['type' => 'note']);
             $notes[] = $createdNote;
-
-            if ($project->google_chat_id) {
-                try {
-                    $messageText = "📝 *{$user->name}*: " . $note['content'];
-                    $response = $this->googleChatService->sendMessage($project->google_chat_id, $messageText);
-                    $createdNote->chat_message_id = $response['name'] ?? null;
-                    $createdNote->save();
-                    Log::info('Sent note notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'user_id' => $user->id, 'chat_message_id' => $response['name'] ?? null]);
-                } catch (\Exception $e) {
-                    Log::error('Failed to send note notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
-                }
-            }
         }
 
         return response()->json($notes, 201);
@@ -842,12 +828,14 @@ class ProjectActionController extends Controller
                 'source' => 'nullable|string|max:255',
                 'google_drive_link' => 'nullable|url', // Keep this validation
                 'project_type'  =>  'required|string|max:30',
-                'timezone'  =>  'nullable|string|max:30'
+                'timezone'  =>  'nullable|string|max:30',
+                'project_tier_id'   =>  'required|exists:project_tiers,id',
             ];
 
             $project->syncTags($request->tags ?? []);
 
             $validated = $request->validate($validationRules);
+
 
             $projectData = [
                 'name' => $validated['name'] ?? $project->name,
@@ -859,7 +847,8 @@ class ProjectActionController extends Controller
                 'source' => $validated['source'] ?? $project->source,
                 'google_drive_link' => $validated['google_drive_link'] ?? $project->google_drive_link,
                 'project_type'  =>  $validated['project_type'] ?? 'Unknown',
-                'timezone'  =>  $validated['timezone'] ?? null
+                'timezone'  =>  $validated['timezone'] ?? null,
+                'project_tier_id'   =>  $validated['project_tier_id'] ?? ProjectTier::first()?->id
             ];
 
             // --- NEW LOGIC FOR GOOGLE DRIVE FOLDER ID ---
@@ -1325,6 +1314,31 @@ class ProjectActionController extends Controller
             ]);
             return response()->json(['message' => 'Failed to upload documents: ' . $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Update expendable budget for a project (amount and currency)
+     */
+    public function updateExpendableBudget(Request $request, Project $project)
+    {
+        // Authorization aligned with financial operations
+        $this->authorize('manageTransactions', $project);
+
+        $validated = $request->validate([
+            'total_expendable_amount' => 'required|numeric|min:0',
+            'currency' => 'required|string|max:10',
+        ]);
+
+        $project->update([
+            'total_expendable_amount' => $validated['total_expendable_amount'],
+            'currency' => strtoupper($validated['currency']),
+        ]);
+
+        return response()->json([
+            'message' => 'Expendable budget updated successfully',
+            'total_expendable_amount' => $project->total_expendable_amount,
+            'currency' => $project->currency,
+        ]);
     }
 
     /**

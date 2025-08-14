@@ -13,6 +13,7 @@ import ProjectFormNotes from '@/Components/ProjectForm/ProjectFormNotes.vue';
 import ProjectDeliverables from '@/Components/ProjectForm/ProjectDeliverables.vue';
 import ServicesAndPaymentForm from '@/Components/ServicesAndPaymentForm.vue'; // Assuming this component exists
 import ProjectTransactions from '@/Components/ProjectTransactions.vue'; // Assuming this component exists
+import ProjectExpendables from '@/Components/ProjectExpendables.vue';
 
 // Use the permission utilities
 const authUser = useAuthUser();
@@ -70,6 +71,8 @@ const canViewProjectNotes = canView('project_notes', userProjectRole);
 const canViewProjectUsers = canView('project_users', userProjectRole);
 const canViewProjectClients = canView('project_clients', userProjectRole);
 const canViewProjectTransactions = canView('project_transactions', userProjectRole);
+const canViewProjectExpendable = canView('project_expendable', userProjectRole);
+const canManageProjectExpendable = canManage('project_expendable', userProjectRole);
 const canViewProjectDeliverables = canView('project_deliverables');
 const canManageProjectDeliverables = canManage('project_deliverables');
 
@@ -186,6 +189,18 @@ onMounted(async () => {
                     Transactions
                 </button>
                 <button
+                    v-if="projectId && (canManageProjectExpendable || canViewProjectExpendable)"
+                    @click="switchTab('expendables')"
+                    :class="[
+                        'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200 whitespace-nowrap',
+                        activeTab === 'expendables'
+                            ? 'border-indigo-600 text-indigo-700 bg-indigo-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50'
+                    ]"
+                >
+                    Expendables
+                </button>
+                <button
                     v-if="projectId && canViewProjectDocuments"
                     @click="switchTab('documents')"
                     :class="[
@@ -263,6 +278,12 @@ onMounted(async () => {
                 :canManageProjectServicesAndPayments="canManageProjectServicesAndPayments"
                 :canViewProjectServicesAndPayments="canViewProjectServicesAndPayments"
                 :isSaving="props.isSaving"
+            />
+
+            <ProjectExpendables
+                v-if="activeTab === 'expendables'"
+                :project-id="projectId"
+                :user-project-role="userProjectRole"
             />
 
             <!-- Tab 4: Transactions -->

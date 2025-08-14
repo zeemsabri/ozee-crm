@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Traits\Taggable;
 use Illuminate\Database\Eloquent\SoftDeletes;
+
 
 class ShareableResource extends Model
 {
@@ -34,6 +36,21 @@ class ShareableResource extends Model
     protected $casts = [
         'visible_to_client' => 'boolean',
     ];
+
+    /**
+     * Boot the model and add a global scope to exclude notices.
+     * This applies only to the base ShareableResource model, not subclasses like NoticeBoard.
+     */
+    protected static function booted()
+    {
+        if (static::class === self::class) {
+            static::addGlobalScope('exclude_notice', function (Builder $query) {
+                $query->where(function (Builder $q) {
+                    $q->where('notice', false)->orWhereNull('notice');
+                });
+            });
+        }
+    }
 
     /**
      * Get the user who created the resource.

@@ -23,7 +23,9 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
         ]);
 
-
-
+        // Seed default transaction types
+        $this->call([
+            TransactionTypeSeeder::class,
+        ]);
     }
 }

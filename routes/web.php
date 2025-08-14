@@ -14,6 +14,7 @@ use Inertia\Inertia;
 use App\Http\Controllers\GoogleAuthController; // Import our Google Auth controller (for web routes)
 use App\Http\Controllers\Api\MagicLinkController; // Import for magic link functionality
 use App\Http\Controllers\GoogleUserAuthController;
+use App\Http\Controllers\NoticeBoardController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -156,8 +157,82 @@ Route::get('/email/track/{id}', [EmailTrackingController::class, 'track'])->name
 // The 'verified' middleware ensures the user's email is verified (optional, remove if not needed for MVP)
 Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) {
 
-    // Admin routes for role and permission management
-    Route::prefix('admin')->name('admin.')->middleware(['permission:manage_roles'])->group(function () {
+    // Test route for BaseFormModal demonstration
+    Route::get('/test/form-modal', function () {
+        return Inertia::render('Test/FormModalTest');
+    })->name('test.form-modal');
+
+    // Project Expendables Page
+    Route::get('/project-expendables', function () {
+        return Inertia::render('Admin/ProjectExpendables/Index');
+    })->name('project-expendables.index')->middleware('permissionInAnyProject:add_expendables');
+
+    // Admin routes
+    Route::prefix('admin')->name('admin.')->group(function () {
+        // Project Tier management routes - requires view_project_tiers permission
+        Route::get('/project-tiers', [\App\Http\Controllers\Admin\ProjectTierController::class, 'index'])
+            ->middleware(['permission:view_project_tiers'])
+            ->name('project-tiers.index');
+
+        // The following routes require create/edit/delete permissions
+        Route::post('/project-tiers', [\App\Http\Controllers\Admin\ProjectTierController::class, 'store'])
+            ->middleware(['permission:create_project_tiers'])
+            ->name('project-tiers.store');
+
+        Route::put('/project-tiers/{projectTier}', [\App\Http\Controllers\Admin\ProjectTierController::class, 'update'])
+            ->middleware(['permission:edit_project_tiers'])
+            ->name('project-tiers.update');
+
+        Route::delete('/project-tiers/{projectTier}', [\App\Http\Controllers\Admin\ProjectTierController::class, 'destroy'])
+            ->middleware(['permission:delete_project_tiers'])
+            ->name('project-tiers.destroy');
+
+        // Monthly Budget management routes - requires view_monthly_budgets permission
+        Route::get('/monthly-budgets', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'index'])
+            ->middleware(['permission:view_monthly_budgets'])
+            ->name('monthly-budgets.index');
+
+        // Notice Board Admin Page
+        Route::get('/notice-board', function () {
+            return Inertia::render('Admin/NoticeBoard/Index');
+        })->name('notice-board.index')->middleware('permission:manage_notices');
+
+        // The following routes require manage_monthly_budgets permission
+        Route::post('/monthly-budgets', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'store'])
+            ->middleware(['permission:manage_monthly_budgets'])
+            ->name('monthly-budgets.store');
+
+        Route::put('/monthly-budgets/{monthlyBudget}', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'update'])
+            ->middleware(['permission:manage_monthly_budgets'])
+            ->name('monthly-budgets.update');
+
+        Route::delete('/monthly-budgets/{monthlyBudget}', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'destroy'])
+            ->middleware(['permission:manage_monthly_budgets'])
+            ->name('monthly-budgets.destroy');
+
+        // API routes for Monthly Budget management
+        Route::get('/monthly-budgets/all', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'getAllBudgets'])
+            ->middleware(['permission:view_monthly_budgets'])
+            ->name('monthly-budgets.all');
+
+        // Bonus Calculator routes
+        Route::get('/bonus-calculator', [\App\Http\Controllers\Admin\BonusCalculatorController::class, 'index'])
+            ->middleware(['permission:view_monthly_budgets'])
+            ->name('bonus-calculator.index');
+        Route::get('/bonus-calculator/calculate', [\App\Http\Controllers\Admin\BonusCalculatorController::class, 'calculate'])
+            ->middleware(['permission:view_monthly_budgets'])
+            ->name('bonus-calculator.calculate');
+
+        Route::get('/monthly-budgets/current', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'getCurrentBudget'])
+            ->middleware(['permission:view_monthly_budgets'])
+            ->name('monthly-budgets.current');
+
+        Route::get('/monthly-budgets/{monthlyBudget}', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'show'])
+            ->middleware(['permission:view_monthly_budgets'])
+            ->name('monthly-budgets.show');
+
+        // Role management routes - requires manage_roles permission
+        Route::middleware(['permission:manage_roles'])->group(function () {
         // Role management routes
         Route::get('/roles', function () {
             return Inertia::render('Admin/Roles/Index', [
@@ -306,6 +381,13 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         Route::put('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'update'])->name('permissions.update');
         Route::delete('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'destroy'])->name('permissions.destroy');
     });
+
+});
+
+    Route::get('/bonus_system', function () {
+        return Inertia::render('BonusSystem/Index');
+    });
+
     // Your existing dashboard route
     Route::get('/dashboard', function () {
         $user = auth()->user();
@@ -406,6 +488,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('Emails/Inbox/Index');
     })->name('inbox')->middleware('permission:view_emails');
 
+    // Kudos Page (approvals or user's approved kudos)
+    Route::get('/kudos', function () {
+        return Inertia::render('Kudos/Index');
+    })->name('kudos.index')->middleware('permission:view_kudos');
+
     Route::get('/users', function () {
         return Inertia::render('Users/Index');
     })->name('users.index')->middleware('permission:create_users');
@@ -420,9 +507,19 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
     })->name('availability.index')->middleware('permission:create_users');
 
     // Bonus Configuration Page
-    Route::get('/bonus-configuration', function () {
-        return Inertia::render('BonusConfiguration/Index');
-    })->name('bonus-configuration.index')->middleware('permission:manage_bonus_configuration');
+//    Route::get('/bonus-configuration', function () {
+//        return Inertia::render('BonusConfiguration/Index');
+//    })->name('bonus-configuration.index')->middleware('permission:manage_bonus_configuration');
+
+    // Bonus System Page
+    Route::get('/bonus-system', function () {
+        return Inertia::render('BonusSystem/Index');
+    })->name('bonus-system.index')->middleware('permission:view_own_points');
+
+    // Leaderboard Page
+    Route::get('/leaderboard', function () {
+        return Inertia::render('Leaderboard/Index');
+    })->name('leaderboard.index')->middleware('permission:view_own_points');
 
     Route::get('/shareable-resources', function () {
         return Inertia::render('ShareableResources/Index');
@@ -447,3 +544,12 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
 
 // Require your existing authentication routes (login, register, logout, etc.)
 require __DIR__.'/auth.php';
+
+// Include admin routes
+require __DIR__.'/admin.php';
+
+
+// Notice redirect route to log interactions and redirect to destination
+Route::get('/notices/{notice}/redirect', [NoticeBoardController::class, 'redirect'])
+    ->middleware(['auth', 'verified'])
+    ->name('notices.redirect');

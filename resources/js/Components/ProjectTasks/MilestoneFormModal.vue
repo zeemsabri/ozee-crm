@@ -21,6 +21,8 @@ const milestoneForm = reactive({
     project_id: props.projectId
 });
 
+const localErrors = reactive({ completion_date: null });
+
 const milestoneStatuses = ['Not Started', 'In Progress', 'Completed', 'Overdue'];
 
 // Computed properties for BaseFormModal
@@ -40,8 +42,19 @@ watch(() => props.show, (newValue) => {
             status: 'Not Started',
             project_id: props.projectId
         });
+        localErrors.completion_date = null;
     }
 }, { immediate: true });
+
+// Client-side validation to ensure completion_date is mandatory
+const validateForm = () => {
+    localErrors.completion_date = null;
+    if (!milestoneForm.completion_date) {
+        localErrors.completion_date = ['Completion date is required.'];
+        return false;
+    }
+    return true;
+};
 
 // Function to handle the successful submission from BaseFormModal
 const handleSaved = (responseData) => {
@@ -65,6 +78,7 @@ const closeModal = () => {
         :form-data="milestoneForm"
         :submit-button-text="submitButtonText"
         :success-message="successMessage"
+        :before-submit="validateForm"
         @close="closeModal"
         @submitted="handleSaved"
     >
@@ -105,8 +119,9 @@ const closeModal = () => {
                         v-model="milestoneForm.completion_date"
                         type="date"
                         class="mt-1 block w-full"
+                        required
                     />
-                    <InputError :message="errors.completion_date ? errors.completion_date[0] : ''" class="mt-2" />
+                    <InputError :message="errors.completion_date ? errors.completion_date[0] : (localErrors.completion_date ? localErrors.completion_date[0] : '')" class="mt-2" />
                 </div>
 
                 <!-- Status -->

@@ -1,9 +1,10 @@
 <script setup>
 import { ref, watch, reactive } from 'vue';
+// Assuming you have these components
 import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
-import { success, error } from '@/Utils/notification'; // Assuming you have these utilities
+import { success, error } from '@/Utils/notification';
 
 const props = defineProps({
     show: {
@@ -35,10 +36,15 @@ const props = defineProps({
         type: String,
         default: 'Operation successful!',
     },
-    // New prop to allow custom data formatting before API call
+    // Function to format data before API call
     formatDataForApi: {
         type: Function,
         default: (data) => data, // Default to a function that returns data as-is
+    },
+    // Function to run before submission (can be async)
+    beforeSubmit: {
+        type: Function,
+        default: () => true, // Default to a function that returns true
     },
     showFooter: {
         type: Boolean,
@@ -68,6 +74,13 @@ const handleSubmit = async () => {
     generalError.value = '';
 
     try {
+        // Run beforeSubmit hook if provided
+        const shouldContinue = await props.beforeSubmit();
+        if (shouldContinue === false) {
+            isSubmitting.value = false;
+            return;
+        }
+
         // Apply custom formatting if a function is provided
         const dataToSend = props.formatDataForApi(props.formData);
 
@@ -92,20 +105,33 @@ const handleSubmit = async () => {
         emit('close'); // Close modal on success
     } catch (err) {
         console.error('API submission error:', err);
+        let errorNotificationMessage = 'An unexpected error occurred.';
+
         if (err.response) {
             if (err.response.status === 422) {
-                // Validation errors
-                validationErrors.value = err.response.data.errors;
-                generalError.value = 'Please correct the errors in the form.';
+                // Validation errors: set the specific errors object
+                validationErrors.value = err.response.data.errors || {};
+                // Display the general message from the API response in the notification
+                errorNotificationMessage = err.response.data.message || 'Please correct the errors in the form.';
             } else {
                 // Other API errors
-                generalError.value = err.response.data.message || 'An unexpected error occurred.';
+                errorNotificationMessage = err.response.data.message || 'An unexpected error occurred.';
+                generalError.value = errorNotificationMessage;
             }
         } else {
             // Network errors or other unexpected issues
-            generalError.value = 'A network error occurred or the server is unreachable.';
+            errorNotificationMessage = 'A network error occurred or the server is unreachable.';
+            generalError.value = errorNotificationMessage;
         }
-        error(generalError.value);
+
+        // Only show a general error message inside the modal if there are no field errors
+        if (Object.keys(validationErrors.value).length > 0) {
+            generalError.value = 'Please correct the errors in the form.';
+        } else if (err.response?.status !== 422) {
+            generalError.value = errorNotificationMessage;
+        }
+
+        error(errorNotificationMessage); // Now we always pass a meaningful message
         emit('error', err); // Emit the full error object
     } finally {
         isSubmitting.value = false;

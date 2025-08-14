@@ -9,10 +9,12 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Collection; // Import Collection for getClientsAttribute
 use App\Services\GoogleUserService;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+
 
     /**
      * Polymorphic notes attached to this user (ProjectNote noteable morph).
@@ -33,6 +35,7 @@ class User extends Authenticatable
         'google_expires_in',
         'role_id', // Foreign key to roles table
         'timezone',
+        'user_type',
     ];
 
     /**
@@ -54,11 +57,21 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'role_id' => 'integer', // Cast role_id as integer
+        'user_type' => 'string',
+        'last_login_at' => 'datetime',
     ];
 
     protected $with = ['role']; // Always load the role relationship
 
     protected $appends = ['role_data']; // Add role data to JSON
+
+    /**
+     * Get project expendable created/owned by this user.
+     */
+    public function projectExpendable()
+    {
+        return $this->hasMany(ProjectExpendable::class);
+    }
 
     // --- Role Helper Methods ---
     public function isSuperAdmin(): bool
@@ -498,9 +511,27 @@ class User extends Authenticatable
 
     }
 
+    public function hasProjectPermissionOnAnyRole(array $projectIds, $permissionSlug)
+    {
+        foreach($projectIds as $projectId) {
+            if($this->hasProjectPermission($projectId, $permissionSlug)) {
+                $permission = Permission::where('slug', $permissionSlug)->first();
+                return [
+                    'id' => $permission->id,
+                    'name' => $permission->name,
+                    'slug' => $permission->slug,
+                    'category' => $permission->category,
+                    'source' => 'application'
+                ];
+            }
+        }
+        return false;
+    }
+
     // In your App/Models/User.php
     public function hasProjectPermission($projectId, $permissionSlug)
     {
+
         $projectRole = $this->getRoleForProject($projectId);
 
         if (!$projectRole) {
@@ -579,5 +610,45 @@ class User extends Authenticatable
             // If refresh fails, credentials are invalid
             return false;
         }
+    }
+
+    /**
+     * Get the points ledger entries for the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function points()
+    {
+        return $this->hasMany(PointsLedger::class);
+    }
+
+    /**
+     * Get the monthly points for the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function monthlyPoints()
+    {
+        return $this->hasMany(MonthlyPoint::class);
+    }
+
+    /**
+     * Get the kudos sent by the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function kudosSent()
+    {
+        return $this->hasMany(Kudo::class, 'sender_id');
+    }
+
+    /**
+     * Get the kudos received by the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function kudosReceived()
+    {
+        return $this->hasMany(Kudo::class, 'recipient_id');
     }
 }

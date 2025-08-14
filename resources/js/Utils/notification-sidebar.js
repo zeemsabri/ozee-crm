@@ -125,7 +125,7 @@ export const fetchNotificationsFromDatabase = async () => {
         const existingPushIds = getNewPushIds();
         // Find any unread notifications from the database fetch using the `isRead` flag.
         const unreadIdsFromDb = finalNotifications
-            .filter(n => !n.isRead) // <-- CHANGED THIS LINE
+            .filter(n => !n.isRead && !n.full_modal)
             .map(n => n.view_id);
 
         const combinedPushIds = [...new Set([...existingPushIds, ...unreadIdsFromDb])];

@@ -7,7 +7,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link } from '@inertiajs/vue3'; // Keep Head and Link for Inertia components
 
-import { ref, reactive } from 'vue'; // Import ref and reactive for reactive state
+import { ref, reactive, onMounted } from 'vue'; // Import ref, reactive, onMounted for reactive state
 import axios from 'axios'; // Import axios for making HTTP requests
 
 // Props received from Laravel controller (default for Breeze login page)
@@ -27,12 +27,23 @@ const form = reactive({
     email: '',
     password: '',
     remember: false, // For "Remember me" functionality
+    timezone: '',
 });
 
 // Reactive state for handling errors and loading
 const errors = ref({}); // To store validation errors from Laravel (e.g., { email: ['...'], password: ['...'] })
 const generalError = ref(''); // To store a general error message (e.g., "Invalid credentials")
 const loading = ref(false); // To manage button loading state
+
+// Detect and set timezone
+onMounted(() => {
+    try {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+        form.timezone = tz;
+    } catch (e) {
+        form.timezone = '';
+    }
+});
 
 // Function to handle form submission
 const submit = async () => {

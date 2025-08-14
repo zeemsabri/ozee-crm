@@ -26,10 +26,21 @@ onMounted(() => document.addEventListener('keydown', closeOnEscape));
 onUnmounted(() => document.removeEventListener('keydown', closeOnEscape));
 
 const widthClass = computed(() => {
-    return {
+    const map = {
         48: 'w-48',
-    }[props.width.toString()];
+        64: 'w-64',
+        72: 'w-72',
+        80: 'w-80',
+        96: 'w-96',
+        full: 'w-full',
+        screen: 'w-screen',
+        auto: '',
+    };
+    const key = props.width.toString();
+    return map[key] ?? map[48];
 });
+
+const isScreenWidth = computed(() => props.width.toString() === 'screen');
 
 const alignmentClasses = computed(() => {
     if (props.align === 'left') {
@@ -67,8 +78,12 @@ const open = ref(false);
         >
             <div
                 v-show="open"
-                class="absolute z-50 mt-2 rounded-md shadow-lg"
-                :class="[widthClass, alignmentClasses]"
+                :class="[
+                    'z-50 mt-2 rounded-md shadow-lg',
+                    isScreenWidth ? 'fixed left-0 right-0' : 'absolute',
+                    alignmentClasses,
+                    widthClass,
+                ]"
                 style="display: none"
                 @click="open = false"
             >
