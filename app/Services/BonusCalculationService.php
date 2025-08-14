@@ -77,6 +77,11 @@ class BonusCalculationService
     private function calculateEmployeeBonuses(Collection $employees, MonthlyBudget $monthlyBudget): array
     {
         $employeeAwards = [];
+        $awards = [
+            1 => $monthlyBudget->first_place_award_pkr,
+            2 => $monthlyBudget->second_place_award_pkr,
+            3 => $monthlyBudget->third_place_award_pkr,
+        ];
 
         // --- First Pass: Initialize entries and calculate 'Most Improved' metrics ---
         $previousMonth = Carbon::create($monthlyBudget->year, $monthlyBudget->month, 1)->subMonth();
@@ -199,24 +204,28 @@ class BonusCalculationService
         $contractorAwards = [];
         $monthlyPerformanceBonuses = [];
 
-        // Contractor of the Month
-        if ($contractors->isNotEmpty()) {
-            $topContractor = $contractors->first();
-            $userId = $topContractor->user_id;
+        // Contractor of the Month - Divided amongst top 3
+        $topContractors = $contractors->take(3);
+        $topContractorPool = $monthlyBudget->contractor_of_the_month_award_pkr;
+        $numTopContractors = $topContractors->count();
+        $topContractorAwardAmount = $numTopContractors > 0 ? $topContractorPool / $numTopContractors : 0;
+
+        foreach ($topContractors as $index => $contractorPoints) {
+            $rank = $index + 1;
+            $userId = $contractorPoints->user_id;
 
             if (!isset($contractorAwards[$userId])) {
                 $contractorAwards[$userId] = [
                     'user_id' => $userId,
-                    'name' => $topContractor->user->name,
-                    'user_type' => $topContractor->user->user_type,
-                    'points' => $topContractor->total_points,
+                    'name' => $contractorPoints->user->name,
+                    'user_type' => $contractorPoints->user->user_type,
+                    'points' => $contractorPoints->total_points,
                     'awards' => [],
                 ];
             }
-
             $contractorAwards[$userId]['awards'][] = [
-                'award' => 'Contractor of the Month',
-                'amount' => $monthlyBudget->contractor_of_the_month_award_pkr,
+                'award' => "Top Contractor #{$rank}",
+                'amount' => $topContractorAwardAmount,
             ];
         }
 
