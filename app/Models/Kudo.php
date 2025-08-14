@@ -35,7 +35,7 @@ class Kudo extends Model
     protected static function boot()
     {
         parent::boot();
-        static::updating(function ($kudo) {
+        static::updated(function ($kudo) {
             KudoApprovedEvent::dispatch($kudo);
         });
     }
