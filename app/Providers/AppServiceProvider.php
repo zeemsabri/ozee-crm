@@ -4,10 +4,12 @@ namespace App\Providers;
 
 use App\Models\Client;
 use App\Models\Email;
+use App\Models\Kudo;
 use App\Models\Project;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Observers\EmailObserver;
+use App\Observers\KudoObserver;
 use App\Observers\TransactionObserver;
 use App\Policies\ClientPolicy;
 use App\Policies\EmailPolicy;
@@ -46,6 +48,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Register the Transaction observer
         Transaction::observe(TransactionObserver::class);
+
+        // Register the Kudo observer
+        Kudo::observe(KudoObserver::class);
 
         Gate::before(function ($user, $ability) {
 
