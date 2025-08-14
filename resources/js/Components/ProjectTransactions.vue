@@ -69,7 +69,8 @@ const expendableErrors = ref({});
 const fetchExpendableBudget = async () => {
     try {
         const { data } = await window.axios.get(`/api/projects/${props.projectId}/expendable-budget`);
-        expendableAmount.value = data.total_expendable_amount;
+        // Use total budget from API; keep variable name for minimal changes
+        expendableAmount.value = data.total_budget;
         expendableCurrency.value = (data.currency || 'PKR').toUpperCase();
     } catch (e) {
         console.error('Error fetching expendable budget', e);

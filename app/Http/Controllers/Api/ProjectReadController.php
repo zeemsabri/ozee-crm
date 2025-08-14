@@ -340,6 +340,7 @@ class ProjectReadController extends Controller
         }
         return response()->json([
             'total_expendable_amount' => $project->remaining_spendables,
+            'total_budget' => $project->total_budget,
             'currency' => 'AUD',
         ]);
     }

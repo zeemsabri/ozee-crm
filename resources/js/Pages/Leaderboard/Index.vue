@@ -54,7 +54,7 @@
                     <div v-if="loading" class="text-gray-500">Loading leaderboard...</div>
 
                     <!-- Leaderboard list -->
-                    <div v-else class="w-full max-w-2xl relative mx-auto" :style="{ height: `${filteredList.length * ITEM_HEIGHT}px` }">
+                    <div v-else class="w-full max-w-2xl relative mx-auto overflow-hidden" :style="{ height: `${filteredList.length * ITEM_HEIGHT}px` }">
                         <transition-group name="rank" tag="div" class="relative">
                             <div v-for="(user, idx) in filteredList" :key="user.id"
                                  class="absolute w-full transition-transform duration-300"
@@ -219,13 +219,13 @@ function startAnimation() {
             if (tracked) {
                 if (tracked.rank === 1) {
                     congratsState.show = true;
-                    congratsState.message = { title: 'Congratulations!', text: `${tracked.name}, you are the winner!` };
+                    congratsState.message = { title: 'Congratulations!', text: `${tracked.name}, you are on the top of the leaderboard!` };
                 } else if (tracked.rank <= 3) {
                     congratsState.show = true;
                     congratsState.message = { title: 'Well done!', text: `${tracked.name}, you made it to the top 3!` };
                 } else {
                     congratsState.show = true;
-                    congratsState.message = { title: 'Final Standings!', text: `Hey ${tracked.name}, you finished at rank ${tracked.rank}! Keep submitting your standups on time and completing tasks to climb the ranks next month. You're doing great!` };
+                    congratsState.message = { title: 'Final Standings!', text: `Hey ${tracked.name}, you finished at rank ${tracked.rank}! Keep submitting your standups on time and completing tasks to climb the ranks. You're doing great!` };
                 }
             }
         }

@@ -450,7 +450,12 @@ class Project extends Model
 
     public function getTotalBudgetAttribute()
     {
-        return $this->budget()->sum('amount');
+        $convertTo = 'AUD';
+        $total = 0.0;
+        foreach ($this->budget()->get() as $item) {
+            $total += $this->convertCurrency((float) $item->amount, (string) $item->currency, $convertTo);
+        }
+        return round($total, 2);
     }
 
 //    protected $appends = [
