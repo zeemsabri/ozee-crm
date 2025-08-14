@@ -50,16 +50,17 @@ class PointsService
         $multiplier = $project ? ($project->projectTier->point_multiplier ?? 1.0) : 1.0;
         $finalPoints = $basePoints * $multiplier;
 
-        $ledgerEntry = PointsLedger::create([
+        $data = [
             'user_id' => $userId,
             'project_id' => $projectId,
             'points_awarded' => $finalPoints,
             'description' => $description,
             'pointable_id' => $pointable->id ?? null,
             'pointable_type' => $pointable ? get_class($pointable) : null,
-            'status' => $status,
-            'json' => json_encode($extraData),
-        ]);
+            'status' => $status
+        ];
+        Log::info(json_encode($data));;
+        $ledgerEntry = PointsLedger::create($data);
 
         $this->updateMonthlyPoints($userId, $finalPoints, Carbon::now()->year, Carbon::now()->month);
 
@@ -256,6 +257,7 @@ class PointsService
                 self::BASE_POINTS_KUDOS,
                 'Peer Kudos (Approved)',
                 $kudo,
+                'pending',
                 ['comment' => $kudo->comment]
             );
         }
