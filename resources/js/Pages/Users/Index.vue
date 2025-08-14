@@ -504,7 +504,7 @@ const getAvatarColor = (name) => {
                                                 Role: {{ userItem.role_data?.name || (typeof userItem.role === 'string' ? userItem.role.replace(/_|-/g, ' ') : 'Employee') }}
                                             </span>
                                             <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-500/10">
-                                                Type: {{ userItem.user_type.toUpperCase() || 'EMPLOYEE' }}
+                                                Type: {{ userItem.user_type?.toUpperCase() || 'EMPLOYEE' }}
                                             </span>
                                         </div>
 
