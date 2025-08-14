@@ -15,14 +15,16 @@ class BonusCalculationService
 {
     protected CurrencyConversionService $currencyService;
 
+    // Constants for bonus calculations
+    private const PROJECT_PERFORMANCE_BONUS_PERCENTAGE = 0.05;
+
     public function __construct(CurrencyConversionService $currencyService)
     {
         $this->currencyService = $currencyService;
     }
 
     /**
-     * Calculates the projected monthly bonuses for all users based on the month's budget and points.
-     * This service is for pre-transaction review and does not update the database.
+     * Orchestrates the calculation of all monthly bonuses and returns a structured response.
      *
      * @param int $year
      * @param int $month
@@ -41,49 +43,450 @@ class BonusCalculationService
             ->orderBy('total_points', 'desc')
             ->get();
 
-        $employees = $leaderboard->filter(function ($item) {
-            return $item->user->user_type === 'employee';
-        })->values();
+        $employees = $leaderboard->filter(fn ($item) => $item->user->user_type === 'employee')->values();
+        $contractors = $leaderboard->filter(fn ($item) => $item->user->user_type === 'contractor')->values();
+        $allUsers = $employees->merge($contractors);
 
-        $contractors = $leaderboard->filter(function ($item) {
-            return $item->user->user_type === 'contractor';
-        })->values();
+        // Calculate all awards
+        list($highAchieverAwards, $distributedHighAchieverBonus) = $this->calculateHighAchieverAwards($employees, $monthlyBudget);
+        list($consistentContributorAward, $consistentContributorPoolDistributed) = $this->calculateConsistentContributorAward($employees, $monthlyBudget);
+        list($projectPerformanceAwards, $distributedProjectPerformanceBonus) = $this->calculateProjectPerformanceBonuses($monthlyBudget);
 
-        // Calculate and process all employee bonuses
-        list($employeeBonusSummary, $employeeMetrics) = $this->calculateEmployeeBonuses($employees, $monthlyBudget);
+        $topPerformerPool = $monthlyBudget->contractor_bonus_pool_pkr - $distributedProjectPerformanceBonus;
+        list($topPerformerAwards, $distributedTopPerformerBonus) = $this->calculateContractorTopPerformerBonuses($contractors, $monthlyBudget, $topPerformerPool);
 
-        // Calculate and process all contractor bonuses
-        list($contractorBonusSummary, $contractorMetrics) = $this->calculateContractorBonuses($contractors, $monthlyBudget);
+        $managersChoicePool = $topPerformerPool - $distributedTopPerformerBonus;
+        list($managersChoiceAwards, $distributedManagersChoiceBonus, $mostImprovedRecommendations) = $this->calculateManagersChoiceBonuses($employees, $contractors, $monthlyBudget, $managersChoicePool);
 
+        // Consolidate all awards into a single, comprehensive list
+        $allAwards = [
+            'high_achiever_awards' => [
+                'award_id' => 'high_achiever_awards',
+                'award_name' => 'High Achiever Awards',
+                'user_type' => 'employee',
+                'bonus_pool_pkr' => round((float)$monthlyBudget->high_achiever_pool_pkr, 2),
+                'distributed_pkr' => round($distributedHighAchieverBonus, 2),
+                'recipients' => $highAchieverAwards,
+            ],
+            'consistent_contributor' => [
+                'award_id' => 'consistent_contributor_awards',
+                'award_name' => 'Consistent Contributor',
+                'user_type' => 'employee',
+                'bonus_pool_pkr' => round((float)$monthlyBudget->consistent_contributor_pool_pkr, 2),
+                'distributed_pkr' => round($consistentContributorPoolDistributed, 2),
+                'recipients' => $consistentContributorAward ? [$consistentContributorAward] : [],
+            ],
+            'project_performance_bonus' => [
+                'award_id' => 'project_performance_bonus',
+                'award_name' => 'Project Performance Bonus',
+                'user_type' => 'contractor',
+                'bonus_pool_pkr' => round((float)$monthlyBudget->contractor_bonus_pool_pkr, 2),
+                'distributed_pkr' => round($distributedProjectPerformanceBonus, 2),
+                'recipients' => $projectPerformanceAwards,
+            ],
+            'top_contractor' => [
+                'award_id' => 'top_contractor',
+                'award_name' => 'Top Contractor (Performance-based)',
+                'user_type' => 'contractor',
+                'distributed_pkr' => round($distributedTopPerformerBonus, 2),
+                'recipients' => $topPerformerAwards,
+            ],
+            'managers_choice_most_improved' => [
+                'award_id' => 'managers_choice_most_improved',
+                'award_name' => 'Managers Choice (Most Improved)',
+                'user_type' => 'both',
+                'distributed_pkr' => round($distributedManagersChoiceBonus, 2),
+                'recipients' => $managersChoiceAwards,
+            ],
+        ];
+
+        // Build the user summary list
+        $usersSummary = $this->buildUsersSummary($allUsers, $allAwards, $monthlyBudget);
+
+        $totalDistributedEmployee = $allAwards['high_achiever_awards']['distributed_pkr'] + $allAwards['consistent_contributor']['distributed_pkr'];
+        $totalDistributedContractor = $allAwards['project_performance_bonus']['distributed_pkr'] + $allAwards['top_contractor']['distributed_pkr'] + $allAwards['managers_choice_most_improved']['distributed_pkr'];
+        $totalDistributed = $totalDistributedEmployee + $totalDistributedContractor;
+
+        // Build the final response
         return [
             'period' => Carbon::create($year, $month, 1)->format('F Y'),
-            'total_budget' => $monthlyBudget->total_budget_pkr,
-            'employee_pool_allocated' => $monthlyBudget->employee_bonus_pool_pkr,
-            'contractor_pool_allocated' => $monthlyBudget->contractor_bonus_pool_pkr,
-            'employees' => $employeeBonusSummary,
-            'contractors' => $contractorBonusSummary,
-            'team_metrics' => $employeeMetrics,
-            'contractor_metrics' => $contractorMetrics,
+            'summary' => [
+                'total_budget_pkr' => round((float)$monthlyBudget->total_budget_pkr, 2),
+                'total_distributed_pkr' => round($totalDistributed, 2),
+                'pools' => [
+                    'employee' => [
+                        'allocated_pkr' => round((float)$monthlyBudget->employee_bonus_pool_pkr, 2),
+                        'distributed_pkr' => round($totalDistributedEmployee, 2),
+                        'types' => [
+                            'high_achiever_pkr' => round((float)$monthlyBudget->high_achiever_pool_pkr, 2),
+                            'consistent_contributor_pkr' => round((float)$monthlyBudget->consistent_contributor_pool_pkr, 2),
+                        ]
+                    ],
+                    'contractor' => [
+                        'allocated_pkr' => round((float)$monthlyBudget->contractor_bonus_pool_pkr, 2),
+                        'distributed_pkr' => round($totalDistributedContractor, 2),
+                        'types' => [
+                            'project_performance_pkr' => round((float)$monthlyBudget->contractor_bonus_pool_pkr, 2)
+                        ]
+                    ],
+                    'managers_choice' => [
+                        'allocated_pkr' => round($managersChoicePool, 2),
+                        'distributed_pkr' => round($distributedManagersChoiceBonus, 2)
+                    ]
+                ]
+            ],
+            'users' => $usersSummary,
+            'awards_details' => array_values($allAwards)
         ];
     }
 
     /**
-     * Calculates all bonuses for employees.
+     * Builds a summary of all users and their total bonuses.
      *
-     * @param Collection $employees
+     * @param Collection $allUsers
+     * @param array $allAwards
      * @param MonthlyBudget $monthlyBudget
      * @return array
      */
-    private function calculateEmployeeBonuses(Collection $employees, MonthlyBudget $monthlyBudget): array
+    private function buildUsersSummary(Collection $allUsers, array $allAwards, MonthlyBudget $monthlyBudget): array
     {
-        $employeeAwards = [];
-        $awards = [
+        $usersSummary = [];
+        $previousMonth = Carbon::create($monthlyBudget->year, $monthlyBudget->month, 1)->subMonth();
+        $previousMonthPoints = MonthlyPoint::where('year', $previousMonth->year)
+            ->where('month', $previousMonth->month)
+            ->get()
+            ->keyBy('user_id');
+
+        foreach ($allUsers as $userPoints) {
+            $userId = $userPoints->user_id;
+            $userBonusTotal = 0;
+            $pointIncrease = 0;
+            $previousPoints = $previousMonthPoints->get($userId);
+
+            if ($previousPoints) {
+                $pointIncrease = $userPoints->total_points - $previousPoints->total_points;
+            }
+
+            foreach ($allAwards as $awardCategory) {
+                foreach ($awardCategory['recipients'] as $recipient) {
+                    if ($recipient['user_id'] === $userId) {
+                        $userBonusTotal += (float) ($recipient['amount_pkr'] ?? $recipient['amount'] ?? 0);
+                    }
+                }
+            }
+
+            $usersSummary[] = [
+                'user_id' => $userId,
+                'name' => $userPoints->user->name,
+                'user_type' => $userPoints->user->user_type,
+                'total_points' => round((float)$userPoints->total_points, 2),
+                'total_bonus_pkr' => round($userBonusTotal, 2),
+                'point_increase_from_last_month' => round($pointIncrease, 2),
+            ];
+        }
+
+        return $usersSummary;
+    }
+
+    /**
+     * Calculates awards for the top 3 high-achieving employees.
+     *
+     * @param Collection $employees
+     * @param MonthlyBudget $monthlyBudget
+     * @return array [array $highAchieverAwards, float $distributedAmount]
+     */
+    private function calculateHighAchieverAwards(Collection $employees, MonthlyBudget $monthlyBudget): array
+    {
+        $highAchieverAwards = [];
+        $distributedAmount = 0.0;
+        $highAchievers = $employees->take(3);
+        $highAchieverBonusAmounts = [
             1 => $monthlyBudget->first_place_award_pkr,
             2 => $monthlyBudget->second_place_award_pkr,
             3 => $monthlyBudget->third_place_award_pkr,
         ];
 
-        // --- First Pass: Initialize entries and calculate 'Most Improved' metrics ---
+        foreach ($highAchievers as $index => $userPoints) {
+            $rank = $index + 1;
+            $userId = $userPoints->user_id;
+            $amount = (float)$highAchieverBonusAmounts[$rank];
+            $distributedAmount += $amount;
+
+            $highAchieverAwards[] = [
+                'user_id' => $userId,
+                'points' => round((float)$userPoints->total_points, 2),
+                'award_title' => "Top Performer #{$rank}",
+                'amount_pkr' => round($amount, 2),
+            ];
+        }
+        return [$highAchieverAwards, $distributedAmount];
+    }
+
+    /**
+     * Calculates the Consistent Contributor award.
+     *
+     * @param Collection $employees
+     * @param MonthlyBudget $monthlyBudget
+     * @return array [array|null $award, float $distributedAmount]
+     */
+    private function calculateConsistentContributorAward(Collection $employees, MonthlyBudget $monthlyBudget): array
+    {
+        $consistentContributorAward = null;
+        $distributedAmount = 0.0;
+        $previousMonth = Carbon::create($monthlyBudget->year, $monthlyBudget->month, 1)->subMonth();
+        $previousMonthPoints = MonthlyPoint::where('year', $previousMonth->year)
+            ->where('month', $previousMonth->month)
+            ->get()
+            ->keyBy('user_id');
+
+        $highestCombinedPoints = 0;
+        $consistentContributor = null;
+
+        foreach ($employees as $userPoints) {
+            $previousPoints = $previousMonthPoints->get($userPoints->user_id);
+            $combinedPoints = $userPoints->total_points + ($previousPoints->total_points ?? 0);
+            if ($combinedPoints > $highestCombinedPoints) {
+                $highestCombinedPoints = $combinedPoints;
+                $consistentContributor = $userPoints;
+            }
+        }
+
+        if ($consistentContributor) {
+            $userId = $consistentContributor->user_id;
+            $amount = (float)$monthlyBudget->consistent_contributor_pool_pkr;
+            $distributedAmount = $amount;
+
+            $consistentContributorAward = [
+                'user_id' => $userId,
+                'points' => round((float)$consistentContributor->total_points, 2),
+                'award_title' => 'Consistent Contributor',
+                'amount_pkr' => round($amount, 2),
+            ];
+        }
+
+        return [$consistentContributorAward, $distributedAmount];
+    }
+
+    /**
+     * Calculates Project Performance Bonuses for contractors.
+     *
+     * @param MonthlyBudget $monthlyBudget
+     * @return array [array $performanceAwards, float $distributedAmount]
+     */
+    private function calculateProjectPerformanceBonuses(MonthlyBudget $monthlyBudget): array
+    {
+        $distributedAmount = 0.0;
+        $performanceAwards = [];
+        $startOfMonth = Carbon::create($monthlyBudget->year, $monthlyBudget->month, 1)->startOfMonth();
+        $endOfMonth = Carbon::create($monthlyBudget->year, $monthlyBudget->month, 1)->endOfMonth();
+
+        $onTimeApprovedMilestones = Milestone::where('status', Milestone::APPROVED)
+            ->whereBetween('completed_at', [$startOfMonth, $endOfMonth])
+            ->whereColumn('completed_at', '<=', 'completion_date')
+            ->get();
+
+        $bonuses = [];
+        foreach ($onTimeApprovedMilestones as $milestone) {
+            $agreements = $milestone->expendable()->where('status', ProjectExpendable::STATUS_ACCEPTED)->get();
+
+            foreach ($agreements as $agreement) {
+                $agreedAmountInPkr = $this->currencyService->convert((float) $agreement->amount, $agreement->currency, 'PKR');
+                $bonusAmount = $agreedAmountInPkr * self::PROJECT_PERFORMANCE_BONUS_PERCENTAGE;
+                $userId = $agreement->user_id;
+
+                if (!isset($bonuses[$userId])) {
+                    $bonuses[$userId] = [];
+                }
+
+                $bonuses[$userId][] = [
+                    'project_name' => $milestone->project->name,
+                    'agreed_amount' => $agreedAmountInPkr,
+                    'bonus_amount' => $bonusAmount,
+                ];
+            }
+        }
+
+        foreach ($bonuses as $userId => $bonusDetails) {
+            $user = User::find($userId);
+            $userPoints = MonthlyPoint::where('user_id', $userId)
+                ->where('year', $monthlyBudget->year)
+                ->where('month', $monthlyBudget->month)
+                ->first();
+
+            $groupedProjectBonuses = [];
+            foreach ($bonusDetails as $bonus) {
+                if (!isset($groupedProjectBonuses[$bonus['project_name']])) {
+                    $groupedProjectBonuses[$bonus['project_name']] = [
+                        'total_agreed_amount_pkr' => 0,
+                        'total_bonus_amount_pkr' => 0,
+                        'milestone_count' => 0,
+                    ];
+                }
+                $groupedProjectBonuses[$bonus['project_name']]['total_agreed_amount_pkr'] += $bonus['agreed_amount'];
+                $groupedProjectBonuses[$bonus['project_name']]['total_bonus_amount_pkr'] += $bonus['bonus_amount'];
+                $groupedProjectBonuses[$bonus['project_name']]['milestone_count']++;
+            }
+
+            $awardsForUser = [];
+            foreach ($groupedProjectBonuses as $projectName => $projectData) {
+                $awardsForUser[] = [
+                    'award_title' => 'Project Performance Bonus',
+                    'amount_pkr' => round($projectData['total_bonus_amount_pkr'], 2),
+                    'project_details' => [
+                        'project_name' => $projectName,
+                        'total_agreed_amount_pkr' => round($projectData['total_agreed_amount_pkr'], 2),
+                        'bonus_reason' => "{$projectData['milestone_count']} milestone(s) completed on time, resulting in a 5% bonus of the total agreed amount."
+                    ]
+                ];
+            }
+
+            $performanceAwards[] = [
+                'user_id' => $userId,
+                'points' => round((float)($userPoints->total_points ?? 0), 2),
+                'awards' => $awardsForUser,
+            ];
+
+            $distributedAmount += array_sum(array_column($groupedProjectBonuses, 'total_bonus_amount_pkr'));
+        }
+        return [$performanceAwards, $distributedAmount];
+    }
+
+    /**
+     * Calculates the top 3 contractor bonuses based on points and remaining pool.
+     *
+     * @param Collection $contractors
+     * @param MonthlyBudget $monthlyBudget
+     * @param float $remainingPool
+     * @return array [array $topPerformerAwards, float $distributedAmount]
+     */
+    private function calculateContractorTopPerformerBonuses(Collection $contractors, MonthlyBudget $monthlyBudget, float $remainingPool): array
+    {
+        $distributedAmount = 0.0;
+        $topPerformerAwards = [];
+        $topContractors = $contractors->take(3);
+
+        $totalCalculatedBonus = 0.0;
+        $individualCalculatedBonuses = [];
+
+        foreach ($topContractors as $userPoints) {
+            $calculatedBonus = $userPoints->total_points * $monthlyBudget->points_value_pkr;
+            $individualCalculatedBonuses[$userPoints->user_id] = $calculatedBonus;
+            $totalCalculatedBonus += $calculatedBonus;
+        }
+
+        $multiplier = ($totalCalculatedBonus > 0 && $totalCalculatedBonus > $remainingPool) ? $remainingPool / $totalCalculatedBonus : 1;
+
+        foreach ($topContractors as $userPoints) {
+            $userId = $userPoints->user_id;
+            $amount = $individualCalculatedBonuses[$userId] * $multiplier;
+            $distributedAmount += $amount;
+
+            $topPerformerAwards[] = [
+                'user_id' => $userId,
+                'points' => round((float)$userPoints->total_points, 2),
+                'award_title' => 'Top Contractor (Performance-based)',
+                'amount_pkr' => round($amount, 2),
+                'bonus_details' => "Bonus calculated from {$userPoints->total_points} points at {$monthlyBudget->points_value_pkr} PKR/point."
+            ];
+        }
+
+        return [$topPerformerAwards, $distributedAmount];
+    }
+
+    /**
+     * Calculates Manager's Choice bonuses from the remaining contractor pool.
+     *
+     * @param Collection $employees
+     * @param Collection $contractors
+     * @param MonthlyBudget $monthlyBudget
+     * @param float $remainingContractorPool
+     * @return array [array $awards, float $distributedAmount, array $recommendations]
+     */
+    private function calculateManagersChoiceBonuses(Collection $employees, Collection $contractors, MonthlyBudget $monthlyBudget, float $remainingContractorPool): array
+    {
+        $awards = [];
+        $distributedAmount = 0.0;
+        $employeeRecommendations = $this->calculateMostImprovedRecommendations($employees, $monthlyBudget);
+        $contractorRecommendations = $this->calculateMostImprovedRecommendations($contractors, $monthlyBudget);
+        $combinedRecommendations = $employeeRecommendations->concat($contractorRecommendations)->sortByDesc('point_increase')->values();
+
+        $recommendations = [
+            'employees' => $employeeRecommendations->take(5)->toArray(),
+            'contractors' => $contractorRecommendations->take(5)->toArray(),
+            'combined' => $combinedRecommendations->take(5)->toArray(),
+        ];
+
+        // Manager's choice bonus pools
+        $teamMostImprovedPool = $remainingContractorPool * 0.5;
+        $employeeMostImprovedPool = $remainingContractorPool * 0.25;
+        $contractorMostImprovedPool = $remainingContractorPool * 0.25;
+
+        $awardedUserIds = [];
+
+        // Team Most Improved
+        if ($combinedRecommendations->isNotEmpty()) {
+            $winner = $combinedRecommendations->first();
+            $awardedUserIds[] = $winner['user_id'];
+            $userPoints = MonthlyPoint::where('user_id', $winner['user_id'])->where('year', $monthlyBudget->year)->where('month', $monthlyBudget->month)->first();
+            $calculatedBonus = $winner['point_increase'] * $monthlyBudget->points_value_pkr;
+            $bonusAmount = min($calculatedBonus, $teamMostImprovedPool);
+
+            $awards[] = [
+                'user_id' => $winner['user_id'],
+                'points' => round((float)($userPoints->total_points ?? 0), 2),
+                'award_title' => 'Team Most Improved',
+                'amount_pkr' => round($bonusAmount, 2),
+                'bonus_details' => "Bonus for a point increase of {$winner['point_increase']} from last month."
+            ];
+            $distributedAmount += $bonusAmount;
+        }
+
+        // Employee Most Improved
+        if ($employeeRecommendations->isNotEmpty() && !in_array($employeeRecommendations->first()['user_id'], $awardedUserIds)) {
+            $winner = $employeeRecommendations->first();
+            $userPoints = MonthlyPoint::where('user_id', $winner['user_id'])->where('year', $monthlyBudget->year)->where('month', $monthlyBudget->month)->first();
+            $calculatedBonus = $winner['point_increase'] * $monthlyBudget->points_value_pkr;
+            $bonusAmount = min($calculatedBonus, $employeeMostImprovedPool);
+
+            $awards[] = [
+                'user_id' => $winner['user_id'],
+                'points' => round((float)($userPoints->total_points ?? 0), 2),
+                'award_title' => 'Employee Most Improved',
+                'amount_pkr' => round($bonusAmount, 2),
+                'bonus_details' => "Bonus for a point increase of {$winner['point_increase']} from last month."
+            ];
+            $distributedAmount += $bonusAmount;
+        }
+
+        // Contractor Most Improved
+        if ($contractorRecommendations->isNotEmpty() && !in_array($contractorRecommendations->first()['user_id'], $awardedUserIds)) {
+            $winner = $contractorRecommendations->first();
+            $userPoints = MonthlyPoint::where('user_id', $winner['user_id'])->where('year', $monthlyBudget->year)->where('month', $monthlyBudget->month)->first();
+            $calculatedBonus = $winner['point_increase'] * $monthlyBudget->points_value_pkr;
+            $bonusAmount = min($calculatedBonus, $contractorMostImprovedPool);
+
+            $awards[] = [
+                'user_id' => $winner['user_id'],
+                'points' => round((float)($userPoints->total_points ?? 0), 2),
+                'award_title' => 'Contractor Most Improved',
+                'amount_pkr' => round($bonusAmount, 2),
+                'bonus_details' => "Bonus for a point increase of {$winner['point_increase']} from last month."
+            ];
+            $distributedAmount += $bonusAmount;
+        }
+
+        return [$awards, $distributedAmount, $recommendations];
+    }
+
+    /**
+     * Calculates recommendations for the "Most Improved" award.
+     *
+     * @param Collection $users
+     * @param MonthlyBudget $monthlyBudget
+     * @return Collection
+     */
+    private function calculateMostImprovedRecommendations(Collection $users, MonthlyBudget $monthlyBudget): Collection
+    {
         $previousMonth = Carbon::create($monthlyBudget->year, $monthlyBudget->month, 1)->subMonth();
         $previousMonthPoints = MonthlyPoint::where('year', $previousMonth->year)
             ->where('month', $previousMonth->month)
@@ -91,203 +494,23 @@ class BonusCalculationService
             ->keyBy('user_id');
 
         $mostImprovedRecommendations = new Collection();
-        foreach ($employees as $employeePoints) {
-            $userId = $employeePoints->user_id;
+        foreach ($users as $userPoints) {
+            $userId = $userPoints->user_id;
             $previousPoints = $previousMonthPoints->get($userId);
             $pointIncrease = 0;
             if ($previousPoints) {
-                $pointIncrease = $employeePoints->total_points - $previousPoints->total_points;
+                $pointIncrease = $userPoints->total_points - $previousPoints->total_points;
             }
 
-            // Add to the most improved recommendations list
-            $mostImprovedRecommendations->push([
-                'user_id' => $userId,
-                'name' => $employeePoints->user->name,
-                'point_increase' => $pointIncrease,
-            ]);
-        }
-
-        // Sort recommendations by point increase
-        $mostImprovedRecommendations = $mostImprovedRecommendations->sortByDesc('point_increase');
-        $mostImprovedRecommendations = $mostImprovedRecommendations->take(5)->values(); // Top 5 recommendations
-
-        // --- Second Pass: Assign specific awards to the initialized entries ---
-
-        // High Achiever Awards
-        $highAchievers = $employees->take(3);
-        foreach ($highAchievers as $index => $employeePoints) {
-            $rank = $index + 1;
-            $userId = $employeePoints->user_id;
-            if (!isset($employeeAwards[$userId])) {
-                $employeeAwards[$userId] = [
+            if ($pointIncrease > 0) {
+                $mostImprovedRecommendations->push([
                     'user_id' => $userId,
-                    'name' => $employeePoints->user->name,
-                    'user_type' => $employeePoints->user->user_type,
-                    'points' => $employeePoints->total_points,
-                    'awards' => [],
-                ];
-            }
-            $employeeAwards[$userId]['awards'][] = [
-                'award' => "Top Performer #{$rank}",
-                'amount' => $monthlyBudget->{"rank_{$rank}_award_pkr"},
-            ];
-        }
-
-        // Consistent Contributor Tiered Bonus
-        $consistentPool = $monthlyBudget->consistent_contributor_pool_pkr;
-        $qualifyingEmployees = [];
-        $totalTargetBonus = 0;
-
-        foreach ($employees as $employeePoints) {
-            $userPoints = $employeePoints->total_points;
-            $targetBonus = 0;
-            $tier = 'None';
-            if ($userPoints >= 2000) {
-                $targetBonus = 2000;
-                $tier = 'Gold';
-            } elseif ($userPoints >= 1500) {
-                $targetBonus = 1000;
-                $tier = 'Silver';
-            } elseif ($userPoints >= 1000) {
-                $targetBonus = 500;
-                $tier = 'Bronze';
-            }
-
-            if ($targetBonus > 0) {
-                $qualifyingEmployees[] = ['employee_points' => $employeePoints, 'tier' => $tier, 'target_bonus' => $targetBonus];
-                $totalTargetBonus += $targetBonus;
+                    'name' => $userPoints->user->name,
+                    'user_type' => $userPoints->user->user_type,
+                    'point_increase' => $pointIncrease,
+                ]);
             }
         }
-
-        $multiplier = ($totalTargetBonus > 0 && $consistentPool < $totalTargetBonus) ? $consistentPool / $totalTargetBonus : 1;
-
-        foreach ($qualifyingEmployees as $qualifyingEmployee) {
-            $finalAmount = $qualifyingEmployee['target_bonus'] * $multiplier;
-            $userId = $qualifyingEmployee['employee_points']->user_id;
-            if (!isset($employeeAwards[$userId])) {
-                $employeeAwards[$userId] = [
-                    'user_id' => $userId,
-                    'name' => $qualifyingEmployee['employee_points']->user->name,
-                    'user_type' => $qualifyingEmployee['employee_points']->user->user_type,
-                    'points' => $qualifyingEmployee['employee_points']->total_points,
-                    'awards' => [],
-                ];
-            }
-            $employeeAwards[$userId]['awards'][] = [
-                'award' => "Consistent Contributor ({$qualifyingEmployee['tier']} Tier)",
-                'amount' => $finalAmount,
-                'adjusted' => $multiplier < 1,
-            ];
-        }
-
-        // Prepare the metrics and recommendations for the final output
-        $employeeMetrics = [
-            'most_improved' => [
-                'award' => 'Most Improved',
-                'amount' => $monthlyBudget->most_improved_award_pkr,
-                'recommendations' => $mostImprovedRecommendations->toArray(),
-            ],
-        ];
-
-        return [array_values($employeeAwards), $employeeMetrics];
-    }
-
-    /**
-     * Calculates all bonuses for contractors.
-     *
-     * @param Collection $contractors
-     * @param MonthlyBudget $monthlyBudget
-     * @return array
-     */
-    private function calculateContractorBonuses(Collection $contractors, MonthlyBudget $monthlyBudget): array
-    {
-        $contractorAwards = [];
-        $monthlyPerformanceBonuses = [];
-
-        // Contractor of the Month - Divided amongst top 3
-        $topContractors = $contractors->take(3);
-        $topContractorPool = $monthlyBudget->contractor_of_the_month_award_pkr;
-        $numTopContractors = $topContractors->count();
-        $topContractorAwardAmount = $numTopContractors > 0 ? $topContractorPool / $numTopContractors : 0;
-
-        foreach ($topContractors as $index => $contractorPoints) {
-            $rank = $index + 1;
-            $userId = $contractorPoints->user_id;
-
-            if (!isset($contractorAwards[$userId])) {
-                $contractorAwards[$userId] = [
-                    'user_id' => $userId,
-                    'name' => $contractorPoints->user->name,
-                    'user_type' => $contractorPoints->user->user_type,
-                    'points' => $contractorPoints->total_points,
-                    'awards' => [],
-                ];
-            }
-            $contractorAwards[$userId]['awards'][] = [
-                'award' => "Top Contractor #{$rank}",
-                'amount' => $topContractorAwardAmount,
-            ];
-        }
-
-        // Project Performance Bonuses
-        $startOfMonth = Carbon::create($monthlyBudget->year, $monthlyBudget->month, 1)->startOfMonth();
-        $endOfMonth = Carbon::create($monthlyBudget->year, $monthlyBudget->month, 1)->endOfMonth();
-
-        // Fetch approved milestones that were completed on time within the month
-        $onTimeApprovedMilestones = Milestone::where('status', Milestone::APPROVED)
-            ->whereBetween('completed_at', [$startOfMonth, $endOfMonth])
-            ->whereColumn('completed_at', '<=', 'completion_date')
-            ->get();
-
-        // Process bonuses for each on-time, approved milestone
-        foreach ($onTimeApprovedMilestones as $milestone) {
-            $agreements = $milestone->expendable()
-                ->where('status', ProjectExpendable::STATUS_ACCEPTED)
-                ->get();
-
-            foreach ($agreements as $agreement) {
-                $agreedAmountInPkr = $this->currencyService->convert((float) $agreement->amount, $agreement->currency, 'PKR');
-                $bonusAmount = $agreedAmountInPkr * 0.05;
-                $userId = $agreement->user_id;
-
-                if (!isset($monthlyPerformanceBonuses[$userId])) {
-                    $monthlyPerformanceBonuses[$userId] = [
-                        'amount' => 0,
-                        'name' => $agreement->user->name,
-                        'projects' => [],
-                    ];
-                }
-                $monthlyPerformanceBonuses[$userId]['amount'] += $bonusAmount;
-                $monthlyPerformanceBonuses[$userId]['projects'][] = $agreement->project->name;
-            }
-        }
-
-        foreach ($monthlyPerformanceBonuses as $userId => $bonusData) {
-            if (!isset($contractorAwards[$userId])) {
-                $user = User::find($userId);
-                $contractorAwards[$userId] = [
-                    'user_id' => $userId,
-                    'name' => $user ? $user->name : 'N/A',
-                    'user_type' => $user->user_type ?? 'contractor',
-                    'points' => null,
-                    'awards' => [],
-                ];
-            }
-            $projectNames = implode(', ', array_unique($bonusData['projects']));
-            $contractorAwards[$userId]['awards'][] = [
-                'award' => 'Project Performance Bonus',
-                'amount' => $bonusData['amount'],
-                'details' => "Sum of approved bonuses for: {$projectNames}",
-            ];
-        }
-
-        $contractorMetrics = [
-            'project_performance_bonus_pool' => [
-                'award' => 'Project Performance Bonus Pool',
-                'amount' => $monthlyBudget->contractor_bonus_pool_pkr - $monthlyBudget->contractor_of_the_month_award_pkr,
-            ],
-        ];
-
-        return [array_values($contractorAwards), $contractorMetrics];
+        return $mostImprovedRecommendations->sortByDesc('point_increase')->values();
     }
 }
