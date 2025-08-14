@@ -133,6 +133,10 @@ class GoogleChatService
         }
     }
 
+    public function sendAs(\App\Models\User|String $user) {
+        $this->user = $user;
+    }
+
     /**
      * Sends a message to a Google Chat space.
      *
@@ -144,7 +148,13 @@ class GoogleChatService
      */
     public function sendMessage(string $spaceName, string $messageText, array $cards = []): array
     {
-        $this->setGoogleChatScope(Auth::user());
+        if($this->user === self::APP_AS_USER) {
+            $this->setGoogleChatScope();
+        }
+        else {
+            $this->setGoogleChatScope( Auth::user());
+        }
+
         $service = new HangoutsChat($this->client);
         $message = new Message();
         $message->setText($messageText);

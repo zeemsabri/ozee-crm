@@ -22,6 +22,10 @@ const props = defineProps({
     date: {
         type: String,
         required: true
+    },
+    userId: {
+        type: Number,
+        default: null
     }
 });
 
@@ -51,7 +55,8 @@ const fetchExistingAvailability = async () => {
         const response = await axios.get('/api/availabilities', {
             params: {
                 start_date: props.date,
-                end_date: props.date
+                end_date: props.date,
+                ...(props.userId ? { user_id: props.userId } : {})
             }
         });
 
@@ -160,7 +165,8 @@ const submitForm = async () => {
             date: props.date,
             is_available: isAvailable.value,
             reason: isAvailable.value ? null : reason.value,
-            time_slots: isAvailable.value ? timeSlots.value : null
+            time_slots: isAvailable.value ? timeSlots.value : null,
+            ...(props.userId ? { user_id: props.userId } : {})
         });
 
         successMessage.value = 'Availability saved successfully!';
@@ -184,7 +190,8 @@ const submitForm = async () => {
                 const updateResponse = await axios.put(`/api/availabilities/${existingId}`, {
                     is_available: isAvailable.value,
                     reason: isAvailable.value ? null : reason.value,
-                    time_slots: isAvailable.value ? timeSlots.value : null
+                    time_slots: isAvailable.value ? timeSlots.value : null,
+                    ...(props.userId ? { user_id: props.userId } : {})
                 });
 
                 successMessage.value = 'Availability updated successfully!';

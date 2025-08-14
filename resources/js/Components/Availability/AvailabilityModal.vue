@@ -1,41 +1,24 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, computed } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
-import TextInput from '@/Components/TextInput.vue'; // Still useful for general text inputs if needed
+import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import axios from 'axios';
+import { useToast } from 'vue-toast-notification'; // Assuming a toast notification library is available
 
 // Ensure authentication headers are set
 const ensureAuthHeaders = () => {
     const token = localStorage.getItem('authToken');
     if (token && !axios.defaults.headers.common['Authorization']) {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        console.log('Auth headers set in AvailabilityModal');
     }
 };
 
 const props = defineProps({
     show: Boolean,
-    // The 'date' prop is less relevant now as we handle multiple dates,
-    // but we'll keep it for potential initial selection or default.
-    date: {
-        type: String,
-        default: () => {
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            return tomorrow.toISOString().split('T')[0];
-        }
-    },
-    // This prop can be used to pre-populate the selectable dates,
-    // otherwise, we'll generate the next 7 days.
-    nextWeekDates: {
-        type: Array,
-        default: () => []
-    },
-    // User ID to fetch availabilities for
     userId: {
         type: Number,
         default: null
@@ -43,16 +26,18 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'availability-saved']);
+const $toast = useToast();
 
-// State to hold availability for multiple days
-// Key: date string (YYYY-MM-DD), Value: { isAvailable: boolean, reason: string, timeSlots: array }
 const dailyAvailabilities = ref({});
-
 const errors = ref({});
 const isSubmitting = ref(false);
-const successMessage = ref('');
+const selectedDate = ref(null);
+const reasonForLateSubmission = ref('');
+const isCurrentWeekMode = ref(false);
 
-// Generate dates for the next week (or use prop if provided)
+const weekDates = ref([]);
+
+// Generate a list of dates for the next week
 const generateNextWeekDates = () => {
     const dates = [];
     const today = new Date();
@@ -60,17 +45,17 @@ const generateNextWeekDates = () => {
     const nextDay = new Date(today);
     nextDay.setDate(today.getDate() + 1);
 
-    for (let i = 0; i < 7; i++) { // Generate for the next 7 days
+    for (let i = 0; i < 7; i++) {
         const date = new Date(nextDay);
         date.setDate(nextDay.getDate() + i);
         const dateString = date.toISOString().split('T')[0];
         dates.push({
             value: dateString,
-            label: date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+            label: date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
+            day: date.toLocaleDateString('en-US', { weekday: 'short' }),
         });
-        // Initialize state for each generated date
         dailyAvailabilities.value[dateString] = {
-            isSelected: false, // New property to track if this day is being set
+            isSelected: false,
             isAvailable: true,
             reason: '',
             timeSlots: [{ start_time: '', end_time: '' }]
@@ -79,54 +64,62 @@ const generateNextWeekDates = () => {
     return dates;
 };
 
-const nextWeekDatesComputed = ref([]); // This will hold the {value, label} objects
+// Generate a list of dates for the current week (Monday to Sunday)
+const generateCurrentWeekDates = () => {
+    const dates = [];
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // Sunday - 0, Monday - 1, etc.
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1)); // Adjust to Monday
+
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(startOfWeek);
+        date.setDate(startOfWeek.getDate() + i);
+        const dateString = date.toISOString().split('T')[0];
+        dates.push({
+            value: dateString,
+            label: date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
+            day: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        });
+        dailyAvailabilities.value[dateString] = {
+            isSelected: false,
+            isAvailable: true,
+            reason: '',
+            timeSlots: [{ start_time: '', end_time: '' }]
+        };
+    }
+    return dates;
+};
+
+const switchToCurrentWeekMode = () => {
+    isCurrentWeekMode.value = true;
+    reasonForLateSubmission.value = '';
+    weekDates.value = generateCurrentWeekDates();
+    selectedDate.value = weekDates.value[0].value; // Select Monday of current week
+    fetchExistingAvailabilities();
+};
 
 onMounted(() => {
-    // Ensure authentication headers are set as early as possible
     ensureAuthHeaders();
-
-    if (props.nextWeekDates.length > 0) {
-        nextWeekDatesComputed.value = props.nextWeekDates;
-        props.nextWeekDates.forEach(dateObj => {
-            dailyAvailabilities.value[dateObj.value] = {
-                isSelected: false,
-                isAvailable: true,
-                reason: '',
-                timeSlots: [{ start_time: '', end_time: '' }]
-            };
-        });
-    } else {
-        nextWeekDatesComputed.value = generateNextWeekDates();
-    }
+    // Default to next week's dates
+    weekDates.value = generateNextWeekDates();
 });
 
-// Fetch existing availabilities for the date range
 const fetchExistingAvailabilities = async () => {
     try {
-        // Ensure auth headers are set before making the request
         ensureAuthHeaders();
+        if (weekDates.value.length === 0) return;
 
-        // Get the start and end dates from nextWeekDatesComputed
-        if (nextWeekDatesComputed.value.length === 0) return;
+        const startDate = weekDates.value[0].value;
+        const endDate = weekDates.value[weekDates.value.length - 1].value;
 
-        const startDate = nextWeekDatesComputed.value[0].value;
-        const endDate = nextWeekDatesComputed.value[nextWeekDatesComputed.value.length - 1].value;
-
-        // Fetch existing availabilities for the date range for a specific user
         const response = await axios.get('/api/availabilities', {
-            params: {
-                start_date: startDate,
-                end_date: endDate,
-                user_id: props.userId // This will ensure we only fetch availabilities for the specified user
-            }
+            params: { start_date: startDate, end_date: endDate, user_id: props.userId }
         });
 
-        // Process the response
         if (response.data && response.data.availabilities) {
-            const existingAvailabilities = response.data.availabilities;
-
-            // Initialize dailyAvailabilities with default values
-            nextWeekDatesComputed.value.forEach(dateObj => {
+            // Reset to default before populating
+            weekDates.value.forEach(dateObj => {
                 dailyAvailabilities.value[dateObj.value] = {
                     isSelected: false,
                     isAvailable: true,
@@ -135,24 +128,17 @@ const fetchExistingAvailabilities = async () => {
                 };
             });
 
-            // Update dailyAvailabilities with existing data
-            existingAvailabilities.forEach(availability => {
-                // Extract date part from ISO date string
+            response.data.availabilities.forEach(availability => {
                 const dateString = availability.date.split('T')[0];
-
                 if (dailyAvailabilities.value[dateString]) {
-                    // Mark as selected since it already exists
                     dailyAvailabilities.value[dateString].isSelected = true;
                     dailyAvailabilities.value[dateString].isAvailable = availability.is_available;
-
                     if (availability.is_available) {
-                        // Copy time slots
                         dailyAvailabilities.value[dateString].timeSlots =
                             availability.time_slots && availability.time_slots.length > 0
                                 ? [...availability.time_slots]
                                 : [{ start_time: '', end_time: '' }];
                     } else {
-                        // Copy reason
                         dailyAvailabilities.value[dateString].reason = availability.reason || '';
                     }
                 }
@@ -160,109 +146,118 @@ const fetchExistingAvailabilities = async () => {
         }
     } catch (error) {
         console.error('Error fetching existing availabilities:', error);
-        // Initialize with default values if there's an error
-        nextWeekDatesComputed.value.forEach(dateObj => {
-            dailyAvailabilities.value[dateObj.value] = {
-                isSelected: false,
-                isAvailable: true,
-                reason: '',
-                timeSlots: [{ start_time: '', end_time: '' }]
-            };
-        });
     }
 };
 
-// Reset form when modal is opened/closed
 watch(() => props.show, async (newValue) => {
     if (newValue) {
-        // Modal opened - reset errors and success message
         errors.value = {};
-        successMessage.value = '';
-
-        // Fetch existing availabilities
+        reasonForLateSubmission.value = '';
+        isCurrentWeekMode.value = false; // Reset to default mode
+        weekDates.value = generateNextWeekDates();
         await fetchExistingAvailabilities();
+        if (weekDates.value.length > 0) {
+            selectedDate.value = weekDates.value[0].value;
+        }
+    } else {
+        selectedDate.value = null;
     }
-}, { immediate: true }); // Run immediately on component mount
+}, { immediate: true });
 
-// Add a new time slot for a specific date
-const addTimeSlot = (date) => {
-    dailyAvailabilities.value[date].timeSlots.push({ start_time: '', end_time: '' });
+const selectedDayData = computed(() => {
+    return dailyAvailabilities.value[selectedDate.value] || {
+        isSelected: false,
+        isAvailable: true,
+        reason: '',
+        timeSlots: [{ start_time: '', end_time: '' }]
+    };
+});
+
+const toggleDaySelection = (date) => {
+    dailyAvailabilities.value[date].isSelected = !dailyAvailabilities.value[date].isSelected;
+    selectedDate.value = date;
 };
 
-// Remove a time slot for a specific date
-const removeTimeSlot = (date, index) => {
-    if (dailyAvailabilities.value[date].timeSlots.length > 1) {
-        dailyAvailabilities.value[date].timeSlots.splice(index, 1);
+const addTimeSlot = () => {
+    const timeSlots = selectedDayData.value.timeSlots;
+    if (timeSlots) {
+        timeSlots.push({ start_time: '', end_time: '' });
     }
 };
 
-// Handle the toggle of isAvailable for a specific date
-const handleIsAvailableToggle = (date, isChecked) => {
-    dailyAvailabilities.value[date].isAvailable = isChecked;
-    if (!isChecked) { // If not available, clear time slots
-        dailyAvailabilities.value[date].timeSlots = [{ start_time: '', end_time: '' }];
-    } else { // If available, clear reason
-        dailyAvailabilities.value[date].reason = '';
+const removeTimeSlot = (index) => {
+    const timeSlots = selectedDayData.value.timeSlots;
+    if (timeSlots && timeSlots.length > 1) {
+        timeSlots.splice(index, 1);
     }
 };
 
-// Submit the form
+const handleIsAvailableToggle = (isChecked) => {
+    selectedDayData.value.isAvailable = isChecked;
+    if (!isChecked) {
+        selectedDayData.value.timeSlots = [{ start_time: '', end_time: '' }];
+    } else {
+        selectedDayData.value.reason = '';
+    }
+};
+
+const applyToAll = () => {
+    console.log('hit');
+    const currentDayData = selectedDayData.value;
+    for (const dateObj of weekDates.value) {
+        const date = dateObj.value;
+        if (date !== selectedDate.value) {
+            dailyAvailabilities.value[date] = JSON.parse(JSON.stringify(currentDayData));
+            dailyAvailabilities.value[date].isSelected = true;
+        }
+    }
+    $toast.success('Availability applied to all days!');
+};
+
 const submitForm = async () => {
     isSubmitting.value = true;
     errors.value = {};
-    successMessage.value = '';
+
+    if (isCurrentWeekMode.value && !reasonForLateSubmission.value.trim()) {
+        errors.value.lateReason = 'Please provide a reason for this late submission.';
+        isSubmitting.value = false;
+        return;
+    }
 
     const availabilitiesToSubmit = [];
-    let hasError = false;
+    let hasGeneralError = false;
 
-    for (const dateObj of nextWeekDatesComputed.value) {
+    for (const dateObj of weekDates.value) {
         const date = dateObj.value;
         const dailyData = dailyAvailabilities.value[date];
+        let dateErrors = {};
 
-        if (dailyData.isSelected) { // Only process dates that the user has actively selected
-            let dateErrors = {};
-
+        if (dailyData.isSelected) {
             if (dailyData.isAvailable) {
-                // Validate time slots
                 if (dailyData.timeSlots.some(slot => !slot.start_time || !slot.end_time)) {
                     dateErrors.timeSlots = 'Please fill in all time slots.';
-                    hasError = true;
+                    hasGeneralError = true;
                 } else {
-                    // Validate time format and logic (start < end)
                     for (const slot of dailyData.timeSlots) {
-                        const startTime = slot.start_time.split(':').map(Number);
-                        const endTime = slot.end_time.split(':').map(Number);
-
-                        if (startTime.length !== 2 || endTime.length !== 2 ||
-                            isNaN(startTime[0]) || isNaN(startTime[1]) || isNaN(endTime[0]) || isNaN(endTime[1])) {
-                            dateErrors.timeSlots = 'Invalid time format. Please use HH:MM format.';
-                            hasError = true;
-                            break;
-                        }
-
-                        const startMinutes = startTime[0] * 60 + startTime[1];
-                        const endMinutes = endTime[0] * 60 + endTime[1];
-
-                        if (startMinutes >= endMinutes) {
+                        const startMinutes = slot.start_time.split(':').map(Number);
+                        const endMinutes = slot.end_time.split(':').map(Number);
+                        if (startMinutes[0] * 60 + startMinutes[1] >= endMinutes[0] * 60 + endMinutes[1]) {
                             dateErrors.timeSlots = 'End time must be after start time.';
-                            hasError = true;
+                            hasGeneralError = true;
                             break;
                         }
                     }
                 }
             } else {
-                // Validate reason if not available
                 if (!dailyData.reason.trim()) {
                     dateErrors.reason = 'Please provide a reason for unavailability.';
-                    hasError = true;
+                    hasGeneralError = true;
                 }
             }
-
             if (Object.keys(dateErrors).length > 0) {
-                errors.value[date] = dateErrors; // Store errors per date
+                errors.value[date] = dateErrors;
             }
 
-            // Add to submission array if valid for this day
             if (Object.keys(dateErrors).length === 0) {
                 availabilitiesToSubmit.push({
                     date: date,
@@ -274,77 +269,25 @@ const submitForm = async () => {
         }
     }
 
-    if (hasError) {
-        isSubmitting.value = false;
-        errors.value.general = 'Please correct the errors in the highlighted dates.';
-        return;
-    }
-
     if (availabilitiesToSubmit.length === 0) {
-        errors.value.general = 'Please select at least one day to set availability for.';
+        errors.value.general = 'Please select and set availability for at least one day.';
         isSubmitting.value = false;
         return;
     }
 
     try {
-        // Ensure auth headers are set before making the request
         ensureAuthHeaders();
-
-        // Submit to API - using the batch endpoint we added to the controller
-        const response = await axios.post('/api/availabilities/batch', {
-            availabilities: availabilitiesToSubmit
-        });
-
-        successMessage.value = 'Availability saved successfully!';
-
-        // Check if we need to update the blocking status
-        try {
-            // Make a direct API call to get the latest availability status
-            const statusResponse = await axios.get('/api/availability-prompt');
-
-            // Update localStorage with the latest values
-            localStorage.setItem('shouldBlockUser', statusResponse.data.should_block_user);
-            localStorage.setItem('allWeekdaysCovered', statusResponse.data.all_weekdays_covered);
-
-            // Dispatch a custom event to notify other components
-            const event = new CustomEvent('availability-status-updated', {
-                detail: {
-                    shouldBlockUser: statusResponse.data.should_block_user,
-                    allWeekdaysCovered: statusResponse.data.all_weekdays_covered
-                }
-            });
-            window.dispatchEvent(event);
-
-            console.log('Availability status updated from modal:', {
-                shouldBlockUser: statusResponse.data.should_block_user,
-                allWeekdaysCovered: statusResponse.data.all_weekdays_covered
-            });
-        } catch (statusError) {
-            console.error('Error updating availability status:', statusError);
-        }
-
-        // Emit event to parent, potentially with all saved availabilities
-        emit('availability-saved', response.data.availabilities);
-
-        // Close modal after a short delay
-        setTimeout(() => {
-            emit('close');
-        }, 1500);
+        const payload = {
+            availabilities: availabilitiesToSubmit,
+            reason_for_late_submission: isCurrentWeekMode.value ? reasonForLateSubmission.value : null
+        };
+        await axios.post('/api/availabilities/batch', payload);
+        $toast.success('Availability saved successfully!');
+        emit('availability-saved');
+        setTimeout(() => emit('close'), 1500);
     } catch (error) {
         console.error('Error saving availability:', error);
-
-        if (error.response && error.response.data && error.response.data.errors) {
-            // Assuming backend returns errors structured by date or general
-            errors.value.general = error.response.data.message || 'An error occurred while saving your availability.';
-            // You might need more sophisticated error mapping here if backend returns per-date errors
-        } else if (error.response && error.response.status === 409) {
-            successMessage.value = error.response.data.message; // Conflict message
-            setTimeout(() => {
-                emit('close');
-            }, 1500);
-        } else {
-            errors.value.general = 'An unexpected error occurred while saving your availability.';
-        }
+        $toast.error('An error occurred while saving your availability.');
     } finally {
         isSubmitting.value = false;
     }
@@ -352,162 +295,194 @@ const submitForm = async () => {
 </script>
 
 <template>
-    <Modal :show="show" @close="$emit('close')" max-width="xl">
-        <div class="p-6">
-            <h2 class="text-lg font-medium text-gray-900">
-                Submit Your Weekly Availability
+    <Modal :show="show" @close="$emit('close')" max-width="4xl">
+        <div class="p-8">
+            <h2 class="text-2xl font-bold text-gray-900">
+                Set Your Weekly Availability
             </h2>
-
-            <p class="mt-1 text-sm text-gray-600">
-                Please select the dates you wish to set availability for and provide your details for each.
+            <p class="mt-2 text-sm text-gray-600">
+                Select a day to quickly set your schedule for the upcoming week.
+                <span v-if="!isCurrentWeekMode" class="text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out cursor-pointer" @click="switchToCurrentWeekMode">
+                    Missed the deadline? Submit for this week.
+                </span>
             </p>
 
-            <div class="mt-6">
-                <form @submit.prevent="submitForm">
-                    <!-- Success Message -->
-                    <div v-if="successMessage" class="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
-                        {{ successMessage }}
-                    </div>
+            <!-- Late Submission Warning and Reason Field -->
+            <div v-if="isCurrentWeekMode" class="mt-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 rounded-lg">
+                <div class="flex items-center">
+                    <svg class="h-5 w-5 text-yellow-500 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M8.257 3.344a1.5 1.5 0 012.486 0l5.446 9.176A1.5 1.5 0 0114.246 15H5.754a1.5 1.5 0 01-1.238-2.48zM9 11a1 1 0 102 0V7a1 1 0 10-2 0v4zm1-3a1 1 0 100 2h.01a1 1 0 100-2H10z" clip-rule="evenodd" />
+                    </svg>
+                    <p class="font-semibold">Late Submission for Current Week</p>
+                </div>
+                <p class="mt-2 text-sm">
+                    Please provide a reason for submitting late. We acknowledge that availability submissions are due by Thursday evening.
+                </p>
+                <div class="mt-4">
+                    <InputLabel value="Reason for late submission" />
+                    <textarea
+                        v-model="reasonForLateSubmission"
+                        rows="2"
+                        class="mt-1 block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                        placeholder="e.g., I was out sick, I forgot, I had no access to the system"
+                    ></textarea>
+                    <InputError :message="errors.lateReason" class="mt-2" />
+                </div>
+            </div>
 
-                    <!-- General Error -->
-                    <div v-if="errors.general" class="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-                        {{ errors.general }}
-                    </div>
-
-                    <!-- Loop through each date for availability setting -->
+            <!-- Main two-column layout -->
+            <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left Column: Weekly Calendar View -->
+                <div class="lg:col-span-1 space-y-3">
                     <div
-                        v-for="dateObj in nextWeekDatesComputed"
+                        v-for="dateObj in weekDates"
                         :key="dateObj.value"
-                        class="mb-6 p-4 border rounded-lg shadow-sm"
-                        :class="[
-                            dailyAvailabilities[dateObj.value].isSelected ?
-                                'border-indigo-300 bg-indigo-50' : 'border-gray-200',
-                            // Add a special class for dates that were pre-filled from existing data
-                            dailyAvailabilities[dateObj.value].isSelected &&
-                            !errors[dateObj.value] ?
-                                'border-l-4 border-l-indigo-500' : ''
-                        ]"
+                        class="p-4 rounded-xl border cursor-pointer transition-all duration-200 ease-in-out"
+                        :class="{
+                            'bg-indigo-50 border-indigo-500 shadow-lg': selectedDate === dateObj.value,
+                            'bg-white border-gray-200 hover:border-indigo-400 hover:shadow-md': selectedDate !== dateObj.value,
+                            'border-red-400 bg-red-50': errors[dateObj.value],
+                            'opacity-70': dateObj.isPast,
+                        }"
+                        @click="selectedDate = dateObj.value"
                     >
-                        <div class="flex items-center mb-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <div class="text-lg font-bold" :class="{'text-indigo-600': selectedDate === dateObj.value, 'text-gray-800': selectedDate !== dateObj.value}">
+                                    {{ dateObj.day }}
+                                </div>
+                                <div class="ml-2 text-sm text-gray-500">
+                                    {{ dateObj.label.split(', ')[1] }}
+                                </div>
+                            </div>
+
+                            <!-- Availability status badge -->
+                            <span
+                                v-if="dailyAvailabilities[dateObj.value]?.isSelected"
+                                class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                :class="{
+                                    'bg-emerald-100 text-emerald-800': dailyAvailabilities[dateObj.value].isAvailable,
+                                    'bg-amber-100 text-amber-800': !dailyAvailabilities[dateObj.value].isAvailable
+                                }"
+                            >
+                                <span v-if="dailyAvailabilities[dateObj.value].isAvailable">Available</span>
+                                <span v-else>Unavailable</span>
+                            </span>
+                            <span v-else class="text-xs text-gray-400">
+                                Not Set
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Detail Form for Selected Day -->
+                <div v-if="selectedDate" class="lg:col-span-2 p-6 bg-gray-50 rounded-xl shadow-inner">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">
+                        Availability for {{ weekDates.find(d => d.value === selectedDate)?.label }}
+                    </h3>
+
+                    <!-- Bulk action button -->
+                    <div class="mb-4 text-sm text-right">
+                        <button type="button" @click="applyToAll" class="text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" />
+                                <path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z" />
+                            </svg>
+                            Apply to all days
+                        </button>
+                    </div>
+
+                    <!-- Availability toggle -->
+                    <div class="flex items-center justify-between mb-6 p-4 rounded-lg bg-white shadow-sm border border-gray-200">
+                        <span class="text-sm font-medium text-gray-700">I am available on this day</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
                             <input
                                 type="checkbox"
-                                :id="`select_date_${dateObj.value}`"
-                                v-model="dailyAvailabilities[dateObj.value].isSelected"
-                                class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
-                            />
-                            <label :for="`select_date_${dateObj.value}`" class="ml-2 block text-base font-medium text-gray-800">
-                                {{ dateObj.label }}
-                                <!-- Badge for dates with existing data -->
-                                <span
-                                    v-if="dailyAvailabilities[dateObj.value].isSelected"
-                                    class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800"
-                                >
-                                    Saved
-                                </span>
-                            </label>
-                        </div>
-
-                        <div v-if="dailyAvailabilities[dateObj.value].isSelected">
-                            <!-- Availability Toggle for this specific date -->
-                            <div class="mb-4">
-                                <div class="flex items-center">
-                                    <input
-                                        type="checkbox"
-                                        :id="`isAvailableToggle_${dateObj.value}`"
-                                        :checked="dailyAvailabilities[dateObj.value].isAvailable"
-                                        @change="handleIsAvailableToggle(dateObj.value, $event.target.checked)"
-                                        class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
-                                    />
-                                    <label :for="`isAvailableToggle_${dateObj.value}`" class="ml-2 block text-sm text-gray-700">
-                                        I am available on this day
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Not Available Reason for this specific date -->
-                            <div v-if="!dailyAvailabilities[dateObj.value].isAvailable" class="mb-4">
-                                <InputLabel :for="`reason_${dateObj.value}`" value="Reason for Not Available" />
-                                <textarea
-                                    :id="`reason_${dateObj.value}`"
-                                    v-model="dailyAvailabilities[dateObj.value].reason"
-                                    rows="2"
-                                    class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
-                                    placeholder="e.g., Out of office, Holiday, Meeting all day"
-                                ></textarea>
-                                <InputError :message="errors[dateObj.value]?.reason" class="mt-2" />
-                            </div>
-
-                            <!-- Time Slots (if available) for this specific date -->
-                            <div v-if="dailyAvailabilities[dateObj.value].isAvailable" class="mb-4">
-                                <InputLabel value="Available Time Slots" />
-                                <InputError :message="errors[dateObj.value]?.timeSlots" class="mt-2" />
-
-                                <div v-for="(slot, index) in dailyAvailabilities[dateObj.value].timeSlots" :key="index" class="flex items-center space-x-2 mt-2">
-                                    <div class="flex-1">
-                                        <InputLabel :for="`start_time_${dateObj.value}_${index}`" value="Start Time" class="text-xs" />
-                                        <input
-                                            :id="`start_time_${dateObj.value}_${index}`"
-                                            type="time"
-                                            v-model="slot.start_time"
-                                            class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
-                                        />
-                                    </div>
-
-                                    <div class="flex-1">
-                                        <InputLabel :for="`end_time_${dateObj.value}_${index}`" value="End Time" class="text-xs" />
-                                        <input
-                                            :id="`end_time_${dateObj.value}_${index}`"
-                                            type="time"
-                                            v-model="slot.end_time"
-                                            class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
-                                        />
-                                    </div>
-
-                                    <div class="flex items-end pb-1" v-if="dailyAvailabilities[dateObj.value].timeSlots.length > 1">
-                                        <button
-                                            type="button"
-                                            @click="removeTimeSlot(dateObj.value, index)"
-                                            class="p-2 text-red-600 hover:text-red-800"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    @click="addTimeSlot(dateObj.value)"
-                                    class="mt-3 w-full flex items-center justify-center px-4 py-2 border border-dashed border-indigo-300 rounded-lg text-indigo-600 hover:bg-indigo-50 transition duration-150 ease-in-out"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
-                                    </svg>
-                                    Add Another Time Slot
-                                </button>
-                            </div>
-                        </div>
+                                :checked="selectedDayData.isAvailable"
+                                @change="handleIsAvailableToggle($event.target.checked)"
+                                class="sr-only peer"
+                            >
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
                     </div>
+                    <InputError :message="errors[selectedDate]?.general" class="mt-2" />
 
-                    <!-- Form Actions -->
-                    <div class="mt-6 flex justify-end space-x-3">
-                        <SecondaryButton @click="$emit('close')">
-                            Cancel
-                        </SecondaryButton>
+                    <div v-if="selectedDayData.isAvailable">
+                        <InputLabel value="Available Time Slots" class="text-gray-800 mb-2" />
+                        <InputError :message="errors[selectedDate]?.timeSlots" class="mt-2 mb-4" />
 
-                        <PrimaryButton :disabled="isSubmitting" :class="{ 'opacity-50': isSubmitting }">
-                            <span v-if="isSubmitting" class="flex items-center">
-                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <div v-for="(slot, index) in selectedDayData.timeSlots" :key="index" class="flex items-center space-x-2 mb-4">
+                            <div class="flex-1">
+                                <input
+                                    type="time"
+                                    v-model="slot.start_time"
+                                    class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                                />
+                            </div>
+
+                            <span class="text-gray-500">-</span>
+
+                            <div class="flex-1">
+                                <input
+                                    type="time"
+                                    v-model="slot.end_time"
+                                    class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                                />
+                            </div>
+
+                            <button
+                                type="button"
+                                @click="removeTimeSlot(index)"
+                                v-if="selectedDayData.timeSlots.length > 1"
+                                class="p-2 text-red-600 hover:text-red-800 transition duration-150 ease-in-out"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
                                 </svg>
-                                Saving...
-                            </span>
-                            <span v-else>Save Availability</span>
-                        </PrimaryButton>
+                            </button>
+                        </div>
+
+                        <button
+                            type="button"
+                            @click="addTimeSlot"
+                            class="mt-2 w-full flex items-center justify-center px-4 py-2 border border-dashed border-indigo-300 rounded-lg text-indigo-600 hover:bg-indigo-50 transition duration-150 ease-in-out"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                            </svg>
+                            Add Another Time Slot
+                        </button>
                     </div>
-                </form>
+
+                    <div v-else>
+                        <InputLabel value="Reason for Not Available" class="text-gray-800 mb-2" />
+                        <textarea
+                            v-model="selectedDayData.reason"
+                            rows="3"
+                            class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                            placeholder="e.g., Out of office, Holiday, Meeting all day"
+                        ></textarea>
+                        <InputError :message="errors[selectedDate]?.reason" class="mt-2" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="mt-8 flex justify-end space-x-3">
+                <SecondaryButton @click="$emit('close')">
+                    Cancel
+                </SecondaryButton>
+
+                <PrimaryButton @click="submitForm" :disabled="isSubmitting || !selectedDate" :class="{ 'opacity-50': isSubmitting || !selectedDate }">
+                    <span v-if="isSubmitting" class="flex items-center">
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Saving...
+                    </span>
+                    <span v-else>Save Availability</span>
+                </PrimaryButton>
             </div>
         </div>
     </Modal>

@@ -312,7 +312,7 @@ watch(() => props.userId, (newValue) => {
                         <td v-for="day in weekDays" :key="day.date" class="px-2 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-100 align-top">
                             <div class="min-h-[150px]">
                                 <!-- Add Availability Button -->
-                                <div class="mb-3 flex justify-center">
+                                <div v-if="!props.isAdmin || selectedUserId" class="mb-3 flex justify-center">
                                     <button
                                         @click="openSingleDateModal(day.date)"
                                         class="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-500 focus:outline-none focus:border-indigo-700 focus:shadow-outline-indigo active:bg-indigo-700 transition ease-in-out duration-150"
@@ -372,6 +372,7 @@ watch(() => props.userId, (newValue) => {
         <SingleDateAvailabilityModal
             :show="showSingleDateModal"
             :date="selectedDate"
+            :userId="selectedUserId"
             @close="showSingleDateModal = false"
             @availability-saved="handleAvailabilitySaved"
         />

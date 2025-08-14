@@ -108,6 +108,10 @@ const handleLogoutError = (error) => {
                 <ResponsiveNavLink v-if="canDo('manage_placeholder_definitions')" :href="route('placeholder-definitions.index')" :active="route().current('placeholder-definitions.index')">
                     Placeholder Definitions
                 </ResponsiveNavLink>
+
+                <ResponsiveNavLink v-if="canDo('view_shareable_resources')" :href="route('shareable-resources.index')" :active="route().current('shareable-resources.index')">
+                    Shareable Resources
+                </ResponsiveNavLink>
             </div>
         </div>
 

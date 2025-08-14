@@ -170,10 +170,11 @@ class InboxController extends Controller
         $accessibleProjectIds = $this->getAccessibleProjectIds($user);
 
         // Fetch outgoing emails (sent by the user) that need approval
-        $outgoingEmails = Email::where('sender_id', $user->id)
-            ->where('sender_type', 'App\\Models\\User')
+        $outgoingEmails = Email::where('sender_type', 'App\\Models\\User')
             ->where('status', 'pending_approval')
-            ->with(['sender', 'conversation', 'conversation.project'])
+            ->with(['sender', 'conversation' => function ($q) use($accessibleProjectIds) {
+                $q->whereIn('project_id', $accessibleProjectIds);
+            }, 'conversation.project'])
             ->select('emails.*') // Ensure all columns including read_at are selected
             ->orderBy('created_at', 'desc')
             ->get();
@@ -191,6 +192,21 @@ class InboxController extends Controller
 
         // Loop through the outgoing emails to apply content redaction based on permissions
         $redactedOutgoingEmails = $outgoingEmails->map(function ($email) use ($user) {
+
+            $email->can_approve = false;
+            $isAuthorized = false;
+            // Check if the user has permission to approve received emails in appplicaiton role
+
+            if ($email->conversation && $user->hasProjectPermission( $email->conversation->project_id, 'approve_emails')) {
+                $email->can_approve = true;
+                $isAuthorized = true;
+            }
+
+            // If not authorized, redact the email content
+            if (!$isAuthorized) {
+                $email->can_approve = false;
+            }
+
             // Outgoing emails are authorized for the sender
             return $email;
         });
