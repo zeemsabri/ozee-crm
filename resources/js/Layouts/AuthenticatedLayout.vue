@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import PushNotificationContainer from '@/Components/PushNotificationContainer.vue';
 import StandardNotificationContainer from '@/Components/StandardNotificationContainer.vue'; // Import the new component
 import AvailabilityBlocker from '@/Components/Availability/AvailabilityBlocker.vue';
@@ -103,6 +103,40 @@ const handleTaskDeleted = (taskId) => {
     console.log('Task deleted globally.', taskId);
 };
 
+// --- Global Notice Modal Logic ---
+const showNoticeModal = ref(false);
+const unreadNotices = ref([]);
+const acknowledgeChecked = ref(false);
+let noticeIntervalId = null;
+
+const fetchUnreadNotices = async () => {
+    try {
+        const res = await window.axios.get('/api/notices/unread');
+        unreadNotices.value = res.data?.data || [];
+        showNoticeModal.value = unreadNotices.value.length > 0;
+    } catch (e) {
+        console.error('Failed to fetch unread notices', e);
+    }
+};
+
+const acknowledgeNotices = async () => {
+    if (!acknowledgeChecked.value) return;
+    try {
+        const ids = unreadNotices.value.map(n => n.id);
+        if (ids.length === 0) return;
+        await window.axios.post('/api/notices/acknowledge', { notice_ids: ids });
+        showNoticeModal.value = false;
+        unreadNotices.value = [];
+        acknowledgeChecked.value = false;
+    } catch (e) {
+        console.error('Failed to acknowledge notices', e);
+    }
+};
+
+const handleNoticeLinkClick = (notice) => {
+    window.location.href = `/notices/${notice.id}/redirect`;
+};
+
 onMounted(() => {
     setAxiosAuthHeader();
     // Set the standard notification container to the new component instance
@@ -111,6 +145,14 @@ onMounted(() => {
     }
     fetchAllProjects();
     fetchNotificationsFromDatabase();
+
+    // Notice polling
+    fetchUnreadNotices();
+    noticeIntervalId = setInterval(fetchUnreadNotices, 60 * 1000);
+});
+
+onBeforeUnmount(() => {
+    if (noticeIntervalId) clearInterval(noticeIntervalId);
 });
 </script>
 
@@ -176,5 +218,33 @@ onMounted(() => {
         />
 
         <NotificationsSidebar />
+
+        <!-- Notice Board Modal (Global) -->
+        <div v-if="showNoticeModal" class="fixed inset-0 z-[60] flex items-center justify-center">
+            <div class="absolute inset-0 bg-black bg-opacity-50" @click="() => {}"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6">
+                <h3 class="text-xl font-semibold mb-4">Important Notices</h3>
+                <div v-for="notice in unreadNotices" :key="notice.id" class="border rounded p-4 mb-3">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <div class="font-medium text-gray-900">{{ notice.title }}</div>
+                            <div class="text-sm text-gray-600 whitespace-pre-line mt-1">{{ notice.description }}</div>
+                            <div class="text-xs text-gray-500 mt-2">Type: {{ notice.type }}</div>
+                        </div>
+                        <div v-if="notice.url">
+                            <a :href="`/notices/${notice.id}/redirect`" target="_blank" class="text-indigo-600 hover:text-indigo-800">Open Link</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center mt-4">
+                    <input id="acknowledge" type="checkbox" v-model="acknowledgeChecked" class="h-4 w-4 text-indigo-600 border-gray-300 rounded" />
+                    <label for="acknowledge" class="ml-2 text-sm text-gray-700">I have read and understand this notice.</label>
+                </div>
+                <div class="mt-6 flex justify-end gap-2">
+                    <button @click="showNoticeModal = false" class="px-4 py-2 rounded border border-gray-300 text-gray-700">Close</button>
+                    <button @click="acknowledgeNotices" :disabled="!acknowledgeChecked" class="px-4 py-2 bg-indigo-600 text-white rounded disabled:opacity-50">Acknowledge</button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>

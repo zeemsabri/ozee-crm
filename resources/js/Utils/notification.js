@@ -37,6 +37,13 @@ const showStandardNotification = (message, type = 'info', duration = 5000) => {
  */
 export const pushSuccess = (payload) => {
     console.log('Push received, adding to central store:', payload);
+
+    // Check if the payload has the full_modal property set to true
+    if (payload.full_modal) {
+        console.log('Notification has full_modal set to true, skipping processing.');
+        return;
+    }
+
     // The second argument `true` flags it as a new push notification
     addOrUpdateNotification(payload, true);
 };

@@ -232,6 +232,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('leaderboard/monthly', [\App\Http\Controllers\Api\LeaderboardController::class, 'monthly']);
     Route::get('leaderboard/stats', [\App\Http\Controllers\Api\LeaderboardController::class, 'stats']);
 
+    Route::post('users/{user}/restore', [UserController::class, 'restore'])->name('users.restore');
     Route::apiResource('users', UserController::class);
 
     // Permission Management Routes
@@ -316,6 +317,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Shareable Resource Management Routes
     Route::apiResource('shareable-resources', ShareableResourceController::class)->middleware(['process.tags']);
+
+    // Notice Board Routes
+    Route::get('notices', [\App\Http\Controllers\Api\NoticeBoardController::class, 'index'])->middleware('permission:manage_notices');
+    Route::post('notices', [\App\Http\Controllers\Api\NoticeBoardController::class, 'store'])->middleware('permission:manage_notices');
+    Route::get('notices/unread', [\App\Http\Controllers\Api\NoticeBoardController::class, 'unread']);
+    Route::post('notices/acknowledge', [\App\Http\Controllers\Api\NoticeBoardController::class, 'acknowledge']);
+    Route::get('notices/{notice}/redirect', [\App\Http\Controllers\Api\NoticeBoardController::class, 'redirect'])->name('notices.redirect');
 
     // Deliverable Routes
     Route::get('/projects/{project}/deliverables', [ProjectDeliverableAction::class, 'index'])->name('projects.deliverables.index');

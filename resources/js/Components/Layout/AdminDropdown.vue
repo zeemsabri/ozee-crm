@@ -46,6 +46,7 @@ const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_proje
                                 <DropdownLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')" class="!px-2 !py-1.5">Projects</DropdownLink>
                                 <DropdownLink v-if="canAccessClients" :href="route('clients.index')" :active="route().current('clients.index')" class="!px-2 !py-1.5">Clients</DropdownLink>
                                 <DropdownLink v-if="canManageUsers" :href="route('users.index')" :active="route().current('users.index')" class="!px-2 !py-1.5">Users</DropdownLink>
+
                             </div>
                         </div>
 
@@ -65,6 +66,7 @@ const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_proje
                                 <DropdownLink v-if="canManageProjectTiers || canDo('create_project_tiers') || canDo('edit_project_tiers')" href="/admin/project-tiers" class="!px-2 !py-1.5">Project Tiers</DropdownLink>
                                 <DropdownLink v-if="canDo('manage_email_templates')" :href="route('email-templates.index')" :active="route().current('email-templates.index')" class="!px-2 !py-1.5">Email Templates</DropdownLink>
                                 <DropdownLink v-if="canDo('manage_placeholder_definitions')" :href="route('placeholder-definitions.index')" :active="route().current('placeholder-definitions.index')" class="!px-2 !py-1.5">Placeholder Definitions</DropdownLink>
+                                <DropdownLink v-if="canDo('manage_notices')" :href="route('admin.notice-board.index')" class="!px-2 !py-1.5">Notice Board</DropdownLink>
                             </div>
                         </div>
 

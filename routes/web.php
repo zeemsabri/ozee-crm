@@ -14,6 +14,7 @@ use Inertia\Inertia;
 use App\Http\Controllers\GoogleAuthController; // Import our Google Auth controller (for web routes)
 use App\Http\Controllers\Api\MagicLinkController; // Import for magic link functionality
 use App\Http\Controllers\GoogleUserAuthController;
+use App\Http\Controllers\NoticeBoardController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -190,6 +191,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         Route::get('/project-expendables', function () {
             return Inertia::render('Admin/ProjectExpendables/Index');
         })->name('project-expendables.index')->middleware('permission:manage_projects');
+
+        // Notice Board Admin Page
+        Route::get('/notice-board', function () {
+            return Inertia::render('Admin/NoticeBoard/Index');
+        })->name('notice-board.index')->middleware('permission:manage_notices');
 
         // The following routes require manage_monthly_budgets permission
         Route::post('/monthly-budgets', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'store'])
@@ -541,3 +547,9 @@ require __DIR__.'/auth.php';
 
 // Include admin routes
 require __DIR__.'/admin.php';
+
+
+// Notice redirect route to log interactions and redirect to destination
+Route::get('/notices/{notice}/redirect', [NoticeBoardController::class, 'redirect'])
+    ->middleware(['auth', 'verified'])
+    ->name('notices.redirect');

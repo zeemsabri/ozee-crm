@@ -12,6 +12,18 @@ import InputError from '@/Components/InputError.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { usePermissions } from "@/Directives/permissions.js";
 
+// Import HeroIcons
+import {
+    UsersIcon,
+    BriefcaseIcon,
+    MagnifyingGlassIcon,
+    PlusIcon,
+    PencilSquareIcon,
+    TrashIcon,
+    ArchiveBoxIcon,
+    ArrowUturnUpIcon
+} from '@heroicons/vue/24/outline';
+
 // Access authenticated user
 const authUser = computed(() => usePage().props.auth.user);
 const { canDo, canView, canManage } = usePermissions();
@@ -22,10 +34,11 @@ const loading = ref(true);
 const errors = ref({});
 const generalError = ref('');
 
-// Search and filter state
+// Search, filter and status state
 const searchQuery = ref('');
 const selectedRole = ref('');
 const selectedProject = ref('');
+const selectedStatus = ref('active'); // active | archived | all
 
 // Modals state
 const showCreateModal = ref(false);
@@ -145,7 +158,7 @@ const isManager = computed(() => {
         authUser.value.role === 'manager_role';
 });
 
-const canDeleteUsers = computed(() => isSuperAdmin.value);
+const canDeleteUsers = canDo('delete_users');
 const canCreateUsers = canDo('create_users');
 
 // --- Fetch Users ---
@@ -153,7 +166,13 @@ const fetchUsers = async () => {
     loading.value = true;
     generalError.value = '';
     try {
-        const response = await window.axios.get('/api/users');
+        const params = {};
+        if (selectedStatus.value === 'all') {
+            params.with_trashed = 1;
+        } else if (selectedStatus.value === 'archived') {
+            params.only_trashed = 1;
+        }
+        const response = await window.axios.get('/api/users', { params });
         users.value = response.data;
     } catch (error) {
         generalError.value = 'Failed to fetch users.';
@@ -272,7 +291,7 @@ const updateUser = async () => {
     }
 };
 
-// --- Delete User ---
+// --- Delete (Archive) User ---
 const confirmUserDeletion = (user) => {
     userToDelete.value = user;
     showDeleteModal.value = true;
@@ -282,16 +301,33 @@ const deleteUser = async () => {
     generalError.value = '';
     try {
         await window.axios.delete(`/api/users/${userToDelete.value.id}`);
-        users.value = users.value.filter(u => u.id !== userToDelete.value.id);
+        // If we are viewing archived or all, refetch to get updated states
+        await fetchUsers();
         showDeleteModal.value = false;
         userToDelete.value = null;
-        console.log('User deleted successfully!');
+        console.log('User archived successfully!');
     } catch (error) {
-        generalError.value = 'Failed to delete user.';
+        generalError.value = 'Failed to archive user.';
         if (error.response && error.response.data.message) {
             generalError.value = error.response.data.message;
         }
-        console.error('Error deleting user:', error);
+        console.error('Error archiving user:', error);
+    }
+};
+
+// --- Restore (Unarchive) User ---
+const restoreUser = async (user) => {
+    generalError.value = '';
+    try {
+        await window.axios.post(`/api/users/${user.id}/restore`);
+        await fetchUsers();
+        console.log('User restored successfully!');
+    } catch (error) {
+        generalError.value = 'Failed to restore user.';
+        if (error.response && error.response.data.message) {
+            generalError.value = error.response.data.message;
+        }
+        console.error('Error restoring user:', error);
     }
 };
 
@@ -322,6 +358,34 @@ onMounted(() => {
     fetchUsers();
     fetchRoles();
 });
+
+// Helper function to get role badge color
+const getRoleColor = (role) => {
+    const roleSlug = typeof role === 'string' ? role.toLowerCase() : (role?.slug || 'employee');
+    switch (roleSlug) {
+        case 'super_admin':
+        case 'super-admin':
+            return 'bg-red-50 text-red-700 ring-red-600/20';
+        case 'manager':
+            return 'bg-indigo-50 text-indigo-700 ring-indigo-600/20';
+        case 'employee':
+            return 'bg-emerald-50 text-emerald-700 ring-emerald-600/20';
+        case 'contractor':
+            return 'bg-yellow-50 text-yellow-700 ring-yellow-600/20';
+        default:
+            return 'bg-gray-50 text-gray-600 ring-gray-500/10';
+    }
+};
+
+// Helper function to get user avatar background
+const getAvatarColor = (name) => {
+    const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const colors = [
+        'bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-rose-500',
+        'bg-orange-500', 'bg-amber-500', 'bg-lime-500', 'bg-emerald-500', 'bg-cyan-500'
+    ];
+    return colors[hash % colors.length];
+};
 </script>
 
 <template>
@@ -336,131 +400,135 @@ onMounted(() => {
             <div class="px-4 sm:px-6 lg:px-8">
                 <!-- User Statistics Section -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                    <div class="bg-white rounded-2xl shadow-sm p-6 flex items-center justify-between transition-all duration-300 hover:shadow-md hover:scale-105">
                         <div>
-                            <h4 class="text-gray-500 font-medium">Total Users</h4>
+                            <h4 class="text-gray-500 font-medium text-sm">Total Users</h4>
                             <p class="text-3xl font-bold text-gray-900 mt-1">{{ totalUsers }}</p>
                         </div>
-                        <svg class="h-10 w-10 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M12 4.354a4 4 0 100 5.292m7 12.247A8.998 8.998 0 0112 21c-2.404 0-4.639-.906-6.364-2.482M12 21a8.998 8.998 0 006.364-2.482M12 21a8.998 8.998 0 01-6.364-2.482m-4.062-8.083A8.998 8.998 0 0112 12a8.998 8.998 0 018.126 4.917m-16.252 0C3.766 12.391 7.29 9 12 9s8.234 3.391 8.126 8.917"></path>
-                        </svg>
+                        <UsersIcon class="h-12 w-12 text-indigo-500 opacity-80" />
                     </div>
-                    <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                    <div class="bg-white rounded-2xl shadow-sm p-6 flex items-center justify-between transition-all duration-300 hover:shadow-md hover:scale-105">
                         <div>
-                            <h4 class="text-gray-500 font-medium">Managers</h4>
+                            <h4 class="text-gray-500 font-medium text-sm">Managers</h4>
                             <p class="text-3xl font-bold text-gray-900 mt-1">{{ totalManagers }}</p>
                         </div>
-                        <svg class="h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h-6a1 1 0 01-1-1v-4a1 1 0 011-1h6a1 1 0 011 1v4a1 1 0 01-1 1zm0 0l2 2m-2-2l-2 2"></path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9a2 2 0 11-4 0 2 2 0 014 0zm0 0a2 2 0 10-4 0m8 0a2 2 0 11-4 0 2 2 0 014 0zm0 0a2 2 0 10-4 0m-4 12v-1a4 4 0 014-4h4a4 4 0 014 4v1"></path>
-                        </svg>
+                        <UsersIcon class="h-12 w-12 text-green-500 opacity-80" />
                     </div>
-                    <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                    <div class="bg-white rounded-2xl shadow-sm p-6 flex items-center justify-between transition-all duration-300 hover:shadow-md hover:scale-105">
                         <div>
-                            <h4 class="text-gray-500 font-medium">Employees</h4>
+                            <h4 class="text-gray-500 font-medium text-sm">Employees</h4>
                             <p class="text-3xl font-bold text-gray-900 mt-1">{{ totalEmployees }}</p>
                         </div>
-                        <svg class="h-10 w-10 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.5a2.25 2.25 0 00-2.25-2.25H15m0-1.5v3.75m0-3.75a3.75 3.75 0 00-3.75-3.75H8.25m0 0a3.75 3.75 0 013.75 3.75M8.25 9.75v3.75m-4.5 0a3.75 3.75 0 013.75-3.75H12a3.75 3.75 0 013.75 3.75m-4.5 0h4.5m-4.5 0a3.75 3.75 0 01-3.75-3.75H8.25m-3.75 3.75H4.5M12 18a2.25 2.25 0 002.25-2.25V15m0 0h3.75m-3.75 0v3.75m0-3.75a2.25 2.25 0 00-2.25-2.25H9.75m-3.75 2.25H6m0 0a2.25 2.25 0 00-2.25-2.25h-1.5m3.75 2.25v3.75m0 0h-1.5M6 21a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v1.5m1.5-1.5h1.5M6 21v1.5"></path>
-                        </svg>
+                        <UsersIcon class="h-12 w-12 text-yellow-500 opacity-80" />
                     </div>
-                    <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                    <div class="bg-white rounded-2xl shadow-sm p-6 flex items-center justify-between transition-all duration-300 hover:shadow-md hover:scale-105">
                         <div>
-                            <h4 class="text-gray-500 font-medium">Contractors</h4>
+                            <h4 class="text-gray-500 font-medium text-sm">Contractors</h4>
                             <p class="text-3xl font-bold text-gray-900 mt-1">{{ totalContractors }}</p>
                         </div>
-                        <svg class="h-10 w-10 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v2a2 2 0 01-2 2m-4-2H8m4 0h.01M17 11v-4a2 2 0 00-2-2m2 5v2m-4-2h-.01M3 20.25a2.25 2.25 0 01-2.25-2.25V8.25a2.25 2.25 0 012.25-2.25H18.75A2.25 2.25 0 0121 8.25v9.75a2.25 2.25 0 01-2.25 2.25H3.75z"></path>
-                        </svg>
+                        <BriefcaseIcon class="h-12 w-12 text-pink-500 opacity-80" />
                     </div>
                 </div>
 
-                <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="bg-white rounded-2xl shadow-xl overflow-hidden">
                     <div class="p-6">
-                        <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
-                            <h3 class="text-2xl font-bold text-gray-900">Manage Users</h3>
-                            <div v-if="canCreateUsers" class="mt-4 sm:mt-0">
-                                <PrimaryButton @click="openCreateModal">
-                                    Create New User
+                        <!-- User Management and Filter Section -->
+                        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                            <h3 class="text-2xl font-bold text-gray-900">User Management</h3>
+                            <div class="w-full md:w-auto flex flex-col sm:flex-row gap-4 items-center">
+                                <div class="relative w-full">
+                                    <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                        <MagnifyingGlassIcon class="w-5 h-5 text-gray-400" />
+                                    </div>
+                                    <TextInput
+                                        id="search"
+                                        type="text"
+                                        class="w-full pl-10 pr-3 py-2 rounded-lg"
+                                        placeholder="Search users..."
+                                        v-model="searchQuery"
+                                    />
+                                </div>
+                                <select v-model="selectedRole" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm w-full sm:w-40">
+                                    <option value="">All Roles</option>
+                                    <option v-for="option in roleOptions" :key="option.value" :value="option.value">
+                                        {{ option.label }}
+                                    </option>
+                                </select>
+                                <select v-model="selectedProject" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm w-full sm:w-40">
+                                    <option value="">All Projects</option>
+                                    <option v-for="option in projectOptions" :key="option.value" :value="option.value">
+                                        {{ option.label }}
+                                    </option>
+                                </select>
+                                <select v-model="selectedStatus" @change="fetchUsers" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm w-full sm:w-40">
+                                    <option value="active">Active</option>
+                                    <option value="archived">Archived</option>
+                                    <option value="all">All</option>
+                                </select>
+                                <PrimaryButton v-if="canCreateUsers" @click="openCreateModal" class="w-full sm:w-auto">
+                                    <PlusIcon class="w-4 h-4 mr-2" />
+                                    Add User
                                 </PrimaryButton>
                             </div>
                         </div>
 
-                        <!-- Search and Filter Section -->
-                        <div class="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div class="col-span-1 lg:col-span-2">
-                                <TextInput
-                                    id="search"
-                                    type="text"
-                                    class="w-full"
-                                    placeholder="Search by name or email..."
-                                    v-model="searchQuery"
-                                />
-                            </div>
-                            <select v-model="selectedRole" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm w-full">
-                                <option value="">All Roles</option>
-                                <option v-for="option in roleOptions" :key="option.value" :value="option.value">
-                                    {{ option.label }}
-                                </option>
-                            </select>
-                            <select v-model="selectedProject" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm w-full">
-                                <option value="">All Projects</option>
-                                <option v-for="option in projectOptions" :key="option.value" :value="option.value">
-                                    {{ option.label }}
-                                </option>
-                            </select>
+                        <div v-if="loading" class="text-center p-12">
+                            <svg class="animate-spin h-10 w-10 text-indigo-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <p class="text-gray-600 mt-4">Loading users...</p>
                         </div>
-
-                        <div v-if="loading" class="text-center p-8">
-                            <p class="text-gray-600">Loading users...</p>
-                        </div>
-                        <div v-else-if="generalError" class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded" role="alert">
+                        <div v-else-if="generalError" class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg" role="alert">
                             <p>{{ generalError }}</p>
                         </div>
-                        <div v-else-if="filteredUsers.length === 0" class="text-center p-8">
+                        <div v-else-if="filteredUsers.length === 0" class="text-center p-12">
                             <p class="text-gray-600">No users found matching your criteria.</p>
                         </div>
                         <div v-else>
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                <div v-for="userItem in filteredUsers" :key="userItem.id" class="bg-gray-50 rounded-lg shadow-sm p-6 flex flex-col justify-between relative overflow-hidden">
+                                <div v-for="userItem in filteredUsers" :key="userItem.id" class="bg-white rounded-2xl shadow-sm p-6 flex flex-col justify-between relative border border-gray-100 transition-all duration-300 hover:shadow-lg">
                                     <div>
                                         <div class="flex items-center space-x-4 mb-4">
                                             <div class="flex-shrink-0">
-                                                <div class="h-10 w-10 bg-indigo-500 rounded-full flex items-center justify-center text-white font-bold">{{ userItem.name.charAt(0) }}</div>
+                                                <div :class="['h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg', getAvatarColor(userItem.name)]">{{ userItem.name.charAt(0) }}</div>
                                             </div>
                                             <div>
-                                                <p class="text-lg font-semibold text-gray-900">{{ userItem.name }}</p>
-                                                <p class="text-sm text-gray-500">{{ userItem.email }}</p>
+                                                <p class="text-xl font-bold text-gray-900">{{ userItem.name }}</p>
+                                                <p class="text-sm text-gray-500 truncate">{{ userItem.email }}</p>
                                             </div>
                                         </div>
 
-                                        <div class="text-sm mb-4 flex space-x-4">
-                                            <p><span class="font-medium text-gray-800">Role:</span> <span class="capitalize">{{ userItem.role_data?.name || (typeof userItem.role === 'string' ? userItem.role.replace(/_|-/g, ' ') : 'Employee') }}</span></p>
-                                            <p><span class="font-medium text-gray-800">Type:</span> <span class="capitalize">{{ userItem.user_type || 'Employee' }}</span></p>
+                                        <div class="flex flex-wrap gap-2 mb-4">
+                                            <span :class="['inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset', getRoleColor(userItem.role_data?.slug || userItem.role)]">
+                                                Role: {{ userItem.role_data?.name || (typeof userItem.role === 'string' ? userItem.role.replace(/_|-/g, ' ') : 'Employee') }}
+                                            </span>
+                                            <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-500/10">
+                                                Type: {{ userItem.user_type.toUpperCase() || 'EMPLOYEE' }}
+                                            </span>
                                         </div>
 
-                                        <!-- Projects with hover summary -->
-                                        <div class="text-sm text-gray-600">
-                                            <p class="font-medium text-gray-800 inline">Projects: <span
-                                                class="font-normal">{{ getProjectSummary(userItem.projects) }}</span>
+                                        <div class="text-sm text-gray-600 mt-auto">
+                                            <p class="font-medium text-gray-800">Projects</p>
+                                            <p v-if="userItem.projects && userItem.projects.length" class="text-xs mt-1 text-gray-500">
+                                                {{ getProjectSummary(userItem.projects) }}
+                                                <span v-if="userItem.projects.length > 2"
+                                                      class="group relative inline-block cursor-pointer text-indigo-500 hover:text-indigo-700">
+                                                    (more)
+                                                    <span class="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-2 w-max p-2 bg-gray-800 text-white text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <ul class="list-none p-0 m-0">
+                                                            <li v-for="project in userItem.projects" :key="project.id" class="whitespace-nowrap">{{ project.name }}</li>
+                                                        </ul>
+                                                        <div class="absolute w-3 h-3 bg-gray-800 transform rotate-45 -bottom-1 left-1/2 -translate-x-1/2"></div>
+                                                    </span>
+                                                </span>
                                             </p>
-                                            <div class="group relative inline-block ml-1">
-                                                <div v-if="userItem.projects && userItem.projects.length > 2"
-                                                     class="absolute z-10 bottom-full left-0 mb-2 w-full p-2 bg-gray-800 text-white text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <ul class="list-none p-0 m-0">
-                                                        <li v-for="project in userItem.projects" :key="project.id"
-                                                            class="whitespace-nowrap">{{ project.name }}
-                                                        </li>
-                                                    </ul>
-                                                    <div
-                                                        class="absolute w-3 h-3 bg-gray-800 transform rotate-45 -bottom-1 left-4"></div>
-                                                </div>
-                                            </div>
+                                            <p v-else class="text-xs text-gray-400 mt-1">No projects assigned.</p>
                                         </div>
                                     </div>
 
-                                    <!-- Action icons top right corner -->
-                                    <div class="absolute top-4 right-4 flex space-x-2">
+                                    <!-- Action icons bottom right corner -->
+                                    <div class="mt-4 flex justify-end gap-2">
                                         <button
                                             v-if="(isSuperAdmin ||
                                                   (isManager &&
@@ -469,20 +537,23 @@ onMounted(() => {
                                                       (userItem.role.replace(/-/g, '_') === 'employee' || userItem.role.replace(/-/g, '_') === 'contractor')))) ||
                                                   authUser.id === userItem.id)"
                                             @click="openEditModal(userItem)"
-                                            class="p-1 rounded-full text-gray-400 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                                            class="p-2 rounded-full text-gray-400 hover:text-indigo-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
                                             title="Edit User">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.794.793-2.828-2.828.794-.793zm-5.646 12.016v.538h.538l8.53-8.529-1.39-1.389-8.53 8.529z"></path>
-                                            </svg>
+                                            <PencilSquareIcon class="h-5 w-5" />
                                         </button>
                                         <button
-                                            v-if="isSuperAdmin && userItem.id !== authUser.id"
+                                            v-if="canDeleteUsers && userItem.id !== authUser.id && !userItem.deleted_at"
                                             @click="confirmUserDeletion(userItem)"
-                                            class="p-1 rounded-full text-gray-400 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                                            title="Delete User">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-                                            </svg>
+                                            class="p-2 rounded-full text-gray-400 hover:text-red-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+                                            title="Archive User">
+                                            <ArchiveBoxIcon class="h-5 w-5" />
+                                        </button>
+                                        <button
+                                            v-if="canDeleteUsers && userItem.deleted_at"
+                                            @click="restoreUser(userItem)"
+                                            class="p-2 rounded-full text-gray-400 hover:text-green-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+                                            title="Unarchive User">
+                                            <ArrowUturnUpIcon class="h-5 w-5" />
                                         </button>
                                     </div>
                                 </div>
@@ -608,10 +679,10 @@ onMounted(() => {
         <Modal :show="showDeleteModal" @close="showDeleteModal = false">
             <div class="p-6">
                 <h2 class="text-lg font-medium text-gray-900">
-                    Are you sure you want to delete this user?
+                    Archive this user?
                 </h2>
                 <p class="mt-1 text-sm text-gray-600">
-                    This action cannot be undone. All data associated with this user will be removed.
+                    The user will be archived and can be unarchived later. No data will be permanently removed.
                 </p>
                 <div v-if="userToDelete" class="mt-4 text-gray-800">
                     <strong>User:</strong> {{ userToDelete.name }} ({{ userToDelete.email }}) - Role: {{ userToDelete.role_data?.name || (typeof userToDelete.role === 'string' ? userToDelete.role : 'Employee') }}
@@ -619,7 +690,7 @@ onMounted(() => {
                 <div v-if="generalError" class="text-red-600 text-sm mb-4">{{ generalError }}</div>
                 <div class="mt-6 flex justify-end">
                     <SecondaryButton @click="showDeleteModal = false">Cancel</SecondaryButton>
-                    <DangerButton class="ms-3" @click="deleteUser">Delete User</DangerButton>
+                    <DangerButton class="ms-3" @click="deleteUser">Archive User</DangerButton>
                 </div>
             </div>
         </Modal>

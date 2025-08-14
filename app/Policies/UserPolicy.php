@@ -87,7 +87,8 @@ class UserPolicy
      */
     public function restore(User $currentUser, User $user): bool
     {
-        return false; // Not implementing restore for MVP
+        // Allow users who can delete users to also restore (unarchive) them
+        return $currentUser->hasPermission('delete_users');
     }
 
     /**

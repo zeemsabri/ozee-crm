@@ -24,22 +24,29 @@ class UserController extends Controller
      * Display a listing of the users.
      * Accessible by: Super Admin, Manager, Employee (view all); Contractor (view only self)
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
 
-        // The UserPolicy's `viewAny` method will authorize access to this endpoint.
-        // However, the actual data returned needs to be filtered based on role.
+        // Build base query with eager loads
+        $query = User::with(['projects']);
+
+        // Apply soft delete scopes based on query params
+        // ?with_trashed=1 -> include both active and archived
+        // ?only_trashed=1 -> only archived
+        if ($request->boolean('only_trashed')) {
+            $query->onlyTrashed();
+        } elseif ($request->boolean('with_trashed')) {
+            $query->withTrashed();
+        }
+
+        // Filter data based on role
         if ($user->isSuperAdmin() || $user->isManager() || $user->isEmployee()) {
-            // Admins, Managers, and Employees can view all users.
-            // Eager load projects and roles so the frontend can display assigned projects and roles.
-            $users = User::with(['projects'])->orderBy('name')->get();
+            $users = $query->orderBy('name')->get();
         } elseif ($user->isContractor()) {
-            // Contractors can only view their own profile.
-            // We wrap it in a collection for consistent return type with other roles.
+            // Contractors can only view their own profile
             $users = collect([$user->load(['projects'])]);
         } else {
-            // Should not happen if authenticated and role is set, but as a fallback.
             $users = collect();
         }
 
@@ -212,6 +219,29 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error('Error deleting user: ' . $e->getMessage(), ['user_id' => $user->id, 'error' => $e->getTraceAsString()]);
             return response()->json(['message' => 'Failed to delete user', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Restore a soft-deleted user (unarchive)
+     */
+    public function restore($id)
+    {
+        // We need to include trashed to find the user
+        $user = User::withTrashed()->findOrFail($id);
+
+        // Authorization: reuse delete permission for restore
+        $this->authorize('restore', $user);
+
+        try {
+            if ($user->trashed()) {
+                $user->restore();
+                Log::info('User restored', ['user_id' => $user->id, 'restored_by' => Auth::id()]);
+            }
+            return response()->json($user->fresh('role'));
+        } catch (\Exception $e) {
+            Log::error('Error restoring user: ' . $e->getMessage(), ['user_id' => $user->id, 'error' => $e->getTraceAsString()]);
+            return response()->json(['message' => 'Failed to restore user', 'error' => $e->getMessage()], 500);
         }
     }
 
