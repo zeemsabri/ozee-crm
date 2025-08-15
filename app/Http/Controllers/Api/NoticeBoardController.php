@@ -145,13 +145,19 @@ class NoticeBoardController extends Controller
      */
     public function unread(Request $request)
     {
-        $userId = $request->user()->id;
+        $user = $request->user();
+        $userId = $user->id;
         $readIds = UserInteraction::where('user_id', $userId)
-            ->where('interactable_type', NoticeBoard::class)
-            ->where('interaction_type', 'read')
-            ->pluck('interactable_id');
+                                    ->where('interactable_type', NoticeBoard::class)
+                                    ->where('interaction_type', 'read')
+                                    ->pluck('interactable_id');
+
+        $unreadNoticeIds = $user->unreadNotifications
+                                ->where('type', NoticeCreated::class)
+                                ->pluck('data.notice_id');
 
         $notices = NoticeBoard::orderByDesc('created_at')
+            ->whereIn('id', $unreadNoticeIds)
             ->whereNotIn('id', $readIds)
             ->take(10)
             ->get();
@@ -161,6 +167,12 @@ class NoticeBoardController extends Controller
 
     /**
      * Acknowledge notices as read.
+     */
+    /**
+     * Mark notifications as read and record user interactions.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
      */
     public function acknowledge(Request $request)
     {
@@ -176,6 +188,13 @@ class NoticeBoardController extends Controller
         $user = $request->user();
         $now = now();
 
+        // 1. Mark notifications as read in the 'notifications' table
+        $user->notifications()
+            ->where('type', NoticeCreated::class)
+            ->whereIn('data->notice_id', $request->notice_ids)
+            ->update(['read_at' => $now]);
+
+        // 2. Prepare and insert 'read' interactions into the 'user_interactions' table
         $rows = [];
         foreach ($request->notice_ids as $noticeId) {
             $rows[] = [
@@ -188,14 +207,21 @@ class NoticeBoardController extends Controller
             ];
         }
 
-        // Upsert-like behavior using unique index in migration
-        foreach ($rows as $row) {
-//            try {
-                UserInteraction::query()->insert($row);
-//            } catch (\Illuminate\Database\QueryException $e) {
-//                // Ignore duplicates due to unique constraint
-//            }
-        }
+        // Using a transaction for atomicity to handle the `firstOrCreate` logic
+        // more efficiently for multiple records and prevent race conditions.
+        DB::transaction(function () use ($rows) {
+            foreach ($rows as $row) {
+                UserInteraction::firstOrCreate(
+                    [
+                        'user_id' => $row['user_id'],
+                        'interactable_id' => $row['interactable_id'],
+                        'interactable_type' => $row['interactable_type'],
+                        'interaction_type' => $row['interaction_type']
+                    ],
+                    $row
+                );
+            }
+        });
 
         return response()->json(['message' => 'Acknowledged']);
     }
