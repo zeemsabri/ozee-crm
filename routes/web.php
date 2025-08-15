@@ -408,7 +408,7 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
     // Clients Index Page
     Route::get('/clients', function () {
         return Inertia::render('Clients/Index');
-    })->name('clients.index')->middleware('permission:view_clients');
+    })->name('clients.page')->middleware('permission:view_clients');
 
     // Projects Index Page
     Route::get('/projects', function () {
@@ -467,7 +467,7 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
     // Task Types Management Page
     Route::get('/task-types', function () {
         return Inertia::render('TaskTypes/Index');
-    })->name('task-types.index')->middleware('permission:manage_projects');
+    })->name('task-types.page')->middleware('permission:manage_projects');
 
     // Email Composer Page
     Route::get('/emails/compose', function () {
@@ -495,7 +495,7 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
 
     Route::get('/users', function () {
         return Inertia::render('Users/Index');
-    })->name('users.index')->middleware('permission:create_users');
+    })->name('users.page')->middleware('permission:create_users');
 
     // Test route for User Project Role functionality
     Route::get('/test/user-project-role', [\App\Http\Controllers\TestController::class, 'testUserProjectRole'])
@@ -523,12 +523,12 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
 
     Route::get('/shareable-resources', function () {
         return Inertia::render('ShareableResources/Index');
-    })->name('shareable-resources.index')->middleware('permission:view_shareable_resources');
+    })->name('shareable-resources.page')->middleware('permission:view_shareable_resources');
 
     // --- NEW: Email Templates Web Routes ---
     Route::get('/email-templates', function () {
         return Inertia::render('EmailTemplates/Index');
-    })->name('email-templates.index')->middleware('permission:manage_email_templates');
+    })->name('email-templates.page')->middleware('permission:manage_email_templates');
 
     // Route to the create form for a new template
     Route::get('/email-templates/create', function () {
@@ -538,7 +538,7 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
     // --- NEW: Placeholder Definitions Web Routes ---
     Route::get('/placeholder-definitions', function () {
         return Inertia::render('PlaceholderDefinitions/Index');
-    })->name('placeholder-definitions.index')->middleware('permission:manage_placeholder_definitions');
+    })->name('placeholder-definitions.page')->middleware('permission:manage_placeholder_definitions');
 
 });
 

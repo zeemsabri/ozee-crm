@@ -7,7 +7,7 @@ import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import axios from 'axios';
-import { useToast } from 'vue-toast-notification'; // Assuming a toast notification library is available
+import { useToast } from 'vue-toast-notification';
 
 // Ensure authentication headers are set
 const ensureAuthHeaders = () => {
@@ -37,40 +37,13 @@ const isCurrentWeekMode = ref(false);
 
 const weekDates = ref([]);
 
-// Generate a list of dates for the next week
 const generateNextWeekDates = () => {
     const dates = [];
     const today = new Date();
-    // Start from tomorrow
-    const nextDay = new Date(today);
-    nextDay.setDate(today.getDate() + 1);
-
-    for (let i = 0; i < 7; i++) {
-        const date = new Date(nextDay);
-        date.setDate(nextDay.getDate() + i);
-        const dateString = date.toISOString().split('T')[0];
-        dates.push({
-            value: dateString,
-            label: date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
-            day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-        });
-        dailyAvailabilities.value[dateString] = {
-            isSelected: false,
-            isAvailable: true,
-            reason: '',
-            timeSlots: [{ start_time: '', end_time: '' }]
-        };
-    }
-    return dates;
-};
-
-// Generate a list of dates for the current week (Monday to Sunday)
-const generateCurrentWeekDates = () => {
-    const dates = [];
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // Sunday - 0, Monday - 1, etc.
+    const dayOfWeek = today.getDay();
+    const daysUntilNextMonday = (dayOfWeek === 0) ? 1 : (8 - dayOfWeek);
     const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1)); // Adjust to Monday
+    startOfWeek.setDate(today.getDate() + daysUntilNextMonday);
 
     for (let i = 0; i < 7; i++) {
         const date = new Date(startOfWeek);
@@ -81,12 +54,26 @@ const generateCurrentWeekDates = () => {
             label: date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
             day: date.toLocaleDateString('en-US', { weekday: 'short' }),
         });
-        dailyAvailabilities.value[dateString] = {
-            isSelected: false,
-            isAvailable: true,
-            reason: '',
-            timeSlots: [{ start_time: '', end_time: '' }]
-        };
+    }
+    return dates;
+};
+
+const generateCurrentWeekDates = () => {
+    const dates = [];
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(startOfWeek);
+        date.setDate(startOfWeek.getDate() + i);
+        const dateString = date.toISOString().split('T')[0];
+        dates.push({
+            value: dateString,
+            label: date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
+            day: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        });
     }
     return dates;
 };
@@ -95,14 +82,22 @@ const switchToCurrentWeekMode = () => {
     isCurrentWeekMode.value = true;
     reasonForLateSubmission.value = '';
     weekDates.value = generateCurrentWeekDates();
-    selectedDate.value = weekDates.value[0].value; // Select Monday of current week
+    selectedDate.value = null; // Don't pre-select
+    fetchExistingAvailabilities();
+};
+
+const switchToNextWeekMode = () => {
+    isCurrentWeekMode.value = false;
+    reasonForLateSubmission.value = '';
+    weekDates.value = generateNextWeekDates();
+    selectedDate.value = null; // Don't pre-select
     fetchExistingAvailabilities();
 };
 
 onMounted(() => {
     ensureAuthHeaders();
-    // Default to next week's dates
     weekDates.value = generateNextWeekDates();
+    fetchExistingAvailabilities();
 });
 
 const fetchExistingAvailabilities = async () => {
@@ -118,15 +113,16 @@ const fetchExistingAvailabilities = async () => {
         });
 
         if (response.data && response.data.availabilities) {
-            // Reset to default before populating
+            const newDailyAvailabilities = {};
             weekDates.value.forEach(dateObj => {
-                dailyAvailabilities.value[dateObj.value] = {
+                newDailyAvailabilities[dateObj.value] = {
                     isSelected: false,
                     isAvailable: true,
                     reason: '',
                     timeSlots: [{ start_time: '', end_time: '' }]
                 };
             });
+            dailyAvailabilities.value = newDailyAvailabilities;
 
             response.data.availabilities.forEach(availability => {
                 const dateString = availability.date.split('T')[0];
@@ -153,12 +149,10 @@ watch(() => props.show, async (newValue) => {
     if (newValue) {
         errors.value = {};
         reasonForLateSubmission.value = '';
-        isCurrentWeekMode.value = false; // Reset to default mode
+        isCurrentWeekMode.value = false;
         weekDates.value = generateNextWeekDates();
         await fetchExistingAvailabilities();
-        if (weekDates.value.length > 0) {
-            selectedDate.value = weekDates.value[0].value;
-        }
+        selectedDate.value = null; // Do not pre-select on modal open
     } else {
         selectedDate.value = null;
     }
@@ -173,43 +167,77 @@ const selectedDayData = computed(() => {
     };
 });
 
-const toggleDaySelection = (date) => {
-    dailyAvailabilities.value[date].isSelected = !dailyAvailabilities.value[date].isSelected;
+const isAnyDaySelected = computed(() => {
+    return Object.values(dailyAvailabilities.value).some(day => day.isSelected);
+});
+
+const isSelectedDayValid = computed(() => {
+    const data = dailyAvailabilities.value[selectedDate.value];
+    if (!data) return false;
+
+    if (data.isAvailable) {
+        return data.timeSlots.some(slot => slot.start_time && slot.end_time);
+    } else {
+        const wordCount = data.reason.trim().split(/\s+/).filter(Boolean).length;
+        return wordCount >= 2;
+    }
+});
+
+
+const handleDaySelection = (date) => {
     selectedDate.value = date;
+    if (dailyAvailabilities.value[date]) {
+        dailyAvailabilities.value[date].isSelected = true;
+    }
 };
 
 const addTimeSlot = () => {
-    const timeSlots = selectedDayData.value.timeSlots;
+    const timeSlots = dailyAvailabilities.value[selectedDate.value]?.timeSlots;
     if (timeSlots) {
         timeSlots.push({ start_time: '', end_time: '' });
+        dailyAvailabilities.value[selectedDate.value].isSelected = true;
     }
 };
 
 const removeTimeSlot = (index) => {
-    const timeSlots = selectedDayData.value.timeSlots;
+    const timeSlots = dailyAvailabilities.value[selectedDate.value]?.timeSlots;
     if (timeSlots && timeSlots.length > 1) {
         timeSlots.splice(index, 1);
+        dailyAvailabilities.value[selectedDate.value].isSelected = true;
     }
 };
 
 const handleIsAvailableToggle = (isChecked) => {
-    selectedDayData.value.isAvailable = isChecked;
-    if (!isChecked) {
-        selectedDayData.value.timeSlots = [{ start_time: '', end_time: '' }];
-    } else {
-        selectedDayData.value.reason = '';
+    if (dailyAvailabilities.value[selectedDate.value]) {
+        dailyAvailabilities.value[selectedDate.value].isAvailable = isChecked;
+        dailyAvailabilities.value[selectedDate.value].isSelected = true;
+        if (!isChecked) {
+            dailyAvailabilities.value[selectedDate.value].timeSlots = [{ start_time: '', end_time: '' }];
+        } else {
+            dailyAvailabilities.value[selectedDate.value].reason = '';
+        }
     }
 };
 
 const applyToAll = () => {
-    console.log('hit');
-    const currentDayData = selectedDayData.value;
+    const currentDayData = dailyAvailabilities.value[selectedDate.value];
+    if (!currentDayData) return;
+
+    if (!isSelectedDayValid.value) {
+        if (currentDayData.isAvailable) {
+            errors.value[selectedDate.value] = { timeSlots: 'Please fill in at least one time slot before applying to all days.' };
+        } else {
+            errors.value[selectedDate.value] = { reason: 'Reason must be at least 2 words to apply to all days.' };
+        }
+        return;
+    }
+
+    delete errors.value[selectedDate.value];
+
     for (const dateObj of weekDates.value) {
         const date = dateObj.value;
-        if (date !== selectedDate.value) {
-            dailyAvailabilities.value[date] = JSON.parse(JSON.stringify(currentDayData));
-            dailyAvailabilities.value[date].isSelected = true;
-        }
+        dailyAvailabilities.value[date] = JSON.parse(JSON.stringify(currentDayData));
+        dailyAvailabilities.value[date].isSelected = true;
     }
     $toast.success('Availability applied to all days!');
 };
@@ -284,7 +312,7 @@ const submitForm = async () => {
         await axios.post('/api/availabilities/batch', payload);
         $toast.success('Availability saved successfully!');
         emit('availability-saved');
-        setTimeout(() => emit('close'), 1500);
+        emit('close');
     } catch (error) {
         console.error('Error saving availability:', error);
         $toast.error('An error occurred while saving your availability.');
@@ -304,6 +332,9 @@ const submitForm = async () => {
                 Select a day to quickly set your schedule for the upcoming week.
                 <span v-if="!isCurrentWeekMode" class="text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out cursor-pointer" @click="switchToCurrentWeekMode">
                     Missed the deadline? Submit for this week.
+                </span>
+                <span v-else class="text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out cursor-pointer" @click="switchToNextWeekMode">
+                    Go back to next week.
                 </span>
             </p>
 
@@ -344,7 +375,7 @@ const submitForm = async () => {
                             'border-red-400 bg-red-50': errors[dateObj.value],
                             'opacity-70': dateObj.isPast,
                         }"
-                        @click="selectedDate = dateObj.value"
+                        @click="handleDaySelection(dateObj.value)"
                     >
                         <div class="flex items-center justify-between">
                             <div class="flex items-center">
@@ -375,71 +406,79 @@ const submitForm = async () => {
                     </div>
                 </div>
 
-                <!-- Right Column: Detail Form for Selected Day -->
+                <!-- Right Column: Detail Form or Placeholder Message -->
                 <div v-if="selectedDate" class="lg:col-span-2 p-6 bg-gray-50 rounded-xl shadow-inner">
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4">
-                        Availability for {{ weekDates.find(d => d.value === selectedDate)?.label }}
-                    </h3>
+                    <div v-if="selectedDate">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">
+                            Availability for {{ weekDates.find(d => d.value === selectedDate)?.label }}
+                        </h3>
 
-                    <!-- Bulk action button -->
-                    <div class="mb-4 text-sm text-right">
-                        <button type="button" @click="applyToAll" class="text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" />
-                                <path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z" />
-                            </svg>
-                            Apply to all days
-                        </button>
-                    </div>
-
-                    <!-- Availability toggle -->
-                    <div class="flex items-center justify-between mb-6 p-4 rounded-lg bg-white shadow-sm border border-gray-200">
-                        <span class="text-sm font-medium text-gray-700">I am available on this day</span>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                :checked="selectedDayData.isAvailable"
-                                @change="handleIsAvailableToggle($event.target.checked)"
-                                class="sr-only peer"
-                            >
-                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                        </label>
-                    </div>
-                    <InputError :message="errors[selectedDate]?.general" class="mt-2" />
-
-                    <div v-if="selectedDayData.isAvailable">
-                        <InputLabel value="Available Time Slots" class="text-gray-800 mb-2" />
-                        <InputError :message="errors[selectedDate]?.timeSlots" class="mt-2 mb-4" />
-
-                        <div v-for="(slot, index) in selectedDayData.timeSlots" :key="index" class="flex items-center space-x-2 mb-4">
-                            <div class="flex-1">
-                                <input
-                                    type="time"
-                                    v-model="slot.start_time"
-                                    class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                                />
-                            </div>
-
-                            <span class="text-gray-500">-</span>
-
-                            <div class="flex-1">
-                                <input
-                                    type="time"
-                                    v-model="slot.end_time"
-                                    class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                                />
-                            </div>
-
+                        <!-- Bulk action button -->
+                        <div class="mb-4 text-sm text-right">
                             <button
                                 type="button"
-                                @click="removeTimeSlot(index)"
-                                v-if="selectedDayData.timeSlots.length > 1"
-                                class="p-2 text-red-600 hover:text-red-800 transition duration-150 ease-in-out"
+                                @click="applyToAll"
+                                :disabled="!isSelectedDayValid"
+                                :class="{ 'opacity-50 cursor-not-allowed': !isSelectedDayValid }"
+                                class="text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" />
+                                    <path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z" />
                                 </svg>
+                                Apply to all days
                             </button>
+                        </div>
+
+                        <!-- Availability toggle -->
+                        <div class="flex items-center justify-between mb-6 p-4 rounded-lg bg-white shadow-sm border border-gray-200">
+                            <span class="text-sm font-medium text-gray-700">I am available on this day</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    :checked="selectedDayData.isAvailable"
+                                    @change="handleIsAvailableToggle($event.target.checked)"
+                                    class="sr-only peer"
+                                >
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
+                        <InputError :message="errors[selectedDate]?.general" class="mt-2" />
+
+                        <div v-if="selectedDayData.isAvailable">
+                            <InputLabel value="Available Time Slots" class="text-gray-800 mb-2" />
+                            <InputError :message="errors[selectedDate]?.timeSlots" class="mt-2 mb-4" />
+
+                            <div v-for="(slot, index) in selectedDayData.timeSlots" :key="index" class="flex items-center space-x-2 mb-4">
+                                <div class="flex-1">
+                                    <input
+                                        type="time"
+                                        v-model="dailyAvailabilities[selectedDate].timeSlots[index].start_time"
+                                        class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                                    />
+                                </div>
+
+                                <span class="text-gray-500">-</span>
+
+                                <div class="flex-1">
+                                    <input
+                                        type="time"
+                                        v-model="dailyAvailabilities[selectedDate].timeSlots[index].end_time"
+                                        class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                                    />
+                                </div>
+
+                                <button
+                                    type="button"
+                                    @click="removeTimeSlot(index)"
+                                    v-if="dailyAvailabilities[selectedDate].timeSlots.length > 1"
+                                    class="p-2 text-red-600 hover:text-red-800 transition duration-150 ease-in-out"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
 
                         <button
@@ -457,13 +496,18 @@ const submitForm = async () => {
                     <div v-else>
                         <InputLabel value="Reason for Not Available" class="text-gray-800 mb-2" />
                         <textarea
-                            v-model="selectedDayData.reason"
+                            v-model="dailyAvailabilities[selectedDate].reason"
                             rows="3"
                             class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
                             placeholder="e.g., Out of office, Holiday, Meeting all day"
                         ></textarea>
                         <InputError :message="errors[selectedDate]?.reason" class="mt-2" />
                     </div>
+                </div>
+                <div v-else class="lg:col-span-2 p-6 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center">
+                    <p class="text-gray-500 text-lg font-medium">
+                        Please select a day from the left to set your availability.
+                    </p>
                 </div>
             </div>
 
@@ -473,7 +517,7 @@ const submitForm = async () => {
                     Cancel
                 </SecondaryButton>
 
-                <PrimaryButton @click="submitForm" :disabled="isSubmitting || !selectedDate" :class="{ 'opacity-50': isSubmitting || !selectedDate }">
+                <PrimaryButton @click="submitForm" :disabled="isSubmitting || !isAnyDaySelected" :class="{ 'opacity-50 cursor-not-allowed': isSubmitting || !isAnyDaySelected }">
                     <span v-if="isSubmitting" class="flex items-center">
                         <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

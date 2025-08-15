@@ -44,8 +44,8 @@ const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_proje
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Management</h4>
                             <div class="space-y-1">
                                 <DropdownLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')" class="!px-2 !py-1.5">Projects</DropdownLink>
-                                <DropdownLink v-if="canAccessClients" :href="route('clients.index')" :active="route().current('clients.index')" class="!px-2 !py-1.5">Clients</DropdownLink>
-                                <DropdownLink v-if="canManageUsers" :href="route('users.index')" :active="route().current('users.index')" class="!px-2 !py-1.5">Users</DropdownLink>
+                                <DropdownLink v-if="canAccessClients" :href="route('clients.page')" :active="route().current('clients.page')" class="!px-2 !py-1.5">Clients</DropdownLink>
+                                <DropdownLink v-if="canManageUsers" :href="route('users.page')" :active="route().current('users.page')" class="!px-2 !py-1.5">Users</DropdownLink>
 
                             </div>
                         </div>
@@ -56,7 +56,7 @@ const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_proje
                             <div class="space-y-1">
                                 <DropdownLink v-if="canManageUsers" :href="route('availability.index')" :active="route().current('availability.index')" class="!px-2 !py-1.5">Weekly Availability</DropdownLink>
                                 <DropdownLink v-if="canDo('manage_notices')" :href="route('admin.notice-board.index')" class="!px-2 !py-1.5">Notice Board</DropdownLink>
-                                <DropdownLink v-if="canDo('manage_notices')" :href="route('shareable-resources.index')" class="!px-2 !py-1.5">Shareable Resources</DropdownLink>
+                                <DropdownLink v-if="canDo('manage_notices')" :href="route('shareable-resources.page')" class="!px-2 !py-1.5">Shareable Resources</DropdownLink>
                             </div>
                         </div>
 
@@ -64,10 +64,10 @@ const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_proje
                         <div>
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Configuration</h4>
                             <div class="space-y-1">
-                                <DropdownLink v-if="canManageTaskTypes" :href="route('task-types.index')" :active="route().current('task-types.index')" class="!px-2 !py-1.5">Task Types</DropdownLink>
+                                <DropdownLink v-if="canManageTaskTypes" :href="route('task-types.page')" :active="route().current('task-types.page')" class="!px-2 !py-1.5">Task Types</DropdownLink>
                                 <DropdownLink v-if="canManageProjectTiers || canDo('create_project_tiers') || canDo('edit_project_tiers')" href="/admin/project-tiers" class="!px-2 !py-1.5">Project Tiers</DropdownLink>
-                                <DropdownLink v-if="canDo('manage_email_templates')" :href="route('email-templates.index')" :active="route().current('email-templates.index')" class="!px-2 !py-1.5">Email Templates</DropdownLink>
-                                <DropdownLink v-if="canDo('manage_placeholder_definitions')" :href="route('placeholder-definitions.index')" :active="route().current('placeholder-definitions.index')" class="!px-2 !py-1.5">Placeholder Definitions</DropdownLink>
+                                <DropdownLink v-if="canDo('manage_email_templates')" :href="route('email-templates.page')" :active="route().current('email-templates.page')" class="!px-2 !py-1.5">Email Templates</DropdownLink>
+                                <DropdownLink v-if="canDo('manage_placeholder_definitions')" :href="route('placeholder-definitions.page')" :active="route().current('placeholder-definitions.page')" class="!px-2 !py-1.5">Placeholder Definitions</DropdownLink>
                             </div>
                         </div>
 

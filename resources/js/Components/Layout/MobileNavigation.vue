@@ -63,7 +63,7 @@ const handleLogoutError = (error) => {
                     Inbox
                 </ResponsiveNavLink>
 
-                <ResponsiveNavLink v-if="canAccessClients" :href="route('clients.index')" :active="route().current('clients.index')">
+                <ResponsiveNavLink v-if="canAccessClients" :href="route('clients.page')" :active="route().current('clients.page')">
                     Clients
                 </ResponsiveNavLink>
 
@@ -71,7 +71,7 @@ const handleLogoutError = (error) => {
                     Projects
                 </ResponsiveNavLink>
 
-                <ResponsiveNavLink v-if="canManageUsers" :href="route('users.index')" :active="route().current('users.index')">
+                <ResponsiveNavLink v-if="canManageUsers" :href="route('users.page')" :active="route().current('users.page')">
                     Users
                 </ResponsiveNavLink>
 
@@ -97,19 +97,19 @@ const handleLogoutError = (error) => {
                     Manage Permissions
                 </ResponsiveNavLink>
 
-                <ResponsiveNavLink v-if="canManageTaskTypes" :href="route('task-types.index')" :active="route().current('task-types.index')">
+                <ResponsiveNavLink v-if="canManageTaskTypes" :href="route('task-types.page')" :active="route().current('task-types.page')">
                     Task Types
                 </ResponsiveNavLink>
 
-                <ResponsiveNavLink v-if="canDo('manage_email_templates')" :href="route('email-templates.index')" :active="route().current('email-templates.index')">
+                <ResponsiveNavLink v-if="canDo('manage_email_templates')" :href="route('email-templates.page')" :active="route().current('email-templates.page')">
                     Email Templates
                 </ResponsiveNavLink>
 
-                <ResponsiveNavLink v-if="canDo('manage_placeholder_definitions')" :href="route('placeholder-definitions.index')" :active="route().current('placeholder-definitions.index')">
+                <ResponsiveNavLink v-if="canDo('manage_placeholder_definitions')" :href="route('placeholder-definitions.page')" :active="route().current('placeholder-definitions.page')">
                     Placeholder Definitions
                 </ResponsiveNavLink>
 
-                <ResponsiveNavLink v-if="canDo('view_shareable_resources')" :href="route('shareable-resources.index')" :active="route().current('shareable-resources.index')">
+                <ResponsiveNavLink v-if="canDo('view_shareable_resources')" :href="route('shareable-resources.page')" :active="route().current('shareable-resources.page')">
                     Shareable Resources
                 </ResponsiveNavLink>
             </div>
