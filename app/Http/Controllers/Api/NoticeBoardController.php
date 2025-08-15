@@ -36,13 +36,15 @@ class NoticeBoardController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $data = collect($validator->validated())->only(['title','description','url','type','visible_to_client'])->toArray();
+        $validated = $validator->validated();
+        $data = collect($validated)->only(['title','description','url','type','visible_to_client'])->toArray();
         $data['created_by'] = $request->user()->id;
+        // Persist whether push channel was selected
+        $data['sent_push'] = in_array('push', $validated['channels'] ?? [], true);
 
         $notice = NoticeBoard::create($data);
 
         // Determine recipients
-        $validated = $validator->validated();
         $recipients = collect();
         if (!empty($validated['user_ids'])) {
             $recipients = User::whereNull('deleted_at')->whereIn('id', $validated['user_ids'])->get();

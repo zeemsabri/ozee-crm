@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Mail\NoticeMail;
 use App\Models\NoticeBoard;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -33,17 +34,9 @@ class NoticeCreated extends Notification implements ShouldQueue, ShouldBroadcast
 
     public function toMail($notifiable)
     {
-        $mail = (new MailMessage)
-            ->subject('[Notice] ' . $this->notice->title)
-            ->greeting('Hello ' . ($notifiable->name ?? ''))
-            ->line($this->notice->description ?: 'You have a new notice.')
-            ->line('Type: ' . $this->notice->type);
-
-        if (!empty($this->notice->url)) {
-            $mail->action('View Notice', url('/dashboard'));
-        }
-
-        return $mail;
+        // Use our new Mailable class for the notice email
+        return (new NoticeMail($this->notice))
+            ->to($notifiable->email);
     }
 
     public function toBroadcast($notifiable)

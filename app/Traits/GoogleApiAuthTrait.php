@@ -112,8 +112,16 @@ trait GoogleApiAuthTrait
     {
         try {
             $accessToken = $this->client->getAccessToken();
+
+            if(!$this->client->getClientId()) {
+                return;
+            }
             // We use the existing refresh token to get a new access token
             $newTokens = $this->client->fetchAccessTokenWithRefreshToken($accessToken['refresh_token']);
+
+            if(!ISSET($newTokens['access_token'])) {
+                throw new Exception('Failed to refresh Google access token.');
+            }
 
             // Update the client with the new tokens
             $this->client->setAccessToken($newTokens);

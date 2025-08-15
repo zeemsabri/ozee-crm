@@ -26,6 +26,7 @@ class ShareableResource extends Model
         'thumbnail_url',
         'created_by',
         'visible_to_client',
+        'sent_push',
     ];
 
     /**
@@ -35,6 +36,7 @@ class ShareableResource extends Model
      */
     protected $casts = [
         'visible_to_client' => 'boolean',
+        'sent_push' => 'boolean',
     ];
 
     /**

@@ -33,11 +33,13 @@ class NoticeBoard extends ShareableResource
         'type',
         'created_by',
         'visible_to_client',
-        'notice'
+        'notice',
+        'sent_push'
     ];
 
     protected $casts = [
         'visible_to_client' => 'boolean',
+        'sent_push' => 'boolean',
     ];
 
     protected static function booted()
