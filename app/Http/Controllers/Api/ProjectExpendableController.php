@@ -46,6 +46,7 @@ class ProjectExpendableController extends Controller
             'expendable_type' => 'nullable|string|in:Project,Milestone,Task',
         ]);
 
+        $status = \App\Models\ProjectExpendable::STATUS_PENDING;
         // Determine target model for morph relation
         $target = null;
         if (!empty($validated['expendable_type']) && !empty($validated['expendable_id'])) {
@@ -56,12 +57,14 @@ class ProjectExpendableController extends Controller
                         ->firstOrFail();
                     break;
                 case 'Project':
+                    $status = ProjectExpendable::STATUS_ACCEPTED;
                     $target = $project; // attach to project directly
                     break;
                 default:
                     $target = $project; // fallback
             }
         } else {
+            $status = ProjectExpendable::STATUS_ACCEPTED;
             $target = $project; // default attach to project
         }
 
@@ -74,8 +77,9 @@ class ProjectExpendableController extends Controller
             'currency' => strtoupper($validated['currency']),
             'amount' => $validated['amount'],
             'balance' => $validated['amount'],
-            'status' => \App\Models\ProjectExpendable::STATUS_PENDING,
+            'status' => $status,
         ];
+
 
         $expendable = $target->expendable()->create($payload);
 
