@@ -35,7 +35,7 @@ class NoticeCreated extends Notification implements ShouldQueue, ShouldBroadcast
     public function toMail($notifiable)
     {
         // Use our new Mailable class for the notice email
-        return (new NoticeMail($this->notice, $notifiable->email))
+        return (new NoticeMail($this->notice, $notifiable->name, $notifiable->email))
             ->to($notifiable->email);
     }
 

@@ -85,9 +85,8 @@
         <h1>{{ $notice->title }}</h1>
     </div>
     <div class="content-body">
-        <p>Dear User,</p>
-        <p>You have a new notice:</p>
-        <p>{{ $notice->description }}</p>
+        <p>As-Salamu Alaykum {{ $name ?? 'User' }},</p>
+        {!! nl2br($notice->description) !!}
         @if ($notice->url)
             <p>
                 <a href="{{ $notice->url }}" class="button" target="_blank">View Notice</a>
