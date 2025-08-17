@@ -48,8 +48,8 @@ class NoticeBoard extends ShareableResource
             // Ensure default visibility to client is false for notices
             if ($model->visible_to_client === null) {
                 $model->visible_to_client = false;
-                $model->notice = true;
             }
+            $model->notice = true;
         });
 
         if (static::class === self::class) {

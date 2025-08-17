@@ -14,7 +14,7 @@ class NoticeMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public NoticeBoard $notice)
+    public function __construct(public NoticeBoard $notice, public string|null $email = null)
     {
         //
     }
@@ -34,10 +34,12 @@ class NoticeMail extends Mailable implements ShouldQueue
      */
     public function content(): Content
     {
+        $emailTrackingUrl = route('notice.track', ['id' => $this->notice->id, 'email' => $this->email]);
         return new Content(
             view: 'emails.notice-board', // This is our new Blade template
             with: [
                 'notice' => $this->notice,
+                'emailTrackingUrl' => $emailTrackingUrl,
             ],
         );
     }

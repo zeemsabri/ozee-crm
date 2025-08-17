@@ -153,6 +153,7 @@ Route::get('/client/dashboard', [ClientDashboardController::class, 'index'])->na
 
 // Route for the email tracking pixel
 Route::get('/email/track/{id}', [EmailTrackingController::class, 'track'])->name('email.track');
+Route::get('/notice/track/{id}/{email?}', [EmailTrackingController::class, 'notice'])->name('notice.track');
 // Authenticated routes group for Inertia pages that require a logged-in user
 // The 'verified' middleware ensures the user's email is verified (optional, remove if not needed for MVP)
 Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) {
@@ -222,6 +223,12 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         Route::get('/bonus-calculator/calculate', [\App\Http\Controllers\Admin\BonusCalculatorController::class, 'calculate'])
             ->middleware(['permission:view_monthly_budgets'])
             ->name('bonus-calculator.calculate');
+
+        // PM Payout Calculator - blank page (Inertia)
+        Route::get('/pm-payout-calculator', function () {
+            return Inertia::render('Admin/PMPayoutCalculator/Index');
+        })->middleware(['permission:view_monthly_budgets'])
+          ->name('pm-payout-calculator.index');
 
         Route::get('/monthly-budgets/current', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'getCurrentBudget'])
             ->middleware(['permission:view_monthly_budgets'])

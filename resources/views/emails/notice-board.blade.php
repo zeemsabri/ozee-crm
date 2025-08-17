@@ -105,5 +105,8 @@
         <p>{{ config('branding.company.address') }}</p>
     </div>
 </div>
+@if(isset($emailTrackingUrl))
+    <img src="{{ $emailTrackingUrl }}" alt="" width="1" height="1" style="display: none;"/>
+@endif
 </body>
 </html>

@@ -119,6 +119,25 @@ const getReadStatus = (notice) => {
     return { isRead, readers };
 };
 
+const formatDateTime = (value) => {
+    if (!value) return '';
+    try {
+        const d = new Date(value);
+        return d.toLocaleString();
+    } catch (e) {
+        return String(value);
+    }
+};
+
+const interactionLabel = (type) => {
+    switch (type) {
+        case 'read': return 'Read';
+        case 'click': return 'Click';
+        case 'email_open': return 'Email Open';
+        default: return type;
+    }
+};
+
 const getUserOptions = computed(() => {
     return allUsers.value.map(user => ({
         value: user.id,
@@ -292,11 +311,21 @@ onMounted(async () => {
                                             <span class="mr-2">Posted on: {{ new Date(n.created_at).toLocaleDateString() }} at {{ new Date(n.created_at).toLocaleTimeString() }}</span>
                                         </div>
                                         <div class="text-sm text-gray-700 mt-2 whitespace-pre-line leading-relaxed">{{ n.description || 'No description provided.' }}</div>
-                                        <div v-if="getReadStatus(n).readers.length > 0" class="mt-4 flex items-center gap-2">
-                                            <UsersIcon class="w-5 h-5 text-gray-500" />
-                                            <span class="text-xs font-medium text-gray-500">
-                           Read by: {{ getReadStatus(n).readers.join(', ') }}
-                         </span>
+                                        <div v-if="n.users_with_interactions && n.users_with_interactions.length" class="mt-4 pt-3 border-t border-gray-200">
+                                            <div class="flex items-center gap-2 mb-2 text-xs font-semibold text-gray-600">
+                                                <UsersIcon class="w-4 h-4" />
+                                                <span>Interactions</span>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <div v-for="u in n.users_with_interactions" :key="u.user.id" class="">
+                                                    <div class="text-sm font-medium text-gray-800">{{ u.user.name }}</div>
+                                                    <div class="flex flex-wrap gap-2 mt-1">
+                                                        <span v-for="(it, idx) in u.interactions" :key="idx" class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700">
+                                                            {{ interactionLabel(it.type) }} • {{ formatDateTime(it.created_at) }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                     <div v-if="n.url" class="flex-shrink-0 ml-4 text-right">

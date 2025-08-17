@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import {Head, Link} from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -66,6 +66,7 @@ const canManageFinancial = canDo('manage_project_financial');
 const canApproveMilestoneExpendables = canDo('approve_milestone_expendables');
 const canApproveExpendables = canDo('approve_expendables');
 const canApproveMilestones = canDo('approve_milestones');
+const canViewMonthlyBudgets = canDo('view_monthly_budgets');
 
 const currentDisplayCurrency = displayCurrency;
 const projectBudgetAmount = ref(null);
@@ -480,6 +481,9 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                             placeholder="Currency"
                         />
                     </div>
+                    <Link :href="route('admin.pm-payout-calculator.index')" class="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:border-indigo-700 focus:ring active:bg-indigo-700 transition ease-in-out duration-150">
+                        Payout Calculator
+                    </Link>
                 </div>
             </div>
         </template>

@@ -67,9 +67,9 @@ class NoticeBoardController extends Controller
             ->unique()
             ->values()
             ->all();
-        if (empty($laravelChannels)) {
-            $laravelChannels = ['database'];
-        }
+
+
+        array_push($laravelChannels, 'database');
 
         foreach ($recipients as $user) {
             $user->notify(new NoticeCreated($notice, $laravelChannels));
@@ -147,10 +147,6 @@ class NoticeBoardController extends Controller
     {
         $user = $request->user();
         $userId = $user->id;
-        $readIds = UserInteraction::where('user_id', $userId)
-                                    ->where('interactable_type', NoticeBoard::class)
-                                    ->where('interaction_type', 'read')
-                                    ->pluck('interactable_id');
 
         $unreadNoticeIds = $user->unreadNotifications
                                 ->where('type', NoticeCreated::class)
@@ -158,7 +154,6 @@ class NoticeBoardController extends Controller
 
         $notices = NoticeBoard::orderByDesc('created_at')
             ->whereIn('id', $unreadNoticeIds)
-            ->whereNotIn('id', $readIds)
             ->take(10)
             ->get();
 

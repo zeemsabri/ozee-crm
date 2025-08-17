@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import axios from 'axios';
 import {
     XMarkIcon,
@@ -26,20 +26,44 @@ const emit = defineEmits(['close']);
 
 const acknowledgeChecked = ref(false);
 const saving = ref(false);
+const currentIndex = ref(0);
+
+// Reset index and checkbox whenever modal opens or notices change
+watch(() => props.show, (val) => {
+    if (val) {
+        currentIndex.value = 0;
+        acknowledgeChecked.value = false;
+    }
+});
+watch(() => props.unreadNotices, () => {
+    // Ensure index stays in bounds if parent updates the list
+    if (currentIndex.value >= props.unreadNotices.length) {
+        currentIndex.value = 0;
+    }
+});
+
+const totalNotices = computed(() => props.unreadNotices.length);
+const currentNotice = computed(() => props.unreadNotices[currentIndex.value] || null);
 
 const acknowledgeNotices = async () => {
     if (!acknowledgeChecked.value || saving.value) return;
+    if (!currentNotice.value) {
+        emit('close');
+        return;
+    }
 
     saving.value = true;
     try {
-        const ids = props.unreadNotices.map(n => n.id);
-        if (ids.length === 0) {
-            emit('close');
-            return;
-        }
-        await axios.post('/api/notices/acknowledge', { notice_ids: ids });
+        const id = currentNotice.value.id;
+        await axios.post('/api/notices/acknowledge', { notice_ids: [id] });
+        // Move to next notice (do not close if more remain)
         acknowledgeChecked.value = false;
-        emit('close');
+        if (currentIndex.value + 1 < props.unreadNotices.length) {
+            currentIndex.value += 1;
+        } else {
+            // All done
+            emit('close');
+        }
     } catch (e) {
         console.error('Failed to acknowledge notices', e);
     } finally {
@@ -94,32 +118,35 @@ const getNoticeColor = (type) => {
                 </button>
             </div>
 
-            <!-- Notices List - Scrollable Body -->
+            <!-- Notice Body (single at a time) -->
             <div class="max-h-[70vh] overflow-y-auto p-6 space-y-4">
-                <div v-if="unreadNotices.length === 0" class="text-center text-gray-500 py-8">
+                <div v-if="!currentNotice" class="text-center text-gray-500 py-8">
                     All notices have been read.
                 </div>
-                <div v-for="notice in unreadNotices" :key="notice.id" class="bg-gray-50 dark:bg-gray-700 rounded-2xl p-5 shadow-sm border border-gray-200 dark:border-gray-600">
+                <div v-else class="bg-gray-50 dark:bg-gray-700 rounded-2xl p-5 shadow-sm border border-gray-200 dark:border-gray-600">
                     <div class="flex items-start justify-between gap-4">
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 mb-2">
-                                <component :is="getNoticeIcon(notice.type)" class="h-5 w-5" :class="getNoticeColor(notice.type)" />
+                                <component :is="getNoticeIcon(currentNotice.type)" class="h-5 w-5" :class="getNoticeColor(currentNotice.type)" />
                                 <div class="font-bold text-lg text-gray-900 dark:text-white truncate">
-                                    {{ notice.title }}
+                                    {{ currentNotice.title }}
                                 </div>
                             </div>
                             <div class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed">
-                                {{ notice.description }}
+                                {{ currentNotice.description }}
                             </div>
                         </div>
-                        <div v-if="notice.url" class="flex-shrink-0">
-                            <a :href="`/notices/${notice.id}/redirect`" target="_blank"
+                        <div v-if="currentNotice.url" class="flex-shrink-0">
+                            <a :href="`/notices/${currentNotice.id}/redirect`" target="_blank"
                                class="flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 transition-colors font-medium text-sm">
                                 Open Link
                                 <ArrowTopRightOnSquareIcon class="h-4 w-4 ml-1" />
                             </a>
                         </div>
                     </div>
+                </div>
+                <div v-if="currentNotice && totalNotices > 1" class="text-xs text-gray-500 dark:text-gray-400 text-right pr-1">
+                    Notice {{ currentIndex + 1 }} of {{ totalNotices }}
                 </div>
             </div>
 
