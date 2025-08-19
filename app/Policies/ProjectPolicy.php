@@ -166,8 +166,14 @@ class ProjectPolicy
 
     public function addExpendables(User $user, Project $project)
     {
+
+        if($this->userHasProjectPermission($user, 'add_expendables', $project->id)) {
+            return true;
+        }
+
         return $user->hasPermission('add_expendables');
     }
+
 
     public function manageTransactions(User $user, Project $project)
     {
@@ -179,5 +185,7 @@ class ProjectPolicy
         // Check project-specific permission
         return $this->userHasProjectPermission($user, 'manage_project_financial', $project->id);
     }
+
+
 
 }

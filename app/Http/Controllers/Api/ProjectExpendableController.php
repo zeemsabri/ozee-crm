@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectExpendable;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -32,8 +33,17 @@ class ProjectExpendableController extends Controller
     public function store(Request $request, Project $project)
     {
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project) || !$this->canManageProjectExpendable($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have permission to create expendables.'], 403);
+
+        try {
+
+            $this->authorize('addExpendables', $project);
+
+        }
+        catch (AuthenticationException $e)
+        {
+            if (!$this->canAccessProject($user, $project) || !$this->canManageProjectExpendable($user, $project)) {
+                return response()->json(['message' => 'Unauthorized. You do not have permission to create expendables.'], 403);
+            }
         }
 
         $validated = $request->validate([
