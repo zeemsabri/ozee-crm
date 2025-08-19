@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
@@ -25,6 +25,24 @@ const user = computed(() => usePage().props.auth.user);
 
 const { canDo } = usePermissions();
 const canManageRoles = canDo('manage_roles');
+
+// Monthly points badge state
+const monthlyPoints = ref(null);
+const loadingPoints = ref(true);
+const pointsError = ref(null);
+
+onMounted(async () => {
+    try {
+        const { data } = await window.axios.get('/api/leaderboard/stats');
+        monthlyPoints.value = data?.userMonthlyPoints ?? 0;
+    } catch (e) {
+        console.error('Failed to load monthly points', e);
+        pointsError.value = 'Failed to load points';
+        monthlyPoints.value = 0;
+    } finally {
+        loadingPoints.value = false;
+    }
+});
 </script>
 
 <template>
@@ -103,6 +121,24 @@ const canManageRoles = canDo('manage_roles');
                     >
                         ✨ Give Kudo
                     </PrimaryButton>
+
+                    <!-- Monthly Points Badge -->
+                    <div class="mr-3">
+                        <div
+                            v-if="!loadingPoints"
+                            class="inline-flex items-center px-3 py-1 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-semibold shadow-md ring-2 ring-green-300/60"
+                            title="Your points this month"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 1.343-3 3 0 2.25 3 5 3 5s3-2.75 3-5c0-1.657-1.343-3-3-3z" />
+                            </svg>
+                            <span>{{ monthlyPoints ?? 0 }}</span>
+                            <span class="ml-1 text-white/80">pts</span>
+                        </div>
+                        <div v-else class="inline-flex items-center px-3 py-1 rounded-full bg-gray-100 text-gray-500 text-sm font-medium">
+                            Loading...
+                        </div>
+                    </div>
 
                     <button
                         @click="emit('openNotificationsSidebar')"

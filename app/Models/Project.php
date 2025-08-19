@@ -308,7 +308,13 @@ class Project extends Model
      * @param \App\Services\GoogleDriveService $googleDriveService
      * @return array Array of created Document models
      */
-    public function uploadDocuments(array $files, $googleDriveService, null|string $field = 'webContentLink')
+    public function uploadDocuments(
+        array $files,
+        $googleDriveService, null|string
+        $field = 'webContentLink',
+        $subFolder = null,
+        $createRecord = true
+    )
     {
         $uploadedDocuments = [];
 
@@ -328,8 +334,13 @@ class Project extends Model
             ];
 
             try {
-                if ($this->google_drive_folder_id) {
-                    $response = $googleDriveService->uploadFile($fullLocalPath, $originalFilename, $this->google_drive_folder_id, $field);
+                if ($folder = $this->google_drive_folder_id) {
+
+                    if($subFolder) {
+                        $folder = $subFolder;
+                    }
+
+                    $response = $googleDriveService->uploadFile($fullLocalPath, $originalFilename, $folder, $field);
                     $documentData['google_drive_file_id'] = $response['id'] ?? null;
                     $documentData['path'] = $response['path'] ?? null;
                     $documentData['thumbnail'] = $response['thumbnail'] ?? null;
@@ -342,8 +353,14 @@ class Project extends Model
                 $documentData['upload_error'] = 'Failed to upload to Google Drive';
             }
 
-            $document = \App\Models\Document::create($documentData);
-            $uploadedDocuments[] = $document;
+            if($createRecord) {
+                $document = \App\Models\Document::create($documentData);
+                $uploadedDocuments[] = $document;
+            }
+            else {
+                $uploadedDocuments[] = $documentData;
+            }
+
         }
 
         return $uploadedDocuments;

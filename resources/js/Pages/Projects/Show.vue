@@ -38,6 +38,7 @@ import SecondaryButton from "@/Components/SecondaryButton.vue";
 import TaskList from '@/Components/TaskList.vue';
 import { sidebarState, openTaskDetailSidebar, closeTaskDetailSidebar } from '@/Utils/sidebar';
 import * as taskState from '@/Utils/taskState.js';
+import ProjectDeliverableTab from "@/Components/ProjectsDeliverables/ProjectDeliverableTab.vue";
 
 // New import for the deliverables overview card
 import ProjectDeliverablesOverviewCard from '@/Components/ProjectDashboard/ProjectDeliverablesOverviewCard.vue';
@@ -643,14 +644,14 @@ onMounted(async () => {
                     @changeTab="handleChangeTab"
                 />
 
-                <!--                <ProjectDeliverablesTab-->
-                <!--                    v-if="selectedTab === 'deliverables'"-->
-                <!--                    :project-id="projectId"-->
-                <!--                    :can-create-deliverables="canCreateDeliverables"-->
-                <!--                    :can-view-deliverables="canViewDeliverables"-->
-                <!--                    @deliverablesUpdated="handleDeliverablesUpdated"-->
-                <!--                    @openDeliverableDetailSidebar="handleOpenDeliverableDetailSidebar"-->
-                <!--                />-->
+                <ProjectDeliverableTab
+                    v-if="selectedTab === 'deliverables'"
+                    :project-id="projectId"
+                    :can-create-deliverables="canCreateDeliverables"
+                    :can-view-deliverables="canViewDeliverables"
+                    @deliverablesUpdated="handleDeliverablesUpdated"
+                    @openDeliverableDetailSidebar="handleOpenDeliverableDetailSidebar"
+                />
 
                 <SeoReportTab
                     v-if="selectedTab === 'seo-reports'"

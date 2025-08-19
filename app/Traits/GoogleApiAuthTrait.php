@@ -59,19 +59,33 @@ trait GoogleApiAuthTrait
      */
     protected function initializeGoogleClient(User|null $user = null): self
     {
-        // Set up the client instance with credentials
-        $this->client = new Client();
-        $this->client->setClientId(env('GOOGLE_CLIENT_ID'));
-        $this->client->setClientSecret(env('GOOGLE_CLIENT_SECRET'));
-        $this->client->setAccessType('offline'); // Ensures we get a refresh token
 
-        // Load tokens and authorized email based on the user or default account
-        $this->loadTokens($user);
+        try {
+            // Set up the client instance with credentials
+            $this->client = new Client();
+            $this->client->setClientId(config('services.google.client_id'));
+            $this->client->setClientSecret(config('services.google.client_secret'));
+            $this->client->setAccessType('offline'); // Ensures we get a refresh token
 
-        // Check if the access token is expired and refresh it if necessary.
-        if ($this->client->isAccessTokenExpired()) {
-            $this->refreshAccessToken($user);
+            // Load tokens and authorized email based on the user or default account
+            $this->loadTokens($user);
+
+            // Check if the access token is expired and refresh it if necessary.
+            if ($this->client->isAccessTokenExpired()) {
+                $this->refreshAccessToken($user);
+            }
         }
+        catch (Exception $e) {
+
+            if($user) {
+                $user->googleAccount()?->delete();
+            }
+            $this->loadTokens();
+            if ($this->client->isAccessTokenExpired()) {
+                $this->refreshAccessToken();
+            }
+        }
+
 
         return $this;
     }
@@ -83,7 +97,7 @@ trait GoogleApiAuthTrait
      * @return void
      * @throws Exception If tokens cannot be retrieved.
      */
-    private function loadTokens(User|null $user): void
+    private function loadTokens(User|null $user =null): void
     {
         $tokens = null;
         if ($user && $googleAccount = $user->googleAccount) {
@@ -108,7 +122,7 @@ trait GoogleApiAuthTrait
      * @return void
      * @throws Exception On failure to refresh the token.
      */
-    private function refreshAccessToken(User|null $user): void
+    private function refreshAccessToken(User|null $user = null): void
     {
         try {
             $accessToken = $this->client->getAccessToken();

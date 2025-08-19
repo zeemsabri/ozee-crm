@@ -50,6 +50,149 @@ const newPriority = ref(null);
 const taskActivities = ref([]);
 const loadingActivities = ref(false);
 
+// Files
+const taskFiles = ref([]);
+const loadingFiles = ref(false);
+const uploadingFiles = ref(false);
+const selectedFiles = ref([]);
+
+const fetchTaskFiles = async () => {
+    if (!props.taskId) return;
+    loadingFiles.value = true;
+    try {
+        const res = await window.axios.get('/api/files', { params: { model_type: 'Task', model_id: props.taskId } });
+        taskFiles.value = res.data || [];
+    } catch (e) {
+        console.error('Error fetching task files', e);
+    } finally {
+        loadingFiles.value = false;
+    }
+};
+
+const onFilesPicked = (e) => {
+    selectedFiles.value = Array.from(e.target.files || []);
+};
+
+const uploadSelectedFiles = async () => {
+    if (!selectedFiles.value.length) return;
+    uploadingFiles.value = true;
+    const form = new FormData();
+    selectedFiles.value.forEach((f, i) => form.append(`files[${i}]`, f));
+    form.append('model_type', 'Task');
+    form.append('model_id', props.taskId);
+    try {
+        await window.axios.post('/api/files', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+        notification.success('Files uploaded');
+        selectedFiles.value = [];
+        await fetchTaskFiles();
+    } catch (e) {
+        console.error('Upload failed', e);
+        notification.error('Failed to upload files');
+    } finally {
+        uploadingFiles.value = false;
+    }
+};
+
+const deleteTaskFile = async (file) => {
+    const confirmed = await notification.confirmPrompt(`Delete file "${file.filename}"?`, { confirmText: 'Delete', cancelText: 'Cancel', type: 'warning' });
+    if (!confirmed) return;
+    try {
+        await window.axios.delete(`/api/files/${file.id}`);
+        notification.success('File deleted');
+        await fetchTaskFiles();
+    } catch (e) {
+        console.error('Delete failed', e);
+        notification.error('Failed to delete file');
+    }
+};
+
+// --- File preview helpers (similar to DeliverableViewerModal's getDisplayContent) ---
+const showFileViewer = ref(false);
+const activeFile = ref(null);
+
+const openFileViewer = (file) => {
+    activeFile.value = file;
+    showFileViewer.value = true;
+};
+
+const closeFileViewer = () => {
+    showFileViewer.value = false;
+    activeFile.value = null;
+};
+
+const getThumbnailSrc = (file) => {
+    if (!file) return null;
+    if (file.thumbnail) return file.thumbnail;
+    // For images from Drive, use direct image view
+    if (file.google_drive_file_id && file.mime_type && file.mime_type.includes('image')) {
+        return `https://drive.google.com/uc?export=view&id=${file.google_drive_file_id}`;
+    }
+    return null;
+};
+
+const computeDisplayForFile = (file) => {
+    if (!file) return { type: 'none' };
+    const url = file.content_url || '';
+    const mimeType = file.mime_type || '';
+    const fileId = file.google_drive_file_id || null;
+
+    if (url) {
+        // Handle Google Drive links
+        if (url.includes('drive.google.com/file/d/')) {
+            // const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+
+            if (fileId) {
+                // const fileId = fileIdMatch[1];
+                // if (mimeType && mimeType.includes('image')) {
+                //     return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${fileId}` };
+                // } else {
+                    return { type: 'iframe', src: `https://docs.google.com/file/d/${fileId}/preview` };
+                // }
+            }
+        }
+
+        // Handle generic Google Docs/Sheets/Slides links
+        else if (url.includes('docs.google.com')) {
+            return { type: 'iframe', src: url.replace(/\/edit(\?usp=[a-zA-Z0-9]+)?/, '/preview').replace(/\/view(\?usp=[a-zA-Z0-9]+)?/, '/preview') };
+        }
+        // Handle direct PDF links
+        else if (url.includes('.pdf') || (mimeType && mimeType.includes('pdf'))) {
+            return { type: 'iframe', src: url };
+        }
+        // Handle direct image URLs
+        else if (mimeType && mimeType.includes('image')) {
+            return { type: 'image', src: url };
+        }
+        // Handle YouTube embeds
+        else if (deliverableType === 'youtube' || url.includes('youtube.com') || url.includes('youtu.be')) {
+            const videoIdMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=|embed\/|v\/|)([\w-]{11})(?:\S+)?/);
+            if (videoIdMatch && videoIdMatch[1]) {
+                return { type: 'iframe', src: `https://www.youtube.com/embed/${videoIdMatch[1]}` };
+            }
+        }
+        // Deliverable types that are typically embeddable via iframe
+        const embeddableDeliverableTypes = ['blog_post', 'report', 'contract_draft', 'proposal', 'social_media_post', 'design_mockup'];
+        if (embeddableDeliverableTypes.includes(deliverableType)) {
+            return { type: 'iframe', src: url };
+        }
+
+        // Fallback for external links that are not directly embeddable
+        return { type: 'external_link', url: url };
+    }
+
+    // If path missing but have drive id
+    if (fileId) {
+        if (mimeType.includes('image')) {
+            return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${fileId}` };
+        }
+        return { type: 'iframe', src: `https://docs.google.com/file/d/${fileId}/preview` };
+    }
+
+    return { type: 'none' };
+};
+
+const displayContentForActiveFile = computed(() => computeDisplayForFile(activeFile.value));
+
 // Priority options
 const priorityOptions = [
     { value: 'low', label: 'Low' },
@@ -107,8 +250,10 @@ const fetchTaskActivities = async () => {
 watch(() => props.taskId, (newTaskId) => {
     if (newTaskId) {
         fetchTaskDetails();
+        fetchTaskFiles();
     } else {
         task.value = null; // Clear task details if no taskId
+        taskFiles.value = [];
     }
 }, { immediate: true });
 
@@ -650,6 +795,68 @@ const latestBlockActivity = computed(() => {
                 </div>
             </div>
 
+            <!-- Task Files -->
+            <div class="bg-white p-4 rounded-lg shadow-sm">
+                <div class="mb-4 border-b pb-3 flex flex-col gap-3">
+                    <div class="flex items-center justify-between">
+                        <h5 class="text-lg font-semibold text-gray-800">Files</h5>
+                        <div class="flex items-center gap-2">
+                            <button type="button"
+                                    class="inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                    :disabled="uploadingFiles || selectedFiles.length === 0"
+                                    @click="uploadSelectedFiles">
+                                <svg v-if="uploadingFiles" class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                </svg>
+                                <span>{{ uploadingFiles ? 'Uploading...' : 'Upload' }}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Fancy choose files -->
+                    <div class="flex items-center gap-3">
+                        <label class="relative inline-flex items-center px-4 py-2 rounded-md border border-dashed border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 cursor-pointer transition">
+                            <svg class="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M4 12l1.5-1.5M20 12l-1.5-1.5M12 4v12"/></svg>
+                            <span class="font-medium">Choose Files</span>
+                            <input class="absolute inset-0 opacity-0 cursor-pointer" type="file" multiple @change="onFilesPicked" :disabled="uploadingFiles" />
+                        </label>
+                        <p class="text-xs text-gray-500">You can select multiple files. Images, PDFs, Docs are supported.</p>
+                    </div>
+
+                    <!-- Selected files chips -->
+                    <div v-if="selectedFiles.length" class="flex flex-wrap gap-2">
+                        <span v-for="(sf, idx) in selectedFiles" :key="idx" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-gray-800 text-xs">
+                            <svg class="h-4 w-4 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                            <span class="max-w-[160px] truncate" :title="sf.name">{{ sf.name }}</span>
+                            <button type="button" class="text-gray-500 hover:text-red-600" @click="selectedFiles = selectedFiles.filter((_,i)=>i!==idx)">×</button>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Files list -->
+                <div>
+                    <div v-if="loadingFiles" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        <div v-for="i in 6" :key="i" class="h-28 bg-gray-100 rounded animate-pulse"></div>
+                    </div>
+                    <div v-else-if="taskFiles.length > 0" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        <div v-for="f in taskFiles" :key="f.id" class="group relative rounded-lg border border-gray-200 overflow-hidden bg-white shadow-sm hover:shadow-md transition">
+                            <div class="aspect-video bg-gray-50 flex items-center justify-center overflow-hidden">
+                                <img v-if="getThumbnailSrc(f)" :src="getThumbnailSrc(f)" :alt="f.filename" class="object-cover w-full h-full" @click="openFileViewer(f)" />
+                                <div v-else class="text-gray-400" @click="openFileViewer(f)">
+                                    <svg class="h-10 w-10" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                </div>
+                            </div>
+                            <div class="p-2 flex items-center justify-between">
+                                <button class="text-xs text-blue-600 hover:underline truncate max-w-[70%] text-left" :title="f.filename" @click="openFileViewer(f)">{{ f.filename }}</button>
+                                <button class="text-red-600 hover:text-red-800 text-xs" @click="deleteTaskFile(f)">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="text-sm text-gray-500">No files attached.</div>
+                </div>
+            </div>
+
             <!-- Task Notes -->
             <div class="bg-white p-4 rounded-lg shadow-sm">
                 <div class="flex justify-between items-center mb-4 border-b pb-2">
@@ -729,6 +936,35 @@ const latestBlockActivity = computed(() => {
                     >
                         Block Task
                     </PrimaryButton>
+                </div>
+            </div>
+        </Modal>
+
+        <!-- File Viewer Modal -->
+        <Modal :show="showFileViewer" @close="closeFileViewer">
+            <div class="p-4 sm:p-6 w-full max-w-4xl">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-lg font-semibold text-gray-800 truncate" :title="activeFile && activeFile.filename ? activeFile.filename : ''">{{ (activeFile && activeFile.filename) ? activeFile.filename : 'Preview' }}</h3>
+                    <button class="text-gray-500 hover:text-gray-700" @click="closeFileViewer">✕</button>
+                </div>
+                <div class="bg-black/5 rounded-lg overflow-hidden" style="min-height: 320px;">
+                    {{ displayContentForActiveFile.type }}
+                    <template v-if="displayContentForActiveFile.type === 'iframe'">
+                        <iframe :src="displayContentForActiveFile.src" class="w-full h-[70vh]" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                    </template>
+                    <template v-else-if="displayContentForActiveFile.type === 'image'">
+                        <img :src="displayContentForActiveFile.src" alt="Preview" class="w-full h-auto" />
+                    </template>
+
+                    <template v-else-if="displayContentForActiveFile.type === 'external_link'">
+                        <div class="p-6 text-center text-gray-700">
+                            <p>This file can't be embedded. You can open it using the link below:</p>
+                            <a :href="displayContentForActiveFile.url" target="_blank" class="text-indigo-600 hover:underline break-all">{{ displayContentForActiveFile.url }}</a>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <div class="p-6 text-center text-gray-500">No preview available.</div>
+                    </template>
                 </div>
             </div>
         </Modal>

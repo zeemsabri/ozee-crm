@@ -288,4 +288,48 @@ class GoogleDriveService
         }
     }
 
+    /**
+     * Find a subfolder by name under a parent folder; if not exists, create it.
+     * Returns the subfolder ID.
+     */
+    public function findOrCreateSubfolder(string $parentFolderId, string $folderName): string
+    {
+        try {
+//            $query = sprintf("name='%s' and mimeType='application/vnd.google-apps.folder' and '%s' in parents and trashed=false", addslashes($folderName), $parentFolderId);
+//            $results = $this->driveService->files->listFiles([
+//                'q' => $query,
+//                'fields' => 'files(id,name)'
+//            ]);
+
+            $query = "name='{$folderName}' and mimeType='application/vnd.google-apps.folder' and '{$parentFolderId}' in parents and trashed=false";
+
+            // Search for existing folders that match the query.
+            $results = $this->driveService->files->listFiles([
+                'q' => $query,
+                'spaces' => 'drive',
+                'fields' => 'files(id, name)',
+            ]);
+
+            // Check if any folders were found.
+            if (count($results->getFiles()) > 0) {
+                // A matching folder was found, so return the first one's ID.
+                $existingFolder = $results->getFiles()[0];
+                $id = $existingFolder->getId();
+
+            }
+
+            if(!ISSET($id)) {
+                $id = $this->createFolder($folderName, $parentFolderId);
+            }
+
+            return $id;
+
+        } catch (\Exception $e) {
+            \Log::error('Error finding or creating subfolder: ' . $e->getMessage(), [
+                'parent_id' => $parentFolderId,
+                'folder_name' => $folderName,
+            ]);
+            throw $e;
+        }
+    }
 }

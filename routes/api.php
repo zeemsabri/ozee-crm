@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\TaskController;
 use App\Http\Controllers\Api\SubtaskController;
 use App\Http\Controllers\Api\MilestoneController;
 use App\Http\Controllers\Api\TaskTypeController;
+use App\Http\Controllers\Api\FileAttachmentController;
 use App\Http\Controllers\Api\AvailabilityController;
 use App\Http\Controllers\Api\BonusConfigurationController;
 use App\Http\Controllers\Api\ResourceController;
@@ -178,6 +179,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('resources/{resource}/comments', [CommentController::class, 'store']); // Specific store for comments on a resource
     Route::post('resources/{resource}/approve', [CommentController::class, 'approveResource']);
     Route::post('resources/{resource}/toggle-visibility', [CommentController::class, 'toggleVisibility']);
+
+    // Generic file attachments (polymorphic: Task, etc.)
+    Route::get('files', [FileAttachmentController::class, 'index']);
+    Route::post('files', [FileAttachmentController::class, 'store']);
+    Route::delete('files/{file}', [FileAttachmentController::class, 'destroy']);
 
 
     // Email Management & Approval Routes

@@ -7,6 +7,8 @@ import InputError from '@/Components/InputError.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import TagInput from '@/Components/TagInput.vue';
 import MilestoneFormModal from './MilestoneFormModal.vue'; // Import the MilestoneFormModal
+import PrimaryButton from '@/Components/PrimaryButton.vue';
+import * as notification from '@/Utils/notification.js';
 
 const props = defineProps({
     show: Boolean,
@@ -142,10 +144,39 @@ const fetchAssociatedData = async (projectId) => {
     }
 };
 
+// Files selection for attachment after task creation
+const selectedFiles = ref([]);
+const onFilesChange = (e) => {
+    selectedFiles.value = Array.from(e.target.files || []);
+};
+
+const uploadTaskFiles = async (taskId) => {
+    if (!selectedFiles.value.length) return;
+    const form = new FormData();
+    selectedFiles.value.forEach((f, i) => form.append(`files[${i}]`, f));
+    form.append('model_type', 'Task');
+    form.append('model_id', taskId);
+    try {
+        await window.axios.post('/api/files', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+        notification.success('Files uploaded to Google Drive.');
+    } catch (e) {
+        console.error('Failed to upload task files', e);
+        notification.error('Failed to upload files.');
+    }
+};
+
 // Function to handle the successful submission from BaseFormModal
-const handleSaved = (responseData) => {
-    emit('saved', responseData);
-    emit('close');
+const handleSaved = async (responseData) => {
+    try {
+        const taskId = responseData?.id || responseData?.task?.id || responseData?.data?.id;
+        if (taskId) {
+            await uploadTaskFiles(taskId);
+        }
+    } finally {
+        emit('saved', responseData);
+        emit('close');
+        selectedFiles.value = [];
+    }
 };
 
 // Pass through the close event
@@ -367,6 +398,13 @@ const milestoneOptions = computed(() => milestones.value);
                         :error="errors.tags ? errors.tags[0] : ''"
                         :disabled="!taskForm.project_id"
                     />
+                </div>
+
+                <!-- Attach Files (uploaded after task is created) -->
+                <div>
+                    <InputLabel for="task-files" value="Attach Files (optional)" />
+                    <input id="task-files" type="file" class="mt-1 block w-full" multiple @change="onFilesChange" />
+                    <p class="text-xs text-gray-500 mt-1">Files will be uploaded to Google Drive under the Task folder after the task is created.</p>
                 </div>
             </div>
         </template>

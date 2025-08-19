@@ -770,4 +770,9 @@ class Task extends Model
     }
 
     // The attachTag and detachTag methods are replaced by the syncTags method in the Taggable trait
+
+    public function files()
+    {
+        return $this->morphMany(\App\Models\FileAttachment::class, 'fileable');
+    }
 }

@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Support\Facades\Storage;
+
 return [
 
     /*
@@ -46,5 +48,7 @@ return [
     'exchange_rates' => [
         'api_key' => env('EXCHANGE_RATES_API_KEY'),
     ],
+
+
 
 ];
