@@ -227,7 +227,7 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         // PM Payout Calculator - blank page (Inertia)
         Route::get('/pm-payout-calculator', function () {
             return Inertia::render('Admin/PMPayoutCalculator/Index');
-        })->middleware(['permission:view_monthly_budgets'])
+        })
           ->name('pm-payout-calculator.index');
 
         Route::get('/monthly-budgets/current', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'getCurrentBudget'])
@@ -252,18 +252,6 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
                 'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category')
             ]);
         })->name('roles.create');
-
-        // Duplicate role route - opens Create page with prefilled values
-        Route::get('/roles/{role}/duplicate', function (\App\Models\Role $role) {
-            $role->load('permissions');
-            return Inertia::render('Admin/Roles/Create', [
-                'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category'),
-                'prefillName' => 'Copy of ' . $role->name,
-                'prefillDescription' => $role->description,
-                'prefillType' => $role->type,
-                'preselectedPermissions' => $role->permissions->pluck('id')->toArray(),
-            ]);
-        })->name('roles.duplicate');
 
         Route::post('/roles', [\App\Http\Controllers\Api\RoleController::class, 'store'])->name('roles.store');
 
