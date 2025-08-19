@@ -1,1 +1,0 @@
-import{x as t,z as o,o as s,a as l,O as r}from"./app-BiOytpE3.js";const i={__name:"TabPanel",props:{active:{type:Boolean,default:!1}},setup(e){return(a,n)=>t((s(),l("div",null,[r(a.$slots,"default")],512)),[[o,e.active]])}};export{i as default};

@@ -218,18 +218,18 @@ onMounted(() => {
         </div>
 
         <!-- Contract Details -->
-        <div class="bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
-            <h3 class="text-xl font-semibold text-gray-800 mb-5">Contract Information</h3>
-            <InputLabel for="contract_details" value="Contract Details" class="mb-1" />
-            <textarea
-                id="contract_details"
-                class="block w-full px-4 py-2 border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors duration-200 resize-y min-h-[120px]"
-                v-model="localClientsUsersForm.contract_details"
-                :disabled="!canManageProjectClients || isSaving"
-                placeholder="Enter contract terms, agreements, or important notes about the client relationship."
-            ></textarea>
-            <InputError :message="errors.contract_details ? errors.contract_details[0] : ''" class="mt-2" />
-        </div>
+<!--        <div class="bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">-->
+<!--            <h3 class="text-xl font-semibold text-gray-800 mb-5">Contract Information</h3>-->
+<!--            <InputLabel for="contract_details" value="Contract Details" class="mb-1" />-->
+<!--            <textarea-->
+<!--                id="contract_details"-->
+<!--                class="block w-full px-4 py-2 border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors duration-200 resize-y min-h-[120px]"-->
+<!--                v-model="localClientsUsersForm.contract_details"-->
+<!--                :disabled="!canManageProjectClients || isSaving"-->
+<!--                placeholder="Enter contract terms, agreements, or important notes about the client relationship."-->
+<!--            ></textarea>-->
+<!--            <InputError :message="errors.contract_details ? errors.contract_details[0] : ''" class="mt-2" />-->
+<!--        </div>-->
 
         <!-- Assign Users Section -->
         <div v-if="canViewProjectUsers" class="bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
