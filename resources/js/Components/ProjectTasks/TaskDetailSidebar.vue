@@ -122,73 +122,33 @@ const closeFileViewer = () => {
 
 const getThumbnailSrc = (file) => {
     if (!file) return null;
-    if (file.thumbnail) return file.thumbnail;
-    // For images from Drive, use direct image view
-    if (file.google_drive_file_id && file.mime_type && file.mime_type.includes('image')) {
-        return `https://drive.google.com/uc?export=view&id=${file.google_drive_file_id}`;
+    // Prefer generated thumbnail URL when present
+    if (file.thumbnail_url) return file.thumbnail_url;
+    // Fallback: if it's an image and we have a direct file URL
+    if (file.mime_type && file.mime_type.includes('image') && file.path_url) {
+        return file.path_url;
     }
     return null;
 };
 
 const computeDisplayForFile = (file) => {
     if (!file) return { type: 'none' };
-    const url = file.content_url || '';
-    const mimeType = file.mime_type || '';
-    const fileId = file.google_drive_file_id || null;
+    const url = file.path_url || null;
+    const mimeType = (file.mime_type || '').toLowerCase();
 
-    if (url) {
-        // Handle Google Drive links
-        if (url.includes('drive.google.com/file/d/')) {
-            // const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (!url) return { type: 'none' };
 
-            if (fileId) {
-                // const fileId = fileIdMatch[1];
-                // if (mimeType && mimeType.includes('image')) {
-                //     return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${fileId}` };
-                // } else {
-                    return { type: 'iframe', src: `https://docs.google.com/file/d/${fileId}/preview` };
-                // }
-            }
-        }
-
-        // Handle generic Google Docs/Sheets/Slides links
-        else if (url.includes('docs.google.com')) {
-            return { type: 'iframe', src: url.replace(/\/edit(\?usp=[a-zA-Z0-9]+)?/, '/preview').replace(/\/view(\?usp=[a-zA-Z0-9]+)?/, '/preview') };
-        }
-        // Handle direct PDF links
-        else if (url.includes('.pdf') || (mimeType && mimeType.includes('pdf'))) {
-            return { type: 'iframe', src: url };
-        }
-        // Handle direct image URLs
-        else if (mimeType && mimeType.includes('image')) {
-            return { type: 'image', src: url };
-        }
-        // Handle YouTube embeds
-        else if (deliverableType === 'youtube' || url.includes('youtube.com') || url.includes('youtu.be')) {
-            const videoIdMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=|embed\/|v\/|)([\w-]{11})(?:\S+)?/);
-            if (videoIdMatch && videoIdMatch[1]) {
-                return { type: 'iframe', src: `https://www.youtube.com/embed/${videoIdMatch[1]}` };
-            }
-        }
-        // Deliverable types that are typically embeddable via iframe
-        const embeddableDeliverableTypes = ['blog_post', 'report', 'contract_draft', 'proposal', 'social_media_post', 'design_mockup'];
-        if (embeddableDeliverableTypes.includes(deliverableType)) {
-            return { type: 'iframe', src: url };
-        }
-
-        // Fallback for external links that are not directly embeddable
-        return { type: 'external_link', url: url };
+    // Images: show as image
+    if (mimeType.includes('image')) {
+        return { type: 'image', src: url };
+    }
+    // PDFs and many text types render well in iframe
+    if (mimeType.includes('pdf') || mimeType.includes('text') || mimeType.includes('html')) {
+        return { type: 'iframe', src: url };
     }
 
-    // If path missing but have drive id
-    if (fileId) {
-        if (mimeType.includes('image')) {
-            return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${fileId}` };
-        }
-        return { type: 'iframe', src: `https://docs.google.com/file/d/${fileId}/preview` };
-    }
-
-    return { type: 'none' };
+    // Default: provide external link
+    return { type: 'external_link', url };
 };
 
 const displayContentForActiveFile = computed(() => computeDisplayForFile(activeFile.value));

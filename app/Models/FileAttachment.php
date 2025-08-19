@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class FileAttachment extends Model
 {
@@ -23,9 +24,10 @@ class FileAttachment extends Model
         'thumbnail',
     ];
 
-//    protected $appends = [
-//        'content_url',
-//    ];
+    protected $appends = [
+        'path_url',
+        'thumbnail_url',
+    ];
 
     public function fileable()
     {
@@ -38,74 +40,30 @@ class FileAttachment extends Model
     }
 
     /**
-     * Get the content URL, formatted for embedding based on its type.
-     * This accessor will automatically be called when you access $deliverable->content_url.
-     *
-     * @param string|null $value The raw content_url from the database.
-     * @return string|null The formatted content URL for embedding.
+     * Public URL (signed) for the original file path stored on GCS.
      */
-//    public function getContentUrlAttribute()
-//    {
-//
-//        $value = $this->attributes['path'];
-//        // If there's no content_url, return null
-//        if (empty($value)) {
-//            return null;
-//        }
-//
-//        $url = $value;
-//
-//        // Step 1: Clean any query parameters from Google Drive/Docs links
-//        // This applies to both file links and doc links that might have these parameters
-//        if (str_contains($url, 'drive.google.com/') || str_contains($url, 'docs.google.com/')) {
-//            $url = strtok($url, '?');
-//        }
-//
-//        // Step 2: Transform to /preview for Google Drive files and Docs
-//        // This regex will match /view or /edit at the end of the URL path,
-//        // optionally followed by a trailing slash, and replace it with /preview.
-//        // It also handles cases where /preview might already exist, or if it's just the ID.
-//        if (str_contains($url, 'drive.google.com/file/d/') ||
-//            str_contains($url, 'docs.google.com/document/d/') ||
-//            str_contains($url, 'docs.google.com/spreadsheets/d/') ||
-//            str_contains($url, 'docs.google.com/presentation/d/')) {
-//
-//            // If it already ends with /preview, do nothing
-//            if (str_ends_with($url, '/preview')) {
-//                return $url;
-//            }
-//
-//            // Replace /view or /edit with /preview, handling optional trailing slashes
-//            $url = preg_replace('/\/(view|edit)(\/)?$/', '/preview', $url);
-//
-//            // If after replacement, it still doesn't end with /preview and is a file/doc link,
-//            // it means it was just the ID part, so append /preview.
-//            // This ensures that links like "https://drive.google.com/file/d/FILE_ID" become "https://drive.google.com/file/d/FILE_ID/preview"
-//            if (!str_ends_with($url, '/preview') &&
-//                (str_contains($url, 'drive.google.com/file/d/') ||
-//                    str_contains($url, 'docs.google.com/document/d/') ||
-//                    str_contains($url, 'docs.google.com/spreadsheets/d/') ||
-//                    str_contains($url, 'docs.google.com/presentation/d/'))) {
-//                $url .= '/preview';
-//            }
-//        }
-//
-//        // Step 3: Apply specific transformations based on content_url_type for other cases (like video)
-//        switch ($this->mime_type) {
-//            case 'video':
-//                // Basic conversion for YouTube/Vimeo embed links
-//                if (str_contains($url, 'youtube.com/watch?v=')) {
-//                    return str_replace('watch?v=', 'embed/', $url);
-//                } elseif (str_contains($url, 'youtu.be/')) {
-//                    return str_replace('youtu.be/', 'youtube.com/embed/', $url);
-//                } elseif (str_contains($url, 'vimeo.com/')) {
-//                    return str_replace('vimeo.com/', 'player.vimeo.com/video/', $url);
-//                }
-//                return $url; // Return original if not a recognized video embed pattern
-//
-//            case 'other':
-//            default:
-//                return $url;
-//        }
-//    }
+    public function getPathUrlAttribute(): ?string
+    {
+        $path = $this->attributes['path'] ?? null;
+        if (!$path) return null;
+        try {
+            return Storage::disk('gcs')->temporaryUrl($path, now()->addDay());
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Public URL (signed) for the thumbnail stored on GCS.
+     */
+    public function getThumbnailUrlAttribute(): ?string
+    {
+        $thumb = $this->attributes['thumbnail'] ?? null;
+        if (!$thumb) return null;
+        try {
+            return Storage::disk('gcs')->temporaryUrl($thumb, now()->addDay());
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
 }

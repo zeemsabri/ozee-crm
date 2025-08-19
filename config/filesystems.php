@@ -62,11 +62,15 @@ return [
 
         'gcs' => [
             'driver' => 'gcs',
-            'key_file_path' => base_path('storage/app/private/ozee-crm-2ab511000cdc.json'),
-            'project_id' => env('GOOGLE_CLOUD_PROJECT_ID', 'ozee-crm'),
+            'throw' =>  true,
+            // Use an environment variable for the key file path.
+            'key_file_path' => env('GOOGLE_CLOUD_KEY_FILE_PATH'),
+            // Ensure the project ID is pulled directly from the .env file.
+            'project_id' => env('GOOGLE_CLOUD_PROJECT_ID'),
             'bucket' => env('GOOGLE_CLOUD_STORAGE_BUCKET', 'ozee-docs'),
             'path_prefix' => env('GOOGLE_CLOUD_STORAGE_PATH_PREFIX', ''),
             'storage_api_uri' => env('GOOGLE_CLOUD_STORAGE_API_URI', null),
+            'visibility' => 'private'
         ],
 
     ],
