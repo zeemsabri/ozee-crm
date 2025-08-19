@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\ProjectNote;
 use App\Models\Role;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
@@ -332,12 +333,9 @@ class ProjectReadController extends Controller
     public function getExpendableBudget(Project $project)
     {
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
-        }
-        if (!$this->canViewProjectServicesAndPayments($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have permission to view financial information.'], 403);
-        }
+
+        $this->authorize('addExpendables', $project);
+
         return response()->json([
             'total_expendable_amount' => $project->remaining_spendables,
             'total_budget' => $project->total_budget,
@@ -433,8 +431,15 @@ class ProjectReadController extends Controller
         $user = Auth::user();
         $result = [];
 
-        if (!$this->canAccessProject($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
+        try {
+            $this->authorize('addExpendables', $project);
+        }
+        catch (AuthenticationException $e) {
+
+            if (!$this->canAccessProject($user, $project)) {
+                return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
+            }
+
         }
 
         $type = request()->type;

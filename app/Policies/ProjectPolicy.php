@@ -164,6 +164,11 @@ class ProjectPolicy
     public function restore(User $user, Project $project): bool { return false; }
     public function forceDelete(User $user, Project $project): bool { return false; }
 
+    public function addExpendables(User $user, Project $project)
+    {
+        return $user->hasPermission('add_expendables');
+    }
+
     public function manageTransactions(User $user, Project $project)
     {
         // Check if user has global permission
