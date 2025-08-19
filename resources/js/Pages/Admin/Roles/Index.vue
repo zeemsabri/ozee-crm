@@ -78,6 +78,7 @@
                                                 <Link :href="route('admin.roles.edit', role.id)" class="text-indigo-600 hover:text-indigo-900">Edit</Link>
                                                 <Link :href="route('admin.roles.show', role.id)" class="text-blue-600 hover:text-blue-900">View</Link>
                                                 <Link :href="route('admin.roles.permissions', role.id)" class="text-green-600 hover:text-green-900">Permissions</Link>
+                                                <Link :href="route('admin.roles.duplicate', role.id)" class="text-purple-600 hover:text-purple-900">Duplicate</Link>
                                                 <button
                                                     @click="confirmRoleDeletion(role)"
                                                     class="text-red-600 hover:text-red-900"

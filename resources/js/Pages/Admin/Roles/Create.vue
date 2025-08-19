@@ -118,6 +118,10 @@ import TextInput from '@/Components/TextInput.vue';
 
 const props = defineProps({
     permissions: Object,
+    prefillName: { type: String, default: '' },
+    prefillDescription: { type: String, default: '' },
+    prefillType: { type: String, default: '' },
+    preselectedPermissions: { type: Array, default: () => [] },
 });
 
 const form = useForm({
@@ -126,6 +130,12 @@ const form = useForm({
     type: '',
     permissions: [],
 });
+
+// Apply prefilled values if provided (for duplication flow)
+if (props.prefillName) form.name = props.prefillName;
+if (props.prefillDescription) form.description = props.prefillDescription;
+if (props.prefillType) form.type = props.prefillType;
+if (props.preselectedPermissions && props.preselectedPermissions.length) form.permissions = [...props.preselectedPermissions];
 
 const submit = () => {
     form.post(route('admin.roles.store'), {

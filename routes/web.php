@@ -253,6 +253,18 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
             ]);
         })->name('roles.create');
 
+        // Duplicate role route - opens Create page with prefilled values
+        Route::get('/roles/{role}/duplicate', function (\App\Models\Role $role) {
+            $role->load('permissions');
+            return Inertia::render('Admin/Roles/Create', [
+                'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category'),
+                'prefillName' => 'Copy of ' . $role->name,
+                'prefillDescription' => $role->description,
+                'prefillType' => $role->type,
+                'preselectedPermissions' => $role->permissions->pluck('id')->toArray(),
+            ]);
+        })->name('roles.duplicate');
+
         Route::post('/roles', [\App\Http\Controllers\Api\RoleController::class, 'store'])->name('roles.store');
 
         Route::get('/roles/{role}', function (\App\Models\Role $role) {
