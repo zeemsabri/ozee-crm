@@ -456,7 +456,14 @@ class Project extends Model
      */
     public function getRemainingSpendablesAttribute(): float
     {
-        $budget = (float) ($this->expendable()->sum('amount') ?? 0);
+        $items      = $this->expendable;
+        $convertTo  = 'AUD';
+
+        $total = 0.0;
+        foreach ($items as $item) {
+            $total += $this->convertCurrency((float) $item->amount, (string) $item->currency, $convertTo);
+        }
+        $budget = $total;
         if ($budget <= 0) {
             return 0.0;
         }
