@@ -63,11 +63,17 @@ class UserController extends Controller
         $this->authorize('create', User::class);
 
         try {
+            // Normalize role slug to match DB (underscores -> hyphens, lowercase)
+            if ($request->has('role')) {
+                $normalizedRole = strtolower(str_replace('_', '-', $request->input('role')));
+                $request->merge(['role' => $normalizedRole]);
+            }
+
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255|unique:users,email',
                 'password' => 'required|string|min:8|confirmed', // 'confirmed' means password_confirmation must match
-                'role' => 'required|in:super-admin,manager,employee,contractor',
+                'role' => 'required|exists:roles,slug',
                 'timezone' => 'nullable|string|max:255',
                 'user_type' =>  'required|string|in:employee,contractor,admin',
             ]);
@@ -133,11 +139,17 @@ class UserController extends Controller
         $this->authorize('update', $user);
 
         try {
+            // Normalize role slug to match DB (underscores -> hyphens, lowercase)
+            if ($request->has('role')) {
+                $normalizedRole = strtolower(str_replace('_', '-', $request->input('role')));
+                $request->merge(['role' => $normalizedRole]);
+            }
+
             $validated = $request->validate([
                 'name' => 'sometimes|required|string|max:255',
                 'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $user->id, // Unique check, excluding current user's email
                 'password' => 'nullable|string|min:8|confirmed', // Password is optional; 'confirmed' requires password_confirmation field
-                'role' => 'sometimes|required|in:super-admin,manager,employee,contractor', // Role can be updated
+                'role' => 'sometimes|required|exists:roles,slug', // Role can be updated
                 'timezone' => 'nullable|string|max:255',
                 'user_type' =>  'required|string|in:employee,contractor,admin',
             ]);
