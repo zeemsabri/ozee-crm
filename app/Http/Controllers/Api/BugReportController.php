@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\HandlesImageUploads;
 use App\Http\Controllers\Controller;
+use App\Models\Client;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskType;
@@ -66,8 +67,15 @@ class BugReportController extends Controller
      */
     public function status(Request $request)
     {
+        return $this->checkExists($this->getPattern($request))->exists()
+            ? response()->json(['exists' => true, 'status' => 'ok'], 200)
+            : response()->json(['exists' => false, 'message' => 'No matching reporting site found'], 404);
+    }
+
+    private function getPattern($request)
+    {
         Log::info('GET /api/bugs/status called', ['query' => $request->query()]);
-        $pageUrl = $request->query('pageUrl') ?? $request->query('url');
+        $pageUrl = $request->query('pageUrl') ?? $request->query('url') ?? $request->input('pageUrl') ?? $request->input('url');
         if (empty($pageUrl)) {
             return response()->json(['message' => 'The pageUrl query parameter is required.'], 422);
         }
@@ -83,19 +91,20 @@ class BugReportController extends Controller
         if (!empty($host)) { $patterns[] = $host; }
         if (!empty($baseNoQuery)) { $patterns[] = rtrim($baseNoQuery, '/'); }
 
-        $exists = Project::query()
+        return $patterns;
+    }
+
+
+    public function checkExists($patterns = [])
+    {
+        return  $exists = Project::query()
             ->whereNotNull('reporting_sites')
             ->where('reporting_sites', '!=', '')
             ->where(function ($q) use ($patterns) {
                 foreach ($patterns as $p) {
                     $q->orWhere('reporting_sites', 'like', '%' . $p . '%');
                 }
-            })
-            ->exists();
-
-        return $exists
-            ? response()->json(['exists' => true, 'status' => 'ok'], 200)
-            : response()->json(['exists' => false, 'message' => 'No matching reporting site found'], 404);
+            });
     }
 
     /**
@@ -115,7 +124,10 @@ class BugReportController extends Controller
             'rect.height' => 'nullable|integer',
         ]);
 
-        $bugId = (string) Str::uuid();
+
+        $bugId =  Str::random(7);
+        $project = $this->checkExists($this->getPattern($request))->with('clients')->first();
+        $client = $project->clients?->first() ?? User::first() ;
         $screenshotUrl = null;
         $uploadMeta = null;
         $paths = [];
@@ -135,23 +147,13 @@ class BugReportController extends Controller
             }
         }
 
-        // 2. Create the Task
-        $project = Project::first();
         if ($project) {
-            $task = $this->createBugReportTask($project, $bugId, $data, $uploadMeta, $screenshotUrl, $request);
+            $task = $this->createBugReportTask($project, $bugId, $data, $uploadMeta, $screenshotUrl, $client, $request);
             // 3. Attach Files and Log Activity
             $this->attachFileToTaskAndLogActivity($task, $paths, User::first(), $project);
         } else {
             Log::warning('No project found to attach bug report task', ['id' => $bugId]);
         }
-
-        Log::info('POST /api/bugs/report received', [
-            'id' => $bugId,
-            'payload' => $request->except('screenshot'),
-            'screenshot_url' => $screenshotUrl,
-            'ip' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
 
         return response()->json([
             'id' => $bugId,
@@ -184,7 +186,14 @@ class BugReportController extends Controller
     /**
      * Creates the Task record for the bug report.
      */
-    private function createBugReportTask(Project $project, string $bugId, array $data, ?array $uploadMeta, ?string $screenshotUrl, Request $request): Task
+    private function createBugReportTask(
+        Project $project,
+        string $bugId,
+        array $data,
+        ?array $uploadMeta,
+        ?string $screenshotUrl,
+        User|Client|null $user = null,
+        Request $request): Task
     {
         $defaultTaskType = TaskType::firstOrCreate(['name' => 'Bug']);
         $milestone = $project->supportMilestone();
@@ -194,7 +203,6 @@ class BugReportController extends Controller
             'bug_id' => $bugId,
             'page_url' => $data['pageUrl'] ?? null,
             'rect' => $data['rect'] ?? null,
-            'user_agent' => $request->userAgent(),
             'ip' => $request->ip(),
             'screenshot' => [
                 'path' => $uploadMeta['path'] ?? null,
@@ -205,6 +213,8 @@ class BugReportController extends Controller
 
         return $milestone->tasks()->create([
             'name' => 'Bug# ' . $bugId,
+            'creator_id'    =>  $user?->id ?? null,
+            'creator_type'  =>  get_class($user) ?? null,
             'task_type_id' => $defaultTaskType->id,
             'description' => $data['description'] ?? null,
             'details' => $details,
