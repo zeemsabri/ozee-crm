@@ -325,10 +325,10 @@
                 align-items: center;
             }
             #image-modal-img {
-                max-width: 100%;
-                max-height: 100%;
-                object-fit: contain;
-                border-radius: 8px;
+                    max-width: 100%;
+                    max-height: 100%;
+                    object-fit: contain;
+                    border-radius: 8px;
             }
             .image-modal-close {
                 position: absolute;
@@ -969,7 +969,7 @@
                 zIndex: '2147483646'
             });
             document.body.appendChild(selectionOverlay);
-            selectionOverlay.addEventListener('mousedown', handleMouseDown);
+            selectionOverlay.addEventListener('mouseup', handleMouseUp);
         }
         selectionOverlay.style.display = 'block';
     }
@@ -982,108 +982,25 @@
     }
 
     // --- SCREENSHOT & SELECTION LOGIC ---
-    let startX, startY, selectionBox, isDragging;
-
-    function handleMouseDown(e) {
-        if (appState.mode !== 'selecting') return;
-        e.preventDefault();
-        startX = e.clientX;
-        startY = e.clientY;
-        isDragging = false;
-
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-    }
-
-    function handleMouseMove(e) {
-        if (Math.abs(e.clientX - startX) > 5 || Math.abs(e.clientY - startY) > 5) {
-            isDragging = true;
-            if (!selectionBox) {
-                selectionBox = document.createElement('div');
-                Object.assign(selectionBox.style, {
-                    position: 'fixed',
-                    border: '2px dashed #00a8ff',
-                    backgroundColor: 'rgba(0, 168, 255, 0.1)',
-                    zIndex: '2147483647'
-                });
-                document.body.appendChild(selectionBox);
-            }
-
-            const width = e.clientX - startX;
-            const height = e.clientY - startY;
-            selectionBox.style.width = `${Math.abs(width)}px`;
-            selectionBox.style.height = `${Math.abs(height)}px`;
-            selectionBox.style.left = `${width > 0 ? startX : e.clientX}px`;
-            selectionBox.style.top = `${height > 0 ? startY : e.clientY}px`;
-        }
-    }
 
     function handleMouseUp(e) {
-        document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
         deactivateSelectionMode();
 
-        if (isDragging && selectionBox) {
-            const rect = {
-                x: parseInt(selectionBox.style.left, 10),
-                y: parseInt(selectionBox.style.top, 10),
-                width: parseInt(selectionBox.style.width, 10),
-                height: parseInt(selectionBox.style.height, 10)
-            };
-            document.body.removeChild(selectionBox);
-            selectionBox = null;
+        const clickRect = {
+            x: e.pageX,
+            y: e.pageY
+        };
 
-            const pageRect = {
-                x: rect.x + window.scrollX,
-                y: rect.y + window.scrollY,
-                width: rect.width,
-                height: rect.height
-            };
-
-            // Use html2canvas to capture and crop the screenshot.
-            captureAndCropScreenshot(rect, pageRect);
-        } else {
-            const clickRect = {
-                x: e.pageX,
-                y: e.pageY
-            };
-            // Use html2canvas to capture the full page.
-            captureAndShowFullPageScreenshot(clickRect);
-        }
+        // This will now always execute, regardless of whether a drag occurred.
+        captureAndShowFullPageScreenshot(clickRect);
     }
 
     /**
-     * Replaces chrome.tabs.captureVisibleTab.
-     * Captures a screenshot of the visible page and crops it based on the selected area.
-     * Requires the html2canvas library.
-     * @param {object} rect - The {x, y, width, height} of the crop area on the visible page.
-     * @param {object} pageRect - The {x, y, width, height} of the crop area relative to the whole page.
+     * Removed the captureAndCropScreenshot function as it's no longer needed for a single-click workflow.
      */
-    async function captureAndCropScreenshot(rect, pageRect) {
-        try {
-            hideMarkers();
-            // html2canvas takes the window body as an element and a options object
-            const canvas = await html2canvas(document.body, {
-                // Ignore the sidebar, marker, and selection overlay in the screenshot
-                ignoreElements: (element) => {
-                    return element.id === 'ozee-sidebar-container' ||
-                        element.id === 'ozee-marker-container' ||
-                        element.id === 'ozee-selection-overlay';
-                },
-                x: window.scrollX + rect.x,
-                y: window.scrollY + rect.y,
-                width: rect.width,
-                height: rect.height
-            });
-            showFeedbackPopup(canvas.toDataURL('image/png'), pageRect);
-        } catch (error) {
-            showMarkers();
-            toggleSidebar(true);
-        }
-    }
 
     /**
-     * Replaces chrome.tabs.captureVisibleTab.
      * Captures a screenshot of the entire visible page.
      * Requires the html2canvas library.
      * @param {object} rect - The click coordinates to place the marker.
@@ -1091,19 +1008,20 @@
     async function captureAndShowFullPageScreenshot(rect) {
         try {
             hideMarkers();
+            // FIX: Explicitly set the width and height of html2canvas to capture the full scrollable page.
+            // Using a more robust method to get the full document size.
             const canvas = await html2canvas(document.body, {
-                // Ignore the sidebar, marker, and selection overlay in the screenshot
                 ignoreElements: (element) => {
                     return element.id === 'ozee-sidebar-container' ||
                         element.id === 'ozee-marker-container' ||
                         element.id === 'ozee-selection-overlay';
                 },
-                // Pass height and width to limit capture to the viewport
-                width: window.innerWidth,
-                height: window.innerHeight
+                width: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth, document.documentElement.clientWidth),
+                height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, document.documentElement.clientHeight)
             });
             showFeedbackPopup(canvas.toDataURL('image/png'), rect);
         } catch (error) {
+            console.error("Ozee screenshot failed:", error);
             showMarkers();
             toggleSidebar(true);
         }

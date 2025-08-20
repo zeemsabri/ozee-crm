@@ -1,5 +1,5 @@
 // Define the base URL for the backend API.
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = 'https://crm.ozeeweb.com.au';
 
 // Listens for the extension icon click.
 chrome.action.onClicked.addListener((tab) => {
