@@ -80,9 +80,7 @@ class ProjectReadController extends Controller
 
         $user = Auth::user();
 
-        if (!$this->canAccessProject($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
-        }
+        $this->authorize('view', $project);
 
         // Create a filtered project object based on user permissions
         $filteredProject = [
@@ -92,6 +90,7 @@ class ProjectReadController extends Controller
             'website' => $project->website,
             'social_media_link' => $project->social_media_link,
             'preferred_keywords' => $project->preferred_keywords,
+            'reporting_sites' => $project->reporting_sites,
             'google_chat_id' => $project->google_chat_id,
             'status' => $project->status,
             'project_type' => $project->project_type,
@@ -218,6 +217,7 @@ class ProjectReadController extends Controller
             'website' => $project->website,
             'social_media_link' => $project->social_media_link,
             'preferred_keywords' => $project->preferred_keywords,
+            'reporting_sites' => $project->reporting_sites,
             'google_chat_id' => $project->google_chat_id,
             'status' => $project->status,
             'project_type' => $project->project_type,

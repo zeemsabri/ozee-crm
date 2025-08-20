@@ -84,6 +84,7 @@ class ProjectController extends Controller
                 'website' => $validated['website'] ?? null,
                 'social_media_link' => $validated['social_media_link'] ?? null,
                 'preferred_keywords' => $validated['preferred_keywords'] ?? null,
+                'reporting_sites' => $validated['reporting_sites'] ?? null,
                 'google_chat_id' => $validated['google_chat_id'] ?? null,
                 'status' => $validated['status'],
                 'project_type' => $validated['project_type'] ?? null,
@@ -647,6 +648,7 @@ class ProjectController extends Controller
                 'project_type' => 'nullable|string|max:255',
                 'source' => 'nullable|string|max:255',
                 'google_drive_link' => 'nullable|url',
+                                'reporting_sites' => 'nullable|string',
             ];
 
             // Only include services and payment validation rules if user has permission
@@ -714,6 +716,7 @@ class ProjectController extends Controller
                 'project_type' => $validated['project_type'] ?? $project->project_type,
                 'source' => $validated['source'] ?? $project->source,
                 'google_drive_link' => $validated['google_drive_link'] ?? $project->google_drive_link,
+                                'reporting_sites' => $validated['reporting_sites'] ?? $project->reporting_sites,
             ];
 
             // Only include services and payment data if user has permission

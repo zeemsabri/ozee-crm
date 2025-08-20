@@ -56,6 +56,7 @@ const localProjectForm = reactive({
     website: '',
     social_media_link: '',
     preferred_keywords: '',
+    reporting_sites: '',
     google_chat_id: '',
     google_drive_link: '',
     logo: null,
@@ -183,6 +184,7 @@ const submitBasicInfo = async () => {
                 website: response.data.website || localProjectForm.website,
                 social_media_link: response.data.social_media_link || localProjectForm.social_media_link,
                 preferred_keywords: response.data.preferred_keywords || localProjectForm.preferred_keywords,
+                reporting_sites: response.data.reporting_sites || localProjectForm.reporting_sites,
                 google_chat_id: response.data.google_chat_id || localProjectForm.google_chat_id,
                 google_drive_link: response.data.google_drive_link || localProjectForm.google_drive_link,
                 logo: response.data.logo || localProjectForm.logo, // Ensure logo path is updated
@@ -231,6 +233,7 @@ const fetchBasicInfoData = async () => {
                 website: data.website || '',
                 social_media_link: data.social_media_link || '',
                 preferred_keywords: data.preferred_keywords || '',
+                reporting_sites: data.reporting_sites || '',
                 google_chat_id: data.google_chat_id || '',
                 google_drive_link: data.google_drive_link || '',
                 logo: data.logo || null,
@@ -492,6 +495,21 @@ onMounted(() => {
                 :disabled="!canManageProjects || isSavingLocal || isSaving"
             />
             <InputError :message="errors.preferred_keywords ? errors.preferred_keywords[0] : ''" class="mt-2" />
+        </div>
+
+        <!-- Reporting Sites (full width, comma separated) -->
+        <div class="mt-6">
+            <InputLabel for="reporting_sites" value="Reporting Sites (comma separated)" />
+            <TextInput
+                id="reporting_sites"
+                type="text"
+                class="mt-1 block w-full rounded-lg shadow-sm"
+                placeholder="e.g. ahrefs.com, semrush.com, analytics.google.com"
+                v-model="localProjectForm.reporting_sites"
+                :disabled="!canManageProjects || isSavingLocal || isSaving"
+            />
+            <p class="mt-1 text-xs text-gray-500">Enter multiple site URLs separated by commas.</p>
+            <InputError :message="errors.reporting_sites ? errors.reporting_sites[0] : ''" class="mt-2" />
         </div>
 
         <!-- Tags Input Field (full width) -->

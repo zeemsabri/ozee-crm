@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
+use App\Http\Controllers\Api\Concerns\HandlesImageUploads;
 use App\Http\Controllers\Controller;
 use App\Models\FileAttachment;
 use App\Models\Project;
@@ -18,7 +19,7 @@ use Illuminate\Validation\ValidationException;
 
 class FileAttachmentController extends Controller
 {
-    use HasProjectPermissions;
+    use HasProjectPermissions, HandlesImageUploads;
 
     public function index(Request $request)
     {
@@ -81,42 +82,11 @@ class FileAttachmentController extends Controller
         $modelBaseName = class_basename(get_class($instance));
 
         $records = [];
-        $paths = [];
 
-        foreach ($request->file('files') as $file) {
-            try {
-                // Upload original file to GCS
-                $objectPath = Storage::disk('gcs')->putFile('task', $file); // returns object path in bucket
-
-                $entry = [
-                    'filename'   => $file->getClientOriginalName(),
-                    'mime_type'  => $file->getMimeType(),
-                    'file_size'  => $file->getSize(),
-                    'path'       => $objectPath,
-                ];
-
-                // If it's an image, generate and upload a thumbnail
-                if ($this->isImageMime($entry['mime_type'])) {
-                    try {
-                        $thumbBinary = $this->makeThumbnailFromFile($file->getRealPath());
-                        // Build thumbnail object path alongside original, under a thumbnails/ subfolder
-                        $dir = trim(dirname($objectPath), '.\/');
-                        $base = pathinfo($objectPath, PATHINFO_FILENAME);
-                        $thumbPath = ($dir ? $dir.'/' : '') . 'thumbnails/' . $base . '-thumb.jpg';
-                        Storage::disk('gcs')->put($thumbPath, $thumbBinary);
-                        $entry['thumbnail'] = $thumbPath;
-                    } catch (\Throwable $thumbEx) {
-                        Log::warning('Thumbnail generation failed', [
-                            'file' => $entry['filename'],
-                            'error' => $thumbEx->getMessage(),
-                        ]);
-                    }
-                }
-
-                $paths[] = $entry;
-            } catch (\Exception $e) {
-                return response()->json(['message' => 'Error uploading file: ' . $e->getMessage()], 500);
-            }
+        try {
+            $paths = $this->uploadFilesToGcsWithThumbnails($request->file('files'));
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error uploading file: ' . $e->getMessage()], 500);
         }
 
         foreach ($paths as $uploadedFile) {
@@ -219,76 +189,4 @@ class FileAttachmentController extends Controller
         return [$instance, $project];
     }
 
-    /**
-     * Determine if mime type is an image we can thumbnail.
-     */
-    protected function isImageMime(?string $mime): bool
-    {
-        if (!$mime) return false;
-        return str_starts_with($mime, 'image/');
-    }
-
-    /**
-     * Create a JPEG thumbnail (max 400x400) from a local file path using GD and return binary string.
-     */
-    protected function makeThumbnailFromFile(string $path, int $maxDim = 400): string
-    {
-        [$width, $height, $type] = getimagesize($path);
-        if (!$width || !$height) {
-            throw new \RuntimeException('Invalid image for thumbnail.');
-        }
-
-        $scale = min($maxDim / $width, $maxDim / $height, 1);
-        $newW = max(1, (int) floor($width * $scale));
-        $newH = max(1, (int) floor($height * $scale));
-
-        switch ($type) {
-            case IMAGETYPE_JPEG:
-                $src = imagecreatefromjpeg($path);
-                break;
-            case IMAGETYPE_PNG:
-                $src = imagecreatefrompng($path);
-                break;
-            case IMAGETYPE_GIF:
-                $src = imagecreatefromgif($path);
-                break;
-            case IMAGETYPE_WEBP:
-                if (function_exists('imagecreatefromwebp')) {
-                    $src = imagecreatefromwebp($path);
-                    break;
-                }
-                // fallthrough to unsupported
-            default:
-                throw new \RuntimeException('Unsupported image type for thumbnail.');
-        }
-
-        if (!$src) {
-            throw new \RuntimeException('Failed to load source image.');
-        }
-
-        $dst = imagecreatetruecolor($newW, $newH);
-        // Preserve transparency for PNG/GIF while resampling
-        if (in_array($type, [IMAGETYPE_PNG, IMAGETYPE_GIF], true)) {
-            imagealphablending($dst, false);
-            imagesavealpha($dst, true);
-            $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
-            imagefilledrectangle($dst, 0, 0, $newW, $newH, $transparent);
-        }
-
-        imagecopyresampled($dst, $src, 0, 0, 0, 0, $newW, $newH, $width, $height);
-
-        ob_start();
-        // Encode as JPEG to keep size small (quality 80). Transparency will be flattened.
-        imagejpeg($dst, null, 80);
-        $binary = ob_get_clean();
-
-        imagedestroy($src);
-        imagedestroy($dst);
-
-        if ($binary === false) {
-            throw new \RuntimeException('Failed to render thumbnail.');
-        }
-
-        return $binary;
-    }
 }

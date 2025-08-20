@@ -39,6 +39,7 @@ class StoreProjectRequest extends FormRequest
             'website' => 'nullable|url',
             'social_media_link' => 'nullable|url',
             'preferred_keywords' => 'nullable|string',
+            'reporting_sites' => 'nullable|string',
             'google_chat_id' => 'nullable|string|max:255',
             'status' => 'required|in:active,completed,on_hold,archived',
             'project_type' => 'nullable|string|max:255',

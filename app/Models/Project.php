@@ -20,6 +20,7 @@ class Project extends Model
         'website',
         'social_media_link',
         'preferred_keywords',
+        'reporting_sites',
         'google_chat_id',
         'client_id',
         'status',
