@@ -26,7 +26,6 @@ class BugReportController extends Controller
      */
     public function index(Request $request)
     {
-        Log::info('GET /api/bugs called', ['query' => $request->query()]);
 
         $pageUrl = $request->query('pageUrl') ?? $request->query('url');
 
@@ -45,16 +44,19 @@ class BugReportController extends Controller
             });
         }
 
-        $tasks = $query->latest('id')->limit(200)->get(['id', 'description', 'details']);
+        $tasks = $query->latest('id')->limit(200)->get(['id', 'description', 'details', 'status', 'created_at', 'updated_at']);
 
         $result = $tasks->map(function (Task $task) {
             $details = $task->details ?? [];
             return [
                 'id' => $details['bug_id'] ?? $task->id,
                 'description' => $task->description,
+                'status'    =>  $task->status,
                 'screenshot' => $task->files,
                 'pageUrl' => $details['page_url'] ?? null,
                 'rect' => $details['rect'] ?? null,
+                'created'   =>  $task->created_at,
+                'updated'   =>  $task->updated_at
             ];
         })->values();
 
