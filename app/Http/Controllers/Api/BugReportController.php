@@ -127,7 +127,7 @@ class BugReportController extends Controller
         ]);
 
 
-        $bugId =  Str::random(7);
+        $bugId =  Str::random(3);
         $project = $this->checkExists($this->getPattern($request))->with('clients')->first();
         $client = $project->clients?->first() ?? User::first() ;
         $screenshotUrl = null;
