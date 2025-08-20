@@ -1008,8 +1008,10 @@
     async function captureAndShowFullPageScreenshot(rect) {
         try {
             hideMarkers();
-            // FIX: Explicitly set the width and height of html2canvas to capture the full scrollable page.
-            // Using a more robust method to get the full document size.
+
+            // Get the current vertical scroll position.
+            const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+
             const canvas = await html2canvas(document.body, {
                 ignoreElements: (element) => {
                     return element.id === 'ozee-sidebar-container' ||
@@ -1017,9 +1019,18 @@
                         element.id === 'ozee-selection-overlay';
                 },
                 width: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth, document.documentElement.clientWidth),
-                height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, document.documentElement.clientHeight)
+                height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, document.documentElement.clientHeight),
+                scrollY: -scrollY // Negative scrollY value to offset the capture.
             });
-            showFeedbackPopup(canvas.toDataURL('image/png'), rect);
+
+            // The marker's Y position needs to be relative to the entire document.
+            // Add the current scrollY to the viewport's Y position.
+            const documentRect = {
+                x: rect.x,
+                y: rect.y + scrollY
+            };
+
+            showFeedbackPopup(canvas.toDataURL('image/png'), documentRect);
         } catch (error) {
             console.error("Ozee screenshot failed:", error);
             showMarkers();
