@@ -1,0 +1,257 @@
+:host {
+    all: initial;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.ozee-popup-main-container {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 800px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 2147483647;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+.ozee-popup-header-handle {
+    position: relative;
+    padding: 8px 16px;
+    text-align: center;
+    background-color: #38404a;
+    color: #fff;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    cursor: grab;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.ozee-popup-header-handle svg {
+    color: #fff;
+    opacity: 0.4;
+    height: 16px;
+    width: 100%;
+}
+
+.ozee-project-name {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.ozee-popup-close-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.ozee-popup-close-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.ozee-popup-close-btn svg {
+    width: 12px;
+    height: 12px;
+}
+
+.ozee-screenshot-container {
+    background-color: #f0f0f0;
+    width: 100%;
+    height: 200px;
+    position: relative;
+    overflow: hidden;
+}
+
+.ozee-screenshot-link {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+
+.ozee-screenshot-inner {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    transition: transform 0.2s;
+}
+
+.ozee-screenshot-link:hover .ozee-screenshot-inner {
+    transform: scale(1.05);
+}
+
+.ozee-task-form-container {
+    padding: 16px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.ozee-description-input {
+    width: 100%;
+    border: 1px solid #d9d9d9;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 14px;
+    flex-grow: 1;
+    box-sizing: border-box;
+    margin-bottom: 12px;
+    resize: none;
+}
+
+.ozee-form-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.ozee-character-counter {
+    font-size: 12px;
+    color: #999;
+}
+
+.ozee-action-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.ozee-action-buttons button {
+    background: none;
+    border: 1px solid #d9d9d9;
+    color: #666;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.ozee-action-buttons button:hover {
+    background-color: #f0f0f0;
+}
+
+.ozee-action-buttons button svg {
+    width: 18px;
+    height: 18px;
+}
+
+.ozee-drag-and-drop-area {
+    border: 1px dashed #d9d9d9;
+    border-radius: 6px;
+    padding: 20px;
+    text-align: center;
+    font-size: 14px;
+    color: #999;
+    margin-bottom: 16px;
+}
+
+.ozee-create-task-btn {
+    width: 100%;
+    border: none;
+    background-color: #5d61e2;
+    color: #fff;
+    cursor: pointer;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.ozee-create-task-btn:disabled {
+    background-color: #aeb1f4;
+    cursor: not-allowed;
+}
+
+.ozee-create-task-btn:hover:enabled {
+    background-color: #4b4eac;
+}
+
+/* New style for info message */
+.ozee-info-message {
+    font-size: 12px;
+    color: #d32f2f;
+    text-align: center;
+    padding: 8px;
+    margin-top: 8px;
+    display: none;
+}
+
+/* Styles for the new hover card */
+.ozee-hover-card {
+    position: absolute;
+    display: none;
+    width: 200px;
+    background-color: #fff;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 2147483647;
+    padding: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.ozee-hover-card-header {
+    margin-bottom: 4px;
+    font-weight: bold;
+    color: #555;
+}
+
+.ozee-hover-card-id {
+    color: #333;
+}
+
+.ozee-hover-card-body {
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    color: #666;
+}
+
+/* Color-coded status markers */
+.ozee-task-marker.status-todo {
+    background-color: #4a90e2; /* Blue */
+}
+
+.ozee-task-marker.status-in-progress {
+    background-color: #f5a623; /* Orange */
+}
+
+.ozee-task-marker.status-paused {
+    background-color: #9b9b9b; /* Light Gray */
+}
+
+.ozee-task-marker.status-done {
+    background-color: #7ed321; /* Green */
+}
+
+.ozee-task-marker.status-blocked {
+    background-color: #d0021b; /* Red */
+}
+
+.ozee-task-marker.status-archived {
+    background-color: #5d5d5d; /* Dark Gray */
+}

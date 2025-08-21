@@ -1,5 +1,43 @@
 // Define the base URL for the backend API.
-const BASE_URL = 'https://crm.ozeeweb.com.au';
+const BASE_URL = 'http://localhost:8000';
+
+// A simple in-memory cache for project status to avoid redundant API calls.
+const projectStatusCache = {};
+
+// Function to fetch tasks and project status from the backend.
+async function fetchTasksAndStatus(pageUrl) {
+    // Check project status first.
+    let statusResponse = await fetch(`${BASE_URL}/api/bugs/status?pageUrl=${encodeURIComponent(pageUrl)}`);
+    if (!statusResponse.ok) {
+        if (statusResponse.status === 404) {
+            return { error: "No matching reporting site found for this URL." };
+        }
+        if (statusResponse.status === 422) {
+            return { error: "Invalid request sent to server (422)." };
+        }
+        throw new Error(`HTTP Status: ${statusResponse.status}`);
+    }
+
+    const statusData = await statusResponse.json();
+    if (statusData.exists === false) {
+        return { projectStatus: 'inactive' };
+    }
+
+    // Fetch tasks if the project is active.
+    let tasksResponse = await fetch(`${BASE_URL}/api/bugs?pageUrl=${encodeURIComponent(pageUrl)}`);
+    if (!tasksResponse.ok) {
+        throw new Error(`HTTP Status: ${tasksResponse.status}`);
+    }
+    const tasksData = await tasksResponse.json();
+
+    // Store the tasks in chrome.storage.local for content.js to access.
+    await chrome.storage.local.set({ [pageUrl]: { tasks: tasksData, status: 'active' } });
+
+    // Also update the in-memory cache.
+    projectStatusCache[pageUrl] = 'active';
+
+    return { projectStatus: 'active', tasks: tasksData };
+}
 
 // Listens for the extension icon click.
 chrome.action.onClicked.addListener((tab) => {
@@ -26,6 +64,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Handles the request to save a new task by sending it to the backend.
     else if (request.action === "createTask") {
         const newTask = request.payload;
+        const pageUrl = newTask.pageUrl;
 
         fetch(`${BASE_URL}/api/bugs/report`, {
             method: 'POST',
@@ -43,9 +82,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 }
                 return response.json();
             })
-            .then(data => {
+            .then(async data => {
                 console.log('Task created on backend:', data);
-                sendResponse({ status: "success", message: "Task created successfully!", data: data });
+
+                // Re-fetch all tasks for this URL to update the local cache
+                // and notify content.js about the new task.
+                const updatedTasks = await fetchTasksAndStatus(pageUrl);
+
+                sendResponse({ status: "success", message: "Task created successfully!", data: updatedTasks });
             })
             .catch(error => {
                 console.error('Failed to create task:', error);
@@ -54,7 +98,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         return true; // Required for asynchronous sendResponse.
     }
-    // Handles the request to fetch tasks for a specific URL.
+    // REFACTORED: Handles the request to get tasks. Now it checks the local cache first.
     else if (request.action === "getTasks") {
         const pageUrl = request.payload?.pageUrl;
         if (!pageUrl) {
@@ -62,76 +106,75 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             return;
         }
 
-        const url = new URL(`${BASE_URL}/api/bugs`);
-        url.searchParams.append('pageUrl', pageUrl);
-
-        fetch(url.toString(), {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json'
-            }
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Network response was not ok. Status: ${response.status}`);
+        chrome.storage.local.get(pageUrl, async (result) => {
+            if (result[pageUrl]) {
+                // If tasks exist in cache, send them immediately.
+                sendResponse({ status: "success", data: result[pageUrl].tasks, projectStatus: result[pageUrl].status });
+            } else {
+                // If not in cache, fetch them from the backend.
+                try {
+                    const fetchResult = await fetchTasksAndStatus(pageUrl);
+                    if (fetchResult.error) {
+                        sendResponse({ status: "error", message: fetchResult.error });
+                    } else {
+                        sendResponse({ status: "success", data: fetchResult.tasks || [], projectStatus: fetchResult.projectStatus });
+                    }
+                } catch (error) {
+                    sendResponse({ status: "error", message: `Failed to fetch tasks: ${error.message}` });
                 }
-                return response.json();
-            })
-            .then(data => {
-                sendResponse({ status: "success", data: data });
-            })
-            .catch(error => {
-                console.error('Failed to fetch tasks:', error);
-                sendResponse({ status: "error", message: "Failed to fetch tasks." });
-            });
-
+            }
+        });
         return true;
     }
-    // REFINED: Handles the request to check the project status with detailed error handling.
+    // REFACTORED: Handles the request to check project status. Now it checks the local cache first.
     else if (request.action === "checkProjectStatus") {
         const pageUrl = request.payload?.pageUrl;
         if (!pageUrl) {
             sendResponse({ status: "error", message: "pageUrl is required to check status." });
             return true;
         }
-        const url = new URL(`${BASE_URL}/api/bugs/status`);
-        url.searchParams.append('pageUrl', pageUrl);
 
-        fetch(url.toString(), {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' }
-        })
-            .then(response => {
-                if (response.status === 404) {
-                    // Handle "Not Found" specifically.
-                    sendResponse({ status: "error", message: "No matching reporting site found for this URL." });
-                    return null; // Stop the promise chain
+        chrome.storage.local.get(pageUrl, async (result) => {
+            if (result[pageUrl] && result[pageUrl].status === 'active') {
+                sendResponse({ status: "success", projectStatus: "active" });
+            } else if (result[pageUrl] && result[pageUrl].status === 'inactive') {
+                sendResponse({ status: "success", projectStatus: "inactive" });
+            } else {
+                try {
+                    const fetchResult = await fetchTasksAndStatus(pageUrl);
+                    if (fetchResult.error) {
+                        sendResponse({ status: "error", message: fetchResult.error });
+                    } else {
+                        sendResponse({ status: "success", projectStatus: fetchResult.projectStatus });
+                    }
+                } catch (error) {
+                    sendResponse({ status: "error", message: `Could not connect to the server: ${error.message}` });
                 }
-                if (response.status === 422) {
-                    // Handle validation errors.
-                    sendResponse({ status: "error", message: "Invalid request sent to server (422)." });
-                    return null;
-                }
-                if (!response.ok) {
-                    // Handle other server-side errors.
-                    throw new Error(`HTTP Status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data === null) return; // Already handled error response.
+            }
+        });
 
-                // Check the 'exists' field from the API response.
-                if (data.exists === true) {
-                    sendResponse({ status: "success", projectStatus: "active" });
+        return true;
+    }
+    // NEW: Handles the request to refresh tasks from the backend.
+    else if (request.action === "refreshTasks") {
+        const pageUrl = request.payload?.pageUrl;
+        if (!pageUrl) {
+            sendResponse({ status: "error", message: "pageUrl is required to refresh tasks." });
+            return true;
+        }
+
+        fetchTasksAndStatus(pageUrl)
+            .then(fetchResult => {
+                if (fetchResult.error) {
+                    sendResponse({ status: "error", message: fetchResult.error });
                 } else {
-                    sendResponse({ status: "success", projectStatus: "inactive" });
+                    sendResponse({ status: "success", data: fetchResult.tasks || [], projectStatus: fetchResult.projectStatus });
                 }
             })
             .catch(error => {
-                console.error("Error checking project status:", error);
-                sendResponse({ status: "error", message: "Could not connect to the server to check project status." });
+                sendResponse({ status: "error", message: `Failed to refresh tasks: ${error.message}` });
             });
+
         return true;
     }
 });

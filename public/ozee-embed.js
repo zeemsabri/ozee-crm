@@ -31,7 +31,9 @@
         sidebarVisible: false,
         mode: 'idle', // 'idle' or 'selecting'
         currentFilter: 'To Do', // 'To Do', 'In Progress', 'Done', 'All'
-        showAllMarkers: false // New state variable for marker filtering
+        showAllMarkers: false, // New state variable for marker filtering
+        mouseDownCoords: null, // New state variable to store mousedown coordinates
+        isDragging: false // New state variable to track if a drag occurred
     };
 
     // This array is the single source of truth for all on-screen markers and the task list.
@@ -426,12 +428,8 @@
      * @param {string} screenshotDataUrl - The base64 data URL of the screenshot.
      * @param {object} rect - The coordinates for placing the marker.
      */
-    function showFeedbackPopup(screenshotDataUrl, rect) {
+    function showFeedbackPopup(rect) {
         showMarkers();
-        currentTaskData = {
-            screenshot: screenshotDataUrl,
-            rect: rect,
-        };
 
         if (!popupShadowContainer) {
             popupShadowContainer = document.createElement('div');
@@ -515,9 +513,51 @@
             });
         }
 
-        popupShadowRoot.getElementById('screenshot-preview').src = screenshotDataUrl;
-        popupShadowRoot.getElementById('description-input').value = '';
+        const screenshotPreview = popupShadowRoot.getElementById('screenshot-preview');
+        const statusMessageEl = popupShadowRoot.getElementById('popup-status-message');
+        const createBtn = popupShadowRoot.getElementById('create-task-btn');
+
+        // Initially, show a loading message and a blank placeholder image.
+        createBtn.disabled = true; // Disable the button immediately
+        createBtn.textContent = 'Capturing...';
+        statusMessageEl.classList.remove('hidden');
+        statusMessageEl.textContent = 'Capturing screenshot...';
+        screenshotPreview.src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; // A tiny transparent GIF placeholder
+        screenshotPreview.style.opacity = '0.5'; // Visually indicate it's loading
+
         popupShadowContainer.style.display = 'block';
+        currentTaskData = {
+            rect: rect,
+            description: null,
+            screenshot: null,
+        };
+    }
+
+    /**
+     * Helper function to update the popup UI with a screenshot.
+     * @param {string|null} screenshotDataUrl - The screenshot data URL or null for error state.
+     */
+    function updatePopupWithScreenshot(screenshotDataUrl) {
+        const screenshotPreview = popupShadowRoot.getElementById('screenshot-preview');
+        const statusMessageEl = popupShadowRoot.getElementById('popup-status-message');
+        const createBtn = popupShadowRoot.getElementById('create-task-btn');
+
+        if (screenshotDataUrl) {
+            screenshotPreview.src = screenshotDataUrl;
+            screenshotPreview.style.opacity = '1';
+            statusMessageEl.textContent = ''; // Clear the message
+            statusMessageEl.classList.add('hidden');
+            currentTaskData.screenshot = screenshotDataUrl;
+            createBtn.disabled = false;
+            createBtn.textContent = 'Create task';
+        } else {
+            // Show a placeholder or error message if the screenshot failed
+            screenshotPreview.src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+            statusMessageEl.textContent = 'Failed to capture screenshot.';
+            statusMessageEl.classList.remove('hidden');
+            createBtn.disabled = true; // Keep the button disabled on failure
+            createBtn.textContent = 'Create task';
+        }
     }
 
     /**
@@ -969,6 +1009,7 @@
                 zIndex: '2147483646'
             });
             document.body.appendChild(selectionOverlay);
+            selectionOverlay.addEventListener('mousedown', handleMouseDown);
             selectionOverlay.addEventListener('mouseup', handleMouseUp);
         }
         selectionOverlay.style.display = 'block';
@@ -982,61 +1023,211 @@
     }
 
     // --- SCREENSHOT & SELECTION LOGIC ---
+    let startX, startY, selectionBox, isDragging;
 
-    function handleMouseUp(e) {
-        document.removeEventListener('mouseup', handleMouseUp);
-        deactivateSelectionMode();
+    function handleMouseDown(e) {
+        if (appState.mode !== 'selecting') return;
+        e.preventDefault();
+        startX = e.clientX;
+        startY = e.clientY;
+        appState.isDragging = false;
 
-        const clickRect = {
+        // Store initial mouse coordinates
+        appState.mouseDownCoords = {
             x: e.pageX,
             y: e.pageY
         };
 
-        // This will now always execute, regardless of whether a drag occurred.
-        captureAndShowFullPageScreenshot(clickRect);
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
     }
 
-    /**
-     * Removed the captureAndCropScreenshot function as it's no longer needed for a single-click workflow.
-     */
+    function handleMouseMove(e) {
+        // Define a small drag threshold
+        const dragThreshold = 5;
+        if (Math.abs(e.clientX - startX) > dragThreshold || Math.abs(e.clientY - startY) > dragThreshold) {
+            appState.isDragging = true;
+            if (!selectionBox) {
+                selectionBox = document.createElement('div');
+                Object.assign(selectionBox.style, {
+                    position: 'fixed',
+                    border: '2px dashed #00a8ff',
+                    backgroundColor: 'rgba(0, 168, 255, 0.1)',
+                    zIndex: '2147483647'
+                });
+                document.body.appendChild(selectionBox);
+            }
 
-    /**
-     * Captures a screenshot of the entire visible page.
-     * Requires the html2canvas library.
-     * @param {object} rect - The click coordinates to place the marker.
-     */
-    async function captureAndShowFullPageScreenshot(rect) {
-        try {
-            hideMarkers();
+            const width = e.clientX - startX;
+            const height = e.clientY - startY;
+            selectionBox.style.width = `${Math.abs(width)}px`;
+            selectionBox.style.height = `${Math.abs(height)}px`;
+            selectionBox.style.left = `${width > 0 ? startX : e.clientX}px`;
+            selectionBox.style.top = `${height > 0 ? startY : e.clientY}px`;
+        }
+    }
 
-            // Get the current vertical scroll position.
+
+    function handleMouseUp(e) {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        deactivateSelectionMode();
+
+        if (appState.isDragging) {
+            const endX = e.pageX;
+            const endY = e.pageY;
+
+            const rect = {
+                x: Math.min(appState.mouseDownCoords.x, endX),
+                y: Math.min(appState.mouseDownCoords.y, endY),
+                width: Math.abs(endX - appState.mouseDownCoords.x),
+                height: Math.abs(endY - appState.mouseDownCoords.y)
+            };
+
             const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+            const documentRect = {
+                x: rect.x,
+                y: rect.y + scrollY,
+                width: rect.width,
+                height: rect.height
+            };
 
-            const canvas = await html2canvas(document.body, {
-                ignoreElements: (element) => {
-                    return element.id === 'ozee-sidebar-container' ||
-                        element.id === 'ozee-marker-container' ||
-                        element.id === 'ozee-selection-overlay';
-                },
-                width: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth, document.documentElement.clientWidth),
-                height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, document.documentElement.clientHeight),
-                scrollY: -scrollY // Negative scrollY value to offset the capture.
-            });
+            // Show popup immediately with loading state and trigger screenshot in background
+            showFeedbackPopup(documentRect);
+            captureAndCropScreenshot(documentRect);
 
-            // The marker's Y position needs to be relative to the entire document.
-            // Add the current scrollY to the viewport's Y position.
+        } else {
+            const rect = {
+                x: e.pageX,
+                y: e.pageY
+            };
+            const scrollY = window.pageYOffset || document.documentElement.scrollTop;
             const documentRect = {
                 x: rect.x,
                 y: rect.y + scrollY
             };
 
-            showFeedbackPopup(canvas.toDataURL('image/png'), documentRect);
+            // Show popup immediately with loading state and trigger screenshot in background
+            showFeedbackPopup(documentRect);
+            captureAndShowFullPageScreenshot(documentRect);
+        }
+
+        // Clean up selection box after a delay to allow the screenshot to be taken without it
+        if (selectionBox) {
+            setTimeout(() => {
+                document.body.removeChild(selectionBox);
+                selectionBox = null;
+            }, 100);
+        }
+    }
+
+    /**
+     * Captures a screenshot of the visible page and crops it based on the selected area.
+     * @param {object} documentRect - The {x, y, width, height} of the crop area relative to the whole page.
+     */
+    async function captureAndCropScreenshot(documentRect) {
+        try {
+            const canvas = await new Promise(resolve => {
+                setTimeout(() => {
+                    html2canvas(document.body, {
+                        ignoreElements: (element) => {
+                            return element.id === 'ozee-sidebar-container' ||
+                                element.id === 'ozee-marker-container' ||
+                                element.id === 'ozee-selection-overlay';
+                        },
+                        width: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth, document.documentElement.clientWidth),
+                        height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, document.documentElement.clientHeight),
+                        allowTaint: true,
+                        useCORS: true,
+                    }).then(canvas => resolve(canvas));
+                }, 500); // Wait for 500 milliseconds (0.5 seconds)
+            });
+
+            // Create a new canvas to hold the cropped section
+            const croppedCanvas = document.createElement('canvas');
+            const ctx = croppedCanvas.getContext('2d');
+            croppedCanvas.width = documentRect.width;
+            croppedCanvas.height = documentRect.height;
+
+            ctx.drawImage(
+                canvas,
+                documentRect.x, documentRect.y, documentRect.width, documentRect.height,
+                0, 0, documentRect.width, documentRect.height
+            );
+
+            const screenshotDataUrl = croppedCanvas.toDataURL('image/png');
+            updatePopupWithScreenshot(screenshotDataUrl);
         } catch (error) {
             console.error("Ozee screenshot failed:", error);
+            updatePopupWithScreenshot(null);
             showMarkers();
             toggleSidebar(true);
         }
     }
+
+    /**
+     * Captures a screenshot of the entire visible page.
+     * Requires the html2canvas library.
+     * @param {object} documentRect - The click coordinates to place the marker.
+     */
+    async function captureAndShowFullPageScreenshot(documentRect) {
+        try {
+            const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+
+            const canvas = await new Promise(resolve => {
+                setTimeout(() => {
+                    html2canvas(document.body, {
+                        ignoreElements: (element) => {
+                            return element.id === 'ozee-sidebar-container' ||
+                                element.id === 'ozee-marker-container' ||
+                                element.id === 'ozee-selection-overlay';
+                        },
+                        width: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth, document.documentElement.clientWidth),
+                        height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, document.documentElement.clientHeight),
+                        scrollY: -scrollY,
+                        allowTaint: true,
+                        useCORS: true,
+                    }).then(canvas => resolve(canvas));
+                }, 500); // Wait for 500 milliseconds (0.5 seconds)
+            });
+
+            const screenshotDataUrl = canvas.toDataURL('image/png');
+            updatePopupWithScreenshot(screenshotDataUrl);
+        } catch (error) {
+            console.error("Ozee screenshot failed:", error);
+            updatePopupWithScreenshot(null);
+            showMarkers();
+            toggleSidebar(true);
+        }
+    }
+
+    /**
+     * Helper function to update the popup UI with a screenshot.
+     * @param {string|null} screenshotDataUrl - The screenshot data URL or null for error state.
+     */
+    function updatePopupWithScreenshot(screenshotDataUrl) {
+        const screenshotPreview = popupShadowRoot.getElementById('screenshot-preview');
+        const statusMessageEl = popupShadowRoot.getElementById('popup-status-message');
+        const createBtn = popupShadowRoot.getElementById('create-task-btn');
+
+        if (screenshotDataUrl) {
+            screenshotPreview.src = screenshotDataUrl;
+            screenshotPreview.style.opacity = '1';
+            statusMessageEl.textContent = ''; // Clear the message
+            statusMessageEl.classList.add('hidden');
+            currentTaskData.screenshot = screenshotDataUrl;
+            createBtn.disabled = false;
+            createBtn.textContent = 'Create task';
+        } else {
+            // Show a placeholder or error message if the screenshot failed
+            screenshotPreview.src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+            statusMessageEl.textContent = 'Failed to capture screenshot.';
+            statusMessageEl.classList.remove('hidden');
+            createBtn.disabled = true; // Keep the button disabled on failure
+            createBtn.textContent = 'Create task';
+        }
+    }
+
 
     // --- INITIALIZATION ---
     /**

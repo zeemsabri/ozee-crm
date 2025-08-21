@@ -27,7 +27,9 @@
     "web_accessible_resources": [
         {
             "resources": [
-                "logo.png"
+                "logo.png",
+                "popup.html",
+                "popup.css"
             ],
             "matches": ["<all_urls>"]
         }
