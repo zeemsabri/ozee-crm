@@ -431,14 +431,7 @@ class ProjectReadController extends Controller
         $user = Auth::user();
         $result = [];
 
-        try {
-            $this->authorize('addExpendables', $project);
-        }
-        catch (AuthenticationException $e) {
-
-           $this->authorize('viewProject', $project);
-
-        }
+        $this->authorize('getClientsAndUsers', $project);
 
         $type = request()->type;
 
@@ -448,15 +441,18 @@ class ProjectReadController extends Controller
         }
 
         if (!$type || $type === 'users') {
+
             $project->load(['users' => function ($query) {
                 $query->withPivot('role_id');
             },
             'users.availabilities' => function($query) {
                 $query->where('date', '=', Today());
             }
-            ]);
+
+        ]);
 
             $project->users->each(function ($user) {
+
                 $user->load(['role.permissions']);
                 if (isset($user->pivot->role_id)) {
                     $projectRole = Role::with('permissions')->find($user->pivot->role_id);

@@ -46,6 +46,13 @@ class ProjectPolicy
         return $user->hasPermission('create_projects');
     }
 
+
+    public function getClientsAndUsers(User $user, Project $project)
+    {
+        // The user must be able to add expendables OR view the project.
+        return $user->can('addExpendables', $project) || $user->can('viewProject', $project);
+    }
+
     /**
      * Determine whether the user can update the model.
      * Only Super Admin and Manager can update projects.
