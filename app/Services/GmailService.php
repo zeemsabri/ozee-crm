@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Traits\GoogleApiAuthTrait;
 use Google\Client;
 use Google\Service\Gmail\Message;
+use Google\Service\Gmail\MessagePart;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -25,23 +26,19 @@ class GmailService
      */
     public function sendEmail(string $to, string $subject, string $body): string
     {
-
         // Construct the raw email message in RFC 2822 format.
-        // This format is required by the Gmail API for sending raw messages.
         $rawMessage = "To: $to\r\n";
         $rawMessage .= "From: " . $this->getAuthorizedEmail() . "\r\n";
-        $rawMessage .= "Subject: =?utf-8?B?" . base64_encode($subject) . "?=\r\n"; // Properly encode subject for UTF-8
+        $rawMessage .= "Subject: =?utf-8?B?" . base64_encode($subject) . "?=\r\n";
         $rawMessage .= "MIME-Version: 1.0\r\n";
-        $rawMessage .= "Content-type: text/html; charset=utf-8\r\n"; // Assume HTML content for now
+        $rawMessage .= "Content-type: text/html; charset=utf-8\r\n";
         $rawMessage .= "Content-Transfer-Encoding: base64\r\n";
-        $rawMessage .= "\r\n" . chunk_split(base64_encode($body)); // Base64 encode the body and chunk it
+        $rawMessage .= "\r\n" . chunk_split(base64_encode($body));
 
         $message = new Message();
-        // The raw message must be URL-safe base64 encoded.
         $message->setRaw(strtr(base64_encode($rawMessage), ['+' => '-', '/' => '_']));
 
         try {
-            // 'me' refers to the authenticated user's mailbox (the one linked via OAuth)
             $sentMessage = $this->gmailService->users_messages->send('me', $message);
             Log::info('Email sent successfully via Gmail API', ['to' => $to, 'subject' => $subject, 'message_id' => $sentMessage->getId()]);
             return $sentMessage->getId();
@@ -62,7 +59,6 @@ class GmailService
     {
         $messageIds = [];
         try {
-            // 'me' refers to the authenticated user's mailbox
             $response = $this->gmailService->users_messages->listUsersMessages('me', [
                 'maxResults' => $maxResults,
                 'q' => $query,
@@ -82,67 +78,111 @@ class GmailService
     }
 
     /**
-     * Retrieves the full content of a specific email message.
+     * Retrieves the full content of a specific email message, including attachments and inline images.
      *
      * @param string $messageId The ID of the message to retrieve.
-     * @return array Decoded email parts (from, to, subject, body, headers).
+     * @return array Decoded email data, including body content and attachments.
      * @throws Exception If message retrieval or parsing fails.
      */
     public function getMessage(string $messageId): array
     {
-
         try {
-            // 'format' => 'full' fetches all headers and body parts.
             $message = $this->gmailService->users_messages->get('me', $messageId, ['format' => 'full']);
-
             $payload = $message->getPayload();
-            $headers = $payload->getHeaders();
-            $body = '';
 
-            // Extract headers into an associative array for easier access
             $parsedHeaders = [];
-            foreach ($headers as $header) {
+            foreach ($payload->getHeaders() as $header) {
                 $parsedHeaders[strtolower($header->getName())] = $header->getValue();
             }
 
-            // Function to decode base64url data
-            $decodeBase64Url = function($data) {
-                return base64_decode(strtr($data, ['-' => '+', '_' => '/']));
-            };
-
-            // Find the message body (prioritize HTML over plain text)
-            if ($payload->getParts()) {
-                foreach ($payload->getParts() as $part) {
-                    // Look for the main HTML or Plain text part first
-                    if ($part->getMimeType() == 'text/html' || $part->getMimeType() == 'text/plain') {
-                        $body = $decodeBase64Url($part->getBody()->getData());
-                        // If HTML is found, we can stop here for simple cases
-                        if ($part->getMimeType() == 'text/html') break;
-                    }
-                }
-            } else {
-                // If there are no parts (simple message), body is directly in payload
-                $body = $decodeBase64Url($payload->getBody()->getData());
-            }
-
-            Log::info('Fetched Gmail message details', ['message_id' => $messageId, 'subject' => $parsedHeaders['subject'] ?? 'N/A']);
-
-            return [
+            $emailData = [
                 'id' => $message->getId(),
                 'threadId' => $message->getThreadId(),
                 'from' => $parsedHeaders['from'] ?? 'N/A',
                 'to' => $parsedHeaders['to'] ?? 'N/A',
                 'subject' => $parsedHeaders['subject'] ?? 'N/A',
                 'date' => $parsedHeaders['date'] ?? 'N/A',
-                'inReplyTo' => $parsedHeaders['in-reply-to'] ?? null, // Crucial for threading
-                'references' => $parsedHeaders['references'] ?? null, // Crucial for threading
-                'body' => $body,
-                'headers' => $parsedHeaders, // Return all parsed headers for full context
+                'inReplyTo' => $parsedHeaders['in-reply-to'] ?? null,
+                'references' => $parsedHeaders['references'] ?? null,
+                'body' => [
+                    'plain' => '',
+                    'html' => '',
+                ],
+                'attachments' => [],
             ];
+
+            $processParts = function($parts) use (&$emailData, $messageId, &$processParts) {
+                foreach ($parts as $part) {
+                    $mimeType = $part->getMimeType();
+                    $bodyData = $part->getBody()->getData();
+                    $filename = $part->getFilename();
+
+                    $contentId = $this->getPartHeader($part, 'Content-ID');
+
+                    if ($mimeType == 'text/plain' && $bodyData) {
+                        $emailData['body']['plain'] = $this->decodeBase64Url($bodyData);
+                    } elseif ($mimeType == 'text/html' && $bodyData) {
+                        $emailData['body']['html'] = $this->decodeBase64Url($bodyData);
+                    } elseif ($filename) {
+                        $attachmentId = $part->getBody()->getAttachmentId();
+                        $attachmentData = $this->gmailService->users_messages_attachments->get('me', $messageId, $attachmentId);
+
+                        // Return the raw data for the controller to handle storage
+                        $emailData['attachments'][] = [
+                            'filename' => $filename,
+                            'mimeType' => $mimeType,
+                            'size' => $attachmentData->getSize(),
+                            'data' => $this->decodeBase64Url($attachmentData->getData()),
+                            'is_inline' => !is_null($contentId),
+                            'content_id' => trim($contentId, '<>'),
+                        ];
+                    } elseif (str_starts_with($mimeType, 'image/')) {
+                        $attachmentId = $part->getBody()->getAttachmentId();
+                        $attachmentData = $this->gmailService->users_messages_attachments->get('me', $messageId, $attachmentId);
+
+                        $emailData['attachments'][] = [
+                            'filename' => $filename ?? 'inline_image',
+                            'mimeType' => $mimeType,
+                            'size' => $attachmentData->getSize(),
+                            'data' => $this->decodeBase64Url($attachmentData->getData()),
+                            'is_inline' => true,
+                            'content_id' => trim($contentId, '<>'),
+                        ];
+                    }
+
+                    if ($part->getParts()) {
+                        $processParts($part->getParts());
+                    }
+                }
+            };
+
+            if ($payload->getParts()) {
+                $processParts($payload->getParts());
+            } else {
+                $emailData['body']['html'] = $this->decodeBase64Url($payload->getBody()->getData());
+            }
+
+            Log::info('Fetched Gmail message details, including attachments', ['message_id' => $messageId, 'subject' => $emailData['subject']]);
+            return $emailData;
 
         } catch (Exception $e) {
             Log::error('Failed to retrieve Gmail message: ' . $e->getMessage(), ['message_id' => $messageId, 'exception' => $e]);
             throw new Exception('Failed to retrieve message: ' . $e->getMessage());
         }
+    }
+
+    private function decodeBase64Url(string $data): string
+    {
+        return base64_decode(strtr($data, ['-' => '+', '_' => '/']));
+    }
+
+    private function getPartHeader(MessagePart $part, string $headerName): ?string
+    {
+        foreach ($part->getHeaders() as $header) {
+            if (strtolower($header->getName()) === strtolower($headerName)) {
+                return $header->getValue();
+            }
+        }
+        return null;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Faker\Core\File;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -108,5 +109,10 @@ class Email extends Model
     public function template()
     {
         return $this->belongsTo(EmailTemplate::class);
+    }
+
+    public function files()
+    {
+        return $this->morphMany(FileAttachment::class, 'fileable');
     }
 }
