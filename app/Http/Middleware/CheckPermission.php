@@ -101,7 +101,7 @@ class CheckPermission
     private function userHasGlobalPermission($user, $permission)
     {
         // Load the user's role with permissions if not already loaded
-        if (!$user->relationLoaded('role') || !$user->role->relationLoaded('permissions')) {
+        if (!$user->relationLoaded('role') || ($user->role && !$user->role->relationLoaded('permissions'))) {
             $user->load('role.permissions');
         }
 

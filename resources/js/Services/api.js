@@ -1,0 +1,45 @@
+import axios from 'axios';
+
+const API_BASE_URL = '/api';
+
+export const fetchEmails = async (filters, page) => {
+    const params = {
+        ...filters,
+        page: page,
+    };
+
+    if (params.type === 'new') {
+        params.is_read = false;
+    }
+    if (params.type === 'waiting-approval') {
+        params.statuses = ['pending_approval', 'pending_approval_received'];
+    }
+
+    const response = await axios.get(`${API_BASE_URL}/inbox/all-emails`, { params });
+    return response.data;
+};
+
+export const getEmailDetails = async (emailId) => {
+    const response = await axios.get(`${API_BASE_URL}/emails/${emailId}`);
+    return response.data;
+};
+
+export const markAsRead = async (emailId) => {
+    const response = await axios.post(`${API_BASE_URL}/inbox/emails/${emailId}/mark-as-read`);
+    return response.data;
+};
+
+export const fetchAttachments = async (emailId) => {
+    const response = await axios.get(`${API_BASE_URL}/files`, {
+        params: {
+            model_type: 'App\\Models\\Email',
+            model_id: emailId,
+        },
+    });
+    return response.data;
+};
+
+export const fetchEmailPreview = async (projectId, payload) => {
+    const response = await axios.post(`${API_BASE_URL}/projects/${projectId}/email-preview`, payload);
+    return response.data;
+};

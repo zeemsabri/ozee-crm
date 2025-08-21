@@ -230,8 +230,10 @@ trait HandlesTemplatedEmails
             $fullHtml = $this->renderHtmlTemplate($data);
 
             return response()->json([
+                'id'    =>  $email->id,
                 'subject' => $subject,
                 'body_html' => $fullHtml,
+                'status'    =>  $email->status
             ]);
 
         } catch (Exception $e) {

@@ -214,6 +214,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('inbox/new-emails', [InboxController::class, 'newEmails']);
     Route::get('inbox/all-emails', [InboxController::class, 'allEmails']);
     Route::get('inbox/waiting-approval', [InboxController::class, 'waitingApproval']);
+    Route::get('inbox/counts', [InboxController::class, 'counts']);
+
     Route::post('inbox/emails/{email}/mark-as-read', [InboxController::class, 'markAsRead']);
 
     // Google Auth Status Endpoint

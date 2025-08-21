@@ -1,231 +1,182 @@
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { reactive, onMounted, computed, watch, ref } from 'vue';
+import { Head, usePage } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { usePermissions } from '@/Directives/permissions';
-import TabPanel from './Components/TabPanel.vue';
-import NewEmailsTab from './Components/NewEmailsTab.vue';
-import AllEmailsTab from './Components/AllEmailsTab.vue';
-import WaitingApprovalTab from './Components/WaitingApprovalTab.vue';
-import EmailDetailsModal from '@/Components/ProjectsEmails/EmailDetailsModal.vue';
-import EmailActionModal from '@/Components/ProjectsEmails/EmailActionModal.vue';
-import EditTemplateEmailModal from '@/Components/ProjectsEmails/EditTemplateEmailModal.vue';
-import ComposeEmailModal from "@/Components/ComposeEmailModal.vue";
-import EmailBulkTaskModal from '@/Components/ProjectsEmails/EmailBulkTaskModal.vue';
+import RightSidebar from '@/Components/RightSidebar.vue';
+import EmailFilters from '@/Pages/Emails/Inbox/Components/EmailFilters.vue';
+import EmailList from '@/Pages/Emails/Inbox/Components/EmailList.vue';
+import EmailDetailsContent from '@/Pages/Emails/Inbox/Components/EmailDetailsContent.vue';
+import ComposeEmailContent from '@/Pages/Emails/Inbox/Components/ComposeEmailContent.vue';
+import EmailActionContent from '@/Pages/Emails/Inbox/Components/EmailActionContent.vue';
+import ReceivedEmailActionContent from '@/Pages/Emails/Inbox/Components/ReceivedEmailActionContent.vue';
+import { usePermissions, usePermissionStore } from '@/Directives/permissions.js';
+import { fetchEmails as fetchEmailsApi, markAsRead as markAsReadApi } from '@/Services/api-service.js';
 import axios from 'axios';
 
+// Centralized UI state for the entire inbox dashboard
+const inboxState = reactive({
+    // State for the RightSidebar component
+    sidebar: {
+        show: false,
+        title: '',
+        mode: null, // Controls the content rendered in the sidebar: 'view-email', 'compose', etc.
+        loading: false,
+        data: null,
+    },
+    // Filters for the email list
+    filters: {
+        type: 'new',
+        status: '',
+        startDate: '',
+        endDate: '',
+        search: '',
+        projectId: null,
+        senderId: '',
+    },
+    // The email list and related loading/error state
+    emails: [],
+    loadingEmails: false,
+    emailError: null,
+    pagination: {},
+    counts: {
+        'new': 0,
+        'waiting-approval': 0,
+        'sent': 0,
+        'received': 0,
+        'all': 0,
+    },
+});
+
+const showAdvancedFilters = ref(false);
+
+// Use the permissions hook to check for user capabilities
 const { canDo } = usePermissions();
-const hasViewEmailsPermission = canDo('view_emails').value;
-const hasApproveEmailsPermission = canDo('approve_emails').value;
-const hasComposeEmailsPermission = canDo('compose_emails').value;
 
-// Variables for ComposeEmailModal
-const projectClients = ref([]);
-const projectId = ref(null);
-const showComposeEmailModal = ref(false);
+// Computed properties to check for permissions, simplifying template logic
+const canViewEmails = computed(() => canDo('view_emails').value);
+const canApproveEmails = computed(() => canDo('approve_emails').value);
+const canComposeEmails = computed(() => canDo('compose_emails').value);
 
-// Track filters for the All Emails tab
-const allEmailsFilters = ref({
-    type: '',
-    status: '',
-    startDate: '',
-    endDate: '',
-    search: '',
-    project_id: '',
-    sender_id: '',
-});
-
-// Computed property to check if all filters are cleared
-const isAllFiltersCleared = computed(() => {
-    return !allEmailsFilters.value.type &&
-        !allEmailsFilters.value.status &&
-        !allEmailsFilters.value.startDate &&
-        !allEmailsFilters.value.endDate &&
-        !allEmailsFilters.value.search &&
-        !allEmailsFilters.value.project_id &&
-        !allEmailsFilters.value.sender_id;
-});
-
-// Tab management
-const activeTab = ref('new');
-const tabs = [
-    { id: 'new', label: 'New Emails', component: NewEmailsTab, visible: hasViewEmailsPermission },
-    { id: 'all', label: 'All Emails', component: AllEmailsTab, visible: hasViewEmailsPermission },
-    { id: 'waiting', label: 'Waiting Approval', component: WaitingApprovalTab, visible: hasApproveEmailsPermission },
-];
-
-// Refs for tab components to allow manual refreshing
-const tabRefs = ref({
-    new: null,
-    all: null,
-    waiting: null,
-});
-
-// Email details modal
-const selectedEmail = ref(null);
-const showEmailDetailsModal = ref(false);
-
-// Bulk tasks modal (opens above details modal)
-const showEmailBulkTaskModal = ref(false);
-
-// Action modal (for edit/reject)
-const showActionModal = ref(false);
-const actionModalTitle = ref('');
-const actionModalApiEndpoint = ref('');
-const actionModalHttpMethod = ref('post');
-const actionModalSubmitButtonText = ref('');
-const actionModalSuccessMessage = ref('');
-
-// Template email modal
-const showEditTemplateEmailModal = ref(false);
-const editTemplateEmailId = ref(null);
-const editTemplateApiEndpoint = ref('');
-const editTemplateSubmitButtonText = ref('');
-const editTemplateSuccessMessage = ref('');
-const editTemplateClientId = ref(null);
-const showApprovalButtons = ref(false);
-
-// Event handlers
-const handleViewEmail = async (email) => {
-    selectedEmail.value = email;
-    showEmailDetailsModal.value = true;
-    showApprovalButtons.value = email.can_approve ?? false;
-    // Mark the email as read
+const fetchCounts = async () => {
     try {
-        await axios.post(`/api/inbox/emails/${email.id}/mark-as-read`);
+        const response = await axios.get('/api/inbox/counts');
+        inboxState.counts = {
+            ...inboxState.counts,
+            'waiting-approval': response.data['waiting-approval'],
+            'received': response.data['received'],
+        };
+    } catch (error) {
+        console.error('Failed to fetch email counts:', error);
+    }
+};
+
+const openComposeEmail = () => {
+    inboxState.sidebar.show = true;
+    inboxState.sidebar.title = 'Compose New Email';
+    inboxState.sidebar.mode = 'compose';
+    inboxState.sidebar.data = null;
+};
+
+const handleViewEmail = async (email) => {
+    inboxState.sidebar.loading = true;
+    inboxState.sidebar.show = true;
+    inboxState.sidebar.title = 'Email Details';
+    inboxState.sidebar.mode = 'view-email';
+    inboxState.sidebar.data = email;
+
+    try {
+        await markAsReadApi(email.id);
     } catch (error) {
         console.error('Failed to mark email as read:', error);
+    } finally {
+        inboxState.sidebar.loading = false;
+        fetchEmails();
+        fetchCounts();
     }
 };
 
-const handleCloseEmailDetails = () => {
-    showEmailDetailsModal.value = false;
-    selectedEmail.value = null;
-    // Refresh the active tab when an email is closed to update the list
-    refreshActiveTab();
-};
+const fetchEmails = async (page = 1) => {
+    inboxState.loadingEmails = true;
+    inboxState.emailError = null;
 
-const handleOpenBulkTasks = () => {
-    // Open the bulk tasks modal above the details modal
-    showEmailBulkTaskModal.value = true;
-};
-
-const handleBulkTasksClosed = () => {
-    showEmailBulkTaskModal.value = false;
-};
-
-const handleBulkTasksSubmitted = () => {
-    showEmailBulkTaskModal.value = false;
-    // Optionally refresh tasks-related UI; here we refresh the active tab
-    refreshActiveTab();
-};
-
-const openEditEmailModal = async (email) => {
     try {
-        selectedEmail.value = email;
-
-        // Check if this is a template-based email
-        const response = await axios.get(`/api/emails/${email.id}/edit-content`);
-        const emailData = response.data;
-
-        if (emailData.template_id) {
-            // Set up the EditTemplateEmailModal
-            editTemplateEmailId.value = email.id;
-            editTemplateApiEndpoint.value = `/api/emails/${email.id}/edit-and-approve`;
-
-            editTemplateSubmitButtonText.value = 'Approve & Send';
-
-            if(emailData.type === 'received') {
-                editTemplateSubmitButtonText.value = 'Approve';
-            }
-
-            editTemplateSuccessMessage.value = 'Email updated and approved successfully!';
-            editTemplateClientId.value = emailData.client_id;
-
-            // Show the template editor modal
-            showEditTemplateEmailModal.value = true;
-            showEmailDetailsModal.value = false;
-        } else {
-            // Regular email - use the standard EmailActionModal
-            actionModalTitle.value = 'Edit and Approve Email';
-            actionModalApiEndpoint.value = `/api/emails/${email.id}/edit-and-approve`;
-            actionModalHttpMethod.value = 'post';
-
-            actionModalSubmitButtonText.value = 'Approve & Send';
-
-            if(emailData.type === 'received') {
-                actionModalSubmitButtonText.value = 'Approve';
-            }
-
-            actionModalSuccessMessage.value = 'Email updated and approved successfully!';
-
-            // Show the modal
-            showActionModal.value = true;
-            showEmailDetailsModal.value = false;
-        }
-    } catch (error) {
-        console.error('Failed to determine email type:', error);
+        const response = await fetchEmailsApi(inboxState.filters, page);
+        inboxState.emails = response.data;
+        inboxState.pagination = {
+            currentPage: response.current_page,
+            lastPage: response.last_page,
+            total: response.total,
+        };
+        inboxState.counts[inboxState.filters.type] = response.total;
+    } catch (err) {
+        console.error('Error fetching emails:', err);
+        inboxState.emailError = 'Failed to load emails. Please try again.';
+    } finally {
+        inboxState.loadingEmails = false;
     }
 };
 
-const openRejectEmailModal = (email) => {
-    selectedEmail.value = email;
-    actionModalTitle.value = 'Reject Email';
-    actionModalApiEndpoint.value = `/api/emails/${email.id}/reject`;
-    actionModalHttpMethod.value = 'post';
-    actionModalSubmitButtonText.value = 'Reject Email';
-    actionModalSuccessMessage.value = 'Email rejected successfully!';
-    showActionModal.value = true;
-    showEmailDetailsModal.value = false;
+const changePage = (page) => {
+    fetchEmails(page);
 };
 
-const handleActionModalSubmitted = () => {
-    showActionModal.value = false;
-    refreshActiveTab();
+const handleFilterChange = (newFilters) => {
+    Object.assign(inboxState.filters, newFilters);
 };
 
-const handleActionModalClose = () => {
-    showActionModal.value = false;
-    refreshActiveTab();
-};
-
-const handleEditTemplateEmailModalSubmitted = () => {
-    showEditTemplateEmailModal.value = false;
-    refreshActiveTab();
-};
-
-const handleEditTemplateEmailModalClose = () => {
-    showEditTemplateEmailModal.value = false;
-    refreshActiveTab();
-};
-
-// Manually trigger a refresh of the active tab's data
-const refreshActiveTab = () => {
-    const tabComponent = tabRefs.value[activeTab.value];
-    if (tabComponent && typeof tabComponent.refresh === 'function') {
-        tabComponent.refresh();
-    } else {
-        console.error(`Cannot refresh tab: ${activeTab.value} Component reference not found or refresh method is missing.`);
+const handleFilterTypeChange = (newType) => {
+    inboxState.filters.type = newType;
+    if (newType === 'all') {
+        inboxState.filters.status = '';
+        inboxState.filters.startDate = '';
+        inboxState.filters.endDate = '';
+        inboxState.filters.search = '';
+        inboxState.filters.projectId = null;
+        inboxState.filters.senderId = '';
     }
-};
-
-// Handle filters changed event from AllEmailsTab
-const handleFiltersChanged = (filters) => {
-    allEmailsFilters.value = filters;
-};
-
-// Switch tab handler
-const switchTab = (tabId) => {
-    activeTab.value = tabId;
+    if (newType !== 'waiting-approval' && newType !== 'received') {
+        inboxState.counts[newType] = 0;
+    }
 };
 
 onMounted(() => {
-    // Check if user has permission to view emails
-    if (!hasViewEmailsPermission) {
-        // Redirect to dashboard or show error
-        window.location.href = '/dashboard';
-    }
+    usePermissionStore().fetchGlobalPermissions();
+    fetchCounts();
 });
+
+const handleEditEmail = (email) => {
+    inboxState.sidebar.show = true;
+    inboxState.sidebar.data = email;
+
+    if (email.type === 'received' && (email.status === 'pending_approval_received' || email.status === 'received')) {
+        inboxState.sidebar.mode = 'received-edit';
+        inboxState.sidebar.title = 'Approve Received Email';
+    } else {
+        inboxState.sidebar.mode = 'edit';
+        inboxState.sidebar.title = 'Edit & Approve Email';
+    }
+};
+
+const handleRejectEmail = (email) => {
+    inboxState.sidebar.show = true;
+    inboxState.sidebar.title = 'Reject Email';
+    inboxState.sidebar.mode = 'reject';
+    inboxState.sidebar.data = email;
+};
+
+const handleSubmitted = () => {
+    inboxState.sidebar.show = false;
+    fetchEmails();
+    fetchCounts();
+};
+
+let debounceTimer = null;
+watch(() => inboxState.filters, () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+        fetchEmails(1);
+    }, 500);
+}, { deep: true, immediate: true });
 </script>
 
 <template>
@@ -238,9 +189,9 @@ onMounted(() => {
                     Inbox
                 </h2>
                 <button
-                    v-if="hasComposeEmailsPermission"
-                    @click="showComposeEmailModal = true"
-                    class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:border-indigo-900 focus:ring focus:ring-indigo-300 disabled:opacity-25 transition"
+                    v-if="canComposeEmails"
+                    @click="openComposeEmail"
+                    class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-25 transition"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -251,111 +202,100 @@ onMounted(() => {
         </template>
 
         <div class="py-12">
-            <div class="max-w-8xl mx-auto sm:px-6 lg:px-8">
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6 bg-white border-b border-gray-200">
-                        <!-- Tabs -->
-                        <div class="border-b border-gray-200">
-                            <nav class="-mb-px flex space-x-8" aria-label="Tabs">
-                                <button
-                                    v-for="tab in tabs.filter(tab => tab.visible)"
-                                    :key="tab.id"
-                                    @click="switchTab(tab.id)"
-                                    :class="[
-                                        activeTab === tab.id
-                                            ? 'border-indigo-500 text-indigo-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-                                        'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm'
-                                    ]"
-                                >
-                                    {{ tab.label }}
-                                </button>
-                            </nav>
+            <div class="max-w-8xl mx-auto sm:px-6 lg:px-8 h-[calc(100vh-200px)]">
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg h-full flex">
+                    <!-- Advanced Filter Panel -->
+                    <transition
+                        enter-active-class="transition-all duration-300 ease-out"
+                        leave-active-class="transition-all duration-300 ease-in"
+                        enter-from-class="-translate-x-full opacity-0"
+                        leave-to-class="-translate-x-full opacity-0"
+                    >
+                        <div v-if="showAdvancedFilters" class="w-64 p-4 border-r border-gray-200 overflow-y-auto transform">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">Advanced Filters</h3>
+                            <EmailFilters
+                                :initial-filters="inboxState.filters"
+                                @change="handleFilterChange"
+                            />
+                        </div>
+                    </transition>
+
+                    <div class="flex-1 overflow-y-auto">
+                        <!-- New button-based filter UI -->
+                        <div class="flex items-center justify-start p-6 space-x-4">
+                            <button
+                                v-for="(count, type) in inboxState.counts"
+                                :key="type"
+                                @click="handleFilterTypeChange(type)"
+                                :class="{
+                                    'px-4 py-2 rounded-md font-medium text-sm transition-colors': true,
+                                    'text-white bg-indigo-600 hover:bg-indigo-700': inboxState.filters.type === type,
+                                    'text-gray-700 bg-white border border-gray-300 hover:bg-gray-100': inboxState.filters.type !== type,
+                                }"
+                            >
+                                <span class="capitalize">{{ type.replace('-', ' ') }}</span>
+                                <span class="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-white text-gray-800">{{ count }}</span>
+                            </button>
+
+                            <button @click="showAdvancedFilters = !showAdvancedFilters" class="px-4 py-2 rounded-md font-medium text-sm text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 transition-colors">
+                                <span v-if="showAdvancedFilters">Hide Filters</span>
+                                <span v-else>Show Filters</span>
+                            </button>
                         </div>
 
-                        <!-- Tab Content -->
-                        <div class="mt-6">
-                            <div v-for="tab in tabs" :key="tab.id">
-                                <TabPanel :active="activeTab === tab.id">
-                                    <component
-                                        :is="tab.component"
-                                        :ref="el => { if (el) tabRefs[tab.id] = el }"
-                                        @view-email="handleViewEmail"
-                                        @filters-changed="tab.id === 'all' ? handleFiltersChanged : () => {}"
-                                        :is-active="activeTab === tab.id"
-                                    />
-                                </TabPanel>
-                            </div>
+                        <!-- The rest of the content (email list, etc.) -->
+                        <div class="p-6">
+                            <EmailList
+                                :emails="inboxState.emails"
+                                :loading="inboxState.loadingEmails"
+                                :error="inboxState.emailError"
+                                :pagination="inboxState.pagination"
+                                @view-email="handleViewEmail"
+                                @change-page="changePage"
+                                @refresh="fetchEmails"
+                            />
                         </div>
                     </div>
+
+                    <RightSidebar
+                        :show="inboxState.sidebar.show"
+                        :title="inboxState.sidebar.title"
+                        @close="inboxState.sidebar.show = false"
+                        :loading="inboxState.sidebar.loading"
+                    >
+                        <template #content>
+                            <div v-if="inboxState.sidebar.mode === 'view-email'">
+                                <EmailDetailsContent
+                                    :email="inboxState.sidebar.data"
+                                    :can-approve-emails="inboxState.sidebar.data?.can_approve"
+                                    @edit="handleEditEmail"
+                                    @reject="handleRejectEmail"
+                                />
+                            </div>
+                            <div v-else-if="inboxState.sidebar.mode === 'compose'">
+                                <ComposeEmailContent
+                                    :project-id="inboxState.sidebar.data?.conversation?.project?.id"
+                                    @submitted="handleSubmitted"
+                                />
+                            </div>
+                            <div v-else-if="inboxState.sidebar.mode === 'edit' || inboxState.sidebar.mode === 'reject'">
+                                <EmailActionContent
+                                    :email="inboxState.sidebar.data"
+                                    :mode="inboxState.sidebar.mode"
+                                    @submitted="handleSubmitted"
+                                />
+                            </div>
+                            <div v-else-if="inboxState.sidebar.mode === 'received-edit'">
+                                <ReceivedEmailActionContent
+                                    :email="inboxState.sidebar.data"
+                                    @submitted="handleSubmitted"
+                                    @error="() => console.log('Error from received-edit')"
+                                />
+                            </div>
+                        </template>
+                    </RightSidebar>
                 </div>
             </div>
         </div>
-
-        <!-- Email Details Modal -->
-        <EmailDetailsModal
-            :show="showEmailDetailsModal"
-            :email="selectedEmail"
-            :can-approve-emails="showApprovalButtons"
-            @close="handleCloseEmailDetails"
-            @edit="openEditEmailModal"
-            @reject="openRejectEmailModal"
-            @open-bulk-tasks="handleOpenBulkTasks"
-        />
-
-        <!-- Bulk Tasks Modal (top-level to overlay on top of EmailDetailsModal) -->
-        <EmailBulkTaskModal
-            v-if="selectedEmail"
-            :show="showEmailBulkTaskModal"
-            :email-id="selectedEmail.id"
-            :project-id="selectedEmail.project_id"
-            @close="handleBulkTasksClosed"
-            @tasks-submitted="handleBulkTasksSubmitted"
-        />
-
-        <!-- Email Action Modal (Edit/Reject) -->
-        <EmailActionModal
-            :show="showActionModal"
-            :title="actionModalTitle"
-            :api-endpoint="actionModalApiEndpoint"
-            :http-method="actionModalHttpMethod"
-            :submit-button-text="actionModalSubmitButtonText"
-            :success-message="actionModalSuccessMessage"
-            :email-id="selectedEmail?.id"
-            :project-id="selectedEmail?.conversation?.project?.id"
-            @close="handleActionModalClose"
-            @submitted="handleActionModalSubmitted"
-            @error="(err) => console.error('EmailActionModal error:', err)"
-        />
-
-        <!-- Template Email Modal -->
-        <EditTemplateEmailModal
-            :show="showEditTemplateEmailModal"
-            title="Edit Template Email"
-            :api-endpoint="editTemplateApiEndpoint"
-            http-method="post"
-            :submit-button-text="editTemplateSubmitButtonText"
-            :success-message="editTemplateSuccessMessage"
-            :email-id="editTemplateEmailId"
-            :client-id="editTemplateClientId"
-            @close="handleEditTemplateEmailModalClose"
-            @submitted="handleEditTemplateEmailModalSubmitted"
-            @error="(err) => console.error('EditTemplateEmailModal error:', err)"
-        />
-
-        <ComposeEmailModal
-            :show="showComposeEmailModal"
-            :title="'Compose New Email'"
-            :api-endpoint="'/api/emails/templated'"
-            :http-method="'post'"
-            :clients="projectClients"
-            :submit-button-text="'Submit for Approval'"
-            :success-message="'Email submitted for approval successfully!'"
-            :project-id="projectId"
-            @close="showComposeEmailModal = false"
-            @submitted="showComposeEmailModal = false"
-            @error="(error) => console.error('Email submission error:', error)"
-        />
-
     </AuthenticatedLayout>
 </template>

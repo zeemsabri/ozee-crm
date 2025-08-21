@@ -62,14 +62,14 @@ class EmailTestController extends Controller
 
     public function receiveTestEmails()
     {
-//        try {
+        try {
             $lastReceivedEmail = Email::where('type', 'received')
                 ->orderByDesc('sent_at')
                 ->first();
 
             Log::info('Last received email:', ['email_id' => $lastReceivedEmail->id ?? 'none', 'sent_at' => $lastReceivedEmail->sent_at ?? 'none']);
 
-            $query = 'is:inbox has:attachment';
+            $query = 'is:inbox';
             if ($lastReceivedEmail) {
                 $afterDate = Carbon::parse($lastReceivedEmail->sent_at)
                     ->subMinutes(5)
@@ -186,7 +186,6 @@ class EmailTestController extends Controller
                 Log::info('Received Email Stored:', ['email_id' => $email->id, 'gmail_id' => $emailDetails['id'], 'subject' => $emailDetails['subject']]);
             }
 
-            dd('all done without error');
 
             return response()->json([
                 'message' => 'Successfully fetched and stored new emails.',
@@ -197,9 +196,9 @@ class EmailTestController extends Controller
 
 
 
-//        } catch (\Exception $e) {
-//            Log::error('Error receiving emails:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-//            return response()->json(['message' => 'Failed to receive emails: ' . $e->getMessage()], 500);
-//        }
+        } catch (\Exception $e) {
+            Log::error('Error receiving emails:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json(['message' => 'Failed to receive emails: ' . $e->getMessage()], 500);
+        }
     }
 }

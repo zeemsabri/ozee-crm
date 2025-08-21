@@ -9,6 +9,8 @@ use App\Models\UserInteraction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Models\Role;
+use App\Models\Permission;
 
 class InboxController extends Controller
 {
@@ -33,23 +35,23 @@ class InboxController extends Controller
         $emails = Email::whereHas('conversation', function ($query) use ($projectIds) {
             $query->whereIn('project_id', $projectIds);
         })
-        ->where(function ($query) {
-            // Include emails that are approved or sent
-            $query->whereIn('status', ['approved', 'sent', 'received']);
-        })
-        ->whereNotExists(function ($query) use ($user) {
-            // Exclude emails that have been read by the user
-            $query->select(DB::raw(1))
-                ->from('user_interactions')
-                ->whereColumn('user_interactions.interactable_id', 'emails.id')
-                ->where('user_interactions.interactable_type', 'App\\Models\\Email')
-                ->where('user_interactions.user_id', $user->id)
-                ->where('user_interactions.interaction_type', 'read');
-        })
-        ->with(['sender', 'conversation.project', 'approver'])
-        ->select('emails.*') // Ensure all columns including read_at are selected
-        ->orderBy('created_at', 'desc')
-        ->get();
+            ->where(function ($query) {
+                // Include emails that are approved or sent
+                $query->whereIn('status', ['approved', 'sent', 'received']);
+            })
+            ->whereNotExists(function ($query) use ($user) {
+                // Exclude emails that have been read by the user
+                $query->select(DB::raw(1))
+                    ->from('user_interactions')
+                    ->whereColumn('user_interactions.interactable_id', 'emails.id')
+                    ->where('user_interactions.interactable_type', 'App\\Models\\Email')
+                    ->where('user_interactions.user_id', $user->id)
+                    ->where('user_interactions.interaction_type', 'read');
+            })
+            ->with(['sender', 'conversation.project', 'approver'])
+            ->select('emails.*') // Ensure all columns including read_at are selected
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         return response()->json($emails);
     }
@@ -86,32 +88,42 @@ class InboxController extends Controller
         // Apply filters if provided
         $query = Email::whereHas('conversation', function ($query) use ($projectIds) {
             $query->whereIn('project_id', $projectIds);
-        })
-        ->where(function ($query) {
-            // Include emails that are approved or sent
-            $query->whereIn('status', ['approved', 'sent', 'received']);
         });
 
-        // Apply search filter if provided
-        if ($request->has('search') && !empty($request->search)) {
-            $search = $request->search;
-            $query->where(function ($query) use ($search) {
-                $query->where('subject', 'like', "%{$search}%")
-                    ->orWhere('body', 'like', "%{$search}%");
-            });
-        }
-
-        // Apply type filter if provided
+        // Apply filters based on request parameters
         if ($request->has('type') && !empty($request->type)) {
-            $query->where('type', $request->type);
+            if ($request->type === 'new') {
+                $query->whereIn('status', ['pending_approval', 'pending_approval_received', 'received', 'sent'])
+                    ->whereNotExists(function ($subQuery) use ($user) {
+                        $subQuery->select(DB::raw(1))
+                            ->from('user_interactions')
+                            ->whereColumn('user_interactions.interactable_id', 'emails.id')
+                            ->where('user_interactions.interactable_type', 'App\\Models\\Email')
+                            ->where('user_interactions.user_id', $user->id)
+                            ->where('user_interactions.interaction_type', 'read');
+                    });
+            } elseif ($request->type === 'waiting-approval') {
+                $query->whereIn('status', ['pending_approval', 'pending_approval_received']);
+            } elseif ($request->type !== 'all') {
+                $query->where('type', $request->type);
+            }
         }
 
-        // Apply status filter if provided
+        // This handles cases where the type filter is 'all' or not set, and a specific status is selected
         if ($request->has('status') && !empty($request->status)) {
             $query->where('status', $request->status);
         }
 
-        // Apply date filters if provided
+        if ($request->has('projectId') && !empty($request->projectId)) {
+            $query->whereHas('conversation', function ($query) use ($request) {
+                $query->where('project_id', $request->projectId);
+            });
+        }
+
+        if ($request->has('sender_id') && !empty($request->sender_id)) {
+            $query->where('sender_id', $request->sender_id);
+        }
+
         if ($request->has('start_date') && !empty($request->start_date)) {
             $query->whereDate('created_at', '>=', $request->start_date);
         }
@@ -120,39 +132,81 @@ class InboxController extends Controller
             $query->whereDate('created_at', '<=', $request->end_date);
         }
 
-        // Apply client filter if provided
-        if ($request->has('client_id') && !empty($request->client_id)) {
-            $query->whereHas('conversation.project.clients', function ($query) use ($request) {
-                $query->where('clients.id', $request->client_id);
-            });
-        }
-
-        // Apply project filter if provided
-        if ($request->has('project_id') && !empty($request->project_id)) {
-            $query->whereHas('conversation', function ($query) use ($request) {
-                $query->where('project_id', $request->project_id);
-            });
-        }
-
-        // Apply sender filter if provided
-        if ($request->has('sender_id') && !empty($request->sender_id)) {
-            $query->where(function ($query) use ($request) {
-                $query->where('sender_id', $request->sender_id)
-                      ->where('sender_type', 'App\\Models\\User');
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function ($query) use ($search) {
+                $query->where('subject', 'like', "%{$search}%")
+                    ->orWhere('body', 'like', "%{$search}%");
             });
         }
 
         $emails = $query->with(['sender', 'conversation.project', 'approver'])
             ->orderBy('created_at', 'desc')
-            ->select('emails.*') // Ensure all columns including read_at are selected
+            ->select('emails.*') // Ensure all columns are selected
             ->paginate($perPage, ['*'], 'page', $page);
 
-        // Add a flag to indicate if each email has been read and include read_at timestamp
+        // Add a flag to indicate if each email has been read and if the user can approve it
         $emails->getCollection()->each(function ($email) use ($user) {
             $email->is_read = $email->isReadBy($user->id);
+            $email->can_approve = false; // Default to false
+
+            // Check approval permission for outgoing emails
+            if ($email->status === 'pending_approval' && $email->conversation?->project?->id) {
+                if ($user->hasProjectPermission($email->conversation->project->id, 'approve_emails')) {
+                    $email->can_approve = true;
+                }
+            }
+
+            // Check approval permission for incoming emails
+            if ($email->status === 'pending_approval_received') {
+                // This assumes hasPermission('approve_received_emails') is a global permission
+                if ($user->hasPermission('approve_received_emails')) {
+                    $email->can_approve = true;
+                }
+            }
         });
 
         return response()->json($emails);
+    }
+
+    /**
+     * Get email counts for the authenticated user's inbox.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function counts(Request $request)
+    {
+        $user = Auth::user();
+
+        // Get all projects the user has access to
+        $projectIds = $this->getAccessibleProjectIds($user);
+
+        if (empty($projectIds)) {
+            return response()->json([
+                'waiting-approval' => 0,
+                'received' => 0,
+            ]);
+        }
+
+        $waitingApprovalCount = Email::whereHas('conversation', function ($query) use ($projectIds) {
+            $query->whereIn('project_id', $projectIds);
+        })
+            ->whereIn('status', ['pending_approval', 'pending_approval_received'])
+            ->count();
+
+        $receivedCount = Email::whereHas('conversation', function ($query) use ($projectIds) {
+            $query->whereIn('project_id', $projectIds);
+        })
+            ->where('type', 'received')
+            ->count();
+
+        // You can add more counts here as needed
+
+        return response()->json([
+            'waiting-approval' => $waitingApprovalCount,
+            'received' => $receivedCount,
+        ]);
     }
 
     /**
@@ -278,16 +332,16 @@ class InboxController extends Controller
         return Project::whereHas('users', function ($query) use ($user) {
             $query->where('users.id', $user->id);
         })
-        ->whereExists(function ($query) use ($user) {
-            $query->select(DB::raw(1))
-                ->from('project_user')
-                ->join('role_permission', 'project_user.role_id', '=', 'role_permission.role_id')
-                ->join('permissions', 'role_permission.permission_id', '=', 'permissions.id')
-                ->whereColumn('project_user.project_id', 'projects.id')
-                ->where('project_user.user_id', $user->id)
-                ->where('permissions.slug', 'view_emails');
-        })
-        ->pluck('id')
-        ->toArray();
+            ->whereExists(function ($query) use ($user) {
+                $query->select(DB::raw(1))
+                    ->from('project_user')
+                    ->join('role_permission', 'project_user.role_id', '=', 'role_permission.role_id')
+                    ->join('permissions', 'role_permission.permission_id', '=', 'permissions.id')
+                    ->whereColumn('project_user.project_id', 'projects.id')
+                    ->where('project_user.user_id', $user->id)
+                    ->where('permissions.slug', 'view_emails');
+            })
+            ->pluck('id')
+            ->toArray();
     }
 }

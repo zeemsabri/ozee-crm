@@ -166,7 +166,7 @@ class EmailController extends Controller
     {
         $user = Auth::user();
 
-        try {
+//        try {
             $validated = $request->validate([
                 'project_id' => 'required|exists:projects,id',
                 'client_ids' => 'required|array|min:1',
@@ -229,15 +229,15 @@ class EmailController extends Controller
 
             Log::info('Templated email created/submitted for approval', ['email_id' => $email->id, 'status' => $email->status, 'user_id' => $user->id]);
             return response()->json($email->load('conversation'), 201);
-        } catch (ValidationException $e) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-            ], 422);
-        } catch (\Exception $e) {
-            Log::error('Error creating/submitting templated email: ' . $e->getMessage(), ['request' => $request->all(), 'error' => $e->getTraceAsString()]);
-            return response()->json(['message' => 'Failed to process email', 'error' => $e->getMessage()], 500);
-        }
+//        } catch (ValidationException $e) {
+//            return response()->json([
+//                'message' => 'Validation failed',
+//                'errors' => $e->errors(),
+//            ], 422);
+//        } catch (\Exception $e) {
+//            Log::error('Error creating/submitting templated email: ' . $e->getMessage(), ['request' => $request->all(), 'error' => $e->getTraceAsString()]);
+//            return response()->json(['message' => 'Failed to process email', 'error' => $e->getMessage()], 500);
+//        }
     }
 
 
