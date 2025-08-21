@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from '@heroicons/vue/24/outline';
+import { CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, XMarkIcon } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
     notification: Object,
@@ -9,7 +9,8 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const notificationClass = computed(() => {
-    switch (props.notification.type) {
+    const type = props.notification?.type;
+    switch (type) {
         case 'success':
             return 'bg-green-100 text-green-700 border-green-200';
         case 'error':
@@ -22,7 +23,8 @@ const notificationClass = computed(() => {
 });
 
 const notificationIcon = computed(() => {
-    switch (props.notification.type) {
+    const type = props.notification?.type;
+    switch (type) {
         case 'success':
             return CheckCircleIcon;
         case 'error':
@@ -38,8 +40,10 @@ const notificationIcon = computed(() => {
 <template>
     <div
         v-if="notification && notification.message"
-        class="fixed inset-x-0 top-0 mx-auto mt-4 max-w-sm rounded-md border p-4 shadow-lg transition-all duration-300 ease-out"
+        class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mx-auto mt-4 max-w-sm rounded-md border p-4 shadow-lg transition-all duration-300 ease-out z-[9999]"
         :class="notificationClass"
+        role="alert"
+        aria-live="polite"
     >
         <div class="flex items-center">
             <component :is="notificationIcon" class="h-6 w-6 mr-3 flex-shrink-0" />
@@ -47,7 +51,7 @@ const notificationIcon = computed(() => {
                 <h4 v-if="notification.title" class="font-bold">{{ notification.title }}</h4>
                 <p class="text-sm">{{ notification.message }}</p>
             </div>
-            <button @click="$emit('close')" class="ml-auto -mr-1.5 p-1 rounded-md hover:bg-opacity-50">
+            <button @click="$emit('close')" class="ml-auto -mr-1.5 p-1 rounded-md hover:bg-opacity-50" aria-label="Close notification">
                 <XMarkIcon class="h-5 w-5" />
             </button>
         </div>

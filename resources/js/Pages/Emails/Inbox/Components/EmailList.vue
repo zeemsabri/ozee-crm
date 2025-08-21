@@ -16,24 +16,22 @@ const props = defineProps({
   pagination: Object,
 });
 
-const emit = defineEmits(['view-email', 'change-page', 'refresh']);
+const emit = defineEmits(['view-email', 'change-page', 'refresh', 'show-notification']);
 
 const changePage = (page) => {
   emit('change-page', page);
 };
 
-// Function to parse the recipient email from a JSON string
-const getRecipientEmail = (recipient_email) => {
-  if (!recipient_email) {
-    return 'Unknown';
+
+const canShowEmail = (email) => {
+
+  if(email.type === 'received' && email.status === 'pending_approval_received') {
+    return false;
   }
-  try {
-    const emails = JSON.parse(recipient_email);
-    return Array.isArray(emails) ? emails.join(', ') : emails;
-  } catch (e) {
-    return recipient_email;
-  }
-};
+
+  return true;
+
+}
 
 const showPermissionAlert = () => {
   // Alert is replaced with an event emission for a custom notification system.
@@ -47,17 +45,6 @@ const showPermissionAlert = () => {
 
 <template>
   <div class="p-6">
-    <div class="mb-4 flex justify-end">
-      <button
-          @click="$emit('refresh')"
-          class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-        Refresh
-      </button>
-    </div>
 
     <div v-if="loading" class="text-center py-8">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
@@ -87,7 +74,7 @@ const showPermissionAlert = () => {
         </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
-        <tr v-for="email in emails" :key="email.id" @click="email.can_approve ? $emit('view-email', email) : showPermissionAlert()" class="hover:bg-gray-50 cursor-pointer">
+        <tr v-for="email in emails" :key="email.id" @click="canShowEmail(email) ? $emit('view-email', email) : showPermissionAlert()" class="hover:bg-gray-50 cursor-pointer">
           <td class="px-4 py-3 text-sm font-medium text-gray-900">
             <div class="flex items-center space-x-2">
               <component :is="email.type === 'sent' ? PaperAirplaneIcon : InboxArrowDownIcon" class="h-4 w-4" />

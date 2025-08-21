@@ -184,6 +184,8 @@ watch(localEmail, (newLocalEmail) => {
             </div>
         </div>
 
+        <hr class="my-4"></hr>
+
         <div v-if="showTaskForm" class="mt-6 border-t border-gray-200 pt-6">
             <h3 class="text-lg font-medium text-gray-900 mb-4">Create Tasks</h3>
             <TaskCreationForm
