@@ -111,14 +111,12 @@ const getSanitizedBody = computed(() => {
 });
 
 const getRecipientEmail = computed(() => {
-    if (!localEmail.value || !localEmail.value.recipient_email) {
+
+    if (!props.email || !props.email.sender?.name) {
         return 'Unknown';
     }
-    try {
-        const emails = JSON.parse(localEmail.value.recipient_email);
-        return Array.isArray(emails) ? emails.join(', ') : localEmail.value.recipient_email;
-    } catch (e) {
-        return localEmail.value.recipient_email;
+    if(props.email.type === 'sent') {
+        return props.email.recipient_email;
     }
 });
 
@@ -128,9 +126,8 @@ const handleTasksSubmitted = () => {
 
 const toggleTaskForm = () => {
     showTaskForm.value = !showTaskForm.value;
-    console.log(props.email);
-    if (showTaskForm.value && props.email?.conversation?.project?.id) {
-        fetchUsers(props.email.conversation.project.id);
+    if (showTaskForm.value && localEmail.value?.conversation?.project?.id) {
+        fetchUsers(localEmail.value.conversation.project.id);
     }
 };
 
@@ -156,29 +153,55 @@ watch(localEmail, (newLocalEmail) => {
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
     </div>
     <div v-else-if="localEmail" class="space-y-4 p-4">
+        <!-- Email Header -->
         <div class="border-b pb-4">
             <h2 class="text-xl font-semibold text-gray-800">{{ localEmail.subject }}</h2>
             <div class="text-sm text-gray-600 mt-1">
-                From: {{ localEmail.sender?.name || 'Unknown' }}
+                From: {{ props.email?.sender?.name || 'Unknown' }}
             </div>
-            <div class="text-sm text-gray-600 mt-1">
+            <div v-if="props.email.type === 'sent'" class="text-sm text-gray-600 mt-1">
                 To: {{ getRecipientEmail }}
             </div>
             <div class="text-sm text-gray-600 mt-1">
-                Date: {{ new Date(localEmail.created_at).toLocaleString() }}
+                Date: {{ new Date(props.email?.created_at).toLocaleString() }}
             </div>
         </div>
 
+        <!-- Attachment and Create Tasks Section -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-4">
+            <div class="w-full sm:w-auto">
+                <div v-if="attachmentsLoading" class="text-gray-500">Loading attachments...</div>
+                <div v-else-if="attachmentsError" class="text-red-500">{{ attachmentsError }}</div>
+                <EmailAttachmentsList v-else :attachments="attachments" />
+            </div>
+            <div class="mt-4 sm:mt-0">
+                <button
+                    @click="toggleTaskForm"
+                    class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                    Create Tasks
+                </button>
+            </div>
+        </div>
+
+        <div v-if="showTaskForm" class="mt-6 border-t border-gray-200 pt-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Create Tasks</h3>
+            <TaskCreationForm
+                :email-id="localEmail.id"
+                :project-id="localEmail.conversation?.project?.id"
+                :users="users"
+                :users-loading="usersLoading"
+                :users-error="usersError"
+                @tasks-submitted="handleTasksSubmitted"
+            />
+        </div>
+
+        <!-- Main Email Body -->
         <div class="prose max-w-none">
             <div v-html="getSanitizedBody"></div>
         </div>
 
-        <div>
-            <div v-if="attachmentsLoading" class="text-gray-500">Loading attachments...</div>
-            <div v-else-if="attachmentsError" class="text-red-500">{{ attachmentsError }}</div>
-            <EmailAttachmentsList v-else :attachments="attachments" />
-        </div>
-
+        <!-- Rejection Reason -->
         <div v-if="localEmail.rejection_reason">
             <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4" role="alert">
                 <p class="font-bold">Rejection Reason</p>
@@ -186,14 +209,8 @@ watch(localEmail, (newLocalEmail) => {
             </div>
         </div>
 
-        <div class="flex justify-between items-center pt-4">
-            <button
-                v-if="canApproveEmails"
-                @click="toggleTaskForm"
-                class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-                Create Tasks
-            </button>
+        <!-- Action Buttons -->
+        <div class="flex justify-end items-center pt-4">
             <div v-if="isApprovalPending && canApproveEmails" class="flex space-x-2">
                 <button
                     @click="$emit('edit', props.email)"
@@ -210,16 +227,6 @@ watch(localEmail, (newLocalEmail) => {
             </div>
         </div>
 
-        <div v-if="showTaskForm" class="mt-6 border-t border-gray-200 pt-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Create Tasks</h3>
-            <TaskCreationForm
-                :email-id="localEmail.id"
-                :project-id="localEmail.conversation?.project?.id"
-                :users="users"
-                :users-loading="usersLoading"
-                :users-error="usersError"
-                @tasks-submitted="handleTasksSubmitted"
-            />
-        </div>
+
     </div>
 </template>

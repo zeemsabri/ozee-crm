@@ -12,6 +12,18 @@ import ReceivedEmailActionContent from '@/Pages/Emails/Inbox/Components/Received
 import { usePermissions, usePermissionStore } from '@/Directives/permissions.js';
 import { fetchEmails as fetchEmailsApi, markAsRead as markAsReadApi } from '@/Services/api-service.js';
 import axios from 'axios';
+import {
+    StarIcon,
+    ClockIcon,
+    PaperAirplaneIcon,
+    InboxArrowDownIcon,
+    ListBulletIcon,
+    ChevronRightIcon,
+    ChevronLeftIcon,
+    AdjustmentsHorizontalIcon
+} from '@heroicons/vue/24/outline';
+import Notification from "@/src/Components/Notification.vue";
+
 
 // Centralized UI state for the entire inbox dashboard
 const inboxState = reactive({
@@ -48,6 +60,7 @@ const inboxState = reactive({
 });
 
 const showAdvancedFilters = ref(false);
+const notifications = ref(null);
 
 // Use the permissions hook to check for user capabilities
 const { canDo } = usePermissions();
@@ -56,6 +69,30 @@ const { canDo } = usePermissions();
 const canViewEmails = computed(() => canDo('view_emails').value);
 const canApproveEmails = computed(() => canDo('approve_emails').value);
 const canComposeEmails = computed(() => canDo('compose_emails').value);
+
+const filterOptions = computed(() => [
+    { type: 'new', label: 'New Emails', icon: StarIcon },
+    { type: 'waiting-approval', label: 'Waiting Approval', icon: ClockIcon },
+    { type: 'sent', label: 'Sent', icon: PaperAirplaneIcon },
+    { type: 'received', label: 'Received', icon: InboxArrowDownIcon },
+    { type: 'all', label: 'All Emails', icon: ListBulletIcon },
+]);
+
+const sidebarTitle = computed(() => {
+    if (inboxState.sidebar.mode === 'view-email') {
+        return inboxState.sidebar.data?.subject || 'Email Details';
+    } else if (inboxState.sidebar.mode === 'compose') {
+        return 'Compose New Email';
+    } else if (inboxState.sidebar.mode === 'edit') {
+        return 'Edit & Approve Email';
+    } else if (inboxState.sidebar.mode === 'reject') {
+        return 'Reject Email';
+    } else if (inboxState.sidebar.mode === 'received-edit') {
+        return 'Approve Received Email';
+    }
+    return 'Inbox';
+});
+
 
 const fetchCounts = async () => {
     try {
@@ -137,6 +174,13 @@ const handleFilterTypeChange = (newType) => {
     if (newType !== 'waiting-approval' && newType !== 'received') {
         inboxState.counts[newType] = 0;
     }
+};
+
+const showNotification = (notification) => {
+    notifications.value = notification;
+    setTimeout(() => {
+        notifications.value = null;
+    }, 5000);
 };
 
 onMounted(() => {
@@ -224,26 +268,34 @@ watch(() => inboxState.filters, () => {
                         <!-- New button-based filter UI -->
                         <div class="flex items-center justify-start p-6 space-x-4">
                             <button
-                                v-for="(count, type) in inboxState.counts"
-                                :key="type"
-                                @click="handleFilterTypeChange(type)"
+                                v-for="option in filterOptions"
+                                :key="option.type"
+                                @click="handleFilterTypeChange(option.type)"
                                 :class="{
-                                    'px-4 py-2 rounded-md font-medium text-sm transition-colors': true,
-                                    'text-white bg-indigo-600 hover:bg-indigo-700': inboxState.filters.type === type,
-                                    'text-gray-700 bg-white border border-gray-300 hover:bg-gray-100': inboxState.filters.type !== type,
+                                    'px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center space-x-2': true,
+                                    'text-white bg-indigo-600 hover:bg-indigo-700': inboxState.filters.type === option.type,
+                                    'text-gray-700 bg-white border border-gray-300 hover:bg-gray-100': inboxState.filters.type !== option.type,
                                 }"
                             >
-                                <span class="capitalize">{{ type.replace('-', ' ') }}</span>
-                                <span class="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-white text-gray-800">{{ count }}</span>
+                                <component :is="option.icon" class="h-5 w-5" />
+                                <span>{{ option.label }}</span>
+                                <span v-if="inboxState.counts[option.type] > 0" class="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-white text-gray-800">{{ inboxState.counts[option.type] }}</span>
                             </button>
 
-                            <button @click="showAdvancedFilters = !showAdvancedFilters" class="px-4 py-2 rounded-md font-medium text-sm text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 transition-colors">
-                                <span v-if="showAdvancedFilters">Hide Filters</span>
-                                <span v-else>Show Filters</span>
+                            <button @click="showAdvancedFilters = !showAdvancedFilters" class="px-4 py-2 rounded-md font-medium text-sm text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 transition-colors flex items-center space-x-2">
+                                <AdjustmentsHorizontalIcon class="h-5 w-5" />
+                                <span class="hidden sm:inline">{{ showAdvancedFilters ? 'Hide Filters' : 'Show Filters' }}</span>
+                                <ChevronRightIcon v-if="!showAdvancedFilters" class="h-4 w-4" />
+                                <ChevronLeftIcon v-else class="h-4 w-4" />
+                            </button>
+                            <button @click="fetchEmails(1)" class="px-4 py-2 rounded-md font-medium text-sm text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 transition-colors flex items-center space-x-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span class="hidden sm:inline">Refresh</span>
                             </button>
                         </div>
 
-                        <!-- The rest of the content (email list, etc.) -->
                         <div class="p-6">
                             <EmailList
                                 :emails="inboxState.emails"
@@ -253,13 +305,14 @@ watch(() => inboxState.filters, () => {
                                 @view-email="handleViewEmail"
                                 @change-page="changePage"
                                 @refresh="fetchEmails"
+                                @show-notification="showNotification"
                             />
                         </div>
                     </div>
 
                     <RightSidebar
                         :show="inboxState.sidebar.show"
-                        :title="inboxState.sidebar.title"
+                        :title="sidebarTitle"
                         @close="inboxState.sidebar.show = false"
                         :loading="inboxState.sidebar.loading"
                     >
@@ -297,5 +350,6 @@ watch(() => inboxState.filters, () => {
                 </div>
             </div>
         </div>
+        <Notification :notification="notifications" @close="notifications = null" />
     </AuthenticatedLayout>
 </template>

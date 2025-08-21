@@ -11,10 +11,8 @@ const props = defineProps({
 
 const emit = defineEmits(['change', 'reset']);
 
-// Local state for the filters, initialized from props
 const localFilters = reactive({ ...props.initialFilters });
 
-// Lists for dropdowns
 const projects = ref([]);
 const senders = ref([]);
 
@@ -37,9 +35,6 @@ const fetchFilterOptions = async () => {
 };
 
 const statusOptions = computed(() => {
-  // Reset status when type changes to prevent invalid combinations
-  localFilters.status = '';
-
   switch (localFilters.type) {
     case 'sent':
       return [
@@ -53,11 +48,7 @@ const statusOptions = computed(() => {
         { value: 'received', label: 'Received' },
         { value: 'pending_approval_received', label: 'Pending Approval (Received)' },
       ];
-    case 'waiting-approval':
-      return [{ value: '', label: 'All' }];
-    case 'new':
-      return [{ value: '', label: 'All' }];
-    default: // 'all'
+    default:
       return [
         { value: '', label: 'All Statuses' },
         { value: 'sent', label: 'Sent' },
@@ -73,13 +64,7 @@ watch(localFilters, (newFilters) => {
 }, { deep: true });
 
 const resetFilters = () => {
-  localFilters.type = 'new';
-  localFilters.status = '';
-  localFilters.startDate = '';
-  localFilters.endDate = '';
-  localFilters.search = '';
-  localFilters.projectId = null;
-  localFilters.senderId = '';
+  Object.assign(localFilters, props.initialFilters);
 };
 
 onMounted(() => {
@@ -151,7 +136,7 @@ onMounted(() => {
         <TextInput type="text" id="searchFilter" v-model="localFilters.search" class="block w-full pr-10" placeholder="Search in email content..." />
         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
           <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l-4 4a1 1 0 01-1.414-1.414z" clip-rule="evenodd" />
           </svg>
         </div>
       </div>

@@ -1,6 +1,10 @@
 <script setup>
 import { defineProps, defineEmits, computed } from 'vue';
 import moment from 'moment';
+import {
+  PaperAirplaneIcon,
+  InboxArrowDownIcon
+} from '@heroicons/vue/24/outline';
 
 const props = defineProps({
   emails: {
@@ -29,6 +33,14 @@ const getRecipientEmail = (recipient_email) => {
   } catch (e) {
     return recipient_email;
   }
+};
+
+const showPermissionAlert = () => {
+  // Alert is replaced with an event emission for a custom notification system.
+  emit('show-notification', {
+    message: 'You do not have permission to view this email. Please contact the project administrator for assistance.',
+    type: 'warning'
+  });
 };
 
 </script>
@@ -75,8 +87,13 @@ const getRecipientEmail = (recipient_email) => {
         </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
-        <tr v-for="email in emails" :key="email.id" @click="$emit('view-email', email)" class="hover:bg-gray-50 cursor-pointer">
-          <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ email.subject }}</td>
+        <tr v-for="email in emails" :key="email.id" @click="email.can_approve ? $emit('view-email', email) : showPermissionAlert()" class="hover:bg-gray-50 cursor-pointer">
+          <td class="px-4 py-3 text-sm font-medium text-gray-900">
+            <div class="flex items-center space-x-2">
+              <component :is="email.type === 'sent' ? PaperAirplaneIcon : InboxArrowDownIcon" class="h-4 w-4" />
+              <span>{{ email.subject }}</span>
+            </div>
+          </td>
           <td class="px-4 py-3 text-sm text-gray-500">{{ email.type }}</td>
           <td class="px-4 py-3 text-sm">
                             <span v-if="email.type === 'sent'" :class="{'text-green-600': email.read_at, 'text-red-600': !email.read_at}">
