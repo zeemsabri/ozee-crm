@@ -207,6 +207,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('emails/{email}/reject', [EmailController::class, 'reject']);
     Route::post('emails/{email}/update', [EmailController::class, 'update']);
     Route::post('emails/{email}/resubmit', [EmailController::class, 'resubmit']);
+    Route::post('emails/{email}/tasks/bulk', [EmailController::class, 'bulkTasksFromEmail']);
     Route::apiResource('emails', EmailController::class)->except(['destroy']);
 
     // Inbox Routes

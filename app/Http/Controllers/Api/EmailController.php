@@ -966,4 +966,62 @@ class EmailController extends Controller
             return response()->json(['message' => 'Error getting email content: ' . $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Create multiple tasks under the email's conversation project support milestone.
+     * Expects payload: { tasks: [ { name, description?, dueDate, priority? } ] }
+     */
+    public function bulkTasksFromEmail(Request $request, Email $email)
+    {
+        $user = Auth::user();
+
+        // Ensure user can view/approve this email which implies project visibility
+        try {
+            $this->authorize('approveOrView', $email);
+        } catch (AuthorizationException $e) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $validated = $request->validate([
+            'tasks' => 'required|array|min:1',
+            'tasks.*.name' => 'required|string|max:255',
+            'tasks.*.description' => 'nullable|string',
+            'tasks.*.dueDate' => 'required|date|after_or_equal:today',
+            'tasks.*.priority' => 'nullable|string|in:Low,Medium,High',
+                        'tasks.*.assigned_to_user_id' => 'nullable|integer|exists:users,id',
+        ]);
+
+        // Resolve project via email's conversation
+        $conversation = $email->conversation()->with('project')->first();
+        if (!$conversation || !$conversation->project) {
+            return response()->json(['message' => 'Email is not associated with a project conversation.'], 422);
+        }
+
+        $project = $conversation->project;
+        // Use supportMilestone() to get or create support milestone
+        $milestone = $project->supportMilestone();
+
+        // Default Task Type
+        $defaultTaskType = \App\Models\TaskType::firstOrCreate(['name' => 'New']);
+
+        $created = [];
+        foreach ($validated['tasks'] as $item) {
+            $taskData = [
+                'name' => $item['name'],
+                'description' => $item['description'] ?? null,
+                'due_date' => $item['dueDate'],
+                'priority' => $item['priority'] ?? 'Medium',
+                'status' => 'To Do',
+                'task_type_id' => $defaultTaskType->id,
+                'milestone_id' => $milestone->id,
+                                'assigned_to_user_id' => $item['assigned_to_user_id'] ?? null,
+            ];
+
+            $task = \App\Models\Task::create($taskData);
+            $task->load(['assignedTo', 'taskType', 'milestone']);
+            $created[] = $task;
+        }
+
+        return response()->json(['tasks' => $created, 'milestone_id' => $milestone->id, 'project_id' => $project->id], 201);
+    }
 }

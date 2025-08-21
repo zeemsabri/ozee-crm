@@ -60,10 +60,10 @@ class FileAttachment extends Model
     {
         $thumb = $this->attributes['thumbnail'] ?? null;
         if (!$thumb) return null;
-        try {
+//        try {
             return Storage::disk('gcs')->temporaryUrl($thumb, now()->addDay());
-        } catch (\Throwable $e) {
-            return null;
-        }
+//        } catch (\Throwable $e) {
+//            return null;
+//        }
     }
 }

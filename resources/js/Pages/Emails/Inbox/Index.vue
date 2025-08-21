@@ -11,6 +11,7 @@ import EmailDetailsModal from '@/Components/ProjectsEmails/EmailDetailsModal.vue
 import EmailActionModal from '@/Components/ProjectsEmails/EmailActionModal.vue';
 import EditTemplateEmailModal from '@/Components/ProjectsEmails/EditTemplateEmailModal.vue';
 import ComposeEmailModal from "@/Components/ComposeEmailModal.vue";
+import EmailBulkTaskModal from '@/Components/ProjectsEmails/EmailBulkTaskModal.vue';
 import axios from 'axios';
 
 const { canDo } = usePermissions();
@@ -64,6 +65,9 @@ const tabRefs = ref({
 const selectedEmail = ref(null);
 const showEmailDetailsModal = ref(false);
 
+// Bulk tasks modal (opens above details modal)
+const showEmailBulkTaskModal = ref(false);
+
 // Action modal (for edit/reject)
 const showActionModal = ref(false);
 const actionModalTitle = ref('');
@@ -98,6 +102,21 @@ const handleCloseEmailDetails = () => {
     showEmailDetailsModal.value = false;
     selectedEmail.value = null;
     // Refresh the active tab when an email is closed to update the list
+    refreshActiveTab();
+};
+
+const handleOpenBulkTasks = () => {
+    // Open the bulk tasks modal above the details modal
+    showEmailBulkTaskModal.value = true;
+};
+
+const handleBulkTasksClosed = () => {
+    showEmailBulkTaskModal.value = false;
+};
+
+const handleBulkTasksSubmitted = () => {
+    showEmailBulkTaskModal.value = false;
+    // Optionally refresh tasks-related UI; here we refresh the active tab
     refreshActiveTab();
 };
 
@@ -281,6 +300,17 @@ onMounted(() => {
             @close="handleCloseEmailDetails"
             @edit="openEditEmailModal"
             @reject="openRejectEmailModal"
+            @open-bulk-tasks="handleOpenBulkTasks"
+        />
+
+        <!-- Bulk Tasks Modal (top-level to overlay on top of EmailDetailsModal) -->
+        <EmailBulkTaskModal
+            v-if="selectedEmail"
+            :show="showEmailBulkTaskModal"
+            :email-id="selectedEmail.id"
+            :project-id="selectedEmail.project_id"
+            @close="handleBulkTasksClosed"
+            @tasks-submitted="handleBulkTasksSubmitted"
         />
 
         <!-- Email Action Modal (Edit/Reject) -->
