@@ -21,7 +21,7 @@ class Client extends Model
     ];
 
     protected $hidden = [
-        'email', 'phone'
+        'email', 'phone', 'address'
     ];
 
     // Add a boot method to handle dynamic hiding

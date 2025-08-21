@@ -436,20 +436,18 @@ class ProjectReadController extends Controller
         }
         catch (AuthenticationException $e) {
 
-            if (!$this->canAccessProject($user, $project)) {
-                return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
-            }
+           $this->authorize('viewProject', $project);
 
         }
 
         $type = request()->type;
 
-        if ($this->canViewClients($user, $project) && (!$type || $type === 'clients')) {
+        if (!$type || $type === 'clients') {
             $project->load('clients');
             $result['clients'] = $project->clients;
         }
 
-        if ($this->canViewUsers($user, $project) && (!$type || $type === 'users')) {
+        if (!$type || $type === 'users') {
             $project->load(['users' => function ($query) {
                 $query->withPivot('role_id');
             },

@@ -134,6 +134,15 @@ class ProjectPolicy
         return $projectRole->permissions->contains('slug', $permission);
     }
 
+    public function viewProject($user, $project)
+    {
+        if($this->userHasProjectPermission($user, 'view_projects', $project->id)) {
+            return true;
+        }
+
+        return $user->hasPermission('manage_projects');
+    }
+
     /**
      * Determine whether the user can add notes to the project.
      * Users with add_project_notes permission can add notes.
