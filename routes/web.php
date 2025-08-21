@@ -247,6 +247,14 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
             ]);
         })->name('roles.index');
 
+        // Roles Compare page: select up to 3 roles and toggle permissions in a grid
+        Route::get('/roles/compare', function () {
+            return Inertia::render('Admin/Roles/Compare', [
+                'roles' => \App\Models\Role::with('permissions')->get(),
+                'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category'),
+            ]);
+        })->name('roles.compare');
+
         Route::get('/roles/create', function () {
             return Inertia::render('Admin/Roles/Create', [
                 'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category')
