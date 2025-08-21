@@ -25,7 +25,7 @@ const changePage = (page) => {
 
 const canShowEmail = (email) => {
 
-  if(email.type === 'received' && email.status === 'pending_approval_received') {
+  if(email.type === 'received' && email.status === 'pending_approval_received' && !email.can_approve) {
     return false;
   }
 
