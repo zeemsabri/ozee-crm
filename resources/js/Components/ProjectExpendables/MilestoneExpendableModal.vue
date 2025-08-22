@@ -22,9 +22,19 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    // legacy props (kept for backward compatibility)
     projectTotalBudget: Number,
     projectBudgetCurrency: String,
     milestoneStats: Object,
+    // new validation-related props
+    availableForNewMilestones: {
+        type: Number,
+        default: 0,
+    },
+    budgetBaseCurrency: {
+        type: String,
+        default: 'AUD',
+    },
 });
 
 const emit = defineEmits(['close', 'submitted']);
@@ -80,28 +90,32 @@ const validateForm = () => {
         hasError = true;
     }
 
-    // Perform currency conversion before validation checks
-    const amountInProjectCurrency = convertCurrency(Number(form.value.amount || 0), form.value.currency, props.projectBudgetCurrency);
-    const amountInBudgetCurrency = convertCurrency(Number(form.value.amount || 0), form.value.currency, props.milestone.budget?.currency || 'PKR');
+    // Convert entered amount to base currency (backend provides AUD totals)
+    const enteredInBase = convertCurrency(Number(form.value.amount || 0), form.value.currency, props.budgetBaseCurrency);
 
     if (props.isBudgetForm) {
-        // Project Total Budget Check
-        if (props.projectTotalBudget <= 0) {
-            error('No project budget left. Ask a project admin to add more budget.');
-            hasError = true;
-        }
+        // Determine existing budget in base currency (if updating)
+        const existingBudgetBase = props.milestone?.budget
+            ? convertCurrency(Number(props.milestone.budget.amount || 0), props.milestone.budget.currency, props.budgetBaseCurrency)
+            : 0;
 
-        // Budget Creation Limit
-        const existingBudget = props.milestone.budget ? convertCurrency(Number(props.milestone.budget.amount || 0), props.milestone.budget.currency, props.projectBudgetCurrency) : 0;
-        const totalBudgetAfterUpdate = props.milestoneStats.approvedAmt + (amountInBudgetCurrency - existingBudget);
-        if (totalBudgetAfterUpdate > convertCurrency(props.projectTotalBudget, props.projectBudgetCurrency, props.milestone.budget?.currency || 'PKR')) {
-            errors.value.amount = [`Cannot add more budget than the project's total expendable budget.`];
+        // Allowance in base currency:
+        // - New budget: up to availableForNewMilestones
+        // - Update: up to availableForNewMilestones + existing budget (since existing is already counted)
+        const allowedMaxBase = Number(props.availableForNewMilestones || 0) + (props.milestone?.budget ? existingBudgetBase : 0);
+
+        if (enteredInBase > allowedMaxBase + 1e-8) {
+            errors.value.amount = [
+                `Amount exceeds allowed limit for milestone budget. Max allowed: ${convertCurrency(allowedMaxBase, props.budgetBaseCurrency, form.value.currency).toFixed(2)} ${form.value.currency}`
+            ];
             hasError = true;
         }
 
     } else {
-        // Remaining Balance Check for Contracts
-        if (amountInBudgetCurrency > props.milestoneStats.remaining) {
+        // For contracts, ensure it does not exceed the remaining milestone budget.
+        // Compare in the milestone budget currency context
+        const amountInMilestoneBudgetCurrency = convertCurrency(Number(form.value.amount || 0), form.value.currency, props.milestone.budget?.currency || 'PKR');
+        if (amountInMilestoneBudgetCurrency > Number(props.milestoneStats?.remaining || 0) + 1e-8) {
             errors.value.amount = [`Cannot add a contract more than the remaining milestone budget.`];
             hasError = true;
         }
@@ -127,6 +141,19 @@ const handleSubmitted = (data) => {
 const handleClose = () => {
     emit('close');
 };
+
+// Helper computed values for UI hints
+const allowedMaxBase = computed(() => {
+    if (!props.isBudgetForm) return 0;
+    const existingBudgetBase = props.milestone?.budget
+        ? convertCurrency(Number(props.milestone.budget.amount || 0), props.milestone.budget.currency, props.budgetBaseCurrency)
+        : 0;
+    return Number(props.availableForNewMilestones || 0) + (props.milestone?.budget ? existingBudgetBase : 0);
+});
+
+const allowedMaxInSelectedCurrency = computed(() => {
+    return convertCurrency(Number(allowedMaxBase.value || 0), props.budgetBaseCurrency, form.value?.currency || 'PKR');
+});
 </script>
 
 <template>
@@ -152,13 +179,14 @@ const handleClose = () => {
                 </div>
                 <div>
                     <InputLabel for="amount" value="Amount" />
-                    <TextInput id="amount" type="number" step="0.01" v-model="form.amount" class="mt-1 w-full" />
+                    <TextInput id="amount" type="number" step="0.01" v-model="form.amount" class="mt-1 w-full" :max="isBudgetForm ? Number(allowedMaxInSelectedCurrency.toFixed ? allowedMaxInSelectedCurrency.toFixed(2) : allowedMaxInSelectedCurrency) : null" />
                     <InputError :message="errors.amount?.[0] || apiErrors.amount?.[0]" class="mt-1" />
                 </div>
                 <div>
                     <InputLabel for="currency" value="Currency" />
                     <SelectDropdown id="currency" v-model="form.currency" :options="currencyOptions" value-key="value" label-key="label" class="mt-1 w-full" />
                     <InputError :message="errors.currency?.[0] || apiErrors.currency?.[0]" class="mt-1" />
+                    <p v-if="isBudgetForm" class="text-xs text-gray-500 mt-1">Max allowed in selected currency: {{ (allowedMaxInSelectedCurrency).toFixed ? allowedMaxInSelectedCurrency.toFixed(2) : allowedMaxInSelectedCurrency }} {{ form.currency }}</p>
                 </div>
                 <div v-if="!isBudgetForm">
                     <InputLabel for="user" value="User" />

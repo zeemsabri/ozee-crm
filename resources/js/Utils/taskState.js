@@ -168,7 +168,12 @@ export const completeTask = async (task) => {
         notification.info('Completing task...');
         const response = await axios.patch(`/api/tasks/${task.id}/complete`);
         notification.success('Task completed successfully');
-        return response.data;
+        const updated = response.data;
+        if (updated?.needs_approval) {
+            const creator = updated?.creator_name || 'the creator';
+            notification.info(`This task requires approval. A notification has been sent to ${creator}.`);
+        }
+        return updated;
     } catch (error) {
         console.error('Error completing task:', error);
         if (error.response && error.response.status === 422) {
