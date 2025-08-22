@@ -16,6 +16,7 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         \App\Console\Commands\FetchEmails::class,
         \App\Console\Commands\CheckMissedBonusesCommand::class,
+        \App\Console\Commands\FixStandupPointsPerProject::class,
     ];
 
     /**

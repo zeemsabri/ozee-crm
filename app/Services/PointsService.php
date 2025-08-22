@@ -96,6 +96,7 @@ class PointsService
         // Corrected Deduplication Check: Check for a previous standup on the same day for the same user.
         $existingStandupPoints = PointsLedger::where('user_id', $standup->creator_id)
             ->where('pointable_type', Standup::class)
+            ->where('project_id', $standup->project_id)
             ->whereDate('created_at', $userTime->toDateString())
             ->exists();
 
