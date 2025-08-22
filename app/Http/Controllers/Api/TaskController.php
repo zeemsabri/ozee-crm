@@ -184,7 +184,8 @@ class TaskController extends Controller
             'due_date' => 'nullable|date',
             'status' => 'required|in:To Do,In Progress,Done,Blocked,Archived',
             'task_type_id' => 'required|exists:task_types,id',
-            'milestone_id' => 'required|exists:milestones,id'
+            'milestone_id' => 'required|exists:milestones,id',
+            'needs_approval' => 'sometimes|boolean',
         ]);
 
         // Create the task
@@ -252,7 +253,8 @@ class TaskController extends Controller
             'status' => 'sometimes|required|in:To Do,In Progress,Done,Blocked,Archived',
             'task_type_id' => 'sometimes|required|exists:task_types,id',
             'milestone_id' => 'nullable|exists:milestones,id',
-            'details' => 'nullable|array'
+            'details' => 'nullable|array',
+            'needs_approval' => 'sometimes|boolean',
         ]);
 
         // Update the task

@@ -595,6 +595,21 @@ const latestBlockActivity = computed(() => {
                 </div>
             </div>
 
+            <!-- Approval Required Warning (shown above the Task Checklist) -->
+            <div v-if="task.needs_approval" class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-lg shadow-sm">
+                <div class="flex items-start">
+                    <svg class="h-5 w-5 text-amber-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.487 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0V9a1 1 0 112 0v4zm-1 4a1.25 1.25 0 100-2.5A1.25 1.25 0 0010 17z" clip-rule="evenodd" />
+                    </svg>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-semibold text-amber-800">Approval required</h3>
+                        <p class="mt-1 text-sm text-amber-700">
+                            Once completed, this task needs approval<span v-if="task.creator_name"> from <span class="font-medium">{{ task.creator_name }}</span></span>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Task Checklist -->
             <div class="space-y-4 p-4 bg-white rounded-lg shadow-sm mb-4">
                 <div class="flex justify-between items-center border-b pb-2 mb-4">
