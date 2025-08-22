@@ -312,12 +312,17 @@ const onProjectChange = async () => {
     await Promise.all([loadMilestones(), loadUsers(), loadProjectBudget()]);
 };
 
-const onModalSubmitted = () => {
+const onModalSubmitted = async () => {
     success('Operation successful!');
     showReasonModal.value = false;
     activeMilestone.value = null;
     activeExpendable.value = null;
-    loadMilestones();
+    // Refresh milestones and financial stats after any submission (including budget updates)
+    if (selectedProjectId.value) {
+        await Promise.all([loadMilestones(), loadProjectBudget()]);
+    } else {
+        await loadMilestones();
+    }
 };
 
 const openExpendableModal = (milestone) => {
@@ -798,6 +803,8 @@ watch(currentDisplayCurrency, async (newCurrency) => {
             :project-total-budget="projectBudgetAmount"
             :project-budget-currency="projectBudgetCurrency"
             :milestone-stats="milestoneStats(activeMilestone)"
+            :available-for-new-milestones="expendableBudget.available_for_new_milestones"
+            :budget-base-currency="expendableBudget.currency"
         />
 
         <MilestoneExpendableModal
@@ -813,6 +820,8 @@ watch(currentDisplayCurrency, async (newCurrency) => {
             :project-total-budget="projectBudgetAmount"
             :project-budget-currency="projectBudgetCurrency"
             :milestone-stats="milestoneStats(activeMilestone)"
+            :available-for-new-milestones="expendableBudget.available_for_new_milestones"
+            :budget-base-currency="expendableBudget.currency"
         />
 
         <ReasonModal

@@ -20,6 +20,8 @@ class Task extends Model
 {
     use HasFactory, Taggable, SoftDeletes, LogsActivity;
 
+    protected $appends = ['creator_name'];
+
     // Task status constants
     public const STATUS_TO_DO = 'To Do';
     public const STATUS_IN_PROGRESS = 'In Progress';
@@ -377,6 +379,8 @@ class Task extends Model
      */
     public function markAsCompleted(User $user = null)
     {
+        // Keep a reference to the user who completed the task
+        $completedBy = $user;
         $oldStatus = $this->status;
         $this->status = self::STATUS_DONE;
         $this->actual_completion_date = now();
@@ -414,8 +418,13 @@ class Task extends Model
                 // Prepare the message
                 $messageText = "✅ *Task Completed*: {$this->name}\n\n";
 
-                if ($user) {
-                    $messageText .= "👤 *Completed by*: {$user->name}\n";
+                if ($completedBy) {
+                    $messageText .= "👤 *Completed by*: {$completedBy->name}\n";
+                }
+
+                // If task needs approval, add a note for visibility
+                if ($this->needs_approval && $this->creator_name) {
+                    $messageText .= "🔔 *Approval Needed*: Notifying {$this->creator_name}\n";
                 }
 
                 // If we have a thread ID, use threaded messages
@@ -459,6 +468,30 @@ class Task extends Model
                 }
             } catch (\Exception $e) {
                 Log::error('Failed to send task completed notification: ' . $e->getMessage(), [
+                    'task_id' => $this->id,
+                    'exception' => $e
+                ]);
+            }
+
+            // Notify the creator if this task needs approval
+            try {
+                if ($this->needs_approval && $this->creator) {
+                    // Only notify if creator is a User model and not the same as the completer
+                    if ($this->creator instanceof \App\Models\User) {
+//                        if (!$completedBy || $this->creator->id !== $completedBy->id) {
+                            $this->creator->notify(new \App\Notifications\TaskApprovalCompleted($this));
+//                        }
+                    } else {
+                        // For non-User creators (e.g., Client), skip for now but log for future implementation
+                        Log::info('Task approval notification skipped for non-User creator', [
+                            'task_id' => $this->id,
+                            'creator_type' => get_class($this->creator),
+                            'creator_id' => $this->creator->id ?? null,
+                        ]);
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to notify task creator about completion for approval: ' . $e->getMessage(), [
                     'task_id' => $this->id,
                     'exception' => $e
                 ]);
@@ -769,6 +802,11 @@ class Task extends Model
         }
 
         return null;
+    }
+
+    public function getCreatorNameAttribute()
+    {
+        return $this->getCreatorName();
     }
 
     // The attachTag and detachTag methods are replaced by the syncTags method in the Taggable trait
