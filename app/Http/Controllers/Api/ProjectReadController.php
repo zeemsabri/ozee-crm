@@ -332,15 +332,19 @@ class ProjectReadController extends Controller
      */
     public function getExpendableBudget(Project $project)
     {
-        $user = Auth::user();
 
         $this->authorize('addExpendables', $project);
 
         return response()->json([
-            'total_expendable_amount' => $project->remaining_spendables,
-            'total_budget' => $project->total_budget,
-            'currency' => 'AUD',
+            'total_budget'                      =>  $project->total_budget,
+            'total_assigned_milestone_amount'   =>  $project->total_assigned_milestone_amount,
+            'total_pending_contract_amount'     =>  $project->pending_contracts_amount,
+            'total_approved_contract_amount'    =>  $project->approved_contracts_amount,
+            'total_expendable_amount'           =>  $project->remaining_spendables,
+            'available_for_new_milestones'      =>  $project->available_for_new_milestones,
+            'currency'                          =>  'AUD',
         ]);
+
     }
 
     /**
