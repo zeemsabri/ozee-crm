@@ -71,6 +71,15 @@ const canViewMonthlyBudgets = canDo('view_monthly_budgets');
 const currentDisplayCurrency = displayCurrency;
 const projectBudgetAmount = ref(null);
 const projectBudgetCurrency = ref('PKR');
+const expendableBudget = ref({
+    total_budget: 0,
+    total_assigned_milestone_amount: 0,
+    total_pending_contract_amount: 0,
+    total_approved_contract_amount: 0,
+    total_expendable_amount: 0,
+    available_for_new_milestones: 0,
+    currency: 'AUD',
+});
 const users = ref([]);
 
 const tabs = [
@@ -129,36 +138,28 @@ const filteredMilestones = computed(() => {
 });
 
 const approvedTotal = computed(() => {
-    if (!milestones.value || !conversionRatesToUSD.value || Object.keys(conversionRatesToUSD.value).length === 0) return 0;
-    return milestones.value.reduce((total, milestone) => {
-        if (milestone.status.toLowerCase() !== 'approved') {
-            return total + (milestone.expendable || []).filter(e => e.status === 'Accepted').reduce((sum, e) => {
-                return sum + convertCurrency(parseFloat(e.amount ?? 0), e.currency, currentDisplayCurrency.value);
-            }, 0);
-        }
-        return total;
-    }, 0);
+    // Use backend-provided totals; values are in expendableBudget.currency
+    const amt = Number(expendableBudget.value.total_approved_contract_amount || 0);
+    return convertCurrency(amt, expendableBudget.value.currency || projectBudgetCurrency.value || 'AUD', currentDisplayCurrency.value);
 });
 
 const pendingTotal = computed(() => {
-    if (!milestones.value || !conversionRatesToUSD.value || Object.keys(conversionRatesToUSD.value).length === 0) return 0;
-    return milestones.value.reduce((total, milestone) => {
-        return total + (milestone.expendable || []).filter(e => e.status === 'Pending Approval').reduce((sum, e) => {
-            return sum + convertCurrency(parseFloat(e.amount ?? 0), e.currency, currentDisplayCurrency.value);
-        }, 0);
-    }, 0);
+    const amt = Number(expendableBudget.value.total_pending_contract_amount || 0);
+    return convertCurrency(amt, expendableBudget.value.currency || projectBudgetCurrency.value || 'AUD', currentDisplayCurrency.value);
 });
 
 const remainingBudget = computed(() => {
-    if (projectBudgetAmount.value == null) return formatCurrency(0, currentDisplayCurrency.value);
-    const budgetInDisplay = convertCurrency(parseFloat(projectBudgetAmount.value ?? 0), projectBudgetCurrency.value, currentDisplayCurrency.value);
-    const totalApproved = milestones.value.reduce((total, milestone) => {
-        return total + (milestone.expendable || []).filter(e => e.status === 'Accepted').reduce((sum, e) => {
-            return sum + convertCurrency(parseFloat(e.amount ?? 0), e.currency, currentDisplayCurrency.value);
-        }, 0);
-    }, 0);
-    return formatCurrency(budgetInDisplay - totalApproved, currentDisplayCurrency.value);
+    // Show available for new milestones as the remaining budget for new expenditure
+    const amt = Number(expendableBudget.value.available_for_new_milestones ?? expendableBudget.value.total_expendable_amount ?? 0);
+    const inDisplay = convertCurrency(amt, expendableBudget.value.currency || projectBudgetCurrency.value || 'AUD', currentDisplayCurrency.value);
+    return formatCurrency(inDisplay, currentDisplayCurrency.value);
 });
+
+const fmtBudget = (val) => {
+    const amt = Number(val || 0);
+    const inDisplay = convertCurrency(amt, expendableBudget.value.currency || projectBudgetCurrency.value || 'AUD', currentDisplayCurrency.value);
+    return formatCurrency(inDisplay, currentDisplayCurrency.value);
+};
 
 const userOptions = computed(() => {
     const list = Array.isArray(users.value?.users) ? users.value.users : users.value;
@@ -275,8 +276,18 @@ const loadProjectBudget = async () => {
     if (!selectedProjectId.value) return;
     try {
         const { data } = await window.axios.get(`/api/projects/${selectedProjectId.value}/expendable-budget`);
+        expendableBudget.value = {
+            total_budget: Number(data.total_budget || 0),
+            total_assigned_milestone_amount: Number(data.total_assigned_milestone_amount || 0),
+            total_pending_contract_amount: Number(data.total_pending_contract_amount || 0),
+            total_approved_contract_amount: Number(data.total_approved_contract_amount || 0),
+            total_expendable_amount: Number(data.total_expendable_amount || 0),
+            available_for_new_milestones: Number(data.available_for_new_milestones || 0),
+            currency: data.currency || 'AUD',
+        };
+        // Keep these for backward compatibility where used elsewhere
         projectBudgetAmount.value = Number(data.total_expendable_amount || 0);
-        projectBudgetCurrency.value = data.currency;
+        projectBudgetCurrency.value = data.currency || 'AUD';
     } catch (e) {
         console.error(e);
     }
@@ -287,6 +298,15 @@ const onProjectChange = async () => {
         milestones.value = [];
         projectBudgetAmount.value = 0;
         projectBudgetCurrency.value = 'PKR';
+        expendableBudget.value = {
+            total_budget: 0,
+            total_assigned_milestone_amount: 0,
+            total_pending_contract_amount: 0,
+            total_approved_contract_amount: 0,
+            total_expendable_amount: 0,
+            available_for_new_milestones: 0,
+            currency: 'AUD',
+        };
         return;
     }
     await Promise.all([loadMilestones(), loadUsers(), loadProjectBudget()]);
@@ -496,6 +516,24 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                     <div class="bg-white rounded-xl p-6 shadow-sm">
                         <h3 class="text-xl font-semibold text-gray-900 mb-4">Financial Summary</h3>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="bg-indigo-50 rounded-lg p-5 shadow-sm flex flex-col justify-between">
+                                <div>
+                                    <div class="text-sm font-medium text-indigo-700 mb-1">Total Project Budget</div>
+                                    <div class="text-3xl font-bold text-indigo-900">
+                                        {{ fmtBudget(expendableBudget.total_budget) }}
+                                    </div>
+                                </div>
+                                <p class="text-xs text-indigo-600 mt-2">Overall budget allocated to the project.</p>
+                            </div>
+                            <div class="bg-purple-50 rounded-lg p-5 shadow-sm flex flex-col justify-between">
+                                <div>
+                                    <div class="text-sm font-medium text-purple-700 mb-1">Assigned to Milestones</div>
+                                    <div class="text-3xl font-bold text-purple-900">
+                                        {{ fmtBudget(expendableBudget.total_assigned_milestone_amount) }}
+                                    </div>
+                                </div>
+                                <p class="text-xs text-purple-600 mt-2">Amount already assigned to milestones.</p>
+                            </div>
                             <div class="bg-green-50 rounded-lg p-5 shadow-sm flex flex-col justify-between">
                                 <div>
                                     <div class="text-sm font-medium text-green-700 mb-1">Approved Contracts</div>
@@ -516,12 +554,21 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                             </div>
                             <div class="bg-blue-50 rounded-lg p-5 shadow-sm flex flex-col justify-between">
                                 <div>
-                                    <div class="text-sm font-medium text-blue-700 mb-1">Remaining Project Budget</div>
+                                    <div class="text-sm font-medium text-blue-700 mb-1">Expendable Remaining</div>
                                     <div class="text-3xl font-bold text-blue-900">
-                                        {{ remainingBudget }}
+                                        {{ fmtBudget(expendableBudget.total_expendable_amount) }}
                                     </div>
                                 </div>
-                                <p class="text-xs text-blue-600 mt-2">Budget available for new expenditures.</p>
+                                <p class="text-xs text-blue-600 mt-2">Remaining after approved contracts.</p>
+                            </div>
+                            <div class="bg-teal-50 rounded-lg p-5 shadow-sm flex flex-col justify-between">
+                                <div>
+                                    <div class="text-sm font-medium text-teal-700 mb-1">Available for New Milestones</div>
+                                    <div class="text-3xl font-bold text-teal-900">
+                                        {{ fmtBudget(expendableBudget.available_for_new_milestones) }}
+                                    </div>
+                                </div>
+                                <p class="text-xs text-teal-600 mt-2">Budget still available to allocate to new milestones.</p>
                             </div>
                         </div>
 

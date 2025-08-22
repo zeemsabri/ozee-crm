@@ -30,6 +30,7 @@ const taskForm = reactive({
     milestone_id: null,
     project_id: props.projectId, // Initialize with prop
     priority: 'medium', // Default priority
+    needs_approval: false, // New: whether this task needs approval
     tags: [], // For tag IDs
     tags_data: [], // For tag objects with id and name
 });
@@ -77,6 +78,7 @@ watch(() => props.show, async (newValue) => {
             milestone_id: null,
             project_id: props.projectId, // Re-set project_id from prop
             priority: 'medium', // Reset to default priority
+            needs_approval: false,
             tags: [], // Reset tags
             tags_data: [], // Reset tags data
         });
@@ -405,6 +407,11 @@ const milestoneOptions = computed(() => milestones.value);
                     <InputLabel for="task-files" value="Attach Files (optional)" />
                     <input id="task-files" type="file" class="mt-1 block w-full" multiple @change="onFilesChange" />
                     <p class="text-xs text-gray-500 mt-1">Files will be uploaded to Google Drive under the Task folder after the task is created.</p>
+                </div>
+                <!-- Needs Approval Checkbox -->
+                <div class="flex items-center mt-2">
+                    <input id="needs-approval" type="checkbox" v-model="taskForm.needs_approval" class="h-4 w-4 text-indigo-600 border-gray-300 rounded" />
+                    <label for="needs-approval" class="ml-2 block text-sm text-gray-700">This task needs approval</label>
                 </div>
             </div>
         </template>

@@ -28,6 +28,7 @@ const taskForm = reactive({
     status: 'To Do',
     task_type_id: null,
     milestone_id: null,
+    needs_approval: false,
     tags: []
 });
 

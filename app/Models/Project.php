@@ -434,45 +434,6 @@ class Project extends Model
         return round($converted, 2);
     }
 
-    /**
-     * Total of approved milestone expendables (user-bound) in the project's currency.
-     */
-    public function getApprovedMilestoneExpendablesTotalAttribute(): float
-    {
-        $convertTo = 'AUD';
-        $items = ProjectExpendable::where('project_id', $this->id)
-            ->where('expendable_type', 'App\\Models\\Milestone')
-            ->whereNotNull('user_id')
-            ->get(['amount', 'currency']);
-
-        $total = 0.0;
-        foreach ($items as $item) {
-            $total += $this->convertCurrency((float) $item->amount, (string) $item->currency, $convertTo);
-        }
-        return round($total, 2);
-    }
-
-    /**
-     * Remaining spendables = project total_expendable_amount - approved milestone expendables (user-bound), in project currency.
-     */
-    public function getRemainingSpendablesAttribute(): float
-    {
-        $items      = $this->expendable;
-        $convertTo  = 'AUD';
-
-        $total = 0.0;
-        foreach ($items as $item) {
-            $total += $this->convertCurrency((float) $item->amount, (string) $item->currency, $convertTo);
-        }
-        $budget = $total;
-        if ($budget <= 0) {
-            return 0.0;
-        }
-        $approved = (float) $this->approved_milestone_expendables_total;
-        $remaining = $budget - $approved;
-        return round(max(0, $remaining), 2);
-    }
-
     public function getTotalBudgetAttribute()
     {
         $convertTo = 'AUD';
@@ -483,9 +444,88 @@ class Project extends Model
         return round($total, 2);
     }
 
-//    protected $appends = [
-//        // Expose helpful financial aggregates for clients needing quick stats
-//        'approved_milestone_expendables_total',
-//        'remaining_spendables',
-//    ];
+
+    public function getTotalAssignedMilestoneAmountAttribute()
+    {
+        //Calculate total amount which is assigned to each milestone
+
+        $convertTo = 'AUD';
+        $milestones = $this->milestones()->with('budget')->get();
+
+        $total = 0.0;
+        foreach($milestones as $milestone) {
+
+            if($budget = $milestone->budget) {
+                $total += $this->convertCurrency((float) $budget->amount, (string) $budget->currency, $convertTo);
+            }
+
+        }
+
+        return round($total, 2);
+
+    }
+
+    public function milestoneContracts()
+    {
+        //Return all contracts within each milestones
+        $milestones = $this->milestones()->with('expendable')->get();
+        $expendables = collect();
+        foreach ($milestones as $milestone) {
+            $expendables = $expendables->merge($milestone->expendable);
+        }
+        return $expendables;
+    }
+
+    public function getPendingContractsAmountAttribute()
+    {
+
+        //From all contracts calculate all pending contract amounts
+        $convertTo = 'AUD';
+        $allContracts = $this->milestoneContracts()->where('status', ProjectExpendable::STATUS_PENDING);
+
+        $total = 0.0;
+        foreach($allContracts as $contract) {
+            $total += $this->convertCurrency((float) $contract->amount, (string) $contract->currency, $convertTo);
+        }
+
+        return round($total, 2);
+    }
+
+    public function getApprovedContractsAmountAttribute()
+    {
+
+        //From all contracts calculate all approved contract amounts
+        $convertTo = 'AUD';
+        $allContracts = $this->milestoneContracts()->where('status', ProjectExpendable::STATUS_ACCEPTED);
+
+        $total = 0.0;
+        foreach($allContracts as $contract) {
+            $total += $this->convertCurrency((float) $contract->amount, (string) $contract->currency, $convertTo);
+        }
+
+        return round($total, 2);
+
+    }
+
+    public function getAvailableForNewMilestonesAttribute()
+    {
+        return round($this->total_budget - $this->total_assigned_milestone_amount, 2);
+    }
+
+    /**
+     * Total of approved milestone expendables (user-bound) in the project's currency.
+     */
+    public function getApprovedMilestoneExpendablesTotalAttribute(): float
+    {
+        return round(($this->total_budget - $this->approved_contracts_amount), 2);
+    }
+
+    /**
+     * Remaining spendables = project total_expendable_amount - approved milestone expendables (user-bound), in project currency.
+     */
+    public function getRemainingSpendablesAttribute(): float
+    {
+        return round(($this->total_budget - $this->approved_contracts_amount), 2);
+    }
+
 }

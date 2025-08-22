@@ -145,6 +145,7 @@ class Task extends Model
         'deleted_by',
         'block_reason',
         'previous_status',
+        'needs_approval',
         'details',
     ];
 
@@ -157,6 +158,7 @@ class Task extends Model
         'due_date' => 'date',
         'actual_completion_date' => 'date',
         'details' => 'array',
+        'needs_approval' => 'boolean',
     ];
 
     /**
