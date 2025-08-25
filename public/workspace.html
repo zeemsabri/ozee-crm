@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Workspace Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles to enhance the prototype */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* A light gray background */
+        }
+        /* Style for the triage icons in the notifications list */
+        .triage-icons {
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+        }
+        .group:hover .triage-icons {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+<!-- Global Header -->
+<header class="bg-white shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+            <!-- Logo -->
+            <div class="flex-shrink-0 flex items-center">
+                <svg class="h-8 w-auto" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10" class="text-indigo-600" fill="currentColor"/>
+                    <path d="M9 9.5C9 8.67157 9.67157 8 10.5 8H13.5C14.3284 8 15 8.67157 15 9.5V14.5C15 15.3284 14.3284 16 13.5 16H10.5C9.67157 16 9 15.3284 9 14.5V9.5Z" fill="white"/>
+                </svg>
+                <span class="ml-3 text-xl font-bold text-gray-900">Workspace</span>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="hidden md:flex md:space-x-8">
+                <a href="#" class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" aria-current="page">
+                    Dashboard
+                </a>
+                <a href="#" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                    Projects
+                </a>
+                <a href="#" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                    Tasks
+                </a>
+                <a href="#" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                    Reports
+                </a>
+            </nav>
+
+            <!-- User Profile -->
+            <div class="flex items-center">
+                <img class="h-8 w-8 rounded-full object-cover" src="https://placehold.co/100x100/E2E8F0/4A5568?text=AV" alt="User avatar" onerror="this.onerror=null;this.src='https://placehold.co/100x100/E2E8F0/4A5568?text=U';">
+                <span class="ml-3 hidden sm:block text-sm font-medium text-gray-700">Jane Doe</span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- Main Container -->
+<main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <!-- Two-Column Layout -->
+    <div class="flex flex-col lg:flex-row lg:space-x-8 space-y-8 lg:space-y-0">
+
+        <!-- Left Column (Main Content) -->
+        <div class="w-full lg:w-7/10 space-y-8">
+
+            <!-- Widget 1: For Your Action -->
+            <section class="bg-white rounded-lg shadow-md">
+                <div class="p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">For Your Action</h2>
+                    <ul class="divide-y divide-gray-200">
+                        <!-- Action Item: Approval -->
+                        <li class="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between">
+                            <div class="flex items-center mb-3 sm:mb-0">
+                                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                    <svg class="h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <p class="ml-4 text-sm font-medium text-gray-700">Please approve draft email to Client X regarding milestone payment.</p>
+                            </div>
+                            <div class="flex-shrink-0 flex space-x-2">
+                                <button class="px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition">Approve</button>
+                                <button class="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition">Reject</button>
+                                <button class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition">View Draft</button>
+                            </div>
+                        </li>
+                        <!-- Action Item: Task Due -->
+                        <li class="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between">
+                            <div class="flex items-center mb-3 sm:mb-0">
+                                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                                    <svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                    </svg>
+                                </div>
+                                <p class="ml-4 text-sm font-medium text-gray-700">Complete keyword analysis for Project Y.</p>
+                            </div>
+                            <div class="flex-shrink-0 flex space-x-4">
+                                <a href="#" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">Mark Complete</a>
+                                <a href="#" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">View Task Details</a>
+                            </div>
+                        </li>
+                        <!-- Action Item: Standup -->
+                        <li class="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between">
+                            <div class="flex items-center mb-3 sm:mb-0">
+                                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                                    <svg class="h-6 w-6 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <p class="ml-4 text-sm font-medium text-gray-700">Your daily standup is due by 10:00 AM.</p>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <button class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition shadow-sm">Submit Now</button>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Widget 2: Today's Meetings -->
+            <section class="bg-white rounded-lg shadow-md">
+                <div class="p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Today's Meetings</h2>
+                    <ul class="divide-y divide-gray-200">
+                        <!-- Meeting Item 1 -->
+                        <li class="py-4 flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-900">Project Alpha - Weekly Sync</p>
+                                <p class="text-sm text-gray-500">11:00 AM - 11:30 AM</p>
+                            </div>
+                            <button class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition">Join Meeting</button>
+                        </li>
+                        <!-- Meeting Item 2 -->
+                        <li class="py-4 flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-900">Design Review: New Feature</p>
+                                <p class="text-sm text-gray-500">2:00 PM - 3:00 PM</p>
+                            </div>
+                            <button class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition">Join Meeting</button>
+                        </li>
+                    </ul>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- Right Column (Sidebar) -->
+        <div class="w-full lg:w-3/10">
+
+            <!-- Widget 3: Notifications & Unread -->
+            <aside class="bg-white rounded-lg shadow-md">
+                <div class="p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Notifications & Unread</h2>
+                    <div class="max-h-96 overflow-y-auto">
+                        <ul class="divide-y divide-gray-200">
+                            <!-- Notification Item 1 -->
+                            <li class="group p-3 rounded-md hover:bg-gray-50 flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600">From: John Doe</p>
+                                    <p class="text-sm text-gray-800 truncate">Subject: FYI on the latest project update</p>
+                                </div>
+                                <div class="triage-icons flex items-center space-x-2">
+                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-green-100 hover:text-green-600">
+                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                    </button>
+                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-blue-100 hover:text-blue-600">
+                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                    </button>
+                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-yellow-100 hover:text-yellow-600">
+                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                    </button>
+                                </div>
+                            </li>
+                            <!-- Notification Item 2 -->
+                            <li class="group p-3 rounded-md hover:bg-gray-50 flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600">From: Project Management Bot</p>
+                                    <p class="text-sm text-gray-800 truncate">Subject: Task "Deploy to Staging" is overdue</p>
+                                </div>
+                                <div class="triage-icons flex items-center space-x-2">
+                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-green-100 hover:text-green-600">
+                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                    </button>
+                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-blue-100 hover:text-blue-600">
+                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                    </button>
+                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-yellow-100 hover:text-yellow-600">
+                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                    </button>
+                                </div>
+                            </li>
+                            <!-- Notification Item 3 -->
+                            <li class="group p-3 rounded-md hover:bg-gray-50 flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600">From: HR Department</p>
+                                    <p class="text-sm text-gray-800 truncate">Subject: Company-wide meeting announcement</p>
+                                </div>
+                                <div class="triage-icons flex items-center space-x-2">
+                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-green-100 hover:text-green-600">
+                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                    </button>
+                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-blue-100 hover:text-blue-600">
+                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                    </button>
+                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-yellow-100 hover:text-yellow-600">
+                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                    </button>
+                                </div>
+                            </li>
+                            <!-- Notification Item 4 -->
+                            <li class="group p-3 rounded-md hover:bg-gray-50 flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600">From: Sarah Connor</p>
+                                    <p class="text-sm text-gray-800 truncate">Subject: Quick question about the Q3 report</p>
+                                </div>
+                                <div class="triage-icons flex items-center space-x-2">
+                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-green-100 hover:text-green-600">
+                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                    </button>
+                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-blue-100 hover:text-blue-600">
+                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                    </button>
+                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-yellow-100 hover:text-yellow-600">
+                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                    </button>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </aside>
+
+        </div>
+
+    </div>
+</main>
+
+</body>
+</html>

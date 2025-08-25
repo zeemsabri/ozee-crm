@@ -49,6 +49,17 @@ return [
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
 
+        // Add this new mailer for transactional emails
+        'famify_smtp' => [
+            'transport' => 'smtp',
+            'host' => env('FAMIFY_MAIL_HOST'),
+            'port' => env('FAMIFY_MAIL_PORT', 587),
+            'username' => env('FAMIFY_MAIL_USERNAME'),
+            'password' => env('FAMIFY_MAIL_PASSWORD'),
+            'encryption' => env('FAMIFY_MAIL_ENCRYPTION', 'tls'),
+            'timeout' => null,
+        ],
+
         'ses' => [
             'transport' => 'ses',
         ],
