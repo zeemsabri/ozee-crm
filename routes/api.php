@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\ResourceController;
 use App\Http\Controllers\Api\MagicLinkController;
 use App\Http\Controllers\Api\ModelDataController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Api\FamifyHub\MailController as FamifyMailController;
 use App\Http\Controllers\Api\BugReportController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -75,6 +76,10 @@ Route::prefix('bugs')->group(function () {
     Route::get('/', [BugReportController::class, 'index']);
     Route::get('/status', [BugReportController::class, 'status']);
 });
+
+// Public FamifyHub contact endpoint (no authentication)
+Route::post('/famifyhub/contact', [FamifyMailController::class, 'submit']);
+Route::post('/famifyhub/contactform', [FamifyMailController::class, 'contactForm']);
 
 // Authenticated API Routes (behind auth:sanctum middleware for internal users)
 Route::middleware('auth:sanctum')->group(function () {
