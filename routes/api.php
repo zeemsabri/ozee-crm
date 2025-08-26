@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\ProjectDashboard\ProjectDeliverableAction;
 use App\Http\Controllers\Api\SendEmailController;
 use App\Http\Controllers\Api\ShareableResourceController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\UserWorkspaceController;
 use App\Http\Controllers\Api\WireframeController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
@@ -97,6 +98,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::post('/notifications/{viewId}/read', [NotificationController::class, 'markAsReadByViewId']);
     Route::delete('/notifications/{notificationId}', [NotificationController::class, 'destroy']);
+
+    // User Workspace (checklist and notes)
+    Route::get('user/workspace', [UserWorkspaceController::class, 'workspace']);
+    Route::put('user/checklist', [UserWorkspaceController::class, 'updateChecklist']);
+    Route::put('user/notes', [UserWorkspaceController::class, 'updateNotes']);
 
     // Tag Management Routes
     Route::get('/tags/search', [\App\Http\Controllers\TagController::class, 'search']);
@@ -185,6 +191,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Workspace API
     Route::get('workspace/projects', [WorkspaceController::class, 'projects']);
+        Route::get('workspace/projects/{project}/completed-tasks', [WorkspaceController::class, 'completedTasks']);
     Route::put('projects/{project}/sections/services-payment', [ProjectActionController::class, 'updateServicesAndPayment']);
     Route::put('projects/{project}/sections/transactions', [ProjectActionController::class, 'updateTransactions']);
     Route::put('projects/{project}/sections/notes', [ProjectActionController::class, 'updateNotes']);

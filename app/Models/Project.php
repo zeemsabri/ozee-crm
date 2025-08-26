@@ -41,6 +41,8 @@ class Project extends Model
         'timezone',
         'project_tier_id',
         'profit_margin_percentage',
+        'last_email_sent',
+        'last_email_received',
     ];
 
     protected $casts = [
@@ -50,6 +52,8 @@ class Project extends Model
         'total_amount' => 'decimal:2',
         'payment_type' => 'string',
         'documents' => 'array',
+        'last_email_sent' => 'datetime',
+        'last_email_received' => 'datetime',
     ];
 
     protected $hidden = [

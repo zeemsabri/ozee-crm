@@ -1,6 +1,7 @@
 <script setup>
 import { Head } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Filters from '@/Pages/Workspace/components/Filters.vue';
 import ProjectCards from '@/Pages/Workspace/components/ProjectCards.vue';
@@ -156,6 +157,17 @@ function handleUpdateNotes(newNotes) {
     notes.value = newNotes;
     localStorage.setItem('my_dashboard_notes', newNotes);
 }
+
+// Initialize currency conversion similar to Admin/ProjectExpendables
+onMounted(async () => {
+    try {
+        const stored = localStorage.getItem('displayCurrency');
+        if (stored) displayCurrency.value = stored;
+        await fetchCurrencyRates();
+    } catch (e) {
+        console.warn('Currency initialization failed in Workspace/Index.vue:', e);
+    }
+});
 
 </script>
 
