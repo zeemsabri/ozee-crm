@@ -99,7 +99,13 @@ const budgetSummaryText = computed(() => {
 });
 
 async function loadBudget() {
-    if (!props.project || !props.project.id) return;
+    // Only fetch budget for Manager cards
+    if (!props.project || !props.project.id || props.project.role !== 'Manager') {
+        budget.value = null;
+        budgetError.value = null;
+        budgetLoading.value = false;
+        return;
+    }
     budgetLoading.value = true;
     budgetError.value = null;
     try {
@@ -115,8 +121,8 @@ async function loadBudget() {
     }
 }
 
-watch(() => props.project?.id, (newId, oldId) => {
-    if (newId && newId !== oldId) loadBudget();
+watch(() => [props.project?.id, props.project?.role], () => {
+    loadBudget();
 }, { immediate: true });
 
 function toggleCompleted() {
