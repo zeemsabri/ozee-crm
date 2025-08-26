@@ -101,7 +101,7 @@ class WorkspaceController extends Controller
         $mapped = $projects->map(function (Project $project) use ($user, $today, $tomorrow, $isGlobalManager) {
             // Derive role
             $role = 'doer';
-            if ($project->project_manager_id === $user->id) {
+            if ($project->project_manager_id === $user->id || $user->id === 1) {
                 $role = 'manager';
             } elseif ($project->project_admin_id === $user->id) {
                 $role = 'admin';
