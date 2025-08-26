@@ -64,12 +64,14 @@
 
             <!-- Part 3: Example Card 1: Project "Phoenix" (Manager View with Urgent Alert) -->
             <div class="bg-white rounded-xl shadow-md p-6 mb-6">
-                <!-- Card Header -->
+                <!-- Card Header with Project Health Indicator -->
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-2">
                         <h2 class="text-xl font-semibold text-gray-900">Project Phoenix</h2>
                         <!-- Role Tag for Project Manager -->
                         <span class="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full">Manager</span>
+                        <!-- Project Health Indicator (Red for 'At Risk') -->
+                        <div class="w-3 h-3 rounded-full bg-red-500" title="At Risk" aria-label="Project health status: At Risk"></div>
                     </div>
                 </div>
 
@@ -118,8 +120,8 @@
                             <h4 class="text-base font-semibold text-gray-900 mb-2">Team Tasks</h4>
                             <!-- Sub-tabs for Today and Tomorrow tasks -->
                             <div class="flex space-x-2 border-b border-gray-200 mb-3">
-                                <button class="task-tab-button active flex-1 text-sm font-medium text-gray-900 border-b-2 border-indigo-600 py-1 transition-all-colors" data-tasks-tab="phoenix-today">Today</button>
-                                <button class="task-tab-button flex-1 text-sm font-medium text-gray-500 hover:text-gray-900 py-1 transition-all-colors" data-tasks-tab="phoenix-tomorrow">Tomorrow</button>
+                                <button class="task-tab-button active flex-1 text-sm font-medium text-gray-900 border-b-2 border-indigo-600 py-1 transition-all-colors" data-tasks-tab="phoenix-today">Today <span class="ml-1 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded-full">2</span></button>
+                                <button class="task-tab-button flex-1 text-sm font-medium text-gray-500 hover:text-gray-900 py-1 transition-all-colors" data-tasks-tab="phoenix-tomorrow">Tomorrow <span class="ml-1 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded-full">2</span></button>
                             </div>
                             <!-- Today's Tasks Content -->
                             <div id="phoenix-today" class="tasks-content space-y-2 text-sm text-gray-700">
@@ -156,6 +158,11 @@
                                 </div>
                             </div>
 
+                            <!-- Empty state for tasks -->
+                            <div id="phoenix-tasks-empty" class="hidden mt-4 text-center text-sm text-gray-500">
+                                <p>No tasks due for this project. Nice work!</p>
+                            </div>
+
                             <!-- Completed Tasks Section (initially hidden) -->
                             <div id="phoenix-completed-tasks" class="hidden mt-4 pt-4 border-t border-gray-200">
                                 <h5 class="text-sm font-semibold text-gray-500 mb-2">Completed Tasks</h5>
@@ -170,8 +177,7 @@
                                 </div>
                             </div>
                             <!-- Summary and toggle button for completed tasks -->
-                            <div id="phoenix-completed-summary" class="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600 hidden">You have 1 completed task. <button id="toggle-phoenix-completed" class="font-medium text-indigo-600 hover:underline transition-all-colors">Show Completed</button></div>
-                            <button id="toggle-phoenix-completed-btn" class="mt-4 text-indigo-600 text-sm font-medium hover:underline transition-all-colors">Show Completed</button>
+                            <button id="toggle-phoenix-completed-btn" class="mt-4 text-indigo-600 text-sm font-medium hover:underline transition-all-colors" data-completed-count="1">Show 1 Completed Task</button>
                         </div>
                     </div>
                     <div class="tab-content hidden" id="communication-content-phoenix">
@@ -185,12 +191,14 @@
 
             <!-- Part 3: Example Card 2: Project "Odyssey" (Contributor View) -->
             <div class="bg-white rounded-xl shadow-md p-6 mb-6">
-                <!-- Card Header -->
+                <!-- Card Header with Project Health Indicator -->
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-2">
                         <h2 class="text-xl font-semibold text-gray-900">Project Odyssey</h2>
                         <!-- Role Tag for Contributor -->
                         <span class="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Contributor</span>
+                        <!-- Project Health Indicator (Yellow for 'Needs Attention') -->
+                        <div class="w-3 h-3 rounded-full bg-yellow-500" title="Needs Attention" aria-label="Project health status: Needs Attention"></div>
                     </div>
                 </div>
 
@@ -199,8 +207,8 @@
                     <h3 class="text-lg font-semibold text-gray-900 mb-3">My Tasks</h3>
                     <!-- Sub-tabs for Today and Tomorrow tasks -->
                     <div class="flex space-x-2 border-b border-gray-200 mb-3">
-                        <button class="task-tab-button active flex-1 text-sm font-medium text-gray-900 border-b-2 border-indigo-600 py-1 transition-all-colors" data-tasks-tab="odyssey-today">Today</button>
-                        <button class="task-tab-button flex-1 text-sm font-medium text-gray-500 hover:text-gray-900 py-1 transition-all-colors" data-tasks-tab="odyssey-tomorrow">Tomorrow</button>
+                        <button class="task-tab-button active flex-1 text-sm font-medium text-gray-900 border-b-2 border-indigo-600 py-1 transition-all-colors" data-tasks-tab="odyssey-today">Today <span class="ml-1 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded-full">2</span></button>
+                        <button class="task-tab-button flex-1 text-sm font-medium text-gray-500 hover:text-gray-900 py-1 transition-all-colors" data-tasks-tab="odyssey-tomorrow">Tomorrow <span class="ml-1 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded-full">1</span></button>
                     </div>
                     <!-- Today's Tasks Content -->
                     <div id="odyssey-today" class="tasks-content space-y-2 text-sm text-gray-700">
@@ -230,6 +238,11 @@
                         </div>
                     </div>
 
+                    <!-- Empty state for tasks -->
+                    <div id="odyssey-tasks-empty" class="hidden mt-4 text-center text-sm text-gray-500">
+                        <p>No tasks due for this project. Well done!</p>
+                    </div>
+
                     <!-- Completed Tasks Section (initially hidden) -->
                     <div id="odyssey-completed-tasks" class="hidden mt-4 pt-4 border-t border-gray-200">
                         <h5 class="text-sm font-semibold text-gray-500 mb-2">Completed Tasks</h5>
@@ -245,8 +258,7 @@
                     </div>
 
                     <!-- Summary and toggle button for completed tasks -->
-                    <div id="odyssey-completed-summary" class="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600 hidden">You have 1 completed task. <button id="toggle-odyssey-completed" class="font-medium text-indigo-600 hover:underline transition-all-colors">Show Completed</button></div>
-                    <button id="toggle-odyssey-completed-btn" class="mt-4 text-indigo-600 text-sm font-medium hover:underline transition-all-colors">Show Completed</button>
+                    <button id="toggle-odyssey-completed-btn" class="mt-4 text-indigo-600 text-sm font-medium hover:underline transition-all-colors" data-completed-count="1">Show 1 Completed Task</button>
                 </div>
 
                 <!-- Current Milestone Section -->
@@ -264,12 +276,14 @@
 
             <!-- Part 3: Example Card 3: Project "Gemini" (Manager View - No Alerts) -->
             <div class="bg-white rounded-xl shadow-md p-6 mb-6">
-                <!-- Card Header -->
+                <!-- Card Header with Project Health Indicator -->
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-2">
                         <h2 class="text-xl font-semibold text-gray-900">Project Gemini</h2>
                         <!-- Role Tag for Project Manager -->
                         <span class="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full">Manager</span>
+                        <!-- Project Health Indicator (Green for 'On Track') -->
+                        <div class="w-3 h-3 rounded-full bg-green-500" title="On Track" aria-label="Project health status: On Track"></div>
                     </div>
                 </div>
 
@@ -302,8 +316,8 @@
                         <div class="mt-4">
                             <h4 class="text-base font-semibold text-gray-900 mb-2">Team Tasks</h4>
                             <div class="flex space-x-2 border-b border-gray-200 mb-3">
-                                <button class="task-tab-button active flex-1 text-sm font-medium text-gray-900 border-b-2 border-indigo-600 py-1 transition-all-colors" data-tasks-tab="gemini-today">Today</button>
-                                <button class="task-tab-button flex-1 text-sm font-medium text-gray-500 hover:text-gray-900 py-1 transition-all-colors" data-tasks-tab="gemini-tomorrow">Tomorrow</button>
+                                <button class="task-tab-button active flex-1 text-sm font-medium text-gray-900 border-b-2 border-indigo-600 py-1 transition-all-colors" data-tasks-tab="gemini-today">Today <span class="ml-1 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded-full">1</span></button>
+                                <button class="task-tab-button flex-1 text-sm font-medium text-gray-500 hover:text-gray-900 py-1 transition-all-colors" data-tasks-tab="gemini-tomorrow">Tomorrow <span class="ml-1 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded-full">1</span></button>
                             </div>
                             <!-- Today's Tasks Content -->
                             <div id="gemini-today" class="tasks-content space-y-2 text-sm text-gray-700">
@@ -326,6 +340,11 @@
                                 </div>
                             </div>
 
+                            <!-- Empty state for tasks -->
+                            <div id="gemini-tasks-empty" class="hidden mt-4 text-center text-sm text-gray-500">
+                                <p>No tasks due for this project. Well done!</p>
+                            </div>
+
                             <!-- Completed Tasks Section (initially hidden) -->
                             <div id="gemini-completed-tasks" class="hidden mt-4 pt-4 border-t border-gray-200">
                                 <h5 class="text-sm font-semibold text-gray-500 mb-2">Completed Tasks</h5>
@@ -341,8 +360,7 @@
                             </div>
 
                             <!-- Summary and toggle button for completed tasks -->
-                            <div id="gemini-completed-summary" class="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600 hidden">You have 1 completed task. <button id="toggle-gemini-completed" class="font-medium text-indigo-600 hover:underline transition-all-colors">Show Completed</button></div>
-                            <button id="toggle-gemini-completed-btn" class="mt-4 text-indigo-600 text-sm font-medium hover:underline transition-all-colors">Show Completed</button>
+                            <button id="toggle-gemini-completed-btn" class="mt-4 text-indigo-600 text-sm font-medium hover:underline transition-all-colors" data-completed-count="1">Show 1 Completed Task</button>
                         </div>
                     </div>
                     <div class="tab-content hidden" id="communication-content-gemini">
@@ -380,23 +398,33 @@
                 <h3 class="text-xl font-semibold text-gray-900 mb-4">My Checklist</h3>
                 <div class="space-y-3">
                     <ul id="checklist-items" class="space-y-2 text-sm text-gray-700">
-                        <!-- Sample checklist items -->
-                        <li class="flex items-center justify-between">
+                        <!-- Sample checklist items with delete button -->
+                        <li class="flex items-center justify-between group p-2 rounded-lg bg-gray-50 transition-all-colors hover:bg-gray-100">
                             <div class="flex items-center">
                                 <input type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
                                 <span class="ml-3 font-medium">Follow up with Alex on Project Phoenix</span>
                             </div>
+                            <button class="delete-item-btn text-gray-400 hover:text-red-500 hidden group-hover:block transition-all-colors" aria-label="Delete checklist item">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
                         </li>
-                        <li class="flex items-center justify-between">
+                        <li class="flex items-center justify-between group p-2 rounded-lg bg-gray-50 transition-all-colors hover:bg-gray-100">
                             <div class="flex items-center">
                                 <input type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
                                 <span class="ml-3 font-medium">Prepare for sprint planning</span>
                             </div>
+                            <button class="delete-item-btn text-gray-400 hover:text-red-500 hidden group-hover:block transition-all-colors" aria-label="Delete checklist item">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
                         </li>
                     </ul>
                     <div class="flex items-center mt-4">
                         <input type="text" id="new-checklist-item-input" class="flex-grow rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Add a new checklist item...">
-                        <button id="add-checklist-item-button" class="ml-2 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all-colors">Add</button>
+                        <button id="add-checklist-item-button" class="ml-2 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all-colors" aria-label="Add new checklist item">Add</button>
                     </div>
                 </div>
 
@@ -425,26 +453,23 @@
 </div>
 
 <script>
-    // JavaScript to handle the main tabbed interface for project cards
     document.addEventListener('DOMContentLoaded', () => {
         const tabContainers = document.querySelectorAll('.tabs');
 
+        // --- Main Tabbed Interface Logic ---
         tabContainers.forEach(container => {
             const tabButtons = container.querySelectorAll('.tab-button');
             const tabContents = container.querySelectorAll('.tab-content');
 
             tabButtons.forEach(button => {
                 button.addEventListener('click', (event) => {
-                    // Remove active class from all main tabs and content
                     tabButtons.forEach(btn => btn.classList.remove('active', 'bg-gray-100', 'text-gray-900', 'border-b-2', 'border-indigo-600'));
                     tabButtons.forEach(btn => btn.classList.add('text-gray-500'));
                     tabContents.forEach(content => content.classList.add('hidden'));
 
-                    // Get the target content ID directly from the data-tab attribute
                     const contentId = event.currentTarget.dataset.tab;
                     const targetContent = document.getElementById(contentId);
 
-                    // Add active class to the clicked button and its content
                     event.currentTarget.classList.add('active', 'bg-gray-100', 'text-gray-900', 'border-b-2', 'border-indigo-600');
                     event.currentTarget.classList.remove('text-gray-500');
                     if (targetContent) {
@@ -452,24 +477,19 @@
                     }
                 });
             });
-        });
 
-        // JavaScript to handle sub-tabs for tasks within project cards
-        const taskTabContainers = document.querySelectorAll('.tabs');
-        taskTabContainers.forEach(container => {
+            // --- Sub-Tabbed Interface for Tasks Logic (Today/Tomorrow) ---
             const taskTabButtons = container.querySelectorAll('.task-tab-button');
             const taskContents = container.querySelectorAll('.tasks-content');
             if (taskTabButtons.length > 0) {
                 taskTabButtons.forEach(button => {
                     button.addEventListener('click', (event) => {
-                        // Deactivate all task tabs and hide their content for this card
                         taskTabButtons.forEach(btn => {
                             btn.classList.remove('active', 'text-gray-900', 'border-b-2', 'border-indigo-600');
                             btn.classList.add('text-gray-500');
                         });
                         taskContents.forEach(content => content.classList.add('hidden'));
 
-                        // Activate the clicked task tab and show its content
                         event.currentTarget.classList.add('active', 'text-gray-900', 'border-b-2', 'border-indigo-600');
                         event.currentTarget.classList.remove('text-gray-500');
                         const targetTabId = event.currentTarget.dataset.tasksTab;
@@ -480,9 +500,31 @@
                     });
                 });
             }
+
+            // --- Completed Tasks Toggle Logic ---
+            const toggleBtn = container.querySelector('[id$="-completed-btn"]');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', () => {
+                    const cardId = toggleBtn.id.replace('-completed-btn', '');
+                    const completedTasksSection = document.getElementById(`${cardId}-completed-tasks`);
+                    const completedCount = toggleBtn.dataset.completedCount || 0;
+
+                    if (completedTasksSection) {
+                        const isHidden = completedTasksSection.classList.contains('hidden');
+                        completedTasksSection.classList.toggle('hidden');
+                        if (isHidden) {
+                            toggleBtn.innerText = `Hide Completed (${completedCount})`;
+                        } else {
+                            toggleBtn.innerText = `Show ${completedCount} Completed Task${completedCount > 1 ? 's' : ''}`;
+                        }
+                    }
+                });
+            }
         });
 
-        // JavaScript for adding checklist items
+        // --- "My Notes & Checklist" Widget Logic ---
+
+        // Checklist: Add New Item
         const addChecklistItemButton = document.getElementById('add-checklist-item-button');
         const newChecklistItemInput = document.getElementById('new-checklist-item-input');
         const checklist = document.getElementById('checklist-items');
@@ -491,43 +533,53 @@
             addChecklistItemButton.addEventListener('click', () => {
                 const newItemText = newChecklistItemInput.value.trim();
                 if (newItemText !== '') {
-                    // Create new list item HTML
                     const newItemHTML = `
-                            <li class="flex items-center justify-between">
+                            <li class="flex items-center justify-between group p-2 rounded-lg bg-gray-50 transition-all-colors hover:bg-gray-100">
                                 <div class="flex items-center">
                                     <input type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
                                     <span class="ml-3 font-medium">${newItemText}</span>
                                 </div>
+                                <button class="delete-item-btn text-gray-400 hover:text-red-500 hidden group-hover:block transition-all-colors" aria-label="Delete checklist item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
                             </li>
                         `;
-                    // Append the new item to the checklist
                     checklist.innerHTML += newItemHTML;
-                    // Clear the input field and refocus
                     newChecklistItemInput.value = '';
                     newChecklistItemInput.focus();
                 }
             });
         }
 
-        // JavaScript to toggle completed tasks section
-        const toggleCompletedButtons = document.querySelectorAll('[id$="-completed-btn"]');
-        toggleCompletedButtons.forEach(button => {
-            button.addEventListener('click', (event) => {
-                const cardId = event.currentTarget.id.replace('-completed-btn', '');
-                const completedTasksSection = document.getElementById(`${cardId}-completed-tasks`);
-                const completedSummary = document.getElementById(`${cardId}-completed-summary`);
-
-                if (completedTasksSection && completedSummary) {
-                    completedTasksSection.classList.toggle('hidden');
-                    completedSummary.classList.toggle('hidden');
-                    if (completedTasksSection.classList.contains('hidden')) {
-                        event.currentTarget.innerText = 'Show Completed';
-                    } else {
-                        event.currentTarget.innerText = 'Hide Completed';
+        // Checklist: Delete Item on 'X' click (using event delegation)
+        if (checklist) {
+            checklist.addEventListener('click', (event) => {
+                const deleteButton = event.target.closest('.delete-item-btn');
+                if (deleteButton) {
+                    const listItem = deleteButton.closest('li');
+                    if (listItem) {
+                        listItem.remove();
                     }
                 }
             });
-        });
+        }
+
+        // Notes: Autosave using localStorage
+        const notesTextarea = document.getElementById('notes-textarea');
+        if (notesTextarea) {
+            // Load saved notes on page load
+            const savedNotes = localStorage.getItem('my_dashboard_notes');
+            if (savedNotes) {
+                notesTextarea.value = savedNotes;
+            }
+
+            // Save notes on keyup event
+            notesTextarea.addEventListener('keyup', () => {
+                localStorage.setItem('my_dashboard_notes', notesTextarea.value);
+            });
+        }
     });
 </script>
 

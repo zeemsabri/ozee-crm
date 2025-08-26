@@ -16,46 +16,46 @@ return new class extends Migration
     public function up(): void
     {
         // Get all projects with non-empty documents JSON field
-        $projects = Project::whereNotNull('documents')->get();
-
-        $migratedCount = 0;
-        $errorCount = 0;
-
-        foreach ($projects as $project) {
-            // Skip if documents is not an array or is empty
-            if (!is_array($project->documents) || empty($project->documents)) {
-                continue;
-            }
-
-            foreach ($project->documents as $documentData) {
-                try {
-                    // Create a new Document model instance
-                    $document = new Document([
-                        'project_id' => $project->id,
-                        'path' => $documentData['path'] ?? null,
-                        'filename' => $documentData['filename'] ?? 'Unknown',
-                        'google_drive_file_id' => $documentData['google_drive_file_id'] ?? null,
-                        'upload_error' => $documentData['upload_error'] ?? null,
-                    ]);
-
-                    // Save the Document to the database
-                    $document->save();
-                    $migratedCount++;
-                } catch (\Exception $e) {
-                    Log::error('Error migrating document: ' . $e->getMessage(), [
-                        'project_id' => $project->id,
-                        'document_data' => $documentData,
-                        'error' => $e->getMessage(),
-                    ]);
-                    $errorCount++;
-                }
-            }
-        }
-
-        Log::info('Document migration completed', [
-            'migrated_count' => $migratedCount,
-            'error_count' => $errorCount,
-        ]);
+//        $projects = Project::whereNotNull('documents')->get();
+//
+//        $migratedCount = 0;
+//        $errorCount = 0;
+//
+//        foreach ($projects as $project) {
+//            // Skip if documents is not an array or is empty
+//            if (!is_array($project->documents) || empty($project->documents)) {
+//                continue;
+//            }
+//
+//            foreach ($project->documents as $documentData) {
+//                try {
+//                    // Create a new Document model instance
+//                    $document = new Document([
+//                        'project_id' => $project->id,
+//                        'path' => $documentData['path'] ?? null,
+//                        'filename' => $documentData['filename'] ?? 'Unknown',
+//                        'google_drive_file_id' => $documentData['google_drive_file_id'] ?? null,
+//                        'upload_error' => $documentData['upload_error'] ?? null,
+//                    ]);
+//
+//                    // Save the Document to the database
+//                    $document->save();
+//                    $migratedCount++;
+//                } catch (\Exception $e) {
+//                    Log::error('Error migrating document: ' . $e->getMessage(), [
+//                        'project_id' => $project->id,
+//                        'document_data' => $documentData,
+//                        'error' => $e->getMessage(),
+//                    ]);
+//                    $errorCount++;
+//                }
+//            }
+//        }
+//
+//        Log::info('Document migration completed', [
+//            'migrated_count' => $migratedCount,
+//            'error_count' => $errorCount,
+//        ]);
     }
 
     /**

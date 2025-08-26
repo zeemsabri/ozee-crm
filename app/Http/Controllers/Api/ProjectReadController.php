@@ -224,6 +224,8 @@ class ProjectReadController extends Controller
             'source' => $project->source,
             'google_drive_link' => $project->google_drive_link,
             'logo'  => $project->logo,
+            'project_manager_id' => $project->project_manager_id,
+            'project_admin_id' => $project->project_admin_id,
             'tags_data'  =>  $project->tags->map(function($tag) {
                 return ['id' => $tag->id, 'name' => $tag->name];
             })->values()->all(),

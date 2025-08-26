@@ -23,6 +23,8 @@ class Project extends Model
         'reporting_sites',
         'google_chat_id',
         'client_id',
+        'project_manager_id',
+        'project_admin_id',
         'status',
         'project_type',
         'services',
@@ -69,6 +71,16 @@ class Project extends Model
     public function users()
     {
         return $this->belongsToMany(User::class, 'project_user')->withPivot('role_id');
+    }
+
+    public function manager()
+    {
+        return $this->belongsTo(User::class, 'project_manager_id');
+    }
+
+    public function admin()
+    {
+        return $this->belongsTo(User::class, 'project_admin_id');
     }
 
     public function conversations()
@@ -320,7 +332,8 @@ class Project extends Model
         $uploadedDocuments = [];
 
         foreach ($files as $file) {
-            $localPath = $file->store('documents', 'public');
+//            $localPath = $file->store('documents', 'public');
+            $localPath = Storage::disk('public')->putFile('documents', $file);
             $fullLocalPath = Storage::disk('public')->path($localPath);
             $originalFilename = $file->getClientOriginalName();
             $mimeType = $file->getMimeType();

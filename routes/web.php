@@ -548,6 +548,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('Leaderboard/Index');
     })->name('leaderboard.index')->middleware('permission:view_own_points');
 
+    // Workspace Page (static for now)
+    Route::get('/workspace', function () {
+        return Inertia::render('Workspace/Index');
+    })->name('workspace.index');
+
     Route::get('/shareable-resources', function () {
         return Inertia::render('ShareableResources/Index');
     })->name('shareable-resources.page')->middleware('permission:view_shareable_resources');

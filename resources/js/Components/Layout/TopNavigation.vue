@@ -132,6 +132,9 @@ onMounted(async () => {
                         <NavLink :href="route('inbox')" :active="route().current('inbox')">
                             Inbox
                         </NavLink>
+                        <NavLink :href="route('workspace.index')" :active="route().current('workspace.index')">
+                            My Workspace
+                        </NavLink>
                         <NavLink :href="route('bonus-system.index')" :active="route().current('bonus-system.index')">
                             Bonus System
                         </NavLink>
@@ -188,6 +191,9 @@ onMounted(async () => {
                 </NavLink>
                 <NavLink :href="route('inbox')" :active="route().current('inbox')">
                     Inbox
+                </NavLink>
+                <NavLink :href="route('workspace.index')" :active="route().current('workspace.index')">
+                    My Workspace
                 </NavLink>
                 <NavLink :href="route('bonus-system.index')" :active="route().current('bonus-system.index')">
                     Bonus System
