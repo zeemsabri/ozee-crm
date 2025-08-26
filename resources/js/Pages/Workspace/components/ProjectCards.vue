@@ -21,27 +21,21 @@ const mapStatusToHealth = (status) => {
 
 // These functions create a rich, static data structure based on the simple API response.
 // In a production app, the API would return this full data.
-const buildStaticManagerCard = (base) => ({
-    id: base.id,
-    name: base.name,
+const buildManagerCardFromApi = (p) => ({
+    id: p.id,
+    name: p.name,
     role: 'Manager',
-    health: mapStatusToHealth(base.status),
-    alert: null, // keep null unless we want to show a static alert
+    health: mapStatusToHealth(p.status),
+    alert: null,
     overview: {
-        milestone: '2 of 4 - Testing Phase (95% Complete)',
+        milestone: 'Milestones updated',
         budget: '$8,000 / $10,000 Used',
         status: 'In Progress',
     },
     tasks: {
-        today: [
-            { name: 'User Acceptance Testing', status: 'complete' },
-        ],
-        tomorrow: [
-            { name: 'Deploy to staging', status: 'started' },
-        ],
-        completed: [
-            { name: 'Initial QA Review', status: 'complete' },
-        ],
+        today: (p.tasks?.today || []).map(t => ({ name: t.name, status: t.status })),
+        tomorrow: (p.tasks?.tomorrow || []).map(t => ({ name: t.name, status: t.status })),
+        completed: [],
     },
     communication: {
         lastSent: 'Yesterday at 11:00 AM',
@@ -49,45 +43,28 @@ const buildStaticManagerCard = (base) => ({
     },
 });
 
-const buildStaticContributorCard = (base) => ({
-    id: base.id,
-    name: base.name,
+const buildContributorCardFromApi = (p) => ({
+    id: p.id,
+    name: p.name,
     role: 'Contributor',
-    health: mapStatusToHealth(base.status),
+    health: mapStatusToHealth(p.status),
     tasks: {
-        today: [
-            { name: 'Develop login API endpoint', status: 'blocked' },
-            { name: 'Write unit tests for checkout process', status: 'started' },
-        ],
-        tomorrow: [
-            { name: 'Refactor database schema', status: 'paused' },
-        ],
-        completed: [
-            { name: 'Update documentation', status: 'complete' },
-        ],
+        today: (p.tasks?.today || []).map(t => ({ name: t.name, status: t.status })),
+        tomorrow: (p.tasks?.tomorrow || []).map(t => ({ name: t.name, status: t.status })),
+        completed: [],
     },
     milestone: {
-        name: 'Backend API Development',
-        deadline: 'September 5, 2025',
-        progress: 75,
-        incentive: 'Complete on time to earn a 5% bonus and 200 points!',
+        name: 'Current Milestone',
+        deadline: '',
+        progress: 0,
+        incentive: '',
     },
 });
 
 const mapApiProjectToCard = (p) => {
-    // The API role is "doer", but our UI expects "Manager" or "Contributor"
-    // For this example, we'll assign the role randomly for demonstration
-    // In a real application, this would be based on user-specific data from the API
-    const roles = ['Manager', 'Contributor'];
-    const randomRole = roles[Math.floor(Math.random() * roles.length)];
-    const base = {
-        id: p.id,
-        name: p.name,
-        status: p.status,
-        project_type: p.project_type,
-        tags: p.tags || [],
-    };
-    return randomRole === 'Manager' ? buildStaticManagerCard(base) : buildStaticContributorCard(base);
+    const uiRole = mapApiRoleToUi(p.role);
+    // Use API-provided tasks directly
+    return uiRole === 'Manager' ? buildManagerCardFromApi(p) : buildContributorCardFromApi(p);
 };
 
 const loadProjects = async () => {
