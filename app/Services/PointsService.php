@@ -11,12 +11,14 @@ use App\Models\Task;
 use App\Models\User;
 use App\Models\ProjectNote as Standup;
 use App\Models\MonthlyPoint;
+use App\Models\Email;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class PointsService
 {
+    private const BASE_POINTS_EMAIL_SENT = 50;
     private const BASE_POINTS_STANDUP_ON_TIME = 25;
     private const BASE_POINTS_STANDUP_LATE = 10;
     private const BASE_POINTS_TASK_ON_TIME = 50;
@@ -288,6 +290,80 @@ class PointsService
             (object)['id' => $meetingId],
             'paid',
             ['meeting_id' => $meetingId]
+        );
+    }
+
+    /**
+     * Awards points to the sender when an email is sent.
+     * Conditions: email.type == 'sent' and email.status == 'sent'.
+     * Additional condition: project's last_email_received must be within the last 4 hours.
+     * Deduplication: one award per email id.
+     *
+     * @param Email $email
+     * @return void
+     */
+    public function awardEmailSentPoints(Email $email)
+    {
+        // Ensure conditions are met
+        if (strtolower($email->type ?? '') !== 'sent' || strtolower($email->status ?? '') !== 'sent') {
+            return;
+        }
+
+        // Prevent duplicate awards for the same email
+        if (PointsLedger::where('pointable_id', $email->id)->where('pointable_type', Email::class)->exists()) {
+            Log::info('Points already awarded for this email.');
+            return;
+        }
+
+        // Ensure the sender is a User (we only award user points)
+        $sender = $email->sender;
+        if (!$sender || !($sender instanceof User)) {
+            Log::info('Email sender is not a User or missing; skipping points.');
+            return;
+        }
+
+        // Fetch the associated project via the conversation
+        $project = optional($email->conversation)->project;
+        if (!$project) {
+            Log::info('No project associated with email; skipping points.', ['email_id' => $email->id]);
+            return;
+        }
+
+        // Ensure we have a recent last_email_received (from client)
+        $lastReceived = $project->last_email_received; // cast to Carbon by model
+        if (!$lastReceived) {
+            Log::info('Project last_email_received is null; skipping email points.', ['project_id' => $project->id ?? null, 'email_id' => $email->id]);
+            return;
+        }
+
+        // Determine the sending time to compare against (prefer sent_at, fallback to updated_at, finally now)
+        $sentAt = $email->sent_at ?? $email->updated_at ?? Carbon::now();
+        if ($sentAt instanceof \DateTimeInterface === false) {
+            $sentAt = Carbon::parse($sentAt);
+        }
+
+        // Award only if the reply (sentAt) is within 4 hours of the last received time
+        $withinFourHours = $lastReceived->copy()->addHours(4)->gte($sentAt);
+        if (!$withinFourHours) {
+            Log::info('Skipping email points: reply sent after 4-hour window.', [
+                'project_id' => $project->id,
+                'email_id' => $email->id,
+                'last_email_received' => $lastReceived?->toDateTimeString(),
+                'sent_at' => $sentAt?->toDateTimeString(),
+            ]);
+            return;
+        }
+
+        $projectId = $project->id;
+
+        $this->awardPoints(
+            $sender->id,
+            $projectId,
+            self::BASE_POINTS_EMAIL_SENT,
+            'Email Sent (within 4h of client message)',
+            $email,
+            PointsLedger::STATUS_PAID,
+            ['email_id' => $email->id]
         );
     }
 

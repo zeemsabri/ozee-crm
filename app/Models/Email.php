@@ -7,10 +7,30 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Traits\Taggable;
+use App\Services\PointsService;
+use Illuminate\Support\Facades\Log;
 
 class Email extends Model
 {
     use HasFactory, Taggable, SoftDeletes;
+
+    protected static function booted()
+    {
+        static::updated(function (Email $email) {
+            // Only trigger when moving into sent state
+            $typeIsSent = strtolower($email->type ?? '') === 'sent';
+            $statusIsSent = strtolower($email->status ?? '') === 'sent';
+            $changedToSent = $email->wasChanged('status');
+
+            if ($changedToSent && $typeIsSent && $statusIsSent) {
+                try {
+                    app(PointsService::class)->awardEmailSentPoints($email);
+                } catch (\Throwable $e) {
+                    Log::error('Failed to award email points: ' . $e->getMessage());
+                }
+            }
+        });
+    }
 
     /**
      * Get all interactions for this email.

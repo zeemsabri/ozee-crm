@@ -47,6 +47,19 @@ class WorkspaceController extends Controller
                 ->orderBy('projects.id', 'desc');
         }
 
+        // Apply search filter if provided
+        $search = trim((string) $request->get('search', ''));
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('status', 'LIKE', "%{$search}%")
+                  ->orWhere('project_type', 'LIKE', "%{$search}%")
+                  ->orWhereHas('tags', function ($t) use ($search) {
+                      $t->where('name', 'LIKE', "%{$search}%");
+                  });
+            });
+        }
+
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
         $projects = $paginator->getCollection();
 

@@ -1,17 +1,31 @@
 <script setup>
-import { defineEmits, onMounted, watch } from 'vue';
+import { ref, defineEmits, onMounted, watch } from 'vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency';
 
 const props = defineProps({
     activeFilter: String,
+    search: { type: String, default: '' },
 });
 
-const emits = defineEmits(['update:filter']);
+const emits = defineEmits(['update:filter', 'update:search']);
 
 function setFilter(filter) {
     emits('update:filter', filter);
 }
+
+// Local search state with debounce
+const searchLocal = ref(props.search || '');
+let searchTimer = null;
+watch(() => props.search, (val) => {
+    searchLocal.value = val || '';
+});
+watch(searchLocal, (val) => {
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+        emits('update:search', val);
+    }, 300);
+});
 
 // Currency handling (shared across app via Utils/currency)
 const currentDisplayCurrency = displayCurrency;
@@ -51,7 +65,6 @@ watch(currentDisplayCurrency, (val) => {
         />
     </div>
     <div class="flex items-center p-1 bg-gray-200 rounded-xl overflow-x-auto">
-
         <div class="flex justify-start space-x-2">
             <button
                 :class="{'bg-indigo-600 text-white font-semibold': activeFilter === 'all', 'bg-white text-gray-700 font-medium hover:bg-gray-100': activeFilter !== 'all'}"
@@ -72,7 +85,17 @@ watch(currentDisplayCurrency, (val) => {
                 My Projects
             </button>
         </div>
-
-
+        <!-- Search input -->
+        <div class="ml-auto flex items-center gap-2 pl-2">
+            <div class="relative">
+                <input
+                    type="text"
+                    class="w-56 sm:w-72 px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Search projects..."
+                    v-model="searchLocal"
+                    aria-label="Search projects"
+                />
+            </div>
+        </div>
     </div>
 </template>

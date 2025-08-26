@@ -1,6 +1,10 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import ProjectCard from './ProjectCard.vue';
+
+const props = defineProps({
+    search: { type: String, default: '' },
+});
 
 const loading = ref(true);
 const error = ref(null);
@@ -158,7 +162,7 @@ const loadFirstPage = async () => {
     lastPage.value = 1;
     fetchedProjects.value = [];
     try {
-        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: page.value, per_page: perPage } });
+        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: page.value, per_page: perPage, search: props.search || undefined } });
         const resp = data;
         if (Array.isArray(resp)) {
             // Legacy non-paginated response
@@ -189,7 +193,7 @@ const fetchNextPage = async () => {
     loadingMore.value = true;
     try {
         const next = page.value + 1;
-        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: next, per_page: perPage } });
+        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: next, per_page: perPage, search: props.search || undefined } });
         const resp = data;
         if (Array.isArray(resp)) {
             // Legacy array response, treat as no more pages
@@ -228,6 +232,18 @@ function setupObserver() {
         observer.observe(sentinel.value);
     }
 }
+
+// Refetch when search term changes
+watch(() => props.search, async () => {
+    // Reset observer and reload first page with new search
+    if (observer) {
+        observer.disconnect();
+        observer = null;
+    }
+    await loadFirstPage();
+    await nextTick();
+    setupObserver();
+});
 
 onMounted(async () => {
     await loadFirstPage();
