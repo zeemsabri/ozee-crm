@@ -4,11 +4,21 @@ import ProjectCard from './ProjectCard.vue';
 
 const props = defineProps({
     search: { type: String, default: '' },
+    activeFilter: { type: String, default: 'all' },
 });
 
 const loading = ref(true);
 const error = ref(null);
 const fetchedProjects = ref([]);
+
+// Apply top-bar filter to fetched projects
+const filteredProjects = computed(() => {
+    const all = fetchedProjects.value || [];
+    const f = (props.activeFilter || 'all').toLowerCase();
+    if (f === 'manager') return all.filter(p => p.role === 'Manager');
+    if (f === 'contributor') return all.filter(p => p.role === 'Contributor');
+    return all; // 'all'
+});
 
 // Pagination & infinite scroll state
 const page = ref(1);
@@ -281,13 +291,13 @@ onUnmounted(() => {
         </div>
 
         <!-- Empty -->
-        <div v-else-if="fetchedProjects.length === 0" class="flex justify-center items-center h-48 bg-white rounded-xl shadow-md p-6 text-gray-500">
+        <div v-else-if="filteredProjects.length === 0" class="flex justify-center items-center h-48 bg-white rounded-xl shadow-md p-6 text-gray-500">
             <p>No projects to display.</p>
         </div>
 
         <!-- Project cards -->
         <template v-else>
-            <ProjectCard v-for="project in fetchedProjects" :key="project.id" :project="project" />
+            <ProjectCard v-for="project in filteredProjects" :key="project.id" :project="project" />
 
             <!-- Incremental skeleton loader -->
             <div v-if="loadingMore" class="bg-white rounded-xl shadow-md p-6">

@@ -191,8 +191,8 @@ onMounted(async () => {
 
                 <div class="flex flex-col lg:flex-row gap-8">
                     <div class="lg:w-2/3">
-                        <!-- ProjectCards fetches and paginates from API; pass search term -->
-                        <ProjectCards :search="searchTerm" />
+                        <!-- ProjectCards fetches and paginates from API; pass search and filter -->
+                        <ProjectCards :search="searchTerm" :active-filter="activeFilter" />
                     </div>
                     <div class="lg:w-1/3">
                         <!-- Sidebar component receives and emits events for its data -->
