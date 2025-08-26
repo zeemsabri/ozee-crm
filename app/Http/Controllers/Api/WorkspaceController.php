@@ -28,22 +28,32 @@ class WorkspaceController extends Controller
 
         $isGlobalManager = (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) || (method_exists($user, 'isManager') && $user->isManager());
 
-        // Mirror logic from ProjectReadController@getProjectsSimplified
+        // Pagination params
+        $perPage = (int) $request->get('per_page', 5);
+        if ($perPage <= 0 || $perPage > 50) {
+            $perPage = 5;
+        }
+        $page = (int) $request->get('page', 1);
+
+        // Base query: mirror logic from ProjectReadController@getProjectsSimplified
         if ($isGlobalManager) {
-            $projects = Project::select('id', 'name', 'status', 'project_manager_id', 'project_admin_id', 'project_type', 'last_email_sent', 'last_email_received')
+            $query = Project::select('id', 'name', 'status', 'project_manager_id', 'project_admin_id', 'project_type', 'last_email_sent', 'last_email_received')
                 ->with('tags')
-                ->get();
+                ->orderBy('id', 'desc');
         } else {
-            $projects = $user->projects()
+            $query = $user->projects()
                 ->select('projects.id', 'projects.name', 'projects.status', 'projects.project_manager_id', 'projects.project_admin_id', 'projects.project_type', 'projects.last_email_sent', 'projects.last_email_received')
                 ->with('tags')
-                ->get();
+                ->orderBy('projects.id', 'desc');
         }
+
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+        $projects = $paginator->getCollection();
 
         $today = now()->toDateString();
         $tomorrow = now()->addDay()->toDateString();
 
-        $result = $projects->map(function (Project $project) use ($user, $today, $tomorrow, $isGlobalManager) {
+        $mapped = $projects->map(function (Project $project) use ($user, $today, $tomorrow, $isGlobalManager) {
             // Derive role
             $role = 'doer';
             if ($project->project_manager_id === $user->id) {
@@ -175,7 +185,16 @@ class WorkspaceController extends Controller
             ];
         });
 
-        return response()->json($result->values());
+        // Replace paginator collection with mapped results
+        $paginator->setCollection($mapped->values());
+
+        return response()->json([
+            'data' => $paginator->items(),
+            'current_page' => $paginator->currentPage(),
+            'per_page' => $paginator->perPage(),
+            'last_page' => $paginator->lastPage(),
+            'total' => $paginator->total(),
+        ]);
     }
 
     /**
