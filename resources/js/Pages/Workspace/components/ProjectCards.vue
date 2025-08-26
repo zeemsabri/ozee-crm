@@ -172,7 +172,7 @@ const loadFirstPage = async () => {
     lastPage.value = 1;
     fetchedProjects.value = [];
     try {
-        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: page.value, per_page: perPage, search: props.search || undefined } });
+        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: page.value, per_page: perPage, search: props.search || undefined, filter: (props.activeFilter && props.activeFilter !== 'all') ? props.activeFilter : undefined } });
         const resp = data;
         if (Array.isArray(resp)) {
             // Legacy non-paginated response
@@ -203,7 +203,7 @@ const fetchNextPage = async () => {
     loadingMore.value = true;
     try {
         const next = page.value + 1;
-        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: next, per_page: perPage, search: props.search || undefined } });
+        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: next, per_page: perPage, search: props.search || undefined, filter: (props.activeFilter && props.activeFilter !== 'all') ? props.activeFilter : undefined } });
         const resp = data;
         if (Array.isArray(resp)) {
             // Legacy array response, treat as no more pages
@@ -246,6 +246,17 @@ function setupObserver() {
 // Refetch when search term changes
 watch(() => props.search, async () => {
     // Reset observer and reload first page with new search
+    if (observer) {
+        observer.disconnect();
+        observer = null;
+    }
+    await loadFirstPage();
+    await nextTick();
+    setupObserver();
+});
+
+// Refetch when active filter changes
+watch(() => props.activeFilter, async () => {
     if (observer) {
         observer.disconnect();
         observer = null;

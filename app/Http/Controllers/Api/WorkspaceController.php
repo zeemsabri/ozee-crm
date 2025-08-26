@@ -37,9 +37,10 @@ class WorkspaceController extends Controller
 
         // Base query: mirror logic from ProjectReadController@getProjectsSimplified
         if ($isGlobalManager) {
-            $query = Project::select('id', 'name', 'status', 'project_manager_id', 'project_admin_id', 'project_type', 'last_email_sent', 'last_email_received')
+            $query = Project::select('projects.id', 'projects.name', 'projects.status', 'projects.project_manager_id', 'projects.project_admin_id', 'projects.project_type', 'projects.last_email_sent', 'projects.last_email_received')
+                ->from('projects')
                 ->with('tags')
-                ->orderBy('id', 'desc');
+                ->orderBy('projects.id', 'desc');
         } else {
             $query = $user->projects()
                 ->select('projects.id', 'projects.name', 'projects.status', 'projects.project_manager_id', 'projects.project_admin_id', 'projects.project_type', 'projects.last_email_sent', 'projects.last_email_received')
@@ -47,19 +48,50 @@ class WorkspaceController extends Controller
                 ->orderBy('projects.id', 'desc');
         }
 
+        // Apply role-based filter if provided
+        $filter = strtolower((string) $request->get('filter', 'all'));
+        if ($filter === 'manager') {
+            // Projects where current user is project manager or admin
+            $query->where(function ($q) use ($user) {
+                $q->where('projects.project_manager_id', $user->id)
+                  ->orWhere('projects.project_admin_id', $user->id);
+            });
+        } elseif ($filter === 'contributor' || $filter === 'my') {
+            // Projects where user is a member but not manager/admin
+            if ($isGlobalManager) {
+                // Scope to user's membership explicitly for global managers
+                $query->join('project_user as pu', function ($join) use ($user) {
+                    $join->on('pu.project_id', '=', 'projects.id')
+                         ->where('pu.user_id', '=', $user->id);
+                });
+            }
+            // Exclude those where the user is manager/admin
+            $query->where(function ($q) use ($user) {
+                $q->where(function ($qq) use ($user) {
+                    $qq->where('projects.project_manager_id', '!=', $user->id)
+                       ->orWhereNull('projects.project_manager_id');
+                })->where(function ($qq) use ($user) {
+                    $qq->where('projects.project_admin_id', '!=', $user->id)
+                       ->orWhereNull('projects.project_admin_id');
+                });
+            });
+        }
+
         // Apply search filter if provided
         $search = trim((string) $request->get('search', ''));
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'LIKE', "%{$search}%")
-                  ->orWhere('status', 'LIKE', "%{$search}%")
-                  ->orWhere('project_type', 'LIKE', "%{$search}%")
+                $q->where('projects.name', 'LIKE', "%{$search}%")
+                  ->orWhere('projects.status', 'LIKE', "%{$search}%")
+                  ->orWhere('projects.project_type', 'LIKE', "%{$search}%")
                   ->orWhereHas('tags', function ($t) use ($search) {
                       $t->where('name', 'LIKE', "%{$search}%");
                   });
             });
         }
 
+        // Avoid duplicate rows when joins are applied
+        $query->distinct();
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
         $projects = $paginator->getCollection();
 
