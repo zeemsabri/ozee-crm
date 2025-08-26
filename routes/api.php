@@ -171,6 +171,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('projects/{project}/convert-payment-type', [ProjectActionController::class, 'convertPaymentType']); // Moved PATCH route
     Route::patch('projects/{project}/expendable-budget', [ProjectActionController::class, 'updateExpendableBudget']);
     Route::post('projects/{project}/archive', [ProjectActionController::class, 'archive']);
+    Route::patch('projects/{project}/assign-leads', [ProjectActionController::class, 'assignLeads'])->middleware('permission:manage_projects');
     Route::post('projects/{project}/expendables', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'store']);
     Route::put('projects/{project}/expendables/{expendable}', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'update']);
     Route::post('projects/{project}/expendables/{expendable}/accept', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'accept']);

@@ -941,6 +941,33 @@ class ProjectActionController extends Controller
      * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
+    public function assignLeads(Request $request, Project $project)
+    {
+        $user = \Illuminate\Support\Facades\Auth::user();
+        if (!$this->canManageProjects($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to assign project leads.'], 403);
+        }
+
+        $validated = $request->validate([
+            'project_manager_id' => 'nullable|exists:users,id',
+            'project_admin_id' => 'nullable|exists:users,id',
+        ]);
+
+        $project->project_manager_id = $validated['project_manager_id'] ?? null;
+        $project->project_admin_id = $validated['project_admin_id'] ?? null;
+        $project->save();
+
+        $project->load(['manager:id,name,email', 'admin:id,name,email']);
+
+        return response()->json([
+            'message' => 'Project leads updated successfully',
+            'project_manager_id' => $project->project_manager_id,
+            'project_admin_id' => $project->project_admin_id,
+            'manager' => $project->manager,
+            'admin' => $project->admin,
+        ]);
+    }
+
     public function updateTransactions(Request $request, Project $project)
     {
         $user = Auth::user();

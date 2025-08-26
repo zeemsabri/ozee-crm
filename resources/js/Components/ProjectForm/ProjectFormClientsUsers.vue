@@ -5,6 +5,7 @@ import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import MultiSelectWithRoles from '@/Components/MultiSelectWithRoles.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 import { success, error } from '@/Utils/notification';
 import { fetchProjectSectionData, fetchClients as fetchAllClients, fetchUsers as fetchAllUsers } from '@/Components/ProjectForm/useProjectData';
 
@@ -60,6 +61,8 @@ const localClientsUsersForm = reactive({
     client_ids: [],
     user_ids: [],
     contract_details: '',
+    project_manager_id: null,
+    project_admin_id: null,
 });
 
 const clientSaving = ref(false);
@@ -69,6 +72,10 @@ const clientSaveError = ref('');
 const userSaving = ref(false);
 const userSaveSuccess = ref(false);
 const userSaveError = ref('');
+
+const leadsSaving = ref(false);
+const leadsSaveSuccess = ref(false);
+const leadsSaveError = ref('');
 
 
 // Function to fetch clients and users data for this specific tab
@@ -94,9 +101,42 @@ const fetchClientsUsersData = async () => {
             })) : [];
             localClientsUsersForm.contract_details = data.contract_details || '';
         }
+        // Fetch basic info to get current project leads (manager/admin)
+        try {
+            const basic = await window.axios.get(`/api/projects/${props.projectId}/sections/basic`);
+            localClientsUsersForm.project_manager_id = basic.data?.project_manager_id ?? null;
+            localClientsUsersForm.project_admin_id = basic.data?.project_admin_id ?? null;
+        } catch (e) {
+            // ignore basic info failure here
+        }
     } catch (err) {
         console.error('Error fetching clients/users data:', err);
         error('Failed to load clients and users data.');
+    }
+};
+// Save leads (manager/admin)
+const handleSaveLeads = async () => {
+    if (!props.projectId) {
+        error('Project ID is missing. Cannot save project leads.');
+        return;
+    }
+    leadsSaving.value = true;
+    leadsSaveSuccess.value = false;
+    leadsSaveError.value = '';
+    try {
+        await window.axios.patch(`/api/projects/${props.projectId}/assign-leads`, {
+            project_manager_id: localClientsUsersForm.project_manager_id,
+            project_admin_id: localClientsUsersForm.project_admin_id,
+        });
+        success('Project leads updated successfully!');
+        leadsSaveSuccess.value = true;
+    } catch (err) {
+        console.error('Error saving project leads:', err);
+        leadsSaveError.value = err.response?.data?.message || 'Failed to save project leads.';
+        error(leadsSaveError.value);
+    } finally {
+        leadsSaving.value = false;
+        setTimeout(() => leadsSaveSuccess.value = false, 3000);
     }
 };
 // Watch for projectId changes to re-fetch data
@@ -230,6 +270,56 @@ onMounted(() => {
 <!--            ></textarea>-->
 <!--            <InputError :message="errors.contract_details ? errors.contract_details[0] : ''" class="mt-2" />-->
 <!--        </div>-->
+
+        <!-- Project Leads Section -->
+        <div v-if="canViewProjectUsers" class="bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
+            <h3 class="text-xl font-semibold text-gray-800 mb-5">Project Leads</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <InputLabel for="project_manager_id" value="Project Manager" />
+                    <SelectDropdown
+                        id="project_manager_id"
+                        v-model="localClientsUsersForm.project_manager_id"
+                        :options="users"
+                        valueKey="id"
+                        labelKey="name"
+                        placeholder="Select Project Manager"
+                        :disabled="!canManageProjectUsers || isSaving || leadsSaving"
+                        class="mt-1 block w-full"
+                    />
+                    <InputError :message="errors.project_manager_id ? errors.project_manager_id[0] : ''" class="mt-2" />
+                </div>
+                <div>
+                    <InputLabel for="project_admin_id" value="Project Admin" />
+                    <SelectDropdown
+                        id="project_admin_id"
+                        v-model="localClientsUsersForm.project_admin_id"
+                        :options="users"
+                        valueKey="id"
+                        labelKey="name"
+                        placeholder="Select Project Admin"
+                        :disabled="!canManageProjectUsers || isSaving || leadsSaving"
+                        class="mt-1 block w-full"
+                    />
+                    <InputError :message="errors.project_admin_id ? errors.project_admin_id[0] : ''" class="mt-2" />
+                </div>
+            </div>
+            <div v-if="canManageProjectUsers" class="mt-6 flex justify-end">
+                <PrimaryButton @click="handleSaveLeads" :disabled="leadsSaving || isSaving"
+                               class="px-6 py-3 rounded-lg text-lg shadow-md hover:shadow-lg transition-all duration-200">
+                    <span v-if="leadsSaving">Saving Leads...</span>
+                    <span v-else>Save Leads</span>
+                </PrimaryButton>
+            </div>
+            <div v-if="leadsSaveSuccess" class="mt-3 text-green-600 text-sm flex items-center">
+                <svg class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Project leads saved successfully!
+            </div>
+            <div v-if="leadsSaveError" class="mt-3 text-red-600 text-sm flex items-center">
+                <svg class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                {{ leadsSaveError }}
+            </div>
+        </div>
 
         <!-- Assign Users Section -->
         <div v-if="canViewProjectUsers" class="bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
