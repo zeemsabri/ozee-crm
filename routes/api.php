@@ -83,6 +83,7 @@ Route::post('/famifyhub/contactform', [FamifyMailController::class, 'contactForm
 
 // Authenticated API Routes (behind auth:sanctum middleware for internal users)
 Route::middleware('auth:sanctum')->group(function () {
+
     Route::get('/user', function (Request $request) {
         return $request->user();
     });

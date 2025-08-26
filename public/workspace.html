@@ -3,248 +3,533 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Workspace Dashboard</title>
-    <!-- Tailwind CSS -->
+    <title>Workspace Dashboard</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts: Inter -->
+    <!-- Google Fonts for Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Custom styles to enhance the prototype */
+        /* Apply Inter font family to the entire page for consistent typography */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6; /* A light gray background */
         }
-        /* Style for the triage icons in the notifications list */
-        .triage-icons {
-            opacity: 0;
-            transition: opacity 0.2s ease-in-out;
+
+        /* Custom utility for active tab button styling */
+        .tab-button.active {
+            @apply bg-gray-100 text-gray-900 border-b-2 border-indigo-600;
         }
-        .group:hover .triage-icons {
-            opacity: 1;
+
+        /* General transition for all interactive elements */
+        .transition-all-colors {
+            transition-property: background-color, border-color, color, fill, stroke;
+            transition-duration: 200ms;
         }
     </style>
 </head>
-<body class="text-gray-800">
+<body class="bg-gray-100 antialiased">
 
-<!-- Global Header -->
-<header class="bg-white shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center h-16">
-            <!-- Logo -->
-            <div class="flex-shrink-0 flex items-center">
-                <svg class="h-8 w-auto" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="12" cy="12" r="10" class="text-indigo-600" fill="currentColor"/>
-                    <path d="M9 9.5C9 8.67157 9.67157 8 10.5 8H13.5C14.3284 8 15 8.67157 15 9.5V14.5C15 15.3284 14.3284 16 13.5 16H10.5C9.67157 16 9 15.3284 9 14.5V9.5Z" fill="white"/>
-                </svg>
-                <span class="ml-3 text-xl font-bold text-gray-900">Workspace</span>
-            </div>
+<!-- Overall page container with responsive padding -->
+<div class="min-h-screen p-4 sm:p-6 lg:p-8">
 
-            <!-- Navigation Links -->
-            <nav class="hidden md:flex md:space-x-8">
-                <a href="#" class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" aria-current="page">
-                    Dashboard
-                </a>
-                <a href="#" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                    Projects
-                </a>
-                <a href="#" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                    Tasks
-                </a>
-                <a href="#" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                    Reports
-                </a>
-            </nav>
-
-            <!-- User Profile -->
-            <div class="flex items-center">
-                <img class="h-8 w-8 rounded-full object-cover" src="https://placehold.co/100x100/E2E8F0/4A5568?text=AV" alt="User avatar" onerror="this.onerror=null;this.src='https://placehold.co/100x100/E2E8F0/4A5568?text=U';">
-                <span class="ml-3 hidden sm:block text-sm font-medium text-gray-700">Jane Doe</span>
-            </div>
+    <!-- Global Header -->
+    <header class="flex items-center justify-between py-4 mb-6">
+        <h1 class="text-3xl font-bold text-gray-900">Workspace</h1>
+        <!-- Placeholder for user profile, notifications, etc. -->
+        <div class="flex items-center space-x-4">
+            <span class="text-gray-600">John Doe</span>
+            <div class="w-10 h-10 bg-gray-300 rounded-full"></div>
         </div>
+    </header>
+
+    <!-- Part 1: Dashboard Filter Controls -->
+    <div class="flex justify-start space-x-2 p-1 bg-gray-200 rounded-xl mb-8 overflow-x-auto">
+        <!-- Filter buttons with distinct active/inactive styles and transitions -->
+        <button class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg whitespace-nowrap transition-all-colors">
+            All Projects
+        </button>
+        <button class="px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-lg hover:bg-gray-100 whitespace-nowrap transition-all-colors">
+            Projects I Manage
+        </button>
+        <button class="px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-lg hover:bg-gray-100 whitespace-nowrap transition-all-colors">
+            My Projects
+        </button>
     </div>
-</header>
 
-<!-- Main Container -->
-<main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-    <!-- Two-Column Layout -->
-    <div class="flex flex-col lg:flex-row lg:space-x-8 space-y-8 lg:space-y-0">
+    <!-- Part 2 & 4: Main Content Area (Left) & Sidebar (Right) -->
+    <div class="flex flex-col lg:flex-row gap-8">
+        <!-- Left Column: Project Cards -->
+        <div class="lg:w-2/3">
 
-        <!-- Left Column (Main Content) -->
-        <div class="w-full lg:w-7/10 space-y-8">
-
-            <!-- Widget 1: For Your Action -->
-            <section class="bg-white rounded-lg shadow-md">
-                <div class="p-6">
-                    <h2 class="text-xl font-semibold text-gray-900 mb-4">For Your Action</h2>
-                    <ul class="divide-y divide-gray-200">
-                        <!-- Action Item: Approval -->
-                        <li class="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between">
-                            <div class="flex items-center mb-3 sm:mb-0">
-                                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                    <svg class="h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                </div>
-                                <p class="ml-4 text-sm font-medium text-gray-700">Please approve draft email to Client X regarding milestone payment.</p>
-                            </div>
-                            <div class="flex-shrink-0 flex space-x-2">
-                                <button class="px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition">Approve</button>
-                                <button class="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition">Reject</button>
-                                <button class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition">View Draft</button>
-                            </div>
-                        </li>
-                        <!-- Action Item: Task Due -->
-                        <li class="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between">
-                            <div class="flex items-center mb-3 sm:mb-0">
-                                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
-                                    <svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                                    </svg>
-                                </div>
-                                <p class="ml-4 text-sm font-medium text-gray-700">Complete keyword analysis for Project Y.</p>
-                            </div>
-                            <div class="flex-shrink-0 flex space-x-4">
-                                <a href="#" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">Mark Complete</a>
-                                <a href="#" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">View Task Details</a>
-                            </div>
-                        </li>
-                        <!-- Action Item: Standup -->
-                        <li class="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between">
-                            <div class="flex items-center mb-3 sm:mb-0">
-                                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-                                    <svg class="h-6 w-6 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                </div>
-                                <p class="ml-4 text-sm font-medium text-gray-700">Your daily standup is due by 10:00 AM.</p>
-                            </div>
-                            <div class="flex-shrink-0">
-                                <button class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition shadow-sm">Submit Now</button>
-                            </div>
-                        </li>
-                    </ul>
-                </div>
-            </section>
-
-            <!-- Widget 2: Today's Meetings -->
-            <section class="bg-white rounded-lg shadow-md">
-                <div class="p-6">
-                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Today's Meetings</h2>
-                    <ul class="divide-y divide-gray-200">
-                        <!-- Meeting Item 1 -->
-                        <li class="py-4 flex items-center justify-between">
-                            <div>
-                                <p class="text-sm font-medium text-gray-900">Project Alpha - Weekly Sync</p>
-                                <p class="text-sm text-gray-500">11:00 AM - 11:30 AM</p>
-                            </div>
-                            <button class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition">Join Meeting</button>
-                        </li>
-                        <!-- Meeting Item 2 -->
-                        <li class="py-4 flex items-center justify-between">
-                            <div>
-                                <p class="text-sm font-medium text-gray-900">Design Review: New Feature</p>
-                                <p class="text-sm text-gray-500">2:00 PM - 3:00 PM</p>
-                            </div>
-                            <button class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition">Join Meeting</button>
-                        </li>
-                    </ul>
-                </div>
-            </section>
-
-        </div>
-
-        <!-- Right Column (Sidebar) -->
-        <div class="w-full lg:w-3/10">
-
-            <!-- Widget 3: Notifications & Unread -->
-            <aside class="bg-white rounded-lg shadow-md">
-                <div class="p-6">
-                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Notifications & Unread</h2>
-                    <div class="max-h-96 overflow-y-auto">
-                        <ul class="divide-y divide-gray-200">
-                            <!-- Notification Item 1 -->
-                            <li class="group p-3 rounded-md hover:bg-gray-50 flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm font-medium text-gray-600">From: John Doe</p>
-                                    <p class="text-sm text-gray-800 truncate">Subject: FYI on the latest project update</p>
-                                </div>
-                                <div class="triage-icons flex items-center space-x-2">
-                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-green-100 hover:text-green-600">
-                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                                    </button>
-                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-blue-100 hover:text-blue-600">
-                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                                    </button>
-                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-yellow-100 hover:text-yellow-600">
-                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-                                    </button>
-                                </div>
-                            </li>
-                            <!-- Notification Item 2 -->
-                            <li class="group p-3 rounded-md hover:bg-gray-50 flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm font-medium text-gray-600">From: Project Management Bot</p>
-                                    <p class="text-sm text-gray-800 truncate">Subject: Task "Deploy to Staging" is overdue</p>
-                                </div>
-                                <div class="triage-icons flex items-center space-x-2">
-                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-green-100 hover:text-green-600">
-                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                                    </button>
-                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-blue-100 hover:text-blue-600">
-                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                                    </button>
-                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-yellow-100 hover:text-yellow-600">
-                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-                                    </button>
-                                </div>
-                            </li>
-                            <!-- Notification Item 3 -->
-                            <li class="group p-3 rounded-md hover:bg-gray-50 flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm font-medium text-gray-600">From: HR Department</p>
-                                    <p class="text-sm text-gray-800 truncate">Subject: Company-wide meeting announcement</p>
-                                </div>
-                                <div class="triage-icons flex items-center space-x-2">
-                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-green-100 hover:text-green-600">
-                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                                    </button>
-                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-blue-100 hover:text-blue-600">
-                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                                    </button>
-                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-yellow-100 hover:text-yellow-600">
-                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-                                    </button>
-                                </div>
-                            </li>
-                            <!-- Notification Item 4 -->
-                            <li class="group p-3 rounded-md hover:bg-gray-50 flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm font-medium text-gray-600">From: Sarah Connor</p>
-                                    <p class="text-sm text-gray-800 truncate">Subject: Quick question about the Q3 report</p>
-                                </div>
-                                <div class="triage-icons flex items-center space-x-2">
-                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-green-100 hover:text-green-600">
-                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                                    </button>
-                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-blue-100 hover:text-blue-600">
-                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                                    </button>
-                                    <button class="p-1.5 rounded-full text-gray-400 hover:bg-yellow-100 hover:text-yellow-600">
-                                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-                                    </button>
-                                </div>
-                            </li>
-                        </ul>
+            <!-- Part 3: Example Card 1: Project "Phoenix" (Manager View with Urgent Alert) -->
+            <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+                <!-- Card Header -->
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-xl font-semibold text-gray-900">Project Phoenix</h2>
+                        <!-- Role Tag for Project Manager -->
+                        <span class="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full">Manager</span>
                     </div>
                 </div>
-            </aside>
+
+                <!-- Priority Alert Section -->
+                <div class="flex items-start gap-4 p-4 mb-6 border-l-4 border-red-500 bg-red-50 rounded-lg">
+                    <!-- Alert Icon (Using inline SVG for visual clarity) -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-red-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z"/><path d="M11 12H9V8h2v4zM11 16H9v-2h2v2z"/>
+                    </svg>
+                    <div class="flex-grow">
+                        <p class="font-medium text-sm text-red-800">Client email from Project Phoenix requires a reply.</p>
+                        <div class="flex justify-between items-center mt-2">
+                            <span class="text-xs font-semibold text-red-600">3h 25m remaining</span>
+                            <span class="text-xs text-red-600">Reply in time to earn 50 points.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabbed Content Area (PM View) -->
+                <div class="tabs">
+                    <!-- Main Tab Buttons -->
+                    <div class="flex border-b border-gray-200">
+                        <button class="tab-button active flex-1 py-2 text-sm font-medium text-gray-900 focus:outline-none transition-all-colors" data-tab="overview-content-phoenix">Overview</button>
+                        <button class="tab-button flex-1 py-2 text-sm font-medium text-gray-500 hover:text-gray-900 focus:outline-none transition-all-colors" data-tab="tasks-content-phoenix">Team's Tasks</button>
+                        <button class="tab-button flex-1 py-2 text-sm font-medium text-gray-500 hover:text-gray-900 focus:outline-none transition-all-colors" data-tab="communication-content-phoenix">Communication</button>
+                    </div>
+                    <!-- Tab Content Containers -->
+                    <div class="tab-content active" id="overview-content-phoenix">
+                        <div class="mt-4 space-y-3 text-sm text-gray-700">
+                            <p class="flex justify-between items-center">
+                                <span class="font-medium">Milestone:</span>
+                                <span>3 of 5 - Design Phase (60% Complete)</span>
+                            </p>
+                            <p class="flex justify-between items-center">
+                                <span class="font-medium">Budget:</span>
+                                <span>$15,000 / $25,000 Used</span>
+                            </p>
+                            <p class="flex justify-between items-center">
+                                <span class="font-medium">Project Status:</span>
+                                <span class="px-2 py-0.5 text-xs font-medium text-green-800 bg-green-200 rounded-full">On Track</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="tab-content hidden" id="tasks-content-phoenix">
+                        <div class="mt-4">
+                            <h4 class="text-base font-semibold text-gray-900 mb-2">Team Tasks</h4>
+                            <!-- Sub-tabs for Today and Tomorrow tasks -->
+                            <div class="flex space-x-2 border-b border-gray-200 mb-3">
+                                <button class="task-tab-button active flex-1 text-sm font-medium text-gray-900 border-b-2 border-indigo-600 py-1 transition-all-colors" data-tasks-tab="phoenix-today">Today</button>
+                                <button class="task-tab-button flex-1 text-sm font-medium text-gray-500 hover:text-gray-900 py-1 transition-all-colors" data-tasks-tab="phoenix-tomorrow">Tomorrow</button>
+                            </div>
+                            <!-- Today's Tasks Content -->
+                            <div id="phoenix-today" class="tasks-content space-y-2 text-sm text-gray-700">
+                                <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                                    <span>Create new ad copy</span>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">Started</span>
+                                        <a href="#" class="text-xs text-indigo-600 font-medium hover:underline transition-all-colors">View</a>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                                    <span>Review wireframes</span>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">Blocked</span>
+                                        <a href="#" class="text-xs text-indigo-600 font-medium hover:underline transition-all-colors">View</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Tomorrow's Tasks Content -->
+                            <div id="phoenix-tomorrow" class="tasks-content hidden space-y-2 text-sm text-gray-700">
+                                <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                                    <span>Client feedback call</span>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 rounded-full">Paused</span>
+                                        <a href="#" class="text-xs text-indigo-600 font-medium hover:underline transition-all-colors">View</a>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                                    <span>Design review meeting</span>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Complete</span>
+                                        <a href="#" class="text-xs text-indigo-600 font-medium hover:underline transition-all-colors">View</a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Completed Tasks Section (initially hidden) -->
+                            <div id="phoenix-completed-tasks" class="hidden mt-4 pt-4 border-t border-gray-200">
+                                <h5 class="text-sm font-semibold text-gray-500 mb-2">Completed Tasks</h5>
+                                <div class="space-y-2 text-sm text-gray-400">
+                                    <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                                        <span class="line-through">Initial Project Kickoff</span>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Complete</span>
+                                            <a href="#" class="text-xs text-indigo-600 font-medium hover:underline transition-all-colors">View</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Summary and toggle button for completed tasks -->
+                            <div id="phoenix-completed-summary" class="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600 hidden">You have 1 completed task. <button id="toggle-phoenix-completed" class="font-medium text-indigo-600 hover:underline transition-all-colors">Show Completed</button></div>
+                            <button id="toggle-phoenix-completed-btn" class="mt-4 text-indigo-600 text-sm font-medium hover:underline transition-all-colors">Show Completed</button>
+                        </div>
+                    </div>
+                    <div class="tab-content hidden" id="communication-content-phoenix">
+                        <div class="mt-4 space-y-3 text-sm text-gray-700">
+                            <p>Last Email Sent: <span class="font-semibold">Today at 9:15 AM</span></p>
+                            <p>Last Email Received: <span class="font-semibold text-yellow-700">3 days ago at 4:30 PM</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Part 3: Example Card 2: Project "Odyssey" (Contributor View) -->
+            <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+                <!-- Card Header -->
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-xl font-semibold text-gray-900">Project Odyssey</h2>
+                        <!-- Role Tag for Contributor -->
+                        <span class="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Contributor</span>
+                    </div>
+                </div>
+
+                <!-- My Tasks Section -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-3">My Tasks</h3>
+                    <!-- Sub-tabs for Today and Tomorrow tasks -->
+                    <div class="flex space-x-2 border-b border-gray-200 mb-3">
+                        <button class="task-tab-button active flex-1 text-sm font-medium text-gray-900 border-b-2 border-indigo-600 py-1 transition-all-colors" data-tasks-tab="odyssey-today">Today</button>
+                        <button class="task-tab-button flex-1 text-sm font-medium text-gray-500 hover:text-gray-900 py-1 transition-all-colors" data-tasks-tab="odyssey-tomorrow">Tomorrow</button>
+                    </div>
+                    <!-- Today's Tasks Content -->
+                    <div id="odyssey-today" class="tasks-content space-y-2 text-sm text-gray-700">
+                        <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                            <span>Develop login API endpoint</span>
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">Blocked</span>
+                                <a href="#" class="text-xs text-indigo-600 font-medium hover:underline transition-all-colors">View</a>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                            <span>Write unit tests for checkout process</span>
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">Started</span>
+                                <a href="#" class="text-xs text-indigo-600 font-medium hover:underline transition-all-colors">View</a>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Tomorrow's Tasks Content -->
+                    <div id="odyssey-tomorrow" class="tasks-content hidden space-y-2 text-sm text-gray-700">
+                        <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                            <span>Refactor database schema</span>
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 rounded-full">Paused</span>
+                                <a href="#" class="text-xs text-indigo-600 font-medium hover:underline transition-all-colors">View</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Completed Tasks Section (initially hidden) -->
+                    <div id="odyssey-completed-tasks" class="hidden mt-4 pt-4 border-t border-gray-200">
+                        <h5 class="text-sm font-semibold text-gray-500 mb-2">Completed Tasks</h5>
+                        <div class="space-y-2 text-sm text-gray-400">
+                            <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                                <span class="line-through">Update documentation</span>
+                                <div class="flex items-center space-x-2">
+                                    <span class="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Complete</span>
+                                    <a href="#" class="text-xs text-indigo-600 font-medium hover:underline transition-all-colors">View</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Summary and toggle button for completed tasks -->
+                    <div id="odyssey-completed-summary" class="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600 hidden">You have 1 completed task. <button id="toggle-odyssey-completed" class="font-medium text-indigo-600 hover:underline transition-all-colors">Show Completed</button></div>
+                    <button id="toggle-odyssey-completed-btn" class="mt-4 text-indigo-600 text-sm font-medium hover:underline transition-all-colors">Show Completed</button>
+                </div>
+
+                <!-- Current Milestone Section -->
+                <div class="p-4 bg-indigo-50 rounded-lg">
+                    <h3 class="text-base font-semibold text-indigo-900 mb-2">Current Milestone: Backend API Development</h3>
+                    <p class="text-sm text-indigo-700 mb-3">Due: September 5, 2025</p>
+                    <!-- Progress bar component -->
+                    <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                        <div class="bg-indigo-600 h-2.5 rounded-full" style="width: 75%"></div>
+                    </div>
+                    <p class="text-right text-xs font-medium text-indigo-600">75% Complete</p>
+                    <p class="text-xs text-indigo-800 italic mt-3">"Complete on time to earn a 5% bonus and 200 points!"</p>
+                </div>
+            </div>
+
+            <!-- Part 3: Example Card 3: Project "Gemini" (Manager View - No Alerts) -->
+            <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+                <!-- Card Header -->
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-xl font-semibold text-gray-900">Project Gemini</h2>
+                        <!-- Role Tag for Project Manager -->
+                        <span class="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full">Manager</span>
+                    </div>
+                </div>
+
+                <!-- Tabbed Content Area (PM View) -->
+                <div class="tabs">
+                    <!-- Main Tab Buttons -->
+                    <div class="flex border-b border-gray-200">
+                        <button class="tab-button active flex-1 py-2 text-sm font-medium text-gray-900 focus:outline-none transition-all-colors" data-tab="overview-content-gemini">Overview</button>
+                        <button class="tab-button flex-1 py-2 text-sm font-medium text-gray-500 hover:text-gray-900 focus:outline-none transition-all-colors" data-tab="tasks-content-gemini">Team's Tasks</button>
+                        <button class="tab-button flex-1 py-2 text-sm font-medium text-gray-500 hover:text-gray-900 focus:outline-none transition-all-colors" data-tab="communication-content-gemini">Communication</button>
+                    </div>
+                    <!-- Tab Content Containers -->
+                    <div class="tab-content active" id="overview-content-gemini">
+                        <div class="mt-4 space-y-3 text-sm text-gray-700">
+                            <p class="flex justify-between items-center">
+                                <span class="font-medium">Milestone:</span>
+                                <span>2 of 4 - Testing Phase (95% Complete)</span>
+                            </p>
+                            <p class="flex justify-between items-center">
+                                <span class="font-medium">Budget:</span>
+                                <span>$8,000 / $10,000 Used</span>
+                            </p>
+                            <p class="flex justify-between items-center">
+                                <span class="font-medium">Project Status:</span>
+                                <span class="px-2 py-0.5 text-xs font-medium text-indigo-800 bg-indigo-200 rounded-full">In Progress</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="tab-content hidden" id="tasks-content-gemini">
+                        <div class="mt-4">
+                            <h4 class="text-base font-semibold text-gray-900 mb-2">Team Tasks</h4>
+                            <div class="flex space-x-2 border-b border-gray-200 mb-3">
+                                <button class="task-tab-button active flex-1 text-sm font-medium text-gray-900 border-b-2 border-indigo-600 py-1 transition-all-colors" data-tasks-tab="gemini-today">Today</button>
+                                <button class="task-tab-button flex-1 text-sm font-medium text-gray-500 hover:text-gray-900 py-1 transition-all-colors" data-tasks-tab="gemini-tomorrow">Tomorrow</button>
+                            </div>
+                            <!-- Today's Tasks Content -->
+                            <div id="gemini-today" class="tasks-content space-y-2 text-sm text-gray-700">
+                                <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                                    <span>User Acceptance Testing</span>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Complete</span>
+                                        <a href="#" class="text-xs text-indigo-600 font-medium hover:underline transition-all-colors">View</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Tomorrow's Tasks Content -->
+                            <div id="gemini-tomorrow" class="tasks-content hidden space-y-2 text-sm text-gray-700">
+                                <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                                    <span>Deploy to staging</span>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">Started</span>
+                                        <a href="#" class="text-xs text-indigo-600 font-medium hover:underline transition-all-colors">View</a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Completed Tasks Section (initially hidden) -->
+                            <div id="gemini-completed-tasks" class="hidden mt-4 pt-4 border-t border-gray-200">
+                                <h5 class="text-sm font-semibold text-gray-500 mb-2">Completed Tasks</h5>
+                                <div class="space-y-2 text-sm text-gray-400">
+                                    <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                                        <span class="line-through">Initial QA Review</span>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Complete</span>
+                                            <a href="#" class="text-xs text-indigo-600 font-medium hover:underline transition-all-colors">View</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Summary and toggle button for completed tasks -->
+                            <div id="gemini-completed-summary" class="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600 hidden">You have 1 completed task. <button id="toggle-gemini-completed" class="font-medium text-indigo-600 hover:underline transition-all-colors">Show Completed</button></div>
+                            <button id="toggle-gemini-completed-btn" class="mt-4 text-indigo-600 text-sm font-medium hover:underline transition-all-colors">Show Completed</button>
+                        </div>
+                    </div>
+                    <div class="tab-content hidden" id="communication-content-gemini">
+                        <div class="mt-4 space-y-3 text-sm text-gray-700">
+                            <p>Last Email Sent: <span class="font-semibold">Yesterday at 11:00 AM</span></p>
+                            <p>Last Email Received: <span class="font-semibold text-gray-800">Yesterday at 10:45 AM</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
         </div>
 
+        <!-- Part 4: Sidebar (Right Column) -->
+        <div class="lg:w-1/3">
+
+            <!-- "My Performance" Widget -->
+            <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+                <h3 class="text-xl font-semibold text-gray-900 mb-4">My Performance</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-500">Total Points</p>
+                        <span class="text-5xl font-bold text-indigo-600">1,450</span>
+                    </div>
+                    <div class="flex-1 text-right">
+                        <p class="text-sm text-gray-500">Leaderboard Rank</p>
+                        <span class="text-5xl font-bold text-gray-900">#8</span>
+                    </div>
+                </div>
+                <a href="#" class="block text-center text-indigo-600 text-sm font-medium mt-4 hover:underline transition-all-colors">View Leaderboard Details &rarr;</a>
+            </div>
+
+            <!-- My Notes & Checklist Widget -->
+            <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+                <h3 class="text-xl font-semibold text-gray-900 mb-4">My Checklist</h3>
+                <div class="space-y-3">
+                    <ul id="checklist-items" class="space-y-2 text-sm text-gray-700">
+                        <!-- Sample checklist items -->
+                        <li class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <input type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                                <span class="ml-3 font-medium">Follow up with Alex on Project Phoenix</span>
+                            </div>
+                        </li>
+                        <li class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <input type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                                <span class="ml-3 font-medium">Prepare for sprint planning</span>
+                            </div>
+                        </li>
+                    </ul>
+                    <div class="flex items-center mt-4">
+                        <input type="text" id="new-checklist-item-input" class="flex-grow rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Add a new checklist item...">
+                        <button id="add-checklist-item-button" class="ml-2 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all-colors">Add</button>
+                    </div>
+                </div>
+
+                <h3 class="text-xl font-semibold text-gray-900 mb-4 mt-6">My Notes</h3>
+                <div class="space-y-3">
+                    <textarea id="notes-textarea" class="w-full h-32 p-3 rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Write your notes here..."></textarea>
+                </div>
+            </div>
+
+            <!-- "Global Notifications" Widget -->
+            <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+                <h3 class="text-xl font-semibold text-gray-900 mb-4">Company Updates</h3>
+                <ul class="space-y-3">
+                    <li class="p-3 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-800 font-medium">Company-wide meeting at 3 PM</p>
+                        <p class="text-xs text-gray-500 mt-1">Don't miss the Q3 planning session.</p>
+                    </li>
+                    <li class="p-3 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-800 font-medium">New HR policy document available</p>
+                        <p class="text-xs text-gray-500 mt-1">Please review the updated remote work guidelines.</p>
+                    </li>
+                </ul>
+            </div>
+        </div>
     </div>
-</main>
+</div>
+
+<script>
+    // JavaScript to handle the main tabbed interface for project cards
+    document.addEventListener('DOMContentLoaded', () => {
+        const tabContainers = document.querySelectorAll('.tabs');
+
+        tabContainers.forEach(container => {
+            const tabButtons = container.querySelectorAll('.tab-button');
+            const tabContents = container.querySelectorAll('.tab-content');
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', (event) => {
+                    // Remove active class from all main tabs and content
+                    tabButtons.forEach(btn => btn.classList.remove('active', 'bg-gray-100', 'text-gray-900', 'border-b-2', 'border-indigo-600'));
+                    tabButtons.forEach(btn => btn.classList.add('text-gray-500'));
+                    tabContents.forEach(content => content.classList.add('hidden'));
+
+                    // Get the target content ID directly from the data-tab attribute
+                    const contentId = event.currentTarget.dataset.tab;
+                    const targetContent = document.getElementById(contentId);
+
+                    // Add active class to the clicked button and its content
+                    event.currentTarget.classList.add('active', 'bg-gray-100', 'text-gray-900', 'border-b-2', 'border-indigo-600');
+                    event.currentTarget.classList.remove('text-gray-500');
+                    if (targetContent) {
+                        targetContent.classList.remove('hidden');
+                    }
+                });
+            });
+        });
+
+        // JavaScript to handle sub-tabs for tasks within project cards
+        const taskTabContainers = document.querySelectorAll('.tabs');
+        taskTabContainers.forEach(container => {
+            const taskTabButtons = container.querySelectorAll('.task-tab-button');
+            const taskContents = container.querySelectorAll('.tasks-content');
+            if (taskTabButtons.length > 0) {
+                taskTabButtons.forEach(button => {
+                    button.addEventListener('click', (event) => {
+                        // Deactivate all task tabs and hide their content for this card
+                        taskTabButtons.forEach(btn => {
+                            btn.classList.remove('active', 'text-gray-900', 'border-b-2', 'border-indigo-600');
+                            btn.classList.add('text-gray-500');
+                        });
+                        taskContents.forEach(content => content.classList.add('hidden'));
+
+                        // Activate the clicked task tab and show its content
+                        event.currentTarget.classList.add('active', 'text-gray-900', 'border-b-2', 'border-indigo-600');
+                        event.currentTarget.classList.remove('text-gray-500');
+                        const targetTabId = event.currentTarget.dataset.tasksTab;
+                        const targetContent = document.getElementById(targetTabId);
+                        if (targetContent) {
+                            targetContent.classList.remove('hidden');
+                        }
+                    });
+                });
+            }
+        });
+
+        // JavaScript for adding checklist items
+        const addChecklistItemButton = document.getElementById('add-checklist-item-button');
+        const newChecklistItemInput = document.getElementById('new-checklist-item-input');
+        const checklist = document.getElementById('checklist-items');
+
+        if (addChecklistItemButton && newChecklistItemInput && checklist) {
+            addChecklistItemButton.addEventListener('click', () => {
+                const newItemText = newChecklistItemInput.value.trim();
+                if (newItemText !== '') {
+                    // Create new list item HTML
+                    const newItemHTML = `
+                            <li class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <input type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                                    <span class="ml-3 font-medium">${newItemText}</span>
+                                </div>
+                            </li>
+                        `;
+                    // Append the new item to the checklist
+                    checklist.innerHTML += newItemHTML;
+                    // Clear the input field and refocus
+                    newChecklistItemInput.value = '';
+                    newChecklistItemInput.focus();
+                }
+            });
+        }
+
+        // JavaScript to toggle completed tasks section
+        const toggleCompletedButtons = document.querySelectorAll('[id$="-completed-btn"]');
+        toggleCompletedButtons.forEach(button => {
+            button.addEventListener('click', (event) => {
+                const cardId = event.currentTarget.id.replace('-completed-btn', '');
+                const completedTasksSection = document.getElementById(`${cardId}-completed-tasks`);
+                const completedSummary = document.getElementById(`${cardId}-completed-summary`);
+
+                if (completedTasksSection && completedSummary) {
+                    completedTasksSection.classList.toggle('hidden');
+                    completedSummary.classList.toggle('hidden');
+                    if (completedTasksSection.classList.contains('hidden')) {
+                        event.currentTarget.innerText = 'Show Completed';
+                    } else {
+                        event.currentTarget.innerText = 'Hide Completed';
+                    }
+                }
+            });
+        });
+    });
+</script>
 
 </body>
 </html>
