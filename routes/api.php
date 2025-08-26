@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\EmailController;
 use App\Http\Controllers\Api\InboxController;
 use App\Http\Controllers\Api\ProjectReadController; // New Import
 use App\Http\Controllers\Api\ProjectActionController; // New Import
+use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\TaskController;
@@ -181,6 +182,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Project Section Update Routes
     Route::put('projects/{project}/sections/basic', [ProjectActionController::class, 'updateBasicInfo'])->middleware(['process.tags']);
+
+    // Workspace API
+    Route::get('workspace/projects', [WorkspaceController::class, 'projects']);
     Route::put('projects/{project}/sections/services-payment', [ProjectActionController::class, 'updateServicesAndPayment']);
     Route::put('projects/{project}/sections/transactions', [ProjectActionController::class, 'updateTransactions']);
     Route::put('projects/{project}/sections/notes', [ProjectActionController::class, 'updateNotes']);

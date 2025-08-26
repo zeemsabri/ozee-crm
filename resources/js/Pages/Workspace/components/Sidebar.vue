@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue';
-
+import ChecklistComponent from "@/Components/ChecklistComponent.vue";
 const props = defineProps({
     checklistItems: Array,
     notes: String,
@@ -49,28 +49,23 @@ function updateNotes(event) {
         <!-- My Checklist -->
         <div class="bg-white rounded-xl shadow-md p-6 mb-6">
             <h3 class="text-xl font-semibold text-gray-900 mb-4">My Checklist</h3>
-            <div class="space-y-3">
-                <ul v-if="checklistItems.length" class="space-y-2 text-sm text-gray-700">
-                    <li v-for="(item, idx) in checklistItems" :key="idx" class="flex items-center justify-between group p-2 rounded-lg bg-gray-50 transition-all-colors hover:bg-gray-100">
-                        <div class="flex items-center">
-                            <input type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                            <span class="ml-3 font-medium">{{ item }}</span>
-                        </div>
-                        <button class="delete-item-btn text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" @click="removeItem(idx)" aria-label="Delete checklist item">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </li>
-                </ul>
-                <div v-else class="text-center text-sm text-gray-500">
-                    <p>Your checklist is clear. Nice work!</p>
-                </div>
-                <div class="flex items-center mt-4">
-                    <input type="text" ref="newChecklistItemInput" class="flex-grow rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Add a new checklist item...">
-                    <button class="ml-2 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all-colors" @click="addItem" aria-label="Add new checklist item">Add</button>
-                </div>
-            </div>
+<!--            <ChecklistComponent-->
+<!--                :items="[]"-->
+<!--                :api-endpoint="`/api/user-checklist/${deliverable.id}`"-->
+<!--                title="Deliverable Checklist:"-->
+<!--                :payload-transformer="(items, index) => ({-->
+<!--                                ...deliverable,-->
+<!--                                details: {-->
+<!--                                    ...deliverable.details,-->
+<!--                                    checklist: items-->
+<!--                                }-->
+<!--                            })"-->
+<!--                @item-toggled="(data) => $emit('checklist-item-toggled', {-->
+<!--                                deliverable,-->
+<!--                                index: data.index,-->
+<!--                                completed: data.completed-->
+<!--                            })"-->
+<!--            />-->
 
             <h3 class="text-xl font-semibold text-gray-900 mb-4 mt-6">My Notes</h3>
             <div class="space-y-3">
