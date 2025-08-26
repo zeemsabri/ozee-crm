@@ -1,10 +1,18 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import ProjectCard from './ProjectCard.vue';
 
 const loading = ref(true);
 const error = ref(null);
 const fetchedProjects = ref([]);
+
+// Pagination & infinite scroll state
+const page = ref(1);
+const lastPage = ref(1);
+const perPage = 5;
+const loadingMore = ref(false);
+const sentinel = ref(null);
+let observer = null;
 
 const fmtDateTime = (s) => {
     try { if (!s) return null; return new Date(s).toLocaleString(); } catch (e) { return null; }
@@ -139,38 +147,146 @@ const mapApiProjectToCard = (p) => {
     return uiRole === 'Manager' ? buildManagerCardFromApi(p) : buildContributorCardFromApi(p);
 };
 
-const loadProjects = async () => {
+const isPaginatedResponse = (resp) => {
+    return resp && typeof resp === 'object' && Array.isArray(resp.data) && typeof resp.current_page !== 'undefined';
+};
+
+const loadFirstPage = async () => {
     loading.value = true;
     error.value = null;
+    page.value = 1;
+    lastPage.value = 1;
+    fetchedProjects.value = [];
     try {
-        const { data } = await window.axios.get('/api/workspace/projects');
-
-        fetchedProjects.value = (Array.isArray(data) ? data : []).map(mapApiProjectToCard);
+        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: page.value, per_page: perPage } });
+        const resp = data;
+        if (Array.isArray(resp)) {
+            // Legacy non-paginated response
+            fetchedProjects.value = resp.map(mapApiProjectToCard);
+            lastPage.value = 1;
+            page.value = 1;
+        } else if (isPaginatedResponse(resp)) {
+            fetchedProjects.value = (resp.data || []).map(mapApiProjectToCard);
+            page.value = resp.current_page || 1;
+            lastPage.value = resp.last_page || 1;
+        } else {
+            fetchedProjects.value = [];
+            lastPage.value = 1;
+        }
     } catch (e) {
         console.error('Failed to load workspace projects', e);
         error.value = 'Failed to load your projects.';
         fetchedProjects.value = [];
+        lastPage.value = 1;
     } finally {
         loading.value = false;
     }
 };
 
-onMounted(() => {
-    loadProjects();
+const fetchNextPage = async () => {
+    if (loading.value || loadingMore.value) return;
+    if (page.value >= lastPage.value) return;
+    loadingMore.value = true;
+    try {
+        const next = page.value + 1;
+        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: next, per_page: perPage } });
+        const resp = data;
+        if (Array.isArray(resp)) {
+            // Legacy array response, treat as no more pages
+            const items = resp.map(mapApiProjectToCard);
+            if (items.length) {
+                fetchedProjects.value = fetchedProjects.value.concat(items);
+            }
+            page.value = next;
+            lastPage.value = next; // stop further loads
+        } else if (isPaginatedResponse(resp)) {
+            const items = (resp.data || []).map(mapApiProjectToCard);
+            fetchedProjects.value = fetchedProjects.value.concat(items);
+            page.value = resp.current_page || next;
+            lastPage.value = resp.last_page || page.value;
+        }
+    } catch (e) {
+        console.error('Failed to load more workspace projects', e);
+        // Keep existing items; optionally set error message (not blocking)
+    } finally {
+        loadingMore.value = false;
+    }
+};
+
+function setupObserver() {
+    if (observer) {
+        observer.disconnect();
+    }
+    observer = new IntersectionObserver((entries) => {
+        const entry = entries[0];
+        if (entry && entry.isIntersecting) {
+            fetchNextPage();
+        }
+    }, { root: null, rootMargin: '200px', threshold: 0 });
+
+    if (sentinel.value) {
+        observer.observe(sentinel.value);
+    }
+}
+
+onMounted(async () => {
+    await loadFirstPage();
+    await nextTick();
+    setupObserver();
+});
+
+onUnmounted(() => {
+    if (observer) {
+        observer.disconnect();
+        observer = null;
+    }
 });
 </script>
 
 <template>
     <div class="space-y-6">
-        <div v-if="loading" class="flex justify-center items-center h-48 bg-white rounded-xl shadow-md p-6 text-gray-500">
-            <p>Loading your projects...</p>
+        <!-- Initial skeleton screen -->
+        <div v-if="loading" class="space-y-6">
+            <div v-for="i in 5" :key="'skeleton-'+i" class="bg-white rounded-xl shadow-md p-6">
+                <div class="animate-pulse space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="h-6 w-1/3 bg-gray-200 rounded"></div>
+                        <div class="h-4 w-24 bg-gray-200 rounded"></div>
+                    </div>
+                    <div class="h-4 w-1/2 bg-gray-200 rounded"></div>
+                    <div class="h-24 w-full bg-gray-200 rounded"></div>
+                </div>
+            </div>
         </div>
+
+        <!-- Error -->
         <div v-else-if="error" class="flex justify-center items-center h-48 bg-white rounded-xl shadow-md p-6 text-red-500">
             <p>{{ error }}</p>
         </div>
+
+        <!-- Empty -->
         <div v-else-if="fetchedProjects.length === 0" class="flex justify-center items-center h-48 bg-white rounded-xl shadow-md p-6 text-gray-500">
             <p>No projects to display.</p>
         </div>
-        <ProjectCard v-for="project in fetchedProjects" :key="project.id" :project="project" />
+
+        <!-- Project cards -->
+        <template v-else>
+            <ProjectCard v-for="project in fetchedProjects" :key="project.id" :project="project" />
+
+            <!-- Incremental skeleton loader -->
+            <div v-if="loadingMore" class="bg-white rounded-xl shadow-md p-6">
+                <div class="animate-pulse space-y-4">
+                    <div class="h-6 w-1/3 bg-gray-200 rounded"></div>
+                    <div class="h-4 w-1/2 bg-gray-200 rounded"></div>
+                    <div class="h-24 w-full bg-gray-200 rounded"></div>
+                </div>
+            </div>
+
+            <!-- Sentinel for infinite scroll -->
+            <div v-show="page < lastPage" ref="sentinel" class="h-2"></div>
+            <div v-if="page >= lastPage && fetchedProjects.length > 0" class="text-center text-sm text-gray-400 py-2">
+                End of list
+            </div>
+        </template>
     </div>
 </template>
