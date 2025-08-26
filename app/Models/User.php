@@ -36,6 +36,8 @@ class User extends Authenticatable
         'role_id', // Foreign key to roles table
         'timezone',
         'user_type',
+        'checklist',
+        'notes',
     ];
 
     /**
@@ -59,6 +61,8 @@ class User extends Authenticatable
         'role_id' => 'integer', // Cast role_id as integer
         'user_type' => 'string',
         'last_login_at' => 'datetime',
+        'checklist' => 'array',
+        'notes' => 'array',
     ];
 
     protected $with = ['role']; // Always load the role relationship
