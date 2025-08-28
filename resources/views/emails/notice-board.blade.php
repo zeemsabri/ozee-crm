@@ -28,24 +28,15 @@
             border-top-left-radius: 8px;
             border-top-right-radius: 8px;
             /* Dynamic background color based on notice type */
-            background-color:
-                @switch($notice->type)
-                    @case('General')
-                        #3490dc;
-            @break
-        @case('Updates')
-#38c172;
-            @break
-        @case('Warning')
-#ffed4a;
-            @break
-        @case('Final Notice')
-#e3342f;
-            @break
-        @default
-#3490dc; /* Default color */
-        @endswitch
-;
+            background-color: {{
+                match($notice->type) {
+                    'General' => '#3490dc',
+                    'Updates' => '#38c172',
+                    'Warning' => '#ffed4a',
+                    'Final Notice' => '#e3342f',
+                    default => '#3490dc'
+                }
+            }};
         }
         .header h1 {
             margin: 0;
@@ -81,6 +72,9 @@
 </head>
 <body>
 <div class="email-container">
+    @if ($notice->thumbnail_url_public)
+        <img src="{{ $notice->thumbnail_url_public }}" alt="Notice banner" style="width:100%;display:block;object-fit:cover;" />
+    @endif
     <div class="header">
         <h1>{{ $notice->title }}</h1>
     </div>

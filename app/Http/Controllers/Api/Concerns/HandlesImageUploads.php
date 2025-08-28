@@ -33,19 +33,19 @@ trait HandlesImageUploads
 
             // If it's an image, generate and upload a thumbnail
             if ($this->isImageMime($entry['mime_type'])) {
-                try {
+//                try {
                     $thumbBinary = $this->makeThumbnailFromFile($file->getRealPath());
                     $dir = trim(dirname($objectPath), '.\\/');
                     $base = pathinfo($objectPath, PATHINFO_FILENAME);
                     $thumbPath = ($dir ? $dir.'/' : '') . 'thumbnails/' . $base . '-thumb.jpg';
                     Storage::disk($disk)->put($thumbPath, $thumbBinary);
                     $entry['thumbnail'] = $thumbPath;
-                } catch (\Throwable $thumbEx) {
-                    Log::warning('Thumbnail generation failed', [
-                        'file' => $entry['filename'],
-                        'error' => $thumbEx->getMessage(),
-                    ]);
-                }
+//                } catch (\Throwable $thumbEx) {
+//                    Log::warning('Thumbnail generation failed', [
+//                        'file' => $entry['filename'],
+//                        'error' => $thumbEx->getMessage(),
+//                    ]);
+//                }
             }
 
             $paths[] = $entry;

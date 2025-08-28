@@ -78,7 +78,7 @@ class EmailObserver
     public function updated(Email $email)
     {
         // Check if the email status was changed to 'approved'
-        if ($email->isDirty('status') && $email->status === 'approved') {
+        if ($email->isDirty('status') && $email->status === 'sent') {
             $projectId = optional($email->conversation)->project_id;
 
             if ($projectId) {

@@ -23,6 +23,7 @@ const form = ref({
     channels: ['push'],
     user_ids: [],
     project_id: null,
+    file: null,
 });
 
 const types = ['General','Warning','Updates','Final Notice'];
@@ -62,12 +63,33 @@ const submit = async () => {
     message.value = '';
     try {
         saving.value = true;
-        const payload = { ...form.value };
-        if (!payload.project_id) delete payload.project_id;
-        if (!payload.user_ids || payload.user_ids.length === 0) delete payload.user_ids;
-        await axios.post('/api/notices', payload);
+        let config = {};
+        let payload;
+        if (form.value.file) {
+            // Use multipart when a file is selected
+            const fd = new FormData();
+            fd.append('title', form.value.title || '');
+            if (form.value.description) fd.append('description', form.value.description);
+            if (form.value.url) fd.append('url', form.value.url);
+            fd.append('type', form.value.type);
+            fd.append('visible_to_client', form.value.visible_to_client ? '1' : '0');
+            // channels[] for arrays
+            (form.value.channels || []).forEach(ch => fd.append('channels[]', ch));
+            (form.value.user_ids || []).forEach(uid => fd.append('user_ids[]', uid));
+            if (form.value.project_id) fd.append('project_id', form.value.project_id);
+            fd.append('file', form.value.file);
+            payload = fd;
+            config.headers = { 'Content-Type': 'multipart/form-data' };
+        } else {
+            // JSON when no file
+            payload = { ...form.value };
+            if (!payload.project_id) delete payload.project_id;
+            if (!payload.user_ids || payload.user_ids.length === 0) delete payload.user_ids;
+            delete payload.file;
+        }
+        await axios.post('/api/notices', payload, config);
         message.value = 'Notice created and notifications sent.';
-        form.value = { title: '', description: '', url: '', type: 'General', visible_to_client: false, channels: ['push','email'], user_ids: [], project_id: null };
+        form.value = { title: '', description: '', url: '', type: 'General', visible_to_client: false, channels: ['push'], user_ids: [], project_id: null, file: null };
         // Refresh list tab if open
         if (activeTab.value === 'list') await loadNotices();
     } catch (e) {
@@ -207,6 +229,16 @@ onMounted(async () => {
                                 <input v-model="form.url" type="url" class="mt-1 block w-full rounded-xl shadow-sm border-gray-300 focus:ring-indigo-500 focus:border-indigo-500" />
                                 <div v-if="errors.url" class="text-red-600 text-sm mt-1">{{ errors.url[0] }}</div>
                             </div>
+                        </div>
+
+                        <!-- Upload (image or document) -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Upload Image or Document (optional)</label>
+                            <input type="file" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                   class="mt-1 block w-full text-sm text-gray-700"
+                                   @change="e => form.file = e.target.files && e.target.files[0] ? e.target.files[0] : null" />
+                            <p class="text-xs text-gray-500 mt-1">If an image is uploaded, a thumbnail will be generated and shown on the notice.</p>
+                            <div v-if="errors.file" class="text-red-600 text-sm mt-1">{{ errors.file[0] }}</div>
                         </div>
 
                         <div class="flex items-center">
