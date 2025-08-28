@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\FileAttachmentController;
 use App\Http\Controllers\Api\AvailabilityController;
 use App\Http\Controllers\Api\BonusConfigurationController;
 use App\Http\Controllers\Api\ResourceController;
+use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\MagicLinkController;
 use App\Http\Controllers\Api\ModelDataController;
 use App\Http\Controllers\NotificationController;
@@ -267,6 +268,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('leaderboard/monthly', [\App\Http\Controllers\Api\LeaderboardController::class, 'monthly']);
     Route::get('leaderboard/stats', [\App\Http\Controllers\Api\LeaderboardController::class, 'stats']);
 
+    // Points Ledger Routes
+    Route::get('points-ledger', [\App\Http\Controllers\Api\PointsLedgerController::class, 'mine']);
+
     Route::post('users/{user}/restore', [UserController::class, 'restore'])->name('users.restore');
     Route::apiResource('users', UserController::class);
 
@@ -352,6 +356,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Shareable Resource Management Routes
     Route::apiResource('shareable-resources', ShareableResourceController::class)->middleware(['process.tags']);
+
+    // Profile Field Update (generic)
+    Route::post('user/update-profile-field', [UserProfileController::class, 'updateField']);
 
     // Notice Board Routes
     Route::get('notices', [\App\Http\Controllers\Api\NoticeBoardController::class, 'index'])->middleware('permission:manage_notices');

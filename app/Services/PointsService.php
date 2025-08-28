@@ -49,35 +49,84 @@ class PointsService
             return null;
         }
 
+        if(!$project) {
+            return null;
+        }
+
         $multiplier = $project ? ($project->projectTier->point_multiplier ?? 1.0) : 1.0;
         $finalPoints = $basePoints * $multiplier;
+
+        // Log the final awarded points only if status is not denied
+        $pointsToRecord = ($status === 'denied') ? 0 : $finalPoints;
+
+        if(!$userId) {
+            return null;
+        }
 
         $data = [
             'user_id' => $userId,
             'project_id' => $projectId,
-            'points_awarded' => $finalPoints,
+            'points_awarded' => $pointsToRecord,
             'description' => $description,
             'pointable_id' => $pointable->id ?? null,
             'pointable_type' => $pointable ? get_class($pointable) : null,
             'status' => $status
         ];
+
         Log::info(json_encode($data));;
         $ledgerEntry = PointsLedger::create($data);
 
-        $this->updateMonthlyPoints($userId, $finalPoints, Carbon::now()->year, Carbon::now()->month);
+        // Only update monthly points if the entry is not a denial
+        if ($status !== 'denied') {
+            $this->updateMonthlyPoints($userId, $finalPoints, Carbon::now()->year, Carbon::now()->month);
+        }
 
         return $ledgerEntry;
     }
 
     /**
      * Get the current time for a user, adjusted to their timezone.
+     * Handles cases where the user's timezone is not set.
      * @param User $user
      * @return Carbon
      */
     private function getUserCarbonTimezone(User $user)
     {
-        $timezone = $user->timezone ?? config('app.timezone');
+        // Use the user's timezone if it exists, otherwise default to 'Asia/Karachi'.
+        $timezone = $user->timezone ?? 'Asia/Karachi';
         return Carbon::now($timezone);
+    }
+
+    /**
+     * Awards points for a specific pointable model, updating or creating a ledger entry.
+     *
+     * @param object $pointable
+     * @return PointsLedger|null
+     */
+    public function recalculateAndAwardPoints(object $pointable)
+    {
+        // Determine the type of object and call the appropriate logic
+        switch (get_class($pointable)) {
+            case Standup::class:
+                return $this->awardStandupPoints($pointable);
+            case Task::class:
+                return $this->awardTaskPoints($pointable);
+            case Milestone::class:
+                if ($pointable->status === 'completed') {
+                    // This assumes a separate way to determine on-time vs. late for milestones
+                    // We'll award on-time points here as an example
+                    return $this->awardMilestoneOnTimePoints($pointable->user_id, $pointable);
+                } else {
+                    return $this->awardMilestoneLatePoints($pointable->user_id, $pointable);
+                }
+            case Kudo::class:
+                return $this->awardKudosPoints($pointable);
+            case Email::class:
+                return $this->awardEmailSentPoints($pointable);
+            default:
+                Log::warning('Unsupported pointable model for recalculation: ' . get_class($pointable));
+                return null;
+        }
     }
 
     /**
@@ -90,10 +139,11 @@ class PointsService
         $user = User::find($standup->creator_id);
         if (!$user) {
             Log::info('User not found for standup.');
-            return;
+            return null;
         }
 
         $userTime = $this->getUserCarbonTimezone($user);
+        $userTimezone = $user->timezone ?? 'Asia/Karachi';
 
         // Corrected Deduplication Check: Check for a previous standup on the same day for the same user.
         $existingStandupPoints = PointsLedger::where('user_id', $standup->creator_id)
@@ -104,15 +154,23 @@ class PointsService
 
         if ($existingStandupPoints) {
             Log::info('Points already awarded for a standup on this day for this user.');
-            return;
+            $this->awardPoints(
+                $standup->creator_id,
+                $standup->project_id,
+                0,
+                'Duplicate Daily Standup - Points not awarded for ' . $userTime->toDateString(),
+                $standup,
+                'denied'
+            );
+            return null;
         }
 
-        $standupTimeInUserTimezone = $standup->created_at->setTimezone($user->timezone);
+        $standupTimeInUserTimezone = $standup->created_at->setTimezone($userTimezone);
         $deadline = $userTime->copy()->setTime(11, 0, 0);
 
         $isLate = $standupTimeInUserTimezone->gt($deadline);
         $points = $isLate ? self::BASE_POINTS_STANDUP_LATE : self::BASE_POINTS_STANDUP_ON_TIME;
-        $description = $isLate ? 'Late Daily Standup' : 'On-Time Daily Standup';
+        $description = $isLate ? "Late Daily Standup on " . $userTime->toDateString() . " - submitted at " . $standupTimeInUserTimezone->format('H:i:s') : "On-Time Daily Standup on " . $userTime->toDateString();
 
         Log::info('points: '. $points . ' to: ' . $standup->creator_id);
         $this->awardPoints(
@@ -138,6 +196,14 @@ class PointsService
         // Deduplication check
         if (PointsLedger::where('user_id', $userId)->where('pointable_id', $milestone->id)->where('pointable_type', Milestone::class)->exists()) {
             Log::info('Points already awarded for this milestone.');
+            $this->awardPoints(
+                $userId,
+                $milestone->project_id,
+                0,
+                'Points already awarded for milestone: ' . $milestone->name,
+                $milestone,
+                'denied'
+            );
             return;
         }
 
@@ -145,7 +211,7 @@ class PointsService
             $userId,
             $milestone->project_id,
             self::BASE_POINTS_MILESTONE_ON_TIME,
-            'On-Time Milestone Completion',
+            'On-Time Milestone Completion: ' . $milestone->name,
             $milestone
         );
     }
@@ -160,6 +226,14 @@ class PointsService
         // Deduplication check
         if (PointsLedger::where('user_id', $userId)->where('pointable_id', $milestone->id)->where('pointable_type', Milestone::class)->exists()) {
             Log::info('Points already awarded for this milestone.');
+            $this->awardPoints(
+                $userId,
+                $milestone->project_id,
+                0,
+                'Points already awarded for milestone: ' . $milestone->name,
+                $milestone,
+                'denied'
+            );
             return;
         }
 
@@ -167,7 +241,7 @@ class PointsService
             $userId,
             $milestone->project_id,
             self::BASE_POINTS_MILESTONE_LATE,
-            'Late Milestone Completion',
+            'Late Milestone Completion: ' . $milestone->name,
             $milestone
         );
     }
@@ -183,6 +257,14 @@ class PointsService
     {
         if (PointsLedger::where('pointable_id', $task->id)->where('pointable_type', Task::class)->exists()) {
             Log::info('Points already awarded for this task completion.');
+            $this->awardPoints(
+                $task->assigned_to_user_id,
+                $task->project_id,
+                0,
+                'Points already awarded for task: ' . $task->name,
+                $task,
+                'denied'
+            );
             return;
         }
 
@@ -192,11 +274,12 @@ class PointsService
             return;
         }
         $userTime = $this->getUserCarbonTimezone($user);
+        $userTimezone = $user->timezone ?? 'Asia/Karachi';
 
         // Convert due date to user's timezone for comparison
-        $dueDateInUserTimezone = Carbon::parse($task->due_date)->setTimezone($user->timezone ?? config('app.timezone'));
+        $dueDateInUserTimezone = Carbon::parse($task->due_date)->setTimezone($userTimezone);
 
-        $completedAt = $task->actual_completion_date ? Carbon::parse($task->actual_completion_date)->setTimezone($user->timezone) : $userTime;
+        $completedAt = $task->actual_completion_date ? Carbon::parse($task->actual_completion_date)->setTimezone($userTimezone) : $userTime;
 
         $standupOnDueDate = Standup::where('creator_id', $task->assigned_to_user_id)
             ->where('type', ProjectNote::STANDUP)
@@ -205,6 +288,14 @@ class PointsService
 
         if (!$standupOnDueDate) {
             Log::info('No standup found for task completion for ' . $completedAt->toDateString());
+            $this->awardPoints(
+                $task->assigned_to_user_id,
+                $task->project_id,
+                0,
+                'Task completion on ' . $completedAt->toDateString() . ' denied: No standup found for that day.',
+                $task,
+                'denied'
+            );
             return;
         }
 
@@ -213,16 +304,24 @@ class PointsService
 
         if ($completedAt->lte($dueBefore24Hours)) {
             $points = self::BASE_POINTS_TASK_EARLY;
-            $description = 'Early Task Completion';
+            $description = 'Early Task Completion: ' . $task->name . ' on ' . $completedAt->toDateString();
         } elseif ($completedAt->lte($dueDateInUserTimezone->endOfDay())) {
             $points = self::BASE_POINTS_TASK_ON_TIME;
-            $description = 'On-Time Task Completion';
+            $description = 'On-Time Task Completion: ' . $task->name . ' on ' . $completedAt->toDateString();
         } else {
             Log::info('Task completion date is after due date.');
+            $this->awardPoints(
+                $task->assigned_to_user_id,
+                $task->project_id,
+                0,
+                'Task completion denied: ' . $task->name . ' was completed after due date ' . $dueDateInUserTimezone->toDateString(),
+                $task,
+                'denied'
+            );
             return;
         }
 
-        $standupTimeInUserTimezone = $standupOnDueDate->created_at->setTimezone($user->timezone);
+        $standupTimeInUserTimezone = $standupOnDueDate->created_at->setTimezone($userTimezone);
         $standupDeadline = $completedAt->copy()->setTime(11, 0, 0);
 
         if ($standupTimeInUserTimezone->gt($standupDeadline)) {
@@ -232,7 +331,7 @@ class PointsService
 
         $this->awardPoints(
             $task->assigned_to_user_id,
-            $task->milestone->project_id,
+            $task->project_id,
             $points,
             $description,
             $task,
@@ -250,6 +349,14 @@ class PointsService
     {
         if (PointsLedger::where('pointable_id', $kudo->id)->where('pointable_type', Kudo::class)->exists()) {
             Log::info('Points already awarded for this kudo.');
+            $this->awardPoints(
+                $kudo->recipient_id,
+                $kudo->project_id,
+                0,
+                'Duplicate Kudo entry for: ' . $kudo->comment,
+                $kudo,
+                'denied'
+            );
             return;
         }
 
@@ -259,7 +366,7 @@ class PointsService
                 $kudo->recipient_id,
                 $kudo->project_id,
                 self::BASE_POINTS_KUDOS,
-                'Peer Kudos (Approved)',
+                'Peer Kudos (Approved): ' . $kudo->comment,
                 $kudo,
                 'pending',
                 ['comment' => $kudo->comment]
@@ -279,6 +386,14 @@ class PointsService
     {
         if (PointsLedger::where('pointable_id', $meetingId)->where('description', 'On-Time Meeting Punctuality')->exists()) {
             Log::info('Points already awarded for this meeting.');
+            $this->awardPoints(
+                $userId,
+                $projectId,
+                0,
+                'Duplicate Meeting Punctuality for Meeting ID: ' . $meetingId,
+                (object)['id' => $meetingId],
+                'denied'
+            );
             return;
         }
 
@@ -286,7 +401,7 @@ class PointsService
             $userId,
             $projectId,
             self::BASE_POINTS_MEETING_ON_TIME,
-            'On-Time Meeting Punctuality',
+            'On-Time Meeting Punctuality for Meeting ID: ' . $meetingId,
             (object)['id' => $meetingId],
             'paid',
             ['meeting_id' => $meetingId]
@@ -312,6 +427,14 @@ class PointsService
         // Prevent duplicate awards for the same email
         if (PointsLedger::where('pointable_id', $email->id)->where('pointable_type', Email::class)->exists()) {
             Log::info('Points already awarded for this email.');
+            $this->awardPoints(
+                $email->sender->id,
+                $email->conversation?->project?->id,
+                0,
+                'Duplicate Email Points for Email ID: ' . $email->id,
+                $email,
+                'denied'
+            );
             return;
         }
 
@@ -345,6 +468,14 @@ class PointsService
         // Award only if the reply (sentAt) is within 4 hours of the last received time
         $withinFourHours = $lastReceived->copy()->addHours(4)->gte($sentAt);
         if (!$withinFourHours) {
+            $this->awardPoints(
+                $sender->id,
+                $project->id,
+                0,
+                'Email Points Denied: Reply to client email on ' . $lastReceived->toDateString() . ' not within 4 hours',
+                $email,
+                'denied'
+            );
             return;
         }
 
@@ -354,7 +485,7 @@ class PointsService
             $sender->id,
             $projectId,
             self::BASE_POINTS_EMAIL_SENT,
-            'Email Sent (within 4h of client message)',
+            'Email Sent (within 4h of client message) for ' . $email->subject,
             $email,
             PointsLedger::STATUS_PAID,
             ['email_id' => $email->id]
@@ -369,6 +500,10 @@ class PointsService
     private function checkForWeeklyStreak($userId)
     {
         $user = User::find($userId);
+        if (!$user) {
+            Log::info('User not found for weekly streak check.');
+            return;
+        }
         $userTime = $this->getUserCarbonTimezone($user);
 
         $startOfWeek = $userTime->copy()->startOfWeek(Carbon::MONDAY);

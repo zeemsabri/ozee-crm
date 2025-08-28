@@ -548,6 +548,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('Leaderboard/Index');
     })->name('leaderboard.index')->middleware('permission:view_own_points');
 
+    // Ledger Page
+    Route::get('/ledger', function () {
+        return Inertia::render('Ledger/Index');
+    })->name('ledger.index')->middleware('permission:view_own_points');
+
     // Workspace Page (static for now)
     Route::get('/workspace', function () {
         return Inertia::render('Workspace/Index');
