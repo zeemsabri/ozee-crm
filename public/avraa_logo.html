@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avraa Car Hire - Logo & Brand Identity Presentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .section-header {
+            font-weight: 900;
+            letter-spacing: -0.05em;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in-element {
+            animation: fadeIn 0.8s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+<!-- Sticky Navigation -->
+<nav class="sticky top-0 z-50 bg-white/80 backdrop-blur-lg shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+            <div class="flex-shrink-0">
+                <a href="#" aria-label="Home">
+                    <span class="text-2xl font-bold text-gray-800">Avraa Car Hire</span>
+                </a>
+            </div>
+            <div id="nav-links" class="hidden sm:flex sm:space-x-8">
+                <a href="#intro" class="text-gray-600 hover:text-indigo-600 inline-flex items-center px-1 pt-1 text-sm font-medium">Introduction</a>
+                <!-- Dynamic nav links will be inserted here -->
+                <a href="#next-steps" class="text-gray-600 hover:text-indigo-600 inline-flex items-center px-1 pt-1 text-sm font-medium">Next Steps</a>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- Section 1: Introduction -->
+<section id="intro" class="min-h-screen flex items-center justify-center bg-white">
+    <div class="text-center p-8 max-w-4xl mx-auto">
+        <h1 class="text-5xl md:text-8xl section-header text-gray-900">A New Vision for</h1>
+        <h2 class="text-5xl md:text-8xl section-header text-indigo-600 mt-2">Avraa Car Hire</h2>
+        <p class="mt-8 text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
+            Welcome to the new brand identity for Avraa Car Hire. The following pages present four distinct logo concepts, each designed to convey trust, modernity, and a seamless travel experience.
+        </p>
+    </div>
+</section>
+
+<!-- Container for Dynamic Logo Concepts -->
+<main id="logo-concepts-container"></main>
+
+<!-- Section 4: Next Steps -->
+<section id="next-steps" class="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+    <div class="text-center p-8 max-w-4xl mx-auto">
+        <h2 class="text-5xl md:text-8xl section-header">Next Steps</h2>
+        <p class="mt-8 text-lg md:text-xl text-gray-300 max-w-3xl mx-auto">
+            Thank you for reviewing the concepts. To help guide your feedback, please consider which direction best aligns with your long-term vision and resonates most with your target audience.
+        </p>
+        <div class="mt-12">
+            <a href="mailto:contact@avracarhire.com.au" class="inline-block bg-indigo-600 text-white font-bold text-lg px-10 py-4 rounded-full hover:bg-indigo-500 transition duration-300">
+                Provide Feedback
+            </a>
+        </div>
+    </div>
+</section>
+
+<script>
+    // --- DATA SOURCE ---
+    // This array holds all the content for the logo concepts.
+    // The script below will automatically build the page based on this data.
+    const logoConcepts = [
+        {
+            id: 'concept1',
+            conceptNumber: '01',
+            title: 'The Modernist Mark',
+            themeColor: 'indigo',
+            logoUrl: 'https://ozeeweb.com.au/wp-content/uploads/2025/08/2.jpg',
+            rationale: {
+                iconography: "The abstract car icon is designed to be sleek and dynamic, representing a modern and reliable service. It is easily scalable and memorable.",
+                typography: "We chose a clean, geometric sans-serif typeface to communicate approachability and professionalism. The bold 'AVRAA' is balanced by the subtle tagline, 'Car & Campervan Hire'.",
+                impression: "The result is a confident and sophisticated mark that positions Avraa as a forward-thinking leader in the car and campervan rental industry."
+            },
+            colors: [
+                { hex: '#EA580C' },
+                { hex: '#1E3A8A' },
+                { hex: '#F3F4F6' }
+            ],
+            typography: {
+                headline: { name: 'Inter Black', description: 'Used for impactful headlines.' },
+                body: { name: 'Inter Regular', description: 'Used for highly legible body copy.' }
+            },
+            variations: [
+                {
+                    title: 'Inverse Logo',
+                    description: 'Perfect for use on dark backgrounds, apparel, or signage.',
+                    imageUrl: 'https://ozeeweb.com.au/wp-content/uploads/2025/08/4.jpg',
+                    bgColor: 'bg-gray-900'
+                },
+                {
+                    title: 'Alternate Logo',
+                    description: 'A bold color variation to be used for marketing materials and digital media.',
+                    imageUrl: 'https://ozeeweb.com.au/wp-content/uploads/2025/08/3.jpg',
+                    bgColor: 'bg-orange-600'
+                }
+            ]
+        },
+        {
+            id: 'concept2',
+            conceptNumber: '02',
+            title: 'The Dynamic Drive',
+            themeColor: 'teal',
+            logoUrl: 'https://ozeeweb.com.au/wp-content/uploads/2025/08/5.jpg',
+            rationale: {
+                iconography: "This concept combines a sleek car silhouette with a pair of keys, directly symbolizing the core service of car hire and the ease of getting on the road.",
+                typography: "The bold, sans-serif font for 'AVRAA' is paired with a lighter weight for the tagline, creating a clear visual hierarchy and a friendly, approachable feel.",
+                impression: "This design is modern, playful, and instantly recognizable. It is built to create a strong, memorable connection with customers."
+            },
+            colors: [
+                { hex: '#D9580C' }, // Orange from AVRAA
+                { hex: '#1E3A8A' }, // Dark Blue from car
+                { hex: '#000000' }  // Black from keys
+            ],
+            typography: {
+                headline: { name: 'Bold Sans-Serif', description: 'Used for the main brand name for impact.' },
+                body: { name: 'Light Sans-Serif', description: 'Used for the descriptive tagline.' }
+            },
+            variations: [
+                {
+                    title: 'Inverse Logo',
+                    description: 'High contrast version for dark backgrounds.',
+                    imageUrl: 'https://ozeeweb.com.au/wp-content/uploads/2025/08/6.jpg',
+                    bgColor: 'bg-gray-900'
+                },
+                {
+                    title: 'Alternate Logo',
+                    description: 'A vibrant alternate for digital use.',
+                    imageUrl: 'https://ozeeweb.com.au/wp-content/uploads/2025/08/7.jpg',
+                    bgColor: 'bg-blue-900'
+                }
+            ]
+        },
+        {
+            id: 'concept3',
+            conceptNumber: '03',
+            title: 'The Direct Route',
+            themeColor: 'indigo',
+            logoUrl: 'https://ozeeweb.com.au/wp-content/uploads/2025/08/8.jpg',
+            rationale: {
+                iconography: "A bold, graphic representation of a car and key. This straightforward approach communicates the brand's purpose with clarity and confidence.",
+                typography: "The heavy, sans-serif typeface is strong and modern. The text is integrated into a solid block, creating a unified and impactful mark.",
+                impression: "This logo is direct, strong, and no-nonsense. It conveys efficiency and reliability, appealing to customers who value a clear and simple service."
+            },
+            colors: [
+                { hex: '#EA580C' }, // Orange from car
+                { hex: '#1E3A8A' }  // Dark Blue from text and key
+            ],
+            typography: {
+                headline: { name: 'Bold Sans-Serif', description: 'Used for the main brand name.' },
+                body: { name: 'Condensed Sans-Serif', description: 'Used for the tagline within the colored block.' }
+            },
+            variations: [
+                {
+                    title: 'Inverse Logo',
+                    description: 'A clean, single-color version for dark backgrounds.',
+                    imageUrl: 'https://ozeeweb.com.au/wp-content/uploads/2025/08/10.jpg',
+                    bgColor: 'bg-blue-900'
+                },
+                {
+                    title: 'Alternate Logo',
+                    description: 'A high-impact version for use on bright, energetic marketing materials.',
+                    imageUrl: 'https://ozeeweb.com.au/wp-content/uploads/2025/08/9.jpg',
+                    bgColor: 'bg-orange-600'
+                }
+            ]
+        },
+        {
+            id: 'concept4',
+            conceptNumber: '04',
+            title: 'The Friendly Face',
+            themeColor: 'teal',
+            logoUrl: 'https://ozeeweb.com.au/wp-content/uploads/2025/08/11.jpg',
+            rationale: {
+                iconography: "This friendly and approachable icon uses simple, geometric shapes to create a car and key. The design feels modern, clean, and optimistic.",
+                typography: "A bold, rounded sans-serif font enhances the friendly and accessible feel of the brand, making it seem welcoming and easy to deal with.",
+                impression: "This logo is approachable and memorable. It positions Avraa as a customer-friendly brand that is modern, reliable, and straightforward."
+            },
+            colors: [
+                { hex: '#EA580C' }, // Orange from car
+                { hex: '#1E3A8A' }, // Dark Blue from AVRAA
+                { hex: '#374151' }  // Dark Grey from key
+            ],
+            typography: {
+                headline: { name: 'Rounded Sans-Serif', description: 'A friendly and modern choice for the brand name.' },
+                body: { name: 'Light Sans-Serif', description: 'Clean and legible for the supporting tagline.' }
+            },
+            variations: [
+                {
+                    title: 'Inverse Logo',
+                    description: 'A crisp and clear version for use on dark blue backgrounds.',
+                    imageUrl: 'https://ozeeweb.com.au/wp-content/uploads/2025/08/12.jpg',
+                    bgColor: 'bg-blue-900'
+                },
+                {
+                    title: 'Alternate Logo',
+                    description: 'A high-contrast monochrome version for versatile application.',
+                    imageUrl: 'https://ozeeweb.com.au/wp-content/uploads/2025/08/13.jpg',
+                    bgColor: 'bg-black'
+                }
+            ]
+        }
+    ];
+
+    // --- DYNAMIC PAGE BUILDER ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const conceptsContainer = document.getElementById('logo-concepts-container');
+        const navLinksContainer = document.getElementById('nav-links');
+
+        if (!conceptsContainer || !navLinksContainer) return;
+
+        // Generate Navigation Links
+        logoConcepts.forEach((concept) => {
+            const link = document.createElement('a');
+            link.href = `#${concept.id}`;
+            link.className = 'text-gray-600 hover:text-indigo-600 inline-flex items-center px-1 pt-1 text-sm font-medium';
+            link.textContent = `Concept ${concept.conceptNumber}`;
+            navLinksContainer.insertBefore(link, navLinksContainer.lastElementChild);
+        });
+
+        // Generate Concept Sections
+        logoConcepts.forEach((concept, index) => {
+            const isEven = index % 2 === 0;
+            const bgColor = isEven ? 'bg-gray-50' : 'bg-white';
+
+            const rationaleHtml = concept.rationale ? Object.entries(concept.rationale).map(([key, value]) => `
+                    <div>
+                        <h3 class="text-2xl font-bold text-gray-900 mb-2 capitalize">${key}</h3>
+                        <p class="text-gray-600">${value}</p>
+                    </div>
+                `).join('') : '';
+
+            const colorsHtml = concept.colors ? `
+                <div class="bg-white p-8 rounded-2xl shadow-lg">
+                    <h3 class="text-3xl font-bold text-gray-900 mb-6">Color Palette</h3>
+                    <div class="flex flex-wrap gap-4">
+                        ${concept.colors.map(color => `
+                            <div class="text-center">
+                                <div class="w-20 h-20 rounded-full shadow-inner" style="background-color: ${color.hex};"></div>
+                                <p class="mt-2 font-semibold text-sm">${color.hex}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>` : '';
+
+            const typographyHtml = concept.typography ? `
+                <div class="bg-white p-8 rounded-2xl shadow-lg">
+                    <h3 class="text-3xl font-bold text-gray-900 mb-6">Typography</h3>
+                    <div>
+                        <p class="text-4xl font-black">${concept.typography.headline.name}</p>
+                        <p class="text-lg mt-2">${concept.typography.headline.description}</p>
+                    </div>
+                    <hr class="my-4">
+                    <div>
+                        <p class="text-lg">${concept.typography.body.name}</p>
+                        <p class="text-md text-gray-600 mt-1">${concept.typography.body.description}</p>
+                    </div>
+                </div>` : '';
+
+            const variationsHtml = concept.variations ? `
+                <div class="text-center my-16">
+                    <p class="font-bold text-${concept.themeColor}-500">CONCEPT ${concept.conceptNumber} VARIATIONS</p>
+                    <h2 class="text-4xl md:text-7xl section-header text-gray-900 mt-1">For Every Application</h2>
+                </div>
+                <div class="grid md:grid-cols-2 gap-8 mb-16">
+                    ${concept.variations.map(variation => `
+                        <div class="${variation.bgColor} rounded-3xl shadow-xl p-8 md:p-16 flex flex-col items-center justify-center text-white">
+                            <img src="${variation.imageUrl}" alt="${variation.title}" class="w-full h-auto object-cover rounded-lg">
+                            <h3 class="text-2xl font-bold mt-6">${variation.title}</h3>
+                            <p class="text-gray-300 mt-2 text-center">${variation.description}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : '';
+
+            const sectionHtml = `
+                    <section id="${concept.id}" class="py-20 md:py-32 ${bgColor}">
+                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div class="text-center mb-16">
+                                <p class="font-bold text-${concept.themeColor}-600">CONCEPT ${concept.conceptNumber}</p>
+                                <h2 class="text-4xl md:text-7xl section-header text-gray-900 mt-1">${concept.title}</h2>
+                            </div>
+
+                            ${concept.logoUrl ? `
+                            <div class="bg-white rounded-3xl shadow-xl p-8 md:p-16 flex items-center justify-center mb-16">
+                                <img src="${concept.logoUrl}" alt="${concept.title} Logo" class="max-h-48 rounded-lg">
+                            </div>` : ''}
+
+                            ${rationaleHtml ? `<div class="grid md:grid-cols-3 gap-8 md:gap-12 text-center mb-16">${rationaleHtml}</div>` : ''}
+
+                            ${(colorsHtml || typographyHtml) ? `<div class="grid md:grid-cols-2 gap-8 md:gap-12 mb-16">${colorsHtml}${typographyHtml}</div>` : ''}
+
+                            ${variationsHtml}
+
+                        </div>
+                    </section>
+                `;
+            conceptsContainer.innerHTML += sectionHtml;
+        });
+
+        // Re-initialize intersection observer for animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('fade-in-element');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('section > div').forEach(el => {
+            observer.observe(el);
+        });
+    });
+</script>
+</body>
+</html>

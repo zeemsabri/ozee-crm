@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logo & Brand Identity Presentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .section-header {
+            font-weight: 900;
+            letter-spacing: -0.05em;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in-element {
+            animation: fadeIn 0.8s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+<!-- Sticky Navigation -->
+<nav class="sticky top-0 z-50 bg-white/80 backdrop-blur-lg shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+            <div class="flex-shrink-0">
+                <a href="#" aria-label="Home">
+                    <img class="h-10 w-auto" src="https://ozeeweb.com.au/wp-content/uploads/2025/08/cropped-OZEE-Logo.png" alt="OZee Web & Digital Logo" onerror="this.onerror=null;this.src='https://placehold.co/200x40/1F2937/FFFFFF?text=OZee+Web+%26+Digital';">
+                </a>
+            </div>
+            <div id="nav-links" class="hidden sm:flex sm:space-x-8">
+                <a href="#intro" class="text-gray-600 hover:text-indigo-600 inline-flex items-center px-1 pt-1 text-sm font-medium">Introduction</a>
+                <!-- Dynamic nav links will be inserted here -->
+                <a href="#next-steps" class="text-gray-600 hover:text-indigo-600 inline-flex items-center px-1 pt-1 text-sm font-medium">Next Steps</a>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- Section 1: Introduction -->
+<section id="intro" class="min-h-screen flex items-center justify-center bg-white">
+    <div class="text-center p-8 max-w-4xl mx-auto">
+        <h1 class="text-5xl md:text-8xl section-header text-gray-900">A New Vision for</h1>
+        <h2 class="text-5xl md:text-8xl section-header text-indigo-600 mt-2">[Client Company Name]</h2>
+        <p class="mt-8 text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
+            Welcome. We've developed distinct brand identity concepts that reflect your core values of innovation, trust, and customer focus. Scroll down to explore the future of your brand.
+        </p>
+    </div>
+</section>
+
+<!-- Container for Dynamic Logo Concepts -->
+<main id="logo-concepts-container"></main>
+
+<!-- Section 4: Next Steps -->
+<section id="next-steps" class="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+    <div class="text-center p-8 max-w-4xl mx-auto">
+        <h2 class="text-5xl md:text-8xl section-header">Next Steps</h2>
+        <p class="mt-8 text-lg md:text-xl text-gray-300 max-w-3xl mx-auto">
+            Thank you for reviewing the concepts. To help guide your feedback, please consider which direction best aligns with your long-term vision and resonates most with your target audience.
+        </p>
+        <div class="mt-12">
+            <a href="mailto:contact@ozeeweb.com.au" class="inline-block bg-indigo-600 text-white font-bold text-lg px-10 py-4 rounded-full hover:bg-indigo-500 transition duration-300">
+                Provide Feedback
+            </a>
+        </div>
+    </div>
+</section>
+
+<script>
+    // --- DATA SOURCE ---
+    // An array of objects, where each object is a complete logo concept.
+    // To add a new concept, just add a new object to this array.
+    // If a property (e.g., 'colors') is omitted, its section won't render.
+    const logoConcepts = [
+        {
+            id: 'concept1',
+            conceptNumber: '01',
+            title: 'The Modernist Mark',
+            themeColor: 'indigo',
+            logoUrl: 'https://placehold.co/400x150/111827/FFFFFF?text=Primary+Logo+01',
+            rationale: {
+                iconography: "The abstract 'swoosh' represents upward momentum and progress, directly tying into your company's mission to innovate and lead the industry.",
+                typography: "We chose a clean, geometric sans-serif typeface ('Poppins') to communicate approachability, modernity, and unwavering professionalism.",
+                impression: "The result is a balanced, confident, and sophisticated mark that is both timeless and contemporary, built for long-term recognition."
+            },
+            colors: [
+                { hex: '#4F46E5', name: 'Primary Blue' },
+                { hex: '#2DD4BF', name: 'Accent Teal' },
+                { hex: '#1F2937', name: 'Dark Text' },
+                { hex: '#E5E7EB', name: 'Light Grey' }
+            ],
+            typography: {
+                headline: { name: 'Inter Black', description: 'Used for impactful headlines.' },
+                body: { name: 'Inter Regular', description: 'Used for highly legible body copy.' }
+            },
+            mockups: [
+                'https://placehold.co/800x600/E5E7EB/1F2937?text=Website+Mockup',
+                'https://placehold.co/800x600/1F2937/FFFFFF?text=Business+Card+Mockup'
+            ]
+        },
+        {
+            id: 'concept2',
+            conceptNumber: '02',
+            title: 'The Heritage Emblem',
+            themeColor: 'teal',
+            logoUrl: 'https://placehold.co/300x300/FFFFFF/111827?text=Logo+02',
+            rationale: {
+                symbolism: "This emblem combines a shield for trust and a gear for industry, reflecting your company's established history and technical expertise.",
+                typography: "A classic, elegant serif typeface ('Playfair Display') was chosen to convey authority, tradition, and premium quality.",
+                impression: "The overall feel is one of prestige, reliability, and timelessness. It positions the brand as a stable and trustworthy leader in the field."
+            },
+            // This concept intentionally omits colors and typography to demonstrate conditional rendering.
+            mockups: [
+                'https://placehold.co/800x600/374151/FFFFFF?text=Signage+Mockup',
+                'https://placehold.co/800x600/F3F4F6/374151?text=Apparel+Mockup'
+            ]
+        }
+        // Add more concept objects here...
+    ];
+
+    // --- DYNAMIC PAGE BUILDER ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const conceptsContainer = document.getElementById('logo-concepts-container');
+        const navLinksContainer = document.getElementById('nav-links');
+
+        if (!conceptsContainer || !navLinksContainer) return;
+
+        // Generate Navigation Links
+        logoConcepts.forEach((concept, index) => {
+            const link = document.createElement('a');
+            link.href = `#${concept.id}`;
+            link.className = 'text-gray-600 hover:text-indigo-600 inline-flex items-center px-1 pt-1 text-sm font-medium';
+            link.textContent = `Concept ${concept.conceptNumber}`;
+            // Insert before the 'Next Steps' link
+            navLinksContainer.insertBefore(link, navLinksContainer.lastElementChild);
+        });
+
+        // Generate Concept Sections
+        logoConcepts.forEach((concept, index) => {
+            const isEven = index % 2 === 0;
+            const bgColor = isEven ? 'bg-gray-50' : 'bg-white';
+
+            // Rationale HTML
+            const rationaleHtml = concept.rationale ? Object.entries(concept.rationale).map(([key, value]) => `
+                    <div>
+                        <h3 class="text-2xl font-bold text-gray-900 mb-2 capitalize">${key}</h3>
+                        <p class="text-gray-600">${value}</p>
+                    </div>
+                `).join('') : '';
+
+            // Colors HTML
+            const colorsHtml = concept.colors ? `
+                <div class="bg-white p-8 rounded-2xl shadow-lg">
+                    <h3 class="text-3xl font-bold text-gray-900 mb-6">Color Palette</h3>
+                    <div class="flex flex-wrap gap-4">
+                        ${concept.colors.map(color => `
+                            <div class="text-center">
+                                <div class="w-20 h-20 rounded-full shadow-inner" style="background-color: ${color.hex};"></div>
+                                <p class="mt-2 font-semibold text-sm">${color.hex}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>` : '';
+
+            // Typography HTML
+            const typographyHtml = concept.typography ? `
+                <div class="bg-white p-8 rounded-2xl shadow-lg">
+                    <h3 class="text-3xl font-bold text-gray-900 mb-6">Typography</h3>
+                    <div>
+                        <p class="text-4xl font-black">${concept.typography.headline.name}</p>
+                        <p class="text-lg mt-2">${concept.typography.headline.description}</p>
+                    </div>
+                    <hr class="my-4">
+                    <div>
+                        <p class="text-lg">${concept.typography.body.name}</p>
+                        <p class="text-md text-gray-600 mt-1">${concept.typography.body.description}</p>
+                    </div>
+                </div>` : '';
+
+            // Mockups HTML
+            const mockupsHtml = concept.mockups ? `
+                    <div class="text-center my-8">
+                         <h3 class="text-4xl font-bold text-gray-900">Logo in Action</h3>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-8">
+                        ${concept.mockups.map(url => `
+                            <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                                <img src="${url}" alt="Mockup" class="w-full h-auto object-cover">
+                            </div>
+                        `).join('')}
+                    </div>` : '';
+
+            const sectionHtml = `
+                    <section id="${concept.id}" class="py-20 md:py-32 ${bgColor}">
+                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div class="text-center mb-16">
+                                <p class="font-bold text-${concept.themeColor}-600">CONCEPT ${concept.conceptNumber}</p>
+                                <h2 class="text-4xl md:text-7xl section-header text-gray-900 mt-1">${concept.title}</h2>
+                            </div>
+
+                            ${concept.logoUrl ? `
+                            <div class="bg-white rounded-3xl shadow-xl p-8 md:p-16 flex items-center justify-center mb-16">
+                                <img src="${concept.logoUrl}" alt="${concept.title} Logo" class="max-h-48">
+                            </div>` : ''}
+
+                            ${rationaleHtml ? `<div class="grid md:grid-cols-3 gap-8 md:gap-12 text-center mb-16">${rationaleHtml}</div>` : ''}
+
+                            ${(colorsHtml || typographyHtml) ? `<div class="grid md:grid-cols-2 gap-8 md:gap-12 mb-16">${colorsHtml}${typographyHtml}</div>` : ''}
+
+                            ${mockupsHtml}
+                        </div>
+                    </section>
+                `;
+            conceptsContainer.innerHTML += sectionHtml;
+        });
+
+        // Re-initialize intersection observer for animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('fade-in-element');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('section > div').forEach(el => {
+            observer.observe(el);
+        });
+    });
+</script>
+</body>
+</html>
