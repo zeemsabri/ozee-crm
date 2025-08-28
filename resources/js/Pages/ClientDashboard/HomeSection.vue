@@ -271,6 +271,11 @@ const handleItemClick = (item) => {
     }
 };
 
+// Function to open deliverable viewer from buttons in this component
+const handleOpenDeliverableViewer = (deliverable) => {
+    emits('open-deliverable-viewer', deliverable);
+};
+
 // Helper function to get icon for resource type
 const getResourceIcon = (item) => {
     if (item.type === 'resource') {
