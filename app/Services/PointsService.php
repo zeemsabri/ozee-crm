@@ -281,10 +281,12 @@ class PointsService
 
         $completedAt = $task->actual_completion_date ? Carbon::parse($task->actual_completion_date)->setTimezone($userTimezone) : $userTime;
 
+        // Fix: Use whereRaw with a single, properly ordered binding array
         $standupOnDueDate = Standup::where('creator_id', $task->assigned_to_user_id)
             ->where('type', ProjectNote::STANDUP)
-            ->whereDate('created_at', $completedAt->toDateString())
+            ->whereRaw('DATE(CONVERT_TZ(created_at, "UTC", ?)) = ?', [$userTimezone, $completedAt->toDateString()])
             ->first();
+
 
         if (!$standupOnDueDate) {
             Log::info('No standup found for task completion for ' . $completedAt->toDateString());

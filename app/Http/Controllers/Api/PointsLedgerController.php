@@ -17,14 +17,16 @@ class PointsLedgerController extends Controller
     public function mine(Request $request)
     {
         $authUser = Auth::user();
+        $userTimezone = $authUser->timezone ?? 'Asia/Karachi';
 
-        $now = Carbon::now();
+        $now = Carbon::now($userTimezone);
         $year = (int) $request->query('year', $now->year);
         $month = (int) $request->query('month', $now->month);
         $perPage = (int) $request->query('per_page', 20);
 
-        $start = Carbon::create($year, $month, 1)->startOfDay();
-        $end = (clone $start)->endOfMonth();
+        // Convert start and end of month from user's timezone to UTC for the database query
+        $start = Carbon::create($year, $month, 1, 0, 0, 0, $userTimezone)->setTimezone('UTC');
+        $end = (clone $start)->addMonth()->subSecond()->setTimezone('UTC');
 
         $query = PointsLedger::with(['project:id,name'])
             ->whereBetween('created_at', [$start, $end])
@@ -51,7 +53,7 @@ class PointsLedgerController extends Controller
             // Also accept already-FQN strings
             $query->where(function ($q) use ($fqn, $short) {
                 $q->where('pointable_type', $fqn)
-                  ->orWhere('pointable_type', $short);
+                    ->orWhere('pointable_type', $short);
             });
         }
 
@@ -62,10 +64,10 @@ class PointsLedgerController extends Controller
         $paginator = $query->paginate($perPage);
 
         // Shape the data minimally for the UI consumption
-        $data = collect($paginator->items())->map(function (PointsLedger $row) {
+        $data = collect($paginator->items())->map(function (PointsLedger $row) use ($userTimezone) {
             return [
                 'id' => $row->id,
-                'created_at' => $row->created_at?->toDateTimeString(),
+                'created_at' => $row->created_at?->setTimezone($userTimezone)->toDateTimeString(),
                 'date' => $row->created_at?->toDateString(),
                 'points_awarded' => (float) $row->points_awarded,
                 'description' => $row->description,
