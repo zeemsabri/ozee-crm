@@ -2,9 +2,12 @@
     <Head title="Leaderboard" />
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                Monthly Leaderboard
-            </h2>
+            <div class="flex items-center justify-between">
+                <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+                    Monthly Leaderboard
+                </h2>
+                <Link :href="route('ledger.index')" class="inline-flex items-center px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-md">Ledger</Link>
+            </div>
         </template>
 
         <div class="py-12">
@@ -109,7 +112,7 @@
 <script setup>
 import { onMounted, reactive, ref, computed } from 'vue'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
-import { Head } from '@inertiajs/vue3'
+import { Head, Link } from '@inertiajs/vue3'
 import axios from 'axios'
 
 const ITEM_HEIGHT = 96;
