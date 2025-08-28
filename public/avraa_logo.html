@@ -68,7 +68,7 @@
             Thank you for reviewing the concepts. To help guide your feedback, please consider which direction best aligns with your long-term vision and resonates most with your target audience.
         </p>
         <div class="mt-12">
-            <a href="mailto:contact@avracarhire.com.au" class="inline-block bg-indigo-600 text-white font-bold text-lg px-10 py-4 rounded-full hover:bg-indigo-500 transition duration-300">
+            <a href="mailto:info@ozeeweb.com.au" class="inline-block bg-indigo-600 text-white font-bold text-lg px-10 py-4 rounded-full hover:bg-indigo-500 transition duration-300">
                 Provide Feedback
             </a>
         </div>
@@ -256,7 +256,7 @@
                         ${concept.colors.map(color => `
                             <div class="text-center">
                                 <div class="w-20 h-20 rounded-full shadow-inner" style="background-color: ${color.hex};"></div>
-                                <p class="mt-2 font-semibold text-sm">${color.hex}</p>
+                                <p class="mt-2 font-semibold text-sm text-gray-700">${color.hex}</p>
                             </div>
                         `).join('')}
                     </div>
@@ -266,12 +266,12 @@
                 <div class="bg-white p-8 rounded-2xl shadow-lg">
                     <h3 class="text-3xl font-bold text-gray-900 mb-6">Typography</h3>
                     <div>
-                        <p class="text-4xl font-black">${concept.typography.headline.name}</p>
-                        <p class="text-lg mt-2">${concept.typography.headline.description}</p>
+                        <p class="text-4xl font-black text-gray-800">${concept.typography.headline.name}</p>
+                        <p class="text-lg mt-2 text-gray-600">${concept.typography.headline.description}</p>
                     </div>
                     <hr class="my-4">
                     <div>
-                        <p class="text-lg">${concept.typography.body.name}</p>
+                        <p class="text-lg text-gray-800">${concept.typography.body.name}</p>
                         <p class="text-md text-gray-600 mt-1">${concept.typography.body.description}</p>
                     </div>
                 </div>` : '';
@@ -285,7 +285,7 @@
                     ${concept.variations.map(variation => `
                         <div class="${variation.bgColor} rounded-3xl shadow-xl p-8 md:p-16 flex flex-col items-center justify-center text-white">
                             <img src="${variation.imageUrl}" alt="${variation.title}" class="w-full h-auto object-cover rounded-lg">
-                            <h3 class="text-2xl font-bold mt-6">${variation.title}</h3>
+                            <h3 class="text-2xl font-bold mt-6 text-white">${variation.title}</h3>
                             <p class="text-gray-300 mt-2 text-center">${variation.description}</p>
                         </div>
                     `).join('')}
@@ -302,7 +302,7 @@
 
                             ${concept.logoUrl ? `
                             <div class="bg-white rounded-3xl shadow-xl p-8 md:p-16 flex items-center justify-center mb-16">
-                                <img src="${concept.logoUrl}" alt="${concept.title} Logo" class="max-h-48 rounded-lg">
+                                <img src="${concept.logoUrl}" alt="${concept.title} Logo" class="max-h-64 rounded-lg">
                             </div>` : ''}
 
                             ${rationaleHtml ? `<div class="grid md:grid-cols-3 gap-8 md:gap-12 text-center mb-16">${rationaleHtml}</div>` : ''}
