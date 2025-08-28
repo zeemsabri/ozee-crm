@@ -20,6 +20,7 @@ import MobileNavigation from '@/Components/Layout/MobileNavigation.vue';
 import TaskSidebar from '@/Components/Layout/TaskSidebar.vue';
 import NoticeboardModal from "@/Components/Notices/NoticeboardModal.vue";
 import { useNotices } from '@/Utils/useNotices.js';
+import PromptOrchestrator from '@/Components/Prompts/PromptOrchestrator.vue';
 
 const showingNavigationDropdown = ref(false);
 const openCreateTaskModel = ref(false);
@@ -199,7 +200,10 @@ onBeforeUnmount(() => {
 
         <!-- The NoticeboardModal now uses the composable's state and functions -->
         <NoticeboardModal :show="showNoticeModal"
-                          :unreadNotices="unreadNotices"
-                          @close="closeModal" />
+                         :unreadNotices="unreadNotices"
+                         @close="closeModal" />
+
+        <!-- Global Prompt Orchestrator for user-data prompts (e.g., timezone) -->
+        <PromptOrchestrator />
     </div>
 </template>
