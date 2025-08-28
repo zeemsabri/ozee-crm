@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\Concerns\HandlesImageUploads;
 use App\Models\NoticeBoard;
 use App\Models\User;
 use App\Models\UserInteraction;
@@ -14,11 +15,13 @@ use Illuminate\Support\Facades\Validator;
 
 class NoticeBoardController extends Controller
 {
+    use HandlesImageUploads;
     /**
      * Admin: Create a new notice and notify users.
      */
     public function store(Request $request)
     {
+
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -30,7 +33,9 @@ class NoticeBoardController extends Controller
             'user_ids' => 'sometimes|array',
             'user_ids.*' => 'integer|exists:users,id',
             'project_id' => 'sometimes|integer|exists:projects,id',
+            'file' => 'sometimes|file|max:25600', // up to 25MB
         ]);
+
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -41,6 +46,16 @@ class NoticeBoardController extends Controller
         $data['created_by'] = $request->user()->id;
         // Persist whether push channel was selected
         $data['sent_push'] = in_array('push', $validated['channels'] ?? [], true);
+
+        // Handle optional file upload to GCS and set thumbnail_url
+        if ($request->hasFile('file')) {
+            $uploads = $this->uploadFilesToGcsWithThumbnails([$request->file('file')], 'notices', 'gcs');
+            $first = $uploads[0] ?? null;
+            if ($first && isset($first['thumbnail'])) {
+                // Set thumbnail_url only for images (thumbnails generated)
+                $data['thumbnail_url'] = $first['path'];
+            }
+        }
 
         $notice = NoticeBoard::create($data);
 

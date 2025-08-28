@@ -5,13 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
-
+use Illuminate\Support\Facades\Storage;
 
 class NoticeBoard extends ShareableResource
 {
     use HasFactory, SoftDeletes;
 
     protected $table = 'shareable_resources';
+
+    // Append computed attributes when serializing
+    protected $appends = [
+        'thumbnail_url_public',
+    ];
 
     // Notice types
     public const TYPE_GENERAL = 'General';
@@ -31,6 +36,7 @@ class NoticeBoard extends ShareableResource
         'description',
         'url',
         'type',
+        'thumbnail_url',
         'created_by',
         'visible_to_client',
         'notice',
@@ -70,5 +76,20 @@ class NoticeBoard extends ShareableResource
     public function isClickable(): bool
     {
         return !empty($this->url);
+    }
+
+    /**
+     * Public URL (signed) for the thumbnail or stored image on GCS.
+     * Mirrors FileAttachment::getPathUrlAttribute behavior.
+     */
+    public function getThumbnailUrlPublicAttribute(): ?string
+    {
+        $path = $this->attributes['thumbnail_url'] ?? null;
+        if (!$path) return null;
+        try {
+            return Storage::disk('gcs')->temporaryUrl($path, now()->addDays(3));
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 }

@@ -345,12 +345,6 @@ class PointsService
         // Award only if the reply (sentAt) is within 4 hours of the last received time
         $withinFourHours = $lastReceived->copy()->addHours(4)->gte($sentAt);
         if (!$withinFourHours) {
-            Log::info('Skipping email points: reply sent after 4-hour window.', [
-                'project_id' => $project->id,
-                'email_id' => $email->id,
-                'last_email_received' => $lastReceived?->toDateTimeString(),
-                'sent_at' => $sentAt?->toDateTimeString(),
-            ]);
             return;
         }
 

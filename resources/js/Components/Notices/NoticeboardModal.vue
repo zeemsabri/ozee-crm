@@ -132,6 +132,12 @@ const getNoticeColor = (type) => {
                                     {{ currentNotice.title }}
                                 </div>
                             </div>
+
+                            <!-- Image Preview -->
+                            <div v-if="currentNotice.thumbnail_url_public" class="mb-3">
+                                <img :src="currentNotice.thumbnail_url_public" alt="Notice image" class="w-full h-auto rounded-lg object-cover" />
+                            </div>
+
                             <div class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed">
                                 {{ currentNotice.description }}
                             </div>
