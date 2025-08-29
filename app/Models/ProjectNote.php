@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Events\StandupSubmittedEvent;
+use App\Models\Traits\HasUserTimezone;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -12,6 +13,8 @@ use App\Models\Traits\Taggable;
 
 class ProjectNote extends Model
 {
+
+    use HasUserTimezone;
     /**
      * Create a project note (optionally attached to a noteable) and send to Google Chat automatically.
      *

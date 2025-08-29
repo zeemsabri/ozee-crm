@@ -39,6 +39,7 @@ class PointsLedger extends Model
         'pointable_type',
         'status',
         'meta',
+        'created_at'
     ];
 
     /**

@@ -270,6 +270,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Points Ledger Routes
     Route::get('points-ledger', [\App\Http\Controllers\Api\PointsLedgerController::class, 'mine']);
+    Route::get('points-ledger/total', [\App\Http\Controllers\Api\PointsLedgerController::class, 'total']);
 
     Route::post('users/{user}/restore', [UserController::class, 'restore'])->name('users.restore');
     Route::apiResource('users', UserController::class);
