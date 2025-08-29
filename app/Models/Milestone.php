@@ -73,9 +73,9 @@ class Milestone extends Model
     /**
      * Get the due date for the milestone.
      *
-     * @return Carbon
+     * @return Null|Carbon
      */
-    public function getDueDateAttribute(): Carbon
+    public function getDueDateAttribute(): Null|Carbon
     {
         return $this->completion_date;
     }
