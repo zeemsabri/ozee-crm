@@ -745,7 +745,7 @@ class ProjectReadController extends Controller
         if ($user->isSuperAdmin() || $user->isManager()) {
             // For super admins and managers, get all projects
             $projects = Project::with('wireframes')->select('projects.id', 'projects.name', 'projects.status')
-                ->orderBy('project.name', 'asc')
+                ->orderBy('projects.name', 'asc')
                 ->leftJoin('project_user', function($join) use ($user) {
                     $join->on('projects.id', '=', 'project_user.project_id')
                         ->where('project_user.user_id', '=', $user->id);
@@ -756,7 +756,7 @@ class ProjectReadController extends Controller
             // For regular users, get only their projects
             $projects = $user->projects()->with('wireframes')
                 ->select('projects.id', 'projects.name', 'projects.status', 'project_user.role_id')
-                ->orderBy('project.name', 'asc')
+                ->orderBy('projects.name', 'asc')
                 ->get();
         }
 
