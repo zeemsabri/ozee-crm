@@ -163,6 +163,11 @@ class WireframeController extends Controller
      */
     public function update(Request $request, $projectId, $id)
     {
+        // Check that at least one of 'name' or 'data' is present.
+        if (!$request->has('name') && !$request->has('data')) {
+            return response()->json(['errors' => ['name_or_data' => 'At least one of name or data must be provided.']], 422);
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => [
                 'sometimes',
@@ -172,7 +177,7 @@ class WireframeController extends Controller
                     return $query->where('project_id', $projectId)->where('id', '!=', $id);
                 }),
             ],
-            'data' => 'required|json',
+            'data' => 'sometimes|json',
         ]);
 
         if ($validator->fails()) {
@@ -197,8 +202,10 @@ class WireframeController extends Controller
                 $wireframe->save();
             }
 
-            $version->data = json_decode($request->data, true);
-            $version->save();
+            if ($request->has('data')) {
+                $version->data = json_decode($request->data, true);
+                $version->save();
+            }
 
             activity()
                 ->performedOn($wireframe)
@@ -217,46 +224,54 @@ class WireframeController extends Controller
             $wireframe->save();
         }
 
-        $latestDraft = $wireframe->latestDraftVersion();
-        $latestPublished = $wireframe->latestPublishedVersion();
+        if ($request->has('data')) {
+            $latestDraft = $wireframe->latestDraftVersion();
+            $latestPublished = $wireframe->latestPublishedVersion();
 
-        if ($latestDraft) {
-            // Update the existing draft
-            $latestDraft->data = json_decode($request->data, true);
-            $latestDraft->save();
+            if ($latestDraft) {
+                // Update the existing draft
+                $latestDraft->data = json_decode($request->data, true);
+                $latestDraft->save();
 
-            activity()
-                ->performedOn($wireframe)
-                ->withProperties(['version_number' => $latestDraft->version_number])
-                ->log("Wireframe {$wireframe->name} draft version {$latestDraft->version_number} updated");
+                activity()
+                    ->performedOn($wireframe)
+                    ->withProperties(['version_number' => $latestDraft->version_number])
+                    ->log("Wireframe {$wireframe->name} draft version {$latestDraft->version_number} updated");
 
-            return response()->json([
-                'wireframe' => $wireframe,
-                'version' => $latestDraft,
-                'action' => 'updated_draft',
-            ]);
-        } else {
-            // Create a new draft version
-            $newVersionNumber = $latestPublished ? $latestPublished->version_number + 1 : 1;
+                return response()->json([
+                    'wireframe' => $wireframe,
+                    'version' => $latestDraft,
+                    'action' => 'updated_draft',
+                ]);
+            } else {
+                // Create a new draft version
+                $newVersionNumber = $latestPublished ? $latestPublished->version_number + 1 : 1;
 
-            $newVersion = WireframeVersion::create([
-                'wireframe_id' => $wireframe->id,
-                'version_number' => $newVersionNumber,
-                'data' => json_decode($request->data, true),
-                'status' => 'draft',
-            ]);
+                $newVersion = WireframeVersion::create([
+                    'wireframe_id' => $wireframe->id,
+                    'version_number' => $newVersionNumber,
+                    'data' => json_decode($request->data, true),
+                    'status' => 'draft',
+                ]);
 
-            activity()
-                ->performedOn($wireframe)
-                ->withProperties(['version_number' => $newVersionNumber])
-                ->log("Wireframe {$wireframe->name} new draft version {$newVersionNumber} created");
+                activity()
+                    ->performedOn($wireframe)
+                    ->withProperties(['version_number' => $newVersionNumber])
+                    ->log("Wireframe {$wireframe->name} new draft version {$newVersionNumber} created");
 
-            return response()->json([
-                'wireframe' => $wireframe,
-                'version' => $newVersion,
-                'action' => 'created_draft',
-            ]);
+                return response()->json([
+                    'wireframe' => $wireframe,
+                    'version' => $newVersion,
+                    'action' => 'created_draft',
+                ]);
+            }
         }
+
+        // If only the name was updated, we return a success response
+        return response()->json([
+            'wireframe' => $wireframe,
+            'action' => 'updated_name',
+        ]);
     }
 
     /**
