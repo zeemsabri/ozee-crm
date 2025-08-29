@@ -749,14 +749,12 @@ class ProjectReadController extends Controller
                     $join->on('projects.id', '=', 'project_user.project_id')
                         ->where('project_user.user_id', '=', $user->id);
                 })
-                ->orderBy('updated_at', 'desc')
                 ->addSelect('project_user.role_id')
                 ->get();
         } else {
             // For regular users, get only their projects
             $projects = $user->projects()->with('wireframes')
                 ->select('projects.id', 'projects.name', 'projects.status', 'project_user.role_id')
-                ->orderBy('updated_at', 'desc')
                 ->get();
         }
 
