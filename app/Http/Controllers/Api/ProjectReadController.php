@@ -730,6 +730,58 @@ class ProjectReadController extends Controller
     }
 
     /**
+     * Get simplified projects data for dashboard.
+     * Returns only id, name, and status fields.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function wireframe()
+    {
+        $user = Auth::user();
+
+        // Get all roles to avoid multiple database queries
+        $roles = Role::pluck('name', 'id')->toArray();
+
+        if ($user->isSuperAdmin() || $user->isManager()) {
+            // For super admins and managers, get all projects
+            $projects = Project::with('wireframes')->select('projects.id', 'projects.name', 'projects.status')
+                ->leftJoin('project_user', function($join) use ($user) {
+                    $join->on('projects.id', '=', 'project_user.project_id')
+                        ->where('project_user.user_id', '=', $user->id);
+                })
+                ->orderBy('updated_at', 'desc')
+                ->addSelect('project_user.role_id')
+                ->get();
+        } else {
+            // For regular users, get only their projects
+            $projects = $user->projects()->with('wireframes')
+                ->select('projects.id', 'projects.name', 'projects.status', 'project_user.role_id')
+                ->orderBy('updated_at', 'desc')
+                ->get();
+        }
+
+        $transformedProjects = $projects->map(function ($project) use ($roles) {
+            // Get the role name from the roles array using the role_id
+            $roleName = null;
+            if (isset($project->role_id) && isset($roles[$project->role_id])) {
+                $roleName = $roles[$project->role_id];
+            }
+
+
+            return [
+                'id' => $project->id,
+                'name' => $project->name,
+                'status' => $project->status,
+                'user_role' => $roleName,
+                'wireframes'    =>  $project->wireframes
+            ];
+        });
+
+        return response()->json($transformedProjects);
+    }
+
+
+    /**
      * Get meetings for a project.
      *
      * @param Project $project

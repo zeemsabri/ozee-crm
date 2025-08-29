@@ -131,6 +131,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Project Management Routes (Split into Read and Action)
     // Read Routes
     Route::get('projects', [ProjectReadController::class, 'index']);
+    Route::get('projects/with-wireframes', [ProjectReadController::class, 'wireframe']);
     Route::get('projects/{project}', [ProjectReadController::class, 'show']);
     Route::get('projects-simplified', [ProjectReadController::class, 'getProjectsSimplified']);
     Route::get('projects-for-email', [ProjectReadController::class, 'getProjectsForEmailComposer']);

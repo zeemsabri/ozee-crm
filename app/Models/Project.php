@@ -125,6 +125,11 @@ class Project extends Model
         ]);
     }
 
+    public function wireframes()
+    {
+        return $this->hasMany(Wireframe::class);
+    }
+
     /**
      * Get the meetings for this project.
      */
