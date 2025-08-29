@@ -37,7 +37,7 @@ class TaskCompletedListener implements ShouldQueue
     public function handle(TaskCompletedEvent $event)
     {
         try {
-            $this->pointsService->awardTaskPoints($event->task, $event->milestone);
+            $this->pointsService->awardPointsFor($event->task);
         } catch (\Exception $e) {
             Log::error('Failed to award points for task completion.', [
                 'task_id' => $event->task->id,

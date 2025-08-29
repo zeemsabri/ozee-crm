@@ -33,37 +33,35 @@ class AwardMilestonePointsAction
      * Executes the business logic for awarding points for a completed milestone.
      *
      * @param Milestone $milestone The Milestone model object.
-     * @return PointsLedger|null The newly created PointsLedger model instance, or null if points were not awarded.
+     * @return void
      */
-    public function execute(Milestone $milestone): ?PointsLedger
+    public function execute(Milestone $milestone): void
     {
         // Defensive Checks: Ensure all necessary data is present.
-        if (is_null($milestone->user) || is_null($milestone->due_date) || is_null($milestone->submitted_at)) {
-            Log::warning("AwardMilestonePointsAction called for milestone with ID {$milestone->id} but is missing a user, due date, or submitted timestamp. Points not awarded.");
-            return null;
+        // The user relationship on the milestone model will be null here, so we must not check for it.
+        if (is_null($milestone->due_date) || is_null($milestone->submitted_at)) {
+            Log::warning("AwardMilestonePointsAction called for milestone with ID {$milestone->id} but is missing a due date, or submitted timestamp. Points not awarded.");
+            return;
         }
 
         // 1. Deduplication Check: Check if points have already been awarded for this specific Milestone.
+        // We will check for any ledger entry linked to this milestone.
         $existingEntry = PointsLedger::where('pointable_id', $milestone->id)
             ->where('pointable_type', Milestone::class)
             ->first();
 
         if ($existingEntry) {
-            return $this->ledgerService->record(
-                $milestone->user,
-                0,
-                'Denied: Points already awarded for this milestone.',
-                'denied',
-                $milestone,
-                $milestone->project
-            );
+            // We can log this but we don't need to return anything here.
+            Log::info("Points already awarded for milestone with ID {$milestone->id}. Points not re-awarded.");
+            return;
         }
 
         // 2. On-Time vs. Late Calculation:
-        // Use the user's timezone for comparison.
-        $userTimezone = $milestone->user->timezone;
-        $dueDate = Carbon::parse($milestone->due_date, $userTimezone)->endOfDay();
-        $submittedAt = Carbon::parse($milestone->submitted_at)->setTimezone($userTimezone);
+        // Use the project's timezone for comparison.
+        // We will make an assumption here that the project has a timezone set. If not, this will default to UTC.
+        $projectTimezone = $milestone->project->timezone ?? 'UTC';
+        $dueDate = Carbon::parse($milestone->due_date, $projectTimezone)->endOfDay();
+        $submittedAt = Carbon::parse($milestone->submitted_at)->setTimezone($projectTimezone);
 
         // Determine points and description based on completion time.
         $pointsToAward = 0;
@@ -77,14 +75,23 @@ class AwardMilestonePointsAction
             $description = 'Late Milestone Completion (Approved): ' . $milestone->title;
         }
 
-        // 3. Record the Transaction.
-        return $this->ledgerService->record(
-            $milestone->user,
-            $pointsToAward,
-            $description,
-            'paid',
-            $milestone,
-            $milestone->project
-        );
+        // Get all unique users who worked on this milestone's tasks
+        $taskUsers = $milestone->tasks()->pluck('assigned_to_user_id')->unique();
+
+        // 3. Record the Transaction for each user
+        foreach ($taskUsers as $userId) {
+            // We need to fetch the user model to pass it to the ledger service.
+            $user = \App\Models\User::find($userId);
+            if ($user) {
+                $this->ledgerService->record(
+                    $user,
+                    $pointsToAward,
+                    $description,
+                    'paid',
+                    $milestone,
+                    $milestone->project
+                );
+            }
+        }
     }
 }
