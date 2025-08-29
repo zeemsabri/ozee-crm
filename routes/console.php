@@ -14,3 +14,5 @@ Schedule::command(\App\Console\Commands\FetchEmails::class)->everyFiveMinutes();
 Schedule::job(new \App\Jobs\FetchCurrencyRatesJob)->daily();
 
 Schedule::command('queue:work --stop-when-empty')->everyMinute();
+
+Schedule::command('points:calculate-streak')->weeklyOn(7);

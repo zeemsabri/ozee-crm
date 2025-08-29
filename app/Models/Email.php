@@ -83,6 +83,11 @@ class Email extends Model
         return $this->belongsTo(Conversation::class);
     }
 
+    public function project()
+    {
+        return $this->conversation?->project;
+    }
+
     /**
      * Get the sender model (polymorphic relationship).
      * This can be a User or any other model that can send emails.

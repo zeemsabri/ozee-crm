@@ -6,7 +6,16 @@ use App\Events\MilestoneApprovedEvent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Traits\Taggable;
-
+/*
+* @property \Illuminate\Support\Carbon|null $approved_at
+* @property \Illuminate\Support\Carbon|null $mark_completed_at
+* @property \Illuminate\Support\Carbon $created_at
+* @property \Illuminate\Support\Carbon $updated_at
+*
+ * @property-read \Carbon\Carbon|null $due_date
+* @property-read \Carbon\Carbon|null $submitted_at
+* @property-read \Carbon\Carbon|null $finalized_at
+*/
 class Milestone extends Model
 {
     use HasFactory, Taggable;
@@ -58,7 +67,36 @@ class Milestone extends Model
                 MilestoneApprovedEvent::dispatch($milestone);
             }
         });
+    }
 
+    /**
+     * Get the due date for the milestone.
+     *
+     * @return Carbon
+     */
+    public function getDueDateAttribute(): Carbon
+    {
+        return $this->completion_date;
+    }
+
+    /**
+     * Get the submitted at timestamp for the milestone.
+     *
+     * @return Carbon|null
+     */
+    public function getSubmittedAtAttribute(): ?Carbon
+    {
+        return $this->mark_completed_at;
+    }
+
+    /**
+     * Get the finalized at timestamp for the milestone.
+     *
+     * @return Carbon|null
+     */
+    public function getFinalizedAtAttribute(): ?Carbon
+    {
+        return $this->completed_at;
     }
 
     /**

@@ -3,8 +3,10 @@
 namespace App\Models;
 
 use App\Events\TaskCompletedEvent;
+use App\Models\Traits\HasUserTimezone;
 use App\Models\Traits\Taggable;
 use App\Notifications\TaskAssigned;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -18,7 +20,7 @@ use Spatie\Activitylog\LogOptions;
 
 class Task extends Model
 {
-    use HasFactory, Taggable, SoftDeletes, LogsActivity;
+    use HasFactory, Taggable, SoftDeletes, LogsActivity, HasUserTimezone;
 
     protected $appends = ['creator_name'];
 
@@ -383,7 +385,8 @@ class Task extends Model
         $completedBy = $user;
         $oldStatus = $this->status;
         $this->status = self::STATUS_DONE;
-        $this->actual_completion_date = now();
+        $date = Carbon::now()->setTimezone('Australia/Perth');
+        $this->actual_completion_date = $date;
         $this->save();
 
         // Only send notification if status actually changed
@@ -814,5 +817,10 @@ class Task extends Model
     public function files()
     {
         return $this->morphMany(\App\Models\FileAttachment::class, 'fileable');
+    }
+
+    public function assignee()
+    {
+        return $this->hasOne(\App\Models\User::class, 'id', 'assigned_to_user_id');
     }
 }

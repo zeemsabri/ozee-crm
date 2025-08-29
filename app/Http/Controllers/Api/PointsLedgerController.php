@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\MonthlyPoint;
 use App\Models\PointsLedger;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -35,10 +36,15 @@ class PointsLedgerController extends Controller
         // By default, restrict to current user
         $filterUserId = $authUser->id;
         // If manage_projects permission and user_id provided, allow filtering by other users
-        if ($request->filled('user_id') && $authUser->can('manage_projects')) {
+        // The user_id 'all' will be handled by removing the user_id filter entirely
+        if ($request->filled('user_id') && $authUser->can('manage_projects') && $request->query('user_id') !== 'all') {
             $filterUserId = (int) $request->query('user_id');
+            $query->where('user_id', $filterUserId);
+        } elseif ($request->filled('user_id') && $request->query('user_id') === 'all') {
+            // Do not add a user filter, effectively showing all users
+        } else {
+            $query->where('user_id', $filterUserId);
         }
-        $query->where('user_id', $filterUserId);
 
         // Optional filter: project
         if ($request->filled('project_id')) {
@@ -90,6 +96,36 @@ class PointsLedgerController extends Controller
                 'total' => $paginator->total(),
                 'last_page' => $paginator->lastPage(),
             ],
+        ]);
+    }
+
+    /**
+     * Return the total points for a given month/year.
+     * Query params: year, month, user_id (if manage_projects permission)
+     * Note: This is a separate endpoint to avoid performance issues with paginated data.
+     */
+    public function total(Request $request)
+    {
+        $authUser = Auth::user();
+        $userTimezone = $authUser->timezone ?? 'Asia/Karachi';
+
+        $now = Carbon::now($userTimezone);
+        $year = (int) $request->query('year', $now->year);
+        $month = (int) $request->query('month', $now->month);
+
+        $query = MonthlyPoint::where('year', $year)
+            ->where('month', $month);
+
+        if ($request->filled('user_id') && $authUser->can('manage_projects')) {
+            $query->where('user_id', (int) $request->query('user_id'));
+        }
+
+        $totalPoints = $query->sum('total_points');
+
+        return response()->json([
+            'year' => $year,
+            'month' => $month,
+            'total_points' => (float) $totalPoints,
         ]);
     }
 }
