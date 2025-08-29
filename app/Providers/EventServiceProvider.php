@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use App\Events\KudoApprovedEvent;
+use App\Events\MilestoneApprovedEvent;
 use App\Listeners\AwardKudoPointsListener;
+use App\Listeners\AwardMilestonePointsListener;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -47,6 +49,11 @@ class EventServiceProvider extends ServiceProvider
         MilestoneCompletedEvent::class => [
             MilestoneCompletedListener::class,
         ],
+
+        MilestoneApprovedEvent::class   => [
+            AwardMilestonePointsListener::class
+        ]
+
     ];
 
     /**
