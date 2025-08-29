@@ -51,7 +51,7 @@
 
                         <div v-if="canManageProjects" class="col-span-1">
                             <label for="user-select" class="block text-sm font-medium text-gray-700 mb-1">User</label>
-                            <SelectDropdown id="user-select" :options="userOptionsWithMe" v-model="filters.user_id" placeholder="Me" @change="applyFilters" class="w-full" />
+                            <SelectDropdown id="user-select" :options="userOptionsWithAll" v-model="filters.user_id" placeholder="Me" @change="applyFilters" class="w-full" />
                         </div>
                         <div class="col-span-1 flex items-end">
                             <button @click="clearFilters" class="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500">
@@ -138,6 +138,8 @@ const pointableOptions = [
     { value: 'Kudo', label: 'Kudo' },
     { value: 'ProjectNote', label: 'Project Note' },
     { value: 'Email', label: 'Email' },
+    { value: 'WeeklyStreak', label: 'Weekly Standup Streak' },
+
 ]
 const statusOptions = computed(() => {
     return [
@@ -155,15 +157,32 @@ const statusOptions = computed(() => {
 const projects = ref([])
 const projectOptionsWithAll = computed(() => [{ value: null, label: 'All Projects' }, ...projects.value])
 const users = ref([])
-const userOptionsWithMe = computed(() => [{ value: null, label: 'Me' }, ...users.value])
+const userOptionsWithAll = computed(() => [{ value: null, label: 'Me' }, { value: 'all', label: 'All Users' }, ...users.value])
 const pointableOptionsWithAll = computed(() => [{ value: '', label: 'All Types' }, ...pointableOptions])
 const { canDo } = usePermissions()
 const canManageProjects = computed(() => canDo('manage_projects').value)
 
 // Total points for the selected month
-const totalPointsForMonth = computed(() => {
-    return items.value.reduce((total, entry) => total + (entry.points_awarded || 0), 0)
-})
+const totalPointsForMonth = ref(0)
+const totalPointsForAllUsers = ref(0)
+const viewAllUsers = ref(false)
+
+const fetchTotalPoints = async () => {
+    const { year, month } = parseYearMonth()
+    try {
+        const params = { year, month }
+        const endpoint = filters.user_id === 'all' ? '/api/points-ledger/total' : '/api/points-ledger/total';
+        if (filters.user_id !== 'all') {
+            params.user_id = filters.user_id;
+        }
+
+        const resp = await axios.get(endpoint, { params })
+        totalPointsForMonth.value = resp.data.total_points || 0
+    } catch (e) {
+        console.error('Failed to fetch total points', e)
+        totalPointsForMonth.value = 0
+    }
+}
 
 const fetchFilterOptions = async () => {
     try {
@@ -191,7 +210,7 @@ const fetchLedger = async () => {
         const params = { year, month, page: pagination.current_page, per_page: pagination.per_page }
         if (filters.pointable_type) params.pointable_type = filters.pointable_type
         if (filters.project_id) params.project_id = filters.project_id
-        if (canManageProjects.value && filters.user_id) params.user_id = filters.user_id
+        if (canManageProjects.value && filters.user_id !== null) params.user_id = filters.user_id
         if (filters.status) params.status = filters.status
         const resp = await axios.get('/api/points-ledger', { params })
         items.value = Array.isArray(resp.data.data) ? resp.data.data : []
@@ -207,12 +226,14 @@ const fetchLedger = async () => {
 
 const handleMonthChange = () => {
     pagination.current_page = 1
+    fetchTotalPoints()
     fetchLedger()
 }
 
 const applyFilters = () => {
     pagination.current_page = 1
     fetchLedger()
+    fetchTotalPoints()
 }
 
 const clearFilters = () => {
@@ -223,6 +244,7 @@ const clearFilters = () => {
     filters.status = 'paid'
     pagination.current_page = 1
     fetchLedger()
+    fetchTotalPoints()
 }
 
 const goToPage = (p) => {
@@ -233,6 +255,7 @@ const goToPage = (p) => {
 const refresh = () => {
     pagination.current_page = 1
     fetchLedger()
+    fetchTotalPoints()
 }
 
 const formatDate = (iso) => new Date(iso).toLocaleString()
@@ -260,6 +283,7 @@ const badgeClass = (status) => {
 onMounted(async () => {
     await fetchFilterOptions()
     await fetchLedger()
+    await fetchTotalPoints()
 })
 watch(monthInput, () => { /* keeping manual change handler */ })
 </script>
