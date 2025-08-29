@@ -39,12 +39,6 @@ class AwardKudoPointsListener implements ShouldQueue
     public function handle(KudoApprovedEvent $event)
     {
         // Check if the kudo is approved to prevent accidental point awards.
-        Log::info('triggering job');
-        if ($event->kudo->is_approved) {
-            Log::info('kudo award sending to service');
-            $this->pointsService->awardKudosPoints($event->kudo);
-        } else {
-            Log::info('Kudo approved event received, but kudo status is not approved.', ['kudo_id' => $event->kudo->id]);
-        }
+        $this->pointsService->awardPointsFor($event->kudo);
     }
 }

@@ -50,18 +50,23 @@ class RecalculatePoints extends Command
         ];
 
         foreach ($modelsToProcess as $modelClass => $modelName) {
+
+
             $this->info("Processing {$modelName}...");
 
             $query = $modelClass::query();
             if ($startDate) {
-                $query->whereDate('created_at', '>=', $startDate->toDateString());
+                // Use a full timestamp comparison for timezone-aware filtering
+                $query->where('created_at', '>=', $startDate);
             }
-            $query->whereDate('created_at', '<=', $endDate->toDateString())
+            // Use a full timestamp comparison for timezone-aware filtering
+            $query->where('created_at', '<=', $endDate)
                 ->chunkById(100, function ($items) use ($modelName, $dryRun) {
                     foreach ($items as $item) {
-                        $this->line(" - Processing {$modelName} #{$item->id}");
+                        Log::info("Processing {$modelName} #{$item->id}");
                         if (!$dryRun) {
-                            $this->pointsService->recalculateAndAwardPoints($item);
+                            // Use the new, refactored method name
+                            $this->pointsService->awardPointsFor($item);
                         }
                     }
                 });
