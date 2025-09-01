@@ -12,6 +12,8 @@ class WireframeVersion extends Model
 {
     use HasFactory, LogsActivity;
 
+    const STATUS_DRAFT = 'draft';
+    const STATUS_PUBLISHED = 'published';
     /**
      * The attributes that are mass assignable.
      *

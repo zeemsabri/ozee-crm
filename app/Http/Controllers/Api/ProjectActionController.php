@@ -1446,4 +1446,127 @@ class ProjectActionController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Add a wireframe comment for internal users (auth:sanctum). Accepts optional parent_id.
+     * POST /api/projects/{projectId}/wireframes/{id}/comments
+     */
+    public function addWireframeComment(Request $request, $projectId, $id)
+    {
+        try {
+            $user = Auth::user();
+            $project = Project::findOrFail($projectId);
+
+            if (!$this->canAccessProject($user, $project) || !$this->canViewProjectNotes($user, $project)) {
+                return response()->json(['message' => 'Unauthorized. You do not have permission to add comments.'], 403);
+            }
+
+            // Validate
+            $validated = $request->validate([
+                'text' => 'required|string|max:2000',
+                'context' => 'nullable',
+                'parent_id' => 'nullable|integer'
+            ]);
+
+            // Ensure wireframe belongs to project
+            $wireframe = $project->wireframes()->where('id', $id)->first();
+            if (!$wireframe) {
+                return response()->json(['message' => 'Wireframe not found.'], 404);
+            }
+
+            // If parent_id provided, ensure it belongs to same wireframe
+            $parent = null;
+            if (!empty($validated['parent_id'])) {
+                $parent = ProjectNote::where('id', $validated['parent_id'])
+                    ->where('project_id', $project->id)
+                    ->where('noteable_type', get_class($wireframe))
+                    ->where('noteable_id', $wireframe->id)
+                    ->first();
+                if (!$parent) {
+                    return response()->json(['message' => 'Invalid parent comment for this wireframe.'], 422);
+                }
+            }
+
+            $note = new ProjectNote([
+                'project_id' => $project->id,
+                'content' => $validated['text'],
+                'type' => ProjectNote::COMMENT,
+                'noteable_id' => $wireframe->id,
+                'noteable_type' => get_class($wireframe),
+                'parent_id' => $validated['parent_id'] ?? null,
+                'context' => $validated['context'] ?? null,
+            ]);
+
+            $note->save();
+
+            return response()->json([
+                'message' => 'Comment added successfully.',
+                'comment' => $note,
+            ], 201);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error('Error adding wireframe comment (internal): ' . $e->getMessage(), [
+                'project_id' => $projectId,
+                'wireframe_id' => $id,
+                'error' => $e->getTraceAsString()
+            ]);
+            return response()->json(['message' => 'Failed to add comment.'], 500);
+        }
+    }
+
+    /**
+     * Mark a wireframe comment as resolved by updating note type to 'resolved_comment'.
+     * POST /api/projects/{projectId}/wireframes/{id}/comments/{commentId}/resolved_comment
+     */
+    public function resolveWireframeComment(Request $request, $projectId, $id, $commentId)
+    {
+        try {
+            $user = Auth::user();
+            $project = Project::findOrFail($projectId);
+
+            if (!$this->canAccessProject($user, $project) || !$this->canViewProjectNotes($user, $project)) {
+                return response()->json(['message' => 'Unauthorized. You do not have permission to update comments.'], 403);
+            }
+
+            // Ensure wireframe belongs to project
+            $wireframe = $project->wireframes()->where('id', $id)->first();
+            if (!$wireframe) {
+                return response()->json(['message' => 'Wireframe not found.'], 404);
+            }
+
+            // Find the comment and ensure it belongs to this project and wireframe
+            $note = ProjectNote::where('id', $commentId)
+                ->where('project_id', $project->id)
+                ->where('noteable_type', get_class($wireframe))
+                ->where('noteable_id', $wireframe->id)
+                ->first();
+
+            if (!$note) {
+                return response()->json(['message' => 'Comment not found.'], 404);
+            }
+
+            // Allow toggling between 'comment' and 'resolved_comment' only
+            if (!in_array($note->type, [ProjectNote::COMMENT, 'resolved_comment'])) {
+                return response()->json(['message' => 'Only wireframe comments can be marked as resolved.'], 422);
+            }
+
+            // Update type to resolved_comment
+            $note->type = 'resolved_comment';
+            $note->save();
+
+            return response()->json([
+                'message' => 'Comment marked as resolved.',
+                'comment' => $note,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error resolving wireframe comment (internal): ' . $e->getMessage(), [
+                'project_id' => $projectId,
+                'wireframe_id' => $id,
+                'comment_id' => $commentId,
+                'error' => $e->getTraceAsString()
+            ]);
+            return response()->json(['message' => 'Failed to update comment.'], 500);
+        }
+    }
 }

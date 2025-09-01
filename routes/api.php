@@ -70,6 +70,8 @@ Route::post('/reset-password', [NewPasswordController::class, 'store'])
 
 // Client Magic Link Route (accessible without authentication)
 Route::post('/client-magic-link', [MagicLinkController::class, 'sendClientMagicLink']);
+// Client token verify endpoint
+Route::post('/client-api/verify', [MagicLinkController::class, 'verifyClient']);
 
 Route::get('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
 
@@ -423,12 +425,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{id}', [WireframeController::class, 'show']);
         Route::post('/', [WireframeController::class, 'store']);
         Route::put('{id}', [WireframeController::class, 'update']);
-        Route::post('{id}/publish', [WireframeController::class, 'publish']);
+        Route::post('{id}/{publish}', [WireframeController::class, 'publish']);
         Route::post('{id}/versions', [WireframeController::class, 'newVersion']);
         Route::get('{id}/versions', [WireframeController::class, 'versions']);
         Route::put('{id}/versions/{versionNumber}', [WireframeController::class, 'updateVersion']);
         Route::delete('{id}', [WireframeController::class, 'destroy']);
         Route::get('{id}/logs', [WireframeController::class, 'logs']);
+        // New: Internal (sanctum) wireframe comments endpoints
+        Route::get('{id}/comments', [\App\Http\Controllers\Api\ProjectReadController::class, 'getWireframeComments']);
+        Route::post('{id}/comments', [\App\Http\Controllers\Api\ProjectActionController::class, 'addWireframeComment']);
+        Route::post('{id}/comments/{commentId}/resolved_comment', [\App\Http\Controllers\Api\ProjectActionController::class, 'resolveWireframeComment']);
     });
 
     // Kudos Routes
@@ -456,6 +462,12 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
 
     Route::get('project/{project}', [ProjectClientReader::class, 'getProject']);
+    Route::get('project/{project}/wireframes', [ProjectClientReader::class, 'getWireframes']);
+    Route::get('project/{project}/wireframe/{wireframeId}', [ProjectClientReader::class, 'showWireframe']);
+    Route::get('project/{project}/wireframe/{wireframeId}/comments', [ProjectClientReader::class, 'getWireframeComments']);
+    Route::post('project/{project}/wireframe/{wireframeId}/comments', [ProjectClientAction::class, 'addWireframeComment']);
+    Route::post('project/{project}/wireframe/{wireframeId}/comments/{commentId}/{status}', [ProjectClientAction::class, 'resolveWireframeComment']);
+
     // Project Client Reader Routes (GET)
     Route::get('project/{project}/tasks', [ProjectClientReader::class, 'getProjectTasks']);
     Route::get('project/{project}/deliverables', [ProjectClientReader::class, 'getProjectDeliverables']);

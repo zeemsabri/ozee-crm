@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Models\ProjectNote;
 use App\Models\Task;
 use App\Models\TaskType;
+use App\Models\Wireframe;
 use App\Services\GoogleDriveService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -487,4 +488,141 @@ class ProjectClientAction extends Controller
             return response()->json(['message' => 'Failed to upload documents: ' . $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Client adds a comment to a wireframe.
+     * Endpoint: POST /api/client-api/project/{project}/wireframe/{wireframeId}/comments
+     * Body: { "comment_text": string, "context": string|null }
+     */
+    public function addWireframeComment(Request $request, Project $project, $wireframeId)
+    {
+//        try {
+            $request->validate([
+                'text' => 'required|string|max:2000',
+                'context' => 'nullable|max:255',
+                'parent_id' =>  'nullable|exists:project_notes,id',
+            ]);
+
+            $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+            $authenticatedClientEmail = $request->attributes->get('magic_link_email');
+
+            // Security: ensure route project matches magic link project
+            if ((int)$project->id !== (int)$authenticatedProjectId) {
+                return response()->json(['message' => 'Unauthorized access to project.'], 403);
+            }
+
+            // Ensure the wireframe belongs to this project
+            $wireframe = Wireframe::where('id', $wireframeId)
+                ->where('project_id', $project->id)
+                ->first();
+            if (!$wireframe) {
+                return response()->json(['message' => 'Wireframe not found.'], 404);
+            }
+
+            // Resolve creator via magic link email
+            $client = Client::where('email', $authenticatedClientEmail)->first();
+            if (!$client) {
+                return response()->json(['message' => 'Authenticated client not found.'], 404);
+            }
+
+            // Create a ProjectNote attached to the wireframe (polymorphic noteable)
+            $comment = new ProjectNote([
+                'project_id' => $project->id,
+                'content' => $request->input('text'),
+                'context'   => $request->input('context'),
+                'type' => ProjectNote::COMMENT,
+                'noteable_id' => $wireframe->id,
+                'noteable_type' => get_class($wireframe),
+                'creator_id' => $client->id,
+                'creator_type' => get_class($client),
+                'parent_id' => $request->input('parent_id'),
+            ]);
+
+            if ($request->has('context')) {
+                $comment->context = $request->input('context');
+            }
+
+            $comment->save();
+
+            return response()->json([
+                'message' => 'Comment added successfully.',
+                'comment' => $comment,
+            ], 201);
+//        } catch (ValidationException $e) {
+//            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+//        } catch (\Exception $e) {
+//            Log::error("Error adding comment to wireframe: {$e->getMessage()}", [
+//                'project_id' => $project->id,
+//                'wireframe_id' => $wireframeId,
+//                'client_email' => $request->attributes->get('magic_link_email'),
+//                'error' => $e->getTraceAsString(),
+//            ]);
+//            return response()->json(['message' => 'Failed to add comment.'], 500);
+//        }
+    }
+
+    /**
+     * Resolve (mark as resolved) a wireframe comment by changing its type to resolved_comment.
+     * Endpoint: PATCH /api/client-api/project/{project}/wireframe/{wireframeId}/comments/{commentId}/resolve
+     */
+    public function resolveWireframeComment(Request $request, Project $project, $wireframeId, $commentId, $status)
+    {
+        try {
+            $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+
+            // Ensure route project matches magic link project
+            if ((int)$project->id !== (int)$authenticatedProjectId) {
+                return response()->json(['message' => 'Unauthorized access to project.'], 403);
+            }
+
+            // Ensure the wireframe belongs to this project
+            $wireframe = Wireframe::where('id', $wireframeId)
+                ->where('project_id', $project->id)
+                ->first();
+            if (!$wireframe) {
+                return response()->json(['message' => 'Wireframe not found.'], 404);
+            }
+
+            // Find the comment and ensure it belongs to this project and wireframe
+            $note = ProjectNote::where('id', $commentId)
+                ->where('project_id', $project->id)
+                ->where('noteable_type', get_class($wireframe))
+                ->where('noteable_id', $wireframe->id)
+                ->first();
+
+            if (!$note) {
+                return response()->json(['message' => 'Comment not found.'], 404);
+            }
+
+            // Only allow resolving normal comments
+            if ($note->type !== ProjectNote::COMMENT && $note->type !== 'resolved_comment') {
+                return response()->json(['message' => 'Only comments can be resolved.'], 422);
+            }
+
+            if ($note->type === 'resolved_comment') {
+                return response()->json([
+                    'message' => 'Comment already resolved.',
+                    'comment' => $note,
+                ]);
+            }
+
+            $note->type = $status;
+            $note->save();
+
+            return response()->json([
+                'message' => 'Comment resolved successfully.',
+                'comment' => $note,
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error resolving wireframe comment: {$e->getMessage()}", [
+                'project_id' => $project->id,
+                'wireframe_id' => $wireframeId,
+                'comment_id' => $commentId,
+                'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
+                'error' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to resolve comment.'], 500);
+        }
+    }
+
 }

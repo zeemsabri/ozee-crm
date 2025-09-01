@@ -14,6 +14,10 @@ use App\Models\Traits\Taggable;
 class ProjectNote extends Model
 {
 
+    protected $casts = [
+        'context' => 'array',
+    ];
+
     use HasUserTimezone;
     /**
      * Create a project note (optionally attached to a noteable) and send to Google Chat automatically.
@@ -70,6 +74,8 @@ class ProjectNote extends Model
     const STANDUP = 'standup';
     const KUDOS = 'kudos';
     const GENERAL = 'general';
+
+    const COMMENT = 'comment';
     const TYPES = [
         self::STANDUP,
         self::KUDOS,

@@ -314,4 +314,172 @@ class ProjectClientReader extends Controller
         }
     }
 
+    /**
+     * Get all wireframes for a project with their latest published version (if any).
+     */
+    public function getWireframes(Request $request, Project $project)
+    {
+        try {
+            $projectId = $project->id;
+            $verificationResult = $this->verifyMagicLinkProject($request, $projectId, 'wireframes');
+            if ($verificationResult) {
+                return response()->json(['message' => $verificationResult['message']], $verificationResult['status']);
+            }
+
+            $wireframes = $project->wireframes()->whereHas('versions', function ($q) {
+                $q->where('status', 'published');
+            })->with('versions')->get()->map(function ($wireframe) {
+                $published = $wireframe->latestPublishedVersion();
+                return [
+                    'id' => $wireframe->id,
+                    'name' => $wireframe->name,
+                    'project_id' => $wireframe->project_id,
+                    'latest_published_version' => $published ? [
+                        'version_number' => $published->version_number,
+                        'status' => $published->status,
+                        'data' => $published->data,
+                        'created_at' => $published->created_at,
+                        'updated_at' => $published->updated_at,
+                    ] : null,
+                    'created_at' => $wireframe->created_at,
+                    'updated_at' => $wireframe->updated_at,
+                ];
+            });
+
+            return response()->json($wireframes);
+        } catch (\Exception $e) {
+            Log::error('Error fetching client wireframes: ' . $e->getMessage(), [
+                'project_id' => $project->id,
+                'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
+                'error_trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to fetch wireframes.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Show a single wireframe for a project along with its published version and wireframe id.
+     */
+    public function showWireframe(Request $request, Project $project, $wireframeId)
+    {
+        try {
+            $projectId = $project->id;
+            $verificationResult = $this->verifyMagicLinkProject($request, $projectId, 'wireframe');
+            if ($verificationResult) {
+                return response()->json(['message' => $verificationResult['message']], $verificationResult['status']);
+            }
+
+            $wireframe = $project->wireframes()->where('id', $wireframeId)->first();
+            if (!$wireframe) {
+                return response()->json(['message' => 'Wireframe not found.'], 404);
+            }
+            $published = $wireframe->latestPublishedVersion();
+
+            return response()->json([
+                'wireframe' => [
+                    'id' => $wireframe->id,
+                    'name' => $wireframe->name,
+                    'project_id' => $wireframe->project_id,
+                    'created_at' => $wireframe->created_at,
+                    'updated_at' => $wireframe->updated_at,
+                ],
+                'published_version' => $published ? [
+                    'version_number' => $published->version_number,
+                    'status' => $published->status,
+                    'data' => $published->data,
+                    'created_at' => $published->created_at,
+                    'updated_at' => $published->updated_at,
+                ] : null,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching client wireframe: ' . $e->getMessage(), [
+                'project_id' => $project->id,
+                'wireframe_id' => $wireframeId,
+                'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
+                'error_trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to fetch wireframe.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get all comments (ProjectNote::COMMENT) for a wireframe, including nested replies.
+     */
+    public function getWireframeComments(Request $request, Project $project, $wireframeId)
+    {
+        try {
+            $projectId = $project->id;
+            $verificationResult = $this->verifyMagicLinkProject($request, $projectId, 'wireframe comments');
+            if ($verificationResult) {
+                return response()->json(['message' => $verificationResult['message']], $verificationResult['status']);
+            }
+
+            // Ensure the wireframe belongs to this project
+            $wireframe = $project->wireframes()->where('id', $wireframeId)->first();
+            if (!$wireframe) {
+                return response()->json(['message' => 'Wireframe not found.'], 404);
+            }
+
+            // Fetch parent comments (no parent_id) for this wireframe, type comment
+            $comments = \App\Models\ProjectNote::with([
+                    'creator',
+                    'replies' => function($q) {
+                        $q->where('type', \App\Models\ProjectNote::COMMENT)
+                          ->with('creator')
+                          ->orderBy('created_at', 'asc');
+                    }
+                ])
+                ->where('type', \App\Models\ProjectNote::COMMENT)
+                ->whereNull('parent_id')
+                ->where('noteable_type', get_class($wireframe))
+                ->where('noteable_id', $wireframe->id)
+                ->orderBy('created_at', 'asc')
+                ->get()
+                ->map(function($note) {
+                    return [
+                        'id' => $note->id,
+                        'project_id' => $note->project_id,
+                        'noteable_type' => $note->noteable_type,
+                        'noteable_id' => $note->noteable_id,
+                        'type' => $note->type,
+                        'content' => $note->content,
+                        'context' => $note->context,
+                        'parent_id' => $note->parent_id,
+                        'creator_name' => $note->creator_name,
+                        'creator_type' => $note->creator_type,
+                        'creator_id' => $note->creator_id,
+                        'created_at' => $note->created_at,
+                        'updated_at' => $note->updated_at,
+                        'replies' => $note->replies->map(function($reply) {
+                            return [
+                                'id' => $reply->id,
+                                'project_id' => $reply->project_id,
+                                'noteable_type' => $reply->noteable_type,
+                                'noteable_id' => $reply->noteable_id,
+                                'type' => $reply->type,
+                                'content' => $reply->content,
+                                'context' => $reply->context,
+                                'parent_id' => $reply->parent_id,
+                                'creator_name' => $reply->creator_name,
+                                'creator_type' => $reply->creator_type,
+                                'creator_id' => $reply->creator_id,
+                                'created_at' => $reply->created_at,
+                                'updated_at' => $reply->updated_at,
+                            ];
+                        }),
+                    ];
+                });
+
+            return response()->json($comments);
+        } catch (\Exception $e) {
+            Log::error('Error fetching wireframe comments: ' . $e->getMessage(), [
+                'project_id' => $project->id,
+                'wireframe_id' => $wireframeId,
+                'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
+                'error_trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to fetch comments.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
 }
