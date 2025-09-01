@@ -425,6 +425,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{id}', [WireframeController::class, 'show']);
         Route::post('/', [WireframeController::class, 'store']);
         Route::put('{id}', [WireframeController::class, 'update']);
+
+        Route::get('{id}/comments', [\App\Http\Controllers\Api\ProjectReadController::class, 'getWireframeComments']);
+        Route::post('{id}/comments', [\App\Http\Controllers\Api\ProjectActionController::class, 'addWireframeComment']);
+        Route::post('{id}/comments/{commentId}/resolved_comment', [\App\Http\Controllers\Api\ProjectActionController::class, 'resolveWireframeComment']);
+
         Route::post('{id}/{publish}', [WireframeController::class, 'publish']);
         Route::post('{id}/versions', [WireframeController::class, 'newVersion']);
         Route::get('{id}/versions', [WireframeController::class, 'versions']);
@@ -432,9 +437,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('{id}', [WireframeController::class, 'destroy']);
         Route::get('{id}/logs', [WireframeController::class, 'logs']);
         // New: Internal (sanctum) wireframe comments endpoints
-        Route::get('{id}/comments', [\App\Http\Controllers\Api\ProjectReadController::class, 'getWireframeComments']);
-        Route::post('{id}/comments', [\App\Http\Controllers\Api\ProjectActionController::class, 'addWireframeComment']);
-        Route::post('{id}/comments/{commentId}/resolved_comment', [\App\Http\Controllers\Api\ProjectActionController::class, 'resolveWireframeComment']);
     });
 
     // Kudos Routes
