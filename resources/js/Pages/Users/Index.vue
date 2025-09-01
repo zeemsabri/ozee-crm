@@ -530,11 +530,10 @@ const getAvatarColor = (name) => {
                                     <!-- Action icons bottom right corner -->
                                     <div class="mt-4 flex justify-end gap-2">
                                         <button
-                                            v-if="(isSuperAdmin ||
-                                                  (isManager &&
-                                                    ((userItem.role_data?.slug === 'employee' || userItem.role_data?.slug === 'contractor') ||
-                                                     (typeof userItem.role === 'string' &&
-                                                      (userItem.role.replace(/-/g, '_') === 'employee' || userItem.role.replace(/-/g, '_') === 'contractor')))) ||
+                                            v-if="((isSuperAdmin || isManager ) &&
+                                                    // ((userItem.role_data?.slug === 'employee' || userItem.role_data?.slug === 'contractor') ||
+                                                    //  (typeof userItem.role === 'string' &&
+                                                    //   (userItem.role.replace(/-/g, '_') === 'employee' || userItem.role.replace(/-/g, '_') === 'contractor')))) ||
                                                   authUser.id === userItem.id)"
                                             @click="openEditModal(userItem)"
                                             class="p-2 rounded-full text-gray-400 hover:text-indigo-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
