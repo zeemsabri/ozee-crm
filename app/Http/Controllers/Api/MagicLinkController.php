@@ -293,4 +293,51 @@ class MagicLinkController extends Controller
             ])->toResponse($request)->setStatusCode(500);
         }
     }
+
+    /**
+     * Verify a client magic link token and return token and project id
+     */
+    public function verifyClient(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'token' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            $rawToken = $request->input('token');
+            // Extract token before query string if present
+            $tokenOnly = explode('?', $rawToken)[0];
+
+            $magicLink = MagicLink::where('token', $tokenOnly)->first();
+            if (!$magicLink) {
+                return response()->json(['message' => 'Invalid magic link token.'], 404);
+            }
+
+            if ($magicLink->hasExpired()) {
+                return response()->json(['message' => 'Magic link token has expired.'], 403);
+            }
+
+            if ($magicLink->hasBeenUsed()) {
+                return response()->json(['message' => 'Magic link token has already been used.'], 403);
+            }
+
+            return response()->json([
+                'auth_token' => $magicLink->token,
+                'project_id' => $magicLink->project_id,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error verifying magic link: ' . $e->getMessage(), [
+                'token' => $request->input('token') ?? 'not provided',
+                'error' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Failed to verify magic link.'], 500);
+        }
+    }
 }

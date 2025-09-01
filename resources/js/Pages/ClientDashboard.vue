@@ -47,9 +47,20 @@ const invoices = ref([]);
 const announcements = ref([]);
 const deliverables = ref([]);
 const shareableResources = ref([]); // Reactive data for shareable resources
+const wireframes = ref([]); // Wireframes for the project (client-api)
 const seoReportsCount = ref(0); // Count of SEO reports for the project
 const error = ref(null); // To store any API errors
 const projectData = ref({});
+
+// Derived flag: whether any wireframes are available for this project
+const hasWireframes = computed(() => Array.isArray(wireframes.value) && wireframes.value.length > 0);
+
+// Compute Wireframe Share URL safely (avoid import.meta in template)
+const wireframeShareUrl = computed(() => {
+    const base = (import.meta && import.meta.env && import.meta.env.VITE_WIREFRAME_URL) ? import.meta.env.VITE_WIREFRAME_URL : (typeof window !== 'undefined' ? window.location.origin : '');
+    const token = props.initialAuthToken || '';
+    return base ? `${base}/shared?token=${token}` : '';
+});
 
 // Computed property for main content margin based on sidebar state
 const mainContentMargin = computed(() => {
@@ -190,6 +201,7 @@ onMounted(async () => {
         // fetchClientData(`announcements`, announcements), // Uncomment if you have announcements API
         fetchClientData(`project/${props.projectId}/deliverables`, deliverables),
         fetchClientData(`project/${props.projectId}/shareable-resources?visible_to_client=true`, shareableResources), // Fetch shareable resources
+        fetchClientData(`project/${props.projectId}/wireframes`, wireframes), // Fetch wireframes for the project
         fetchClientData(`project/${props.projectId}`, projectData)
     ]);
 
@@ -239,6 +251,8 @@ provide('activityService', { addActivity: addActivity }); // Provided for child 
             :userId="userId"
             :activeSection="currentSection"
             :isExpanded="isSidebarExpanded"
+            :hasWireframes="hasWireframes"
+            :wireframeShareUrl="wireframeShareUrl"
             @section-change="currentSection = $event"
             @update:isExpanded="isSidebarExpanded = $event"
         />

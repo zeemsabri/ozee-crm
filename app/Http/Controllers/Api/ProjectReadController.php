@@ -782,6 +782,78 @@ class ProjectReadController extends Controller
 
 
     /**
+     * Get wireframe comments (comment and resolved_comment) with replies for internal users.
+     */
+    public function getWireframeComments($projectId, $id)
+    {
+        $user = Auth::user();
+        $project = Project::findOrFail($projectId);
+        if (!$this->canAccessProject($user, $project) || !$this->canViewProjectNotes($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to view notes.'], 403);
+        }
+
+        // Ensure wireframe belongs to project
+        $wireframe = $project->wireframes()->where('id', $id)->first();
+        if (!$wireframe) {
+            return response()->json(['message' => 'Wireframe not found.'], 404);
+        }
+
+        $types = ['comment'];
+
+        $comments = ProjectNote::with([
+                'creator',
+                'replies' => function($q) use ($types) {
+                    $q->whereIn('type', $types)
+                      ->with('creator')
+                      ->orderBy('created_at', 'asc');
+                }
+            ])
+            ->whereIn('type', $types)
+            ->whereNull('parent_id')
+            ->where('noteable_type', get_class($wireframe))
+            ->where('noteable_id', $wireframe->id)
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->map(function($note) {
+                return [
+                    'id' => $note->id,
+                    'project_id' => $note->project_id,
+                    'noteable_type' => $note->noteable_type,
+                    'noteable_id' => $note->noteable_id,
+                    'type' => $note->type,
+                    'content' => $note->content,
+                    'context' => $note->context,
+                    'parent_id' => $note->parent_id,
+                    'creator_name' => $note->creator_name,
+                    'creator_type' => $note->creator_type,
+                    'creator_id' => $note->creator_id,
+                    'created_at' => $note->created_at,
+                    'updated_at' => $note->updated_at,
+                    'replies' => $note->replies->map(function($reply) {
+                        return [
+                            'id' => $reply->id,
+                            'project_id' => $reply->project_id,
+                            'noteable_type' => $reply->noteable_type,
+                            'noteable_id' => $reply->noteable_id,
+                            'type' => $reply->type,
+                            'content' => $reply->content,
+                            'context' => $reply->context,
+                            'parent_id' => $reply->parent_id,
+                            'creator_name' => $reply->creator_name,
+                            'creator_type' => $reply->creator_type,
+                            'creator_id' => $reply->creator_id,
+                            'created_at' => $reply->created_at,
+                            'updated_at' => $reply->updated_at,
+                        ];
+                    }),
+                ];
+            });
+
+        return response()->json($comments);
+    }
+
+
+    /**
      * Get meetings for a project.
      *
      * @param Project $project

@@ -281,28 +281,30 @@ class WireframeController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function publish($projectId, $id)
+    public function publish($projectId, $id, $status)
     {
         $wireframe = Wireframe::where('project_id', $projectId)
-            ->where('id', $id)
-            ->firstOrFail();
+            ->where('id', $id);
 
-        $latestDraft = $wireframe->latestDraftVersion();
+        $wf = $wireframe->firstOrFail();
+        $latestDraft = $wf->latestDraftVersion();
 
         if (!$latestDraft) {
             return response()->json(['error' => 'No draft version available to publish'], 422);
         }
 
-        $latestDraft->status = 'published';
+        $wf->versions()?->update(['status' => WireframeVersion::STATUS_DRAFT]);
+
+        $latestDraft->status = $status;
         $latestDraft->save();
 
         activity()
-            ->performedOn($wireframe)
+            ->performedOn($wf)
             ->withProperties(['version_number' => $latestDraft->version_number])
-            ->log("Wireframe {$wireframe->name} version {$latestDraft->version_number} published");
+            ->log("Wireframe {$wf->name} version {$latestDraft->version_number} {$status}");
 
         return response()->json([
-            'wireframe' => $wireframe,
+            'wireframe' => $wf,
             'version' => $latestDraft,
         ]);
     }

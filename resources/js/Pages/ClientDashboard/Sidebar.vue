@@ -3,7 +3,9 @@ import { defineProps, defineEmits, ref } from 'vue';
 
 const props = defineProps({
     userId: String,
-    activeSection: String // Prop to control active state from parent
+    activeSection: String, // Prop to control active state from parent
+    hasWireframes: { type: Boolean, default: false },
+    wireframeShareUrl: { type: String, default: '' }
 });
 
 const emits = defineEmits(['section-change']);
@@ -36,6 +38,26 @@ const navItems = [
     // { id: 'invoices', label: 'Invoices', icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>` },
     // { id: 'announcements', label: 'Announcements', icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592L6 18V6l3-3 2 2zm6-3v14.485c0 .085.033.166.098.221l.685.56a1.76 1.76 0 002.417-.592L21 6V3l-3 3-2-2z"/></svg>` },
 ];
+
+// Safe opener for wireframes link to avoid window undefined errors (SSR/hydration)
+const openWireframes = () => {
+    try {
+        const url = props.wireframeShareUrl;
+        if (!url) return;
+        // Prefer globalThis.open when available, fallback to window?.open
+        const opener = (typeof globalThis !== 'undefined' && typeof globalThis.open === 'function')
+            ? globalThis.open
+            : (typeof window !== 'undefined' && typeof window.open === 'function' ? window.open : null);
+        if (opener) {
+            opener(url, '_blank');
+        }
+    } catch (e) {
+        // Swallow errors to prevent crashing the app in constrained environments
+        // Optionally, could emit an event or console.warn
+        console.warn('Failed to open wireframes link:', e);
+    }
+};
+
 </script>
 
 <template>
@@ -64,6 +86,20 @@ const navItems = [
                 <span v-html="item.icon" :class="['icon-container', {'mr-3': isExpanded}]"></span>
                 <span class="label-text whitespace-nowrap overflow-hidden" :class="{'opacity-0 w-0': !isExpanded, 'w-full': isExpanded}">
                     {{ item.label }}
+                </span>
+            </button>
+
+            <!-- Conditionally render Wireframes external link -->
+            <button
+                v-if="props.hasWireframes && props.wireframeShareUrl"
+                @click="openWireframes"
+                class="block w-full text-left py-3 px-1 mb-2 rounded-lg text-gray-700 font-medium flex items-center hover:bg-blue-50"
+            >
+                <span class="icon-container" :class="{'mr-3': isExpanded}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h6m0 0v6m0-6l-8 8M7 7v10a2 2 0 002 2h10"/></svg>
+                </span>
+                <span class="label-text whitespace-nowrap overflow-hidden" :class="{'opacity-0 w-0': !isExpanded, 'w-full': isExpanded}">
+                    Wireframes
                 </span>
             </button>
         </nav>
