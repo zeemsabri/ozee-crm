@@ -150,6 +150,7 @@ class MagicLinkController extends Controller
             // Validate the request
             $validator = Validator::make($request->all(), [
                 'email' => 'required|email',
+                'url' => 'nullable|url',
             ]);
 
             if ($validator->fails()) {
@@ -202,18 +203,36 @@ class MagicLinkController extends Controller
                 'used' => false,
             ]);
 
-            // Generate the magic link URL
-            $url = URL::temporarySignedRoute(
-                'client.magic-link-login',
-                $expiresAt,
-                ['token' => $token]
-            );
+            // --- The Core Change: Conditional URL Generation ---
+            if ($request->has('url')) {
+                // If a URL is provided in the request, append the token to it
+                // We'll generate a temporary signed route for validation,
+                // then extract the signature and expires parameter and add it to the user's provided URL.
+                $url = URL::temporarySignedRoute(
+                    'client.magic-link-login',
+                    $expiresAt,
+                    ['token' => $token]
+                );
+
+                // Extract the signed parameters and append them to the provided URL
+                $signedParameters = parse_url($url, PHP_URL_QUERY);
+                $baseUrl = $request->input('url');
+                $finalUrl = $baseUrl . $token . '&' . $signedParameters;
+
+            } else {
+                // Fallback to the default, named route
+                $finalUrl = URL::temporarySignedRoute(
+                    'client.magic-link-login',
+                    $expiresAt,
+                    ['token' => $token]
+                );
+            }
 
             // Render the email template
             $emailContent = View::make('emails.magic-link', [
                 'magicLink' => $magicLink,
                 'project' => $project,
-                'url' => $url
+                'url' => $finalUrl
             ])->render();
 
             // Send the magic link email using GmailService
