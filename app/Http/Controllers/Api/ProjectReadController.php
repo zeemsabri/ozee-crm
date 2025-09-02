@@ -360,13 +360,7 @@ class ProjectReadController extends Controller
         $user = Auth::user();
         $userId = $request->user_id; // Use request() helper
 
-        if (!$this->canAccessProject($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
-        }
-        // If no specific user_id is requested, and user doesn't have general view permission
-        if (!$this->canViewProjectTransactions($user, $project) && !$userId && ($userId && $userId !== Auth::id())) { // Check general permission if not user-specific
-            return response()->json(['message' => 'Unauthorized. You do not have permission to view transactions.'], 403);
-        }
+        $this->authorize('view', $project);
 
         // Start building the query for transactions
         $transactionsQuery = $project->transactions()->with(['transactionType', 'user' => function ($query) {
@@ -575,9 +569,7 @@ class ProjectReadController extends Controller
     {
         $user = Auth::user();
         // Assuming 'view tasks' permission is covered by general project access or a specific task permission
-        if (!$this->canAccessProject($user, $project)) { // You might want a more granular permission check here if tasks are very sensitive
-            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
-        }
+        $this->authorize('view', $project);
 
         $milestoneIds = $project->milestones()->pluck('id')->toArray();
 
@@ -863,9 +855,8 @@ class ProjectReadController extends Controller
     {
         $user = Auth::user();
         // Assuming that viewing meetings is covered by general project access, or you can add a specific permission here.
-        if (!$this->canAccessProject($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
-        }
+        $this->authorize('view', $project);
+
         $now = NOW()->addHour();
         $meetings = $project->meetings()
             ->where('start_time', '>', $now)
