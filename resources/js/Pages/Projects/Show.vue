@@ -39,6 +39,8 @@ import TaskList from '@/Components/TaskList.vue';
 import { sidebarState, openTaskDetailSidebar, closeTaskDetailSidebar } from '@/Utils/sidebar';
 import * as taskState from '@/Utils/taskState.js';
 import ProjectDeliverableTab from "@/Components/ProjectsDeliverables/ProjectDeliverableTab.vue";
+import RightSidebar from '@/Components/RightSidebar.vue';
+import DeliverableDetailSidebar from '@/Components/ProjectsDeliverables/DeliverableDetailSidebar.vue';
 
 // New import for the deliverables overview card
 import ProjectDeliverablesOverviewCard from '@/Components/ProjectDashboard/ProjectDeliverablesOverviewCard.vue';
@@ -77,6 +79,10 @@ const showComposeEmailModal = ref(false);
 const showGlobalCreateTaskModal = ref(false);
 const showCreateSeoReportModal = ref(false);
 const selectedSeoReportInitialData = ref(null);
+
+// Deliverable detail sidebar state
+const showDeliverableSidebar = ref(false);
+const selectedDeliverableId = ref(null);
 
 const statusOptions = [
     { value: 'active', label: 'Active' },
@@ -301,6 +307,21 @@ watch(sidebarState, (newState, oldState) => {
     }
 }, { deep: true });
 
+// Deliverable sidebar handlers
+const handleOpenDeliverableDetailSidebar = (deliverableId) => {
+    selectedDeliverableId.value = deliverableId;
+    showDeliverableSidebar.value = true;
+};
+
+const handleCloseDeliverableSidebar = () => {
+    showDeliverableSidebar.value = false;
+    const hadSelection = !!selectedDeliverableId.value;
+    selectedDeliverableId.value = null;
+    if (hadSelection) {
+        // Refresh project data when closing after viewing a deliverable, to reflect any updates
+        fetchProjectData();
+    }
+};
 
 const openGlobalCreateTaskModal = () => {
     showGlobalCreateTaskModal.value = true;
@@ -733,6 +754,27 @@ onMounted(async () => {
             @close="showCreateSeoReportModal = false"
             @saved="handleSeoReportSaved"
         />
+
+
+        <RightSidebar
+            :show="showDeliverableSidebar"
+            @update:show="(v) => showDeliverableSidebar = v"
+            :title="selectedDeliverableId ? 'Deliverable Details' : 'Details'"
+            :initialWidth="50"
+        >
+            <template #content>
+                <DeliverableDetailSidebar
+                    v-if="selectedDeliverableId"
+                    :project-id="projectId"
+                    :deliverable-id="selectedDeliverableId"
+                    @close="handleCloseDeliverableSidebar"
+                    @deliverable-updated="fetchProjectData"
+                />
+                <div v-else-if="showDeliverableSidebar" class="p-4 text-gray-500">
+                    No deliverable selected.
+                </div>
+            </template>
+        </RightSidebar>
 
     </AuthenticatedLayout>
 </template>

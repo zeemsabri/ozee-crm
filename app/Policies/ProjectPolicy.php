@@ -26,6 +26,10 @@ class ProjectPolicy
     public function view(User $user, Project $project): bool
     {
         // Check if user has permission to view projects
+        if($this->userHasProjectPermission($user, 'view_projects', $project->id)) {
+            return true;
+        }
+
         if ($user->hasPermission('view_projects')) {
             // For contractors, additional check if they are assigned to the project
             if ($user->isContractor()) {
