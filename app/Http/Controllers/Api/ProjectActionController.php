@@ -760,9 +760,8 @@ class ProjectActionController extends Controller
     public function addStandup(Request $request, Project $project)
     {
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project) || !$this->canAddProjectNotes($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have permission to add standups.'], 403);
-        }
+
+        $this->authorize('view', $project);
 
         $validated = $request->validate([
             'yesterday' => 'required|string',
