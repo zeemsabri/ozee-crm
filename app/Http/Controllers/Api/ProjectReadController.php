@@ -262,13 +262,8 @@ class ProjectReadController extends Controller
      */
     public function getProjectUsers(Project $project)
     {
-        $user = Auth::user();
-        if (!$this->canAccessProject($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
-        }
-        if (!$this->canViewUsers($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have permission to view team members.'], 403);
-        }
+
+        $this->authorize('view', $project);
 
         $project->load(['users' => function ($query) {
             $query->withPivot('role_id'); // Ensure pivot data (earning, bonus) is loaded
