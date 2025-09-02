@@ -505,10 +505,8 @@ class ProjectReadController extends Controller
      */
     public function getNotes(Project $project, Request $request)
     {
-        $user = Auth::user();
-        if (!$this->canAccessProject($user, $project) || !$this->canViewProjectNotes($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have permission to view notes.'], 403);
-        }
+
+        $this->authorize('view', $project);
 
         $notesQuery = $project->notes()->with('user')->whereNull('parent_id');
 
@@ -588,12 +586,7 @@ class ProjectReadController extends Controller
     {
         $user = Auth::user();
         // Use canViewProjectNotes from the trait
-        if (!$this->canViewProjectNotes($user, $project)) {
-            return response()->json([
-                'message' => 'Unauthorized. You do not have permission to view notes or replies.',
-                'success' => false
-            ], 403);
-        }
+        $this->authorize('view', $project);
 
         if ($note->project_id !== $project->id) {
             return response()->json([
