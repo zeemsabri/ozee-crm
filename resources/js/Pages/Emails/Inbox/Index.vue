@@ -10,6 +10,7 @@ import ComposeEmailContent from '@/Pages/Emails/Inbox/Components/ComposeEmailCon
 import CustomComposeEmailContent from '@/Pages/Emails/Inbox/Components/CustomComposeEmailContent.vue';
 import EmailActionContent from '@/Pages/Emails/Inbox/Components/EmailActionContent.vue';
 import ReceivedEmailActionContent from '@/Pages/Emails/Inbox/Components/ReceivedEmailActionContent.vue';
+import CustomEmailApprovalContent from '@/Pages/Emails/Inbox/Components/CustomEmailApprovalContent.vue';
 import { usePermissions, usePermissionStore } from '@/Directives/permissions.js';
 import { fetchEmails as fetchEmailsApi, markAsRead as markAsReadApi } from '@/Services/api-service.js';
 import axios from 'axios';
@@ -86,7 +87,9 @@ const sidebarTitle = computed(() => {
     } else if (inboxState.sidebar.mode === 'compose') {
         return 'Compose New Email';
     } else if (inboxState.sidebar.mode === 'edit') {
-        return 'Edit & Approve Email';
+        return 'Edit & Approve Template Email';
+    } else if (inboxState.sidebar.mode === 'custom-edit') {
+        return 'Edit & Approve Custom Email';
     } else if (inboxState.sidebar.mode === 'reject') {
         return 'Reject Email';
     } else if (inboxState.sidebar.mode === 'received-edit') {
@@ -206,8 +209,13 @@ const handleEditEmail = (email) => {
         inboxState.sidebar.mode = 'received-edit';
         inboxState.sidebar.title = 'Approve Received Email';
     } else {
-        inboxState.sidebar.mode = 'edit';
-        inboxState.sidebar.title = 'Edit & Approve Email';
+        if (!email.template_id) {
+            inboxState.sidebar.mode = 'custom-edit';
+            inboxState.sidebar.title = 'Edit & Approve Custom Email';
+        } else {
+            inboxState.sidebar.mode = 'edit';
+            inboxState.sidebar.title = 'Edit & Approve Template Email';
+        }
     }
 };
 
@@ -365,6 +373,13 @@ watch(() => inboxState.filters, () => {
                                     :email="inboxState.sidebar.data"
                                     @submitted="handleSubmitted"
                                     @error="() => console.log('Error from received-edit')"
+                                />
+                            </div>
+                            <div v-else-if="inboxState.sidebar.mode === 'custom-edit'">
+                                <CustomEmailApprovalContent
+                                    :email="inboxState.sidebar.data"
+                                    @submitted="handleSubmitted"
+                                    @error="() => {}"
                                 />
                             </div>
                             <div v-else-if="inboxState.sidebar.mode === 'custom-compose'">

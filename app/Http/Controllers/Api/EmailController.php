@@ -151,12 +151,9 @@ class EmailController extends Controller
             // Determine primary client for the conversation
             $primaryClientId = $validated['selected_client_id'] ?? ($clientIds[0] ?? null);
 
-            $conversation = Conversation::firstOrCreate(
+            $conversation = Conversation::create(
                 [
                     'project_id' => $validated['project_id'],
-                    // For multiple clients, use project_id as the primary identifier
-                ],
-                [
                     'subject' => $validated['subject'], // Use email subject as conversation subject if new
                     'contractor_id' => $user->id,
                     'client_id' => $primaryClientId,
