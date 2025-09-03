@@ -112,6 +112,12 @@ Route::get('/magic-link-error', function () {
 Route::get('/email-preview/{slug?}', [EmailPreviewController::class, 'preview'])->name('email.preview');
 
 // Privacy Policy Route - publicly accessible
+
+// Public Presentation viewer by share token
+Route::get('/view/{share_token}', function ($share_token) {
+    $presentation = \App\Models\Presentation::with(['slides' => function($q){ $q->orderBy('display_order')->with(['contentBlocks' => function($qq){ $qq->orderBy('display_order'); }]); }])->where('share_token', $share_token)->firstOrFail();
+    return Inertia::render('Presentations/PublicPresenter', [ 'presentation' => $presentation ]);
+});
 Route::get('/privacy-policy', function () {
     return view('privacy-policy');
 })->name('privacy.policy');
@@ -157,6 +163,15 @@ Route::get('/notice/track/{id}/{email?}', [EmailTrackingController::class, 'noti
 // Authenticated routes group for Inertia pages that require a logged-in user
 // The 'verified' middleware ensures the user's email is verified (optional, remove if not needed for MVP)
 Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) {
+
+    // Presentations module pages
+    Route::get('/presentations', function () {
+        return Inertia::render('Presentations/PresentationList');
+    })->name('presentations.index');
+
+    Route::get('/presentations/{id}/edit', function ($id) {
+        return Inertia::render('Presentations/EditorView', [ 'presentationId' => (int) $id ]);
+    })->name('presentations.edit');
 
     // Test route for BaseFormModal demonstration
     Route::get('/test/form-modal', function () {

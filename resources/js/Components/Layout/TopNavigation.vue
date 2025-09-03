@@ -10,6 +10,7 @@ import { usePermissions } from '@/Directives/permissions';
 import { Bell, Plus, Award } from 'lucide-vue-next'; // Using lucide icons for a modern look
 import AdminDropdown from '@/Components/Layout/AdminDropdown.vue';
 import UserDropdown from '@/Components/Layout/UserDropdown.vue';
+import BonusDropdown from '@/Components/Layout/BonusDropdown.vue';
 
 const props = defineProps({
     unreadNotificationCount: {
@@ -135,15 +136,10 @@ onMounted(async () => {
                         <NavLink :href="route('workspace.index')" :active="route().current('workspace.index')">
                             My Workspace
                         </NavLink>
-                        <NavLink :href="route('bonus-system.index')" :active="route().current('bonus-system.index')">
-                            Bonus System
+                        <NavLink :href="route('presentations.index')" :active="route().current('presentations.index')">
+                            Presentation
                         </NavLink>
-                        <NavLink :href="route('leaderboard.index')" :active="route().current('leaderboard.index')">
-                            Leaderboard
-                        </NavLink>
-                        <NavLink :href="route('kudos.index')" :active="route().current('kudos.index')">
-                            Kudos
-                        </NavLink>
+                        <BonusDropdown />
                         <NavLink v-if="canDo('add_expendables').value" :href="route('project-expendables.index')">
                             Project Expendables
                         </NavLink>
@@ -185,7 +181,7 @@ onMounted(async () => {
 
         <!-- Mobile Navigation Menu -->
         <div :class="{'block': showingNavigationDropdown, 'hidden': !showingNavigationDropdown}" class="sm:hidden">
-            <div class="space-y-1 pt-2 pb-3">
+        <div class="space-y-1 pt-2 pb-3">
                 <NavLink :href="route('dashboard')" :active="route().current('dashboard')">
                     Dashboard
                 </NavLink>
@@ -194,6 +190,9 @@ onMounted(async () => {
                 </NavLink>
                 <NavLink :href="route('workspace.index')" :active="route().current('workspace.index')">
                     My Workspace
+                </NavLink>
+                <NavLink :href="route('presentations.index')" :active="route().current('presentations.index')">
+                    Presentation
                 </NavLink>
                 <NavLink :href="route('bonus-system.index')" :active="route().current('bonus-system.index')">
                     Bonus System
@@ -207,15 +206,6 @@ onMounted(async () => {
                 <NavLink v-if="canDo('add_expendables').value" :href="route('project-expendables.index')">
                     Project Expendables
                 </NavLink>
-                <div class="flex items-center p-3">
-                    <PrimaryButton
-                        type="button"
-                        @click="router.visit(route('leaderboard.index'))"
-                        class="px-4 py-2 text-sm w-full"
-                    >
-                        Go to Leaderboard
-                    </PrimaryButton>
-                </div>
             </div>
         </div>
     </nav>
