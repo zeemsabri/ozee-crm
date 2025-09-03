@@ -1,129 +1,171 @@
-Project: Dynamic Presentation Generator
-Phase 2: Frontend Implementation (Vue.js)
-Document Version: 1.0
-Date: September 3, 2025
-Status: Approved
+Comprehensive Code & Design Review for Presentation Builder
+1. Introduction
+This document provides a detailed analysis of the Presentation Builder application, focusing on resolving critical reactivity issues, improving code architecture for maintainability, and enhancing the user interface (UI) and user experience (UX). The following sections outline the core problems, propose concrete solutions, and offer design recommendations to create a more robust, stable, and polished application.
 
-1. Objective
-This document details the step-by-step plan for building the frontend interface for the Dynamic Presentation Generator within our existing Vue.js-based CRM. The goal is to create an intuitive and efficient user experience for our team to create, manage, and share dynamic presentations by consuming the backend API.
+2. High Priority: Core Functionality & Reactivity
+The most significant issue is the need to refresh the page to see updates after performing actions like adding or deleting slides. This is caused by a lack of robust error handling and incorrect local state management.
 
-The project will be broken down into logical phases, starting with core setup and progressively building out the user-facing components.
+2.1. The "Why Refresh?" Problem: Silent API Failures
+Problem: In presentationStore.js, asynchronous actions (addSlide, deleteSlide, etc.) lack try...catch blocks. If an API call fails, the promise rejects, the function halts, and the state update code is never executed. The UI doesn't change, leaving the user confused and the application state out of sync with the server.
 
-2. Phase 1: Core Setup & Services
-This foundational phase involves setting up the necessary tools and services that all other components will rely on.
+Solution: Wrap every API call in the Pinia store with try...catch...finally blocks to handle all possible outcomes gracefully.
 
-Task 2.1: Project Scaffolding & API Client
+Example Implementation (presentationStore.js):
 
-Integrate a new module or set of routes within the existing CRM for the presentation generator.
+// Before (Unsafe)
+async deleteSlide(slideId) {
+  await api.deleteSlide(slideId);
+  this.presentation.slides = this.presentation.slides.filter(s => s.id !== slideId);
+  // ...
+}
 
-Create a dedicated API service client (e.g., using Axios). This client will be configured with the base URL for the API (/api/v1/) and will handle all HTTP requests and error handling in a centralized location.
+// After (Robust & User-Friendly)
+import { success, error } from '@/Utils/notification'; // Assuming you have this
 
-Task 2.2: State Management Setup
+// ... in actions:
+async deleteSlide(slideId) {
+  // 1. Give the user immediate visual feedback (optional but good UX)
+  const originalSlides = [...this.presentation.slides];
+  this.presentation.slides = this.presentation.slides.filter(s => s.id !== slideId);
 
-Integrate a state management library (e.g., Pinia is recommended for modern Vue 3).
+  try {
+    await api.deleteSlide(slideId);
+    success('Slide deleted successfully.'); // Notify user on success
+  } catch (e) {
+    // 2. If the API fails, show an error and revert the change
+    error('Failed to delete slide. Please try again.');
+    this.presentation.slides = originalSlides; // Revert state
+    console.error(e); // Log for debugging
+  }
+}
 
-Define a presentation store. This store will hold the state of the presentation currently being edited, including the main details, all slides, and all content blocks. This is crucial for managing the complex data structure of the editor.
+2.2. Incorrect State Updates on Reordering
+Problem: The reorderSlides and reorderBlocks actions have flawed logic for updating the local state. They reorder the items but fail to correctly update the display_order property, leading to data inconsistency that a refresh temporarily fixes.
 
-The initial state structure should mirror the JSON response from the GET /presentations/{id} endpoint.
+Solution: After a successful reorder API call, update the local array by mapping over the new ID order and assigning the correct index as the new display_order.
 
-3. Phase 2: Presentation Management Dashboard
-This phase focuses on building the main dashboard where users can view and manage all presentations.
+Example Implementation (presentationStore.js):
 
-Task 3.1: Component: PresentationList.vue
+async reorderSlides(newOrderIds) {
+  const orders = newOrderIds.map((id, i) => ({ id, display_order: i + 1 }));
+  try {
+    await api.reorderSlides(orders);
 
-This component will be the main entry point.
+    // Correctly reorder the local state
+    const slideMap = new Map(this.presentation.slides.map(s => [s.id, s]));
+    this.presentation.slides = newOrderIds.map((id, index) => {
+      const slide = slideMap.get(id);
+      if (slide) {
+        slide.display_order = index + 1; // Assign the new, correct order
+      }
+      return slide;
+    }).filter(Boolean); // Filter out any potential undefined slides
 
-On load, it will call the GET /presentations endpoint via the API client.
+    success('Slides reordered.');
+  } catch (e) {
+    error('Failed to reorder slides.');
+    // Consider reverting to a snapshot of the state before the try block
+    console.error(e);
+  }
+}
 
-It will display the presentations in a table with columns for Title, Associated Client/Lead, Type, and Date Created.
+3. UI/UX & Design Enhancements
+The application is functional, but several design adjustments can significantly improve usability and aesthetics.
 
-Each row will have an "Edit" button that navigates to the main editor view for that presentation, and a "Delete" button that calls the DELETE /presentations/{id} endpoint.
+3.1. Toolbar and Layout Redesign
+Problem: The top toolbar in EditorView.vue is too large, consuming valuable vertical space and constricting the main editor and preview panes.
 
-A "Create New Presentation" button will trigger the PresentationForm component.
+Solution: Transition to a vertical, icon-based toolbar on the left side of the screen. This is a standard design pattern in editor applications (e.g., VS Code, Figma) that maximizes the horizontal workspace.
 
-Task 3.2: Component: PresentationForm.vue
+Implementation Steps:
 
-This component will be used for both creating and editing a presentation's top-level details. It can be a modal or a separate page.
+Modify EditorView.vue Layout:
 
-It will contain a form with fields for:
+Change the root div from flex-col to flex-row.
 
-title (text input)
+Place the <Toolbar> component outside and to the left of the <Splitpanes> container.
 
-type (dropdown: 'Audit Report', 'Proposal', etc.)
+Give the <Splitpanes> container a flex-1 class to make it fill the remaining space.
 
-A searchable dropdown to select the presentable (Client or Lead). This will require an endpoint to search your client/lead models.
+<!-- EditorView.vue -->
+<template>
+  <AuthenticatedLayout>
+    <!-- Changed to flex-row -->
+    <div class="flex flex-row h-screen bg-gray-50">
+      <!-- Toolbar is now the first item in the row -->
+      <Toolbar
+        :actions="['save', 'export', 'collaborate', 'theme']"
+        aria-label="Editor toolbar"
+      />
+      <!-- Splitpanes takes up the remaining space -->
+      <Splitpanes class="flex-1">
+        <!-- ... Panes ... -->
+      </Splitpanes>
+    </div>
+  </AuthenticatedLayout>
+</template>
 
-On submit, it will call either POST /presentations or PUT /presentations/{id}.
+Redesign the Toolbar.vue Component:
 
-4. Phase 3: The Main Editor View
-This is the core workspace for building a presentation. It will be a single-page interface composed of several child components.
+Change its container to be a narrow div with flex-col.
 
-Task 4.1: View: EditorView.vue
+Make the buttons icon-only to save space.
 
-This is the parent container component for the entire editor.
+Use tooltips on hover to show the action's label (Save, Export PDF, etc.). This can be achieved with a simple custom component or a library like floating-vue.
 
-When this view is loaded (e.g., at a route like /presentations/{id}/edit), it will call the GET /presentations/{id} endpoint and populate the Pinia store with the full presentation data.
+Remove the max-w-[50px] from the toolbar's class in EditorView.vue and manage the width (e.g., w-16) within the Toolbar.vue component itself.
 
-It will have a two-column layout: a sidebar for slide management and a main content area for editing the selected slide.
+3.2. Visual Polish and Consistency
+Centralize Styles: The .btn, .btn-primary, and other utility styles are repeated across multiple components. Move them to a single global CSS file (e.g., assets/css/main.css) to ensure consistency and simplify future design changes.
 
-Task 4.2: Component: SlideManager.vue
+Improve Hover and Focus States: Enhance interactivity by adding more distinct background colors, shadows, or borders on hover/focus for clickable elements, especially the slide items in SlideManager and content blocks in SlideEditor.
 
-This component will render in the sidebar of the EditorView.
+Loading Indicators: For actions like adding a slide or block, disable the button and show a spinner inside it. This provides clear, contextual feedback that an operation is in progress.
 
-It will display a list of all slides from the presentation data in the store.
+3.3. Smoother User Flow
+Auto-Select New Slides: In the addSlide action in your Pinia store, after successfully creating a slide and adding it to the state, automatically set it as the selectedSlideId. This removes the need for the user to manually find and click the new slide.
 
-Crucially, it must implement drag-and-drop functionality (e.g., using a library like VueDraggable). When the user reorders the slides, this component will call the POST /slides/reorder endpoint with the new sequence of slide IDs.
+Consistent Confirmation Dialogs: Replace the native browser confirm('Delete slide?') in SlideManager.vue with your custom confirmPrompt utility to maintain a consistent UI for all user confirmations.
 
-It will include buttons to "Add New Slide" and "Delete Selected Slide."
+4. Code Architecture & Best Practices
+Refactoring key areas of the codebase will make it more scalable and easier to maintain.
 
-5. Phase 4: The Slide Content Editor
-This is the most interactive and complex part of the application, where users build the content of each slide.
+4.1. Don't Repeat Yourself (DRY)
+Problem: The getRenderer(b) function, which translates block data into renderable components, is duplicated in SlidePreview.vue and SlideThumbnail.vue.
 
-Task 5.1: Component: SlideEditor.vue
+Solution: Create a Vue Composable to house this shared logic.
 
-This component occupies the main content area of the EditorView.
+Example (/composables/useBlockRenderer.js):
 
-It displays the content for the currently selected slide (as chosen in the SlideManager).
+import { h } from 'vue';
 
-It will feature a dropdown to change the template_name for the current slide.
+export function useBlockRenderer() {
+  function getRenderer(block, theme = 'light') {
+    // ... paste the logic from SlidePreview.vue here ...
+    // Make sure it can accept a theme/context parameter if needed.
+  }
+  return { getRenderer };
+}
 
-It will display a list of ContentBlockForm components for each block on the slide.
+You can then import and use it in any component: const { getRenderer } = useBlockRenderer();.
 
-It must also have drag-and-drop functionality for reordering content blocks within the slide, which will call the POST /content_blocks/reorder endpoint.
+4.2. Improve Component Scalability
+Problem: ContentBlockForm.vue uses a long v-if/v-else-if chain to render different forms. This will become unmanageable as you add more block types.
 
-Task 5.2: Component: ContentBlockForm.vue
+Solution: Use dynamic components. Create a separate form component for each block type (e.g., HeadingForm.vue, ParagraphForm.vue) and use <component :is="..."> to render the appropriate one. This decouples the parent from the children and makes adding new block types as simple as creating a new file.
 
-This is a dynamic component that renders the correct form fields based on the block_type prop it receives.
+4.3. Centralize Configuration
+Problem: Configuration data, such as the list of templates and the payloads for new blocks in SlideEditor.vue, is hardcoded within components.
 
-Example logic:
+Solution: Move this data to a central configuration file (e.g., /config/editor.js). This makes it easy to find, update, and reuse this information across the application.
 
-If block_type is 'heading', it shows a text input for text and a dropdown for level.
+5. Conclusion
+The foundation of your application is strong. By focusing on these key areas, you can resolve the frustrating reactivity bugs, create a more professional and intuitive user interface, and build a more maintainable and scalable codebase for the future.
 
-If block_type is 'image', it shows a file uploader and an input for alt_text.
+Recommended Action Plan:
 
-If block_type is 'feature_card', it shows inputs for icon, title, and description.
+Implement try/catch blocks and user notifications in presentationStore.js to fix the core stability issues.
 
-Any changes in these forms will update the data in the Pinia store, which will trigger a live preview update. Changes should be auto-saved to the backend (PUT /content_blocks/{id}) after a short delay (debouncing).
+Refactor the EditorView and Toolbar components to implement the space-saving vertical toolbar design.
 
-Task 5.3: Component: SlidePreview.vue
-
-This component will render a live, non-editable preview of the slide.
-
-It will reactively update whenever the data in the Pinia store changes.
-
-It will use the template_name to apply the correct layout and will loop through the content_blocks to render the content, closely mimicking the final public view.
-
-6. Phase 5: Public View & Final Integration
-Task 6.1: Component: PublicPresenter.vue
-
-This component will be responsible for rendering the final, client-facing presentation. It will live on a public-facing route (e.g., /view/{share_token}).
-
-It will fetch the presentation data and dynamically render the slides and content blocks.
-
-The HTML structure, CSS, and interactive JavaScript from the original .html files will be adapted into this component's template and logic.
-
-Task 6.2: Final CRM Integration
-
-In the PresentationList.vue component, add a "Share" button.
-
-This button will copy the public URL (containing the share_token) to the user's clipboard, making it easy for our team to share the final presentation with clients and leads.
+Address the remaining UI/UX and code architecture suggestions to elevate the overall quality of the application.

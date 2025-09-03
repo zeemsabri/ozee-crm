@@ -1,70 +1,151 @@
 <template>
-  <div>
-    <div v-if="!slide">Select a slide</div>
-    <div v-else>
-      <div class="flex items-center gap-2 mb-3">
-        <label class="text-sm">Template</label>
-        <select class="border rounded p-1" v-model="slide.template_name" @change="updateSlide">
-          <option>Heading</option>
-          <option>TwoColumnWithImage</option>
-        </select>
-        <input class="border rounded p-1 flex-1" v-model="slide.title" placeholder="Slide title" @change="updateSlide" />
-        <button class="btn btn-sm" @click="addBlock('heading')">+ Heading</button>
-        <button class="btn btn-sm" @click="addBlock('paragraph')">+ Paragraph</button>
-        <button class="btn btn-sm" @click="addBlock('feature_card')">+ Feature</button>
-      </div>
-      <ul>
-        <li v-for="b in (slide.content_blocks||[])" :key="b.id" class="border rounded p-2 mb-2">
-          <div class="flex justify-between items-center mb-2">
-            <div class="font-semibold">{{ b.block_type }}</div>
-            <div class="space-x-1">
-              <button class="btn btn-xs" @click="moveBlockUp(b)">↑</button>
-              <button class="btn btn-xs" @click="moveBlockDown(b)">↓</button>
-              <button class="btn btn-xs text-red-600" @click="removeBlock(b)">✕</button>
+    <div class="bg-white rounded-lg shadow-md h-full flex flex-col">
+        <div v-if="!slide" class="text-gray-500 text-center py-10">Select a slide</div>
+        <div v-else class="flex flex-col h-full">
+            <!-- Conditional UI: Template Selector or Editor -->
+
+            <div class="flex flex-col h-full">
+                <!-- Sticky Title and Block Toolbox -->
+                <div class="flex gap-4 items-center p-6 bg-white sticky top-0 z-10 shadow-sm border-b">
+                    <input
+                        v-model="slide.title"
+                        @change="updateSlide"
+                        placeholder="Slide title"
+                        class="flex-1 border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
+                        aria-label="Slide title"
+                    />
+                    <block-toolbox
+                        @add="addBlock"
+                        :types="['heading', 'paragraph', 'feature_card', 'image', 'chart']"
+                        aria-label="Add content block"
+                    />
+                </div>
+
+                <!-- Draggable Content Blocks with Scroll -->
+                <draggable
+                    v-model="contentBlocks"
+                    item-key="id"
+                    class="space-y-4 p-6 overflow-y-auto flex-1"
+                    handle=".drag-handle"
+                    @end="reorderBlocks"
+                    role="list"
+                    aria-label="Content blocks"
+                >
+                    <template #item="{ element: b }">
+                        <div
+                            class="border border-gray-200 rounded-lg p-4 bg-gray-50 hover:shadow-md transition-shadow duration-200"
+                            role="listitem"
+                        >
+                            <div class="flex justify-between mb-3 items-center">
+                                <div class="flex items-center gap-3">
+                                    <span class="font-bold drag-handle cursor-move text-gray-700">{{ b.block_type }}</span>
+                                    <span v-if="store.savingBlocks[b.id]" class="text-xs text-gray-500">Saving…</span>
+                                    <span v-else class="text-xs text-green-600">Saved ✓</span>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button @click="duplicateBlock(b)" class="btn btn-xs" aria-label="Duplicate block">Duplicate</button>
+                                    <button @click="removeBlock(b)" class="btn btn-xs text-red-500" aria-label="Delete block">Delete</button>
+                                </div>
+                            </div>
+                            <ContentBlockForm :block="b" @update="onUpdateBlock(b, $event)" />
+                        </div>
+                    </template>
+                </draggable>
             </div>
-          </div>
-          <ContentBlockForm :block="b" @update="onUpdateBlock(b, $event)" />
-        </li>
-      </ul>
+        </div>
     </div>
-  </div>
 </template>
+
 <script setup>
 import { computed } from 'vue';
 import { usePresentationStore } from '@/Stores/presentationStore';
+import { confirmPrompt } from '@/Utils/notification';
 import ContentBlockForm from './ContentBlockForm.vue';
+import draggable from 'vuedraggable';
+import BlockToolbox from './Components/BlockToolbox.vue';
 
 const store = usePresentationStore();
-const slide = computed(()=>store.selectedSlide);
+const slide = computed(() => store.selectedSlide || { content_blocks: [] });
+const contentBlocks = computed({
+    get: () => slide.value.content_blocks || [],
+    set: () => {}, // persist on @end only
+});
 
-async function updateSlide(){
-  if (!slide.value) return;
-  await store.updateSlide(slide.value.id, { template_name: slide.value.template_name, title: slide.value.title });
+const templates = [
+    { name: 'Heading', label: 'Heading Slide', icon: '📝' },
+    { name: 'TwoColumnWithImage', label: 'Image with Text', icon: '🖼️' },
+    { name: 'FeatureGrid', label: 'Feature Grid', icon: '✨' },
+    { name: 'ChartSlide', label: 'Chart Slide', icon: '📊' },
+];
+
+const payloads = {
+    heading: [{ block_type: 'heading', content_data: { text: 'New Heading', level: 2 } }],
+    TwoColumnWithImage: [
+        { block_type: 'heading', content_data: { text: 'Title Here', level: 2 } },
+        { block_type: 'image', content_data: { url: '', alt: 'Image' } },
+        { block_type: 'paragraph', content_data: { text: 'Add some descriptive text here.' } },
+    ],
+    FeatureGrid: [
+        { block_type: 'heading', content_data: { text: 'Key Features', level: 2 } },
+        { block_type: 'feature_card', content_data: { icon: 'fa-star', title: 'Feature One', description: 'Description of feature one.' } },
+        { block_type: 'feature_card', content_data: { icon: 'fa-check', title: 'Feature Two', description: 'Description of feature two.' } },
+        { block_type: 'feature_card', content_data: { icon: 'fa-bolt', title: 'Feature Three', description: 'Description of feature three.' } },
+    ],
+    ChartSlide: [{ block_type: 'chart', content_data: { type: 'bar', data: { labels: ['A', 'B', 'C'], values: [10, 20, 30] } } }],
+};
+
+async function updateSlide() {
+    if (!slide.value?.id) return;
+    await store.updateSlide(slide.value.id, { title: slide.value.title });
 }
-async function addBlock(type){
-  if (!slide.value) return;
-  const payloads = {
-    heading: { block_type: 'heading', content_data: { text: 'Heading text', level: 2 } },
-    paragraph: { block_type: 'paragraph', content_data: { text: 'Lorem ipsum' } },
-    feature_card: { block_type: 'feature_card', content_data: { icon: 'fa-star', title: 'Feature', description: 'Description' } },
-  };
-  await store.addBlock(slide.value.id, payloads[type]);
+
+async function addTemplateBlocks(templateName) {
+    if (!slide.value?.id || !payloads[templateName]) return;
+    await store.updateSlide(slide.value.id, { template_name: templateName });
+    for (const blockPayload of payloads[templateName]) {
+        await store.addBlock(slide.value.id, blockPayload);
+    }
 }
-function onUpdateBlock(block, content){
-  store.scheduleSaveBlock(block.id, content);
+
+async function addBlock(type) {
+    if (!slide.value?.id) return;
+    const blockPayloads = {
+        heading: { block_type: 'heading', content_data: { text: 'New Block Heading', level: 2 } },
+        paragraph: { block_type: 'paragraph', content_data: { text: 'Lorem ipsum' } },
+        feature_card: { block_type: 'feature_card', content_data: { icon: 'fa-star', title: 'New Feature', description: 'Description' } },
+        image: { block_type: 'image', content_data: { url: '', alt: 'Image' } },
+        chart: { block_type: 'chart', content_data: { type: 'bar', data: {} } },
+    };
+    await store.addBlock(slide.value.id, blockPayloads[type]);
 }
-async function removeBlock(block){ await store.deleteBlock(block.id); }
-async function moveBlockUp(b){
-  const ids = (slide.value.content_blocks||[]).map(x=>x.id);
-  const idx = ids.indexOf(b.id); if(idx>0){ [ids[idx-1], ids[idx]] = [ids[idx], ids[idx-1]]; await store.reorderBlocks(slide.value.id, ids); }
+
+function onUpdateBlock(block, content) {
+    store.scheduleSaveBlock(block.id, content);
 }
-async function moveBlockDown(b){
-  const ids = (slide.value.content_blocks||[]).map(x=>x.id);
-  const idx = ids.indexOf(b.id); if(idx<ids.length-1){ [ids[idx+1], ids[idx]] = [ids[idx], ids[idx+1]]; await store.reorderBlocks(slide.value.id, ids); }
+
+async function duplicateBlock(block) {
+    if (!slide.value?.id) return;
+    await store.addBlock(slide.value.id, { block_type: block.block_type, content_data: { ...block.content_data } });
+}
+
+async function removeBlock(block) {
+    // Replaced confirm() with the custom confirmPrompt utility
+    const ok = await confirmPrompt('Delete this block?', { confirmText: 'Delete', cancelText: 'Cancel', type: 'warning' });
+    if (ok) await store.deleteBlock(block.id);
+}
+
+async function reorderBlocks() {
+    if (!slide.value?.id) return;
+    const ids = contentBlocks.value.map((x) => x.id);
+    await store.reorderBlocks(slide.value.id, ids);
 }
 </script>
+
 <style scoped>
-.btn{ @apply px-2 py-1 bg-gray-100 rounded; }
-.btn-sm{ @apply text-sm; }
-.btn-xs{ @apply text-xs; }
+.btn {
+    @apply px-3 py-1 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors;
+}
+.btn-xs {
+    @apply text-xs;
+}
 </style>
