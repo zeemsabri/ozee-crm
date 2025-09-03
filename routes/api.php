@@ -48,6 +48,7 @@ use App\Http\Controllers\Api\BugReportController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\LeadController;
+use App\Http\Controllers\Api\ProjectNoteController;
 
 
 Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
@@ -128,8 +129,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Client Management Routes (CRUD)
     Route::apiResource('clients', ClientController::class);
-    Route::apiResource('leads', LeadController::class);
+    Route::apiResource('leads', LeadController::class)->names('api.leads');
+    Route::post('leads/{lead}/convert', [LeadController::class, 'convert']);
     Route::get('clients/{client}/email', [ClientController::class, 'getEmail']);
+
+    // Generic project notes endpoints (polymorphic)
+    Route::get('/project_notes', [ProjectNoteController::class, 'index']);
+    Route::post('/project_notes', [ProjectNoteController::class, 'store']);
     Route::post('/upload-image', [ImageUploadController::class, 'upload']);
 
     // Project Management Routes (Split into Read and Action)
