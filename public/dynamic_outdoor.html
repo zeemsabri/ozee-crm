@@ -3,15 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OZEE Web & Digital - Proposal for Dynamic Outdoors</title>
+    <title>Dynamic Outdoor Proposal - Embed</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
+        /* This is the key change: we're no longer controlling the whole body. */
+        /* This container will be the size of the WordPress block it's in. */
+        .embed-container {
+            width: 100%;
+            padding: 2rem;
+            position: relative; /* All slides will be positioned relative to this container */
+            min-height: 800px; /* Give it a minimum height to prevent collapse */
             font-family: 'Montserrat', sans-serif;
-            height: 100vh;
-            overflow: hidden;
-            background-color: #F4F4F7; /* Light Grey */
+            overflow: hidden; /* Hide overflow from slide transitions */
         }
 
         .slide {
@@ -40,11 +44,12 @@
             opacity: 0;
         }
 
+        /* The slide-content is now what defines the look and feel */
         .slide-content {
             max-width: 1100px;
             width: 100%;
             padding: 3rem;
-            background-color: #FFFFFF; /* White */
+            background-color: #FFFFFF;
             border-radius: 24px;
             box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.1);
             text-align: center;
@@ -60,7 +65,7 @@
 
         /* Navigation Buttons */
         .nav-btn {
-            position: fixed;
+            position: absolute; /* Changed from fixed to absolute */
             top: 50%;
             transform: translateY(-50%);
             width: 56px;
@@ -90,351 +95,372 @@
         .animate-subtle-pulse {
             animation: subtle-pulse 2.5s ease-in-out infinite;
         }
+
+        /* Loader and Dock - Now relative to the container */
+        #loader-overlay, #dock-pagination {
+            position: absolute;
+        }
+        #loader-overlay {
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; flex-direction: column; items-center; justify-center;
+            background-color: #ffffff;
+            z-index: 50;
+        }
+
+        #dock-pagination {
+            bottom: 2rem; left: 50%; transform: translateX(-50%);
+            display: flex; items-end; gap-3;
+            z-index: 20;
+        }
+        .dock-dot {
+            width: 14px; height: 14px; border-radius: 9999px; background: #cbd5e1;
+            transition: transform 0.12s ease, background-color 0.2s ease;
+            position: relative;
+        }
+        .dock-dot.active { background: #29438E; }
+        .dock-dot:focus { outline: 2px solid #F7A823; outline-offset: 3px; }
+
+        .dock-tip {
+            position: absolute; bottom: 140%; left: 50%; transform: translateX(-50%);
+            background: rgba(17,24,39,0.9); color: #fff; padding: 6px 10px; border-radius: 8px; font-size: 12px; white-space: nowrap;
+            opacity: 0; pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease; transform-origin: bottom center;
+        }
+        .dock-tip.show { opacity: 1; transform: translateX(-50%) translateY(-2px); }
+
     </style>
 </head>
 <body class="bg-slate-100">
 
-<!-- Loader Overlay -->
-<div id="loader-overlay" class="fixed inset-0 flex flex-col items-center justify-center bg-white z-50">
-    <div class="animate-spin rounded-full h-16 w-16 border-4 border-oz-blue border-t-transparent mb-4"></div>
-    <div id="loader-text" class="text-sm text-dark-grey">Crafting your custom proposal… 0%</div>
+<!-- The new container element for the embedded content -->
+<div class="embed-container">
+
+    <!-- Loader Overlay -->
+    <div id="loader-overlay" class="fixed inset-0 flex flex-col items-center justify-center bg-white z-50">
+        <div class="animate-spin rounded-full h-16 w-16 border-4 border-oz-blue border-t-transparent mb-4"></div>
+        <div id="loader-text" class="text-sm text-dark-grey">Crafting your custom proposal… 0%</div>
+    </div>
+
+    <!-- Dock Pagination -->
+    <div id="dock-pagination" class="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-end gap-3 z-20" aria-label="Slide navigation" role="tablist"></div>
+
+    <button id="prev-button" class="nav-btn bg-oz-blue">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+    </button>
+
+    <button id="next-button" class="nav-btn bg-oz-blue">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+    </button>
+
+    <main>
+
+        <section id="intro-slide" class="slide">
+            <div class="slide-content">
+                <div class="w-100">
+                    <img src="https://ozeeweb.com.au/wp-content/uploads/2022/05/cropped-OZEE-Logo-2-1-e1754648853826.png"
+                         class="w-50 mx-auto mb-6">
+                </div>
+                <h2 class="text-4xl text-oz-gold mb-6">Your Partner in Digital Transformation</h2>
+                <p class="text-xl text-dark-grey max-w-4xl mx-auto">
+                    We are pleased to present this proposal for a custom web application designed to streamline
+                    the quoting and ordering process for Dynamic Outdoors. Our mission is to build an efficient,
+                    scalable, and connected digital future for your business.
+                </p>
+                <div class="flex justify-center mt-8 space-x-6 text-gray-500 text-sm">
+                    <span><strong>Prepared for:</strong> Benjamin Castledine</span>
+                    <span><strong>Prepared by:</strong> Zeeshan Sabri</span>
+                    <span><strong>Proposal:</strong> OZEE-475</span>
+                </div>
+            </div>
+        </section>
+
+        <section id="problem-slide" class="slide">
+            <div class="slide-content">
+                <h2 class="text-4xl font-bold text-oz-blue mb-10">The Challenge: A Disconnected Workflow</h2>
+                <div class="grid md:grid-cols-3 gap-8 text-center">
+                    <div class="p-6 rounded-xl bg-gray-50 border border-gray-200">
+                        <div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-blue text-oz-gold mx-auto mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2 text-dark-grey">Manual Quoting</h3>
+                        <p class="text-gray-600">The current quoting process for Roller Shutters and Slidetracks is a time-consuming and manual task.</p>
+                    </div>
+                    <div class="p-6 rounded-xl bg-gray-50 border border-gray-200">
+                        <div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-blue text-oz-gold mx-auto mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" /></svg>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2 text-dark-grey">Inefficient Order Management</h3>
+                        <p class="text-gray-600">Lacking a central system makes tracking orders difficult and hinders operational efficiency.</p>
+                    </div>
+                    <div class="p-6 rounded-xl bg-gray-50 border border-gray-200">
+                        <div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-blue text-oz-gold mx-auto mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.826-1.106-2.302 0-3.128a2.99 2.99 0 012.003-.659c.725 0 1.45.22 2.003.659l.879.659m0-2.219a.75.75 0 00-1.06-1.06l-1.06 1.06a.75.75 0 001.06 1.06l1.06-1.06z" /></svg>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2 text-dark-grey">Complex Pricing</h3>
+                        <p class="text-gray-600">Managing group-based discounts can be complicated, leading to potential pricing inconsistencies.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="solution-overview-slide" class="slide">
+            <div class="slide-content">
+                <h2 class="text-4xl font-bold text-oz-blue mb-4">Our Unified Solution</h2>
+                <p class="text-xl text-dark-grey max-w-4xl mx-auto mb-10">We will develop a comprehensive digital platform to enhance operational efficiency and streamline your entire sales process. The application will be built around four core pillars:</p>
+                <div class="grid md:grid-cols-4 gap-8 text-center">
+                    <div class="p-4"><div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-gold text-oz-blue mx-auto mb-4"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m-7.5-2.228a4.5 4.5 0 00-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 001.13-1.897M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.862 4.487z" /></svg></div><h3 class="text-xl font-bold text-dark-grey">User & Group Management</h3></div>
+                    <div class="p-4"><div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-gold text-oz-blue mx-auto mb-4"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12z" /></svg></div><h3 class="text-xl font-bold text-dark-grey">Quote & Order Management</h3></div>
+                    <div class="p-4"><div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-gold text-oz-blue mx-auto mb-4"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-1.007 1.11-1.11h2.592c.55.103 1.02.57 1.11 1.11l.09 1.586c.29.078.57.19.828.334l1.493-.672c.49-.222 1.054.02 1.272.512l1.295 2.242c.218.492.02 1.054-.512 1.272l-1.493.672c.044.258.078.536.078.828s-.034.57-.078.828l1.493.672c.492.218.672.78.512 1.272l-1.295 2.242c-.218.492-.782.672-1.272.512l-1.493-.672a6.721 6.721 0 01-.828.334l-.09 1.586c-.103.55-.57 1.02-1.11 1.11h-2.592c-.55-.103-1.02-.57-1.11-1.11l-.09-1.586a6.721 6.721 0 01-.828-.334l-1.493.672c-.49.222-1.054-.02-1.272-.512l-1.295-2.242c-.218-.492-.02-1.054.512-1.272l1.493-.672a6.721 6.721 0 01-.078-.828c0-.292.034-.57.078-.828l-1.493-.672c-.492-.218-.672-.78-.512-1.272l1.295-2.242c.218-.492.782-.672 1.272-.512l1.493.672A6.721 6.721 0 019.594 5.526l.09-1.586z" /></svg></div><h3 class="text-xl font-bold text-dark-grey">Product & Pricing Management</h3></div>
+                    <div class="p-4"><div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-gold text-oz-blue mx-auto mb-4"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg></div><h3 class="text-xl font-bold text-dark-grey">Invoice & Future Integration</h3></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="user-management-slide" class="slide">
+            <div class="slide-content">
+                <div class="grid md:grid-cols-2 gap-12 items-center">
+                    <div class="text-left">
+                        <h2 class="text-4xl font-bold text-oz-blue mb-4">User & Group Management</h2>
+                        <p class="text-lg text-dark-grey mb-6">Gain complete control over user access and pricing structures with an intuitive management system.</p>
+                        <ul class="space-y-4 text-gray-700">
+                            <li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Admin can create new user accounts and send login credentials via email.</span></li>
+                            <li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Secure login for users to create, manage, and convert quotes into orders.</span></li>
+                            <li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Organize users into groups with predefined percentage-based or fixed-price discounts.</span></li>
+                        </ul>
+                    </div>
+                    <div class="p-8 bg-gray-50 rounded-2xl flex items-center justify-center">
+                        <img src="https://ozeeweb.com.au/wp-content/uploads/2025/09/user_management.png">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="quote-order-slide" class="slide">
+            <div class="slide-content">
+                <div class="grid md:grid-cols-2 gap-12 items-center">
+                    <div class="p-8 bg-gray-50 rounded-2xl flex items-center justify-center">
+                        <img src="https://ozeeweb.com.au/wp-content/uploads/2025/09/quote.png">
+                    </div>
+                    <div class="text-left">
+                        <h2 class="text-4xl font-bold text-oz-blue mb-4">Quote & Order Management</h2>
+                        <p class="text-lg text-dark-grey mb-6">Streamline your entire sales cycle from initial quote to confirmed order with a seamless, automated system.</p>
+                        <ul class="space-y-4 text-gray-700">
+                            <li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Users can generate, save, and modify multiple quotes for future reference.</span></li>
+                            <li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Effortlessly convert confirmed quotes into orders with a single click.</span></li>
+                            <li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Receive automatic email notifications for new orders placed.</span></li>
+                            <li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Admin can track order status and add internal comments for team communication.</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="product-pricing-slide" class="slide">
+            <div class="slide-content">
+                <div class="grid md:grid-cols-2 gap-12 items-center">
+                    <div class="text-left">
+                        <h2 class="text-4xl font-bold text-oz-blue mb-4">Product & Pricing Management</h2>
+                        <p class="text-lg text-dark-grey mb-6">Maintain an accurate and dynamic product catalog while ensuring pricing consistency across all client groups.</p>
+                        <ul class="space-y-4 text-gray-700">
+                            <li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Full administrative control to create, update, or remove product options as your business evolves.</span></li>
+                            <li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Group-based discounts are automatically applied during quote generation for accuracy.</span></li>
+                        </ul>
+                    </div>
+                    <div class="p-8 bg-gray-50 rounded-2xl flex items-center justify-center">
+                        <img src="https://ozeeweb.com.au/wp-content/uploads/2025/09/pricing.png">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="integration-slide" class="slide">
+            <div class="slide-content">
+                <div class="grid md:grid-cols-2 gap-12 items-center">
+                    <div class="p-8 bg-gray-50 rounded-2xl flex items-center justify-center">
+                        <img src="https://ozeeweb.com.au/wp-content/uploads/2025/09/integrations.png" />
+                    </div>
+                    <div class="text-left">
+                        <h2 class="text-4xl font-bold text-oz-blue mb-4">Scalability & Future Growth</h2>
+                        <p class="text-lg text-dark-grey mb-6">Built on a robust technology stack, your application is ready for today's needs and tomorrow's growth.</p>
+                        <ul class="space-y-4 text-gray-700">
+                            <li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Initial development includes manual invoice generation with Xero.</span></li>
+                            <li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Future enhancement possibilities include full Xero and Monday.com integration.</span></li>
+                            <li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Powered by a modern tech stack (Laravel, Livewire, MySQL) for optimal performance and scalability.</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="admin-journey-slide" class="slide">
+            <div class="slide-content">
+                <h2 class="text-4xl font-bold text-oz-blue mb-10">A Day in the Life: The Admin Journey</h2>
+                <div class="relative grid grid-cols-1 md:grid-cols-4 gap-8 text-center">
+                    <div class="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gray-200" style="transform: translateY(-50%); z-index: -1;"></div>
+
+                    <div class="flex flex-col items-center p-4">
+                        <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-blue text-white border-4 border-white shadow-lg mb-4">1</div>
+                        <h3 class="text-lg font-bold mb-2 text-dark-grey">Manage Users</h3>
+                        <p class="text-sm text-gray-600">Creates client accounts, assigns them to groups, and sends login credentials.</p>
+                    </div>
+                    <div class="flex flex-col items-center p-4">
+                        <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-blue text-white border-4 border-white shadow-lg mb-4">2</div>
+                        <h3 class="text-lg font-bold mb-2 text-dark-grey">Manage Products</h3>
+                        <p class="text-sm text-gray-600">Adds or updates product options and defines group-level discounts.</p>
+                    </div>
+                    <div class="flex flex-col items-center p-4">
+                        <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-blue text-white border-4 border-white shadow-lg mb-4">3</div>
+                        <h3 class="text-lg font-bold mb-2 text-dark-grey">Process Orders</h3>
+                        <p class="text-sm text-gray-600">Receives email notifications for new orders and updates their status.</p>
+                    </div>
+                    <div class="flex flex-col items-center p-4">
+                        <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-blue text-white border-4 border-white shadow-lg mb-4">4</div>
+                        <h3 class="text-lg font-bold mb-2 text-dark-grey">Generate Invoices</h3>
+                        <p class="text-sm text-gray-600">Manually generates and shares invoices with clients using Xero.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="client-journey-slide" class="slide">
+            <div class="slide-content">
+                <h2 class="text-4xl font-bold text-oz-blue mb-10">Effortless Experience: The Client Journey</h2>
+                <div class="relative grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+                    <div class="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gray-200" style="transform: translateY(-50%); z-index: -1;"></div>
+
+                    <div class="flex flex-col items-center p-4">
+                        <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-gold text-white border-4 border-white shadow-lg mb-4">1</div>
+                        <h3 class="text-lg font-bold mb-2 text-dark-grey">Login</h3>
+                        <p class="text-sm text-gray-600">Receives credentials from the admin and logs into the application securely.</p>
+                    </div>
+                    <div class="flex flex-col items-center p-4">
+                        <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-gold text-white border-4 border-white shadow-lg mb-4">2</div>
+                        <h3 class="text-lg font-bold mb-2 text-dark-grey">Generate Quotes</h3>
+                        <p class="text-sm text-gray-600">Selects products, enters details, and saves multiple quotes for reference.</p>
+                    </div>
+                    <div class="flex flex-col items-center p-4">
+                        <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-gold text-white border-4 border-white shadow-lg mb-4">3</div>
+                        <h3 class="text-lg font-bold mb-2 text-dark-grey">Place Order</h3>
+                        <p class="text-sm text-gray-600">Reviews saved quotes and converts the desired quote into a confirmed order.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="differentiator-slide" class="slide">
+            <div class="slide-content">
+                <h2 class="text-4xl font-bold text-oz-blue mb-10">Why We're Your Ideal Partner</h2>
+                <div class="grid md:grid-cols-2 gap-8 items-center">
+                    <div class="text-left space-y-8">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-oz-blue text-oz-gold mr-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286zm0 13.036h.008v.008h-.008v-.008z" /></svg>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-dark-grey">Commitment to Quality</h3>
+                                <p class="text-gray-600">We offer unlimited revisions within the project scope to ensure your complete satisfaction.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-oz-blue text-oz-gold mr-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-2.25-1.313M21 7.5v2.25m0-2.25l-2.25 1.313M3 7.5l2.25-1.313M3 7.5l2.25 1.313M3 7.5v2.25m9 3l2.25-1.313M12 12.75l-2.25-1.313M12 12.75V15m0 6.75l2.25-1.313M12 21.75V19.5m0 2.25l-2.25-1.313m0-16.875L12 2.25l2.25 1.313M12 2.25L9.75 3.563M12 2.25V6m0 15.75v-2.25" /></svg>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-dark-grey">Innovative & Scalable Solutions</h3>
+                                <p class="text-gray-600">Our robust and scalable technology stack ensures your solution is performant and future-proof.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-oz-blue text-oz-gold mr-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9a9.75 9.75 0 100-13.5h9a9.75 9.75 0 000 13.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-dark-grey">Reliable Support</h3>
+                                <p class="text-gray-600">Enjoy 3 months of free support post-deployment, with ongoing maintenance options available.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-8 bg-gray-50 rounded-2xl">
+                        <h3 class="text-xl font-bold text-dark-grey mb-4">Projected Efficiency Gains</h3>
+                        <div class="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center">
+                            <img src="https://ozeeweb.com.au/wp-content/uploads/2025/09/graph.png">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="details-slide" class="slide">
+            <div class="slide-content">
+                <h2 class="text-4xl font-bold text-oz-blue mb-8">Project Details</h2>
+                <div class="grid md:grid-cols-2 gap-8 text-left">
+                    <div class="p-6 bg-gray-50 rounded-xl border border-gray-200">
+                        <h3 class="text-2xl font-bold text-oz-gold mb-4">Pricing & Payment Schedule</h3>
+                        <p class="text-lg text-gray-700">Complete Web Application: <strong class="text-2xl text-oz-blue">AUD 7,500</strong> <span class="text-sm">(+GST)</span></p>
+                        <ul class="list-disc list-inside text-gray-600 mt-4 space-y-2">
+                            <li><strong>25%</strong> upon project confirmation</li>
+                            <li><strong>25%</strong> pre-deployment</li>
+                            <li><strong>50%</strong> one week after successful deployment</li>
+                        </ul>
+                    </div>
+                    <div class="p-6 bg-gray-50 rounded-xl border border-gray-200">
+                        <h3 class="text-2xl font-bold text-oz-gold mb-4">Project Timeline</h3>
+                        <table class="w-full text-sm text-left text-gray-600">
+                            <tbody>
+                            <tr class="border-b"><td class="py-3 pr-3 font-semibold">Requirement Gathering & Planning</td><td class="py-3">1-2 Weeks</td></tr>
+                            <tr class="border-b"><td class="py-3 pr-3 font-semibold">Backend & Frontend Development</td><td class="py-3">6-8 Weeks</td></tr>
+                            <tr class="border-b"><td class="py-3 pr-3 font-semibold">Quality Assurance & Bug Fixing</td><td class="py-3">2 Weeks</td></tr>
+                            <tr><td class="py-3 pr-3 font-semibold">Deployment</td><td class="py-3">1 Week</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="cta-slide" class="slide">
+            <div class="slide-content">
+                <h2 class="text-5xl font-bold text-oz-blue mb-4">Let's Build Your Future</h2>
+                <p class="text-xl text-dark-grey max-w-3xl mx-auto mb-8">
+                    We are confident this web application will transform your operations. We look forward to your confirmation to move forward and begin this exciting project.
+                </p>
+                <div class="flex flex-col items-center">
+                    <img src="https://ozeeweb.com.au/wp-content/uploads/2025/09/work_together.png">
+                    <p class="text-2xl font-bold text-oz-blue mt-4">Innovate. Optimize. Grow.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
 </div>
-
-<!-- Dock Pagination -->
-<div id="dock-pagination" class="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-end gap-3 z-20" aria-label="Slide navigation" role="tablist"></div>
-
-<style>
-    /* Dock dots base */
-    .dock-dot {
-        width: 14px; height: 14px; border-radius: 9999px; background: #cbd5e1; /* slate-300 */
-        transition: transform 0.12s ease, background-color 0.2s ease;
-        position: relative;
-    }
-    .dock-dot.active { background: #29438E; }
-    .dock-dot:focus { outline: 2px solid #F7A823; outline-offset: 3px; }
-
-    /* Tooltip above dot */
-    .dock-tip { position: absolute; bottom: 140%; left: 50%; transform: translateX(-50%);
-        background: rgba(17,24,39,0.9); color: #fff; padding: 6px 10px; border-radius: 8px; font-size: 12px; white-space: nowrap;
-        opacity: 0; pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease; transform-origin: bottom center; }
-    .dock-tip.show { opacity: 1; transform: translateX(-50%) translateY(-2px); }
-</style>
-
-<button id="prev-button" class="nav-btn bg-oz-blue">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-    </svg>
-</button>
-
-<button id="next-button" class="nav-btn bg-oz-blue">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-    </svg>
-</button>
-
-<main>
-
-    <section id="intro-slide" class="slide">
-        <div class="slide-content">
-            <div class="w-100">
-            <img src="https://ozeeweb.com.au/wp-content/uploads/2022/05/cropped-OZEE-Logo-2-1-e1754648853826.png"
-                 class="w-50 mx-auto mb-6">
-            </div>
-            <h2 class="text-4xl text-oz-gold mb-6">Your Partner in Digital Transformation</h2>
-            <p class="text-xl text-dark-grey max-w-4xl mx-auto">
-                [cite_start]We are pleased to present this proposal for a custom web application designed to streamline
-                the quoting and ordering process for Dynamic Outdoors. [cite: 11] Our mission is to build an efficient,
-                scalable, and connected digital future for your business.
-            </p>
-            <div class="flex justify-center mt-8 space-x-6 text-gray-500 text-sm">
-                [cite_start]<span><strong>Prepared for:</strong> Benjamin Castledine [cite: 4]</span>
-                [cite_start]<span><strong>Prepared by:</strong> Zeeshan Sabri [cite: 5]</span>
-                [cite_start]<span><strong>Proposal:</strong> OZEE-475 [cite: 7]</span>
-            </div>
-        </div>
-    </section>
-
-    <section id="problem-slide" class="slide">
-        <div class="slide-content">
-            <h2 class="text-4xl font-bold text-oz-blue mb-10">The Challenge: A Disconnected Workflow</h2>
-            <div class="grid md:grid-cols-3 gap-8 text-center">
-                <div class="p-6 rounded-xl bg-gray-50 border border-gray-200">
-                    <div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-blue text-oz-gold mx-auto mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-2 text-dark-grey">Manual Quoting</h3>
-                    [cite_start]<p class="text-gray-600">The current quoting process for Roller Shutters and Slidetracks is a time-consuming and manual task. [cite: 16]</p>
-                </div>
-                <div class="p-6 rounded-xl bg-gray-50 border border-gray-200">
-                    <div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-blue text-oz-gold mx-auto mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" /></svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-2 text-dark-grey">Inefficient Order Management</h3>
-                    [cite_start]<p class="text-gray-600">Lacking a central system makes tracking orders difficult and hinders operational efficiency. [cite: 20]</p>
-                </div>
-                <div class="p-6 rounded-xl bg-gray-50 border border-gray-200">
-                    <div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-blue text-oz-gold mx-auto mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.826-1.106-2.302 0-3.128a2.99 2.99 0 012.003-.659c.725 0 1.45.22 2.003.659l.879.659m0-2.219a.75.75 0 00-1.06-1.06l-1.06 1.06a.75.75 0 001.06 1.06l1.06-1.06z" /></svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-2 text-dark-grey">Complex Pricing</h3>
-                    [cite_start]<p class="text-gray-600">Managing group-based discounts can be complicated, leading to potential pricing inconsistencies. [cite: 22]</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section id="solution-overview-slide" class="slide">
-        <div class="slide-content">
-            <h2 class="text-4xl font-bold text-oz-blue mb-4">Our Unified Solution</h2>
-            [cite_start]<p class="text-xl text-dark-grey max-w-4xl mx-auto mb-10">We will develop a comprehensive digital platform to enhance operational efficiency and streamline your entire sales process. [cite: 20] The application will be built around four core pillars:</p>
-            <div class="grid md:grid-cols-4 gap-8 text-center">
-                <div class="p-4"><div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-gold text-oz-blue mx-auto mb-4"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m-7.5-2.228a4.5 4.5 0 00-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 001.13-1.897M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.862 4.487z" /></svg></div><h3 class="text-xl font-bold text-dark-grey">User & Group Management</h3></div>
-                <div class="p-4"><div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-gold text-oz-blue mx-auto mb-4"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12z" /></svg></div><h3 class="text-xl font-bold text-dark-grey">Quote & Order Management</h3></div>
-                <div class="p-4"><div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-gold text-oz-blue mx-auto mb-4"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-1.007 1.11-1.11h2.592c.55.103 1.02.57 1.11 1.11l.09 1.586c.29.078.57.19.828.334l1.493-.672c.49-.222 1.054.02 1.272.512l1.295 2.242c.218.492.02 1.054-.512 1.272l-1.493.672c.044.258.078.536.078.828s-.034.57-.078.828l1.493.672c.492.218.672.78.512 1.272l-1.295 2.242c-.218.492-.782.672-1.272.512l-1.493-.672a6.721 6.721 0 01-.828.334l-.09 1.586c-.103.55-.57 1.02-1.11 1.11h-2.592c-.55-.103-1.02-.57-1.11-1.11l-.09-1.586a6.721 6.721 0 01-.828-.334l-1.493.672c-.49.222-1.054-.02-1.272-.512l-1.295-2.242c-.218-.492-.02-1.054.512-1.272l1.493-.672a6.721 6.721 0 01-.078-.828c0-.292.034-.57.078-.828l-1.493-.672c-.492-.218-.672-.78-.512-1.272l1.295-2.242c.218-.492.782-.672 1.272-.512l1.493.672A6.721 6.721 0 019.594 5.526l.09-1.586z" /></svg></div><h3 class="text-xl font-bold text-dark-grey">Product & Pricing Management</h3></div>
-                <div class="p-4"><div class="flex items-center justify-center h-16 w-16 rounded-full bg-oz-gold text-oz-blue mx-auto mb-4"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg></div><h3 class="text-xl font-bold text-dark-grey">Invoice & Future Integration</h3></div>
-            </div>
-        </div>
-    </section>
-
-    <section id="user-management-slide" class="slide">
-        <div class="slide-content">
-            <div class="grid md:grid-cols-2 gap-12 items-center">
-                <div class="text-left">
-                    <h2 class="text-4xl font-bold text-oz-blue mb-4">User & Group Management</h2>
-                    <p class="text-lg text-dark-grey mb-6">Gain complete control over user access and pricing structures with an intuitive management system.</p>
-                    <ul class="space-y-4 text-gray-700">
-                        [cite_start]<li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Admin can create new user accounts and send login credentials via email. [cite: 24]</span></li>
-                        [cite_start]<li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Secure login for users to create, manage, and convert quotes into orders. [cite: 25]</span></li>
-                        [cite_start]<li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Organize users into groups with predefined percentage-based or fixed-price discounts. [cite: 26, 27]</span></li>
-                    </ul>
-                </div>
-                <div class="p-8 bg-gray-50 rounded-2xl flex items-center justify-center">
-                    <img src="https://ozeeweb.com.au/wp-content/uploads/2025/09/user_management.png">
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section id="quote-order-slide" class="slide">
-        <div class="slide-content">
-            <div class="grid md:grid-cols-2 gap-12 items-center">
-                <div class="p-8 bg-gray-50 rounded-2xl flex items-center justify-center">
-                    <img src="https://ozeeweb.com.au/wp-content/uploads/2025/09/quote.png">
-                </div>
-                <div class="text-left">
-                    <h2 class="text-4xl font-bold text-oz-blue mb-4">Quote & Order Management</h2>
-                    <p class="text-lg text-dark-grey mb-6">Streamline your entire sales cycle from initial quote to confirmed order with a seamless, automated system.</p>
-                    <ul class="space-y-4 text-gray-700">
-                        [cite_start]<li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Users can generate, save, and modify multiple quotes for future reference. [cite: 29, 30]</span></li>
-                        [cite_start]<li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Effortlessly convert confirmed quotes into orders with a single click. [cite: 30]</span></li>
-                        [cite_start]<li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Receive automatic email notifications for new orders placed. [cite: 32]</span></li>
-                        [cite_start]<li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Admin can track order status and add internal comments for team communication. [cite: 35, 36]</span></li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section id="product-pricing-slide" class="slide">
-        <div class="slide-content">
-            <div class="grid md:grid-cols-2 gap-12 items-center">
-                <div class="text-left">
-                    <h2 class="text-4xl font-bold text-oz-blue mb-4">Product & Pricing Management</h2>
-                    <p class="text-lg text-dark-grey mb-6">Maintain an accurate and dynamic product catalog while ensuring pricing consistency across all client groups.</p>
-                    <ul class="space-y-4 text-gray-700">
-                        [cite_start]<li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Full administrative control to create, update, or remove product options as your business evolves. [cite: 38]</span></li>
-                        [cite_start]<li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Group-based discounts are automatically applied during quote generation for accuracy. [cite: 39]</span></li>
-                    </ul>
-                </div>
-                <div class="p-8 bg-gray-50 rounded-2xl flex items-center justify-center">
-                    <img src="https://ozeeweb.com.au/wp-content/uploads/2025/09/pricing.png">
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section id="integration-slide" class="slide">
-        <div class="slide-content">
-            <div class="grid md:grid-cols-2 gap-12 items-center">
-                <div class="p-8 bg-gray-50 rounded-2xl flex items-center justify-center">
-                    <img src="https://ozeeweb.com.au/wp-content/uploads/2025/09/integrations.png" />
-                </div>
-                <div class="text-left">
-                    <h2 class="text-4xl font-bold text-oz-blue mb-4">Scalability & Future Growth</h2>
-                    <p class="text-lg text-dark-grey mb-6">Built on a robust technology stack, your application is ready for today's needs and tomorrow's growth.</p>
-                    <ul class="space-y-4 text-gray-700">
-                        [cite_start]<li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Initial development includes manual invoice generation with Xero. [cite: 41]</span></li>
-                        [cite_start]<li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Future enhancement possibilities include full Xero and Monday.com integration. [cite: 74, 75]</span></li>
-                        [cite_start]<li class="flex items-start"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-oz-gold mr-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Powered by a modern tech stack (Laravel, Livewire, MySQL) for optimal performance and scalability. [cite: 78, 79, 80]</span></li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section id="admin-journey-slide" class="slide">
-        <div class="slide-content">
-            <h2 class="text-4xl font-bold text-oz-blue mb-10">A Day in the Life: The Admin Journey</h2>
-            <div class="relative grid grid-cols-1 md:grid-cols-4 gap-8 text-center">
-                <div class="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gray-200" style="transform: translateY(-50%); z-index: -1;"></div>
-
-                <div class="flex flex-col items-center p-4">
-                    <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-blue text-white border-4 border-white shadow-lg mb-4">1</div>
-                    <h3 class="text-lg font-bold mb-2 text-dark-grey">Manage Users</h3>
-                    [cite_start]<p class="text-sm text-gray-600">Creates client accounts, assigns them to groups, and sends login credentials. [cite: 47, 48]</p>
-                </div>
-                <div class="flex flex-col items-center p-4">
-                    <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-blue text-white border-4 border-white shadow-lg mb-4">2</div>
-                    <h3 class="text-lg font-bold mb-2 text-dark-grey">Manage Products</h3>
-                    [cite_start]<p class="text-sm text-gray-600">Adds or updates product options and defines group-level discounts. [cite: 50, 51]</p>
-                </div>
-                <div class="flex flex-col items-center p-4">
-                    <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-blue text-white border-4 border-white shadow-lg mb-4">3</div>
-                    <h3 class="text-lg font-bold mb-2 text-dark-grey">Process Orders</h3>
-                    [cite_start]<p class="text-sm text-gray-600">Receives email notifications for new orders and updates their status. [cite: 53, 54]</p>
-                </div>
-                <div class="flex flex-col items-center p-4">
-                    <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-blue text-white border-4 border-white shadow-lg mb-4">4</div>
-                    <h3 class="text-lg font-bold mb-2 text-dark-grey">Generate Invoices</h3>
-                    [cite_start]<p class="text-sm text-gray-600">Manually generates and shares invoices with clients using Xero. [cite: 57, 58]</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section id="client-journey-slide" class="slide">
-        <div class="slide-content">
-            <h2 class="text-4xl font-bold text-oz-blue mb-10">Effortless Experience: The Client Journey</h2>
-            <div class="relative grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-                <div class="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gray-200" style="transform: translateY(-50%); z-index: -1;"></div>
-
-                <div class="flex flex-col items-center p-4">
-                    <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-gold text-white border-4 border-white shadow-lg mb-4">1</div>
-                    <h3 class="text-lg font-bold mb-2 text-dark-grey">Login</h3>
-                    [cite_start]<p class="text-sm text-gray-600">Receives credentials from the admin and logs into the application securely. [cite: 61, 64]</p>
-                </div>
-                <div class="flex flex-col items-center p-4">
-                    <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-gold text-white border-4 border-white shadow-lg mb-4">2</div>
-                    <h3 class="text-lg font-bold mb-2 text-dark-grey">Generate Quotes</h3>
-                    [cite_start]<p class="text-sm text-gray-600">Selects products, enters details, and saves multiple quotes for reference. [cite: 66, 67, 68]</p>
-                </div>
-                <div class="flex flex-col items-center p-4">
-                    <div class="flex items-center justify-center h-20 w-20 rounded-full bg-oz-gold text-white border-4 border-white shadow-lg mb-4">3</div>
-                    <h3 class="text-lg font-bold mb-2 text-dark-grey">Place Order</h3>
-                    [cite_start]<p class="text-sm text-gray-600">Reviews saved quotes and converts the desired quote into a confirmed order. [cite: 70, 71]</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section id="differentiator-slide" class="slide">
-        <div class="slide-content">
-            <h2 class="text-4xl font-bold text-oz-blue mb-10">Why We're Your Ideal Partner</h2>
-            <div class="grid md:grid-cols-2 gap-8 items-center">
-                <div class="text-left space-y-8">
-                    <div class="flex items-start">
-                        <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-oz-blue text-oz-gold mr-4">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286zm0 13.036h.008v.008h-.008v-.008z" /></svg>
-                        </div>
-                        <div>
-                            <h3 class="text-xl font-bold text-dark-grey">Commitment to Quality</h3>
-                            [cite_start]<p class="text-gray-600">We offer unlimited revisions within the project scope to ensure your complete satisfaction. [cite: 13]</p>
-                        </div>
-                    </div>
-                    <div class="flex items-start">
-                        <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-oz-blue text-oz-gold mr-4">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-2.25-1.313M21 7.5v2.25m0-2.25l-2.25 1.313M3 7.5l2.25-1.313M3 7.5l2.25 1.313M3 7.5v2.25m9 3l2.25-1.313M12 12.75l-2.25-1.313M12 12.75V15m0 6.75l2.25-1.313M12 21.75V19.5m0 2.25l-2.25-1.313m0-16.875L12 2.25l2.25 1.313M12 2.25L9.75 3.563M12 2.25V6m0 15.75v-2.25" /></svg>
-                        </div>
-                        <div>
-                            <h3 class="text-xl font-bold text-dark-grey">Innovative & Scalable Solutions</h3>
-                            [cite_start]<p class="text-gray-600">Our robust and scalable technology stack ensures your solution is performant and future-proof. [cite: 77]</p>
-                        </div>
-                    </div>
-                    <div class="flex items-start">
-                        <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-oz-blue text-oz-gold mr-4">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9a9.75 9.75 0 100-13.5h9a9.75 9.75 0 000 13.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>
-                        </div>
-                        <div>
-                            <h3 class="text-xl font-bold text-dark-grey">Reliable Support</h3>
-                            [cite_start]<p class="text-gray-600">Enjoy 3 months of free support post-deployment, with ongoing maintenance options available. [cite: 90, 91]</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="p-8 bg-gray-50 rounded-2xl">
-                    <h3 class="text-xl font-bold text-dark-grey mb-4">Projected Efficiency Gains</h3>
-                    <div class="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center">
-                        <img src="https://ozeeweb.com.au/wp-content/uploads/2025/09/graph.png">
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section id="details-slide" class="slide">
-        <div class="slide-content">
-            <h2 class="text-4xl font-bold text-oz-blue mb-8">Project Details</h2>
-            <div class="grid md:grid-cols-2 gap-8 text-left">
-                <div class="p-6 bg-gray-50 rounded-xl border border-gray-200">
-                    <h3 class="text-2xl font-bold text-oz-gold mb-4">Pricing & Payment Schedule</h3>
-                    [cite_start]<p class="text-lg text-gray-700">Complete Web Application: <strong class="text-2xl text-oz-blue">AUD 7,500</strong> <span class="text-sm">(+GST)</span> [cite: 87, 88]</p>
-                    <ul class="list-disc list-inside text-gray-600 mt-4 space-y-2">
-                        [cite_start]<li><strong>25%</strong> upon project confirmation [cite: 101]</li>
-                        [cite_start]<li><strong>25%</strong> pre-deployment [cite: 102]</li>
-                        [cite_start]<li><strong>50%</strong> one week after successful deployment [cite: 102]</li>
-                    </ul>
-                </div>
-                <div class="p-6 bg-gray-50 rounded-xl border border-gray-200">
-                    <h3 class="text-2xl font-bold text-oz-gold mb-4">Project Timeline</h3>
-                    <table class="w-full text-sm text-left text-gray-600">
-                        <tbody>
-                        [cite_start]<tr class="border-b"><td class="py-3 pr-3 font-semibold">Requirement Gathering & Planning</td><td class="py-3">1-2 Weeks [cite: 83]</td></tr>
-                        [cite_start]<tr class="border-b"><td class="py-3 pr-3 font-semibold">Backend & Frontend Development</td><td class="py-3">6-8 Weeks [cite: 83]</td></tr>
-                        [cite_start]<tr class="border-b"><td class="py-3 pr-3 font-semibold">Quality Assurance & Bug Fixing</td><td class="py-3">2 Weeks [cite: 83]</td></tr>
-                        [cite_start]<tr><td class="py-3 pr-3 font-semibold">Deployment</td><td class="py-3">1 Week [cite: 83]</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section id="cta-slide" class="slide">
-        <div class="slide-content">
-            <h2 class="text-5xl font-bold text-oz-blue mb-4">Let's Build Your Future</h2>
-            <p class="text-xl text-dark-grey max-w-3xl mx-auto mb-8">
-                We are confident this web application will transform your operations. [cite_start]We look forward to your confirmation to move forward and begin this exciting project. [cite: 103]
-            </p>
-            <div class="flex flex-col items-center">
-                <img src="https://ozeeweb.com.au/wp-content/uploads/2025/09/work_together.png">
-                <p class="text-2xl font-bold text-oz-blue mt-4">Innovate. Optimize. Grow.</p>
-            </div>
-        </div>
-    </section>
-</main>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const loaderOverlay = document.getElementById('loader-overlay');
-        const loaderText = document.getElementById('loader-text');
-        const dock = document.getElementById('dock-pagination');
-        // Clean up citation placeholders like [cite_start] and [cite: 7]
+        const embedContainer = document.querySelector('.embed-container');
+        const loaderOverlay = embedContainer.querySelector('#loader-overlay');
+        const loaderText = embedContainer.querySelector('#loader-text');
+        const dock = embedContainer.querySelector('#dock-pagination');
+
+        // Clean up citation placeholders
         (function cleanCitationsInNode(node) {
             if (node.nodeType === Node.TEXT_NODE) {
-                node.textContent = node.textContent
-                    .replace(/\[cite_start\]/g, '')
-                    .replace(/\[cite:\s*[^\]]+\]/g, '');
+                node.textContent = node.textContent.replace(/\[cite_start\]|\[cite:\s*[^\]]+\]/g, '');
             } else if (node && node.childNodes) {
                 node.childNodes.forEach(cleanCitationsInNode);
             }
-        })(document.body);
+        })(embedContainer);
 
-        const slides = document.querySelectorAll('.slide');
-        const prevButton = document.getElementById('prev-button');
-        const nextButton = document.getElementById('next-button');
+        const slides = embedContainer.querySelectorAll('.slide');
+        const prevButton = embedContainer.querySelector('#prev-button');
+        const nextButton = embedContainer.querySelector('#next-button');
         let currentSlideIndex = 0;
 
         // Image preloading for loader
-        const imgs = Array.from(document.querySelectorAll('.slide img'));
+        const imgs = Array.from(embedContainer.querySelectorAll('.slide img'));
         const total = imgs.length || 1;
         let loaded = 0;
         const timeoutMs = 8000;
@@ -456,18 +482,16 @@
                 img.addEventListener('load', onDone, { once: true });
                 img.addEventListener('error', onDone, { once: true });
             });
-            // Fallback timeout
             setTimeout(finishLoader, timeoutMs);
-            // In case all were already cached
             if (loaded >= total) finishLoader();
             else updateLoader();
         }
 
-        // Build dock pagination
         const slideNames = Array.from(slides).map((s, i) => {
             const h2 = s.querySelector('h2');
             return h2 ? h2.textContent.trim() : `Slide ${i + 1}`;
         });
+
         function renderDock() {
             if (!dock) return;
             dock.innerHTML = '';
@@ -494,7 +518,6 @@
                 dock.appendChild(btn);
             });
 
-            // Dock magnify effect
             dock.addEventListener('mousemove', (e) => {
                 const dots = Array.from(dock.children);
                 const mx = e.clientX;
@@ -502,8 +525,8 @@
                     const rect = dot.getBoundingClientRect();
                     const cx = rect.left + rect.width / 2;
                     const dist = Math.abs(mx - cx);
-                    const influence = Math.max(0, 1 - dist / 120); // 120px influence radius
-                    const scale = 1 + influence * 1.2; // up to 2.2x
+                    const influence = Math.max(0, 1 - dist / 120);
+                    const scale = 1 + influence * 1.2;
                     dot.style.transform = `translateY(${-(influence * 6)}px) scale(${scale.toFixed(3)})`;
                 });
             });
@@ -511,6 +534,7 @@
                 Array.from(dock.children).forEach(dot => { dot.style.transform = 'none'; });
             });
         }
+
         function updateDockActive() {
             if (!dock) return;
             Array.from(dock.children).forEach((dot, i) => {
@@ -534,7 +558,6 @@
                 }
             });
 
-            // Update button visibility
             prevButton.style.display = currentSlideIndex === 0 ? 'none' : 'flex';
             nextButton.style.display = currentSlideIndex === slides.length - 1 ? 'none' : 'flex';
             updateDockActive();
@@ -557,10 +580,6 @@
         prevButton.addEventListener('click', goToPrevSlide);
         nextButton.addEventListener('click', goToNextSlide);
 
-        // Render dock now that slides are known
-        renderDock();
-
-        // Keyboard navigation
         document.addEventListener('keydown', (event) => {
             if (event.key === 'ArrowRight') {
                 goToNextSlide();
@@ -570,10 +589,10 @@
         });
 
         // Initial setup
-        // A small delay to ensure styles are applied before the first transition
         setTimeout(() => {
             slides[0].classList.add('active');
             updateSlideClasses();
+            renderDock();
         }, 100);
     });
 </script>
