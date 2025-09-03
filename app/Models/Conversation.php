@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class Conversation extends Model
 {
@@ -12,7 +13,8 @@ class Conversation extends Model
     protected $fillable = [
         'subject',
         'project_id',
-        'client_id',
+        'conversable_type',
+        'conversable_id',
         'contractor_id',
         'last_activity_at',
     ];
@@ -26,9 +28,20 @@ class Conversation extends Model
         return $this->belongsTo(Project::class);
     }
 
-    public function client()
+    /**
+     * Polymorphic recipient of the conversation (Client or Lead)
+     */
+    public function conversable(): MorphTo
     {
-        return $this->belongsTo(Client::class);
+        return $this->morphTo();
+    }
+
+    /**
+     * Backward compatible accessor: conversation->client returns the conversable if it is a Client.
+     */
+    public function getClientAttribute()
+    {
+        return $this->conversable instanceof Client ? $this->conversable : null;
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Email;
+use App\Models\Lead;
 use App\Models\Project;
 use App\Models\UserInteraction;
 use Illuminate\Http\Request;
@@ -86,8 +87,13 @@ class InboxController extends Controller
         $page = $request->input('page', 1);
 
         // Apply filters if provided
-        $query = Email::whereHas('conversation', function ($query) use ($projectIds) {
+        $query = Email::whereHas('conversation', function ($query) use ($projectIds, $user) {
             $query->whereIn('project_id', $projectIds);
+
+            if($user->hasPermission('contact_lead')) {
+                $query->orWhereNull('project_id');
+            }
+
         });
 
         // Apply filters based on request parameters
@@ -152,9 +158,14 @@ class InboxController extends Controller
 
             // Check approval permission for outgoing emails
             if ($email->status === 'pending_approval' && $email->conversation?->project?->id) {
-                if ($user->hasProjectPermission($email->conversation->project->id, 'approve_emails')) {
+                if ($user->hasProjectPermission($email->conversation->project->id, 'approve_emails')
+                ) {
                     $email->can_approve = true;
                 }
+            }
+
+            if(get_class($email->conversation->conversable) === Lead::class && $user->hasPermission('contact_lead')) {
+                $email->can_approve = true;
             }
 
             // Check approval permission for incoming emails
@@ -164,6 +175,7 @@ class InboxController extends Controller
                     $email->can_approve = true;
                 }
             }
+
         });
 
         return response()->json($emails);
