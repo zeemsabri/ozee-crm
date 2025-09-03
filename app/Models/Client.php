@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -79,6 +78,14 @@ class Client extends Model
     public function notes()
     {
         return $this->morphMany(ProjectNote::class, 'creator');
+    }
+
+    /**
+     * Presentations polymorphic relation.
+     */
+    public function presentations()
+    {
+        return $this->morphMany(Presentation::class, 'presentable');
     }
 
     /**

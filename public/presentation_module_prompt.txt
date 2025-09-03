@@ -1,0 +1,244 @@
+Project: Dynamic Presentation Generator
+Phase 1: Backend Foundation & Core API
+Document Version: 1.1 (Final)
+Date: September 3, 2025
+Status: Approved
+
+1. Objective
+This document outlines the complete requirements for Phase 1 of the Dynamic Presentation Generator project. The goal is to build a "headless" API-driven backend system. This system will manage the data for various types of presentations (e.g., audit reports, proposals) which can be associated with different parent models, such as an existing Client or a new Lead, via a polymorphic relationship.
+
+The API created in this phase will be consumed by a frontend application built into our CRM. All development must follow RESTful principles, with API responses formatted in JSON.
+
+2. Database Schema & Migrations
+The initial task is to create the database migrations for the following tables. The architecture is centered around a polymorphic relationship on the presentations table.
+
+Note: apply soft delete in all of these models
+
+Key Relationships:
+
+A Presentation can belong to one Client OR one Lead.
+
+A Presentation has many Slides and many Presentation_Metadata records.
+
+A Slide has many Content_Blocks.
+
+Table Definitions
+1. presentations This table uses presentable_id and presentable_type to handle the polymorphic association.
+
+Column Name
+
+Data Type
+
+Notes
+
+id
+
+bigInteger, PK
+
+Primary Key
+
+presentable_id
+
+bigInteger
+
+The ID of the parent model (e.g., client_id or lead_id).
+
+presentable_type
+
+string
+
+The class name of the parent model (e.g., 'App\Models\Client').
+
+title
+
+string (255)
+
+The public title of the presentation.
+
+type
+
+string (50)
+
+e.g., 'audit_report', 'proposal'. Index this column.
+
+share_token
+
+string (64)
+
+A unique, random string for public URL access. Must be unique.
+
+created_at
+
+timestamp
+
+Managed by the framework.
+
+updated_at
+
+timestamp
+
+Managed by the framework.
+
+Note: Please create a composite index on [presentable_id, presentable_type] for performance.
+
+
+
+
+
+2. presentation_metadata A key-value store for fields unique to certain presentation types.
+
+Column Name
+
+Data Type
+
+Notes
+
+id
+
+bigInteger, PK
+
+Primary Key
+
+presentation_id
+
+foreignId
+
+Constrained to presentations.id. On delete, cascade.
+
+meta_key
+
+string (100)
+
+e.g., 'prepared_for', 'total_price'.
+
+meta_value
+
+text
+
+The value for the corresponding key.
+
+3. slides Stores the individual slides that belong to a presentation.
+
+Column Name
+
+Data Type
+
+Notes
+
+id
+
+bigInteger, PK
+
+Primary Key
+
+presentation_id
+
+foreignId
+
+Constrained to presentations.id. On delete, cascade.
+
+template_name
+
+string (100)
+
+e.g., 'TwoColumnWithImage', 'Timeline'.
+
+title
+
+string (255)
+
+Internal-facing title for easy identification in the editor.
+
+display_order
+
+integer
+
+The sequence of the slide in the presentation.
+
+4. content_blocks Stores the individual content pieces for each slide.
+
+Column Name
+
+Data Type
+
+Notes
+
+id
+
+bigInteger, PK
+
+Primary Key
+
+slide_id
+
+foreignId
+
+Constrained to slides.id. On delete, cascade.
+
+block_type
+
+string (100)
+
+e.g., 'heading', 'paragraph', 'image', 'feature_card'.
+
+content_data
+
+json
+
+Stores the block-specific content.
+
+display_order
+
+integer
+
+The sequence of the block within the slide.
+
+content_data JSON Examples:
+
+For block_type: 'heading': { "text": "Our Unified Solution", "level": 2 }
+
+For block_type: 'image': { "url": "/path/to/image.png", "alt_text": "A descriptive alt text" }
+
+For block_type: 'feature_card': { "icon": "fa-user", "title": "User Management", "description": "..." }
+
+3. Core API Endpoints
+All endpoints should be grouped under a versioned prefix (e.g., /api/v1/).
+
+Resource: Presentations
+POST /presentations - Creates a new presentation linked to a presentable parent.
+
+GET /presentations - Retrieves a paginated list of all presentations.
+
+GET /presentations/{id} - Retrieves one presentation, eagerly loading all its relations (presentable, metadata, slides, and content_blocks), all sorted by their display_order.
+
+PUT /presentations/{id} - Updates a presentation's title or type.
+
+DELETE /presentations/{id} - Deletes a presentation and its children.
+
+Resources: Slides & Content Blocks
+Implement standard CRUD endpoints for the child resources. Batch update endpoints for reordering are required to support drag-and-drop functionality on the frontend.
+
+POST /presentations/{presentationId}/slides
+
+PUT /slides/{id} (for updating template_name, title)
+
+POST /slides/reorder (Batch update for drag-and-drop reordering)
+
+DELETE /slides/{id}
+
+POST /slides/{slideId}/content_blocks
+
+PUT /content_blocks/{id} (for updating content_data)
+
+POST /content_blocks/reorder (Batch update for reordering)
+
+DELETE /content_blocks/{id}
+
+4. Final Steps & Deliverables for Phase 1
+Model Logic: Implement the morphTo relationship on the Presentation model and the morphMany relationship on both the Client and Lead models.
+
+Validation: Implement robust server-side validation for all POST and PUT requests. The presentable_type must be validated against a whitelist of supported model classes.
+
+Database Seeding: Create database seeders with sample data for at least two full presentations: one linked to a sample Client and one linked to a sample Lead. This is crucial for testing the API and for the frontend team.
+
+Upon completion, the deliverable for Phase 1 is a robust, well-documented, and testable API that is ready for consumption by the frontend development team.

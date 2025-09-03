@@ -447,6 +447,25 @@ Route::middleware('auth:sanctum')->group(function () {
         // New: Internal (sanctum) wireframe comments endpoints
     });
 
+    // Presentations API v1
+    Route::prefix('v1')->group(function () {
+        Route::get('presentations', [\App\Http\Controllers\Api\PresentationController::class, 'index']);
+        Route::post('presentations', [\App\Http\Controllers\Api\PresentationController::class, 'store']);
+        Route::get('presentations/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'show']);
+        Route::put('presentations/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'update']);
+        Route::delete('presentations/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'destroy']);
+
+        Route::post('presentations/{presentationId}/slides', [\App\Http\Controllers\Api\PresentationController::class, 'storeSlide']);
+        Route::put('slides/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'updateSlide']);
+        Route::post('slides/reorder', [\App\Http\Controllers\Api\PresentationController::class, 'reorderSlides']);
+        Route::delete('slides/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'destroySlide']);
+
+        Route::post('slides/{slideId}/content_blocks', [\App\Http\Controllers\Api\PresentationController::class, 'storeContentBlock']);
+        Route::put('content_blocks/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'updateContentBlock']);
+        Route::post('content_blocks/reorder', [\App\Http\Controllers\Api\PresentationController::class, 'reorderContentBlocks']);
+        Route::delete('content_blocks/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'destroyContentBlock']);
+    });
+
     // Kudos Routes
     Route::get('kudos/pending', [\App\Http\Controllers\Api\KudoController::class, 'pending']);
     Route::get('kudos/mine', [\App\Http\Controllers\Api\KudoController::class, 'mine']);
