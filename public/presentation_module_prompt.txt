@@ -1,244 +1,129 @@
 Project: Dynamic Presentation Generator
-Phase 1: Backend Foundation & Core API
-Document Version: 1.1 (Final)
+Phase 2: Frontend Implementation (Vue.js)
+Document Version: 1.0
 Date: September 3, 2025
 Status: Approved
 
 1. Objective
-This document outlines the complete requirements for Phase 1 of the Dynamic Presentation Generator project. The goal is to build a "headless" API-driven backend system. This system will manage the data for various types of presentations (e.g., audit reports, proposals) which can be associated with different parent models, such as an existing Client or a new Lead, via a polymorphic relationship.
+This document details the step-by-step plan for building the frontend interface for the Dynamic Presentation Generator within our existing Vue.js-based CRM. The goal is to create an intuitive and efficient user experience for our team to create, manage, and share dynamic presentations by consuming the backend API.
 
-The API created in this phase will be consumed by a frontend application built into our CRM. All development must follow RESTful principles, with API responses formatted in JSON.
+The project will be broken down into logical phases, starting with core setup and progressively building out the user-facing components.
 
-2. Database Schema & Migrations
-The initial task is to create the database migrations for the following tables. The architecture is centered around a polymorphic relationship on the presentations table.
+2. Phase 1: Core Setup & Services
+This foundational phase involves setting up the necessary tools and services that all other components will rely on.
 
-Note: apply soft delete in all of these models
+Task 2.1: Project Scaffolding & API Client
 
-Key Relationships:
+Integrate a new module or set of routes within the existing CRM for the presentation generator.
 
-A Presentation can belong to one Client OR one Lead.
+Create a dedicated API service client (e.g., using Axios). This client will be configured with the base URL for the API (/api/v1/) and will handle all HTTP requests and error handling in a centralized location.
 
-A Presentation has many Slides and many Presentation_Metadata records.
+Task 2.2: State Management Setup
 
-A Slide has many Content_Blocks.
+Integrate a state management library (e.g., Pinia is recommended for modern Vue 3).
 
-Table Definitions
-1. presentations This table uses presentable_id and presentable_type to handle the polymorphic association.
+Define a presentation store. This store will hold the state of the presentation currently being edited, including the main details, all slides, and all content blocks. This is crucial for managing the complex data structure of the editor.
 
-Column Name
+The initial state structure should mirror the JSON response from the GET /presentations/{id} endpoint.
 
-Data Type
+3. Phase 2: Presentation Management Dashboard
+This phase focuses on building the main dashboard where users can view and manage all presentations.
 
-Notes
+Task 3.1: Component: PresentationList.vue
 
-id
+This component will be the main entry point.
 
-bigInteger, PK
+On load, it will call the GET /presentations endpoint via the API client.
 
-Primary Key
+It will display the presentations in a table with columns for Title, Associated Client/Lead, Type, and Date Created.
 
-presentable_id
+Each row will have an "Edit" button that navigates to the main editor view for that presentation, and a "Delete" button that calls the DELETE /presentations/{id} endpoint.
 
-bigInteger
+A "Create New Presentation" button will trigger the PresentationForm component.
 
-The ID of the parent model (e.g., client_id or lead_id).
+Task 3.2: Component: PresentationForm.vue
 
-presentable_type
+This component will be used for both creating and editing a presentation's top-level details. It can be a modal or a separate page.
 
-string
+It will contain a form with fields for:
 
-The class name of the parent model (e.g., 'App\Models\Client').
+title (text input)
 
-title
+type (dropdown: 'Audit Report', 'Proposal', etc.)
 
-string (255)
+A searchable dropdown to select the presentable (Client or Lead). This will require an endpoint to search your client/lead models.
 
-The public title of the presentation.
+On submit, it will call either POST /presentations or PUT /presentations/{id}.
 
-type
+4. Phase 3: The Main Editor View
+This is the core workspace for building a presentation. It will be a single-page interface composed of several child components.
 
-string (50)
+Task 4.1: View: EditorView.vue
 
-e.g., 'audit_report', 'proposal'. Index this column.
+This is the parent container component for the entire editor.
 
-share_token
+When this view is loaded (e.g., at a route like /presentations/{id}/edit), it will call the GET /presentations/{id} endpoint and populate the Pinia store with the full presentation data.
 
-string (64)
+It will have a two-column layout: a sidebar for slide management and a main content area for editing the selected slide.
 
-A unique, random string for public URL access. Must be unique.
+Task 4.2: Component: SlideManager.vue
 
-created_at
+This component will render in the sidebar of the EditorView.
 
-timestamp
+It will display a list of all slides from the presentation data in the store.
 
-Managed by the framework.
+Crucially, it must implement drag-and-drop functionality (e.g., using a library like VueDraggable). When the user reorders the slides, this component will call the POST /slides/reorder endpoint with the new sequence of slide IDs.
 
-updated_at
+It will include buttons to "Add New Slide" and "Delete Selected Slide."
 
-timestamp
+5. Phase 4: The Slide Content Editor
+This is the most interactive and complex part of the application, where users build the content of each slide.
 
-Managed by the framework.
+Task 5.1: Component: SlideEditor.vue
 
-Note: Please create a composite index on [presentable_id, presentable_type] for performance.
+This component occupies the main content area of the EditorView.
 
+It displays the content for the currently selected slide (as chosen in the SlideManager).
 
+It will feature a dropdown to change the template_name for the current slide.
 
+It will display a list of ContentBlockForm components for each block on the slide.
 
+It must also have drag-and-drop functionality for reordering content blocks within the slide, which will call the POST /content_blocks/reorder endpoint.
 
-2. presentation_metadata A key-value store for fields unique to certain presentation types.
+Task 5.2: Component: ContentBlockForm.vue
 
-Column Name
+This is a dynamic component that renders the correct form fields based on the block_type prop it receives.
 
-Data Type
+Example logic:
 
-Notes
+If block_type is 'heading', it shows a text input for text and a dropdown for level.
 
-id
+If block_type is 'image', it shows a file uploader and an input for alt_text.
 
-bigInteger, PK
+If block_type is 'feature_card', it shows inputs for icon, title, and description.
 
-Primary Key
+Any changes in these forms will update the data in the Pinia store, which will trigger a live preview update. Changes should be auto-saved to the backend (PUT /content_blocks/{id}) after a short delay (debouncing).
 
-presentation_id
+Task 5.3: Component: SlidePreview.vue
 
-foreignId
+This component will render a live, non-editable preview of the slide.
 
-Constrained to presentations.id. On delete, cascade.
+It will reactively update whenever the data in the Pinia store changes.
 
-meta_key
+It will use the template_name to apply the correct layout and will loop through the content_blocks to render the content, closely mimicking the final public view.
 
-string (100)
+6. Phase 5: Public View & Final Integration
+Task 6.1: Component: PublicPresenter.vue
 
-e.g., 'prepared_for', 'total_price'.
+This component will be responsible for rendering the final, client-facing presentation. It will live on a public-facing route (e.g., /view/{share_token}).
 
-meta_value
+It will fetch the presentation data and dynamically render the slides and content blocks.
 
-text
+The HTML structure, CSS, and interactive JavaScript from the original .html files will be adapted into this component's template and logic.
 
-The value for the corresponding key.
+Task 6.2: Final CRM Integration
 
-3. slides Stores the individual slides that belong to a presentation.
+In the PresentationList.vue component, add a "Share" button.
 
-Column Name
-
-Data Type
-
-Notes
-
-id
-
-bigInteger, PK
-
-Primary Key
-
-presentation_id
-
-foreignId
-
-Constrained to presentations.id. On delete, cascade.
-
-template_name
-
-string (100)
-
-e.g., 'TwoColumnWithImage', 'Timeline'.
-
-title
-
-string (255)
-
-Internal-facing title for easy identification in the editor.
-
-display_order
-
-integer
-
-The sequence of the slide in the presentation.
-
-4. content_blocks Stores the individual content pieces for each slide.
-
-Column Name
-
-Data Type
-
-Notes
-
-id
-
-bigInteger, PK
-
-Primary Key
-
-slide_id
-
-foreignId
-
-Constrained to slides.id. On delete, cascade.
-
-block_type
-
-string (100)
-
-e.g., 'heading', 'paragraph', 'image', 'feature_card'.
-
-content_data
-
-json
-
-Stores the block-specific content.
-
-display_order
-
-integer
-
-The sequence of the block within the slide.
-
-content_data JSON Examples:
-
-For block_type: 'heading': { "text": "Our Unified Solution", "level": 2 }
-
-For block_type: 'image': { "url": "/path/to/image.png", "alt_text": "A descriptive alt text" }
-
-For block_type: 'feature_card': { "icon": "fa-user", "title": "User Management", "description": "..." }
-
-3. Core API Endpoints
-All endpoints should be grouped under a versioned prefix (e.g., /api/v1/).
-
-Resource: Presentations
-POST /presentations - Creates a new presentation linked to a presentable parent.
-
-GET /presentations - Retrieves a paginated list of all presentations.
-
-GET /presentations/{id} - Retrieves one presentation, eagerly loading all its relations (presentable, metadata, slides, and content_blocks), all sorted by their display_order.
-
-PUT /presentations/{id} - Updates a presentation's title or type.
-
-DELETE /presentations/{id} - Deletes a presentation and its children.
-
-Resources: Slides & Content Blocks
-Implement standard CRUD endpoints for the child resources. Batch update endpoints for reordering are required to support drag-and-drop functionality on the frontend.
-
-POST /presentations/{presentationId}/slides
-
-PUT /slides/{id} (for updating template_name, title)
-
-POST /slides/reorder (Batch update for drag-and-drop reordering)
-
-DELETE /slides/{id}
-
-POST /slides/{slideId}/content_blocks
-
-PUT /content_blocks/{id} (for updating content_data)
-
-POST /content_blocks/reorder (Batch update for reordering)
-
-DELETE /content_blocks/{id}
-
-4. Final Steps & Deliverables for Phase 1
-Model Logic: Implement the morphTo relationship on the Presentation model and the morphMany relationship on both the Client and Lead models.
-
-Validation: Implement robust server-side validation for all POST and PUT requests. The presentable_type must be validated against a whitelist of supported model classes.
-
-Database Seeding: Create database seeders with sample data for at least two full presentations: one linked to a sample Client and one linked to a sample Lead. This is crucial for testing the API and for the frontend team.
-
-Upon completion, the deliverable for Phase 1 is a robust, well-documented, and testable API that is ready for consumption by the frontend development team.
+This button will copy the public URL (containing the share_token) to the user's clipboard, making it easy for our team to share the final presentation with clients and leads.
