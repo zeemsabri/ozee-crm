@@ -46,6 +46,7 @@ const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_proje
                                 <DropdownLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')" class="!px-2 !py-1.5">Projects</DropdownLink>
                                 <DropdownLink v-if="canAccessClients" :href="route('clients.page')" :active="route().current('clients.page')" class="!px-2 !py-1.5">Clients</DropdownLink>
                                 <DropdownLink v-if="canManageUsers" :href="route('users.page')" :active="route().current('users.page')" class="!px-2 !py-1.5">Users</DropdownLink>
+                                <DropdownLink v-if="canAccessProjects" :href="route('leads.page')" :active="route().current('leads.page')" class="!px-2 !py-1.5">Leads</DropdownLink>
 
                             </div>
                         </div>
