@@ -12,6 +12,31 @@ use Illuminate\Validation\ValidationException;
 class LeadController extends Controller
 {
     /**
+     * Convert a lead into a client and return new client id.
+     */
+    public function convert(Lead $lead)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->hasPermission('manage_projects')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        // naive conversion: create client from lead minimal fields
+        try {
+            $clientModel = \App\Models\Client::create([
+                'name' => trim(($lead->first_name ?? '') . ' ' . ($lead->last_name ?? '')) ?: ($lead->company ?? 'Client '.$lead->id),
+                'email' => $lead->email,
+                'phone' => $lead->phone,
+                'address' => $lead->address,
+                'notes' => $lead->notes,
+            ]);
+            $lead->update(['status' => 'converted', 'converted_at' => now()]);
+            return response()->json(['client_id' => $clientModel->id], 200);
+        } catch (\Throwable $e) {
+            Log::error('Lead convert error: '.$e->getMessage(), ['lead_id' => $lead->id]);
+            return response()->json(['message' => 'Conversion failed'], 500);
+        }
+    }
+    /**
      * Display a listing of the resource.
      */
     public function index(Request $request)

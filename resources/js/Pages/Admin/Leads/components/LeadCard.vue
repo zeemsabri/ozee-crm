@@ -29,6 +29,7 @@ const badgeClass = (status) => {
     class="p-3 rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow transition cursor-grab"
     draggable="true"
     @dragstart="onDragStart"
+    @click="$inertia.visit(route('leads.show', props.lead.id))"
   >
     <div class="flex items-start justify-between">
       <div class="font-semibold text-gray-800 truncate">
