@@ -524,6 +524,13 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('Users/Index');
     })->name('users.page')->middleware('permission:create_users');
 
+    // Leads Admin Page
+    Route::get('/leads', function () use ($sourceOptions) {
+        return Inertia::render('Admin/Leads/Index', [
+            'sourceOptions' => $sourceOptions,
+        ]);
+    })->name('leads.page')->middleware('permission:manage_projects');
+
     // Test route for User Project Role functionality
     Route::get('/test/user-project-role', [\App\Http\Controllers\TestController::class, 'testUserProjectRole'])
         ->name('test.user-project-role');

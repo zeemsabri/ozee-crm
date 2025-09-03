@@ -47,6 +47,7 @@ use App\Http\Controllers\Api\FamifyHub\MailController as FamifyMailController;
 use App\Http\Controllers\Api\BugReportController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\LeadController;
 
 
 Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
@@ -127,6 +128,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Client Management Routes (CRUD)
     Route::apiResource('clients', ClientController::class);
+    Route::apiResource('leads', LeadController::class);
     Route::get('clients/{client}/email', [ClientController::class, 'getEmail']);
     Route::post('/upload-image', [ImageUploadController::class, 'upload']);
 
