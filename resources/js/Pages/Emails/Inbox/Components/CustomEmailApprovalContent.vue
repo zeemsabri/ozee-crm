@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import axios from 'axios';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -7,6 +7,7 @@ import EmailEditor from '@/Components/EmailEditor.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import { useEmailSignature } from '@/Composables/useEmailSignature';
 
 const props = defineProps({
   email: { type: Object, required: true },
@@ -17,6 +18,9 @@ const emit = defineEmits(['submitted', 'error']);
 const loading = ref(false);
 const isSubmitting = ref(false);
 const form = ref({ subject: '', body: '' });
+
+// Signature block (non-editable) like the composer
+const { userSignature } = useEmailSignature(computed(() => ({})));
 
 const fetchEmailDetails = async () => {
   if (!props.email?.id) return;
@@ -83,6 +87,7 @@ watch(() => props.email, (nv) => { if (nv) fetchEmailDetails(); }, { immediate: 
         <EmailEditor id="body" v-model="form.body" placeholder="Edit the email here..." height="300px" />
         <InputError :message="''" class="mt-2" />
       </div>
+      <div v-if="userSignature" class="unselectable-signature" v-html="userSignature"></div>
       <div class="flex items-center justify-end space-x-2">
         <PrimaryButton @click="approveEmail" :class="{ 'opacity-25': isSubmitting }" :disabled="isSubmitting">
           Approve & Send
@@ -94,3 +99,19 @@ watch(() => props.email, (nv) => { if (nv) fetchEmailDetails(); }, { immediate: 
     </form>
   </div>
 </template>
+
+<style scoped>
+.unselectable-signature {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  pointer-events: none;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+.unselectable-signature a { pointer-events: auto; cursor: pointer; }
+</style>
