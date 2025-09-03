@@ -224,7 +224,7 @@ const insertListIntoEditor = () => {
     listError.value = '';
 };
 
-const fetchClients = async () => {
+async function fetchClients() {
     loadingClients.value = true;
     clientsError.value = null;
     try {

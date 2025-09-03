@@ -14,6 +14,8 @@ class Project extends Model
 {
     use HasFactory, Taggable, SoftDeletes;
 
+    const LEADS = 'Leads';
+
     protected $fillable = [
         'name',
         'description',

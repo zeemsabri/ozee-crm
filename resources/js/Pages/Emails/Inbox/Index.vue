@@ -7,6 +7,7 @@ import EmailFilters from '@/Pages/Emails/Inbox/Components/EmailFilters.vue';
 import EmailList from '@/Pages/Emails/Inbox/Components/EmailList.vue';
 import EmailDetailsContent from '@/Pages/Emails/Inbox/Components/EmailDetailsContent.vue';
 import ComposeEmailContent from '@/Pages/Emails/Inbox/Components/ComposeEmailContent.vue';
+import CustomComposeEmailContent from '@/Pages/Emails/Inbox/Components/CustomComposeEmailContent.vue';
 import EmailActionContent from '@/Pages/Emails/Inbox/Components/EmailActionContent.vue';
 import ReceivedEmailActionContent from '@/Pages/Emails/Inbox/Components/ReceivedEmailActionContent.vue';
 import { usePermissions, usePermissionStore } from '@/Directives/permissions.js';
@@ -69,6 +70,7 @@ const { canDo } = usePermissions();
 const canViewEmails = computed(() => canDo('view_emails').value);
 const canApproveEmails = computed(() => canDo('approve_emails').value);
 const canComposeEmails = computed(() => canDo('compose_emails').value);
+const canCreateCustomEmails = computed(() => canDo('create_custom_emails').value);
 
 const filterOptions = computed(() => [
     { type: 'new', label: 'New Emails', icon: StarIcon },
@@ -111,6 +113,14 @@ const openComposeEmail = () => {
     inboxState.sidebar.show = true;
     inboxState.sidebar.title = 'Compose New Email';
     inboxState.sidebar.mode = 'compose';
+    inboxState.sidebar.data = null;
+};
+
+// Open Custom Emails (non-template based)
+const openCustomComposeEmail = async () => {
+    inboxState.sidebar.show = true;
+    inboxState.sidebar.title = 'Compose Custom Email';
+    inboxState.sidebar.mode = 'custom-compose';
     inboxState.sidebar.data = null;
 };
 
@@ -232,16 +242,28 @@ watch(() => inboxState.filters, () => {
                 <h2 class="font-semibold text-xl text-gray-800 leading-tight">
                     Inbox
                 </h2>
-                <button
-                    v-if="canComposeEmails"
-                    @click="openComposeEmail"
-                    class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-25 transition"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Compose Email
-                </button>
+                <div class="flex items-center gap-2">
+                    <button
+                        v-if="canComposeEmails"
+                        @click="openComposeEmail"
+                        class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-25 transition"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Compose Email
+                    </button>
+                    <button
+                        v-if="canCreateCustomEmails"
+                        @click="openCustomComposeEmail"
+                        class="inline-flex items-center px-4 py-2 bg-emerald-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-25 transition"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Custom Emails
+                    </button>
+                </div>
             </div>
         </template>
 
@@ -343,6 +365,14 @@ watch(() => inboxState.filters, () => {
                                     :email="inboxState.sidebar.data"
                                     @submitted="handleSubmitted"
                                     @error="() => console.log('Error from received-edit')"
+                                />
+                            </div>
+                            <div v-else-if="inboxState.sidebar.mode === 'custom-compose'">
+                                <CustomComposeEmailContent
+                                    :project-id="null"
+                                    :user-project-role="{}"
+                                    @submitted="() => { handleSubmitted(); }"
+                                    @error="() => {}"
                                 />
                             </div>
                         </template>
