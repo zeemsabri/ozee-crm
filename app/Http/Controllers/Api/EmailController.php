@@ -69,9 +69,13 @@ class EmailController extends Controller
 
         try {
             $validated = $request->validate([
-                'project_id' => 'required|exists:projects,id',
-                'client_ids' => 'required|array|min:1', // Ensure at least one client is selected
-                'client_ids.*.id' => 'required|exists:clients,id', // Validate each client ID
+                'project_id' => 'nullable|exists:projects,id|required_without:lead_ids',
+                'selected_client_id' => 'nullable|exists:clients,id',
+                // At least one of client_ids or lead_ids must be provided
+                'client_ids' => 'array',
+                'client_ids.*.id' => 'required_with:client_ids|exists:clients,id',
+                'lead_ids' => 'array',
+                'lead_ids.*.id' => 'required_with:lead_ids|exists:leads,id',
                 'subject' => 'required|string|max:255',
                 'body' => 'required|string',
                 'custom_greeting_name' => 'string|nullable',
@@ -79,21 +83,62 @@ class EmailController extends Controller
                 'status' => 'sometimes|in:draft,pending_approval', // Default to pending if submitted
             ]);
 
+            if (empty($validated['client_ids']) && empty($validated['lead_ids'])) {
+                throw ValidationException::withMessages([
+                    'recipient' => 'Please select at least one client or lead.',
+                ]);
+            }
 
+            // Normalize client IDs (if provided) from array of objects
+            $clientIds = [];
+            if (!empty($validated['client_ids'])) {
+                $clientIds = array_map(function ($client) {
+                    return $client['id'];
+                }, $validated['client_ids']);
+            }
 
-            // Extract client IDs from the client_ids array of objects
-            $clientIds = array_map(function ($client) {
-                return $client['id'];
-            }, $validated['client_ids']);
+            // If leads are provided, ensure corresponding Client records exist and are attached to the project
+            $leadIds = [];
+            if (!empty($validated['lead_ids'])) {
+                $leadIds = array_map(function ($lead) {
+                    return $lead['id'];
+                }, $validated['lead_ids']);
 
-            // Verify project-client relationship for each client
+                $leads = \App\Models\Lead::whereIn('id', $leadIds)->get();
+                foreach ($leads as $lead) {
+                    // Find or create a Client by email (fallback to name)
+                    $client = \App\Models\Client::firstOrCreate(
+                        ['email' => $lead->email],
+                        [
+                            'name' => trim(($lead->first_name ? $lead->first_name.' ' : '') . ($lead->last_name ?? '')) ?: ($lead->company ?? 'Lead '.$lead->id),
+                            'phone' => $lead->phone,
+                            'address' => $lead->address,
+                            'notes' => $lead->notes,
+                        ]
+                    );
+                    $clientIds[] = $client->id;
+                }
+            }
+
+            // If sending to leads with no explicit project, default to Project::LEADS
+            if (empty($validated['project_id']) && !empty($leadIds)) {
+                $leadsProject = Project::where('name', Project::LEADS)->first();
+                if (!$leadsProject) {
+                    throw ValidationException::withMessages([
+                        'project_id' => 'Default leads project not found. Please create a project named "'.Project::LEADS.'" or select a project explicitly.',
+                    ]);
+                }
+                $validated['project_id'] = $leadsProject->id;
+            }
+
+            // Verify project-client relationship for each client and attach if missing (for lead-derived clients)
             $project = Project::with('clients')->find($validated['project_id']);
             $projectClientIds = $project->clients->pluck('id')->toArray();
             foreach ($clientIds as $clientId) {
                 if (!in_array($clientId, $projectClientIds)) {
-                    throw ValidationException::withMessages([
-                        'client_ids' => "Client ID {$clientId} is not assigned to this project.",
-                    ]);
+                    // Attach client to project if not already assigned (handles lead-derived clients)
+                    $project->clients()->attach($clientId);
+                    $projectClientIds[] = $clientId;
                 }
             }
 
@@ -103,6 +148,9 @@ class EmailController extends Controller
             }
 
             // Create or update a conversation for this project-client(s) combination
+            // Determine primary client for the conversation
+            $primaryClientId = $validated['selected_client_id'] ?? ($clientIds[0] ?? null);
+
             $conversation = Conversation::firstOrCreate(
                 [
                     'project_id' => $validated['project_id'],
@@ -111,7 +159,7 @@ class EmailController extends Controller
                 [
                     'subject' => $validated['subject'], // Use email subject as conversation subject if new
                     'contractor_id' => $user->id,
-                    'client_id' => $clientIds[0],
+                    'client_id' => $primaryClientId,
                     'last_activity_at' => now(),
                 ]
             );

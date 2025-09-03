@@ -45,6 +45,10 @@ class Lead extends Model
         'metadata' => 'array',
     ];
 
+    protected $appends = [
+        'full_name',
+    ];
+
     // Relationships
     public function assignedTo()
     {
