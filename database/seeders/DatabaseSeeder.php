@@ -27,5 +27,10 @@ class DatabaseSeeder extends Seeder
         $this->call([
             TransactionTypeSeeder::class,
         ]);
+
+        // Seed sample presentations
+        $this->call([
+            PresentationSeeder::class,
+        ]);
     }
 }
