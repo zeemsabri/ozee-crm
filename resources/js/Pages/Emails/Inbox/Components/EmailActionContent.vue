@@ -118,7 +118,7 @@ const fetchPreview = async () => {
         const payload = {
             template_id: form.template_id,
             template_data: form.template_data,
-            client_id: props.email.conversation.client_id, // Correctly added client_id
+            client_id: props.email.conversation.conversable_id, // Correctly added client_id
         };
         const response = await fetchEmailPreviewApi(props.email.conversation.project.id, payload);
         previewContent.value = response.body_html;
@@ -182,7 +182,7 @@ const submitForm = async () => {
                 subject: form.subject,
                 template_id: form.template_id,
                 template_data: form.template_data,
-                client_id: props.email.conversation.client_id,
+                client_id: props.email.conversation.conversable_id,
             };
         } else {
             payload = {

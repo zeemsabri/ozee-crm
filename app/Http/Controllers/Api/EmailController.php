@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Concerns\HandlesTemplatedEmails;
+use App\Http\Controllers\Api\Concerns\HandlesEmailCreation;
 use App\Mail\ClientEmail;
 use App\Models\Email;
 use App\Models\EmailTemplate;
@@ -27,7 +28,7 @@ class EmailController extends Controller
     protected GmailService $gmailService;
     protected MagicLinkService $magicLinkService;
 
-    use HasProjectPermissions, HandlesTemplatedEmails;
+    use HasProjectPermissions, HandlesTemplatedEmails, HandlesEmailCreation;
 
     public function __construct(GmailService $gmailService, MagicLinkService $magicLinkService)
     {
@@ -70,126 +71,34 @@ class EmailController extends Controller
         try {
             $validated = $request->validate([
                 'project_id' => 'nullable|exists:projects,id|required_without:lead_ids',
-                'selected_client_id' => 'nullable|exists:clients,id',
-                // At least one of client_ids or lead_ids must be provided
+                // Recipient sets
                 'client_ids' => 'array',
                 'client_ids.*.id' => 'required_with:client_ids|exists:clients,id',
                 'lead_ids' => 'array',
                 'lead_ids.*.id' => 'required_with:lead_ids|exists:leads,id',
+                // Content
                 'subject' => 'required|string|max:255',
-                'body' => 'required|string',
+                'body' => 'required_without:template_id|string|nullable',
+                'template_id' => 'nullable|exists:email_templates,id',
+                'template_data' => 'nullable|array',
                 'custom_greeting_name' => 'string|nullable',
                 'greeting_name' =>  'string|nullable',
-                'status' => 'sometimes|in:draft,pending_approval', // Default to pending if submitted
+                'status' => 'sometimes|in:draft,pending_approval',
             ]);
 
-            if (empty($validated['client_ids']) && empty($validated['lead_ids'])) {
-                throw ValidationException::withMessages([
-                    'recipient' => 'Please select at least one client or lead.',
-                ]);
-            }
-
-            // Normalize client IDs (if provided) from array of objects
-            $clientIds = [];
-            if (!empty($validated['client_ids'])) {
-                $clientIds = array_map(function ($client) {
-                    return $client['id'];
-                }, $validated['client_ids']);
-            }
-
-            // If leads are provided, ensure corresponding Client records exist and are attached to the project
-            $leadIds = [];
-            if (!empty($validated['lead_ids'])) {
-                $leadIds = array_map(function ($lead) {
-                    return $lead['id'];
-                }, $validated['lead_ids']);
-
-                $leads = \App\Models\Lead::whereIn('id', $leadIds)->get();
-                foreach ($leads as $lead) {
-                    // Find or create a Client by email (fallback to name)
-                    $client = \App\Models\Client::firstOrCreate(
-                        ['email' => $lead->email],
-                        [
-                            'name' => trim(($lead->first_name ? $lead->first_name.' ' : '') . ($lead->last_name ?? '')) ?: ($lead->company ?? 'Lead '.$lead->id),
-                            'phone' => $lead->phone,
-                            'address' => $lead->address,
-                            'notes' => $lead->notes,
-                        ]
-                    );
-                    $clientIds[] = $client->id;
+            // Decide which handler to use
+            if (!empty($validated['template_id'])) {
+                $email = $this->handleTemplatedEmail($user, $validated);
+            } elseif (!empty($validated['lead_ids'])) {
+                // project_id may be null by design for leads
+                $email = $this->handleLeadEmail($user, $validated);
+            } else {
+                // Custom email to existing clients requires project_id
+                if (empty($validated['project_id'])) {
+                    throw ValidationException::withMessages(['project_id' => 'Project is required for client emails.']);
                 }
+                $email = $this->handleCustomClientEmail($user, $validated);
             }
-
-            // If sending to leads with no explicit project, default to Project::LEADS
-            if (empty($validated['project_id']) && !empty($leadIds)) {
-                $leadsProject = Project::where('name', Project::LEADS)->first();
-                if (!$leadsProject) {
-                    throw ValidationException::withMessages([
-                        'project_id' => 'Default leads project not found. Please create a project named "'.Project::LEADS.'" or select a project explicitly.',
-                    ]);
-                }
-                $validated['project_id'] = $leadsProject->id;
-            }
-
-            // Verify project-client relationship for each client and attach if missing (for lead-derived clients)
-            $project = Project::with('clients')->find($validated['project_id']);
-            $projectClientIds = $project->clients->pluck('id')->toArray();
-            foreach ($clientIds as $clientId) {
-                if (!in_array($clientId, $projectClientIds)) {
-                    // Attach client to project if not already assigned (handles lead-derived clients)
-                    $project->clients()->attach($clientId);
-                    $projectClientIds[] = $clientId;
-                }
-            }
-
-            // Verify if contractor is assigned to this project
-            if (!$user->projects->contains($project->id)) {
-                return response()->json(['message' => 'Unauthorized: You are not assigned to this project.'], 403);
-            }
-
-            // Create or update a conversation for this project-client(s) combination
-            // Determine primary client for the conversation
-            $primaryClientId = $validated['selected_client_id'] ?? ($clientIds[0] ?? null);
-
-            $conversation = Conversation::create(
-                [
-                    'project_id' => $validated['project_id'],
-                    'subject' => $validated['subject'], // Use email subject as conversation subject if new
-                    'contractor_id' => $user->id,
-                    'client_id' => $primaryClientId,
-                    'last_activity_at' => now(),
-                ]
-            );
-
-            // If a new conversation was created and its subject is generic, update it
-            if ($conversation->wasRecentlyCreated && empty($conversation->subject)) {
-                $conversation->subject = $validated['subject'];
-                $conversation->save();
-            }
-
-            // Retrieve client emails server-side
-            $clientEmails = Client::whereIn('id', $clientIds)
-                ->pluck('email')
-                ->toArray();
-
-            $greeting = $validated['custom_greeting_name'] ?? $validated['greeting_name'] ?: 'Hi there';
-
-            // Create the email record
-            $email = Email::create([
-                'conversation_id' => $conversation->id,
-                'sender_id' => $user->id, // The user who drafted/submitted the email
-                'to' => json_encode($clientEmails), // Store recipient emails as JSON array
-                'subject' => $validated['subject'],
-                'body' => $greeting . '<br/>' . $validated['body'],
-                'status' => $validated['status'] ?? 'pending_approval', // Default to pending
-                'type' => 'sent', // Set type to sent for outgoing emails
-            ]);
-
-            // Attach clients to the conversation (if not already attached)
-            //$conversation->clients()->syncWithoutDetaching($clientIds);
-
-            // Update last activity for conversation
-            $conversation->update(['last_activity_at' => now()]);
 
             Log::info('Email created/submitted', ['email_id' => $email->id, 'status' => $email->status, 'user_id' => $user->id]);
             return response()->json($email->load('conversation'), 201);
@@ -415,16 +324,19 @@ class EmailController extends Controller
             $data = $this->getData($subject, $renderedBody, $senderDetails, $email, true);
             $finalRenderedBody = $this->renderHtmlTemplate($data, $template);
 
-            $recipientClient = $email->conversation->client;
-            if (!$recipientClient) {
-                throw new Exception('Recipient client not found for email ID: ' . $email->id);
+            // Resolve recipient(s): if a client is associated, use it; otherwise fall back to Email.to
+            $client = $email->conversation->client;
+            $recipients = [];
+            if ($client && !empty($client->email)) {
+                $recipients = [$client->email];
+            } else {
+                $recipients = is_array($email->to) ? $email->to : (empty($email->to) ? [] : [$email->to]);
             }
 
-            $clientEmailAddress = $recipientClient->email;
-
-            if($email->status === 'pending_approval') {
+            if ($email->status === 'pending_approval' && !empty($recipients)) {
+                // Send to first recipient for now (extend to multiple later if required)
                 $this->gmailService->sendEmail(
-                    $clientEmailAddress,
+                    $recipients[0],
                     $subject,
                     $finalRenderedBody
                 );

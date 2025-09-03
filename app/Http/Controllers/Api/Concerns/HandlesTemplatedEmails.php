@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Concerns;
 
 use App\Models\Client;
 use App\Models\EmailTemplate;
+use App\Models\Lead;
 use App\Models\PlaceholderDefinition;
 use App\Models\Project;
 use App\Models\Email;
@@ -284,6 +285,14 @@ trait HandlesTemplatedEmails
     public function getSenderDetails(Email $email)
     {
         $sender = $email->sender;
+
+        if(get_class($email->conversation->conversable) === Lead::class) {
+            return [
+                'name' => $sender->name ?? 'Original Sender',
+                'role'  =>  null
+            ];
+        }
+
         return [
             'name' => $sender->name ?? 'Original Sender',
             'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
