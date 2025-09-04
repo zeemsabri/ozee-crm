@@ -1,6 +1,6 @@
 <template>
     <modal :show="true" @close="$emit('close')" aria-label="Create presentation modal">
-        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full">
             <h2 class="text-xl font-bold mb-1">Create Presentation</h2>
             <p v-if="errorMessage" class="text-sm text-red-600 mb-3" role="alert">{{ errorMessage }}</p>
             <form @submit.prevent="submit">
