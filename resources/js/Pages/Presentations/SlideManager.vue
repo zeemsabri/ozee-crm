@@ -83,6 +83,8 @@ const draggableSlides = computed({
         // A more complex merge could preserve relative order, but this is robust.
         // For our case, we will just update the order of all slides.
         const finalSlides = [...reorderedSlides, ...stationarySlides];
+        // Update local display_order so the slides getter (which sorts by display_order) doesn't snap back
+        finalSlides.forEach((s, idx) => { if (s) s.display_order = idx + 1; });
         store.presentation.slides = finalSlides;
     }
 });

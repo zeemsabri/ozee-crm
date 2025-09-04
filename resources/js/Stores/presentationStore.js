@@ -24,6 +24,9 @@ export const usePresentationStore = defineStore('presentation', {
         selectedSlideId: null,
         selectedBlockId: null,
         savingBlocks: {}, // { [blockId]: boolean }
+        // UI state for editor layout
+        previewOpen: false,
+        previewMaximized: false,
     }),
     getters: {
         slides(state) {
@@ -59,6 +62,24 @@ export const usePresentationStore = defineStore('presentation', {
         },
         selectBlock(id) {
             this.selectedBlockId = id;
+        },
+        // Preview UI controls
+        showPreview() {
+            this.previewOpen = true;
+        },
+        hidePreview() {
+            this.previewOpen = false;
+            this.previewMaximized = false;
+        },
+        togglePreview() {
+            if (this.previewOpen) this.hidePreview(); else this.showPreview();
+        },
+        setPreviewMax(value) {
+            this.previewMaximized = !!value;
+            if (this.previewMaximized) this.previewOpen = true;
+        },
+        togglePreviewMax() {
+            this.setPreviewMax(!this.previewMaximized);
         },
         async savePresentation() {
             if (!this.presentation?.id) return;
@@ -204,18 +225,21 @@ export const usePresentationStore = defineStore('presentation', {
         },
         async reorderBlocks(slideId, newOrderIds) {
             const slide = this.presentation.slides.find(s => s.id === slideId);
-            const original = slide ? [...(slide.content_blocks || [])] : [];
+            const original = slide ? JSON.parse(JSON.stringify(slide.content_blocks || [])) : [];
             const orders = newOrderIds.map((id, i) => ({ id, display_order: i + 1 }));
+
+            // Optimistic update: immediately reorder locally and update display_order
+            if (slide) {
+                const map = new Map((slide.content_blocks || []).map(b => [b.id, b]));
+                slide.content_blocks = newOrderIds.map((id, index) => {
+                    const b = map.get(id);
+                    if (b) b.display_order = index + 1;
+                    return b;
+                }).filter(Boolean);
+            }
+
             try {
                 await api.reorderBlocks(orders);
-                if (slide) {
-                    const map = new Map((slide.content_blocks||[]).map(b => [b.id, b]));
-                    slide.content_blocks = newOrderIds.map((id, index) => {
-                        const b = map.get(id);
-                        if (b) b.display_order = index + 1;
-                        return b;
-                    }).filter(Boolean);
-                }
                 notify.success('Blocks reordered.');
             } catch (e) {
                 notify.error('Failed to reorder blocks.');
