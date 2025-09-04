@@ -15,6 +15,32 @@ class PresentationController extends Controller
         'App\\Models\\Lead',
     ];
 
+    private function deepClonePresentation(Presentation $source, array $overrides = []): Presentation
+    {
+        // Duplicate presentation row
+        $new = $source->replicate(['share_token']); // regenerate share token via booted
+        foreach ($overrides as $k => $v) {
+            $new->{$k} = $v;
+        }
+        $new->save();
+
+        // Duplicate slides and their content blocks
+        $source->load(['slides.contentBlocks']);
+        foreach ($source->slides as $slide) {
+            $newSlide = $slide->replicate(['presentation_id']);
+            $newSlide->presentation_id = $new->id;
+            $newSlide->save();
+
+            foreach ($slide->contentBlocks as $block) {
+                $newBlock = $block->replicate(['slide_id']);
+                $newBlock->slide_id = $newSlide->id;
+                $newBlock->save();
+            }
+        }
+
+        return $new->fresh(['slides.contentBlocks']);
+    }
+
     public function index(Request $request)
     {
         $presentations = Presentation::query()
@@ -30,10 +56,69 @@ class PresentationController extends Controller
             'presentable_type' => ['required','string', Rule::in(self::PRESENTABLE_WHITELIST)],
             'title' => ['required','string','max:255'],
             'type' => ['required','string','max:50'],
+            // New optional inputs to support creation from template or slides
+            'template_id' => ['nullable','integer','exists:presentations,id'],
+            'source_slide_ids' => ['nullable','array'],
+            'source_slide_ids.*' => ['integer','exists:slides,id'],
         ]);
 
-        $presentation = Presentation::create($data);
-        return response()->json($presentation, 201);
+        // Enforce mutual exclusivity between template_id and source_slide_ids
+        if (!empty($data['template_id']) && !empty($data['source_slide_ids'])) {
+            return response()->json(['message' => 'Provide either template_id or source_slide_ids, not both.'], 422);
+        }
+
+        // Base presentation record
+        $presentation = Presentation::create([
+            'presentable_id' => $data['presentable_id'],
+            'presentable_type' => $data['presentable_type'],
+            'title' => $data['title'],
+            'type' => $data['type'],
+            'is_template' => false,
+        ]);
+
+        // If template_id provided, clone template into the new presentation (slides + blocks)
+        if (!empty($data['template_id'])) {
+            $template = Presentation::with('slides.contentBlocks')->findOrFail($data['template_id']);
+            // Safety: ensure selected source is a template
+            if (!$template->is_template) {
+                return response()->json(['message' => 'Selected presentation is not a template'], 422);
+            }
+            // Copy slides into the newly created presentation
+            $maxOrder = (int) $presentation->slides()->max('display_order');
+            foreach ($template->slides as $slide) {
+                $newSlide = $slide->replicate(['presentation_id']);
+                $newSlide->presentation_id = $presentation->id;
+                $newSlide->display_order = ++$maxOrder;
+                $newSlide->save();
+                foreach ($slide->contentBlocks as $block) {
+                    $newBlock = $block->replicate(['slide_id']);
+                    $newBlock->slide_id = $newSlide->id;
+                    $newBlock->save();
+                }
+            }
+        }
+
+        // If source_slide_ids provided, copy those slides into the new presentation
+        if (!empty($data['source_slide_ids'])) {
+            $slides = Slide::with('contentBlocks')
+                ->whereIn('id', $data['source_slide_ids'])
+                ->orderBy('display_order')
+                ->get();
+            $maxOrder = (int) $presentation->slides()->max('display_order');
+            foreach ($slides as $slide) {
+                $newSlide = $slide->replicate(['presentation_id']);
+                $newSlide->presentation_id = $presentation->id;
+                $newSlide->display_order = ++$maxOrder;
+                $newSlide->save();
+                foreach ($slide->contentBlocks as $block) {
+                    $newBlock = $block->replicate(['slide_id']);
+                    $newBlock->slide_id = $newSlide->id;
+                    $newBlock->save();
+                }
+            }
+        }
+
+        return response()->json($presentation->fresh(['slides.contentBlocks']), 201);
     }
 
     public function show($id)
@@ -160,5 +245,83 @@ class PresentationController extends Controller
         $contentBlock = ContentBlock::findOrFail($id);
         $contentBlock->delete();
         return response()->json(['message' => 'Content block deleted']);
+    }
+
+    // Templates & Duplication
+    public function templates()
+    {
+        $items = Presentation::query()
+            ->where('is_template', true)
+            ->withCount('slides')
+            ->orderBy('title')
+            ->get()
+            ->map(function ($p) {
+                return [
+                    'id' => $p->id,
+                    'title' => $p->title,
+                    'is_template' => (bool)$p->is_template,
+                    'slide_count' => $p->slides_count,
+                ];
+            });
+        return response()->json(['data' => $items]);
+    }
+
+    public function duplicate($id)
+    {
+        $source = Presentation::with('slides.contentBlocks')->findOrFail($id);
+
+        $new = $this->deepClonePresentation($source, [
+            'is_template' => false,
+            // keep presentable as is
+            'title' => rtrim($source->title) . ' (Copy)',
+        ]);
+
+        return response()->json($new, 201);
+    }
+
+    public function saveAsTemplate($id)
+    {
+        $source = Presentation::with('slides.contentBlocks')->findOrFail($id);
+
+        $new = $this->deepClonePresentation($source, [
+            'is_template' => true,
+            'presentable_id' => null,
+            'presentable_type' => null,
+            'title' => rtrim($source->title) . ' (Template)',
+        ]);
+
+        return response()->json($new, 201);
+    }
+
+    public function copySlides(Request $request, $targetId)
+    {
+        $target = Presentation::findOrFail($targetId);
+        $validated = $request->validate([
+            'source_slide_ids' => ['required','array'],
+            'source_slide_ids.*' => ['integer','exists:slides,id'],
+        ]);
+
+        $slides = Slide::with('contentBlocks')
+            ->whereIn('id', $validated['source_slide_ids'])
+            ->orderBy('display_order')
+            ->get();
+
+        // Determine next display_order starting point in target
+        $maxOrder = (int) $target->slides()->max('display_order');
+
+        foreach ($slides as $slide) {
+            $newSlide = $slide->replicate(['presentation_id']);
+            $newSlide->presentation_id = $target->id;
+            $newSlide->display_order = ++$maxOrder;
+            $newSlide->save();
+
+            foreach ($slide->contentBlocks as $block) {
+                $newBlock = $block->replicate(['slide_id']);
+                $newBlock->slide_id = $newSlide->id;
+                $newBlock->save();
+            }
+        }
+
+        return response()->json(['message' => 'Slides copied']);
     }
 }

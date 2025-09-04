@@ -2,7 +2,7 @@
     <AuthenticatedLayout>
         <div class="flex flex-row h-full bg-gray-50">
             <Toolbar
-                :actions="['save', 'share', 'collaborate']"
+                :actions="['save', 'share', 'collaborate', 'saveTemplate']"
                 class=""
                 aria-label="Editor toolbar"
             />

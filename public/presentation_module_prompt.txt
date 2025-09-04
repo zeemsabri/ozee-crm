@@ -1,171 +1,100 @@
-Comprehensive Code & Design Review for Presentation Builder
-1. Introduction
-This document provides a detailed analysis of the Presentation Builder application, focusing on resolving critical reactivity issues, improving code architecture for maintainability, and enhancing the user interface (UI) and user experience (UX). The following sections outline the core problems, propose concrete solutions, and offer design recommendations to create a more robust, stable, and polished application.
+5. POST /api/presentations (Updated)
 
-2. High Priority: Core Functionality & Reactivity
-The most significant issue is the need to refresh the page to see updates after performing actions like adding or deleting slides. This is caused by a lack of robust error handling and incorrect local state management.
+Description: The main creation endpoint needs to be enhanced.
 
-2.1. The "Why Refresh?" Problem: Silent API Failures
-Problem: In presentationStore.js, asynchronous actions (addSlide, deleteSlide, etc.) lack try...catch blocks. If an API call fails, the promise rejects, the function halts, and the state update code is never executed. The UI doesn't change, leaving the user confused and the application state out of sync with the server.
+Logic: The request body can now optionally include template_id OR source_slide_ids.
 
-Solution: Wrap every API call in the Pinia store with try...catch...finally blocks to handle all possible outcomes gracefully.
+If template_id is present, the backend first clones that template to create the new presentation, then assigns the presentable from the request.
 
-Example Implementation (presentationStore.js):
+If source_slide_ids is present, the backend creates a new blank presentation and then immediately copies the specified slides into it.
 
-// Before (Unsafe)
-async deleteSlide(slideId) {
-  await api.deleteSlide(slideId);
-  this.presentation.slides = this.presentation.slides.filter(s => s.id !== slideId);
-  // ...
-}
+1.3. Database Seeder Updates
+The seeder is critical for providing immediate value.
 
-// After (Robust & User-Friendly)
-import { success, error } from '@/Utils/notification'; // Assuming you have this
+Action: Deconstruct the fannit.html and dynamic_outdoor.html files into a series of high-quality, pre-built templates.
 
-// ... in actions:
-async deleteSlide(slideId) {
-  // 1. Give the user immediate visual feedback (optional but good UX)
-  const originalSlides = [...this.presentation.slides];
-  this.presentation.slides = this.presentation.slides.filter(s => s.id !== slideId);
+Required Templates:
 
-  try {
-    await api.deleteSlide(slideId);
-    success('Slide deleted successfully.'); // Notify user on success
-  } catch (e) {
-    // 2. If the API fails, show an error and revert the change
-    error('Failed to delete slide. Please try again.');
-    this.presentation.slides = originalSlides; // Revert state
-    console.error(e); // Log for debugging
-  }
-}
+"Full SEO Audit Template" (from fannit.html)
 
-2.2. Incorrect State Updates on Reordering
-Problem: The reorderSlides and reorderBlocks actions have flawed logic for updating the local state. They reorder the items but fail to correctly update the display_order property, leading to data inconsistency that a refresh temporarily fixes.
+"Website Performance Report Template" (performance slides from fannit.html)
 
-Solution: After a successful reorder API call, update the local array by mapping over the new ID order and assigning the correct index as the new display_order.
+"Social Media & Design Audit Template" (social/design slides from fannit.html)
 
-Example Implementation (presentationStore.js):
+"Web Application Proposal Template" (from dynamic_outdoor.html)
 
-async reorderSlides(newOrderIds) {
-  const orders = newOrderIds.map((id, i) => ({ id, display_order: i + 1 }));
-  try {
-    await api.reorderSlides(orders);
+Implementation: The seeder will create these records with is_template = true and populate all necessary child slides and content blocks with placeholder content.
 
-    // Correctly reorder the local state
-    const slideMap = new Map(this.presentation.slides.map(s => [s.id, s]));
-    this.presentation.slides = newOrderIds.map((id, index) => {
-      const slide = slideMap.get(id);
-      if (slide) {
-        slide.display_order = index + 1; // Assign the new, correct order
-      }
-      return slide;
-    }).filter(Boolean); // Filter out any potential undefined slides
+Phase 2: Frontend Implementation (Vue CRM)
+This phase implements the user-facing features that consume the new backend capabilities.
 
-    success('Slides reordered.');
-  } catch (e) {
-    error('Failed to reorder slides.');
-    // Consider reverting to a snapshot of the state before the try block
-    console.error(e);
-  }
-}
+2.1. New Presentation Workflow
+The initial creation flow will be updated to be more intuitive.
 
-3. UI/UX & Design Enhancements
-The application is functional, but several design adjustments can significantly improve usability and aesthetics.
+PresentationList.vue:
 
-3.1. Toolbar and Layout Redesign
-Problem: The top toolbar in EditorView.vue is too large, consuming valuable vertical space and constricting the main editor and preview panes.
+The "+ New" button no longer opens PresentationForm directly. It now opens a new CreationChoiceModal.vue.
 
-Solution: Transition to a vertical, icon-based toolbar on the left side of the screen. This is a standard design pattern in editor applications (e.g., VS Code, Figma) that maximizes the horizontal workspace.
+This modal asks the user "How would you like to start?" and provides two options: "Start from Scratch" or "Use a Template".
 
-Implementation Steps:
+TemplateBrowser.vue (New Component):
 
-Modify EditorView.vue Layout:
+If the user chooses "Use a Template," this new component is shown (likely in a large modal).
 
-Change the root div from flex-col to flex-row.
+It calls the GET /api/templates endpoint and displays the available templates in a grid of cards with titles and thumbnail previews.
 
-Place the <Toolbar> component outside and to the left of the <Splitpanes> container.
+When a user selects a template, it closes and opens PresentationForm.vue, passing the selected template_id.
 
-Give the <Splitpanes> container a flex-1 class to make it fill the remaining space.
+PresentationForm.vue (Updated):
 
-<!-- EditorView.vue -->
-<template>
-  <AuthenticatedLayout>
-    <!-- Changed to flex-row -->
-    <div class="flex flex-row h-screen bg-gray-50">
-      <!-- Toolbar is now the first item in the row -->
-      <Toolbar
-        :actions="['save', 'export', 'collaborate', 'theme']"
-        aria-label="Editor toolbar"
-      />
-      <!-- Splitpanes takes up the remaining space -->
-      <Splitpanes class="flex-1">
-        <!-- ... Panes ... -->
-      </Splitpanes>
-    </div>
-  </AuthenticatedLayout>
-</template>
+The form will now accept an optional template_id or source_slide_ids array.
 
-Redesign the Toolbar.vue Component:
+When submitting, it will include these IDs in the payload to the POST /api/presentations endpoint.
 
-Change its container to be a narrow div with flex-col.
+2.2. Advanced Duplication & Content Reuse Workflow
+This workflow centers around a new modal and new actions in the presentation list.
 
-Make the buttons icon-only to save space.
+PresentationList.vue (Updated):
 
-Use tooltips on hover to show the action's label (Save, Export PDF, etc.). This can be achieved with a simple custom component or a library like floating-vue.
+Each row in the presentation list will now have two new buttons:
 
-Remove the max-w-[50px] from the toolbar's class in EditorView.vue and manage the width (e.g., w-16) within the Toolbar.vue component itself.
+"Duplicate"
 
-3.2. Visual Polish and Consistency
-Centralize Styles: The .btn, .btn-primary, and other utility styles are repeated across multiple components. Move them to a single global CSS file (e.g., assets/css/main.css) to ensure consistency and simplify future design changes.
+"Manage Slides"
 
-Improve Hover and Focus States: Enhance interactivity by adding more distinct background colors, shadows, or borders on hover/focus for clickable elements, especially the slide items in SlideManager and content blocks in SlideEditor.
+SlideSummaryModal.vue (New Core Component):
 
-Loading Indicators: For actions like adding a slide or block, disable the button and show a spinner inside it. This provides clear, contextual feedback that an operation is in progress.
+This is a large modal that displays a grid of selectable slide thumbnails for a given presentation. It is the central UI for all advanced copy/duplicate actions.
 
-3.3. Smoother User Flow
-Auto-Select New Slides: In the addSlide action in your Pinia store, after successfully creating a slide and adding it to the state, automatically set it as the selectedSlideId. This removes the need for the user to manually find and click the new slide.
+It will contain a toolbar with action buttons at the bottom.
 
-Consistent Confirmation Dialogs: Replace the native browser confirm('Delete slide?') in SlideManager.vue with your custom confirmPrompt utility to maintain a consistent UI for all user confirmations.
+Implementing the Workflows:
 
-4. Code Architecture & Best Practices
-Refactoring key areas of the codebase will make it more scalable and easier to maintain.
+"Duplicate" Workflow:
 
-4.1. Don't Repeat Yourself (DRY)
-Problem: The getRenderer(b) function, which translates block data into renderable components, is duplicated in SlidePreview.vue and SlideThumbnail.vue.
+Clicking "Duplicate" opens the SlideSummaryModal.vue.
 
-Solution: Create a Vue Composable to house this shared logic.
+The modal will display two action buttons:
 
-Example (/composables/useBlockRenderer.js):
+"Create a Full Duplicate": Calls POST /api/presentations/{id}/duplicate. On success, closes the modal and refreshes the presentation list.
 
-import { h } from 'vue';
+"Create New from Selection...": Becomes active when slides are checked. On click, it passes the selected source_slide_ids to PresentationForm.vue to create a new, custom presentation.
 
-export function useBlockRenderer() {
-  function getRenderer(block, theme = 'light') {
-    // ... paste the logic from SlidePreview.vue here ...
-    // Make sure it can accept a theme/context parameter if needed.
-  }
-  return { getRenderer };
-}
+"Manage Slides" / "Copy To" Workflow:
 
-You can then import and use it in any component: const { getRenderer } = useBlockRenderer();.
+Clicking "Manage Slides" opens the SlideSummaryModal.vue.
 
-4.2. Improve Component Scalability
-Problem: ContentBlockForm.vue uses a long v-if/v-else-if chain to render different forms. This will become unmanageable as you add more block types.
+The modal displays one primary action button:
 
-Solution: Use dynamic components. Create a separate form component for each block type (e.g., HeadingForm.vue, ParagraphForm.vue) and use <component :is="..."> to render the appropriate one. This decouples the parent from the children and makes adding new block types as simple as creating a new file.
+"Copy to...": Becomes active when slides are checked. On click, it displays a searchable dropdown of other existing presentations.
 
-4.3. Centralize Configuration
-Problem: Configuration data, such as the list of templates and the payloads for new blocks in SlideEditor.vue, is hardcoded within components.
+When a destination is chosen and confirmed, it calls POST /api/presentations/{targetId}/copy-slides.
 
-Solution: Move this data to a central configuration file (e.g., /config/editor.js). This makes it easy to find, update, and reuse this information across the application.
+2.3. Save as Template Workflow
+EditorView.vue & Toolbar.vue (Updated):
 
-5. Conclusion
-The foundation of your application is strong. By focusing on these key areas, you can resolve the frustrating reactivity bugs, create a more professional and intuitive user interface, and build a more maintainable and scalable codebase for the future.
+Add a "Save as Template" button to the editor's main toolbar.
 
-Recommended Action Plan:
+This button will call the POST /api/presentations/{id}/save-as-template endpoint.
 
-Implement try/catch blocks and user notifications in presentationStore.js to fix the core stability issues.
-
-Refactor the EditorView and Toolbar components to implement the space-saving vertical toolbar design.
-
-Address the remaining UI/UX and code architecture suggestions to elevate the overall quality of the application.
+On success, display a toast notification: "Template created successfully."

@@ -464,7 +464,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('content_blocks/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'updateContentBlock']);
         Route::post('content_blocks/reorder', [\App\Http\Controllers\Api\PresentationController::class, 'reorderContentBlocks']);
         Route::delete('content_blocks/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'destroyContentBlock']);
+
+        // Templates & Duplication
+        Route::get('templates', [\App\Http\Controllers\Api\PresentationController::class, 'templates']);
+        Route::post('presentations/{id}/duplicate', [\App\Http\Controllers\Api\PresentationController::class, 'duplicate']);
+        Route::post('presentations/{id}/save-as-template', [\App\Http\Controllers\Api\PresentationController::class, 'saveAsTemplate']);
+        Route::post('presentations/{targetId}/copy-slides', [\App\Http\Controllers\Api\PresentationController::class, 'copySlides']);
     });
+
+    // Non-versioned Presentations Template & Duplication routes for compatibility with spec
+    Route::get('templates', [\App\Http\Controllers\Api\PresentationController::class, 'templates']);
+    Route::post('presentations/{id}/duplicate', [\App\Http\Controllers\Api\PresentationController::class, 'duplicate']);
+    Route::post('presentations/{id}/save-as-template', [\App\Http\Controllers\Api\PresentationController::class, 'saveAsTemplate']);
+    Route::post('presentations/{targetId}/copy-slides', [\App\Http\Controllers\Api\PresentationController::class, 'copySlides']);
 
     // Kudos Routes
     Route::get('kudos/pending', [\App\Http\Controllers\Api\KudoController::class, 'pending']);
