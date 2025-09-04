@@ -1,5 +1,5 @@
 <template>
-    <modal @close="$emit('close')">
+    <modal :show="true" @close="$emit('close')">
         <div class="bg-white p-4 sm:p-6 rounded-2xl shadow-xl w-full max-w-5xl transform transition-all flex flex-col">
             <!-- Modal Header -->
             <div class="flex-shrink-0 flex items-center justify-between pb-4 border-b border-slate-200">
