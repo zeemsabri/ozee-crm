@@ -152,7 +152,7 @@ class InboxController extends Controller
             ->paginate($perPage, ['*'], 'page', $page);
 
         // Add a flag to indicate if each email has been read and if the user can approve it
-        $emails->getCollection()->each(function ($email) use ($user) {
+        $emails->getCollection()->each(function (Email $email) use ($user) {
             $email->is_read = $email->isReadBy($user->id);
             $email->can_approve = false; // Default to false
 

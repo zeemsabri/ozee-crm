@@ -6,7 +6,14 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
 import Modal from '@/Components/Modal.vue';
+import RightSidebar from '@/Components/RightSidebar.vue';
+import CustomComposeEmailContent from '@/Pages/Emails/Inbox/Components/CustomComposeEmailContent.vue';
+import CustomEmailApprovalContent from '@/Pages/Emails/Inbox/Components/CustomEmailApprovalContent.vue';
+import EmailDetailsContent from '@/Pages/Emails/Inbox/Components/EmailDetailsContent.vue';
+import EmailActionContent from '@/Pages/Emails/Inbox/Components/EmailActionContent.vue';
+import ReceivedEmailActionContent from '@/Pages/Emails/Inbox/Components/ReceivedEmailActionContent.vue';
 import { useLeadDetails } from '@/Composables/useLeadDetails.js';
+import axios from 'axios';
 
 const props = defineProps({
   id: { type: Number, required: true },
@@ -43,9 +50,73 @@ const convertToClient = async () => {
   }
 };
 
+// Emails for this lead
+const emails = ref([]);
+const emailsLoading = ref(false);
+const emailsError = ref('');
+const emailPagination = ref({ current_page: 1, last_page: 1, total: 0 });
+
+const fetchLeadEmails = async (page = 1) => {
+  emailsLoading.value = true;
+  emailsError.value = '';
+  try {
+    const { data } = await axios.get(`/api/leads/${idRef.value}/emails`, { params: { page } });
+    emails.value = data.data || [];
+    emailPagination.value = {
+      current_page: data.current_page || 1,
+      last_page: data.last_page || 1,
+      total: data.total || (Array.isArray(data.data) ? data.data.length : 0),
+    };
+  } catch (e) {
+    console.error('Failed to load lead emails', e);
+    emailsError.value = e?.response?.data?.message || 'Failed to load emails';
+  } finally {
+    emailsLoading.value = false;
+  }
+};
+
+// Sidebar state
+const sidebar = ref({ show: false, mode: null, title: '', data: null, loading: false });
+
+const openCompose = () => {
+  sidebar.value = { show: true, mode: 'custom-compose', title: 'Compose Email to Lead', data: null, loading: false };
+};
+
+const openApproval = (email) => {
+  sidebar.value = { show: true, mode: 'view-email', title: 'Email Details', data: email, loading: false };
+};
+
+const handleEditEmail = (email) => {
+  sidebar.value.show = true;
+  sidebar.value.data = email;
+  if (email.type === 'received' && (email.status === 'pending_approval_received' || email.status === 'received')) {
+    sidebar.value.mode = 'received-edit';
+    sidebar.value.title = 'Approve Received Email';
+  } else {
+    if (!email.template_id) {
+      sidebar.value.mode = 'custom-edit';
+      sidebar.value.title = 'Edit & Approve Custom Email';
+    } else {
+      sidebar.value.mode = 'edit';
+      sidebar.value.title = 'Edit & Approve Template Email';
+    }
+  }
+};
+
+const handleSidebarSubmitted = () => {
+  sidebar.value.show = false;
+  fetchLeadEmails(emailPagination.value.current_page);
+};
+
+const changeEmailPage = (page) => {
+  if (page < 1 || page > emailPagination.value.last_page) return;
+  fetchLeadEmails(page);
+};
+
 onMounted(async () => {
   await fetchLead();
   await fetchNotes();
+  await fetchLeadEmails(1);
 });
 </script>
 
@@ -68,8 +139,9 @@ onMounted(async () => {
           </div>
         </div>
         <div class="flex items-center gap-2">
+          <PrimaryButton @click="openCompose">Compose Email</PrimaryButton>
           <PrimaryButton v-if="(leadState?.status || '').toLowerCase() !== 'converted'" @click="showConfirm = true">Convert to Client</PrimaryButton>
-                    <span v-else class="text-sm text-gray-500">Already converted</span>
+          <span v-else class="text-sm text-gray-500">Already converted</span>
         </div>
       </div>
     </template>
@@ -87,7 +159,7 @@ onMounted(async () => {
 
             <div v-if="leadState && !loading" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <!-- Details -->
-              <section class="lg:col-span-2 space-y-4">
+              <section class="lg:col-span-2 space-y-6">
                 <div>
                   <h3 class="text-lg font-semibold mb-2">Profile</h3>
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
@@ -116,6 +188,49 @@ onMounted(async () => {
                     </div>
                     <div v-if="leadState.tags"><span class="text-gray-500">Tags:</span> <span class="font-medium">{{ leadState.tags }}</span></div>
                     <div v-if="leadState.notes"><span class="text-gray-500">Notes:</span> <span class="font-medium">{{ leadState.notes }}</span></div>
+                  </div>
+                </div>
+
+                <!-- Emails Section -->
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-lg font-semibold">Emails</h3>
+                    <PrimaryButton @click="openCompose">Compose Email</PrimaryButton>
+                  </div>
+                  <div v-if="emailsLoading" class="text-gray-500 text-sm">Loading emails...</div>
+                  <div v-else-if="emailsError" class="text-red-600 text-sm">{{ emailsError }}</div>
+                  <div v-else-if="emails.length === 0" class="text-gray-500 text-sm">No emails found for this lead.</div>
+                  <div v-else class="overflow-x-auto shadow rounded-md border border-gray-100">
+                    <table class="min-w-full divide-y divide-gray-200">
+                      <thead class="bg-gray-50">
+                        <tr>
+                          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
+                          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody class="bg-white divide-y divide-gray-200">
+                        <tr v-for="e in emails" :key="e.id" class="hover:bg-gray-50 cursor-pointer" @click="openApproval(e)">
+                          <td class="px-4 py-2 text-sm text-gray-900">{{ e.subject }}</td>
+                          <td class="px-4 py-2 text-sm">
+                            <span :class="{
+                              'px-2 py-1 rounded-full text-xs font-medium': true,
+                              'bg-green-100 text-green-800': e.status === 'sent',
+                              'bg-yellow-100 text-yellow-800': e.status === 'pending_approval' || e.status === 'pending_approval_received',
+                              'bg-blue-100 text-blue-800': e.status === 'received'
+                            }">{{ (e.status || 'n/a').replace(/_/g, ' ').toUpperCase() }}</span>
+                          </td>
+                          <td class="px-4 py-2 text-sm text-gray-500">{{ e.type }}</td>
+                          <td class="px-4 py-2 text-sm text-gray-500">{{ new Date(e.created_at).toLocaleString() }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <div v-if="emailPagination.last_page > 1" class="p-2 flex justify-end gap-1">
+                      <button class="px-2 py-1 text-sm border rounded" :disabled="emailPagination.current_page === 1" @click="changeEmailPage(emailPagination.current_page - 1)">Prev</button>
+                      <span class="px-2 py-1 text-sm">Page {{ emailPagination.current_page }} of {{ emailPagination.last_page }}</span>
+                      <button class="px-2 py-1 text-sm border rounded" :disabled="emailPagination.current_page === emailPagination.last_page" @click="changeEmailPage(emailPagination.current_page + 1)">Next</button>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -169,5 +284,50 @@ onMounted(async () => {
         </div>
       </div>
     </Modal>
+    <!-- Right Sidebar for Compose / Approve -->
+    <RightSidebar :show="sidebar.show" :title="sidebar.title" @close="sidebar.show = false">
+      <template #content>
+        <div v-if="sidebar.mode === 'custom-compose'">
+          <CustomComposeEmailContent
+            :project-id="null"
+            :user-project-role="{}"
+            force-recipient-mode="leads"
+            :preset-lead-ids="[idRef]"
+            :hide-recipient-controls="true"
+            @submitted="handleSidebarSubmitted"
+            @error="() => {}"
+          />
+        </div>
+        <div v-else-if="sidebar.mode === 'view-email'">
+          <EmailDetailsContent
+            :email="sidebar.data"
+            :can-approve-emails="sidebar.data?.can_approve"
+            @edit="handleEditEmail"
+            @reject="(email) => { sidebar.mode = 'reject'; sidebar.data = email; sidebar.title = 'Reject Email'; }"
+          />
+        </div>
+        <div v-else-if="sidebar.mode === 'edit' || sidebar.mode === 'reject'">
+          <EmailActionContent
+            :email="sidebar.data"
+            :mode="sidebar.mode"
+            @submitted="handleSidebarSubmitted"
+          />
+        </div>
+        <div v-else-if="sidebar.mode === 'received-edit'">
+          <ReceivedEmailActionContent
+            :email="sidebar.data"
+            @submitted="handleSidebarSubmitted"
+            @error="() => {}"
+          />
+        </div>
+        <div v-else-if="sidebar.mode === 'custom-edit'">
+          <CustomEmailApprovalContent
+            :email="sidebar.data"
+            @submitted="handleSidebarSubmitted"
+            @error="() => {}"
+          />
+        </div>
+      </template>
+    </RightSidebar>
   </AuthenticatedLayout>
 </template>
