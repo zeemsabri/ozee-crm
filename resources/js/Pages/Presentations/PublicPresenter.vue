@@ -144,9 +144,13 @@ const layoutRenderers = {
             ]),
         ]);
     },
+    // ====================================================================
+    // UPDATED RENDERER LOGIC
+    // ====================================================================
     'ThreeStepProcess': (blocks) => {
         const heading = blocks.find(b => b.block_type === 'heading');
-        const steps = blocks.filter(b => b.block_type === 'feature_card');
+        // FIXED: Changed from 'feature_card' to 'step_card' to match the seeder
+        const steps = blocks.filter(b => b.block_type === 'step_card');
         return h('div', { class: 'text-center' }, [
             heading ? renderBlock(heading) : null,
             h('div', { class: 'relative grid grid-cols-1 md:grid-cols-3 gap-8 text-center' }, [
@@ -157,12 +161,15 @@ const layoutRenderers = {
     },
     'TwoColumnWithChart': (blocks) => {
         const heading = blocks.find(b => b.block_type === 'heading');
-        const imageBlock = blocks.find(b => b.block_type === 'image');
-        const cards = blocks.filter(b => b.block_type === 'feature_card');
+        // FIXED: Changed from 'image' to 'image_block'
+        const imageBlock = blocks.find(b => b.block_type === 'image_block');
+        // FIXED: Changed from 'feature_card' to 'feature_list'
+        const featureList = blocks.find(b => b.block_type === 'feature_list');
         return h('div', { class: 'text-center' }, [
             heading ? renderBlock(heading) : null,
             h('div', { class: 'grid md:grid-cols-2 gap-8 items-center' }, [
-                h('div', { class: 'text-left space-y-8' }, cards.map(c => renderBlock(c))),
+                // Render the feature_list directly
+                featureList ? renderBlock(featureList) : null,
                 h('div', { class: 'p-8 bg-gray-50 rounded-2xl' }, [
                     h('h3', { class: 'text-xl font-bold text-dark-grey mb-4' }, imageBlock?.content_data?.title),
                     h('div', { class: 'w-full h-64 rounded-lg flex items-center justify-center' }, renderBlock(imageBlock)),
@@ -196,13 +203,10 @@ function renderSlideLayout(slide) {
     return renderer(blocks);
 }
 
-
-// REVISED: Individual Block Renderer
 function renderBlock(block) {
 
     if(!block) {
-        console.log('no block found');
-        return;
+        return null;
     }
 
     const content = block.content_data || {};
@@ -210,7 +214,7 @@ function renderBlock(block) {
     switch (block.block_type) {
         case 'heading':
             const tag = `h${content.level || 2}`;
-            const headingClasses = 'text-4xl font-bold text-oz-blue mb-4';
+            const headingClasses = `text-4xl font-bold text-oz-blue mb-4`;
             return h(tag, { class: headingClasses }, content.text || '');
         case 'paragraph':
             const pClasses = 'text-lg text-dark-grey mb-6';
@@ -224,12 +228,8 @@ function renderBlock(block) {
                 'fa-file-invoice-dollar': 'M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12z',
                 'fa-cog': 'M9.594 3.94c.09-.542.56-1.007 1.11-1.11h2.592c.55.103 1.02.57 1.11 1.11l.09 1.586c.29.078.57.19.828.334l1.493-.672c.49-.222 1.054.02 1.272.512l1.295 2.242c.218.492.02 1.054-.512 1.272l-1.493.672c.044.258.078.536.078.828s-.034.57-.078.828l1.493.672c.492.218.672.78.512 1.272l-1.295 2.242c-.218.492-.782.672-1.272.512l-1.493-.672a6.721 6.721 0 01-.828.334l-.09 1.586c-.103.55-.57 1.02-1.11 1.11h-2.592c-.55-.103-1.02-.57-1.11-1.11l-.09-1.586a6.721 6.721 0 01-.828-.334l-1.493.672c-.49.222-1.054-.02-1.272-.512l-1.295-2.242c-.218-.492-.02-1.054.512-1.272l1.493.672A6.721 6.721 0 019.594 5.526l.09-1.586z',
                 'fa-link': 'M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75',
-                'fa-user': 'M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m-7.5-2.228a4.5 4.5 0 00-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 001.13-1.897M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.862 4.487z',
-                'fa-file-alt': 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-                'fa-shopping-cart': 'M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75'
             };
             const iconPath = iconMapping[content.icon] || 'M15 19l-7-7 7-7';
-
             return h('div', { class: 'p-6 rounded-xl bg-gray-50 border border-gray-200' }, [
                 h('div', { class: 'flex items-center justify-center h-16 w-16 rounded-full bg-oz-blue text-oz-gold mx-auto mb-4' }, [
                     h('svg', { xmlns: 'http://www.w3.org/2000/svg', fill: 'none', viewBox: '0 0 24 24', strokeWidth: '1.5', stroke: 'currentColor', class: 'w-8 h-8' }, [
@@ -239,7 +239,6 @@ function renderBlock(block) {
                 h('h3', { class: 'text-xl font-bold mb-2 text-dark-grey' }, content.title || ''),
                 h('p', { class: 'text-gray-600' }, content.description || ''),
             ]);
-
         case 'image':
             return h('div', { class: 'p-8 bg-gray-50 rounded-2xl flex items-center justify-center' },
                 h('img', {
@@ -251,7 +250,7 @@ function renderBlock(block) {
             );
         case 'step_card':
             return h('div', { class: 'flex flex-col items-center p-4' }, [
-                h('div', { class: 'flex items-center justify-center h-20 w-20 rounded-full bg-oz-blue text-white border-4 border-white shadow-lg mb-4' }, content.step_number),
+                h('div', { class: 'relative flex items-center justify-center h-20 w-20 rounded-full bg-oz-blue text-white text-2xl font-bold border-4 border-slate-100 shadow-lg mb-4' }, content.step_number),
                 h('h3', { class: 'text-lg font-bold mb-2 text-dark-grey' }, content.title),
                 h('p', { class: 'text-sm text-gray-600' }, content.description),
             ]);
@@ -279,6 +278,34 @@ function renderBlock(block) {
             return h('div', { class: 'flex justify-center mt-8 space-x-6 text-gray-500 text-sm' },
                 content.items.map(item => h('span', { innerHTML: item }))
             );
+
+        // ====================================================================
+        // NEWLY ADDED BLOCK RENDERERS
+        // ====================================================================
+        case 'list_with_icons':
+            const checkIcon = h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 20 20', fill: 'currentColor', class: 'w-5 h-5 text-oz-gold mr-3 flex-shrink-0' }, [
+                h('path', { 'fill-rule': 'evenodd', d: 'M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z', 'clip-rule': 'evenodd' })
+            ]);
+            return h('ul', { class: 'space-y-4' }, content.items.map(item =>
+                h('li', { class: 'flex items-start' }, [ checkIcon, h('span', { class: 'text-dark-grey' }, item) ])
+            ));
+
+        case 'feature_list':
+            return h('div', { class: 'text-left space-y-8' }, content.items.map(item =>
+                h('div', {}, [
+                    h('h3', { class: 'text-xl font-bold text-dark-grey mb-2' }, item.title),
+                    h('p', { class: 'text-gray-600' }, item.description),
+                ])
+            ));
+
+        case 'image_block': // Often visually identical to 'image' but separated for logic
+            return h('img', {
+                src: content.url,
+                alt: content.title || 'Presentation Image',
+                class: 'max-w-full h-auto rounded-lg',
+                onError: (e) => e.target.style.display = 'none',
+            });
+
         default:
             return h('div', { class: 'text-red-500' }, `Unsupported block type: ${block.block_type}`);
     }
