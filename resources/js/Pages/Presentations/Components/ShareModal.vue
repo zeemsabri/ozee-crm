@@ -3,34 +3,12 @@
     :isOpen="show"
     title="Share Presentation"
     @close="$emit('close')"
-  >
-    <template #default>
-      <div class="space-y-4">
-        <p class="text-sm text-gray-600">Anyone with this link can view the presentation.</p>
-        <div class="flex items-center gap-2">
-          <input
-            :value="fullUrl"
-            class="flex-1 border border-gray-200 rounded-lg p-2 bg-gray-50 text-gray-800 select-all"
-            readonly
-            aria-label="Shareable URL"
-          />
-          <button
-            @click="copy"
-            class="px-3 py-2 rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 text-sm whitespace-nowrap"
-          >
-            {{ copied ? 'Copied ✓' : 'Copy Link' }}
-          </button>
-        </div>
-        <div class="flex justify-end">
-          <button @click="$emit('close')" class="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm">Close</button>
-        </div>
-      </div>
-    </template>
-  </BaseModal>
+    :children="BodyComponent"
+  />
 </template>
 
 <script setup>
-import { computed, ref, watchEffect } from 'vue';
+import { computed, ref, watchEffect, defineComponent } from 'vue';
 import BaseModal from '@/Pages/ClientDashboard/BaseModal.vue';
 
 const props = defineProps({
@@ -59,5 +37,34 @@ function copy() {
 
 watchEffect(() => {
   if (!props.show) copied.value = false;
+});
+
+const BodyComponent = defineComponent({
+  name: 'ShareModalBody',
+  template: `
+    <div class="space-y-4">
+      <p class="text-sm text-gray-600">Anyone with this link can view the presentation.</p>
+      <div class="flex items-center gap-2">
+        <input
+          :value="fullUrl"
+          class="flex-1 border border-gray-200 rounded-lg p-2 bg-gray-50 text-gray-800 select-all"
+          readonly
+          aria-label="Shareable URL"
+        />
+        <button
+          @click="copy"
+          class="px-3 py-2 rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 text-sm whitespace-nowrap"
+        >
+          {{ copied ? 'Copied ✓' : 'Copy Link' }}
+        </button>
+      </div>
+      <div class="flex justify-end">
+        <button @click="closeModal" class="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm">Close</button>
+      </div>
+    </div>
+  `,
+  setup() {
+    return { fullUrl, copied, copy, closeModal: () => emit('close') };
+  }
 });
 </script>
