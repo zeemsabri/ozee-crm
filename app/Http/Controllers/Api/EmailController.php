@@ -752,7 +752,7 @@ class EmailController extends Controller
         // Eager load the conversation with client and project IDs for the frontend
         $query = Email::with([
             'sender:id,name',
-            'conversation:id,client_id,project_id',
+            'conversation:id,conversable_id,project_id',
             'conversation.client:id,name'
         ])->whereIn('conversation_id', $conversationIds);
 
@@ -811,7 +811,7 @@ class EmailController extends Controller
                 'template_id' => $email->template_id,
                 'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
                 'project_id' => $email->conversation->project_id ?? null,
-                'client_id' => $email->conversation->client_id ?? null,
+                'client_id' => $email->conversation->conversable_Id ?? null,
             ];
         });
 
