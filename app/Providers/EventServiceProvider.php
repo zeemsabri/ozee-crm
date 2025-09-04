@@ -46,10 +46,6 @@ class EventServiceProvider extends ServiceProvider
             TaskCompletedListener::class,
         ],
 
-        MilestoneCompletedEvent::class => [
-            MilestoneCompletedListener::class,
-        ],
-
         MilestoneApprovedEvent::class   => [
             AwardMilestonePointsListener::class
         ]
