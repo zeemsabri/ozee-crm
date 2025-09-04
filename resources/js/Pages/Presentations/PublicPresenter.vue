@@ -1,5 +1,5 @@
 <template>
-    <div class="bg-slate-100 font-montserrat">
+    <div class="bg-slate-100 font-montserrat min-h-screen flex items-center justify-center">
         <!-- The main container that mimics the original HTML structure -->
         <div class="embed-container">
             <!-- Navigation Buttons -->
