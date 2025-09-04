@@ -47,4 +47,17 @@ export default {
   deleteBlock(id) {
     return http.delete(`${base}/content_blocks/${id}`).then(r => r.data);
   },
+  // New template & duplication APIs
+  listTemplates() {
+    return http.get(`${base}/templates`).then(r => r.data);
+  },
+  duplicate(id) {
+    return http.post(`${base}/presentations/${id}/duplicate`).then(r => r.data);
+  },
+  saveAsTemplate(id) {
+    return http.post(`${base}/presentations/${id}/save-as-template`).then(r => r.data);
+  },
+  copySlides(targetId, sourceSlideIds) {
+    return http.post(`${base}/presentations/${targetId}/copy-slides`, { source_slide_ids: sourceSlideIds }).then(r => r.data);
+  },
 };

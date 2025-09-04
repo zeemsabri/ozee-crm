@@ -3,7 +3,7 @@
         <input
             v-model="search"
             @input="debouncedSearch"
-            placeholder="Search..."
+            placeholder="Type to search by name, company, or email..."
             class="w-full border border-gray-200 rounded-lg p-2 pr-8 focus:ring-2 focus:ring-indigo-500"
             aria-label="Search presentable"
         />

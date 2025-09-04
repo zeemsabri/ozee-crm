@@ -3,7 +3,7 @@
     <div class="p-6">
       <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-bold">Presentations</h1>
-        <button @click="showCreate = true" class="btn btn-primary" aria-label="Create new presentation">+ New</button>
+        <button @click="openCreate()" class="btn btn-primary" aria-label="Create new presentation">+ New</button>
       </div>
 
       <div class="mb-4">
@@ -34,6 +34,8 @@
               <td class="px-6 py-4 whitespace-nowrap text-gray-700">{{ formatDate(p.created_at) }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex gap-2 justify-end">
                 <button @click="goEdit(p.id)" class="btn btn-xs">Edit</button>
+                <button @click="openSlides(p.id)" class="btn btn-xs">Manage Slides</button>
+                <button @click="openSlides(p.id)" class="btn btn-xs">Duplicate</button>
                 <button @click="copyShare(p)" class="btn btn-xs">Share</button>
                 <button @click="destroy(p.id)" class="btn btn-xs text-red-500">Delete</button>
               </td>
@@ -51,7 +53,31 @@
         </div>
       </div>
 
-      <PresentationForm v-if="showCreate" @close="showCreate = false" @created="onCreated" />
+      <CreationChoiceModal
+        v-if="showChoice"
+        @close="showChoice=false"
+        @scratch="onScratch"
+        @choose-template="onChooseTemplate"
+      />
+      <TemplateBrowser
+        v-if="showTemplateBrowser"
+        @close="showTemplateBrowser=false"
+        @selected="onTemplateSelected"
+      />
+      <PresentationForm
+        v-if="showCreate"
+        :template-id="selectedTemplateId"
+        :source-slide-ids="pendingSourceSlideIds"
+        @close="showCreate = false"
+        @created="onCreated"
+      />
+      <SlideSummaryModal
+        v-if="showSlides"
+        :presentation-id="activePresentationId"
+        @close="showSlides=false"
+        @created="onModalCreated"
+        @copied="onSlidesCopied"
+      />
     </div>
   </AuthenticatedLayout>
 </template>
@@ -62,11 +88,20 @@ import { router } from '@inertiajs/vue3';
 import { success, error, confirmPrompt } from '@/Utils/notification';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PresentationForm from './PresentationForm.vue';
+import CreationChoiceModal from './CreationChoiceModal.vue';
+import TemplateBrowser from './TemplateBrowser.vue';
+import SlideSummaryModal from './SlideSummaryModal.vue';
 import api from '@/Services/presentationsApi';
 
 const presentations = ref([]);
 const loading = ref(false);
 const showCreate = ref(false);
+const showChoice = ref(false);
+const showTemplateBrowser = ref(false);
+const showSlides = ref(false);
+const activePresentationId = ref(null);
+const selectedTemplateId = ref(null);
+const pendingSourceSlideIds = ref([]);
 const search = ref('');
 
 onMounted(load);
@@ -103,6 +138,34 @@ function goEdit(id) {
   router.visit(`/presentations/${id}/edit`);
 }
 
+function openCreate() {
+  showChoice.value = true;
+}
+
+function onScratch() {
+  showChoice.value = false;
+  selectedTemplateId.value = null;
+  pendingSourceSlideIds.value = [];
+  showCreate.value = true;
+}
+
+function onChooseTemplate() {
+  showChoice.value = false;
+  showTemplateBrowser.value = true;
+}
+
+function onTemplateSelected(tpl) {
+  showTemplateBrowser.value = false;
+  selectedTemplateId.value = tpl?.id || null;
+  pendingSourceSlideIds.value = [];
+  showCreate.value = true;
+}
+
+function openSlides(id) {
+  activePresentationId.value = id;
+  showSlides.value = true;
+}
+
 async function copyShare(p) {
   const url = `${window.location.origin}/view/${p.share_token || ''}`;
   await navigator.clipboard.writeText(url);
@@ -123,7 +186,26 @@ async function destroy(id) {
 
 function onCreated(newP) {
   showCreate.value = false;
+  selectedTemplateId.value = null;
+  pendingSourceSlideIds.value = [];
   if (newP) presentations.value.unshift(newP);
+}
+
+function onModalCreated(payload) {
+  showSlides.value = false;
+  if (payload && payload._fromSelection) {
+    // Open creation form with selected slides
+    selectedTemplateId.value = null;
+    pendingSourceSlideIds.value = payload.source_slide_ids || [];
+    showCreate.value = true;
+  } else if (payload && payload.id) {
+    // A duplicate was created
+    presentations.value.unshift(payload);
+  }
+}
+
+function onSlidesCopied() {
+  showSlides.value = false;
 }
 </script>
 

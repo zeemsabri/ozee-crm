@@ -49,6 +49,8 @@
 import { ref, computed } from 'vue';
 import ShareModal from './ShareModal.vue';
 import { usePresentationStore } from '@/Stores/presentationStore';
+import api from '@/Services/presentationsApi';
+import { success, error } from '@/Utils/notification';
 
 const props = defineProps({
     actions: {
@@ -67,6 +69,7 @@ const actionLabels = {
     export: 'Export PDF',
     collaborate: 'Collaborate',
     theme: 'Toggle Theme',
+    saveTemplate: 'Save as Template',
 };
 
 const actionIcons = {
@@ -75,6 +78,7 @@ const actionIcons = {
     export: 'M19 12v7H5v-7H3v7a2 2 0 002 2h14a2 2 0 002-2v-7h-2zM13 3v10h-2V3H7l5-2 5 2h-4z',
     collaborate: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
     theme: 'M12 3v18m-9-9h18',
+    saveTemplate: 'M12 4v16m8-8H4',
 };
 
 const filteredActions = computed(() => props.actions.filter((action) => actionLabels[action]));
@@ -120,6 +124,15 @@ async function handleAction(action) {
             break;
         case 'theme':
             console.log('Toggle theme clicked');
+            break;
+        case 'saveTemplate':
+            try {
+                const created = await api.saveAsTemplate(store.presentation.id);
+                success('Template created successfully');
+                // Optionally: nothing else
+            } catch (e) {
+                error('Failed to create template');
+            }
             break;
     }
 }

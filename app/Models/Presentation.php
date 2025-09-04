@@ -10,15 +10,21 @@ class Presentation extends Model
 {
     use HasFactory, SoftDeletes;
 
+    const PROPOSAL = 'proposal';
+    const PRESENTATION = 'presentation';
+    const AUDIT_REPORT = 'audit_report';
+
     protected $fillable = [
         'presentable_id',
         'presentable_type',
         'title',
         'type',
         'share_token',
+        'is_template',
     ];
 
     protected $casts = [
+        'is_template' => 'boolean',
     ];
 
     protected static function booted()
