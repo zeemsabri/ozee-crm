@@ -161,7 +161,7 @@ class Email extends Model
 
         // Check approval permission for outgoing emails
         if ($this->status === 'pending_approval' && $this->conversation?->project?->id) {
-            if ($this->hasProjectPermission($this->conversation->project->id, 'approve_emails')
+            if ($user->hasProjectPermission($this->conversation->project->id, 'approve_emails')
             ) {
                 $canApprove = true;
             }
