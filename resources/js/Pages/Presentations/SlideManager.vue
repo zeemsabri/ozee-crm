@@ -72,20 +72,25 @@ const draggableSlides = computed({
         return store.slides.filter((s) => (s.title || '').toLowerCase().includes(q));
     },
     set(reorderedSlides) {
-        // This makes the visual drag work by updating the state.
-        // The actual API call happens on the @end event.
-        // We need to merge the reordered (potentially filtered) list back into the main list.
+        // Find the full set of slides in their original order.
         const fullSlides = [...store.slides];
-        const reorderedIds = new Set(reorderedSlides.map(s => s.id));
-        const stationarySlides = fullSlides.filter(s => !reorderedIds.has(s.id));
 
-        // A simple way to merge is to place all reordered slides first, then stationary ones.
-        // A more complex merge could preserve relative order, but this is robust.
-        // For our case, we will just update the order of all slides.
-        const finalSlides = [...reorderedSlides, ...stationarySlides];
-        // Update local display_order so the slides getter (which sorts by display_order) doesn't snap back
-        finalSlides.forEach((s, idx) => { if (s) s.display_order = idx + 1; });
-        store.presentation.slides = finalSlides;
+        // Map the reordered slides to their original objects to maintain reactivity.
+        const reorderedIds = reorderedSlides.map(s => s.id);
+        const finalSlides = reorderedIds.map(id => fullSlides.find(s => s.id === id));
+
+        // Find any slides that were not visible in the search filter, and append them
+        // in their original order.
+        const remainingSlides = fullSlides.filter(s => !reorderedIds.includes(s.id));
+
+        // Combine the reordered and remaining slides.
+        const combinedSlides = [...finalSlides, ...remainingSlides];
+
+        // Update the display_order of the slides locally to prevent a visual "snap back."
+        combinedSlides.forEach((s, idx) => { if (s) s.display_order = idx + 1; });
+
+        // Update the store's presentation slides with the new order.
+        store.presentation.slides = combinedSlides;
     }
 });
 
