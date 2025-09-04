@@ -68,7 +68,12 @@ const store = usePresentationStore();
 const slide = computed(() => store.selectedSlide || { content_blocks: [] });
 const contentBlocks = computed({
     get: () => slide.value.content_blocks || [],
-    set: () => {}, // persist on @end only
+    set: (newList) => {
+        if (!slide.value) return;
+        // Assign reordered list to the slide and keep display_order in sync to avoid snap-back
+        slide.value.content_blocks = Array.isArray(newList) ? newList.slice() : [];
+        slide.value.content_blocks.forEach((b, idx) => { if (b) b.display_order = idx + 1; });
+    },
 });
 
 const templates = [
