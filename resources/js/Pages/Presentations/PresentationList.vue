@@ -52,7 +52,6 @@
                                     </button>
                                     <!-- Dropdown Menu for actions -->
                                     <div class="dropdown-menu">
-                                        <a @click="openSummaryModal(p.id)" class="dropdown-item">Manage Slides</a>
                                         <a @click="openSummaryModal(p.id)" class="dropdown-item">Duplicate...</a>
                                         <a @click="copyShare(p)" class="dropdown-item">Share</a>
                                         <div class="my-1 h-px bg-slate-100"></div>
@@ -260,12 +259,22 @@ function onSlidesCopied() {
     opacity: 0;
     transform: scale(0.95);
     transition: opacity 150ms ease-out, transform 150ms ease-out;
+    transition-delay: 120ms; /* small hide delay to allow cursor travel */
     pointer-events: none;
 }
+/* Keep open when parent hovered/focused */
 .group:hover .dropdown-menu, .group:focus-within .dropdown-menu {
     opacity: 1;
     transform: scale(1);
     pointer-events: auto;
+    transition-delay: 0ms; /* show immediately */
+}
+/* Also keep open when hovering the menu itself */
+.dropdown-menu:hover {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+    transition-delay: 0ms;
 }
 
 .dropdown-item { display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; font-size: 0.875rem; color: #334155; cursor: pointer; }
