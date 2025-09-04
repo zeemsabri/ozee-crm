@@ -112,7 +112,7 @@ class EmailPolicy
      */
     public function delete(User $user, Email $email): bool
     {
-        return false;
+        return $user->hasPermission('delete_emails');
     }
 
     /**

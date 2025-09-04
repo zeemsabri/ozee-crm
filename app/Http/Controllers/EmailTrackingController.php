@@ -25,7 +25,6 @@ class EmailTrackingController extends Controller
             // Find the email by its ID
             $email = Email::find($id);
 
-            Log::info('Email tracking event', ['email_id' => $id]);;
             // If the email exists and hasn't been read yet, update the timestamp
             if ($email && !$email->read_at) {
                 $email->read_at = Carbon::now();

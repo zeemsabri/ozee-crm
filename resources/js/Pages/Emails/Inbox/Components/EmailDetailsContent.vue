@@ -1,15 +1,16 @@
 <script setup>
 import { defineProps, defineEmits, computed, watch, ref } from 'vue';
-import { getEmailDetails as getEmailDetailsApi, fetchAttachments as fetchAttachmentsApi } from '@/Services/api-service.js';
+import { getEmailDetails as getEmailDetailsApi, fetchAttachments as fetchAttachmentsApi, deleteEmail as deleteEmailApi } from '@/Services/api-service.js';
 import EmailAttachmentsList from '@/Pages/Emails/Inbox/Components/EmailAttachmentsList.vue';
 import TaskCreationForm from '@/Pages/Emails/Inbox/Components/TaskCreationForm.vue';
+import { usePermissions } from '@/Directives/permissions.js';
 
 const props = defineProps({
     email: Object,
     canApproveEmails: Boolean,
 });
 
-const emit = defineEmits(['edit', 'reject', 'open-bulk-tasks']);
+const emit = defineEmits(['edit', 'reject', 'open-bulk-tasks', 'deleted']);
 
 const attachments = ref([]);
 const attachmentsLoading = ref(false);
@@ -26,6 +27,42 @@ const isApprovalPending = computed(() => {
 });
 
 const isOutgoing = computed(() => localEmail.value?.type === 'sent');
+
+const { canDo } = usePermissions();
+const canDeleteEmails = computed(() => canDo('delete_emails').value);
+
+const showDeleteDialog = ref(false);
+const deleteLoading = ref(false);
+const deleteError = ref(null);
+
+const deleteOptions = ref({
+    delete_gmail: true,
+    delete_local: true,
+});
+
+const openDeleteDialog = () => {
+    deleteError.value = null;
+    deleteOptions.value = { delete_gmail: true, delete_local: true };
+    showDeleteDialog.value = true;
+};
+
+const performDelete = async () => {
+    if (!props.email?.id) return;
+    deleteLoading.value = true;
+    deleteError.value = null;
+    try {
+        await deleteEmailApi(props.email.id, {
+            delete_gmail: deleteOptions.value.delete_gmail,
+            delete_local: deleteOptions.value.delete_local,
+        });
+        showDeleteDialog.value = false;
+        emit('deleted');
+    } catch (e) {
+        deleteError.value = e?.response?.data?.message || 'Failed to delete email.';
+    } finally {
+        deleteLoading.value = false;
+    }
+};
 
 const approveButtonText = computed(() => {
     return isOutgoing.value ? 'Approve & Send' : 'Approve';
@@ -212,7 +249,16 @@ watch(localEmail, (newLocalEmail) => {
         </div>
 
         <!-- Action Buttons -->
-        <div class="flex justify-end items-center pt-4">
+        <div class="flex justify-between items-center pt-4">
+            <div>
+                <button
+                    v-if="canDeleteEmails"
+                    @click="openDeleteDialog"
+                    class="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-xs sm:text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                >
+                    Delete
+                </button>
+            </div>
             <div v-if="isApprovalPending && canApproveEmails" class="flex space-x-2">
                 <button
                     @click="$emit('edit', props.email)"
@@ -226,6 +272,36 @@ watch(localEmail, (newLocalEmail) => {
                 >
                     Reject
                 </button>
+            </div>
+        </div>
+
+        <!-- Delete Confirmation Modal -->
+        <div v-if="showDeleteDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Delete Email</h3>
+                <p class="text-sm text-gray-600 mb-4">Choose what to delete:</p>
+
+                <div class="space-y-3 mb-4">
+                    <label class="flex items-center space-x-2">
+                        <input type="checkbox" v-model="deleteOptions.delete_local" />
+                        <span class="text-sm text-gray-700">Delete local copy</span>
+                    </label>
+                    <label class="flex items-center space-x-2">
+                        <input type="checkbox" v-model="deleteOptions.delete_gmail" />
+                        <span class="text-sm text-gray-700">Delete Gmail copy</span>
+                    </label>
+                </div>
+
+                <div v-if="deleteError" class="text-sm text-red-600 mb-3">{{ deleteError }}</div>
+
+                <div class="flex justify-end space-x-2">
+                    <button @click="showDeleteDialog = false" class="px-3 py-2 rounded-md text-sm border border-gray-300 text-gray-700 bg-white hover:bg-gray-50">Cancel</button>
+                    <button :disabled="deleteLoading || (!deleteOptions.delete_local && !deleteOptions.delete_gmail)"
+                            @click="performDelete"
+                            class="px-3 py-2 rounded-md text-sm text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">
+                        {{ deleteLoading ? 'Deleting...' : 'Confirm Delete' }}
+                    </button>
+                </div>
             </div>
         </div>
 

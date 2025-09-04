@@ -16,6 +16,26 @@ class GmailService
     use GoogleApiAuthTrait;
 
     /**
+     * Move a Gmail message to Trash by message ID.
+     * Requires Gmail MODIFY scope.
+     *
+     * @param string $messageId
+     * @return bool true on success
+     * @throws Exception on API failure
+     */
+    public function trashMessage(string $messageId): bool
+    {
+        try {
+            $this->gmailService->users_messages->trash('me', $messageId);
+            Log::info('Gmail message moved to trash', ['message_id' => $messageId]);
+            return true;
+        } catch (Exception $e) {
+            Log::error('Failed to trash Gmail message: ' . $e->getMessage(), ['message_id' => $messageId, 'exception' => $e]);
+            throw new Exception('Failed to trash Gmail message: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Sends an email via Gmail API.
      *
      * @param string $to Recipient email address
