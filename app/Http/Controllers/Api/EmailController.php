@@ -37,6 +37,57 @@ class EmailController extends Controller
     }
 
     /**
+     * Delete an email locally and/or from Gmail.
+     * Requires 'delete_emails' permission.
+     */
+    public function destroy(Request $request, Email $email)
+    {
+
+        $this->authorize('delete', $email);
+
+        $validated = $request->validate([
+            'delete_gmail' => 'sometimes|boolean',
+            'delete_local' => 'sometimes|boolean',
+        ]);
+
+        $deleteGmail = (bool)($validated['delete_gmail'] ?? false);
+        $deleteLocal = (bool)($validated['delete_local'] ?? true); // default to local delete if not specified
+
+        $errors = [];
+
+        // Attempt to trash on Gmail if requested and message_id exists
+        if ($deleteGmail) {
+            $gmailId = $email->message_id;
+            if ($gmailId) {
+                try {
+                    $this->gmailService->trashMessage($gmailId);
+                } catch (\Throwable $e) {
+                    \Log::error('Failed to trash Gmail message for email', ['email_id' => $email->id, 'error' => $e->getMessage()]);
+                    $errors[] = 'Failed to delete Gmail copy: ' . $e->getMessage();
+                }
+            } else {
+                $errors[] = 'No Gmail message ID associated with this email.';
+            }
+        }
+
+        // Soft delete locally if requested
+        if ($deleteLocal) {
+            try {
+                $email->delete();
+            } catch (\Throwable $e) {
+                \Log::error('Failed to delete local email', ['email_id' => $email->id, 'error' => $e->getMessage()]);
+                $errors[] = 'Failed to delete local copy: ' . $e->getMessage();
+            }
+        }
+
+        $status = empty($errors) ? 200 : 207; // 207 Multi-Status when partial failures
+        return response()->json([
+            'message' => empty($errors) ? 'Email deletion completed.' : 'Email deletion completed with some errors.',
+            'errors' => $errors,
+        ], $status);
+    }
+
+    /**
      * Display a listing of emails (conversations) relevant to the authenticated user.
      * Accessible by: Super Admin, Manager (all); Contractor (their assigned projects/conversations)
      */

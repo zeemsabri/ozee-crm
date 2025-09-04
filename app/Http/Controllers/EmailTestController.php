@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\Conversation;
 use App\Models\Email;
 use App\Models\File;
+use App\Models\Lead;
 use App\Models\Project;
 use App\Services\GmailService;
 use Carbon\Carbon;
@@ -96,94 +97,59 @@ class EmailTestController extends Controller
                 $emailDetails['date'] = $date;
 
                 if ($lastReceivedEmail && Carbon::parse($emailDetails['date'])->lte(Carbon::parse($lastReceivedEmail->sent_at))) {
-                    Log::info("Skipping already processed email with ID: {$messageId} and Date: {$emailDetails['date']}");
                     continue;
                 }
 
                 if (Email::where('message_id', $emailDetails['id'])->exists()) {
-                    Log::info('Email with message_id ' . $emailDetails['id'] . ' already exists in the database. Skipping.');
                     continue;
                 }
 
                 $fromEmail = $this->extractEmailAddress($emailDetails['from']);
                 $client = Client::whereRaw('LOWER(email) = ?', [strtolower($fromEmail)])->first();
-                if (!$client) {
-                    Log::warning('No client found for email: ' . $fromEmail . ' (original: ' . $emailDetails['from'] . ')');
+                $lead = Lead::whereRaw('LOWER(email) = ?', [strtolower($fromEmail)])->first();
+
+                if (!$client && !$lead) {
                     continue;
                 }
 
-                $conversation = Conversation::where('client_id', $client->id)
-                    ->where('subject', $emailDetails['subject'])
-                    ->first();
-
-                if (!$conversation) {
+                $processed = false;
+                if ($client) {
+                    // Try to find a project with this client
                     $project = Project::whereHas('clients', function($q) use($client) {
                         $q->where('id', $client->id);
                     })->first();
 
-                    if (!$project) {
-                        Log::warning('No project found for client: ' . $client->id . ' for email subject: ' . $emailDetails['subject']);
-                        continue;
+                    if ($project) {
+                        $result = $this->handleClientEmailWithProject($client, $project, $emailDetails, $authorizedGmailAccount);
+                        $processed = true;
+                    } else {
+                        // Accept client email without project using null project_id
+                        $result = $this->handleEmailWithoutProjectOrLead($client, null, $emailDetails, $authorizedGmailAccount);
+                        $processed = true;
+                    }
+                } elseif ($lead) {
+                    // Lead-based conversation without a project (or future: with default Leads project)
+                    $result = $this->handleEmailWithoutProjectOrLead(null, $lead, $emailDetails, $authorizedGmailAccount);
+                    $processed = true;
+                }
+
+                if (!empty($result)) {
+                    [$conversation, $email] = $result;
+
+                    if ($conversation->last_activity_at === null || Carbon::parse($emailDetails['date'])->gt($conversation->last_activity_at)) {
+                        $conversation->update(['last_activity_at' => Carbon::parse($emailDetails['date'])]);
                     }
 
-                    $conversation = Conversation::create([
+                    $receivedEmailSummaries[] = [
+                        'id' => $email->id,
+                        'gmail_message_id' => $emailDetails['id'],
+                        'from' => $emailDetails['from'],
                         'subject' => $emailDetails['subject'],
-                        'project_id' => $project->id,
-                        'client_id' => $client->id,
-                        'last_activity_at' => Carbon::parse($emailDetails['date']),
-                    ]);
-                    Log::info('New Conversation Created:', ['conversation_id' => $conversation->id, 'subject' => $emailDetails['subject']]);
+                        'date' => $emailDetails['date'],
+                    ];
+
+                    Log::info('Received Email Stored:', ['email_id' => $email->id, 'gmail_id' => $emailDetails['id'], 'subject' => $emailDetails['subject']]);
                 }
-
-                $email = Email::create([
-                    'conversation_id' => $conversation->id,
-                    'sender_type'   =>  Client::class,
-                    'sender_id' => $client->id,
-                    'to' => json_encode([$authorizedGmailAccount]),
-                    'subject' => $emailDetails['subject'],
-                    'body' => $emailDetails['body']['html'] ?: $emailDetails['body']['plain'],
-                    'type'  =>  'received',
-                    'status' => 'pending_approval_received',
-                    'message_id' => $emailDetails['id'],
-                    'sent_at' => Carbon::parse($emailDetails['date']),
-                ]);
-
-                $uploadedFiles = [];
-                // Process each attachment from the Gmail API response
-                foreach ($emailDetails['attachments'] as $attachment) {
-                    $tempPath = tempnam(sys_get_temp_dir(), 'email_attachment_');
-                    file_put_contents($tempPath, $attachment['data']);
-
-                    $uploadedFile = new UploadedFile(
-                        $tempPath,
-                        $attachment['filename'],
-                        $attachment['mimeType'],
-                        null,
-                        true
-                    );
-
-                    $uploadedFiles[] = $uploadedFile;
-                }
-
-                $paths = $this->uploadFilesToGcsWithThumbnails($uploadedFiles);
-
-                foreach ($paths as $uploadedFile) {
-                    $email->files()->create($uploadedFile);
-                }
-
-                if ($conversation->last_activity_at === null || Carbon::parse($emailDetails['date'])->gt($conversation->last_activity_at)) {
-                    $conversation->update(['last_activity_at' => Carbon::parse($emailDetails['date'])]);
-                }
-
-                $receivedEmailSummaries[] = [
-                    'id' => $email->id,
-                    'gmail_message_id' => $emailDetails['id'],
-                    'from' => $emailDetails['from'],
-                    'subject' => $emailDetails['subject'],
-                    'date' => $emailDetails['date'],
-                ];
-
-                Log::info('Received Email Stored:', ['email_id' => $email->id, 'gmail_id' => $emailDetails['id'], 'subject' => $emailDetails['subject']]);
             }
 
 
@@ -201,4 +167,115 @@ class EmailTestController extends Controller
             return response()->json(['message' => 'Failed to receive emails: ' . $e->getMessage()], 500);
         }
     }
+
+    private function handleClientEmailWithProject(Client $client, Project $project, array $emailDetails, string $authorizedGmailAccount): array
+    {
+        // Find conversation by subject + client conversable + project
+        $conversation = Conversation::where('subject', $emailDetails['subject'])
+            ->where('project_id', $project->id)
+            ->where('conversable_type', Client::class)
+            ->where('conversable_id', $client->id)
+            ->first();
+
+        if (!$conversation) {
+            $conversation = Conversation::create([
+                'subject' => $emailDetails['subject'],
+                'project_id' => $project->id,
+                'conversable_type' => Client::class,
+                'conversable_id' => $client->id,
+                'last_activity_at' => Carbon::parse($emailDetails['date']),
+            ]);
+            Log::info('New Conversation Created (client+project):', ['conversation_id' => $conversation->id, 'subject' => $emailDetails['subject']]);
+        }
+
+        $email = Email::create([
+            'conversation_id' => $conversation->id,
+            'sender_type'   =>  Client::class,
+            'sender_id' => $client->id,
+            'to' => [$authorizedGmailAccount],
+            'subject' => $emailDetails['subject'],
+            'body' => $emailDetails['body']['html'] ?: $emailDetails['body']['plain'],
+            'type'  =>  'received',
+            'status' => 'pending_approval_received',
+            'message_id' => $emailDetails['id'],
+            'sent_at' => Carbon::parse($emailDetails['date']),
+        ]);
+
+        $this->attachEmailAttachments($email, $emailDetails['attachments'] ?? []);
+
+        return [$conversation, $email];
+    }
+
+    private function handleEmailWithoutProjectOrLead(?Client $client, ?Lead $lead, array $emailDetails, string $authorizedGmailAccount): array
+    {
+        // Determine conversable
+        $conversableType = $client ? Client::class : Lead::class;
+        $conversableId = $client ? $client->id : ($lead ? $lead->id : null);
+
+        // If still none, bail (shouldn't happen because caller checks)
+        if (!$conversableId) {
+            return [];
+        }
+
+        $conversation = Conversation::where('subject', $emailDetails['subject'])
+            ->whereNull('project_id')
+            ->where('conversable_type', $conversableType)
+            ->where('conversable_id', $conversableId)
+            ->first();
+
+        if (!$conversation) {
+            $conversation = Conversation::create([
+                'subject' => $emailDetails['subject'],
+                'project_id' => null, // explicit null project
+                'conversable_type' => $conversableType,
+                'conversable_id' => $conversableId,
+                'last_activity_at' => Carbon::parse($emailDetails['date']),
+            ]);
+            Log::info('New Conversation Created (no project):', ['conversation_id' => $conversation->id, 'subject' => $emailDetails['subject']]);
+        }
+
+        $email = Email::create([
+            'conversation_id' => $conversation->id,
+            'sender_type'   =>  $conversableType,
+            'sender_id' => $conversableId,
+            'to' => [$authorizedGmailAccount],
+            'subject' => $emailDetails['subject'],
+            'body' => $emailDetails['body']['html'] ?: $emailDetails['body']['plain'],
+            'type'  =>  'received',
+            'status' => 'pending_approval_received',
+            'message_id' => $emailDetails['id'],
+            'sent_at' => Carbon::parse($emailDetails['date']),
+        ]);
+
+        $this->attachEmailAttachments($email, $emailDetails['attachments'] ?? []);
+
+        return [$conversation, $email];
+    }
+
+    private function attachEmailAttachments(Email $email, array $attachments): void
+    {
+        if (empty($attachments)) return;
+
+        $uploadedFiles = [];
+        foreach ($attachments as $attachment) {
+            $tempPath = tempnam(sys_get_temp_dir(), 'email_attachment_');
+            file_put_contents($tempPath, $attachment['data']);
+
+            $uploadedFile = new UploadedFile(
+                $tempPath,
+                $attachment['filename'],
+                $attachment['mimeType'] ?? null,
+                null,
+                true
+            );
+
+            $uploadedFiles[] = $uploadedFile;
+        }
+
+        $paths = $this->uploadFilesToGcsWithThumbnails($uploadedFiles);
+        foreach ($paths as $uploadedFile) {
+            $email->files()->create($uploadedFile);
+        }
+    }
+
 }
