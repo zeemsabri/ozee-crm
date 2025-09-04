@@ -1,6 +1,6 @@
 <template>
     <AuthenticatedLayout>
-        <div class="bg-slate-50 min-h-full font-montserrat">
+        <div class="bg-slate-50 min-h-screen">
             <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <!-- Page Header -->
                 <div class="flex flex-col md:flex-row items-start md:items-center justify-between pb-8 border-b border-slate-200 mb-8">
@@ -8,7 +8,7 @@
                         <h1 class="text-3xl font-bold text-slate-800">Presentations</h1>
                         <p class="mt-1 text-slate-500">Create, manage, and share your client presentations.</p>
                     </div>
-                    <button @click="openCreate()" class="btn-primary mt-4 md:mt-0 flex items-center gap-2" aria-label="Create new presentation">
+                    <button @click="openCreate()" class="mt-4 md:mt-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600" aria-label="Create new presentation">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" /></svg>
                         New Presentation
                     </button>
@@ -21,7 +21,7 @@
                         <input
                             v-model="search"
                             placeholder="Search by title or client/lead..."
-                            class="search-input"
+                            class="w-full border border-slate-300 rounded-lg py-2 pl-10 pr-4 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-shadow"
                             aria-label="Search presentations"
                         />
                     </div>
@@ -30,7 +30,7 @@
                 <!-- Presentations Grid -->
                 <div v-if="loading" class="text-center py-16">
                     <div class="flex items-center justify-center gap-3 text-slate-500">
-                        <span class="loading-spinner" aria-hidden="true"></span>
+                        <span class="inline-block h-6 w-6 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin" aria-hidden="true"></span>
                         <span>Loading Presentations...</span>
                     </div>
                 </div>
@@ -45,17 +45,22 @@
                     <div v-for="p in filtered" :key="p.id" class="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col transition-all hover:shadow-md hover:-translate-y-1">
                         <div class="p-5 flex-grow">
                             <div class="flex items-start justify-between">
-                                <span class="type-badge">{{ p.type }}</span>
-                                <div class="relative group">
-                                    <button class="icon-btn">
+                                <span class="inline-block px-2.5 py-1 text-xs font-semibold rounded-full mb-3 bg-blue-100 text-blue-600">{{ p.type }}</span>
+                                <div class="relative group" @mouseenter="openDropdown(p.id)" @mouseleave="closeDropdown(p.id)">
+                                    <button class="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600">
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" /></svg>
                                     </button>
                                     <!-- Dropdown Menu for actions -->
-                                    <div class="dropdown-menu">
-                                        <a @click="openSummaryModal(p.id)" class="dropdown-item">Duplicate...</a>
-                                        <a @click="copyShare(p)" class="dropdown-item">Share</a>
+                                    <div
+                                        v-show="activeDropdownId === p.id"
+                                        class="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-slate-200 py-1 z-10 transition-opacity duration-200"
+                                        @mouseenter="keepDropdownOpen(p.id)"
+                                        @mouseleave="leaveDropdown(p.id)"
+                                    >
+                                        <a @click="openSummaryModal(p.id)" class="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer">Duplicate...</a>
+                                        <a @click="copyShare(p)" class="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer">Share</a>
                                         <div class="my-1 h-px bg-slate-100"></div>
-                                        <a @click="destroy(p.id)" class="dropdown-item-danger">Delete</a>
+                                        <a @click="destroy(p.id)" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer">Delete</a>
                                     </div>
                                 </div>
                             </div>
@@ -64,7 +69,7 @@
                         </div>
                         <div class="px-5 py-4 border-t border-slate-100 flex items-center justify-between">
                             <span class="text-xs text-slate-400">Created: {{ formatDate(p.created_at) }}</span>
-                            <button @click="goEdit(p.id)" class="btn-secondary">Edit</button>
+                            <button @click="goEdit(p.id)" class="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-md text-xs font-semibold hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-600">Edit</button>
                         </div>
                     </div>
                 </div>
@@ -99,7 +104,7 @@ const activePresentationId = ref(null);
 const selectedTemplateId = ref(null);
 const pendingSourceSlideIds = ref([]);
 const search = ref('');
-const duplicatingId = ref(null); // Retained for potential direct duplication actions in future
+const activeDropdownId = ref(null);
 
 onMounted(load);
 
@@ -156,10 +161,29 @@ function onTemplateSelected(tpl) {
     showCreate.value = true;
 }
 
-// **FIX:** Consolidated function to open the summary modal for both managing slides and duplicating
 function openSummaryModal(id) {
     activePresentationId.value = id;
     showSlides.value = true;
+}
+
+function openDropdown(id) {
+    activeDropdownId.value = id;
+}
+
+function keepDropdownOpen(id) {
+    activeDropdownId.value = id;
+}
+
+function closeDropdown(id) {
+    setTimeout(() => {
+        if(!activeDropdownId.value === id) {
+            activeDropdownId.value = null
+        }
+    }, 500);
+}
+
+function leaveDropdown(id) {
+    activeDropdownId.value = null;
 }
 
 async function copyShare(p) {
@@ -202,93 +226,3 @@ function onSlidesCopied() {
     showSlides.value = false;
 }
 </script>
-
-<style scoped>
-.font-montserrat { font-family: 'Montserrat', sans-serif; }
-
-.btn-primary {
-    padding: 0.625rem 1rem;
-    background-color: #29438E;
-    color: white;
-    border-radius: 0.5rem;
-    font-weight: 600;
-    font-size: 0.875rem;
-    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    transition: background-color 0.2s;
-}
-.btn-primary:hover { background-color: #223670; }
-.btn-primary:focus { outline: 2px solid transparent; outline-offset: 2px; box-shadow: 0 0 0 2px white, 0 0 0 4px #29438E; }
-
-.btn-secondary {
-    padding: 0.25rem 0.75rem;
-    background-color: #f1f5f9;
-    color: #334155;
-    border-radius: 0.375rem;
-    font-weight: 600;
-    font-size: 0.75rem;
-    transition: background-color 0.2s;
-}
-.btn-secondary:hover { background-color: #e2e8f0; }
-.btn-secondary:focus { outline: 2px solid transparent; outline-offset: 1px; box-shadow: 0 0 0 2px white, 0 0 0 4px #29438E; }
-
-.icon-btn {
-    height: 2rem;
-    width: 2rem;
-    border-radius: 9999px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #94a3b8;
-    transition: background-color 0.2s, color 0.2s;
-}
-.icon-btn:hover { background-color: #f1f5f9; color: #475569; }
-
-/* **FIX:** Dropdown menu styling for better usability */
-.dropdown-menu {
-    position: absolute;
-    right: 0;
-    margin-top: 0.25rem;
-    width: 12rem;
-    background-color: white;
-    border-radius: 0.375rem;
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    border: 1px solid #e2e8f0;
-    padding-top: 0.25rem;
-    padding-bottom: 0.25rem;
-    z-index: 10;
-    opacity: 0;
-    transform: scale(0.95);
-    transition: opacity 150ms ease-out, transform 150ms ease-out;
-    transition-delay: 120ms; /* small hide delay to allow cursor travel */
-    pointer-events: none;
-}
-/* Keep open when parent hovered/focused */
-.group:hover .dropdown-menu, .group:focus-within .dropdown-menu {
-    opacity: 1;
-    transform: scale(1);
-    pointer-events: auto;
-    transition-delay: 0ms; /* show immediately */
-}
-/* Also keep open when hovering the menu itself */
-.dropdown-menu:hover {
-    opacity: 1;
-    transform: scale(1);
-    pointer-events: auto;
-    transition-delay: 0ms;
-}
-
-.dropdown-item { display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; font-size: 0.875rem; color: #334155; cursor: pointer; }
-.dropdown-item:hover { background-color: #f1f5f9; }
-
-.dropdown-item-danger { display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; font-size: 0.875rem; color: #dc2626; cursor: pointer; }
-.dropdown-item-danger:hover { background-color: #fef2f2; }
-
-.search-input { width: 100%; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.625rem 2.5rem; transition: box-shadow 0.2s, border-color 0.2s; }
-.search-input:focus { outline: none; border-color: #29438E; box-shadow: 0 0 0 2px #29438E; }
-
-.loading-spinner { display: inline-block; height: 1.5rem; width: 1.5rem; border: 2px solid #cbd5e1; border-top-color: #29438E; border-radius: 9999px; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.type-badge { display: inline-block; padding: 0.25rem 0.625rem; font-size: 0.75rem; font-weight: 600; border-radius: 9999px; margin-bottom: 0.75rem; background-color: rgba(41, 67, 142, 0.1); color: #29438E; }
-</style>
-

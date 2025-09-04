@@ -38,8 +38,8 @@
 
                 </div>
                 <div class="flex justify-end gap-3">
-                    <button type="button" @click="$emit('close')" class="btn" aria-label="Cancel">Cancel</button>
-                    <button type="submit" class="btn btn-primary" :disabled="submitting" aria-label="Save presentation">
+                    <button type="button" @click="$emit('close')" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors" aria-label="Cancel">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-75" :disabled="submitting" aria-label="Save presentation">
                         {{ submitting ? 'Saving...' : 'Save' }}
                     </button>
                 </div>
@@ -153,10 +153,4 @@ async function submit() {
 </script>
 
 <style scoped>
-.btn {
-    @apply px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors;
-}
-.btn-primary {
-    @apply bg-indigo-600 text-white hover:bg-indigo-700;
-}
 </style>
