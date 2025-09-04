@@ -35,7 +35,7 @@
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex gap-2 justify-end">
                 <button @click="goEdit(p.id)" class="btn btn-xs">Edit</button>
                 <button @click="openSlides(p.id)" class="btn btn-xs">Manage Slides</button>
-                <button @click="openSlides(p.id)" class="btn btn-xs">Duplicate</button>
+                <button @click="duplicateFromList(p.id)" class="btn btn-xs" :disabled="duplicatingId === p.id">{{ duplicatingId === p.id ? 'Duplicating...' : 'Duplicate' }}</button>
                 <button @click="copyShare(p)" class="btn btn-xs">Share</button>
                 <button @click="destroy(p.id)" class="btn btn-xs text-red-500">Delete</button>
               </td>
@@ -103,6 +103,7 @@ const activePresentationId = ref(null);
 const selectedTemplateId = ref(null);
 const pendingSourceSlideIds = ref([]);
 const search = ref('');
+const duplicatingId = ref(null);
 
 onMounted(load);
 
@@ -164,6 +165,21 @@ function onTemplateSelected(tpl) {
 function openSlides(id) {
   activePresentationId.value = id;
   showSlides.value = true;
+}
+
+async function duplicateFromList(id) {
+  if (duplicatingId.value) return;
+  duplicatingId.value = id;
+  try {
+    const created = await api.duplicate(id);
+    // Put new duplicate at the top of the list
+    presentations.value.unshift(created);
+    success('Presentation duplicated');
+  } catch (e) {
+    error('Failed to duplicate presentation');
+  } finally {
+    duplicatingId.value = null;
+  }
 }
 
 async function copyShare(p) {

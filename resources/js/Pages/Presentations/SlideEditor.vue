@@ -16,7 +16,7 @@
                     />
                     <block-toolbox
                         @add="addBlock"
-                        :types="['heading', 'paragraph', 'feature_card', 'image', 'chart']"
+                        :types="['heading', 'paragraph', 'feature_card', 'image', 'step_card', 'slogan', 'pricing_table', 'timeline_table', 'details_list', 'list_with_icons', 'feature_list', 'image_block']"
                         aria-label="Add content block"
                     />
                 </div>
@@ -119,7 +119,14 @@ async function addBlock(type) {
         paragraph: { block_type: 'paragraph', content_data: { text: 'Lorem ipsum' } },
         feature_card: { block_type: 'feature_card', content_data: { icon: 'fa-star', title: 'New Feature', description: 'Description' } },
         image: { block_type: 'image', content_data: { url: '', alt: 'Image' } },
-        chart: { block_type: 'chart', content_data: { type: 'bar', data: {} } },
+        step_card: { block_type: 'step_card', content_data: { step_number: 1, title: 'New Step', description: 'Description' } },
+        slogan: { block_type: 'slogan', content_data: { text: 'New Slogan' } },
+        pricing_table: { block_type: 'pricing_table', content_data: { title: 'Pricing', price: '$0', payment_schedule: ['Item 1', 'Item 2'] } },
+        timeline_table: { block_type: 'timeline_table', content_data: { title: 'Timeline', timeline: [{ phase: 'Phase 1', duration: '1 Week' }] } },
+        details_list: { block_type: 'details_list', content_data: { items: ['Detail 1', 'Detail 2'] } },
+        list_with_icons: { block_type: 'list_with_icons', content_data: { items: ['Item 1', 'Item 2'] } },
+        feature_list: { block_type: 'feature_list', content_data: { items: [{ title: 'Feature 1', description: 'Description 1' }] } },
+        image_block: { block_type: 'image_block', content_data: { url: '', title: 'New Image Block' } },
     };
     await store.addBlock(slide.value.id, blockPayloads[type]);
 }

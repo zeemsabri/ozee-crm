@@ -64,7 +64,7 @@
             </div>
         </div>
 
-        <!-- Image Block Form - NEW -->
+        <!-- Image Block Form -->
         <div v-else-if="block.block_type === 'image'" class="space-y-4">
             <div>
                 <label class="block text-sm text-gray-600 mb-1">Image URL</label>
@@ -88,20 +88,185 @@
             </div>
         </div>
 
+        <!-- Step Card Form -->
+        <div v-else-if="block.block_type === 'step_card'" class="space-y-4">
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Step Number</label>
+                <input
+                    v-model.number="local.step_number"
+                    @input="emitUpdate"
+                    type="number"
+                    placeholder="e.g., 1"
+                    class="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
+                    aria-label="Step number"
+                />
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Title</label>
+                <input
+                    v-model="local.title"
+                    @input="emitUpdate"
+                    placeholder="Step Title"
+                    class="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
+                    aria-label="Step title"
+                />
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Description</label>
+                <textarea
+                    v-model="local.description"
+                    @input="emitUpdate"
+                    placeholder="Step description"
+                    class="w-full border border-gray-200 rounded-lg p-2 h-24 focus:ring-2 focus:ring-indigo-500"
+                    aria-label="Step description"
+                ></textarea>
+            </div>
+        </div>
+
+        <!-- Slogan Block Form -->
+        <div v-else-if="block.block_type === 'slogan'" class="space-y-4">
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Slogan Text</label>
+                <input
+                    v-model="local.text"
+                    @input="emitUpdate"
+                    placeholder="e.g., Innovate. Optimize. Grow."
+                    class="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
+                    aria-label="Slogan text"
+                />
+            </div>
+        </div>
+
+        <!-- Pricing Table Form -->
+        <div v-else-if="block.block_type === 'pricing_table'" class="space-y-4">
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Title</label>
+                <input
+                    v-model="local.title"
+                    @input="emitUpdate"
+                    placeholder="e.g., Pricing & Payment Schedule"
+                    class="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
+                    aria-label="Pricing title"
+                />
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Price Text</label>
+                <input
+                    v-model="local.price"
+                    @input="emitUpdate"
+                    placeholder="e.g., AUD 7,500 (+GST)"
+                    class="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
+                    aria-label="Price text"
+                />
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Payment Schedule (one per line)</label>
+                <textarea
+                    v-model="local.payment_schedule"
+                    @input="emitUpdateArray"
+                    placeholder="e.g., 25% upon project confirmation"
+                    class="w-full border border-gray-200 rounded-lg p-2 h-24 focus:ring-2 focus:ring-indigo-500"
+                    aria-label="Payment schedule list"
+                ></textarea>
+            </div>
+        </div>
+
+        <!-- Timeline Table Form -->
+        <div v-else-if="block.block_type === 'timeline_table'" class="space-y-4">
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Title</label>
+                <input
+                    v-model="local.title"
+                    @input="emitUpdate"
+                    placeholder="e.g., Project Timeline"
+                    class="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
+                    aria-label="Timeline title"
+                />
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Timeline (Phase | Duration, one per line)</label>
+                <textarea
+                    v-model="local.timeline"
+                    @input="emitUpdateTimeline"
+                    placeholder="e.g., Planning | 1-2 Weeks"
+                    class="w-full border border-gray-200 rounded-lg p-2 h-24 focus:ring-2 focus:ring-indigo-500"
+                    aria-label="Timeline list"
+                ></textarea>
+            </div>
+        </div>
+
+        <!-- Details List Form -->
+        <div v-else-if="block.block_type === 'details_list'" class="space-y-4">
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Details (one item per line)</label>
+                <textarea
+                    v-model="local.items"
+                    @input="emitUpdateDetailsList"
+                    placeholder="e.g., Prepared for: Benjamin Castledine"
+                    class="w-full border border-gray-200 rounded-lg p-2 h-24 focus:ring-2 focus:ring-indigo-500"
+                    aria-label="Details list"
+                ></textarea>
+            </div>
+        </div>
+
+        <!-- List with Icons Form -->
+        <div v-else-if="block.block_type === 'list_with_icons'" class="space-y-4">
+            <label class="block text-sm font-semibold text-gray-700">List Items (one per line)</label>
+            <textarea
+                v-model="local.items"
+                @input="emitUpdateListWithIcons"
+                class="w-full border border-gray-200 rounded-lg p-2 h-32 focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter each list item on a new line."
+            ></textarea>
+        </div>
+
+        <!-- Feature List Form -->
+        <div v-else-if="block.block_type === 'feature_list'" class="space-y-4">
+            <label class="block text-sm font-semibold text-gray-700">Feature Items (Title | Description, one per line)</label>
+            <textarea
+                v-model="local.items"
+                @input="emitUpdateFeatureList"
+                class="w-full border border-gray-200 rounded-lg p-2 h-32 focus:ring-2 focus:ring-indigo-500"
+                placeholder="Title | Description of the feature."
+            ></textarea>
+        </div>
+
+        <!-- Image Block Form -->
+        <div v-else-if="block.block_type === 'image_block'" class="space-y-4">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700">Title</label>
+                <input
+                    v-model="local.title"
+                    @input="emitUpdate"
+                    class="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Image Title"
+                />
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700">Image URL</label>
+                <input
+                    v-model="local.url"
+                    @input="emitUpdate"
+                    class="w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
+                    placeholder="e.g., https://example.com/image.jpg"
+                />
+            </div>
+        </div>
+
         <!-- Fallback for Unsupported Block Type -->
         <div v-else class="text-red-500 italic">Unsupported block type: {{ block.block_type }}</div>
 
         <!-- AI Suggestion Button -->
-<!--        <button-->
-<!--            @click="suggestAI"-->
-<!--            class="btn btn-secondary text-sm flex items-center gap-2"-->
-<!--            aria-label="Generate content with AI"-->
-<!--        >-->
-<!--            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">-->
-<!--                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>-->
-<!--            </svg>-->
-<!--            Suggest with AI-->
-<!--        </button>-->
+        <!--        <button-->
+        <!--            @click="suggestAI"-->
+        <!--            class="btn btn-secondary text-sm flex items-center gap-2"-->
+        <!--            aria-label="Generate content with AI"-->
+        <!--        >-->
+        <!--            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">-->
+        <!--                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>-->
+        <!--            </svg>-->
+        <!--            Suggest with AI-->
+        <!--        </button>-->
     </div>
 </template>
 
@@ -117,6 +282,20 @@ const emit = defineEmits(['update']);
 const local = reactive({ ...(props.block.content_data || {}) });
 
 watch(() => props.block.content_data, (v) => {
+    // We need special handling for array-based properties
+    if (v && v.payment_schedule) {
+        local.payment_schedule = v.payment_schedule.join('\n');
+    }
+    if (v && v.timeline) {
+        local.timeline = v.timeline.map(t => `${t.phase} | ${t.duration}`).join('\n');
+    }
+    if (v && v.items) {
+        if (props.block.block_type === 'feature_list') {
+            local.items = v.items.map(item => `${item.title} | ${item.description}`).join('\n');
+        } else {
+            local.items = v.items.join('\n');
+        }
+    }
     Object.assign(local, v || {});
 });
 
@@ -126,6 +305,37 @@ const debounced = debounce(() => {
 
 function emitUpdate() {
     debounced();
+}
+
+function emitUpdateArray() {
+    const arr = local.payment_schedule.split('\n').map(item => item.trim()).filter(Boolean);
+    emit('update', { ...local, payment_schedule: arr });
+}
+
+function emitUpdateTimeline() {
+    const timeline = local.timeline.split('\n').map(line => {
+        const parts = line.split('|').map(p => p.trim());
+        return { phase: parts[0], duration: parts[1] };
+    }).filter(t => t.phase && t.duration);
+    emit('update', { ...local, timeline });
+}
+
+function emitUpdateDetailsList() {
+    const items = local.items.split('\n').map(item => item.trim()).filter(Boolean);
+    emit('update', { ...local, items });
+}
+
+function emitUpdateListWithIcons() {
+    const items = local.items.split('\n').map(item => item.trim()).filter(Boolean);
+    emit('update', { ...local, items });
+}
+
+function emitUpdateFeatureList() {
+    const items = local.items.split('\n').map(line => {
+        const parts = line.split('|').map(p => p.trim());
+        return { title: parts[0], description: parts[1] };
+    }).filter(t => t.title && t.description);
+    emit('update', { ...local, items });
 }
 
 function suggestAI() {
