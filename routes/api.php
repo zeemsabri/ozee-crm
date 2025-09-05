@@ -47,6 +47,7 @@ use App\Http\Controllers\Api\FamifyHub\MailController as FamifyMailController;
 use App\Http\Controllers\Api\BugReportController;
 use App\Http\Controllers\Api\PresentationAIController;
 use App\Http\Controllers\Api\PresentationGeneratorController;
+use App\Http\Controllers\Api\PublicLeadIntakeController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\LeadController;
@@ -89,6 +90,9 @@ Route::prefix('bugs')->group(function () {
 // Public FamifyHub contact endpoint (no authentication)
 Route::post('/famifyhub/contact', [FamifyMailController::class, 'submit']);
 Route::post('/famifyhub/contactform', [FamifyMailController::class, 'contactForm']);
+
+// Public Lead Intake (from PublicPresenter)
+Route::post('/public/lead-intake', [PublicLeadIntakeController::class, 'store']);
 
 // Authenticated API Routes (behind auth:sanctum middleware for internal users)
 Route::middleware('auth:sanctum')->group(function () {
