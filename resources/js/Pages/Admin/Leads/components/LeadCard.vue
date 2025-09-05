@@ -22,6 +22,16 @@ const badgeClass = (status) => {
       return 'bg-gray-100 text-gray-700';
   }
 };
+
+const humanDateTime = (value) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return '—';
+  // Example: Thu, Sep 4 • 10:41 AM
+  const datePart = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(d);
+  const timePart = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(d);
+  return `${datePart} • ${timePart}`;
+};
 </script>
 
 <template>
@@ -40,6 +50,17 @@ const badgeClass = (status) => {
     <div class="mt-1 text-sm text-gray-600 truncate" v-if="lead.company">{{ lead.company }}</div>
     <div class="mt-1 text-xs text-gray-500 truncate" v-if="lead.email">{{ lead.email }}</div>
     <div class="mt-1 text-xs text-gray-500 truncate" v-if="lead.phone">{{ lead.phone }}</div>
+
+    <div class="mt-2 grid grid-cols-1 gap-1 text-[11px] text-gray-500">
+      <div v-if="lead.contacted_at">
+        <span class="font-medium text-gray-600">Contacted:</span>
+        <span>{{ humanDateTime(lead.contacted_at) }}</span>
+      </div>
+      <div v-if="lead.last_communication_at">
+        <span class="font-medium text-gray-600">Last comms:</span>
+        <span>{{ humanDateTime(lead.last_communication_at) }}</span>
+      </div>
+    </div>
 
     <div class="mt-3 flex items-center justify-end gap-2">
       <button class="text-xs text-indigo-600 hover:underline" @click.stop="emit('edit', lead)">Edit</button>

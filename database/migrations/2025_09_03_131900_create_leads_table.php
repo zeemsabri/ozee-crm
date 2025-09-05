@@ -35,6 +35,7 @@ return new class extends Migration {
             $table->foreignId('created_by_id')->nullable()->constrained('users')->nullOnDelete();
 
             // Communication and state
+            $table->timestamp('last_communication_at')->nullable();
             $table->timestamp('contacted_at')->nullable();
             $table->timestamp('converted_at')->nullable();
             $table->string('lost_reason')->nullable();

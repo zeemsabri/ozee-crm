@@ -37,13 +37,64 @@ class EmailController extends Controller
     }
 
     /**
+     * Delete an email locally and/or from Gmail.
+     * Requires 'delete_emails' permission.
+     */
+    public function destroy(Request $request, Email $email)
+    {
+
+        $this->authorize('delete', $email);
+
+        $validated = $request->validate([
+            'delete_gmail' => 'sometimes|boolean',
+            'delete_local' => 'sometimes|boolean',
+        ]);
+
+        $deleteGmail = (bool)($validated['delete_gmail'] ?? false);
+        $deleteLocal = (bool)($validated['delete_local'] ?? true); // default to local delete if not specified
+
+        $errors = [];
+
+        // Attempt to trash on Gmail if requested and message_id exists
+        if ($deleteGmail) {
+            $gmailId = $email->message_id;
+            if ($gmailId) {
+                try {
+                    $this->gmailService->trashMessage($gmailId);
+                } catch (\Throwable $e) {
+                    \Log::error('Failed to trash Gmail message for email', ['email_id' => $email->id, 'error' => $e->getMessage()]);
+                    $errors[] = 'Failed to delete Gmail copy: ' . $e->getMessage();
+                }
+            } else {
+                $errors[] = 'No Gmail message ID associated with this email.';
+            }
+        }
+
+        // Soft delete locally if requested
+        if ($deleteLocal) {
+            try {
+                $email->delete();
+            } catch (\Throwable $e) {
+                \Log::error('Failed to delete local email', ['email_id' => $email->id, 'error' => $e->getMessage()]);
+                $errors[] = 'Failed to delete local copy: ' . $e->getMessage();
+            }
+        }
+
+        $status = empty($errors) ? 200 : 207; // 207 Multi-Status when partial failures
+        return response()->json([
+            'message' => empty($errors) ? 'Email deletion completed.' : 'Email deletion completed with some errors.',
+            'errors' => $errors,
+        ], $status);
+    }
+
+    /**
      * Display a listing of emails (conversations) relevant to the authenticated user.
      * Accessible by: Super Admin, Manager (all); Contractor (their assigned projects/conversations)
      */
     public function index(Request $request)
     {
         $user = Auth::user();
-        $emailsQuery = Email::with(['conversation.project.client', 'sender', 'approver']);
+        $emailsQuery = Email::with(['conversation.project', 'conversation.conversable', 'sender', 'approver']);
 
         if ($user->isContractor()) {
             // Contractors only see emails from conversations on their assigned projects
@@ -152,9 +203,9 @@ class EmailController extends Controller
                     'subject' => $validated['subject'],
                 ],
                 [
-
                     'contractor_id' => $user->id,
-                    'client_id' => $clientIds[0],
+                    'conversable_type' => Client::class,
+                    'conversable_id' => $clientIds[0],
                     'last_activity_at' => now(),
                 ]
             );
@@ -171,7 +222,7 @@ class EmailController extends Controller
             $email = Email::create([
                 'conversation_id' => $conversation->id,
                 'sender_id' => $user->id,
-                'to' => json_encode($clientEmails),
+                'to' => $clientEmails,
                 'subject' => $validated['subject'],
                 'template_id' => $validated['template_id'],
                 'template_data' => json_encode($validated['template_data'] ?? []),
@@ -325,10 +376,10 @@ class EmailController extends Controller
             $finalRenderedBody = $this->renderHtmlTemplate($data, $template);
 
             // Resolve recipient(s): if a client is associated, use it; otherwise fall back to Email.to
-            $client = $email->conversation->client;
+            $recipient = $email->conversation->conversable;
             $recipients = [];
-            if ($client && !empty($client->email)) {
-                $recipients = [$client->email];
+            if ($recipient && !empty($recipient->email)) {
+                $recipients = [$recipient->email];
             } else {
                 $recipients = is_array($email->to) ? $email->to : (empty($email->to) ? [] : [$email->to]);
             }
@@ -531,7 +582,7 @@ class EmailController extends Controller
         $pendingEmails = Email::with([
             'conversation',
             'conversation.project',
-            'conversation.client',
+            'conversation.conversable',
             'sender'
         ])
             ->whereIn('status', [ 'pending_approval', 'pending_approval_received'])
@@ -556,7 +607,7 @@ class EmailController extends Controller
 
         $pendingEmails = Email::with([
             'conversation.project:id,name',
-            'conversation.client:id,name',
+            'conversation.conversable',
             'sender:id,name'
         ])
             ->whereIn('status', ['pending_approval', 'pending_approval_received'])
@@ -584,7 +635,7 @@ class EmailController extends Controller
                 'template_id' => $email->template_id,
                 'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
                 'project_id' => $email->conversation->project_id ?? null,
-                'client_id' => $email->conversation->client_id ?? null,
+                'client_id' => $email->conversation->conversable_id ?? null,
             ];
         });
 
@@ -599,7 +650,7 @@ class EmailController extends Controller
         $query = Auth::user()->isContractor()
             ? Email::where('sender_id', Auth::id())->where('status', '=', 'rejected')
             : Email::where('status', 'rejected');
-        return $query->with(['conversation.project', 'conversation.client', 'sender'])->get();
+        return $query->with(['conversation.project', 'conversation.conversable', 'sender'])->get();
     }
 
     /**
@@ -661,7 +712,7 @@ class EmailController extends Controller
         $conversations = $project->conversations;
         $conversationIds = $conversations->pluck('id')->toArray();
 
-        $emails = Email::with(['conversation.project.client', 'sender', 'approver'])
+        $emails = Email::with(['conversation.project', 'conversation.conversable', 'sender', 'approver'])
             ->whereIn('status', ['approved', 'pending_approval', 'sent']);
 
         $emails = $emails->whereIn('conversation_id', $conversationIds)
@@ -701,8 +752,8 @@ class EmailController extends Controller
         // Eager load the conversation with client and project IDs for the frontend
         $query = Email::with([
             'sender:id,name',
-            'conversation:id,client_id,project_id',
-            'conversation.client:id,name'
+            'conversation:id,conversable_id,project_id',
+            'conversation.conversable'
         ])->whereIn('conversation_id', $conversationIds);
 
         if ($request->has('type') && !empty($request->type)) {
@@ -760,7 +811,7 @@ class EmailController extends Controller
                 'template_id' => $email->template_id,
                 'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
                 'project_id' => $email->conversation->project_id ?? null,
-                'client_id' => $email->conversation->client_id ?? null,
+                'client_id' => $email->conversation->conversable_id ?? null,
             ];
         });
 
@@ -911,7 +962,7 @@ class EmailController extends Controller
                 'body_html' => $renderedContent['body'],
                 'template_id' => $email->template_id,
                 'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
-                'client_id' => $email->conversation->client_id,
+                'client_id' => $email->conversation->conversable_id,
                 'type'  =>  $email->type,
                 'status'    =>  $email->status
             ]);

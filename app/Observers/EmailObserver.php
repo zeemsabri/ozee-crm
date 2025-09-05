@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Email;
+use App\Models\Lead;
 use App\Notifications\EmailApprovalRequired;
 use App\Notifications\EmailApproved;
 use App\Helpers\PermissionHelper;
@@ -29,12 +30,6 @@ class EmailObserver
                 foreach ($usersToNotify as $userToNotify) {
                     $userToNotify->notify(new EmailApprovalRequired($email));
                 }
-
-                Log::info('Email approval notifications sent', [
-                    'email_id' => $email->id,
-                    'project_id' => $projectId,
-                    'notification_count' => $usersToNotify->count()
-                ]);
             }
         }
 
@@ -50,12 +45,6 @@ class EmailObserver
                 foreach ($usersToNotify as $userToNotify) {
                     $userToNotify->notify(new EmailApprovalRequired($email));
                 }
-
-                Log::info('Email approval notifications sent for received email', [
-                    'email_id' => $email->id,
-                    'project_id' => $projectId,
-                    'notification_count' => $usersToNotify->count()
-                ]);
             }
         }
 
@@ -77,6 +66,9 @@ class EmailObserver
      */
     public function updated(Email $email)
     {
+
+        Log::info('email conversation belongs to lead');
+
         // Check if the email status was changed to 'approved'
         if ($email->isDirty('status') && $email->status === 'sent') {
             $projectId = optional($email->conversation)->project_id;
@@ -117,10 +109,22 @@ class EmailObserver
         // Update project last_email_sent when an email becomes sent and is of type 'sent'
         if ($email->isDirty('status') && $email->status === 'sent' && $email->type === 'sent') {
             $project = optional($email->conversation)->project;
+
             if ($project) {
                 $project->last_email_sent = now();
                 $project->save();
             }
+
+            Log::info( json_encode([
+                'email_conversation_id' =>  $email->conversation?->id,
+                'email_belong_to' => get_class($email->conversation?->conversable)
+            ]));
+
+            if(get_class($email->conversation?->conversable) === Lead::class) {
+                $email->conversation->conversable()->update(['contacted_at' => now()]);
+            }
+
         }
+
     }
 }

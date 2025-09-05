@@ -353,6 +353,7 @@ watch(() => inboxState.filters, () => {
                                     :can-approve-emails="inboxState.sidebar.data?.can_approve"
                                     @edit="handleEditEmail"
                                     @reject="handleRejectEmail"
+                                    @deleted="handleSubmitted"
                                 />
                             </div>
                             <div v-else-if="inboxState.sidebar.mode === 'compose'">
