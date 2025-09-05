@@ -1,17 +1,17 @@
 <template>
     <div class="bg-slate-100 font-montserrat min-h-screen flex items-center justify-center">
-        <!-- The main container that mimics the original HTML structure -->
+        <!-- The main container -->
         <div class="embed-container">
             <!-- Navigation Buttons -->
-            <button v-show="currentSlideIndex > 0" @click="goToPrevSlide" id="prev-button" class="nav-btn bg-oz-blue" aria-label="Previous slide">
+            <button v-show="!showFormModal && currentSlideIndex > 0" @click="goToPrevSlide" id="prev-button" class="nav-btn bg-oz-blue" aria-label="Previous slide">
                 <i class="fa-solid fa-chevron-left text-white text-2xl"></i>
             </button>
-            <button v-show="currentSlideIndex < presentation.slides.length - 1" @click="goToNextSlide" id="next-button" class="nav-btn bg-oz-blue" aria-label="Next slide">
+            <button v-show="!showFormModal && currentSlideIndex < presentation.slides.length - 1" @click="goToNextSlide" id="next-button" class="nav-btn bg-oz-blue" aria-label="Next slide">
                 <i class="fa-solid fa-chevron-right text-white text-2xl"></i>
             </button>
 
             <!-- Dock Pagination -->
-            <div id="dock-pagination" role="tablist">
+            <div v-show="!showFormModal" id="dock-pagination" role="tablist">
                 <button
                     v-for="(slide, index) in presentation.slides"
                     :key="slide.id"
@@ -36,29 +36,154 @@
                         'prev': index < currentSlideIndex
                     }"
                 >
-                    <!-- This is the crucial white card -->
                     <div class="slide-content">
                         <component :is="renderSlideLayout(slide)" />
                     </div>
                 </section>
             </main>
         </div>
+
+        <!-- Contact Form Modal via BaseFormModal -->
+        <BaseFormModal
+            v-if="showFormModal"
+            :show="showFormModal"
+            :title="displayForm.title"
+            :api-endpoint="leadEndpoint"
+            http-method="post"
+            :form-data="intakeForm"
+            :before-submit="beforeLeadSubmit"
+            :show-footer="true"
+            :success-message="'Thanks! Your details have been received.'"
+            :submit-button-text="displayForm.submit_button_text || 'Submit'"
+            @close="showFormModal = false"
+            @submitted="onLeadSubmitted"
+        >
+            <template #default="{ errors }">
+                <div class="space-y-4">
+                    <p class="text-sm text-gray-600">{{ displayForm.description }}</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div
+                            v-for="field in displayForm.fields"
+                            :key="field.name"
+                            class="form-group"
+                            :class="{ 'md:col-span-2': isLongField(field) }"
+                        >
+                            <label :for="field.name" class="form-label">
+                                {{ field.label }}
+                                <span v-if="field.required" class="text-red-500">*</span>
+                            </label>
+                            <input
+                                v-if="field.type !== 'textarea'"
+                                v-model="intakeForm[field.name]"
+                                :type="field.type"
+                                :id="field.name"
+                                :placeholder="field.placeholder"
+                                class="form-input"
+                                :required="field.required"
+                                :aria-required="field.required ? 'true' : 'false'"
+                            />
+                            <textarea
+                                v-else
+                                v-model="intakeForm[field.name]"
+                                :id="field.name"
+                                :placeholder="field.placeholder"
+                                rows="4"
+                                class="form-input"
+                                :required="field.required"
+                                :aria-required="field.required ? 'true' : 'false'"
+                            ></textarea>
+                            <p v-if="errors && errors[field.name]" class="text-sm text-red-600 mt-1">{{ errors[field.name]?.[0] || errors[field.name] }}</p>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </BaseFormModal>
     </div>
 </template>
 
 <script setup>
-import { toRefs, h, ref, onMounted, onUnmounted } from 'vue';
+import { toRefs, h, ref, onMounted, onUnmounted, watch, computed } from 'vue';
+import BaseFormModal from '@/Components/BaseFormModal.vue';
 
 const props = defineProps({
     presentation: {
         type: Object,
         required: true,
         default: () => ({ slides: [] })
+    },
+    form: {
+        type: Object,
+        required: false,
+        default: () => ({ title: '', description: '', fields: [], submit_button_text: 'Submit' })
     }
 });
 
-const { presentation } = toRefs(props);
+const { presentation, form } = toRefs(props);
 const currentSlideIndex = ref(0);
+const showFormModal = ref(false);
+
+// Fallback form schema (mirrors config/forms.php contact_form)
+const fallbackForm = {
+    title: 'Get in Touch',
+    description: "We're excited to learn more about your project. Please fill out the form below, and one of our specialists will contact you shortly.",
+    fields: [
+        { name: 'name', label: 'Full Name', type: 'text', placeholder: 'e.g., Jane Doe', required: true },
+        { name: 'email', label: 'Email Address', type: 'email', placeholder: 'e.g., jane.doe@example.com', required: true },
+        { name: 'phone', label: 'Phone Number', type: 'tel', placeholder: 'e.g., 0412 345 678', required: false },
+        { name: 'company_name', label: 'Company Name', type: 'text', placeholder: 'e.g., Future Co', required: false },
+        { name: 'abn', label: 'ABN', type: 'text', placeholder: 'e.g., 50 123 456 789', required: false },
+        { name: 'address', label: 'Address', type: 'text', placeholder: 'e.g., 123 Example St, Sydney NSW 2000', required: false },
+        { name: 'message', label: 'Your Message', type: 'textarea', placeholder: 'Tell us a bit about your project or requirements...', required: true },
+    ],
+    submit_button_text: 'Send Inquiry',
+};
+
+// Use provided form if it has fields; otherwise use fallback
+const displayForm = computed(() => {
+    const fields = form?.value?.fields;
+    return Array.isArray(fields) && fields.length > 0 ? form.value : fallbackForm;
+});
+
+// Lead intake form state for BaseFormModal
+const intakeForm = ref({});
+const leadEndpoint = '/api/public/lead-intake';
+
+function initIntakeForm() {
+    try {
+        const fields = Array.isArray(displayForm.value?.fields) ? displayForm.value.fields : [];
+        const obj = {};
+        for (const f of fields) {
+            if (f?.name) obj[f.name] = '';
+        }
+        intakeForm.value = obj;
+    } catch (e) {
+        intakeForm.value = {};
+    }
+}
+
+watch(showFormModal, (v) => {
+    if (v) initIntakeForm();
+});
+
+async function beforeLeadSubmit() {
+    // Ensure email exists if field present
+    const email = intakeForm.value?.email?.trim();
+    if (!email) {
+        // Let server-side validation handle messaging; return false to prevent empty submit
+        return false;
+    }
+    return true;
+}
+
+function onLeadSubmitted() {
+    showFormModal.value = false;
+}
+
+function isLongField(field) {
+    const name = field?.name || '';
+    const type = field?.type || '';
+    return name === 'address' || name === 'message' || type === 'textarea';
+}
 
 function goToNextSlide() {
     if (currentSlideIndex.value < presentation.value.slides.length - 1) {
@@ -72,8 +197,20 @@ function goToPrevSlide() {
 }
 
 function handleKeyDown(event) {
-    if (event.key === 'ArrowRight') goToNextSlide();
-    else if (event.key === 'ArrowLeft') goToPrevSlide();
+    if (showFormModal.value && event.key === 'Escape') {
+        showFormModal.value = false;
+        return;
+    }
+    if (!showFormModal.value) {
+        if (event.key === 'ArrowRight') goToNextSlide();
+        else if (event.key === 'ArrowLeft') goToPrevSlide();
+    }
+}
+
+function submitForm() {
+    // In a real app, you would handle form submission here (e.g., API call).
+    alert('Thank you for your submission!');
+    showFormModal.value = false;
 }
 
 onMounted(() => {
@@ -97,19 +234,14 @@ onUnmounted(() => {
 // Layout-specific renderers
 const layoutRenderers = {
     'IntroCover': (blocks) => {
-        // Map over all blocks in their original, intended order.
         const renderedBlocks = blocks.map(block => {
-            // If the current block is an image, wrap it in the special styling div.
             if (block.block_type === 'image') {
                 return h('div', { class: 'mx-auto my-5 max-w-[300px] mt-8' }, [
                     renderBlock(block)
                 ]);
             }
-            // Otherwise, render the block normally.
             return renderBlock(block);
         });
-
-        // The main container for the slide is centered.
         return h('div', { class: 'text-center' }, renderedBlocks);
     },
     'ThreeColumn': (blocks) => {
@@ -157,12 +289,8 @@ const layoutRenderers = {
             ]),
         ]);
     },
-    // ====================================================================
-    // UPDATED RENDERER LOGIC
-    // ====================================================================
     'ThreeStepProcess': (blocks) => {
         const heading = blocks.find(b => b.block_type === 'heading');
-        // FIXED: Changed from 'feature_card' to 'step_card' to match the seeder
         const steps = blocks.filter(b => b.block_type === 'step_card');
         return h('div', { class: 'text-center' }, [
             heading ? renderBlock(heading) : null,
@@ -174,14 +302,11 @@ const layoutRenderers = {
     },
     'TwoColumnWithChart': (blocks) => {
         const heading = blocks.find(b => b.block_type === 'heading');
-        // FIXED: Changed from 'image' to 'image_block'
         const imageBlock = blocks.find(b => b.block_type === 'image_block');
-        // FIXED: Changed from 'feature_card' to 'feature_list'
         const featureList = blocks.find(b => b.block_type === 'feature_list');
         return h('div', { class: 'text-center' }, [
             heading ? renderBlock(heading) : null,
             h('div', { class: 'grid md:grid-cols-2 gap-8 items-center' }, [
-                // Render the feature_list directly
                 featureList ? renderBlock(featureList) : null,
                 h('div', { class: 'p-8 bg-gray-50 rounded-2xl' }, [
                     h('h3', { class: 'text-xl font-bold text-dark-grey mb-4' }, imageBlock?.content_data?.title),
@@ -202,12 +327,8 @@ const layoutRenderers = {
             ]),
         ]);
     },
-    'CallToAction': (blocks) => {
-        return h('div', { class: 'text-center' }, blocks.map(b => renderBlock(b)));
-    },
-    'default': (blocks) => {
-        return h('div', {}, blocks.map(b => renderBlock(b)));
-    },
+    'CallToAction': (blocks) => h('div', { class: 'text-center' }, blocks.map(b => renderBlock(b))),
+    'default': (blocks) => h('div', {}, blocks.map(b => renderBlock(b))),
 };
 
 function renderSlideLayout(slide) {
@@ -217,21 +338,15 @@ function renderSlideLayout(slide) {
 }
 
 function renderBlock(block) {
-
-    if(!block) {
-        return null;
-    }
-
+    if(!block) return null;
     const content = block.content_data || {};
 
     switch (block.block_type) {
         case 'heading':
             const tag = `h${content.level || 2}`;
-            const headingClasses = `text-4xl font-bold text-oz-blue mb-4`;
-            return h(tag, { class: headingClasses }, content.text || '');
+            return h(tag, { class: 'text-4xl font-bold text-oz-blue mb-4' }, content.text || '');
         case 'paragraph':
-            const pClasses = 'text-lg text-dark-grey mb-6';
-            return h('p', { class: pClasses, innerHTML: content.text || '' });
+            return h('p', { class: 'text-lg text-dark-grey mb-6', innerHTML: content.text || '' });
         case 'feature_card':
             const iconMapping = {
                 'fa-pencil-alt': 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10',
@@ -291,10 +406,6 @@ function renderBlock(block) {
             return h('div', { class: 'flex justify-center mt-8 space-x-6 text-gray-500 text-sm' },
                 content.items.map(item => h('span', { innerHTML: item }))
             );
-
-        // ====================================================================
-        // NEWLY ADDED BLOCK RENDERERS
-        // ====================================================================
         case 'list_with_icons':
             const checkIcon = h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 20 20', fill: 'currentColor', class: 'w-5 h-5 text-oz-gold mr-3 flex-shrink-0' }, [
                 h('path', { 'fill-rule': 'evenodd', d: 'M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z', 'clip-rule': 'evenodd' })
@@ -302,7 +413,6 @@ function renderBlock(block) {
             return h('ul', { class: 'space-y-4' }, content.items.map(item =>
                 h('li', { class: 'flex items-start' }, [ checkIcon, h('span', { class: 'text-dark-grey' }, item) ])
             ));
-
         case 'feature_list':
             return h('div', { class: 'text-left space-y-8' }, content.items.map(item =>
                 h('div', {}, [
@@ -310,15 +420,22 @@ function renderBlock(block) {
                     h('p', { class: 'text-gray-600' }, item.description),
                 ])
             ));
-
-        case 'image_block': // Often visually identical to 'image' but separated for logic
+        case 'image_block':
             return h('img', {
                 src: content.url,
                 alt: content.title || 'Presentation Image',
                 class: 'max-w-full h-auto rounded-lg',
                 onError: (e) => e.target.style.display = 'none',
             });
-
+        case 'button':
+            return h('button', {
+                class: 'mt-8 px-10 py-4 bg-oz-gold text-white font-bold rounded-full text-lg shadow-lg hover:bg-opacity-90 transition-transform transform hover:scale-105',
+                onClick: () => {
+                    if (content.action === 'show_contact_form') {
+                        showFormModal.value = true;
+                    }
+                }
+            }, content.text);
         default:
             return h('div', { class: 'text-red-500' }, `Unsupported block type: ${block.block_type}`);
     }
@@ -333,11 +450,10 @@ function renderBlock(block) {
 .slide.active { transform: translateX(0); opacity: 1; z-index: 1; }
 .slide.prev { transform: translateX(-100%); opacity: 0; }
 .slide-content { max-width: 1100px; width: 100%; padding: 3rem; background-color: #FFFFFF; border-radius: 24px; box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.1); text-align: center;}
-.text-oz-blue { color: #29438E; }
 .bg-oz-blue { background-color: #29438E; }
-.text-oz-gold { color: #F7A823; }
 .bg-oz-gold { background-color: #F7A823; }
-.text-dark-grey { color: #333333; }
+.text-oz-gold { color: #F7A823; }
+.text-dark-grey { color: #374151; }
 .nav-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 56px; height: 56px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 5px 20px rgba(41, 67, 142, 0.3); transition: transform 0.3s ease, background-color 0.3s ease; z-index: 10; }
 .nav-btn:hover { transform: translateY(-50%) scale(1.1); }
 #prev-button { left: 2rem; }
@@ -349,10 +465,11 @@ function renderBlock(block) {
 .dock-tip { position: absolute; bottom: 140%; left: 50%; transform: translateX(-50%); background: rgba(17,24,39,0.9); color: #fff; padding: 6px 10px; border-radius: 8px; font-size: 12px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease; }
 .dock-dot:hover .dock-tip { opacity: 1; transform: translateX(-50%) translateY(-2px); }
 
-/* Additional styles to maintain original look and feel */
-.text-2xl { font-size: 1.5rem; line-height: 2rem; }
-.text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
-.text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
-.text-5xl { font-size: 3rem; line-height: 1; }
-.border-oz-gold { border-color: #F7A823; }
+.form-group { display: flex; flex-direction: column; text-align: left; }
+.form-label { margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
+.form-input { width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 0.75rem 1rem; transition: border-color 0.2s, box-shadow 0.2s; }
+.form-input:focus { outline: none; border-color: #29438E; box-shadow: 0 0 0 3px rgba(41, 67, 142, 0.2); }
+.form-submit-btn { background-color: #F7A823; color: white; font-weight: bold; padding: 0.8rem 1rem; border-radius: 8px; transition: background-color 0.2s; margin-top: 1rem; }
+.form-submit-btn:hover { background-color: #f9b449; }
 </style>
+

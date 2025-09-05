@@ -14,6 +14,12 @@ class Presentation extends Model
     const PRESENTATION = 'presentation';
     const AUDIT_REPORT = 'audit_report';
 
+    const QUALIFIED = 'qualified';
+    const NEW = 'new';
+    const CONTACTED = 'contacted';
+    const CONVERTED = 'converted';
+    const LOST = 'lost';
+
     protected $fillable = [
         'presentable_id',
         'presentable_type',

@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\Lead;
 use App\Models\Presentation;
+use Illuminate\Support\Arr;
 
 class PresentationSeeder extends Seeder
 {
@@ -15,7 +16,6 @@ class PresentationSeeder extends Seeder
      */
     public function run(): void
     {
-        // Sample Lead for testing purposes
         $lead = Lead::first() ?? Lead::firstOrCreate([
             'first_name' => 'John',
             'last_name' => 'Doe',
@@ -23,7 +23,6 @@ class PresentationSeeder extends Seeder
             'company' => 'Future Co',
         ]);
 
-        // Fetch all template data from the new config file.
         $templates = config('presentation_templates.templates', []);
 
         if (empty($templates)) {
@@ -52,30 +51,42 @@ class PresentationSeeder extends Seeder
             ['type'  => Presentation::PROPOSAL]
         );
 
-        // If the template is being updated, clear out old slides to prevent duplicates.
         if (!$template->wasRecentlyCreated) {
             $template->slides()->delete();
         }
 
         $this->command->info('Creating/Updating Template: ' . $data['title'] . '...');
 
-        foreach ($data['slides'] as $slideData) {
+        $allBlueprints = config('presentation_templates.slide_blueprints');
+
+        foreach ($data['slides'] as $index => $slideData) {
+            $blueprintKey = $slideData['blueprint'];
+            $baseSlide = $allBlueprints[$blueprintKey] ?? null;
+
+            if (!$baseSlide) {
+                $this->command->error("Blueprint '{$blueprintKey}' not found for template '{$data['title']}'. Skipping slide.");
+                continue;
+            }
+
+            // Merge blueprint with overrides. `Arr::dot` and `Arr::set` can be used for deeper merges if needed.
+            $finalSlideData = array_merge($baseSlide, $slideData['overrides'] ?? []);
+
             // Create the slide record.
             $slide = $template->slides()->create([
-                'template_name' => $slideData['template_name'],
-                'title' => $slideData['title'],
-                'display_order' => $slideData['display_order'],
+                'template_name' => $finalSlideData['template_name'],
+                'title' => $finalSlideData['title'],
+                'display_order' => $index + 1,
             ]);
 
-            // Check if there are content blocks to create.
-            if (!empty($slideData['content_blocks'])) {
-                foreach ($slideData['content_blocks'] as $blockData) {
+            // Create content blocks with sequential display order.
+            if (!empty($finalSlideData['content_blocks'])) {
+                collect($finalSlideData['content_blocks'])->each(function ($blockData, $blockIndex) use ($slide) {
                     $slide->contentBlocks()->create([
                         'block_type' => $blockData['block_type'],
                         'content_data' => $blockData['content_data'],
-                        'display_order' => $blockData['display_order'],
+                        'display_order' => $blockIndex + 1,
                     ]);
-                }
+                });
             }
         }
     }

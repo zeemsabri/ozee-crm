@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use App\Models\Lead;
 use App\Models\Presentation;
 
@@ -24,15 +23,10 @@ class PresentationGeneratorController extends Controller
             'slide_count' => 'required|integer|min:3|max:20',
         ]);
 
-        // In a real application, you would use the authenticated user's client/lead.
-        // For now, we'll associate it with the first available Lead.
         $lead = Lead::first();
         if (!$lead) {
             return response()->json(['message' => 'No available lead to associate the presentation with.'], 404);
         }
-
-        // The presentation_templates.php file contains functions, so we require it once.
-        require_once config_path('presentation_templates.php');
 
         $slideCount = $request->input('slide_count');
         $presentation = null;
@@ -46,22 +40,22 @@ class PresentationGeneratorController extends Controller
                     'is_template' => false,
                 ]);
 
-                // 2. Add the mandatory Intro Cover slide.
-                $this->createSlideFromStructure($presentation, getStandardIntroCover());
+                // 2. Add the mandatory Intro Cover slide from the config blueprint.
+                $introBlueprint = config('presentation_templates.slide_blueprints.intro_cover');
+                $this->createSlideFromStructure($presentation, $introBlueprint, 1);
 
                 // 3. Generate the middle slides.
                 $middleSlideCount = $slideCount - 2;
                 $this->generateMiddleSlides($presentation, $middleSlideCount);
 
-                // 4. Add the mandatory Call to Action slide.
-                $this->createSlideFromStructure($presentation, getStandardCtaSlide($slideCount));
+                // 4. Add the mandatory Call to Action slide from the config blueprint.
+                $ctaBlueprint = config('presentation_templates.slide_blueprints.call_to_action');
+                $this->createSlideFromStructure($presentation, $ctaBlueprint, $slideCount);
             });
         } catch (\Exception $e) {
-            // If anything goes wrong, return a server error.
             return response()->json(['message' => 'Failed to generate presentation.', 'error' => $e->getMessage()], 500);
         }
 
-        // Return the newly created presentation with its slides.
         return response()->json($presentation->load('slides.contentBlocks'), 201);
     }
 
@@ -74,101 +68,53 @@ class PresentationGeneratorController extends Controller
      */
     private function generateMiddleSlides(Presentation $presentation, int $count): void
     {
-        // A pool of available slide-generating functions from our config library.
-        // This defines the "story arc" of a typical presentation.
-        $slideFunctionPool = [
-            'getChallengeSlide',
-            'getSolutionSlide',
-            'getServiceDetailSlide',
-            'getProcessSlide',
-            'getWhyUsSlide',
-            'getProjectDetailsSlide',
-        ];
+        // Fetch the pool of allowed slide blueprints from the config file.
+        $slidePoolKeys = config('presentation_templates.generator_pool', []);
+        $allBlueprints = config('presentation_templates.slide_blueprints');
+
+        if (empty($slidePoolKeys)) {
+            return; // No pool defined, so no slides to generate.
+        }
 
         for ($i = 0; $i < $count; $i++) {
-            // Pick a random slide function from the pool.
-            $randomFunction = $slideFunctionPool[array_rand($slideFunctionPool)];
+            // Pick a random slide key from the pool.
+            $randomKey = $slidePoolKeys[array_rand($slidePoolKeys)];
 
-            // Get the structure for that slide using generic, placeholder data.
-            $slideStructure = $this->getSlideDataForFunction($randomFunction, $i + 2);
+            // Get the blueprint structure for that slide.
+            $slideBlueprint = $allBlueprints[$randomKey] ?? null;
 
-            if ($slideStructure) {
-                $this->createSlideFromStructure($presentation, $slideStructure);
+            if ($slideBlueprint) {
+                // The display order is its position + 2 (since intro is 1).
+                $this->createSlideFromStructure($presentation, $slideBlueprint, $i + 2);
             }
         }
     }
 
     /**
-     * A helper to provide generic data to our slide library functions.
-     *
-     * @param string $functionName
-     * @param int $order
-     * @return array|null
-     */
-    private function getSlideDataForFunction(string $functionName, int $order): ?array
-    {
-        switch ($functionName) {
-            case 'getChallengeSlide':
-                return getChallengeSlide($order, 'Key Challenges We\'ve Identified', [
-                    ['icon' => 'fa-puzzle-piece', 'title' => 'Challenge One', 'description' => 'A brief description of the first challenge.'],
-                    ['icon' => 'fa-puzzle-piece', 'title' => 'Challenge Two', 'description' => 'A brief description of the second challenge.'],
-                    ['icon' => 'fa-puzzle-piece', 'title' => 'Challenge Three', 'description' => 'A brief description of the third challenge.'],
-                ]);
-            case 'getSolutionSlide':
-                return getSolutionSlide($order, 'A Tailored Solution', 'Our strategy is built on four key pillars to address your needs.', [
-                    ['icon' => 'fa-lightbulb', 'title' => 'Pillar One'],
-                    ['icon' => 'fa-lightbulb', 'title' => 'Pillar Two'],
-                    ['icon' => 'fa-lightbulb', 'title' => 'Pillar Three'],
-                    ['icon' => 'fa-lightbulb', 'title' => 'Pillar Four'],
-                ]);
-            case 'getServiceDetailSlide':
-                return getServiceDetailSlide($order, 'Core Service Detail', 'TwoColumnWithImageRight', [
-                    'heading' => 'A Core Service Offering', 'paragraph' => 'A detailed explanation of a key service we provide.',
-                    'items' => ['Key feature or benefit one.', 'Key feature or benefit two.', 'Key feature or benefit three.'],
-                    'image_url' => 'https://placehold.co/600x400/29438E/FFFFFF?text=Service+Detail', 'image_alt' => 'Service Detail Image',
-                ]);
-            case 'getProcessSlide':
-                return getProcessSlide($order, 'Our Strategic Process', [
-                    ['title' => 'Step 1: Discovery', 'description' => 'Understanding your unique goals and requirements.'],
-                    ['title' => 'Step 2: Strategy', 'description' => 'Developing a data-driven plan for success.'],
-                    ['title' => 'Step 3: Execution', 'description' => 'Implementing the strategy with precision and expertise.'],
-                    ['title' => 'Step 4: Analysis', 'description' => 'Measuring results and optimizing for continuous improvement.'],
-                ]);
-            case 'getWhyUsSlide':
-                return getWhyUsSlide($order);
-            case 'getProjectDetailsSlide':
-                return getProjectDetailsSlide($order,
-                    ['price' => 'To Be Determined', 'title' => 'Investment', 'payment_schedule' => ['Payment terms to be discussed.']],
-                    ['title' => 'Estimated Timeline', 'timeline' => [['phase' => 'Project Phase 1', 'duration' => 'X Weeks'], ['phase' => 'Project Phase 2', 'duration' => 'Y Weeks']]]
-                );
-            default:
-                return null;
-        }
-    }
-
-    /**
-     * Creates a slide and its content blocks from a structured array.
+     * Creates a slide and its content blocks from a structured blueprint array.
      *
      * @param Presentation $presentation
-     * @param array $structure
+     * @param array $blueprint
+     * @param int $displayOrder
      * @return void
      */
-    private function createSlideFromStructure(Presentation $presentation, array $structure): void
+    private function createSlideFromStructure(Presentation $presentation, array $blueprint, int $displayOrder): void
     {
         $slide = $presentation->slides()->create([
-            'template_name' => $structure['template_name'],
-            'title' => $structure['title'],
-            'display_order' => $structure['display_order'],
+            'template_name' => $blueprint['template_name'],
+            'title' => $blueprint['title'],
+            'display_order' => $displayOrder,
         ]);
 
-        if (!empty($structure['content_blocks'])) {
-            foreach ($structure['content_blocks'] as $blockData) {
+        if (!empty($blueprint['content_blocks'])) {
+            // Add a display_order to each block sequentially.
+            collect($blueprint['content_blocks'])->each(function ($blockData, $index) use ($slide) {
                 $slide->contentBlocks()->create([
                     'block_type' => $blockData['block_type'],
                     'content_data' => $blockData['content_data'],
-                    'display_order' => $blockData['display_order'],
+                    'display_order' => $index + 1,
                 ]);
-            }
+            });
         }
     }
 }
