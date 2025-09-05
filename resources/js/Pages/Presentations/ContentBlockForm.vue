@@ -279,28 +279,76 @@ import IconPicker from './Components/IconPicker.vue';
 const props = defineProps({ block: { type: Object, required: true } });
 const emit = defineEmits(['update']);
 
-const local = reactive({ ...(props.block.content_data || {}) });
+const local = reactive({});
 
-watch(() => props.block.content_data, (v) => {
-    // We need special handling for array-based properties
-    if (v && v.payment_schedule) {
-        local.payment_schedule = v.payment_schedule.join('\n');
+function applyViewMapping(v) {
+    const data = v || {};
+    // Assign base data first
+    Object.assign(local, data);
+    // Then override array-shaped fields with user-friendly strings
+    if (Array.isArray(data.payment_schedule)) {
+        local.payment_schedule = data.payment_schedule.join('\n');
     }
-    if (v && v.timeline) {
-        local.timeline = v.timeline.map(t => `${t.phase} | ${t.duration}`).join('\n');
+    if (Array.isArray(data.timeline)) {
+        // Support both seeded keys (phase, duration) and potential minified keys (ph, dur)
+        local.timeline = data.timeline
+            .map(t => `${(t && (t.phase ?? t.ph)) || ''} | ${(t && (t.duration ?? t.dur)) || ''}`)
+            .join('\n');
     }
-    if (v && v.items) {
+    if (Array.isArray(data.items)) {
         if (props.block.block_type === 'feature_list') {
-            local.items = v.items.map(item => `${item.title} | ${item.description}`).join('\n');
+            // Support both standard keys (title, description) and minified (t, dsc)
+            local.items = data.items
+                .map(item => `${(item && (item.title ?? item.t)) || ''} | ${(item && (item.description ?? item.dsc)) || ''}`)
+                .join('\n');
         } else {
-            local.items = v.items.join('\n');
+            local.items = data.items.join('\n');
         }
     }
-    Object.assign(local, v || {});
-});
+}
+
+// Initialize local with a mapped view of content_data
+applyViewMapping(props.block.content_data);
+
+// Keep local in sync when content_data changes
+watch(() => props.block.content_data, (v) => { applyViewMapping(v); });
+
+function buildPayload() {
+    const data = { ...local };
+    switch (props.block.block_type) {
+        case 'pricing_table':
+            if (typeof data.payment_schedule === 'string') {
+                data.payment_schedule = data.payment_schedule.split('\n').map(s => s.trim()).filter(Boolean);
+            }
+            break;
+        case 'timeline_table':
+            if (typeof data.timeline === 'string') {
+                data.timeline = data.timeline.split('\n').map(line => {
+                    const parts = line.split('|').map(p => p.trim());
+                    return { phase: parts[0], duration: parts[1] };
+                }).filter(t => t.phase && t.duration);
+            }
+            break;
+        case 'details_list':
+        case 'list_with_icons':
+            if (typeof data.items === 'string') {
+                data.items = data.items.split('\n').map(s => s.trim()).filter(Boolean);
+            }
+            break;
+        case 'feature_list':
+            if (typeof data.items === 'string') {
+                data.items = data.items.split('\n').map(line => {
+                    const parts = line.split('|').map(p => p.trim());
+                    return { title: parts[0], description: parts[1] };
+                }).filter(it => it.title && it.description);
+            }
+            break;
+    }
+    return data;
+}
 
 const debounced = debounce(() => {
-    emit('update', { ...local });
+    emit('update', buildPayload());
 }, 300);
 
 function emitUpdate() {
