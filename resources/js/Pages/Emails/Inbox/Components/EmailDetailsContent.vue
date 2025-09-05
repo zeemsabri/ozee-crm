@@ -1,6 +1,6 @@
 <script setup>
 import { defineProps, defineEmits, computed, watch, ref } from 'vue';
-import { getEmailDetails as getEmailDetailsApi, fetchAttachments as fetchAttachmentsApi, deleteEmail as deleteEmailApi } from '@/Services/api-service.js';
+import { getEmailDetails as getEmailDetailsApi, fetchAttachments as fetchAttachmentsApi, deleteEmail as deleteEmailApi, toggleEmailPrivacy as toggleEmailPrivacyApi } from '@/Services/api-service.js';
 import EmailAttachmentsList from '@/Pages/Emails/Inbox/Components/EmailAttachmentsList.vue';
 import TaskCreationForm from '@/Pages/Emails/Inbox/Components/TaskCreationForm.vue';
 import { usePermissions } from '@/Directives/permissions.js';
@@ -30,6 +30,26 @@ const isOutgoing = computed(() => localEmail.value?.type === 'sent');
 
 const { canDo } = usePermissions();
 const canDeleteEmails = computed(() => canDo('delete_emails').value);
+const canTogglePrivacy = computed(() => canDo('delete_emails').value); // same permission as delete
+const privacyLoading = ref(false);
+const privacyError = ref(null);
+
+const togglePrivacy = async () => {
+    if (!props.email?.id) return;
+    privacyLoading.value = true;
+    privacyError.value = null;
+    try {
+        // If we have localEmail, use its is_private flag to flip UI optimistically
+        const desired = localEmail.value ? !localEmail.value.is_private : null;
+        const updated = await toggleEmailPrivacyApi(props.email.id, desired);
+        // update both local and prop reference copy if exists
+        if (localEmail.value) localEmail.value.is_private = updated.is_private;
+    } catch (e) {
+        privacyError.value = e?.response?.data?.message || 'Failed to update privacy.';
+    } finally {
+        privacyLoading.value = false;
+    }
+};
 
 const showDeleteDialog = ref(false);
 const deleteLoading = ref(false);
@@ -250,7 +270,21 @@ watch(localEmail, (newLocalEmail) => {
 
         <!-- Action Buttons -->
         <div class="flex justify-between items-center pt-4">
-            <div>
+            <div class="flex items-center gap-2">
+                <button
+                    v-if="canTogglePrivacy"
+                    @click="togglePrivacy"
+                    :disabled="privacyLoading"
+                    class="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-xs sm:text-sm font-medium text-white"
+                    :class="localEmail?.is_private ? 'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500' : 'bg-gray-600 hover:bg-gray-700 focus:ring-gray-500'"
+                    title="Toggle privacy"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15c1.657 0 3-1.567 3-3.5S13.657 8 12 8s-3 1.567-3 3.5 1.343 3.5 3 3.5z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    <span>{{ privacyLoading ? 'Saving...' : (localEmail?.is_private ? 'Private' : 'Public') }}</span>
+                </button>
                 <button
                     v-if="canDeleteEmails"
                     @click="openDeleteDialog"
@@ -274,6 +308,8 @@ watch(localEmail, (newLocalEmail) => {
                 </button>
             </div>
         </div>
+
+        <div v-if="privacyError" class="mt-2 text-sm text-red-600">{{ privacyError }}</div>
 
         <!-- Delete Confirmation Modal -->
         <div v-if="showDeleteDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
