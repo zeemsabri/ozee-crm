@@ -21,6 +21,49 @@ class UserController extends Controller
     }
 
     /**
+     * Get emails related to a specific user (as sender or approver).
+     */
+    public function emails(User $user, Request $request)
+    {
+        $authUser = Auth::user();
+        // Reuse the same permission gate used for Users pages routing (manage users area)
+        if (!$authUser || !$authUser->hasPermission('create_users')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $perPage = (int)($request->input('per_page', 15));
+        $page = (int)($request->input('page', 1));
+
+        $query = \App\Models\Email::with(['sender', 'approver', 'conversation.project'])
+            ->where(function($q) use ($user) {
+                $q->where(function($qq) use ($user) {
+                    $qq->where('sender_type', \App\Models\User::class)
+                       ->where('sender_id', $user->id);
+                })
+                ->orWhere('approved_by', $user->id);
+            })
+            ->orderByDesc('created_at');
+
+        // Optional filters
+        if ($type = $request->input('type')) {
+            $query->where('type', $type);
+        }
+        if ($status = $request->input('status')) {
+            $query->where('status', $status);
+        }
+        if ($search = $request->input('search')) {
+            $query->where(function ($qq) use ($search) {
+                $qq->where('subject', 'like', "%{$search}%")
+                   ->orWhere('body', 'like', "%{$search}%");
+            });
+        }
+
+        $emails = $query->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json($emails);
+    }
+
+    /**
      * Display a listing of the users.
      * Accessible by: Super Admin, Manager, Employee (view all); Contractor (view only self)
      */

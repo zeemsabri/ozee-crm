@@ -529,6 +529,7 @@ const getAvatarColor = (name) => {
 
                                     <!-- Action icons bottom right corner -->
                                     <div class="mt-4 flex justify-end gap-2">
+                                        <PrimaryButton as="a" :href="`/users/${userItem.id}`" title="View User">View</PrimaryButton>
                                         <button
                                             v-if="(isSuperAdmin || isManager )"
                                             @click="openEditModal(userItem)"

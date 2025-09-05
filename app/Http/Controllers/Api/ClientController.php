@@ -183,6 +183,52 @@ class ClientController extends Controller
     }
 
     /**
+     * Get emails related to a given client (by conversation conversable).
+     */
+    public function emails(Client $client, Request $request)
+    {
+        $user = Auth::user();
+        // Permission check similar to show/details
+        if ($user->hasPermission('view_clients')) {
+            // ok
+        } elseif ($user->isContractor()) {
+            if (!$user->clients->contains('id', $client->id)) {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+        } else {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $perPage = (int)($request->input('per_page', 15));
+        $page = (int)($request->input('page', 1));
+
+        $query = \App\Models\Email::with(['sender', 'approver', 'conversation.project'])
+            ->whereHas('conversation', function ($q) use ($client) {
+                $q->where('conversable_type', \App\Models\Client::class)
+                  ->where('conversable_id', $client->id);
+            })
+            ->orderByDesc('created_at');
+
+        // Optional filters
+        if ($type = $request->input('type')) {
+            $query->where('type', $type);
+        }
+        if ($status = $request->input('status')) {
+            $query->where('status', $status);
+        }
+        if ($search = $request->input('search')) {
+            $query->where(function ($qq) use ($search) {
+                $qq->where('subject', 'like', "%{$search}%")
+                   ->orWhere('body', 'like', "%{$search}%");
+            });
+        }
+
+        $emails = $query->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json($emails);
+    }
+
+    /**
      * Return client details with combined emails and presentations (including historical from linked lead).
      */
     public function details(Client $client)
