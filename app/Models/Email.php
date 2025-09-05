@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Faker\Core\File;
+use GPBMetadata\Google\Api\Auth;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -14,6 +15,10 @@ class Email extends Model
 {
     use HasFactory, Taggable, SoftDeletes;
 
+    protected $appends = [
+        'can_approve',
+    ];
+
     protected static function booted()
     {
         static::updated(function (Email $email) {
@@ -24,7 +29,7 @@ class Email extends Model
 
             if ($changedToSent && $typeIsSent && $statusIsSent) {
                 try {
-                    app(PointsService::class)->awardEmailSentPoints($email);
+                    app(PointsService::class)->awardPointsFor($email);
                 } catch (\Throwable $e) {
                     Log::error('Failed to award email points: ' . $e->getMessage());
                 }
@@ -68,7 +73,9 @@ class Email extends Model
         'message_id',
         'type',
         'template_id',
-        'template_data'
+        'template_data',
+        'last_communication_at',
+        'contacted_at'
     ];
 
     protected $casts = [
@@ -140,4 +147,40 @@ class Email extends Model
     {
         return $this->morphMany(FileAttachment::class, 'fileable');
     }
+
+    public function getCanApproveAttribute()
+    {
+
+        $user = request()?->user();
+
+        if(!$user) {
+            return false;
+        }
+
+        $canApprove = false; // Default to false
+
+        // Check approval permission for outgoing emails
+        if ($this->status === 'pending_approval' && $this->conversation?->project?->id) {
+            if ($user->hasProjectPermission($this->conversation->project->id, 'approve_emails')
+            ) {
+                $canApprove = true;
+            }
+        }
+
+        if(get_class($this->conversation->conversable) === Lead::class && $user->hasPermission('contact_lead')) {
+            $canApprove = true;
+        }
+
+        // Check approval permission for incoming emails
+        if ($this->status === 'pending_approval_received') {
+            // This assumes hasPermission('approve_received_emails') is a global permission
+            if ($user->hasPermission('approve_received_emails')) {
+                $canApprove = true;
+            }
+        }
+
+        return $canApprove;
+
+    }
+
 }

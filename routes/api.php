@@ -136,6 +136,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Client Management Routes (CRUD)
     Route::apiResource('clients', ClientController::class);
     Route::apiResource('leads', LeadController::class)->names('api.leads');
+        Route::get('leads/{lead}/emails', [LeadController::class, 'emails']);
     Route::post('leads/{lead}/convert', [LeadController::class, 'convert']);
     Route::get('clients/{client}/email', [ClientController::class, 'getEmail']);
 
@@ -245,6 +246,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('emails/{email}/resubmit', [EmailController::class, 'resubmit']);
     Route::post('emails/{email}/tasks/bulk', [EmailController::class, 'bulkTasksFromEmail']);
     Route::apiResource('emails', EmailController::class)->except(['destroy']);
+    Route::delete('emails/{email}', [EmailController::class, 'destroy']);
 
     // Inbox Routes
     Route::get('inbox/new-emails', [InboxController::class, 'newEmails']);

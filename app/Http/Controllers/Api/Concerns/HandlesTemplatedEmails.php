@@ -75,7 +75,7 @@ trait HandlesTemplatedEmails
         // Process static placeholders from the template
         foreach ($placeholders as $placeholder) {
             $placeholderTag = "{{ {$placeholder->name} }}";
-            if (!isset($replacements[$placeholderTag])) {
+            if (isset($replacements[$placeholderTag])) {
                 $replacements[$placeholderTag] = $this->getPlaceholderValue($placeholder, $recipient, $project, $isFinalSend);
             }
         }

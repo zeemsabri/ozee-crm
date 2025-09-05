@@ -25,6 +25,22 @@ const props = defineProps({
     required: false,
     default: () => ({}),
   },
+  // Force recipient mode and preselect leads when used from Lead Details
+  forceRecipientMode: {
+    type: String,
+    required: false,
+    default: null, // 'clients' | 'leads' | null
+  },
+  presetLeadIds: {
+    type: Array,
+    required: false,
+    default: () => [],
+  },
+  hideRecipientControls: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['submitted', 'error']);
@@ -52,6 +68,11 @@ const canContactLead = computed(() => canDo('contact_lead').value);
 
 // Recipient mode
 const recipientMode = ref('clients'); // 'clients' | 'leads'
+
+// Initialize forced recipient mode and preset leads if provided
+if (props.forceRecipientMode === 'leads') {
+  recipientMode.value = 'leads';
+}
 
 // Projects for selection (client mode requirement; lead mode optional)
 const projects = ref([]);
@@ -211,6 +232,15 @@ watch(() => props.projectId, (newVal) => {
   }
 }, { immediate: true });
 
+// When forced to leads and presetLeadIds provided, prefill lead_ids
+watch(() => [props.forceRecipientMode, props.presetLeadIds], () => {
+  if (props.forceRecipientMode === 'leads' && Array.isArray(props.presetLeadIds) && props.presetLeadIds.length) {
+    form.lead_ids = [...props.presetLeadIds];
+    // Ensure leads list is loaded for greeting name
+    if (!leads.value.length) fetchLeads();
+  }
+}, { immediate: true });
+
 // Insert Link
 const openInsertLinkModal = () => {
   linkText.value = '';
@@ -313,7 +343,7 @@ async function submit() {
 <template>
   <div class="space-y-4">
       <!-- Recipient Type Toggle -->
-    <div class="flex gap-3 items-center mb-2">
+    <div v-if="!hideRecipientControls" class="flex gap-3 items-center mb-2">
       <label class="inline-flex items-center">
         <input type="radio" class="mr-2" value="clients" v-model="recipientMode" @change="() => { form.client_ids=[]; form.lead_ids=[]; if (recipientMode==='clients') fetchClients(); }"> Clients
       </label>
@@ -374,7 +404,7 @@ async function submit() {
       <div v-if="loadingLeads" class="text-gray-500 text-sm">Loading leads...</div>
       <div v-else-if="leadsError" class="text-red-500 text-sm">{{ leadsError }}</div>
       <OZeeMultiSelect
-        v-else
+        v-else-if="!hideRecipientControls"
         v-model="form.lead_ids"
         :options="leads"
         placeholder="Select one or more leads"

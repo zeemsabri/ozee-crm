@@ -38,3 +38,10 @@ export const fetchAttachments = async (emailId) => {
     });
     return response.data;
 };
+
+export const deleteEmail = async (emailId, { delete_gmail = false, delete_local = true } = {}) => {
+    const response = await axios.delete(`${API_BASE_URL}/emails/${emailId}`, {
+        data: { delete_gmail, delete_local },
+    });
+    return response.data;
+};

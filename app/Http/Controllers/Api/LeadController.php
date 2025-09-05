@@ -12,6 +12,44 @@ use Illuminate\Validation\ValidationException;
 class LeadController extends Controller
 {
     /**
+     * Get emails related to a given lead (by conversation conversable).
+     */
+    public function emails(Lead $lead, Request $request)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->hasPermission('manage_projects')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $perPage = (int)($request->input('per_page', 15));
+        $page = (int)($request->input('page', 1));
+
+        $query = \App\Models\Email::with(['sender', 'approver', 'conversation.project'])
+            ->whereHas('conversation', function ($q) use ($lead) {
+                $q->where('conversable_type', \App\Models\Lead::class)
+                  ->where('conversable_id', $lead->id);
+            })
+            ->orderByDesc('created_at');
+
+        // Optional filters
+        if ($type = $request->input('type')) {
+            $query->where('type', $type);
+        }
+        if ($status = $request->input('status')) {
+            $query->where('status', $status);
+        }
+        if ($search = $request->input('search')) {
+            $query->where(function ($qq) use ($search) {
+                $qq->where('subject', 'like', "%{$search}%")
+                   ->orWhere('body', 'like', "%{$search}%");
+            });
+        }
+
+        $emails = $query->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json($emails);
+    }
+    /**
      * Convert a lead into a client and return new client id.
      */
     public function convert(Lead $lead)

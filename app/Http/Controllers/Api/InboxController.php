@@ -152,30 +152,8 @@ class InboxController extends Controller
             ->paginate($perPage, ['*'], 'page', $page);
 
         // Add a flag to indicate if each email has been read and if the user can approve it
-        $emails->getCollection()->each(function ($email) use ($user) {
+        $emails->getCollection()->each(function (Email $email) use ($user) {
             $email->is_read = $email->isReadBy($user->id);
-            $email->can_approve = false; // Default to false
-
-            // Check approval permission for outgoing emails
-            if ($email->status === 'pending_approval' && $email->conversation?->project?->id) {
-                if ($user->hasProjectPermission($email->conversation->project->id, 'approve_emails')
-                ) {
-                    $email->can_approve = true;
-                }
-            }
-
-            if(get_class($email->conversation->conversable) === Lead::class && $user->hasPermission('contact_lead')) {
-                $email->can_approve = true;
-            }
-
-            // Check approval permission for incoming emails
-            if ($email->status === 'pending_approval_received') {
-                // This assumes hasPermission('approve_received_emails') is a global permission
-                if ($user->hasPermission('approve_received_emails')) {
-                    $email->can_approve = true;
-                }
-            }
-
         });
 
         return response()->json($emails);
