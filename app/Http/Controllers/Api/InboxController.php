@@ -33,7 +33,7 @@ class InboxController extends Controller
         }
 
         // Get all emails from these projects
-        $emails = Email::whereHas('conversation', function ($query) use ($projectIds) {
+        $emails = Email::visibleTo($user)->whereHas('conversation', function ($query) use ($projectIds) {
             $query->whereIn('project_id', $projectIds);
         })
             ->where(function ($query) {
@@ -87,7 +87,7 @@ class InboxController extends Controller
         $page = $request->input('page', 1);
 
         // Apply filters if provided
-        $query = Email::whereHas('conversation', function ($query) use ($projectIds, $user) {
+        $query = Email::visibleTo($user)->whereHas('conversation', function ($query) use ($projectIds, $user) {
             $query->whereIn('project_id', $projectIds);
 
             if($user->hasPermission('contact_lead')) {
@@ -179,13 +179,13 @@ class InboxController extends Controller
             ]);
         }
 
-        $waitingApprovalCount = Email::whereHas('conversation', function ($query) use ($projectIds) {
+        $waitingApprovalCount = Email::visibleTo($user)->whereHas('conversation', function ($query) use ($projectIds) {
             $query->whereIn('project_id', $projectIds);
         })
             ->whereIn('status', ['pending_approval', 'pending_approval_received'])
             ->count();
 
-        $receivedCount = Email::whereHas('conversation', function ($query) use ($projectIds) {
+        $receivedCount = Email::visibleTo($user)->whereHas('conversation', function ($query) use ($projectIds) {
             $query->whereIn('project_id', $projectIds);
         })
             ->where('type', 'received')
@@ -214,7 +214,7 @@ class InboxController extends Controller
         $accessibleProjectIds = $this->getAccessibleProjectIds($user);
 
         // Fetch outgoing emails (sent by the user) that need approval
-        $outgoingEmails = Email::where('sender_type', 'App\\Models\\User')
+        $outgoingEmails = Email::visibleTo($user)->where('sender_type', 'App\\Models\\User')
             ->where('status', 'pending_approval')
             ->with(['sender', 'conversation' => function ($q) use($accessibleProjectIds) {
                 $q->whereIn('project_id', $accessibleProjectIds);
@@ -224,7 +224,7 @@ class InboxController extends Controller
             ->get();
 
         // Fetch incoming emails (in accessible projects) that need approval
-        $incomingEmails = Email::whereHas('conversation', function ($query) use ($accessibleProjectIds) {
+        $incomingEmails = Email::visibleTo($user)->whereHas('conversation', function ($query) use ($accessibleProjectIds) {
             // It's disabled until we need it
 //            $query->whereIn('project_id', $accessibleProjectIds);
         })

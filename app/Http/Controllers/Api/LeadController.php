@@ -138,8 +138,9 @@ class LeadController extends Controller
 
         try {
             $validated = $request->validate([
-                'first_name' => 'nullable|string|max:255',
-                'last_name' => 'nullable|string|max:255',
+                // Require at least one of first_name or last_name
+                'first_name' => 'nullable|required_without:last_name|string|max:255',
+                'last_name' => 'nullable|required_without:first_name|string|max:255',
                 'email' => 'nullable|email|max:255|unique:leads,email',
                 'phone' => 'nullable|string|max:50',
                 'company' => 'nullable|string|max:255',
@@ -162,6 +163,9 @@ class LeadController extends Controller
                 'tags' => 'nullable|string|max:255',
                 'notes' => 'nullable|string',
                 'metadata' => 'nullable|array',
+            ], [
+                'first_name.required_without' => 'Please provide at least a first or last name.',
+                'last_name.required_without' => 'Please provide at least a first or last name.',
             ]);
 
             $validated['created_by_id'] = $user->id;

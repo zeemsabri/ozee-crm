@@ -213,28 +213,6 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <!-- Presentations Section -->
-                <div>
-                  <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-lg font-semibold">Presentations</h3>
-                  </div>
-                  <div v-if="presentationsLoading" class="text-gray-500 text-sm">Loading presentations...</div>
-                  <div v-else-if="presentationsError" class="text-red-600 text-sm">{{ presentationsError }}</div>
-                  <div v-else-if="leadPresentations.length === 0" class="text-gray-500 text-sm">No presentations found for this lead.</div>
-                  <ul v-else class="divide-y divide-gray-200 rounded-md border border-gray-200">
-                    <li v-for="p in leadPresentations" :key="p.id" class="p-3 flex items-center justify-between">
-                      <div>
-                        <div class="font-medium">{{ p.title }}</div>
-                        <div class="text-xs text-gray-500">Type: {{ p.type }}</div>
-                      </div>
-                      <div class="flex items-center gap-2">
-                        <PrimaryButton as="a" :href="`/view/${p.share_token}`" target="_blank" title="Open public preview">View</PrimaryButton>
-                        <PrimaryButton as="a" :href="`/presentations/${p.id}/edit`" title="Edit in builder">Edit</PrimaryButton>
-                      </div>
-                    </li>
-                  </ul>
-                </div>
-
                 <!-- Emails Section -->
                 <div>
                   <div class="flex items-center justify-between mb-2">
@@ -279,8 +257,30 @@ onMounted(async () => {
                 </div>
               </section>
 
-              <!-- Notes / Activity -->
-              <aside class="lg:col-span-1">
+              <!-- Right column with Presentations above Notes -->
+              <aside class="lg:col-span-1 space-y-6">
+                <!-- Presentations moved to right column -->
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-lg font-semibold">Presentations</h3>
+                  </div>
+                  <div v-if="presentationsLoading" class="text-gray-500 text-sm">Loading presentations...</div>
+                  <div v-else-if="presentationsError" class="text-red-600 text-sm">{{ presentationsError }}</div>
+                  <div v-else-if="leadPresentations.length === 0" class="text-gray-500 text-sm">No presentations found for this lead.</div>
+                  <ul v-else class="divide-y divide-gray-200 rounded-md border border-gray-200">
+                    <li v-for="p in leadPresentations" :key="p.id" class="p-3 flex items-center justify-between">
+                      <div>
+                        <div class="font-medium">{{ p.title }}</div>
+                        <div class="text-xs text-gray-500">Type: {{ p.type }}</div>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <PrimaryButton as="a" :href="`/view/${p.share_token}`" target="_blank" title="Open public preview">View</PrimaryButton>
+                        <PrimaryButton as="a" :href="`/presentations/${p.id}/edit`" title="Edit in builder">Edit</PrimaryButton>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+
                 <h3 class="text-lg font-semibold mb-2">Notes</h3>
                 <div class="mb-3 flex gap-2">
                   <input

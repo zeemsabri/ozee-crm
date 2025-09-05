@@ -74,6 +74,7 @@ class Email extends Model
         'type',
         'template_id',
         'template_data',
+        'is_private',
         'last_communication_at',
         'contacted_at'
     ];
@@ -83,6 +84,7 @@ class Email extends Model
         'read_at' => 'datetime',
         'to' => 'array', // If 'to' can store multiple recipients as JSON
         'template_data' => 'array',
+        'is_private' => 'boolean',
     ];
 
     public function conversation()
@@ -146,6 +148,19 @@ class Email extends Model
     public function files()
     {
         return $this->morphMany(FileAttachment::class, 'fileable');
+    }
+
+    /**
+     * Scope to filter emails visible to a given user, hiding private emails unless permitted.
+     */
+    public function scopeVisibleTo($query, $user)
+    {
+        if (!$user || !$user->hasPermission('view_private_emails')) {
+            $query->where(function ($q) {
+                $q->whereNull('is_private')->orWhere('is_private', false);
+            });
+        }
+        return $query;
     }
 
     public function getCanApproveAttribute()
