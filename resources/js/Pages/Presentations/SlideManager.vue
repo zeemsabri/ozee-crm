@@ -8,7 +8,19 @@
                 aria-label="Search slides"
             />
             <button @click="add" class="btn btn-primary" aria-label="Add new slide" :disabled="isAdding">
-                {{ isAdding ? '...' : '+ Add' }}
+                {{ isAdding ? '...' : 'Add' }}
+            </button>
+            <button
+                @click="openAiModal"
+                class="btn bg-purple-100 text-purple-700 hover:bg-purple-200 flex items-center gap-2"
+                :disabled="!canUseAI"
+                aria-label="Generate slide with AI"
+                title="Generate slide with AI"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                    <path d="M12 2a5 5 0 00-5 5v1.1A5.002 5.002 0 002 13a5 5 0 005 5h.1A5.002 5.002 0 0013 22a5 5 0 005-5v-.1A5.002 5.002 0 0022 11a5 5 0 00-5-5h-.1A5.002 5.002 0 0012 2z" />
+                </svg>
+                AI
             </button>
         </div>
         <draggable
@@ -41,21 +53,117 @@
                 </div>
             </template>
         </draggable>
+
+        <BaseFormModal
+            :show="showAiModal"
+            title="Generate slide with AI"
+            :api-endpoint="aiEndpoint"
+            http-method="post"
+            :form-data="aiForm"
+            submit-button-text="Generate"
+            success-message="AI slide generated"
+            :before-submit="beforeAiSubmit"
+            @close="showAiModal = false"
+            @submitted="onAiSubmitted"
+        >
+            <template #default="{ errors }">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Prompt</label>
+                        <textarea
+                            v-model="aiForm.prompt"
+                            class="w-full border border-gray-300 rounded-md p-2 min-h-[120px] focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Describe the slide you want to generate..."
+                            aria-label="AI prompt"
+                            required
+                        ></textarea>
+                        <p v-if="errors.prompt" class="text-sm text-red-600 mt-1">{{ errors.prompt?.[0] || errors.prompt }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Template</label>
+                        <select
+                            v-model="aiForm.template_name"
+                            class="w-full border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-indigo-500 bg-white"
+                            aria-label="Slide template"
+                        >
+                            <option v-for="opt in templateOptions" :key="opt" :value="opt">{{ opt }}</option>
+                        </select>
+                        <p v-if="errors.template_name" class="text-sm text-red-600 mt-1">{{ errors.template_name?.[0] || errors.template_name }}</p>
+                    </div>
+                </div>
+            </template>
+        </BaseFormModal>
     </div>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue';
 import { usePresentationStore } from '@/Stores/presentationStore';
-import { confirmPrompt } from '@/Utils/notification';
+import { confirmPrompt, error } from '@/Utils/notification';
 import draggable from 'vuedraggable';
 import SlideThumbnail from './Components/SlideThumbnail.vue';
+import BaseFormModal from '@/Components/BaseFormModal.vue';
 
 const store = usePresentationStore();
 const selectedId = computed(() => store.selectedSlideId);
 const search = ref('');
 const isAdding = ref(false);
 
+// AI modal state
+const showAiModal = ref(false);
+const aiForm = ref({ prompt: '', template_name: 'Default' });
+const canUseAI = computed(() => !!store.presentation?.id);
+const aiEndpoint = computed(() => (store.presentation?.id ? `/api/presentations/${store.presentation.id}/generate-slide` : ''));
+
+// Template options available for AI generation
+const templateOptions = [
+    'IntroCover',
+    'ThreeColumn',
+    'FourColumn',
+    'TwoColumnWithImageRight',
+    'TwoColumnWithImageLeft',
+    'FourStepProcess',
+    'ThreeStepProcess',
+    'TwoColumnWithChart',
+    'ProjectDetails',
+    'CallToAction',
+    'Default',
+    'Heading',
+];
+
+function openAiModal() {
+    if (!canUseAI.value) {
+        error('No presentation loaded.');
+        return;
+    }
+    aiForm.value = { prompt: '', template_name: 'Default' };
+    showAiModal.value = true;
+}
+
+async function beforeAiSubmit() {
+    if (!canUseAI.value) {
+        error('No presentation loaded.');
+        return false;
+    }
+    const prompt = (aiForm.value.prompt || '').trim();
+    if (!prompt) {
+        error('Please enter a prompt.');
+        return false;
+    }
+    return true;
+}
+
+async function onAiSubmitted() {
+    // After AI creates a slide on the server, reload and select the last slide
+    const id = store.presentation?.id;
+    if (!id) return;
+    await store.load(id);
+    const slides = store.slides || [];
+    if (slides.length) {
+        const last = slides[slides.length - 1];
+        if (last?.id) store.selectSlide(last.id);
+    }
+}
 
 /**
  * [FIXED] This is now a writable computed property.

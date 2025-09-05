@@ -49,6 +49,8 @@ return [
         'api_key' => env('EXCHANGE_RATES_API_KEY'),
     ],
 
-
+    'gemini' => [
+        'key' => env('GOOGLE_GEMINI_API'),
+    ],
 
 ];

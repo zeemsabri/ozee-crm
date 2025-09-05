@@ -45,6 +45,8 @@ use App\Http\Controllers\Api\ModelDataController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Api\FamifyHub\MailController as FamifyMailController;
 use App\Http\Controllers\Api\BugReportController;
+use App\Http\Controllers\Api\PresentationAIController;
+use App\Http\Controllers\Api\PresentationGeneratorController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\LeadController;
@@ -472,6 +474,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('presentations/{targetId}/copy-slides', [\App\Http\Controllers\Api\PresentationController::class, 'copySlides']);
     });
 
+    Route::post('/presentations/{presentation}/generate-slide', [PresentationAIController::class, 'generateSlide']);
+    Route::post('/presentations/{presentation}/create-slide-from-ai', [PresentationAIController::class, 'createSlideFromAI']);
+
+    // Surprise Me: Generate a full presentation
+    Route::post('/presentations/generate', [PresentationGeneratorController::class, 'generate']);
+
     // Non-versioned Presentations Template & Duplication routes for compatibility with spec
     Route::get('templates', [\App\Http\Controllers\Api\PresentationController::class, 'templates']);
     Route::post('presentations/{id}/duplicate', [\App\Http\Controllers\Api\PresentationController::class, 'duplicate']);
@@ -494,7 +502,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('{id}', [ComponentController::class, 'destroy']);
     });
 
+
+
 });
+
 
 
 // === Client-Specific API Routes (Protected by Magic Link Token) ===

@@ -59,13 +59,29 @@
                                     >
                                         <a @click="openSummaryModal(p.id)" class="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer">Duplicate...</a>
                                         <a @click="copyShare(p)" class="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer">Share</a>
+                                        <a @click="beginRename(p)" class="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer">Rename</a>
                                         <div class="my-1 h-px bg-slate-100"></div>
                                         <a @click="destroy(p.id)" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer">Delete</a>
                                     </div>
                                 </div>
                             </div>
-                            <h2 class="text-lg font-bold text-slate-800 truncate">{{ p.title }}</h2>
-                            <p class="text-sm text-slate-500 mt-1">{{ p.presentable_name || p.presentable?.name || '-' }}</p>
+                            <div v-if="renamingId === p.id" class="mt-1 flex items-center gap-2">
+                                <input
+                                    v-model="renameTitle"
+                                    placeholder="New title"
+                                    class="flex-1 border border-slate-300 rounded-lg p-1.5 text-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
+                                    :aria-label="`Rename ${p.title}`"
+                                    @keyup.enter="saveRename(p)"
+                                    @keyup.esc="cancelRename"
+                                    :disabled="savingRename"
+                                />
+                                <button @click="saveRename(p)" class="px-2 py-1 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 disabled:opacity-50" :disabled="savingRename" aria-label="Save new title">Save</button>
+                                <button @click="cancelRename" class="px-2 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-semibold hover:bg-slate-200" aria-label="Cancel rename">Cancel</button>
+                            </div>
+                            <div v-else>
+                                <h2 class="text-lg font-bold text-slate-800 truncate" :title="p.title">{{ p.title }}</h2>
+                                <p class="text-sm text-slate-500 mt-1">{{ p.presentable_name || p.presentable?.name || '-' }}</p>
+                            </div>
                         </div>
                         <div class="px-5 py-4 border-t border-slate-100 flex items-center justify-between">
                             <span class="text-xs text-slate-400">Created: {{ formatDate(p.created_at) }}</span>
@@ -75,7 +91,7 @@
                 </div>
             </main>
 
-            <CreationChoiceModal v-if="showChoice" @close="showChoice=false" @scratch="onScratch" @choose-template="onChooseTemplate" />
+            <CreationChoiceModal v-if="showChoice" @close="showChoice=false" @scratch="onScratch" @choose-template="onChooseTemplate" @created="onCreated" />
             <TemplateBrowser v-if="showTemplateBrowser" @close="showTemplateBrowser=false" @selected="onTemplateSelected" />
             <PresentationForm v-if="showCreate" :template-id="selectedTemplateId" :source-slide-ids="pendingSourceSlideIds" @close="showCreate = false" @created="onCreated" />
             <SlideSummaryModal v-if="showSlides" :presentation-id="activePresentationId" @close="showSlides=false" @created="onModalCreated" @copied="onSlidesCopied" />
@@ -105,6 +121,10 @@ const selectedTemplateId = ref(null);
 const pendingSourceSlideIds = ref([]);
 const search = ref('');
 const activeDropdownId = ref(null);
+// Rename state
+const renamingId = ref(null);
+const renameTitle = ref('');
+const savingRename = ref(false);
 
 onMounted(load);
 
@@ -201,6 +221,41 @@ async function destroy(id) {
         success('Presentation deleted');
     } catch (e) {
         error('Failed to delete presentation');
+    }
+}
+
+function beginRename(p) {
+    renamingId.value = p.id;
+    renameTitle.value = p.title || '';
+    activeDropdownId.value = null;
+}
+
+function cancelRename() {
+    renamingId.value = null;
+    renameTitle.value = '';
+}
+
+async function saveRename(p) {
+    if (!p?.id) return;
+    const newTitle = (renameTitle.value || '').trim();
+    if (!newTitle) {
+        error('Title cannot be empty');
+        return;
+    }
+    savingRename.value = true;
+    try {
+        const updated = await api.update(p.id, { title: newTitle });
+        const idx = presentations.value.findIndex(x => x.id === p.id);
+        if (idx !== -1) {
+            presentations.value[idx].title = updated?.title ?? newTitle;
+        }
+        success('Presentation renamed');
+        renamingId.value = null;
+        renameTitle.value = '';
+    } catch (e) {
+        error('Failed to rename presentation');
+    } finally {
+        savingRename.value = false;
     }
 }
 

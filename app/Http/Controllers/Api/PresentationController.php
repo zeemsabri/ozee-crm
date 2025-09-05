@@ -3,6 +3,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Presentation;
+use App\Models\Project;
 use App\Models\Slide;
 use App\Models\ContentBlock;
 use Illuminate\Http\Request;
@@ -44,6 +45,7 @@ class PresentationController extends Controller
     public function index(Request $request)
     {
         $presentations = Presentation::query()
+            ->where('is_template', false)
             ->orderByDesc('id')
             ->paginate(15);
         return response()->json($presentations);
@@ -285,8 +287,8 @@ class PresentationController extends Controller
 
         $new = $this->deepClonePresentation($source, [
             'is_template' => true,
-            'presentable_id' => null,
-            'presentable_type' => null,
+            'presentable_id' => 1,
+            'presentable_type' => Project::class,
             'title' => rtrim($source->title) . ' (Template)',
         ]);
 
