@@ -452,6 +452,13 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('Clients/Index');
     })->name('clients.page')->middleware('permission:view_clients');
 
+    // Client Details Page
+    Route::get('/clients/{id}', function ($id) {
+        return Inertia::render('Clients/Show', [
+            'id' => (int) $id,
+        ]);
+    })->name('clients.show')->middleware('permission:view_clients');
+
     // Projects Index Page
     Route::get('/projects', function () {
         return Inertia::render('Projects/Index');

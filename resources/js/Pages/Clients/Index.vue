@@ -210,6 +210,7 @@ onMounted(() => {
                                     <td class="px-6 py-4 whitespace-nowrap">{{ client.phone || 'N/A' }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div class="flex items-center space-x-2">
+                                            <PrimaryButton as="a" :href="`/clients/${client.id}`">View</PrimaryButton>
                                             <PrimaryButton v-if="canManageClients" @click="openEditModal(client)">Edit</PrimaryButton>
                                             <DangerButton v-if="canManageClients" @click="confirmClientDeletion(client)">Delete</DangerButton>
                                         </div>

@@ -15,6 +15,27 @@ import ReceivedEmailActionContent from '@/Pages/Emails/Inbox/Components/Received
 import { useLeadDetails } from '@/Composables/useLeadDetails.js';
 import axios from 'axios';
 
+// Lead presentations state
+const leadPresentations = ref([]);
+const presentationsLoading = ref(false);
+const presentationsError = ref('');
+
+const fetchLeadPresentations = async () => {
+  if (!idRef?.value) return;
+  presentationsLoading.value = true;
+  presentationsError.value = '';
+  try {
+    const { data } = await axios.get(`/api/leads/${idRef.value}/presentations`);
+    // support both array or {data: []}
+    leadPresentations.value = Array.isArray(data) ? data : (data?.data ?? []);
+  } catch (e) {
+    console.error('Failed to load presentations', e);
+    presentationsError.value = e?.response?.data?.message || 'Failed to load presentations';
+  } finally {
+    presentationsLoading.value = false;
+  }
+};
+
 const props = defineProps({
   id: { type: Number, required: true },
   lead: { type: Object, default: null },
@@ -117,6 +138,7 @@ onMounted(async () => {
   await fetchLead();
   await fetchNotes();
   await fetchLeadEmails(1);
+  await fetchLeadPresentations();
 });
 </script>
 
@@ -189,6 +211,28 @@ onMounted(async () => {
                     <div v-if="leadState.tags"><span class="text-gray-500">Tags:</span> <span class="font-medium">{{ leadState.tags }}</span></div>
                     <div v-if="leadState.notes"><span class="text-gray-500">Notes:</span> <span class="font-medium">{{ leadState.notes }}</span></div>
                   </div>
+                </div>
+
+                <!-- Presentations Section -->
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-lg font-semibold">Presentations</h3>
+                  </div>
+                  <div v-if="presentationsLoading" class="text-gray-500 text-sm">Loading presentations...</div>
+                  <div v-else-if="presentationsError" class="text-red-600 text-sm">{{ presentationsError }}</div>
+                  <div v-else-if="leadPresentations.length === 0" class="text-gray-500 text-sm">No presentations found for this lead.</div>
+                  <ul v-else class="divide-y divide-gray-200 rounded-md border border-gray-200">
+                    <li v-for="p in leadPresentations" :key="p.id" class="p-3 flex items-center justify-between">
+                      <div>
+                        <div class="font-medium">{{ p.title }}</div>
+                        <div class="text-xs text-gray-500">Type: {{ p.type }}</div>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <PrimaryButton as="a" :href="`/view/${p.share_token}`" target="_blank" title="Open public preview">View</PrimaryButton>
+                        <PrimaryButton as="a" :href="`/presentations/${p.id}/edit`" title="Edit in builder">Edit</PrimaryButton>
+                      </div>
+                    </li>
+                  </ul>
                 </div>
 
                 <!-- Emails Section -->

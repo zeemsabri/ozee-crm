@@ -134,11 +134,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback']);
 
     // Client Management Routes (CRUD)
-    Route::apiResource('clients', ClientController::class);
+    Route::apiResource('clients', ClientController::class)->names('api.clients');
     Route::apiResource('leads', LeadController::class)->names('api.leads');
-        Route::get('leads/{lead}/emails', [LeadController::class, 'emails']);
+    Route::get('leads/{lead}/emails', [LeadController::class, 'emails']);
+    Route::get('leads/{lead}/presentations', [LeadController::class, 'presentations']);
     Route::post('leads/{lead}/convert', [LeadController::class, 'convert']);
     Route::get('clients/{client}/email', [ClientController::class, 'getEmail']);
+    Route::get('clients/{client}/details', [ClientController::class, 'details']);
 
     // Generic project notes endpoints (polymorphic)
     Route::get('/project_notes', [ProjectNoteController::class, 'index']);
@@ -462,6 +464,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('presentations/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'show']);
         Route::put('presentations/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'update']);
         Route::delete('presentations/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'destroy']);
+        Route::post('presentations/{id}/invite', [\App\Http\Controllers\Api\PresentationController::class, 'invite']);
 
         Route::post('presentations/{presentationId}/slides', [\App\Http\Controllers\Api\PresentationController::class, 'storeSlide']);
         Route::put('slides/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'updateSlide']);
