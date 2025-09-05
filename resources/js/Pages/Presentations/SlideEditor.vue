@@ -14,6 +14,15 @@
                         class="flex-1 border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
                         aria-label="Slide title"
                     />
+                    <select
+                        v-model="localTemplateName"
+                        @change="onTemplateChange"
+                        class="border border-gray-200 rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500"
+                        aria-label="Slide theme"
+                        title="Slide Theme"
+                    >
+                        <option v-for="opt in themeOptions" :key="opt" :value="opt">{{ opt }}</option>
+                    </select>
                     <block-toolbox
                         @add="addBlock"
                         :types="['heading', 'paragraph', 'feature_card', 'image', 'step_card', 'slogan', 'pricing_table', 'timeline_table', 'details_list', 'list_with_icons', 'feature_list', 'image_block']"
@@ -66,6 +75,32 @@ import BlockToolbox from './Components/BlockToolbox.vue';
 
 const store = usePresentationStore();
 const slide = computed(() => store.selectedSlide || { content_blocks: [] });
+
+// Theme options per requirement
+const themeOptions = [
+    'IntroCover',
+    'ThreeColumn',
+    'FourColumn',
+    'TwoColumnWithImageRight',
+    'TwoColumnWithImageLeft',
+    'FourStepProcess',
+    'ThreeStepProcess',
+    'TwoColumnWithChart',
+    'ProjectDetails',
+    'CallToAction',
+    'Default',
+    'Heading',
+];
+
+// Local v-model to avoid mutating directly before API save
+const localTemplateName = computed({
+    get() {
+        return slide.value?.template_name || 'Default';
+    },
+    set(v) {
+        if (slide.value) slide.value.template_name = v;
+    }
+});
 const contentBlocks = computed({
     get: () => slide.value.content_blocks || [],
     set: (newList) => {
@@ -102,6 +137,12 @@ const payloads = {
 async function updateSlide() {
     if (!slide.value?.id) return;
     await store.updateSlide(slide.value.id, { title: slide.value.title });
+}
+
+function onTemplateChange() {
+    if (!slide.value?.id) return;
+    const tpl = localTemplateName.value || 'Default';
+    store.updateSlide(slide.value.id, { template_name: tpl });
 }
 
 async function addTemplateBlocks(templateName) {

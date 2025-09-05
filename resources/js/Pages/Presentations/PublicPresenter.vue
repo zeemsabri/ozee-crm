@@ -97,7 +97,20 @@ onUnmounted(() => {
 // Layout-specific renderers
 const layoutRenderers = {
     'IntroCover': (blocks) => {
-        return h('div', { class: 'text-center' }, blocks.map(b => renderBlock(b)));
+        // Map over all blocks in their original, intended order.
+        const renderedBlocks = blocks.map(block => {
+            // If the current block is an image, wrap it in the special styling div.
+            if (block.block_type === 'image') {
+                return h('div', { class: 'mx-auto my-5 max-w-[300px] mt-8' }, [
+                    renderBlock(block)
+                ]);
+            }
+            // Otherwise, render the block normally.
+            return renderBlock(block);
+        });
+
+        // The main container for the slide is centered.
+        return h('div', { class: 'text-center' }, renderedBlocks);
     },
     'ThreeColumn': (blocks) => {
         const heading = blocks.find(b => b.block_type === 'heading');

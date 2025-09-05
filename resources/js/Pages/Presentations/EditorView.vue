@@ -6,19 +6,24 @@
                 class=""
                 aria-label="Editor toolbar"
             />
-            <Splitpanes class="flex-1 overflow-hidden">
-                <Pane :min-size="store.previewMaximized ? 0 : 20" :size="store.previewMaximized ? 0 : 10" class="bg-white border-r overflow-hidden">
-                    <SlideManager />
-                </Pane>
-                <Pane :size="store.previewMaximized ? 0 : 80" class="bg-white overflow-hidden">
-                    <SlideEditor />
-                </Pane>
-                <Pane :size="store.previewOpen ? (store.previewMaximized ? 100 : 30) : 0" min-size="0" class="bg-white border-l overflow-hidden transition-all">
-                    <div v-if="store.previewOpen" class="h-full relative">
-                        <SlidePreview />
-                    </div>
-                </Pane>
-            </Splitpanes>
+            <div class="flex-1 flex flex-col min-w-0">
+                <div class="h-8 px-4 border-b bg-white flex items-center text-sm text-slate-700">
+                    <span class="font-medium truncate" :title="store.presentation?.title || 'Untitled Presentation'">{{ store.presentation?.title || 'Untitled Presentation' }}</span>
+                </div>
+                <Splitpanes class="flex-1 overflow-hidden">
+                    <Pane :min-size="store.previewMaximized ? 0 : 20" :size="store.previewMaximized ? 0 : 10" class="bg-white border-r overflow-hidden">
+                        <SlideManager />
+                    </Pane>
+                    <Pane :size="store.previewMaximized ? 0 : 80" class="bg-white overflow-hidden">
+                        <SlideEditor />
+                    </Pane>
+                    <Pane :size="store.previewOpen ? (store.previewMaximized ? 100 : 30) : 0" min-size="0" class="bg-white border-l overflow-hidden transition-all">
+                        <div v-if="store.previewOpen" class="h-full relative">
+                            <SlidePreview />
+                        </div>
+                    </Pane>
+                </Splitpanes>
+            </div>
         </div>
     </AuthenticatedLayout>
 </template>
