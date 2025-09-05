@@ -17,6 +17,7 @@ class Client extends Model
         'address',
         'notes',
         'timezone',
+        'lead_id',
     ];
 
     protected $hidden = [
@@ -52,6 +53,14 @@ class Client extends Model
     public function conversations()
     {
         return $this->hasMany(Conversation::class);
+    }
+
+    /**
+     * Link back to the originating Lead, when applicable.
+     */
+    public function lead()
+    {
+        return $this->belongsTo(Lead::class);
     }
 
     /**

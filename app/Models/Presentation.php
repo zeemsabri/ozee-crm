@@ -57,4 +57,11 @@ class Presentation extends Model
     {
         return $this->hasMany(Slide::class)->orderBy('display_order');
     }
+
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'presentation_user')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
 }

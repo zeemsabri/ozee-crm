@@ -6,6 +6,7 @@ use App\Models\Presentation;
 use App\Models\Project;
 use App\Models\Slide;
 use App\Models\ContentBlock;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -44,10 +45,32 @@ class PresentationController extends Controller
 
     public function index(Request $request)
     {
-        $presentations = Presentation::query()
-            ->where('is_template', false)
-            ->orderByDesc('id')
-            ->paginate(15);
+        $user = \Illuminate\Support\Facades\Auth::user();
+
+        $query = Presentation::query()
+            ->where('is_template', false);
+
+        // If user has broad permission, return all
+        if ($user && $user->hasPermission('create_presentation')) {
+            $presentations = $query->orderByDesc('id')->paginate(15);
+            return response()->json($presentations);
+        }
+
+        // Otherwise, restrict to invited or owned (via Lead.created_by_id)
+        $query->where(function ($q) use ($user) {
+            // invited via pivot
+            $q->whereHas('users', function ($qq) use ($user) {
+                $qq->where('user_id', optional($user)->id);
+            });
+        })->orWhere(function ($q) use ($user) {
+            // owned via Lead.created_by_id
+            $q->where('presentable_type', \App\Models\Lead::class)
+              ->whereHasMorph('presentable', [\App\Models\Lead::class], function ($qqq) use ($user) {
+                  $qqq->where('created_by_id', optional($user)->id);
+              });
+        });
+
+        $presentations = $query->orderByDesc('id')->paginate(15);
         return response()->json($presentations);
     }
 
@@ -69,7 +92,7 @@ class PresentationController extends Controller
             return response()->json(['message' => 'Provide either template_id or source_slide_ids, not both.'], 422);
         }
 
-        // Base presentation record
+        // Base presentation record (polymorphic-only association)
         $presentation = Presentation::create([
             'presentable_id' => $data['presentable_id'],
             'presentable_type' => $data['presentable_type'],
@@ -326,4 +349,41 @@ class PresentationController extends Controller
 
         return response()->json(['message' => 'Slides copied']);
     }
+
+    /**
+     * Invite a user to collaborate on a presentation.
+     * POST /api/presentations/{id}/invite
+     */
+    public function invite(Request $request, $id)
+    {
+        $user = \Illuminate\Support\Facades\Auth::user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $data = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'role' => ['nullable', 'string', Rule::in(['editor','viewer'])],
+        ]);
+
+        $presentation = Presentation::findOrFail($id);
+
+        // Allow if current user is invited editor/viewer or has general permission
+        if (!$user->hasPermission('create_presentation')) {
+            $isCollaborator = $presentation->users()->where('users.id', $user->id)->exists();
+            if (!$isCollaborator) {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+        }
+
+        $role = $data['role'] ?? 'editor';
+        $presentation->users()->syncWithoutDetaching([
+            $data['user_id'] => ['role' => $role],
+        ]);
+
+        // Return minimal list of collaborators
+        $collaborators = $presentation->users()->select('users.id','users.name','users.email')->get();
+        return response()->json(['message' => 'Invitation sent', 'collaborators' => $collaborators]);
+    }
+
 }

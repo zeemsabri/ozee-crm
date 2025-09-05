@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ClientResource;
 use App\Models\Client;
+use App\Models\Conversation;
+use App\Models\Lead;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
@@ -178,5 +180,101 @@ class ClientController extends Controller
             Log::error('Error getting client email: ' . $e->getMessage(), ['client_id' => $client->id, 'error' => $e->getTraceAsString()]);
             return response()->json(['message' => 'Failed to get client email', 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Return client details with combined emails and presentations (including historical from linked lead).
+     */
+    public function details(Client $client)
+    {
+        $user = Auth::user();
+
+        // Permission check (mirrors show/getEmail)
+        if ($user->hasPermission('view_clients')) {
+            // ok
+        } elseif ($user->isContractor()) {
+            if (!$user->clients->contains('id', $client->id)) {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+        } else {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $client->load('lead');
+        $lead = $client->lead;
+
+        // Presentations (client + from linked lead)
+        $presentations = [];
+        foreach ($client->presentations()->withCount('slides')->orderByDesc('id')->get() as $p) {
+            $presentations[] = [
+                'id' => $p->id,
+                'title' => $p->title,
+                'type' => $p->type,
+                'is_template' => (bool)$p->is_template,
+                'slides_count' => $p->slides_count,
+                'share_token' => $p->share_token,
+                'source' => 'client',
+            ];
+        }
+        if ($lead) {
+            foreach ($lead->presentations()->withCount('slides')->orderByDesc('id')->get() as $p) {
+                $presentations[] = [
+                    'id' => $p->id,
+                    'title' => $p->title,
+                    'type' => $p->type,
+                    'is_template' => (bool)$p->is_template,
+                    'slides_count' => $p->slides_count,
+                    'share_token' => $p->share_token,
+                    'source' => 'lead',
+                ];
+            }
+        }
+
+        // Emails via conversations for client and (optionally) lead
+        $conversationsQuery = Conversation::with(['emails' => function ($q) {
+            $q->orderByDesc('created_at');
+        }])->where(function ($q) use ($client, $lead) {
+            $q->where('conversable_type', Client::class)
+              ->where('conversable_id', $client->id);
+            if ($lead) {
+                $q->orWhere(function ($qq) use ($lead) {
+                    $qq->where('conversable_type', Lead::class)
+                       ->where('conversable_id', $lead->id);
+                });
+            }
+        });
+
+        $conversations = $conversationsQuery->orderByDesc('last_activity_at')->get();
+        $emails = [];
+        foreach ($conversations as $conv) {
+            foreach ($conv->emails as $em) {
+                $emails[] = [
+                    'id' => $em->id,
+                    'conversation_id' => $conv->id,
+                    'subject' => $em->subject,
+                    'status' => $em->status,
+                    'type' => $em->type,
+                    'sent_at' => $em->sent_at,
+                    'created_at' => $em->created_at,
+                ];
+            }
+        }
+        // Sort emails by created_at desc
+        usort($emails, function ($a, $b) {
+            return strtotime($b['created_at']) <=> strtotime($a['created_at']);
+        });
+
+        return response()->json([
+            'client' => (new ClientResource($client))->resolve(request()),
+            'lead' => $lead ? [
+                'id' => $lead->id,
+                'first_name' => $lead->first_name,
+                'last_name' => $lead->last_name,
+                'email' => $lead->email,
+                'status' => $lead->status,
+            ] : null,
+            'presentations' => $presentations,
+            'emails' => $emails,
+        ]);
     }
 }

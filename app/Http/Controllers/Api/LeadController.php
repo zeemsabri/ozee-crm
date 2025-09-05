@@ -12,6 +12,28 @@ use Illuminate\Validation\ValidationException;
 class LeadController extends Controller
 {
     /**
+     * List presentations belonging to a lead.
+     */
+    public function presentations(Lead $lead)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->hasPermission('manage_projects')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        $items = $lead->presentations()->withCount('slides')->orderByDesc('id')->get()->map(function($p){
+            return [
+                'id' => $p->id,
+                'title' => $p->title,
+                'type' => $p->type,
+                'is_template' => (bool)$p->is_template,
+                'slides_count' => $p->slides_count,
+                'share_token' => $p->share_token,
+                'source' => 'lead',
+            ];
+        });
+        return response()->json(['data' => $items]);
+    }
+    /**
      * Get emails related to a given lead (by conversation conversable).
      */
     public function emails(Lead $lead, Request $request)
@@ -66,6 +88,7 @@ class LeadController extends Controller
                 'phone' => $lead->phone,
                 'address' => $lead->address,
                 'notes' => $lead->notes,
+                'lead_id' => $lead->id,
             ]);
             $lead->update(['status' => 'converted', 'converted_at' => now()]);
             return response()->json(['client_id' => $clientModel->id], 200);
