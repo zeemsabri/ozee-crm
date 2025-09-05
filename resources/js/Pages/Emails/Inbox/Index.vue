@@ -354,6 +354,7 @@ watch(() => inboxState.filters, () => {
                                     @edit="handleEditEmail"
                                     @reject="handleRejectEmail"
                                     @deleted="handleSubmitted"
+                                    @updated="handleSubmitted"
                                 />
                             </div>
                             <div v-else-if="inboxState.sidebar.mode === 'compose'">

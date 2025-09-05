@@ -1,7 +1,7 @@
 <script setup>
 const props = defineProps({
   as: { type: String, default: 'button' }, // 'button' | 'a'
-  type: { type: String, default: 'button' },
+  type: { type: String, default: 'submit' },
   disabled: { type: Boolean, default: false },
 });
 </script>

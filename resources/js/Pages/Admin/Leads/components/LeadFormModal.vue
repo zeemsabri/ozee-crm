@@ -96,6 +96,16 @@ watch(() => props.lead, (val) => loadFromLead(val), { immediate: true });
 const onSave = async () => {
   saving.value = true;
   errors.value = {};
+
+  // Frontend minimal validation: Require at least one of first or last name
+  const first = (form.first_name || '').trim();
+  const last = (form.last_name || '').trim();
+  if (!first && !last) {
+    errors.value = { first_name: 'Please enter at least a first or last name.' };
+    saving.value = false;
+    return;
+  }
+
   try {
     if (!form.id) {
       const data = await createLead(form);
@@ -183,6 +193,11 @@ const onSave = async () => {
           <InputLabel value="Estimated Value" />
           <TextInput v-model="form.estimated_value" type="number" step="0.01" class="mt-1 block w-full" />
           <InputError :message="errors.estimated_value" class="mt-1" />
+        </div>
+        <div>
+          <InputLabel value="Currency (ISO 4217)" />
+          <TextInput v-model="form.currency" maxlength="3" class="mt-1 block w-full uppercase" @input="form.currency = (form.currency || '').toUpperCase().slice(0,3)" placeholder="USD" />
+          <InputError :message="errors.currency" class="mt-1" />
         </div>
         <div>
           <InputLabel value="Website" />

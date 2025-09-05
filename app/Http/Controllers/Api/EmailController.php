@@ -94,7 +94,7 @@ class EmailController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $emailsQuery = Email::with(['conversation.project', 'conversation.conversable', 'sender', 'approver']);
+        $emailsQuery = Email::visibleTo($user)->with(['conversation.project', 'conversation.conversable', 'sender', 'approver']);
 
         if ($user->isContractor()) {
             // Contractors only see emails from conversations on their assigned projects
@@ -254,6 +254,9 @@ class EmailController extends Controller
     public function show(Email $email)
     {
         $user = Auth::user();
+        if ($email->is_private && !$user->hasPermission('view_private_emails')) {
+            return response()->json(['message' => 'Not found.'], 404);
+        }
         if ($user->isContractor() && !$user->projects->contains($email->conversation->project_id)) {
             return response()->json(['message' => 'Unauthorized to view this email.'], 403);
         }
@@ -579,7 +582,7 @@ class EmailController extends Controller
             return response()->json(['message' => 'Unauthorized to view pending approvals.'], 403);
         }
 
-        $pendingEmails = Email::with([
+        $pendingEmails = Email::visibleTo($user)->with([
             'conversation',
             'conversation.project',
             'conversation.conversable',
@@ -605,7 +608,7 @@ class EmailController extends Controller
             return response()->json(['message' => 'Unauthorized to view pending approvals.'], 403);
         }
 
-        $pendingEmails = Email::with([
+        $pendingEmails = Email::visibleTo($user)->with([
             'conversation.project:id,name',
             'conversation.conversable',
             'sender:id,name'
@@ -648,8 +651,8 @@ class EmailController extends Controller
     public function rejected()
     {
         $query = Auth::user()->isContractor()
-            ? Email::where('sender_id', Auth::id())->where('status', '=', 'rejected')
-            : Email::where('status', 'rejected');
+            ? Email::visibleTo(Auth::user())->where('sender_id', Auth::id())->where('status', '=', 'rejected')
+            : Email::visibleTo(Auth::user())->where('status', 'rejected');
         return $query->with(['conversation.project', 'conversation.conversable', 'sender'])->get();
     }
 
@@ -712,7 +715,7 @@ class EmailController extends Controller
         $conversations = $project->conversations;
         $conversationIds = $conversations->pluck('id')->toArray();
 
-        $emails = Email::with(['conversation.project', 'conversation.conversable', 'sender', 'approver'])
+        $emails = Email::visibleTo($user)->with(['conversation.project', 'conversation.conversable', 'sender', 'approver'])
             ->whereIn('status', ['approved', 'pending_approval', 'sent']);
 
         $emails = $emails->whereIn('conversation_id', $conversationIds)
@@ -750,7 +753,7 @@ class EmailController extends Controller
         $conversationIds = $conversations->pluck('id')->toArray();
 
         // Eager load the conversation with client and project IDs for the frontend
-        $query = Email::with([
+        $query = Email::visibleTo($user)->with([
             'sender:id,name',
             'conversation:id,conversable_id,project_id',
             'conversation.conversable'
@@ -1032,4 +1035,30 @@ class EmailController extends Controller
 
         return response()->json(['tasks' => $created, 'milestone_id' => $milestone->id, 'project_id' => $project->id], 201);
     }
+
+
+    /**
+     * Toggle or set privacy flag on an email.
+     * Authorized for users who can delete emails (delete_emails permission).
+     */
+    public function togglePrivacy(Request $request, Email $email)
+    {
+        // Use delete permission as the control for privacy per requirement
+        $this->authorize('delete', $email);
+
+        $validated = $request->validate([
+            'is_private' => 'sometimes|boolean',
+        ]);
+
+        if (array_key_exists('is_private', $validated)) {
+            $email->is_private = (bool) $validated['is_private'];
+        } else {
+            $email->is_private = !((bool) $email->is_private);
+        }
+
+        $email->save();
+
+        return response()->json($email->fresh()->load(['sender', 'conversation.project', 'approver']));
+    }
+
 }

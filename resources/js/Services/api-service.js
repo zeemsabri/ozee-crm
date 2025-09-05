@@ -45,3 +45,10 @@ export const deleteEmail = async (emailId, { delete_gmail = false, delete_local 
     });
     return response.data;
 };
+
+export const toggleEmailPrivacy = async (emailId, isPrivate = null) => {
+    const payload = {};
+    if (isPrivate !== null) payload.is_private = !!isPrivate;
+    const { data } = await axios.patch(`${API_BASE_URL}/emails/${emailId}/privacy`, payload);
+    return data;
+};
