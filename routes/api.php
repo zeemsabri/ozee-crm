@@ -140,6 +140,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('leads/{lead}/presentations', [LeadController::class, 'presentations']);
     Route::post('leads/{lead}/convert', [LeadController::class, 'convert']);
     Route::get('clients/{client}/email', [ClientController::class, 'getEmail']);
+    Route::get('clients/{client}/emails', [ClientController::class, 'emails']);
     Route::get('clients/{client}/details', [ClientController::class, 'details']);
 
     // Generic project notes endpoints (polymorphic)
@@ -294,7 +295,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('points-ledger/total', [\App\Http\Controllers\Api\PointsLedgerController::class, 'total']);
 
     Route::post('users/{user}/restore', [UserController::class, 'restore'])->name('users.restore');
-    Route::apiResource('users', UserController::class);
+    Route::get('users/{user}/emails', [UserController::class, 'emails']);
+    Route::apiResource('users', UserController::class)->names('api.users');
 
     // Permission Management Routes
     Route::get('/permissions', [PermissionController::class, 'getAllPermissions'])->middleware('permission:view_permissions');

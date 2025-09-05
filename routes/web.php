@@ -546,6 +546,13 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('Users/Index');
     })->name('users.page')->middleware('permission:create_users');
 
+    // User Details Page
+    Route::get('/users/{id}', function ($id) {
+        return Inertia::render('Users/Show', [
+            'id' => (int) $id,
+        ]);
+    })->name('users.show')->middleware('permission:create_users');
+
     // Leads Admin Page
     Route::get('/leads', function () use ($sourceOptions) {
         return Inertia::render('Admin/Leads/Index', [
