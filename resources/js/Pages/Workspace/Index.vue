@@ -118,6 +118,7 @@ const projects = ref([
 // State for filtering projects
 const activeFilter = ref('all');
 const searchTerm = ref('');
+const pendingFilter = ref('with'); // with | without
 
 // Computed property to filter projects based on the active filter
 const filteredProjects = computed(() => {
@@ -186,13 +187,13 @@ onMounted(async () => {
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
                 <div class="mb-6">
                     <!-- Filters component emits 'update:filter' to change the active filter -->
-                    <Filters @update:filter="activeFilter = $event" :active-filter="activeFilter" :search="searchTerm" @update:search="searchTerm = $event" />
+                    <Filters @update:filter="activeFilter = $event" :active-filter="activeFilter" :search="searchTerm" @update:search="searchTerm = $event" :pending-filter="pendingFilter" @update:pending="pendingFilter = $event" />
                 </div>
 
                 <div class="flex flex-col lg:flex-row gap-8">
                     <div class="lg:w-2/3">
                         <!-- ProjectCards fetches and paginates from API; pass search and filter -->
-                        <ProjectCards :search="searchTerm" :active-filter="activeFilter" />
+                        <ProjectCards :search="searchTerm" :active-filter="activeFilter" :pending-filter="pendingFilter" />
                     </div>
                     <div class="lg:w-1/3">
                         <!-- Sidebar component receives and emits events for its data -->

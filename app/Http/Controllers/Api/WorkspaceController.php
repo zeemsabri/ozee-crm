@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\Task;
+use App\Models\Context;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class WorkspaceController extends Controller
 {
@@ -88,6 +90,24 @@ class WorkspaceController extends Controller
                       $t->where('name', 'LIKE', "%{$search}%");
                   });
             });
+        }
+
+        // Pending tasks filter (overall filter): with|without; default 'with'
+        $pending = strtolower((string) $request->get('pending', 'with'));
+        $pending = in_array($pending, ['with', 'without', 'all']) ? $pending : 'with';
+        if ($pending !== 'all') {
+            $sub = function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('milestones')
+                    ->join('tasks', 'tasks.milestone_id', '=', 'milestones.id')
+                    ->whereColumn('milestones.project_id', 'projects.id')
+                    ->where('tasks.status', '!=', Task::STATUS_DONE);
+            };
+            if ($pending === 'with') {
+                $query->whereExists($sub);
+            } elseif ($pending === 'without') {
+                $query->whereNotExists($sub);
+            }
         }
 
         // Avoid duplicate rows when joins are applied
@@ -212,6 +232,14 @@ class WorkspaceController extends Controller
                 ];
             }
 
+            // Contexts: latest and latest 5 for communication
+            $latest = $project->contexts()->latest()->first();
+            $latestFive = $project->contexts()
+                ->latest()
+                ->with(['user'])
+                ->limit(5)
+                ->get();
+
             return [
                 'id' => $project->id,
                 'name' => $project->name,
@@ -227,6 +255,18 @@ class WorkspaceController extends Controller
                 'last_email_sent' => optional($project->last_email_sent)?->toDateTimeString(),
                 'last_email_received' => optional($project->last_email_received)?->toDateTimeString(),
                 'tags' => $project->tags?->pluck('name') ?? [],
+                'latest_context' => $latest ? [
+                    'summary' => $latest->summary,
+                    'created_at' => optional($latest->created_at)?->toDateTimeString(),
+                ] : null,
+                'contexts' => $latestFive->map(function ($c) {
+                    return [
+                        'summary' => $c->summary,
+                        'created_at' => optional($c->created_at)?->toDateTimeString(),
+                        'user' => $c->user?->name,
+                        'source_type' => class_basename($c->referencable_type ?? ''),
+                    ];
+                })->values(),
             ];
         });
 

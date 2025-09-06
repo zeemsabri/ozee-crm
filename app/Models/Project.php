@@ -163,7 +163,7 @@ class Project extends Model
      */
     public function contexts()
     {
-        return $this->morphMany(Context::class, 'linkable');
+        return $this->hasMany(Context::class);
     }
 
     /**

@@ -39,26 +39,26 @@ class EmailProcessingService
             $plainTextForAI = $this->prepareTextForAI($subject, $bodyHtml);
 
             // 3. Get AI analysis and context
-//            $aiResponse = $this->aiAnalysisService->analyzeAndSummarize($plainTextForAI);
-//
-//            if (!$aiResponse) {
-//                // If AI fails, move to pending approval for safety
-//                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
-//                return;
-//            }
-//
-//            // 4. Create the context from the AI's response
-//            $this->createContextForEmail($email, $aiResponse);
-//
-//            // 5. Decide the next step based on AI feedback
-//            if ($aiResponse['approval_required']) {
-//                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
-//                Log::info('Email moved to pending approval by AI.', ['email_id' => $email->id, 'reason' => $aiResponse['reason']]);
-//            } else {
+            $aiResponse = $this->aiAnalysisService->analyzeAndSummarize($plainTextForAI);
+
+            if (!$aiResponse) {
+                // If AI fails, move to pending approval for safety
+                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
+                return;
+            }
+
+            // 4. Create the context from the AI's response
+            $this->createContextForEmail($email, $aiResponse);
+
+            // 5. Decide the next step based on AI feedback
+            if ($aiResponse['approval_required']) {
+                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
+                Log::info('Email moved to pending approval by AI.', ['email_id' => $email->id, 'reason' => $aiResponse['reason']]);
+            } else {
                 // Auto-approved! Send the email.
                 $this->sendApprovedEmail($email, $subject, $bodyHtml);
                 Log::info('Email auto-approved and sent by AI.', ['email_id' => $email->id]);
-//            }
+            }
         } catch (Throwable $e) {
             // If any part of the process fails, ensure it goes to manual approval.
             $email->update(['status' => Email::STATUS_PENDING_APPROVAL]);
@@ -109,6 +109,7 @@ class EmailProcessingService
     {
         $context = new \App\Models\Context([
             'summary'   => $aiResponse['context_summary'],
+            'project_id'    => $email->conversation?->project_id ?? null,
             'user_id'   => $email->sender_id, // The user who created the draft
             'meta_data' => [
                 'approval_required' => $aiResponse['approval_required'],

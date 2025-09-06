@@ -6,9 +6,10 @@ import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency';
 const props = defineProps({
     activeFilter: String,
     search: { type: String, default: '' },
+    pendingFilter: { type: String, default: 'with' }, // 'with' | 'without'
 });
 
-const emits = defineEmits(['update:filter', 'update:search']);
+const emits = defineEmits(['update:filter', 'update:search', 'update:pending']);
 
 function setFilter(filter) {
     emits('update:filter', filter);
@@ -83,6 +84,21 @@ watch(currentDisplayCurrency, (val) => {
                 class="px-4 py-2 text-sm rounded-lg whitespace-nowrap transition-all-colors"
                 @click="setFilter('contributor')">
                 My Projects
+            </button>
+        </div>
+        <!-- Pending tasks overall filter -->
+        <div class="ml-2 flex items-center space-x-2">
+            <button
+                :class="{'bg-indigo-600 text-white font-semibold': (pendingFilter || 'with') === 'with', 'bg-white text-gray-700 font-medium hover:bg-gray-100': (pendingFilter || 'with') !== 'with'}"
+                class="px-3 py-2 text-sm rounded-lg whitespace-nowrap transition-all-colors"
+                @click="$emit('update:pending', 'with')">
+                With Pending Tasks
+            </button>
+            <button
+                :class="{'bg-indigo-600 text-white font-semibold': pendingFilter === 'without', 'bg-white text-gray-700 font-medium hover:bg-gray-100': pendingFilter !== 'without'}"
+                class="px-3 py-2 text-sm rounded-lg whitespace-nowrap transition-all-colors"
+                @click="$emit('update:pending', 'without')">
+                Without Pending Tasks
             </button>
         </div>
         <!-- Search input -->

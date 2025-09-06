@@ -5,6 +5,7 @@ import ProjectCard from './ProjectCard.vue';
 const props = defineProps({
     search: { type: String, default: '' },
     activeFilter: { type: String, default: 'all' },
+    pendingFilter: { type: String, default: 'with' }, // 'with' | 'without'
 });
 
 const loading = ref(true);
@@ -79,6 +80,7 @@ const buildManagerCardFromApi = (p) => {
             milestone: milestoneText,
             budget: budgetText,
             status: 'In Progress',
+            latestContext: p.latest_context?.summary || null,
         },
         tasks: {
             today: (p.tasks?.today || []).map(t => ({ id: t.id, name: t.name, status: t.status })),
@@ -88,6 +90,12 @@ const buildManagerCardFromApi = (p) => {
         communication: {
             lastSent: fmtDateTime(p.last_email_sent) || '—',
             lastReceived: fmtDateTime(p.last_email_received) || '—',
+            contexts: Array.isArray(p.contexts) ? p.contexts.map(c => ({
+                summary: c.summary,
+                created_at: fmtDateTime(c.created_at),
+                user: c.user || null,
+                source_type: c.source_type || null,
+            })) : [],
         },
     };
 
@@ -132,6 +140,16 @@ const buildContributorCardFromApi = (p) => {
             left: (typeof cm?.tasks_total === 'number' && typeof cm?.tasks_done === 'number') ? Math.max(0, cm.tasks_total - cm.tasks_done) : null,
             incentive: '',
         },
+        communication: {
+            lastSent: fmtDateTime(p.last_email_sent) || '—',
+            lastReceived: fmtDateTime(p.last_email_received) || '—',
+            contexts: Array.isArray(p.contexts) ? p.contexts.map(c => ({
+                summary: c.summary,
+                created_at: fmtDateTime(c.created_at),
+                user: c.user || null,
+                source_type: c.source_type || null,
+            })) : [],
+        },
     };
 
     // Compute alert based on last received email within last 4 hours
@@ -172,7 +190,7 @@ const loadFirstPage = async () => {
     lastPage.value = 1;
     fetchedProjects.value = [];
     try {
-        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: page.value, per_page: perPage, search: props.search || undefined, filter: (props.activeFilter && props.activeFilter !== 'all') ? props.activeFilter : undefined } });
+        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: page.value, per_page: perPage, search: props.search || undefined, filter: (props.activeFilter && props.activeFilter !== 'all') ? props.activeFilter : undefined, pending: props.pendingFilter || 'with' } });
         const resp = data;
         if (Array.isArray(resp)) {
             // Legacy non-paginated response
@@ -203,7 +221,7 @@ const fetchNextPage = async () => {
     loadingMore.value = true;
     try {
         const next = page.value + 1;
-        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: next, per_page: perPage, search: props.search || undefined, filter: (props.activeFilter && props.activeFilter !== 'all') ? props.activeFilter : undefined } });
+        const { data } = await window.axios.get('/api/workspace/projects', { params: { page: next, per_page: perPage, search: props.search || undefined, filter: (props.activeFilter && props.activeFilter !== 'all') ? props.activeFilter : undefined, pending: props.pendingFilter || 'with' } });
         const resp = data;
         if (Array.isArray(resp)) {
             // Legacy array response, treat as no more pages
@@ -257,6 +275,17 @@ watch(() => props.search, async () => {
 
 // Refetch when active filter changes
 watch(() => props.activeFilter, async () => {
+    if (observer) {
+        observer.disconnect();
+        observer = null;
+    }
+    await loadFirstPage();
+    await nextTick();
+    setupObserver();
+});
+
+// Refetch when pending filter changes
+watch(() => props.pendingFilter, async () => {
     if (observer) {
         observer.disconnect();
         observer = null;
