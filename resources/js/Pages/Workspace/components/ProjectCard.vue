@@ -264,6 +264,11 @@ function urgencyColor(dateStr) {
                         <span class="font-medium">Project Status:</span>
                         <span class="px-2 py-0.5 text-xs font-medium text-green-800 bg-green-200 rounded-full">{{ project.overview.status }}</span>
                     </p>
+                    <div class="mt-3">
+                        <h5 class="text-sm font-semibold text-gray-600 mb-1">Latest Context</h5>
+                        <p class="text-sm text-gray-700" v-if="project.overview.latestContext">{{ project.overview.latestContext }}</p>
+                        <p class="text-sm text-gray-400" v-else>—</p>
+                    </div>
                 </div>
             </div>
             <!-- Team's Tasks Tab Content -->
@@ -349,6 +354,20 @@ function urgencyColor(dateStr) {
                 <div class="space-y-3 text-sm text-gray-700">
                     <p>Last Email Sent: <span class="font-semibold">{{ project.communication.lastSent }}</span></p>
                     <p>Last Email Received: <span class="font-semibold text-yellow-700">{{ project.communication.lastReceived }}</span></p>
+                    <div class="mt-4">
+                        <h5 class="text-sm font-semibold text-gray-600 mb-2">Latest Contexts</h5>
+                        <div v-if="project.communication.contexts && project.communication.contexts.length" class="space-y-2">
+                            <div v-for="(c, idx) in project.communication.contexts.slice(0,5)" :key="idx" class="p-2 rounded-lg bg-gray-50">
+                                <div class="text-sm text-gray-800">{{ c.summary }}</div>
+                                <div class="text-xs text-gray-500 mt-1">
+                                    <span v-if="c.user">{{ c.user }}</span>
+                                    <span v-if="c.source_type" class="ml-1">• {{ c.source_type }}</span>
+                                    <span v-if="c.created_at" class="ml-1">• {{ c.created_at }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <p v-else class="text-sm text-gray-400">No recent contexts.</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -399,6 +418,29 @@ function urgencyColor(dateStr) {
                     </div>
                     <div v-else class="mt-4 text-center text-sm text-gray-500">
                         <p>No tasks due tomorrow. Enjoy your day!</p>
+                    </div>
+                </div>
+
+                <!-- Communication section for Contributors -->
+                <div class="mt-4 pt-4 border-t border-gray-200">
+                    <h5 class="text-sm font-semibold text-gray-500 mb-2">Communication</h5>
+                    <div class="space-y-2 text-sm text-gray-700">
+                        <p>Last Email Sent: <span class="font-semibold">{{ project.communication?.lastSent || '—' }}</span></p>
+                        <p>Last Email Received: <span class="font-semibold text-yellow-700">{{ project.communication?.lastReceived || '—' }}</span></p>
+                        <div class="mt-2">
+                            <h6 class="text-xs font-semibold text-gray-600 mb-1">Latest Contexts</h6>
+                            <div v-if="project.communication?.contexts && project.communication.contexts.length" class="space-y-2">
+                                <div v-for="(c, idx) in project.communication.contexts.slice(0,5)" :key="idx" class="p-2 rounded-lg bg-gray-50">
+                                    <div class="text-sm text-gray-800">{{ c.summary }}</div>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        <span v-if="c.user">{{ c.user }}</span>
+                                        <span v-if="c.source_type" class="ml-1">• {{ c.source_type }}</span>
+                                        <span v-if="c.created_at" class="ml-1">• {{ c.created_at }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <p v-else class="text-sm text-gray-400">No recent contexts.</p>
+                        </div>
                     </div>
                 </div>
 

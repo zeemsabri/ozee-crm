@@ -13,6 +13,7 @@ class Context extends Model
 
     protected $fillable = [
         'summary',
+        'project_id',
         'referencable_type', 'referencable_id',
         'linkable_type', 'linkable_id',
         'user_id',
@@ -37,4 +38,6 @@ class Context extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+
 }

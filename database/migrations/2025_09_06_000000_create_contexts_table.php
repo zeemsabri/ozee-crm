@@ -14,6 +14,8 @@ return new class extends Migration {
             $table->id();
             $table->text('summary');
 
+            $table->foreignIdFor(\App\Models\Project::class)->nullable()->constrained()->nullOnDelete();
+
             // The SOURCE of the context (Email, ProjectNote, etc.)
             $table->morphs('referencable');
 
