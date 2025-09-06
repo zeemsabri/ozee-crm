@@ -67,7 +67,6 @@ class EmailObserver
     public function updated(Email $email)
     {
 
-        Log::info('email conversation belongs to lead');
 
         // Check if the email status was changed to 'approved'
         if ($email->isDirty('status') && $email->status === 'sent') {
