@@ -4,6 +4,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class Presentation extends Model
@@ -39,6 +40,10 @@ class Presentation extends Model
             if (empty($model->share_token)) {
                 $model->share_token = Str::random(64);
             }
+        });
+
+        static::created(function (self $model) {
+            $model->users()->attach(Auth::id(), ['role' => self::CONTACTED]);
         });
     }
 
