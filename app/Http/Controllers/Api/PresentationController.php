@@ -8,6 +8,7 @@ use App\Models\Slide;
 use App\Models\ContentBlock;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class PresentationController extends Controller
@@ -356,7 +357,8 @@ class PresentationController extends Controller
      */
     public function invite(Request $request, $id)
     {
-        $user = \Illuminate\Support\Facades\Auth::user();
+        $user = Auth::user();
+
         if (!$user) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -384,6 +386,47 @@ class PresentationController extends Controller
         // Return minimal list of collaborators
         $collaborators = $presentation->users()->select('users.id','users.name','users.email')->get();
         return response()->json(['message' => 'Invitation sent', 'collaborators' => $collaborators]);
+    }
+
+    /**
+     * Sync collaborators for a presentation (replace entire set).
+     * Allows empty list to remove all collaborators. Creator still retains implicit access.
+     * POST /api/v1/presentations/{id}/collaborators
+     */
+    public function syncCollaborators(Request $request, $id)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $data = $request->validate([
+            'user_ids' => ['required','array'],
+            'user_ids.*' => ['integer','exists:users,id'],
+            'role' => ['nullable','string', Rule::in(['editor','viewer'])],
+        ]);
+
+        $presentation = Presentation::findOrFail($id);
+
+        // Authorization: same as invite — either has global permission or is already a collaborator
+        if (!$user->hasPermission('create_presentation')) {
+            $isCollaborator = $presentation->users()->where('users.id', $user->id)->exists();
+            if (!$isCollaborator) {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+        }
+
+        $role = $data['role'] ?? 'editor';
+        // Build sync payload: [user_id => ['role' => role]]
+        $syncData = [];
+        foreach ($data['user_ids'] as $uid) {
+            $syncData[$uid] = ['role' => $role];
+        }
+        // This will fully replace the pivot rows, allowing an empty set
+        $presentation->users()->sync($syncData);
+
+        $collaborators = $presentation->users()->select('users.id','users.name','users.email')->get();
+        return response()->json(['message' => 'Collaborators synced', 'collaborators' => $collaborators]);
     }
 
 }

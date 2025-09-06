@@ -43,11 +43,13 @@
 
     </div>
     <ShareModal :show="showShare" :presentation="store.presentation" @close="showShare=false" />
+    <CollaborateModal :show="showCollaborate" :presentation="store.presentation" @close="showCollaborate=false" @updated="onCollaboratorsUpdated" />
 </template>
 
 <script setup>
 import { ref, computed } from 'vue';
 import ShareModal from './ShareModal.vue';
+import CollaborateModal from './CollaborateModal.vue';
 import { usePresentationStore } from '@/Stores/presentationStore';
 import api from '@/Services/presentationsApi';
 import { success, error } from '@/Utils/notification';
@@ -62,6 +64,7 @@ const props = defineProps({
 const store = usePresentationStore();
 const saving = ref(false);
 const showShare = ref(false);
+const showCollaborate = ref(false);
 
 const actionLabels = {
     save: 'Save',
@@ -119,8 +122,7 @@ async function handleAction(action) {
             console.log('Exporting presentation to PDF...');
             break;
         case 'collaborate':
-            // Placeholder for initiating collaboration (e.g., WebSocket setup)
-            console.log('Starting collaboration session...');
+            showCollaborate.value = true;
             break;
         case 'theme':
             console.log('Toggle theme clicked');
@@ -135,6 +137,11 @@ async function handleAction(action) {
             }
             break;
     }
+}
+
+function onCollaboratorsUpdated() {
+    // Optionally refresh presentation or show a toast; keeping lightweight for now
+    success('Collaborators updated');
 }
 </script>
 
