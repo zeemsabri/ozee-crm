@@ -49,7 +49,7 @@ class PresentationController extends Controller
         $user = \Illuminate\Support\Facades\Auth::user();
 
         $query = Presentation::query()
-            ->where('is_template', 0)
+            ->where('is_template', '=', 0)
             ->withCount('users');
 
         // If user has broad permission, return all
@@ -279,7 +279,7 @@ class PresentationController extends Controller
     public function templates()
     {
         $items = Presentation::query()
-            ->where('is_template', 1)
+            ->where('is_template', '=', 1)
             ->withCount('slides')
             ->orderBy('title')
             ->get()
