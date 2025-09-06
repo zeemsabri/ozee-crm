@@ -14,116 +14,141 @@ class EmailObserver
     /**
      * Handle the Email "created" event.
      *
+     * With the new AI workflow, emails are created as 'drafts'.
+     * No notifications are needed at this stage. The 'updated' event
+     * will handle all notification logic when the status changes.
+     *
      * @param  \App\Models\Email  $email
      * @return void
      */
     public function created(Email $email)
     {
-        // Send notifications if email status is pending_approval and type is sent
-        if ($email->status === 'pending_approval' && $email->type === 'sent') {
-            // Find users with approve_emails permission
-            $projectId = optional($email->conversation)->project_id;
-            if ($projectId) {
-                $usersToNotify = PermissionHelper::getAllUsersWithPermission('approve_emails', $projectId);
-
-                // Send notification to each user
-                foreach ($usersToNotify as $userToNotify) {
-//                    $userToNotify->notify(new EmailApprovalRequired($email));
-                }
-            }
-        }
-
-        // Send notifications if email status is pending_approval_received and type is received
-        if ($email->status === 'pending_approval_received' && $email->type === 'received') {
-            $projectId = optional($email->conversation)->project_id;
-
-            if ($projectId) {
-                // Get users with approve_received_emails permission for this project
-                $usersToNotify = PermissionHelper::getAllUsersWithPermission('approve_received_emails', $projectId);
-
-                // Send notification to each user
-                foreach ($usersToNotify as $userToNotify) {
-                    $userToNotify->notify(new EmailApprovalRequired($email));
-                }
-            }
-        }
-
-        // Update project last_email_received when a received email is created
-        if ($email->type === 'received') {
+        // Update project last_email_received when a received email is created.
+        if ($email->type === Email::TYPE_RECEIVED) {
             $project = optional($email->conversation)->project;
             if ($project) {
-                $project->last_email_received = now();
-                $project->save();
+                $project->update(['last_email_received' => now()]);
             }
         }
     }
 
     /**
      * Handle the Email "updated" event.
+     * This is now the primary location for notification logic.
      *
      * @param  \App\Models\Email  $email
      * @return void
      */
     public function updated(Email $email)
     {
-
-
-        // Check if the email status was changed to 'approved'
-        if ($email->isDirty('status') && $email->status === 'sent') {
-            $projectId = optional($email->conversation)->project_id;
-
-            if ($projectId) {
-                // Get all users with view_emails permission for this project
-                $usersWithApprovalPermission = PermissionHelper::getAllUsersWithPermission('approve_emails', $projectId)
-                    ->merge(PermissionHelper::getAllUsersWithPermission('approve_received_emails', $projectId));
-
-                // Send notification to each user
-                foreach ($usersWithApprovalPermission as $userToNotify) {
-                    $userToNotify->notify(new EmailApproved($email, true));
-                }
-
-                $usersToNotify = PermissionHelper::getAllUsersWithPermission('view_emails', $projectId);
-
-                $usersToNotify = $usersToNotify->diff($usersWithApprovalPermission);
-
-                // Send notification to each user
-                foreach ($usersToNotify as $userToNotify) {
-                    $userToNotify->notify(new EmailApproved($email));
-                }
-
-                // --- NEW LOGIC TO MARK OLD NOTIFICATIONS AS READ ---
-                // This ensures they don't reappear on refresh for any user.
-                $correlationId = 'email_approval_' . $email->id;
-
-                // Find all users who would have received the original notification
-                foreach ($usersWithApprovalPermission as $user) {
-                    $user->unreadNotifications
-                        ->where('data.correlation_id', $correlationId)
-                        ->where('data.task_type', 'email_approval')
-                        ->markAsRead();
-                }
-            }
+        // Guard clause: Only proceed if the 'status' attribute was actually changed.
+        if (!$email->isDirty('status')) {
+            return;
         }
 
-        // Update project last_email_sent when an email becomes sent and is of type 'sent'
-        if ($email->isDirty('status') && $email->status === 'sent' && $email->type === 'sent') {
-            $project = optional($email->conversation)->project;
+        $newStatus = $email->status;
+        $originalStatus = $email->getOriginal('status');
+        $projectId = optional($email->conversation)->project_id;
 
-            if ($project) {
-                $project->last_email_sent = now();
-                $project->save();
-            }
-
-            Log::info( json_encode([
-                'email_conversation_id' =>  $email->conversation?->id,
-                'email_belong_to' => get_class($email->conversation?->conversable)
-            ]));
-
-            if(get_class($email->conversation?->conversable) === Lead::class) {
-                $email->conversation->conversable()->update(['contacted_at' => now()]);
-            }
-
+        if (!$projectId) {
+            return; // Cannot send notifications without a project context.
         }
 
+        // --- SCENARIO 1: AI has flagged an email for manual approval ---
+        // The status changes from 'draft' to 'pending_approval'.
+        if ($newStatus === Email::STATUS_PENDING_APPROVAL && $originalStatus === Email::STATUS_DRAFT) {
+            $this->notifyAdminsForApproval($email, $projectId);
+        }
+
+        // --- SCENARIO 2: An email has been successfully sent ---
+        if ($newStatus === Email::STATUS_SENT) {
+            // ** REFINED LOGIC **
+            // Only send the "Email Approved" notification if it was MANUALLY approved.
+            // If the AI auto-approved it (draft -> sent), no notification is needed.
+            if ($originalStatus === Email::STATUS_PENDING_APPROVAL) {
+                $this->notifyUsersOfSentEmail($email, $projectId);
+            }
+
+            // Always mark any outstanding approval notifications as read.
+            // This handles the case where one admin approves it before another sees the task.
+            $this->markApprovalNotificationsAsRead($email, $projectId);
+            $this->updateProjectAndLeadTimestamps($email);
+        }
+    }
+
+    /**
+     * Notifies users with approval permissions that an email needs their attention.
+     */
+    private function notifyAdminsForApproval(Email $email, int $projectId): void
+    {
+        $permission = $email->type === Email::TYPE_RECEIVED ? Email::APPROVE_RECEIVED_EMAILS_PERMISSION : Email::APPROVE_SENT_EMAIL_PERMISSION;
+        $usersToNotify = PermissionHelper::getAllUsersWithPermission($permission, $projectId);
+
+        foreach ($usersToNotify as $user) {
+            $user->notify(new EmailApprovalRequired($email));
+        }
+    }
+
+    /**
+     * Notifies relevant users that an email has been approved and sent.
+     */
+    private function notifyUsersOfSentEmail(Email $email, int $projectId): void
+    {
+        $approverPermission = $email->type === Email::TYPE_RECEIVED ? Email::APPROVE_RECEIVED_EMAILS_PERMISSION : Email::APPROVE_SENT_EMAIL_PERMISSION;
+
+        // Get users with approval power
+        $usersWithApprovalPermission = PermissionHelper::getAllUsersWithPermission($approverPermission, $projectId);
+
+        // Notify them with the "is_approver" flag
+        foreach ($usersWithApprovalPermission as $userToNotify) {
+            $userToNotify->notify(new EmailApproved($email, true));
+        }
+
+        // Get users with general view permissions
+        $usersWithViewPermission = PermissionHelper::getAllUsersWithPermission(Email::VIEW_EMAIL_PERMISSION, $projectId);
+
+        // Exclude the approvers so they don't get two notifications
+        $usersToNotify = $usersWithViewPermission->diff($usersWithApprovalPermission);
+
+        foreach ($usersToNotify as $userToNotify) {
+            $userToNotify->notify(new EmailApproved($email));
+        }
+    }
+
+    /**
+     * Finds and marks all "EmailApprovalRequired" notifications for this email as read.
+     * This is the key to solving the persistent notification problem.
+     */
+    private function markApprovalNotificationsAsRead(Email $email, int $projectId): void
+    {
+        $permission = $email->type === Email::TYPE_RECEIVED ? Email::APPROVE_RECEIVED_EMAILS_PERMISSION : Email::APPROVE_SENT_EMAIL_PERMISSION;
+        $usersWhoReceivedNotification = PermissionHelper::getAllUsersWithPermission($permission, $projectId);
+
+        foreach ($usersWhoReceivedNotification as $user) {
+            // Find unread notifications related to THIS specific email approval task
+            $user->unreadNotifications
+                ->where('type', EmailApprovalRequired::class)
+                ->where('data.email.id', $email->id)
+                ->markAsRead();
+        }
+
+        Log::info('Marked approval notifications as read for email.', ['email_id' => $email->id]);
+    }
+
+    /**
+     * Updates timestamps on the Project and Lead models after an email is sent.
+     */
+    private function updateProjectAndLeadTimestamps(Email $email): void
+    {
+        if ($email->type === Email::TYPE_SENT) {
+            // Update project's last_email_sent timestamp
+            optional($email->conversation)->project?->update(['last_email_sent' => now()]);
+
+            // If the conversation is with a Lead, update their contacted_at timestamp
+            if ($email->conversation?->conversable instanceof Lead) {
+                $email->conversation->conversable->update(['contacted_at' => now()]);
+            }
+        }
     }
 }
+

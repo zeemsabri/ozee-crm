@@ -22,6 +22,14 @@ class Email extends Model
     const STATUS_REJECTED = 'rejected_received';
     const STATUS_SENT = 'sent';
     const STATUS_DRAFT = 'draft';
+
+    const TYPE_RECEIVED = 'received';
+    const TYPE_SENT = 'sent';
+    const APPROVE_RECEIVED_EMAILS_PERMISSION = 'approve_received_emails';
+    const APPROVE_SENT_EMAIL_PERMISSION = 'approve_emails';
+
+    const VIEW_EMAIL_PERMISSION = 'view_emails';
+
     protected $appends = [
         'can_approve', 'can_open',
     ];
