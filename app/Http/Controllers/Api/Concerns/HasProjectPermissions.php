@@ -39,7 +39,7 @@ trait HasProjectPermissions
      * @param Project $project
      * @return Role|null
      */
-    protected function getUserProjectRole(User|Client $user, Project $project, $permission = true): ?Role
+    public function getUserProjectRole(User|Client $user, Project $project, $permission = true): ?Role
     {
         $projectUser = $project->users()->where('users.id', $user->id)->first();
         if ($projectUser && isset($projectUser->pivot->role_id)) {
@@ -52,7 +52,7 @@ trait HasProjectPermissions
         return null;
     }
 
-    protected function getProjectRoleName(User|Client $user, Project $project)
+    public function getProjectRoleName(User|Client $user, Project $project)
     {
         return $this->getUserProjectRole($user, $project, false)?->name ?? 'Staff';
     }
