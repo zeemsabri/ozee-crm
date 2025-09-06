@@ -60,4 +60,7 @@ export default {
   copySlides(targetId, sourceSlideIds) {
     return http.post(`${base}/presentations/${targetId}/copy-slides`, { source_slide_ids: sourceSlideIds }).then(r => r.data);
   },
+  invite(id, payload) {
+    return http.post(`${base}/presentations/${id}/invite`, payload).then(r => r.data);
+  },
 };
