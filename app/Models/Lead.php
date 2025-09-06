@@ -109,4 +109,12 @@ class Lead extends Model
         }
         return $query;
     }
+
+    /**
+     * Context records where this lead is the subject (linkable).
+     */
+    public function contexts()
+    {
+        return $this->morphMany(Context::class, 'linkable');
+    }
 }

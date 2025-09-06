@@ -655,4 +655,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(Kudo::class, 'recipient_id');
     }
+
+    /**
+     * Context records created/performed by this user (actor).
+     */
+    public function contexts()
+    {
+        return $this->hasMany(Context::class);
+    }
 }

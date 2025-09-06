@@ -159,6 +159,14 @@ class Project extends Model
     }
 
     /**
+     * Context records where this project is the subject (linkable).
+     */
+    public function contexts()
+    {
+        return $this->morphMany(Context::class, 'linkable');
+    }
+
+    /**
      * Get the expendable directly associated with this project.
      */
     public function expendable()

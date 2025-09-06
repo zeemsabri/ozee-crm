@@ -2,14 +2,14 @@
 
 namespace App\Console\Commands;
 
-use App\Http\Controllers\EmailTestController;
+use App\Http\Controllers\EmailReceiveController;
 use Illuminate\Console\Command;
 
 class FetchEmails extends Command
 {
     /**
      * The name and signature of the console command.
-     *
+     *Listed Gmail messages
      * @var string
      */
     protected $signature = 'emails:fetch';
@@ -24,17 +24,17 @@ class FetchEmails extends Command
     /**
      * The EmailTestController instance.
      *
-     * @var \App\Http\Controllers\EmailTestController
+     * @var \App\Http\Controllers\EmailReceiveController
      */
     protected $emailController;
 
     /**
      * Create a new command instance.
      *
-     * @param  \App\Http\Controllers\EmailTestController  $emailController
+     * @param  \App\Http\Controllers\EmailReceiveController  $emailController
      * @return void
      */
-    public function __construct(EmailTestController $emailController)
+    public function __construct(EmailReceiveController $emailController)
     {
         parent::__construct();
         $this->emailController = $emailController;
@@ -50,14 +50,14 @@ class FetchEmails extends Command
         $this->info('Fetching emails...');
 
         try {
-            $response = $this->emailController->receiveTestEmails();
+            $response = $this->emailController->receiveEmails();
             $data = json_decode($response->getContent(), true);
 
             $this->info('Successfully fetched emails: ' . ($data['count_fetched'] ?? 0));
 
             if (isset($data['summary_of_emails']) && !empty($data['summary_of_emails'])) {
                 $this->table(
-                    ['ID', 'Gmail Message ID', 'From', 'Subject', 'Date'],
+                    ['ID', 'Gmail Message ID', 'From', 'Subject', 'Date', 'Status'],
                     array_map(function ($email) {
                         return [
                             $email['id'],
@@ -65,6 +65,7 @@ class FetchEmails extends Command
                             $email['from'],
                             $email['subject'],
                             $email['date'],
+                            $email['status']
                         ];
                     }, $data['summary_of_emails'])
                 );

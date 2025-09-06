@@ -51,6 +51,8 @@ return [
 
     'gemini' => [
         'key' => env('GOOGLE_GEMINI_API'),
+        'model' => env('GOOGLE_GEMINI_MODEL', 'gemini-2.5-flash-preview-05-20'),
+        'company_domain' => env('AI_COMPANY_DOMAIN', 'ozeeweb.com.au'),
     ],
 
 ];

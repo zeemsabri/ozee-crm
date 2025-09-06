@@ -8,6 +8,8 @@ use App\Models\Email;
 use App\Models\File;
 use App\Models\Lead;
 use App\Models\Project;
+use App\Services\EmailAiAnalysisService;
+use App\Services\EmailProcessingService;
 use App\Services\GmailService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -15,15 +17,24 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Http\UploadedFile;
 use App\Http\Controllers\Api\Concerns\HandlesImageUploads;
 
-class EmailTestController extends Controller
+class EmailReceiveController extends Controller
 {
     use HandlesImageUploads;
 
     protected GmailService $gmailService;
+    protected EmailAiAnalysisService $emailAiAnalysisService;
 
-    public function __construct(GmailService $gmailService)
+    protected EmailProcessingService $emailProcessingService;
+
+    public function __construct(
+        GmailService $gmailService,
+        EmailAiAnalysisService $emailAiAnalysisService,
+        EmailProcessingService $emailProcessingService
+    )
     {
         $this->gmailService = $gmailService;
+        $this->emailAiAnalysisService = $emailAiAnalysisService;
+        $this->emailProcessingService = $emailProcessingService;
     }
 
     protected function extractEmailAddress(string $formattedEmail): string
@@ -34,34 +45,7 @@ class EmailTestController extends Controller
         return trim($formattedEmail);
     }
 
-    public function sendTestEmail()
-    {
-        $to = 'zeemsabri@gmail.com';
-        $subject = 'Laravel Gmail MVP Test Email - ' . now()->format('Y-m-d H:i:s');
-        $body = '
-            <h1>Hello from your Laravel Gmail API MVP!</h1>
-            <p>This is a test email sent using the Gmail API.</p>
-            <p>Sent from: <strong>' . $this->gmailService->getAuthorizedEmail() . '</strong></p>
-            <p>Time: ' . now()->format('Y-m-d H:i:s') . '</p>
-            <hr>
-            <p>You can reply to this email to test the receiving functionality.</p>
-        ';
-
-        try {
-            $messageId = $this->gmailService->sendEmail($to, $subject, $body);
-            return response()->json([
-                'message' => 'Test email sent successfully!',
-                'gmail_message_id' => $messageId,
-                'sent_from' => $this->gmailService->getAuthorizedEmail(),
-                'sent_to'   =>  $to
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error sending test email:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            return response()->json(['message' => 'Failed to send test email: ' . $e->getMessage()], 500);
-        }
-    }
-
-    public function receiveTestEmails()
+    public function receiveEmails()
     {
         try {
             $lastReceivedEmail = Email::where('type', 'received')
@@ -97,6 +81,7 @@ class EmailTestController extends Controller
                 $emailDetails['date'] = $date;
 
                 if ($lastReceivedEmail && Carbon::parse($emailDetails['date'])->lte(Carbon::parse($lastReceivedEmail->sent_at))) {
+                    Log::info('Skipping email because it is older than the last received email:', ['email_id' => $emailDetails['id'], 'sent_at' => $emailDetails['date']]);;
                     continue;
                 }
 
@@ -146,6 +131,7 @@ class EmailTestController extends Controller
                         'from' => $emailDetails['from'],
                         'subject' => $emailDetails['subject'],
                         'date' => $emailDetails['date'],
+                        'status'    =>  $emailDetails['status'] ?? null,
                     ];
 
                     Log::info('Received Email Stored:', ['email_id' => $email->id, 'gmail_id' => $emailDetails['id'], 'subject' => $emailDetails['subject']]);
@@ -203,6 +189,14 @@ class EmailTestController extends Controller
 
         $this->attachEmailAttachments($email, $emailDetails['attachments'] ?? []);
 
+        // ** TRIGGER AI ANALYSIS **
+        $content = $this->emailAiAnalysisService->analyzeAndSummarize($email);
+
+        if($content) {
+            $this->emailProcessingService->createContextForEmail($email, $content);
+        }
+
+
         return [$conversation, $email];
     }
 
@@ -248,6 +242,12 @@ class EmailTestController extends Controller
         ]);
 
         $this->attachEmailAttachments($email, $emailDetails['attachments'] ?? []);
+
+        $content = $this->emailAiAnalysisService->analyzeAndSummarize($email);
+
+        if($content) {
+            $this->emailProcessingService->createContextForEmail($email, $content);
+        }
 
         return [$conversation, $email];
     }

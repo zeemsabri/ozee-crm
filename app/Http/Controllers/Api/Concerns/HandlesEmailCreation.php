@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Concerns;
 
+use App\Jobs\ProcessDraftEmailJob;
 use App\Models\Client;
 use App\Models\Conversation;
 use App\Models\Email;
@@ -121,9 +122,11 @@ trait HandlesEmailCreation
             'subject' => $validated['subject'],
             'template_id' => $validated['template_id'],
             'template_data' => json_encode($validated['template_data'] ?? []),
-            'status' => $validated['status'] ?? 'pending_approval',
+            'status' => $validated['status'] ?? Email::STATUS_DRAFT,
             'type' => 'sent',
         ]);
+
+        ProcessDraftEmailJob::dispatch($email);
 
         $conversation->update(['last_activity_at' => now()]);
         return $email;
@@ -162,9 +165,11 @@ trait HandlesEmailCreation
             'to' => $emails,
             'subject' => $validated['subject'],
             'body' => $greeting . '<br/>' . $validated['body'],
-            'status' => $validated['status'] ?? 'pending_approval',
+            'status' => $validated['status'] ?? Email::STATUS_DRAFT,
             'type' => 'sent',
         ]);
+
+        ProcessDraftEmailJob::dispatch($email);
 
         $conversation->update(['last_activity_at' => now()]);
         return $email;
