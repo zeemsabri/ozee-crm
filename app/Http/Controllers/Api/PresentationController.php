@@ -403,7 +403,7 @@ class PresentationController extends Controller
         }
 
         $data = $request->validate([
-            'user_ids' => ['required','array'],
+            'user_ids' => ['array'],
             'user_ids.*' => ['integer','exists:users,id'],
             'role' => ['nullable','string', Rule::in(['editor','viewer'])],
         ]);
@@ -421,7 +421,8 @@ class PresentationController extends Controller
         $role = $data['role'] ?? 'editor';
         // Build sync payload: [user_id => ['role' => role]]
         $syncData = [];
-        foreach ($data['user_ids'] as $uid) {
+        $ids = $data['user_ids'] ?? [];
+        foreach ($ids as $uid) {
             $syncData[$uid] = ['role' => $role];
         }
         // This will fully replace the pivot rows, allowing an empty set
