@@ -8,9 +8,9 @@ use Throwable;
 
 class EmailAiAnalysisService
 {
-    protected string $apiKey;
-    protected string $model;
-    protected string $apiUrl;
+    protected string|null $apiKey;
+    protected string|null $model;
+    protected string|null $apiUrl;
 
     public function __construct()
     {
