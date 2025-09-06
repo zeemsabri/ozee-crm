@@ -49,7 +49,7 @@ class PresentationController extends Controller
         $user = \Illuminate\Support\Facades\Auth::user();
 
         $query = Presentation::query()
-            ->where('is_template', '=', 0)
+            ->where('is_template', '=', 0) // Already correct
             ->withCount('users');
 
         // If user has broad permission, return all
@@ -58,18 +58,19 @@ class PresentationController extends Controller
             return response()->json($presentations);
         }
 
-        // Otherwise, restrict to invited or owned (via Lead.created_by_id)
+        // Otherwise, restrict to invited or owned
         $query->where(function ($q) use ($user) {
             // invited via pivot
             $q->whereHas('users', function ($qq) use ($user) {
                 $qq->where('user_id', optional($user)->id);
-            });
-        })->orWhere(function ($q) use ($user) {
-            // owned via Lead.created_by_id
-            $q->where('presentable_type', \App\Models\Lead::class)
-              ->whereHasMorph('presentable', [\App\Models\Lead::class], function ($qqq) use ($user) {
-                  $qqq->where('created_by_id', optional($user)->id);
-              });
+            })
+                ->orWhere(function ($q) use ($user) {
+                    // owned via Lead.created_by_id
+                    $q->where('presentable_type', \App\Models\Lead::class)
+                        ->whereHasMorph('presentable', [\App\Models\Lead::class], function ($qqq) use ($user) {
+                            $qqq->where('created_by_id', optional($user)->id);
+                        });
+                });
         });
 
         $presentations = $query->orderByDesc('id')->paginate(15);
