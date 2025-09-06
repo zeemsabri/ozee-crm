@@ -227,4 +227,12 @@ class ProjectNote extends Model
     {
         return $this->morphMany(PointsLedger::class, 'pointable');
     }
+
+    /**
+     * Context records where this note is the source (referencable).
+     */
+    public function contexts()
+    {
+        return $this->morphMany(Context::class, 'referencable');
+    }
 }

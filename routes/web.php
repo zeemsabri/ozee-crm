@@ -3,7 +3,7 @@
 use App\Http\Controllers\Api\EmailController;
 use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\EmailPreviewController;
-use App\Http\Controllers\EmailTestController;
+use App\Http\Controllers\EmailReceiveController;
 use App\Http\Controllers\EmailTrackingController;
 use App\Http\Controllers\ProfileController;
 use App\Models\Project;
@@ -149,7 +149,7 @@ Route::get('/google/usercallback', [GoogleUserAuthController::class, 'handleCall
 Route::get('/user/google/check', [GoogleUserAuthController::class, 'checkGoogleConnection'])->name('user.google.check');
 Route::post('/user/google/disconnect', [GoogleUserAuthController::class, 'disconnectGoogle'])->name('user.google.disconnect');
 
-Route::get('/receive-test-emails', [EmailTestController::class, 'receiveTestEmails'])->name('receive-test-email');
+Route::get('/receive-test-emails', [EmailReceiveController::class, 'receiveEmails'])->name('receive-test-email');
 
 // Magic Link Route - accessible without authentication
 Route::get('/magic-link', [MagicLinkController::class, 'handleMagicLink'])->name('client.magic-link');

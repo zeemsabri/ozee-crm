@@ -15,6 +15,13 @@ class Email extends Model
 {
     use HasFactory, Taggable, SoftDeletes;
 
+    const STATUS_PENDING_APPROVAL = 'pending_approval_received';
+
+    const STATUS_PENDING_APPROVAL_SENT = 'pending_approval';
+    const STATUS_APPROVED = 'sent';
+    const STATUS_REJECTED = 'rejected_received';
+    const STATUS_SENT = 'sent';
+    const STATUS_DRAFT = 'draft';
     protected $appends = [
         'can_approve',
     ];
@@ -148,6 +155,14 @@ class Email extends Model
     public function files()
     {
         return $this->morphMany(FileAttachment::class, 'fileable');
+    }
+
+    /**
+     * Context records where this email is the source (referencable).
+     */
+    public function contexts()
+    {
+        return $this->morphMany(Context::class, 'referencable');
     }
 
     /**

@@ -104,4 +104,12 @@ class Client extends Model
     {
         return $this->hasMany(Deliverable::class, 'overall_approved_by_client_id');
     }
+
+    /**
+     * Context records where this client is the subject (linkable).
+     */
+    public function contexts()
+    {
+        return $this->morphMany(Context::class, 'linkable');
+    }
 }
