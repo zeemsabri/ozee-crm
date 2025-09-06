@@ -25,6 +25,10 @@ const changePage = (page) => {
 
 const canShowEmail = (email) => {
 
+    if(email.status === 'draft') {
+        return false;
+    }
+
   if(email.type === 'received' && email.status === 'pending_approval_received' && !email.can_approve) {
     return false;
   }
@@ -33,12 +37,16 @@ const canShowEmail = (email) => {
 
 }
 
-const showPermissionAlert = () => {
+const showPermissionAlert = (email) => {
   // Alert is replaced with an event emission for a custom notification system.
-  emit('show-notification', {
-    message: 'You do not have permission to view this email. Please contact the project administrator for assistance.',
-    type: 'warning'
-  });
+    let message = 'You do not have permission to view this email. Please contact the project administrator for assistance.'
+    if(email.status === 'draft') {
+        message = 'This email is waiting to review by AI, please try again later.'
+    }
+    emit('show-notification', {
+        message: message,
+        type: 'warning'
+    });
 };
 
 </script>
@@ -74,7 +82,7 @@ const showPermissionAlert = () => {
         </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
-        <tr v-for="email in emails" :key="email.id" @click="canShowEmail(email) ? $emit('view-email', email) : showPermissionAlert()" class="hover:bg-gray-50 cursor-pointer">
+        <tr v-for="email in emails" :key="email.id" @click="canShowEmail(email) ? $emit('view-email', email) : showPermissionAlert(email)" class="hover:bg-gray-50 cursor-pointer">
           <td class="px-4 py-3 text-sm font-medium text-gray-900">
             <div class="flex items-center space-x-2">
               <component :is="email.type === 'sent' ? PaperAirplaneIcon : InboxArrowDownIcon" class="h-4 w-4" />

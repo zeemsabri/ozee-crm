@@ -28,7 +28,7 @@ class EmailProcessingService
         try {
             // 1. Render the template to get the final subject and body
             // We set isFinalSend to `true` to populate all placeholders correctly.
-            $renderedContent = $this->renderEmailContent($email, true);
+            $renderedContent = $this->renderEmailContent($email, false);
             $subject = $renderedContent['subject'];
             $bodyHtml = $renderedContent['body'];
 

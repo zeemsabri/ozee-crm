@@ -51,7 +51,6 @@ class SendEmailController extends Controller
             $template = EmailTemplate::with('placeholders')->findOrFail($validatedData['template_id']);
             $recipientClient = Client::findOrFail($validatedData['client_id']);
             $templateData = $validatedData['template_data'] ?? [];
-
             // Populate placeholders for the subject and body
             $subject = $this->populateAllPlaceholders(
                 $template->subject,

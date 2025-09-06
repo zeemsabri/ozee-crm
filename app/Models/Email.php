@@ -23,7 +23,7 @@ class Email extends Model
     const STATUS_SENT = 'sent';
     const STATUS_DRAFT = 'draft';
     protected $appends = [
-        'can_approve',
+        'can_approve', 'can_open',
     ];
 
     protected static function booted()
@@ -178,12 +178,25 @@ class Email extends Model
         return $query;
     }
 
+    public function getCanOpenAttribute()
+    {
+        if($this->status === self::STATUS_DRAFT) {
+            return false;
+        }
+
+        return false;
+    }
+
     public function getCanApproveAttribute()
     {
 
         $user = request()?->user();
 
         if(!$user) {
+            return false;
+        }
+
+        if($this->status === self::STATUS_DRAFT) {
             return false;
         }
 

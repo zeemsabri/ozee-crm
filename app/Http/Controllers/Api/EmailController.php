@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Concerns\HandlesTemplatedEmails;
 use App\Http\Controllers\Api\Concerns\HandlesEmailCreation;
+use App\Jobs\ProcessDraftEmailJob;
 use App\Mail\ClientEmail;
 use App\Models\Email;
 use App\Models\EmailTemplate;
@@ -226,9 +227,11 @@ class EmailController extends Controller
                 'subject' => $validated['subject'],
                 'template_id' => $validated['template_id'],
                 'template_data' => json_encode($validated['template_data'] ?? []),
-                'status' => 'pending_approval',
+                'status' => Email::STATUS_DRAFT,
                 'type' => 'sent', // Set type to sent for outgoing emails
             ]);
+
+            ProcessDraftEmailJob::dispatch($email);
 
             $conversation->update(['last_activity_at' => now()]);
 
