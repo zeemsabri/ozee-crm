@@ -468,6 +468,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('presentations/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'update']);
         Route::delete('presentations/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'destroy']);
         Route::post('presentations/{id}/invite', [\App\Http\Controllers\Api\PresentationController::class, 'invite']);
+        Route::post('presentations/{id}/collaborators', [\App\Http\Controllers\Api\PresentationController::class, 'syncCollaborators']);
 
         Route::post('presentations/{presentationId}/slides', [\App\Http\Controllers\Api\PresentationController::class, 'storeSlide']);
         Route::put('slides/{id}', [\App\Http\Controllers\Api\PresentationController::class, 'updateSlide']);

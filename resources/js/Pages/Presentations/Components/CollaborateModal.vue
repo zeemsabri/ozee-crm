@@ -3,7 +3,7 @@
 </template>
 
 <script setup>
-import { ref, defineComponent, onMounted, computed } from 'vue';
+import { ref, defineComponent, onMounted, computed, watch } from 'vue';
 import BaseModal from '@/Pages/ClientDashboard/BaseModal.vue';
 import MultiSelectDropdown from '@/Components/MultiSelectDropdown.vue';
 import api from '@/Services/presentationsApi';
@@ -37,23 +37,30 @@ async function fetchUsers() {
 
 onMounted(() => {
   fetchUsers();
+  prefillFromProps();
 });
 
-const canSave = computed(() => !saving.value && selectedUserIds.value.length > 0);
+function prefillFromProps() {
+  const collabs = Array.isArray(props.presentation?.users) ? props.presentation.users : [];
+  selectedUserIds.value = collabs.map(u => u.id);
+}
+
+watch(() => props.presentation?.users, () => {
+  prefillFromProps();
+});
+
+// Allow save even when selectedUserIds is empty, to support removing everyone
+const canSave = computed(() => !saving.value);
 
 async function save() {
-  if (!canSave.value) return;
   try {
     saving.value = true;
-    // Invite each selected user sequentially to keep API simple and reuse existing endpoint
-    for (const uid of selectedUserIds.value) {
-      await api.invite(props.presentation.id, { user_id: uid, role: role.value });
-    }
-    success('Collaborators invited');
-    emit('updated');
+    const res = await api.syncCollaborators(props.presentation.id, selectedUserIds.value, role.value);
+    success('Collaborators updated');
+    emit('updated', res?.collaborators || []);
     emit('close');
   } catch (e) {
-    error('Failed to invite collaborators');
+    error('Failed to update collaborators');
   } finally {
     saving.value = false;
   }
@@ -86,7 +93,7 @@ const BodyComponent = defineComponent({
       <div class=\"flex justify-end gap-2\">
         <button @click="closeModal" class=\"px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm\">Cancel</button>
         <button :disabled="!canSave" @click="save" class=\"px-3 py-2 rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 text-sm disabled:opacity-50\">
-          {{ saving ? 'Saving...' : 'Invite' }}
+          {{ saving ? 'Saving...' : 'Save' }}
         </button>
       </div>
     </div>

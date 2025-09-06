@@ -46,10 +46,16 @@
                         <div class="p-5 flex-grow">
                             <div class="flex items-start justify-between">
                                 <span class="inline-block px-2.5 py-1 text-xs font-semibold rounded-full mb-3 bg-blue-100 text-blue-600">{{ p.type }}</span>
-                                <div class="relative group" @mouseenter="openDropdown(p.id)" @mouseleave="closeDropdown(p.id)">
-                                    <button class="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" /></svg>
+                                <div class="flex items-center gap-2">
+                                    <button @click.stop="openCollaborators(p)" class="relative h-8 w-8 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700" title="Collaborators">
+                                        <!-- Users icon -->
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 12a4 4 0 100-8 4 4 0 000 8z"/><path fill-rule="evenodd" d="M2 20a8 8 0 1116 0v1H2v-1z" clip-rule="evenodd"/></svg>
+                                        <span class="absolute -top-1 -right-1 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white bg-indigo-600 rounded-full" aria-label="Collaborators count">{{ p.users_count ?? 0 }}</span>
                                     </button>
+                                    <div class="relative group" @mouseenter="openDropdown(p.id)" @mouseleave="closeDropdown(p.id)">
+                                        <button class="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" /></svg>
+                                        </button>
                                     <!-- Dropdown Menu for actions -->
                                     <div
                                         v-show="activeDropdownId === p.id"
@@ -62,6 +68,7 @@
                                         <a @click="beginRename(p)" class="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer">Rename</a>
                                         <div class="my-1 h-px bg-slate-100"></div>
                                         <a @click="destroy(p.id)" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer">Delete</a>
+                                    </div>
                                     </div>
                                 </div>
                             </div>
@@ -95,6 +102,7 @@
             <TemplateBrowser v-if="showTemplateBrowser" @close="showTemplateBrowser=false" @selected="onTemplateSelected" />
             <PresentationForm v-if="showCreate" :template-id="selectedTemplateId" :source-slide-ids="pendingSourceSlideIds" @close="showCreate = false" @created="onCreated" />
             <SlideSummaryModal v-if="showSlides" :presentation-id="activePresentationId" @close="showSlides=false" @created="onModalCreated" @copied="onSlidesCopied" />
+            <CollaborateModal v-if="showCollaborate" :show="showCollaborate" :presentation="activePresentation" @close="showCollaborate=false" @updated="onCollaboratorsUpdated" />
         </div>
     </AuthenticatedLayout>
 </template>
@@ -108,6 +116,7 @@ import PresentationForm from './PresentationForm.vue';
 import CreationChoiceModal from './CreationChoiceModal.vue';
 import TemplateBrowser from './TemplateBrowser.vue';
 import SlideSummaryModal from './SlideSummaryModal.vue';
+import CollaborateModal from '@/Pages/Presentations/Components/CollaborateModal.vue';
 import api from '@/Services/presentationsApi';
 
 const presentations = ref([]);
@@ -116,7 +125,9 @@ const showCreate = ref(false);
 const showChoice = ref(false);
 const showTemplateBrowser = ref(false);
 const showSlides = ref(false);
+const showCollaborate = ref(false);
 const activePresentationId = ref(null);
+const activePresentation = ref(null);
 const selectedTemplateId = ref(null);
 const pendingSourceSlideIds = ref([]);
 const search = ref('');
@@ -179,6 +190,17 @@ function onTemplateSelected(tpl) {
     selectedTemplateId.value = tpl?.id || null;
     pendingSourceSlideIds.value = [];
     showCreate.value = true;
+}
+
+async function openCollaborators(p) {
+    try {
+        // Fetch full presentation with users for prefill
+        const full = await api.get(p.id);
+        activePresentation.value = full;
+        showCollaborate.value = true;
+    } catch (e) {
+        error('Failed to load collaborators');
+    }
 }
 
 function openSummaryModal(id) {
@@ -279,5 +301,19 @@ function onModalCreated(payload) {
 
 function onSlidesCopied() {
     showSlides.value = false;
+}
+
+function onCollaboratorsUpdated(collaborators) {
+    // Update badge count on the active item
+    try {
+        const id = activePresentation.value?.id;
+        const idx = presentations.value.findIndex(x => x.id === id);
+        if (idx !== -1) {
+            const count = Array.isArray(collaborators) ? collaborators.length : 0;
+            // Laravel withCount exposes users_count
+            presentations.value[idx].users_count = count;
+        }
+    } catch {}
+    showCollaborate.value = false;
 }
 </script>
