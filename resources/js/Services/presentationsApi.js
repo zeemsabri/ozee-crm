@@ -63,4 +63,7 @@ export default {
   invite(id, payload) {
     return http.post(`${base}/presentations/${id}/invite`, payload).then(r => r.data);
   },
+  syncCollaborators(id, userIds, role = 'editor') {
+    return http.post(`${base}/presentations/${id}/collaborators`, { user_ids: userIds, role }).then(r => r.data);
+  },
 };

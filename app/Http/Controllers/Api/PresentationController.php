@@ -49,7 +49,8 @@ class PresentationController extends Controller
         $user = \Illuminate\Support\Facades\Auth::user();
 
         $query = Presentation::query()
-            ->where('is_template', false);
+            ->where('is_template', false)
+            ->withCount('users');
 
         // If user has broad permission, return all
         if ($user && $user->hasPermission('create_presentation')) {
@@ -152,6 +153,7 @@ class PresentationController extends Controller
         $presentation = Presentation::with([
             'presentable',
             'metadata',
+            'users:id,name,email',
             'slides' => function ($q) {
                 $q->orderBy('display_order')
                   ->with(['contentBlocks' => function ($qq) { $qq->orderBy('display_order'); }]);
