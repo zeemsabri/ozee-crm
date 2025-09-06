@@ -28,7 +28,7 @@ class EmailObserver
 
                 // Send notification to each user
                 foreach ($usersToNotify as $userToNotify) {
-                    $userToNotify->notify(new EmailApprovalRequired($email));
+//                    $userToNotify->notify(new EmailApprovalRequired($email));
                 }
             }
         }

@@ -93,28 +93,40 @@ class EmailAiAnalysisService
 
     /**
      * Builds the detailed system prompt to instruct the AI.
+     * This version is more objective to prevent false positives.
      *
      * @param bool $isIncoming
      * @return string
      */
     private function buildSystemPrompt(bool $isIncoming): string
     {
-        $companyDomain = config('services.gemini.company_domain', 'ozeeweb.com.au');
+        $companyDomain = config('services.gemini.company_domain', 'yourcompany.com');
 
-        $prompt = "You are an intelligent CRM assistant. Your task is to analyze an email and return a single JSON object with three keys: `approval_required` (boolean), `reason` (string), and `context_summary` (string).\n\n";
+        // --- NEW MISSION STATEMENT ---
+        // This is the most important change. We tell the AI its primary goal is to APPROVE emails
+        // unless a clear violation is found.
+        $prompt = "You are a CRM compliance assistant. Your primary goal is to auto-approve routine, professional business communications. You must only flag an email for manual review if it contains a clear, objective violation. Return a single JSON object with three keys: `approval_required` (boolean), `reason` (string), and `context_summary` (string).\n\n";
 
         $prompt .= "---\n\n";
 
         $prompt .= "**Rules for `approval_required` and `reason`:**\n";
-        $prompt .= "1. Set `approval_required` to `true` if the email is vague, unprofessional, or contains personal contact details (phone numbers, non-company emails like @gmail.com) in the new message area. Ignore contact details from our own domain `{$companyDomain}` in quoted replies.\n";
+
+        // --- REFINED RULES ---
+        // We replaced subjective terms with objective ones.
+        $prompt .= "1. **FLAG** if the email contains personal contact details (phone numbers, non-company emails like @gmail.com). Ignore contact details from `{$companyDomain}` in quoted replies.\n";
+        $prompt .= "2. **FLAG** if the email contains rude, offensive, or overly casual language (e.g., slang, insults).\n";
+        $prompt .= "3. **FLAG** if the email's primary purpose or call to action is impossible to understand.\n";
         if ($isIncoming) {
-            $prompt .= "2. For incoming emails, ALSO set `approval_required` to `true` if it contains sensitive financial terms like 'price', 'quote', '$', 'invoice', 'payment'.\n";
+            $prompt .= "4. **FLAG** if an INCOMING email contains sensitive financial terms ('price', 'quote', '$', 'invoice', 'payment').\n";
         }
-        $prompt .= "3. The `reason` must be a one-line explanation for your decision. If no approval is needed, state that the email is clear and compliant.\n";
+        $prompt .= "\n**Crucially, DO NOT FLAG standard business communications.** An email that is a clear project update, a meeting confirmation, or a simple follow-up should always be approved.\n";
+        $prompt .= "5. If no violations are found, set `approval_required` to `false` and provide a positive reason.\n";
+
 
         $prompt .= "\n---\n\n";
 
         $prompt .= "**Rules for `context_summary`:**\n";
+        // ... (The context summary rules remain the same as before)
         $prompt .= "1. The `context_summary` must be a concise, one-sentence summary of the key action, question, or event in the email.\n";
 
         if ($isIncoming) {

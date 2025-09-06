@@ -99,7 +99,7 @@ class InboxController extends Controller
         // Apply filters based on request parameters
         if ($request->has('type') && !empty($request->type)) {
             if ($request->type === 'new') {
-                $query->whereIn('status', ['pending_approval', 'pending_approval_received', 'received', 'sent'])
+                $query->whereIn('status', ['pending_approval', 'pending_approval_received', 'received', 'sent', 'draft'])
                     ->whereNotExists(function ($subQuery) use ($user) {
                         $subQuery->select(DB::raw(1))
                             ->from('user_interactions')
