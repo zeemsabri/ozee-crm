@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Http\Controllers\Api\Concerns\HandlesTemplatedEmails;
+use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Models\Email;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
@@ -11,11 +12,12 @@ use Throwable;
 class EmailProcessingService
 {
     // We can use the trait here to access its rendering methods without being a controller.
-    use HandlesTemplatedEmails;
+    use HandlesTemplatedEmails, HasProjectPermissions;
 
     public function __construct(
         protected EmailAiAnalysisService $aiAnalysisService,
-        protected GmailService $gmailService
+        protected GmailService $gmailService,
+        protected MagicLinkService $magicLinkService
     ) {
     }
 
