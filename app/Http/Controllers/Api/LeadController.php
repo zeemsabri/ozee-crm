@@ -112,18 +112,30 @@ class LeadController extends Controller
         $status = $request->string('status')->toString();
         $source = $request->string('source')->toString();
         $assignedTo = $request->input('assigned_to_id');
+        $campaignIdsParam = $request->input('campaign_ids');
         $perPage = (int)($request->input('per_page', 15));
         $perPage = $perPage > 0 && $perPage <= 100 ? $perPage : 15;
 
+        // Parse campaign_ids as CSV or array
+        $campaignIds = [];
+        if (is_string($campaignIdsParam) && trim($campaignIdsParam) !== '') {
+            $campaignIds = array_filter(array_map('intval', explode(',', $campaignIdsParam)));
+        } elseif (is_array($campaignIdsParam)) {
+            $campaignIds = array_filter(array_map('intval', $campaignIdsParam));
+        }
+
         $query = Lead::query()
-            ->with(['assignedTo:id,name,email'])
+            ->with(['assignedTo:id,name,email', 'campaign:id,name', 'latestContext:id,summary,linkable_id'])
             ->search($q)
             ->status($status)
             ->source($source)
             ->assignedTo($assignedTo)
+            ->campaigns($campaignIds)
             ->orderByDesc('id');
 
-        return $query->paginate($perPage);
+        return $query->paginate($perPage)
+            ->withPath(url('/api/leads'))
+            ->withQueryString();
     }
 
     /**
@@ -273,29 +285,20 @@ class LeadController extends Controller
      */
     public function search(Request $request)
     {
+
         $user = Auth::user();
         if (!$user || !$user->hasPermission('manage_projects')) { // Or a more general "view_leads" permission
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $query = $request->input('q', '');
-
-        if (strlen($query) < 2) {
+        $q = (string) $request->input('q', '');
+        if (mb_strlen($q) < 2) {
             return response()->json([]);
         }
 
-        // Search for leads not already in ANY campaign to avoid confusion
-        $leads = Lead::query()
-            ->whereNull('campaign_id')
-            ->where(function ($q) use ($query) {
-                $q->where('first_name', 'like', "%{$query}%")
-                    ->orWhere('last_name', 'like', "%{$query}%")
-                    ->orWhere('email', 'like', "%{$query}%")
-                    ->orWhere('company', 'like', "%{$query}%");
-            })
-            // Use the existing search scope from your Lead model for consistency
-            // ->search($query)
+        $leads = Lead::search($q)
             ->select('id', 'first_name', 'last_name', 'email')
+            ->orderByDesc('id')
             ->limit(10)
             ->get();
 

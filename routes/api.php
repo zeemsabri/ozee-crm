@@ -136,6 +136,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Client Management Routes (CRUD)
     Route::apiResource('clients', ClientController::class)->names('api.clients');
+    Route::get('/leads/search', [LeadController::class, 'search']);
     Route::apiResource('leads', LeadController::class)->names('api.leads');
     Route::get('leads/{lead}/emails', [LeadController::class, 'emails']);
 
@@ -144,7 +145,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/campaigns/{campaign}/leads', [CampaignController::class, 'leads']);
     Route::post('/campaigns/{campaign}/leads', [CampaignController::class, 'attachLead']);
     Route::delete('/campaigns/{campaign}/leads/{lead}', [CampaignController::class, 'detachLead']);
-    Route::get('/leads/search', [LeadController::class, 'search']);
     Route::get('leads/{lead}/presentations', [LeadController::class, 'presentations']);
     Route::post('leads/{lead}/convert', [LeadController::class, 'convert']);
     Route::get('clients/{client}/email', [ClientController::class, 'getEmail']);
