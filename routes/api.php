@@ -52,6 +52,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\ProjectNoteController;
+use App\Http\Controllers\Api\CampaignController;
 
 
 Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
@@ -137,6 +138,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('clients', ClientController::class)->names('api.clients');
     Route::apiResource('leads', LeadController::class)->names('api.leads');
     Route::get('leads/{lead}/emails', [LeadController::class, 'emails']);
+
+    // Campaigns
+    Route::apiResource('campaigns', CampaignController::class);
+    Route::get('/campaigns/{campaign}/leads', [CampaignController::class, 'leads']);
+    Route::post('/campaigns/{campaign}/leads', [CampaignController::class, 'attachLead']);
+    Route::delete('/campaigns/{campaign}/leads/{lead}', [CampaignController::class, 'detachLead']);
+    Route::get('/leads/search', [LeadController::class, 'search']);
     Route::get('leads/{lead}/presentations', [LeadController::class, 'presentations']);
     Route::post('leads/{lead}/convert', [LeadController::class, 'convert']);
     Route::get('clients/{client}/email', [ClientController::class, 'getEmail']);

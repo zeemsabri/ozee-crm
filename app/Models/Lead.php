@@ -23,6 +23,7 @@ class Lead extends Model
         'currency',
         'assigned_to_id',
         'created_by_id',
+        'campaign_id',
         'contacted_at',
         'converted_at',
         'lost_reason',
@@ -35,13 +36,17 @@ class Lead extends Model
         'tags',
         'notes',
         'metadata',
+        'next_follow_up_date',
+        'email_thread_history',
     ];
 
     protected $casts = [
         'estimated_value' => 'decimal:2',
         'contacted_at' => 'datetime',
         'converted_at' => 'datetime',
+        'next_follow_up_date' => 'datetime',
         'metadata' => 'array',
+        'email_thread_history' => 'array',
     ];
 
     protected $appends = [
@@ -57,6 +62,11 @@ class Lead extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by_id');
+    }
+
+    public function campaign()
+    {
+        return $this->belongsTo(Campaign::class);
     }
 
     public function presentations()

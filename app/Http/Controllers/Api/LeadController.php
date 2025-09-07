@@ -151,6 +151,7 @@ class LeadController extends Controller
                 'estimated_value' => 'nullable|numeric|min:0',
                 'currency' => 'nullable|string|size:3',
                 'assigned_to_id' => 'nullable|exists:users,id',
+                'campaign_id' => 'nullable|exists:campaigns,id',
                 'contacted_at' => 'nullable|date',
                 'converted_at' => 'nullable|date',
                 'lost_reason' => 'nullable|string|max:500',
@@ -219,6 +220,7 @@ class LeadController extends Controller
                 'estimated_value' => 'nullable|numeric|min:0',
                 'currency' => 'nullable|string|size:3',
                 'assigned_to_id' => 'nullable|exists:users,id',
+                'campaign_id' => 'nullable|exists:campaigns,id',
                 'contacted_at' => 'nullable|date',
                 'converted_at' => 'nullable|date',
                 'lost_reason' => 'nullable|string|max:500',
@@ -264,5 +266,39 @@ class LeadController extends Controller
             Log::error('Error deleting lead: ' . $e->getMessage(), ['lead_id' => $lead->id]);
             return response()->json(['message' => 'Failed to delete lead'], 500);
         }
+    }
+
+    /**
+     * Search for leads, typically for attaching to a campaign.
+     */
+    public function search(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->hasPermission('manage_projects')) { // Or a more general "view_leads" permission
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $query = $request->input('q', '');
+
+        if (strlen($query) < 2) {
+            return response()->json([]);
+        }
+
+        // Search for leads not already in ANY campaign to avoid confusion
+        $leads = Lead::query()
+            ->whereNull('campaign_id')
+            ->where(function ($q) use ($query) {
+                $q->where('first_name', 'like', "%{$query}%")
+                    ->orWhere('last_name', 'like', "%{$query}%")
+                    ->orWhere('email', 'like', "%{$query}%")
+                    ->orWhere('company', 'like', "%{$query}%");
+            })
+            // Use the existing search scope from your Lead model for consistency
+            // ->search($query)
+            ->select('id', 'first_name', 'last_name', 'email')
+            ->limit(10)
+            ->get();
+
+        return response()->json($leads);
     }
 }
