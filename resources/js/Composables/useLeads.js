@@ -18,7 +18,8 @@ export function useLeads() {
     q: '',
     status: '',
     source: '',
-    assigned_to_id: ''
+    assigned_to_id: '',
+    campaign_ids: []
   });
 
   // Users (for assignment)
@@ -47,6 +48,7 @@ export function useLeads() {
       if (filters.status) params.status = filters.status;
       if (filters.source) params.source = filters.source;
       if (filters.assigned_to_id) params.assigned_to_id = filters.assigned_to_id;
+      if (filters.campaign_ids && filters.campaign_ids.length) params.campaign_ids = filters.campaign_ids.join(',');
 
       const { data } = await axios.get('/api/leads', { params });
 
@@ -84,6 +86,7 @@ export function useLeads() {
     filters.status = '';
     filters.source = '';
     filters.assigned_to_id = '';
+    filters.campaign_ids = [];
     currentPage.value = 1;
     await fetchLeads();
   };

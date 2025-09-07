@@ -127,4 +127,29 @@ class Lead extends Model
     {
         return $this->morphMany(Context::class, 'linkable');
     }
+
+    /**
+     * Latest context summary for quick display.
+     */
+    public function latestContext()
+    {
+        return $this->morphOne(Context::class, 'linkable')->latestOfMany();
+    }
+
+    /**
+     * Filter by campaign IDs (primary or additional in metadata.additional_campaign_ids).
+     */
+    public function scopeCampaigns($query, $ids)
+    {
+        if (empty($ids)) {
+            return $query;
+        }
+        $ids = is_array($ids) ? array_values(array_unique(array_map('intval', $ids))) : [(int)$ids];
+        return $query->where(function ($q) use ($ids) {
+            $q->whereIn('campaign_id', $ids);
+            foreach ($ids as $cid) {
+                $q->orWhereJsonContains('metadata->additional_campaign_ids', $cid);
+            }
+        });
+    }
 }

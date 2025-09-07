@@ -39,7 +39,9 @@ class CampaignController extends Controller
             $query->where('is_active', (bool)$isActive);
         }
 
-        return $query->paginate($perPage);
+        return $query->paginate($perPage)
+            ->withPath(url('/api/campaigns'))
+            ->withQueryString();
     }
 
     /**
@@ -157,7 +159,9 @@ class CampaignController extends Controller
 
         $perPage = (int)($request->input('per_page', 15));
         $perPage = $perPage > 0 && $perPage <= 100 ? $perPage : 15;
-        return $campaign->leads()->orderByDesc('id')->paginate($perPage);
+        return $campaign->leads()->orderByDesc('id')->paginate($perPage)
+            ->withPath(url("/api/campaigns/{$campaign->id}/leads"))
+            ->withQueryString();
     }
 
     /**

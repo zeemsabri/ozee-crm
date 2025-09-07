@@ -7,13 +7,17 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import axios from 'axios';
 
 const props = defineProps({
-    campaign: {
-        type: Object,
+    id: {
+        type: Number,
         default: null,
+    },
+    mode: {
+        type: String,
+        default: 'create',
     },
 });
 
-const isEditing = computed(() => !!props.campaign);
+const isEditing = computed(() => props.mode === 'edit' || !!props.id);
 
 const form = useForm({
     name: '',
@@ -39,36 +43,62 @@ const removeService = (index) => {
 };
 
 
+const loading = ref(false);
+const loadError = ref('');
+
+const loadCampaign = async () => {
+    if (!props.id) return;
+    loading.value = true;
+    loadError.value = '';
+    try {
+        const { data } = await axios.get(`/api/campaigns/${props.id}`);
+        form.name = data.name || '';
+        form.target_audience = data.target_audience || '';
+        form.services_offered = Array.isArray(data.services_offered) ? data.services_offered : [];
+        form.goal = data.goal || '';
+        form.ai_persona = data.ai_persona || '';
+        form.email_template = data.email_template || '';
+        form.is_active = !!data.is_active;
+    } catch (e) {
+        console.error('Failed to load campaign', e);
+        loadError.value = 'Failed to load campaign';
+    } finally {
+        loading.value = false;
+    }
+};
+
 onMounted(() => {
     if (isEditing.value) {
-        form.name = props.campaign.name;
-        form.target_audience = props.campaign.target_audience;
-        form.services_offered = props.campaign.services_offered || [];
-        form.goal = props.campaign.goal;
-        form.ai_persona = props.campaign.ai_persona;
-        form.email_template = props.campaign.email_template;
-        form.is_active = props.campaign.is_active;
+        loadCampaign();
     }
 });
 
-const submit = () => {
-    const url = isEditing.value ? `/api/campaigns/${props.campaign.id}` : '/api/campaigns';
+const submit = async () => {
+    const url = isEditing.value ? `/api/campaigns/${props.id}` : '/api/campaigns';
     const method = isEditing.value ? 'put' : 'post';
-
-    form.transform(data => ({
-        ...data,
-        services_offered: data.services_offered.length > 0 ? data.services_offered : null,
-    }))[method](url, {
-        onSuccess: () => {
-            if (!isEditing.value) {
-                // Redirect to the campaign list or the new edit page
-                window.location.href = '/campaigns';
-            }
-        },
-        onError: (errors) => {
-            console.error("Form submission error:", errors);
+    form.processing = true;
+    try {
+        const payload = {
+            name: form.name,
+            target_audience: form.target_audience || null,
+            services_offered: Array.isArray(form.services_offered) && form.services_offered.length ? form.services_offered : null,
+            goal: form.goal || null,
+            ai_persona: form.ai_persona || null,
+            email_template: form.email_template || null,
+            is_active: !!form.is_active,
+        };
+        if (method === 'post') {
+            await axios.post(url, payload);
+            window.location.href = '/campaigns';
+        } else {
+            await axios.put(url, payload);
         }
-    });
+    } catch (e) {
+        console.error('Form submission error:', e);
+        alert('Failed to save campaign');
+    } finally {
+        form.processing = false;
+    }
 };
 
 // --- Lead Management ---
@@ -82,7 +112,7 @@ const fetchLeads = async () => {
     if (!isEditing.value) return;
     leadsLoading.value = true;
     try {
-        const response = await axios.get(`/api/campaigns/${props.campaign.id}/leads`);
+        const response = await axios.get(`/api/campaigns/${props.id}/leads`);
         leads.value = response.data.data || [];
     } catch (error) {
         console.error("Failed to fetch leads:", error);
@@ -113,7 +143,7 @@ const searchLeads = async () => {
 
 const attachLead = async (leadId) => {
     try {
-        await axios.post(`/api/campaigns/${props.campaign.id}/leads`, { lead_id: leadId });
+        await axios.post(`/api/campaigns/${props.id}/leads`, { lead_id: leadId });
         leadSearchQuery.value = '';
         searchResults.value = [];
         await fetchLeads(); // Refresh the list
@@ -125,7 +155,7 @@ const attachLead = async (leadId) => {
 
 const detachLead = async (leadId) => {
     try {
-        await axios.delete(`/api/campaigns/${props.campaign.id}/leads/${leadId}`);
+        await axios.delete(`/api/campaigns/${props.id}/leads/${leadId}`);
         await fetchLeads(); // Refresh the list
     } catch (error) {
         console.error("Failed to detach lead:", error);
