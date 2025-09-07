@@ -2,6 +2,11 @@
     <div class="bg-slate-100 font-montserrat min-h-screen flex items-center justify-center">
         <!-- The main container -->
         <div class="embed-container">
+                    <!-- Loader Overlay -->
+                    <div v-if="showLoader" id="loader-overlay" class="fixed inset-0 flex flex-col items-center justify-center bg-white z-50">
+                        <div class="animate-spin rounded-full h-16 w-16 border-4 border-oz-blue border-t-transparent mb-4"></div>
+                        <div id="loader-text" class="text-sm text-dark-grey">Crafting your report… {{ loadPercent }}%</div>
+                    </div>
             <!-- Navigation Buttons -->
             <button v-show="!showFormModal && currentSlideIndex > 0" @click="goToPrevSlide" id="prev-button" class="nav-btn bg-oz-blue" aria-label="Previous slide">
                 <i class="fa-solid fa-chevron-left text-white text-2xl"></i>
@@ -122,6 +127,10 @@ const { presentation, form } = toRefs(props);
 const currentSlideIndex = ref(0);
 const showFormModal = ref(false);
 
+// Loader state inspired by fannit.html
+const showLoader = ref(true);
+const loadPercent = ref(0);
+
 // Fallback form schema (mirrors config/forms.php contact_form)
 const fallbackForm = {
     title: 'Get in Touch',
@@ -214,6 +223,26 @@ function submitForm() {
 }
 
 onMounted(() => {
+    // Preload images within slides to mirror fannit.html loading overlay
+    try {
+        const imgs = Array.from(document.querySelectorAll('.slide img'));
+        const total = imgs.length || 1;
+        let loaded = 0;
+        const update = () => { loadPercent.value = Math.min(100, Math.round((loaded / total) * 100)); };
+        const finish = () => { showLoader.value = false; };
+        if (imgs.length === 0) {
+            finish();
+        } else {
+            imgs.forEach(img => {
+                if (img.complete) { loaded++; update(); return; }
+                const onDone = () => { loaded++; update(); if (loaded >= total) finish(); };
+                img.addEventListener('load', onDone, { once: true });
+                img.addEventListener('error', onDone, { once: true });
+            });
+            setTimeout(finish, 8000);
+            if (loaded >= total) finish(); else update();
+        }
+    } catch (e) { showLoader.value = false; }
     const faScript = document.createElement('script');
     faScript.src = "https://kit.fontawesome.com/6afed830a9.js";
     faScript.crossOrigin = "anonymous";
@@ -466,5 +495,6 @@ function renderBlock(block) {
 .form-input:focus { outline: none; border-color: #29438E; box-shadow: 0 0 0 3px rgba(41, 67, 142, 0.2); }
 .form-submit-btn { background-color: #F7A823; color: white; font-weight: bold; padding: 0.8rem 1rem; border-radius: 8px; transition: background-color 0.2s; margin-top: 1rem; }
 .form-submit-btn:hover { background-color: #f9b449; }
+#loader-overlay{position:absolute; top:0; left:0; right:0; bottom:0;}
 </style>
 
