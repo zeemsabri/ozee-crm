@@ -60,10 +60,6 @@ class TestController extends Controller
         $user = User::first();
         $lead = Lead::latest()->with('campaign')->first();
 
-        return [
-            'campaign_details' => $lead->campaign->toArray(),
-            'lead_details' => $lead->toArray()
-        ];
         $email = Email::latest()->first();
         $job = new ProcessDraftEmailJob($email);
         $job->handle(new EmailProcessingService($this->aiAnalysisService, $this->gmailService, $this->magicLinkService));
