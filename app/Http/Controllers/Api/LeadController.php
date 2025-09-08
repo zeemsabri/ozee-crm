@@ -149,6 +149,15 @@ class LeadController extends Controller
         }
 
         try {
+            // Normalize website to include scheme if missing so 'url' rule accepts bare domains
+            if ($request->filled('website')) {
+                $rawWebsite = trim((string) $request->input('website'));
+                if ($rawWebsite !== '' && !preg_match('#^[a-z][a-z0-9+.-]*://#i', $rawWebsite)) {
+                    $request->merge(['website' => 'https://' . $rawWebsite]);
+                } else {
+                    $request->merge(['website' => $rawWebsite]);
+                }
+            }
             $validated = $request->validate([
                 // Require at least one of first_name or last_name
                 'first_name' => 'nullable|required_without:last_name|string|max:255',
@@ -219,6 +228,15 @@ class LeadController extends Controller
         }
 
         try {
+            // Normalize website to include scheme if missing so 'url' rule accepts bare domains
+            if ($request->filled('website')) {
+                $rawWebsite = trim((string) $request->input('website'));
+                if ($rawWebsite !== '' && !preg_match('#^[a-z][a-z0-9+.-]*://#i', $rawWebsite)) {
+                    $request->merge(['website' => 'https://' . $rawWebsite]);
+                } else {
+                    $request->merge(['website' => $rawWebsite]);
+                }
+            }
             $validated = $request->validate([
                 'first_name' => 'nullable|string|max:255',
                 'last_name' => 'nullable|string|max:255',
