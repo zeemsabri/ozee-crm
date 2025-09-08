@@ -9,6 +9,13 @@ class Lead extends Model
 {
     use HasFactory, SoftDeletes;
 
+    const STATUS_OUTREACH_SENT = 'outreach_sent';
+    const STATUS_GENERATION_FAILED = 'generation_failed';
+
+    const STATUS_NEW = 'new';
+
+    const STATUS_PROCESSING = 'processing';
+
     protected $fillable = [
         'first_name',
         'last_name',
@@ -62,6 +69,11 @@ class Lead extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by_id');
+    }
+
+    public function conversations()
+    {
+        return $this->morphMany(Conversation::class, 'conversable');
     }
 
     public function campaign()

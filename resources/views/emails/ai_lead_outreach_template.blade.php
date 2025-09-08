@@ -25,21 +25,21 @@
 <body>
 <div class="email-container">
     <div class="header">
-        <h1>{{ $subject }}</h1>
+        <h1>{{ $emailData['subject'] ?? 'Important Update' }}</h1>
     </div>
     <div class="content-body">
         {{-- Data from AI response will populate this section --}}
-        <p>{{ $ai_content['greeting'] ?? 'Hi there,' }}</p>
+        <p>{{ $bodyContent->greeting ?? 'Hi there,' }}</p>
 
-        @if(isset($ai_content['paragraphs']) && is_array($ai_content['paragraphs']))
-            @foreach($ai_content['paragraphs'] as $paragraph)
+        @if(isset($bodyContent->paragraphs) && is_array($bodyContent->paragraphs))
+            @foreach($bodyContent->paragraphs as $paragraph)
                 <p>{!! nl2br(e($paragraph)) !!}</p>
             @endforeach
         @endif
 
-        @if(isset($ai_content['call_to_action']['text']) && isset($ai_content['call_to_action']['link']))
-            <a href="{{ $ai_content['call_to_action']['link'] }}" class="cta-button">
-                {{ $ai_content['call_to_action']['text'] }}
+        @if(isset($bodyContent->call_to_action?->text) && isset($bodyContent->call_to_action?->link))
+            <a href="{{ $bodyContent['call_to_action']['link'] }}" class="cta-button">
+                {{ $bodyContent['call_to_action']['text'] }}
             </a>
         @endif
 
