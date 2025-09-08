@@ -4,6 +4,7 @@ import TextInput from '@/Components/TextInput.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import MultiSelectDropdown from '@/Components/MultiSelectDropdown.vue';
 import { computed, ref, onMounted } from 'vue';
 
 const props = defineProps({
@@ -70,9 +71,12 @@ onMounted(async () => {
     </div>
     <div>
       <InputLabel for="campaigns" value="Campaigns" />
-      <select id="campaigns" class="mt-1 block w-full border-gray-300 rounded-md" multiple v-model="props.filters.campaign_ids">
-        <option v-for="opt in campaignOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-      </select>
+      <MultiSelectDropdown
+        :options="campaignOptions"
+        v-model="props.filters.campaign_ids"
+        :isMulti="true"
+        placeholder="All"
+      />
       <p class="text-xs text-gray-500 mt-1" v-if="loadingCampaigns">Loading campaigns…</p>
     </div>
     <div class="flex items-end gap-2">

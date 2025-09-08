@@ -308,7 +308,7 @@ trait HandlesTemplatedEmails
             'emailData' => [
                 'subject' => $subject,
             ],
-            'bodyContent' => $body,
+            'bodyContent' => json_decode($body) ? json_decode($body) : $body,
             'senderName' => $senderDetails['name'],
             'senderRole' => $senderDetails['role'],
             'senderPhone' => $config['company']['phone'],

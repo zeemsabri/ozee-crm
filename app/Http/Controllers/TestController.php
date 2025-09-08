@@ -2,18 +2,30 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProcessDraftEmailJob;
 use App\Models\Email;
+use App\Models\Lead;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\Project;
 use App\Notifications\EmailApprovalRequired;
 use App\Notifications\EmailApproved;
 use App\Notifications\TaskAssigned;
+use App\Services\EmailAiAnalysisService;
+use App\Services\EmailProcessingService;
+use App\Services\GmailService;
+use App\Services\MagicLinkService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class TestController extends Controller
 {
+    public function __construct(protected EmailAiAnalysisService $aiAnalysisService,
+                                protected GmailService $gmailService,
+                                protected MagicLinkService $magicLinkService)
+    {
+    }
+
     /**
      * Test the User model's project role functionality
      */
@@ -46,13 +58,17 @@ class TestController extends Controller
     public function playGourd(Request $request)
     {
         $user = User::first();
-        $email = Email::first();
+        $lead = Lead::latest()->with('campaign')->first();
 
+        return [
+            'campaign_details' => $lead->campaign->toArray(),
+            'lead_details' => $lead->toArray()
+        ];
+        $email = Email::latest()->first();
+        $job = new ProcessDraftEmailJob($email);
+        $job->handle(new EmailProcessingService($this->aiAnalysisService, $this->gmailService, $this->magicLinkService));
 //        $email->status = 'pending_approval';
 //        $email->save();
-
-        $email->status = 'approved';
-        $email->save();
 
 //        if($request->notify === 'approval') {
 //            $user->notify(new EmailApprovalRequired($email));

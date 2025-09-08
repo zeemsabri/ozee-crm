@@ -7,6 +7,7 @@ import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import MultiSelectDropdown from '@/Components/MultiSelectDropdown.vue';
 import { useLeads } from '@/Composables/useLeads.js';
 
 const props = defineProps({
@@ -358,10 +359,12 @@ const onSave = async () => {
           </div>
           <div>
             <InputLabel value="Additional Campaigns" />
-            <select class="mt-1 block w-full border-gray-300 rounded-md" multiple v-model="extraCampaignIds">
-              <option v-for="opt in campaignOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-            </select>
-            <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple.</p>
+            <MultiSelectDropdown
+              :options="campaignOptions"
+              v-model="extraCampaignIds"
+              :isMulti="true"
+              placeholder="None"
+            />
           </div>
         </div>
       </div>

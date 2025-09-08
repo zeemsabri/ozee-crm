@@ -125,7 +125,7 @@ class LeadController extends Controller
         }
 
         $query = Lead::query()
-            ->with(['assignedTo:id,name,email', 'campaign:id,name', 'latestContext:id,summary,linkable_id'])
+            ->with(['assignedTo:id,name,email', 'campaign:id,name', 'latestContext'])
             ->search($q)
             ->status($status)
             ->source($source)
