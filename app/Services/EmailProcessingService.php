@@ -108,7 +108,7 @@ class EmailProcessingService
     public function createContextForEmail(Email $email, array $aiResponse): void
     {
 
-        if(ISSET($apiResponse['approval_required']) && $apiResponse['approval_required'] === false){
+        if(isset($aiResponse['approval_required']) && $aiResponse['approval_required'] === false){
             $email->update(['status' => Email::STATUS_APPROVED]);
         }
 
