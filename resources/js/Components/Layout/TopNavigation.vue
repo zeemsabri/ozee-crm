@@ -136,14 +136,11 @@ onMounted(async () => {
                         <NavLink :href="route('workspace.index')" :active="route().current('workspace.index')">
                             My Workspace
                         </NavLink>
-                        <NavLink :href="route('presentations.index')" :active="route().current('presentations.index')">
-                            Presentation
-                        </NavLink>
+
                         <BonusDropdown />
-                        <NavLink v-if="canDo('add_expendables').value" :href="route('project-expendables.index')">
-                            Project Expendables
-                        </NavLink>
+
                         <AdminDropdown v-if="canManageRoles" />
+
                     </div>
 
                     <div class="flex items-center space-x-2 flex-shrink-0">

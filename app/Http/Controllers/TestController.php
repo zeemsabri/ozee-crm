@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateLeadFollowUpJob;
 use App\Jobs\ProcessDraftEmailJob;
 use App\Models\Email;
 use App\Models\Lead;
@@ -60,9 +61,12 @@ class TestController extends Controller
         $user = User::first();
         $lead = Lead::latest()->with('campaign')->first();
 
-        $email = Email::latest()->first();
-        $job = new ProcessDraftEmailJob($email);
-        $job->handle(new EmailProcessingService($this->aiAnalysisService, $this->gmailService, $this->magicLinkService));
+        $job = new GenerateLeadFollowUpJob($lead, $lead->campaign);
+        return $job->handle();
+
+//        $email = Email::latest()->first();
+//        $job = new ProcessDraftEmailJob($email);
+//        $job->handle(new EmailProcessingService($this->aiAnalysisService, $this->gmailService, $this->magicLinkService));
 //        $email->status = 'pending_approval';
 //        $email->save();
 

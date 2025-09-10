@@ -29,8 +29,15 @@ class Campaign extends Model
         return $this->hasMany(Lead::class);
     }
 
+    public function shareableResources()
+    {
+        return $this->belongsToMany(ShareableResource::class, 'campaign_shareable_resource')
+            ->withTimestamps();
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
     }
+
 }

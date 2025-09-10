@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
+use App\Models\Campaign;
+use App\Models\Context;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -214,7 +216,36 @@ class LeadController extends Controller
         if (!$user || !$user->hasPermission('manage_projects')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        return $lead->load('assignedTo:id,name,email');
+
+        // Eager load relations and contexts ordered by latest
+        $lead->load([
+            'assignedTo:id,name,email',
+            'campaign:id,name',
+            'latestContext',
+            'contexts' => function ($q) {
+                $q->with('user:id,name')->orderByDesc('id');
+            },
+        ]);
+
+        // Resolve additional campaigns from metadata.additional_campaign_ids
+        $additionalIds = [];
+        try {
+            $metadata = $lead->metadata ?? [];
+            if (is_array($metadata) && !empty($metadata['additional_campaign_ids']) && is_array($metadata['additional_campaign_ids'])) {
+                $additionalIds = array_values(array_unique(array_filter(array_map('intval', $metadata['additional_campaign_ids']))));
+            }
+        } catch (\Throwable $e) {
+            $additionalIds = [];
+        }
+        if (!empty($additionalIds)) {
+            $additional = Campaign::query()->whereIn('id', $additionalIds)->get(['id', 'name']);
+        } else {
+            $additional = collect();
+        }
+        // Attach as a dynamic attribute so it appears in JSON as additional_campaigns
+        $lead->setAttribute('additional_campaigns', $additional->values());
+
+        return $lead;
     }
 
     /**
@@ -321,5 +352,44 @@ class LeadController extends Controller
             ->get();
 
         return response()->json($leads);
+    }
+
+    /**
+     * Add a context to the given lead.
+     */
+    public function addContext(Request $request, Lead $lead)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->hasPermission('manage_projects')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'summary' => 'required|string|max:2000',
+            'meta_data' => 'nullable|array',
+        ]);
+
+        try {
+            $context = new Context([
+                'summary' => $validated['summary'],
+                'user_id' => $user->id,
+                'meta_data' => $validated['meta_data'] ?? null,
+            ]);
+            $context->linkable()->associate($lead);
+            $context->save();
+
+            // Return fresh contexts list (ordered) for convenience
+            $lead->load(['contexts' => function ($q) {
+                $q->with('user:id,name')->orderByDesc('id');
+            }]);
+
+            return response()->json([
+                'message' => 'Context added',
+                'contexts' => $lead->contexts,
+            ], 201);
+        } catch (\Throwable $e) {
+            Log::error('Failed to add lead context: '.$e->getMessage(), ['lead_id' => $lead->id]);
+            return response()->json(['message' => 'Failed to add context'], 500);
+        }
     }
 }

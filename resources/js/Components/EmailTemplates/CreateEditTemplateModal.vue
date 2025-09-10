@@ -37,7 +37,8 @@ const form = useForm({
     subject: '',
     body_html: '',
     description: '',
-    is_default: false
+    is_default: false,
+    is_private: false,
 });
 
 const subjectEditorRef = ref(null);
@@ -64,6 +65,7 @@ watch(() => props.show, (newValue) => {
         form.body_html = props.template.body_html;
         form.description = props.template.description;
         form.is_default = props.template.is_default;
+        form.is_private = props.template.is_private ?? false;
     } else if (newValue && !props.isEditing) {
         form.reset();
     }
@@ -167,12 +169,17 @@ const setActiveEditor = (editorRef) => {
                         ></textarea>
                         <InputError class="mt-2" :message="errors.description?.[0]" />
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4 space-y-2">
                         <label class="flex items-center">
                             <Checkbox name="is_default" v-model:checked="form.is_default" />
                             <span class="ml-2 text-sm text-gray-600">Is a system default template?</span>
                         </label>
                         <InputError class="mt-2" :message="errors.is_default?.[0]" />
+                        <label class="flex items-center">
+                            <Checkbox name="is_private" v-model:checked="form.is_private" />
+                            <span class="ml-2 text-sm text-gray-600">Private (visible only to users with permission)</span>
+                        </label>
+                        <InputError class="mt-2" :message="errors.is_private?.[0]" />
                     </div>
                 </div>
 

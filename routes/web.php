@@ -624,6 +624,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('ShareableResources/Index');
     })->name('shareable-resources.page')->middleware('permission:view_shareable_resources');
 
+    // Team Resources Page
+    Route::get('/team-resources', function () {
+        return Inertia::render('TeamResources/Index');
+    })->name('team-resources.page')->middleware('permission:view_shareable_resources');
+
     // --- NEW: Email Templates Web Routes ---
     Route::get('/email-templates', function () {
         return Inertia::render('EmailTemplates/Index');

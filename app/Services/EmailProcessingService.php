@@ -27,7 +27,7 @@ class EmailProcessingService
      */
     public function processDraftEmail(Email $email): void
     {
-//        try {
+        try {
 
             $body = json_decode($email->body);
             $isAiGenerated = is_null($email->template_id) && $body && ($body->greeting && isset($body->paragraphs));
@@ -67,15 +67,15 @@ class EmailProcessingService
                 $this->sendApprovedEmail($email, $subject, $bodyHtml);
                 Log::info('Email auto-approved and sent by AI.', ['email_id' => $email->id]);
             }
-//        } catch (Throwable $e) {
-//            // If any part of the process fails, ensure it goes to manual approval.
-//            $email->update(['status' => Email::STATUS_PENDING_APPROVAL]);
-//            Log::error('Error in EmailProcessingService.', [
-//                'email_id' => $email->id,
-//                'error' => $e->getMessage(),
-//                'trace' => $e->getTraceAsString(),
-//            ]);
-//        }
+        } catch (Throwable $e) {
+            // If any part of the process fails, ensure it goes to manual approval.
+            $email->update(['status' => Email::STATUS_PENDING_APPROVAL]);
+            Log::error('Error in EmailProcessingService.', [
+                'email_id' => $email->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+        }
     }
 
     protected function processEmailOutReach(Email $email): void

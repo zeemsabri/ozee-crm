@@ -112,6 +112,9 @@ const handleLogoutError = (error) => {
                 <ResponsiveNavLink v-if="canDo('view_shareable_resources')" :href="route('shareable-resources.page')" :active="route().current('shareable-resources.page')">
                     Shareable Resources
                 </ResponsiveNavLink>
+                <ResponsiveNavLink v-if="canDo('view_shareable_resources')" :href="route('team-resources.page')" :active="route().current('team-resources.page')">
+                    Team Resources
+                </ResponsiveNavLink>
             </div>
         </div>
 

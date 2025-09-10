@@ -36,6 +36,7 @@ const form = reactive({
     type: 'website',
     thumbnail_url: '',
     visible_to_client: true,
+    visibility: 'client',
     tags: [], // Array to hold tags from TagInput component
 });
 
@@ -62,6 +63,7 @@ const populateForm = () => {
         form.type = props.resource.type || 'website';
         form.thumbnail_url = props.resource.thumbnail_url || '';
         form.visible_to_client = props.resource.visible_to_client !== undefined ? props.resource.visible_to_client : true;
+        form.visibility = props.resource.is_private ? 'private' : (props.resource.visible_to_team ? 'team' : 'client');
         // Initialize tags v-model as array of IDs/new_* strings and pass full objects via initialTags prop
         const incomingTags = props.resource.tags || [];
         form.tags = Array.isArray(incomingTags) ? incomingTags.map(t => (typeof t === 'object' && t !== null ? t.id : t)).filter(v => v !== undefined && v !== null) : [];
@@ -94,7 +96,7 @@ const formatDataForApi = (data) => {
         url: data.url,
         type: data.type,
         thumbnail_url: data.thumbnail_url,
-        visible_to_client: data.visible_to_client,
+        visibility: data.visibility, // 'client' | 'team' | 'private'
         // Provide both keys to be safe across controllers/middleware
         tags: tagIds,
         tag_ids: tagIds,
@@ -213,11 +215,24 @@ const handleClose = () => {
                     />
                 </div>
 
-                <!-- Visible to Client Checkbox -->
-                <div class="flex items-center mt-4">
-                    <Checkbox id="visible_to_client" v-model:checked="form.visible_to_client" />
-                    <InputLabel for="visible_to_client" value="Visible to Client" class="ml-2" />
-                    <InputError :message="errors.visible_to_client ? errors.visible_to_client[0] : ''" class="mt-2" />
+                <!-- Visibility Options -->
+                <div class="mt-4">
+                    <InputLabel value="Visibility" class="mb-2" />
+                    <div class="flex items-center space-x-6">
+                        <label class="inline-flex items-center">
+                            <input type="radio" class="form-radio" value="client" v-model="form.visibility" />
+                            <span class="ml-2">Visible to Client</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="radio" class="form-radio" value="team" v-model="form.visibility" />
+                            <span class="ml-2">Visible to Team</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="radio" class="form-radio" value="private" v-model="form.visibility" />
+                            <span class="ml-2">Private</span>
+                        </label>
+                    </div>
+                    <InputError :message="errors.visibility ? errors.visibility[0] : ''" class="mt-2" />
                 </div>
             </div>
         </template>
