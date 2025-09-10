@@ -48,6 +48,103 @@ const removeService = (index) => {
 const loading = ref(false);
 const loadError = ref('');
 
+// --- JSON Importer State ---
+const showJsonImporter = ref(false);
+const jsonInput = ref('');
+const jsonError = ref('');
+const jsonNotice = ref('');
+
+function safeArray(val) {
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string' && val.trim()) return val.split(',').map(s => s.trim()).filter(Boolean);
+    return [];
+}
+
+function applyJsonToForm(obj) {
+    let applied = [];
+    try {
+        if (obj && typeof obj === 'object') {
+            if (typeof obj.name === 'string') { form.name = obj.name; applied.push('name'); }
+            if (typeof obj.goal === 'string') { form.goal = obj.goal; applied.push('goal'); }
+            if (typeof obj.target_audience === 'string') { form.target_audience = obj.target_audience; applied.push('target_audience'); }
+            if (typeof obj.ai_persona === 'string') { form.ai_persona = obj.ai_persona; applied.push('ai_persona'); }
+
+            if (obj.services_offered !== undefined) {
+                const arr = safeArray(obj.services_offered);
+                form.services_offered = arr;
+                applied.push('services_offered');
+            }
+
+            // Merge email_template + extras (value_adds, pricing_info) into a single JSON stored in email_template
+            const hasExtras = (obj.value_adds !== undefined) || (obj.pricing_info !== undefined);
+            if (obj.email_template !== undefined || hasExtras) {
+                let emailObj = {};
+                if (obj.email_template !== undefined) {
+                    if (obj.email_template && typeof obj.email_template === 'object') {
+                        emailObj = { ...obj.email_template };
+                    } else if (typeof obj.email_template === 'string') {
+                        try {
+                            const parsed = JSON.parse(obj.email_template);
+                            if (parsed && typeof parsed === 'object') {
+                                emailObj = parsed;
+                            } else {
+                                emailObj = { template: obj.email_template };
+                            }
+                        } catch (_) {
+                            // Not JSON, store under a template field
+                            emailObj = { template: obj.email_template };
+                        }
+                    }
+                }
+
+                if (obj.value_adds !== undefined) {
+                    emailObj.value_adds = Array.isArray(obj.value_adds) ? obj.value_adds : safeArray(obj.value_adds);
+                }
+                if (obj.pricing_info !== undefined) {
+                    emailObj.pricing_info = obj.pricing_info;
+                }
+
+                try {
+                    form.email_template = JSON.stringify(emailObj, null, 2);
+                } catch (_) {
+                    // Fallback to string if somehow stringify fails
+                    form.email_template = String(emailObj);
+                }
+                applied.push('email_template');
+            }
+        }
+    } catch (e) {
+        console.error('Error applying JSON to form', e);
+    }
+    return applied;
+}
+
+function populateFromJson() {
+    jsonError.value = '';
+    jsonNotice.value = '';
+    if (!jsonInput.value.trim()) {
+        jsonError.value = 'Please paste a JSON object first.';
+        return;
+    }
+    try {
+        const obj = JSON.parse(jsonInput.value);
+        const applied = applyJsonToForm(obj);
+        if (!applied.length) {
+            jsonNotice.value = 'JSON parsed but no matching fields were found to populate.';
+        } else {
+            jsonNotice.value = `Populated fields: ${applied.join(', ')}`;
+        }
+    } catch (e) {
+        jsonError.value = 'Invalid JSON. Please check the structure and try again.';
+    }
+}
+
+function clearJsonImporter() {
+    jsonInput.value = '';
+    jsonError.value = '';
+    jsonNotice.value = '';
+}
+
 // Shareable Resources for Multi Select
 const shareableResourceOptions = ref([]);
 const shareableResourcesLoading = ref(false);
@@ -256,6 +353,26 @@ onMounted(() => {
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
                                     OZ-E Configuration
                                 </h3>
+                                <!-- JSON Importer (Quick Fill) -->
+                                <div class="bg-white border rounded-md p-4">
+                                    <div class="flex items-center justify-between">
+                                        <label class="block font-medium text-sm text-gray-700">Quick fill via JSON</label>
+                                        <button type="button" @click="showJsonImporter = !showJsonImporter" class="text-indigo-600 hover:text-indigo-800 text-sm">
+                                            {{ showJsonImporter ? 'Hide' : 'Show' }}
+                                        </button>
+                                    </div>
+                                    <div v-if="showJsonImporter" class="mt-3">
+                                        <textarea v-model="jsonInput" rows="10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm font-mono text-sm" placeholder="Paste campaign JSON here"></textarea>
+                                        <div class="mt-3 flex items-center gap-2">
+                                            <PrimaryButton type="button" @click="populateFromJson">Populate from JSON</PrimaryButton>
+                                            <SecondaryButton type="button" @click="clearJsonImporter">Clear</SecondaryButton>
+                                        </div>
+                                        <p v-if="jsonError" class="text-sm text-red-600 mt-2">{{ jsonError }}</p>
+                                        <p v-if="jsonNotice" class="text-sm text-green-600 mt-2">{{ jsonNotice }}</p>
+                                        <p class="text-xs text-gray-500 mt-1">This will only fill the form fields. You still need to click Save to persist changes.</p>
+                                    </div>
+                                </div>
+
                                 <div>
                                     <label for="target_audience" class="block font-medium text-sm text-gray-700">Target Audience</label>
                                     <textarea id="target_audience" v-model="form.target_audience" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea>
