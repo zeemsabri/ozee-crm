@@ -11,6 +11,7 @@ use App\Models\Project;
 use App\Services\EmailAiAnalysisService;
 use App\Services\EmailProcessingService;
 use App\Services\GmailService;
+use App\Services\LeadReplyHandlerService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -25,16 +26,19 @@ class EmailReceiveController extends Controller
     protected EmailAiAnalysisService $emailAiAnalysisService;
 
     protected EmailProcessingService $emailProcessingService;
+    protected LeadReplyHandlerService $leadReplyHandlerService;
 
     public function __construct(
         GmailService $gmailService,
         EmailAiAnalysisService $emailAiAnalysisService,
-        EmailProcessingService $emailProcessingService
+        EmailProcessingService $emailProcessingService,
+        LeadReplyHandlerService $leadReplyHandlerService,
     )
     {
         $this->gmailService = $gmailService;
         $this->emailAiAnalysisService = $emailAiAnalysisService;
         $this->emailProcessingService = $emailProcessingService;
+        $this->leadReplyHandlerService = $leadReplyHandlerService;
     }
 
     protected function extractEmailAddress(string $formattedEmail): string
@@ -207,9 +211,9 @@ class EmailReceiveController extends Controller
         $conversableId = $client ? $client->id : ($lead ? $lead->id : null);
 
         // If still none, bail (shouldn't happen because caller checks)
-        if (!$conversableId) {
-            return [];
-        }
+//        if (!$conversableId) {
+//            return [];
+//        }
 
         $conversation = Conversation::where('subject', $emailDetails['subject'])
             ->whereNull('project_id')
@@ -243,11 +247,11 @@ class EmailReceiveController extends Controller
 
         $this->attachEmailAttachments($email, $emailDetails['attachments'] ?? []);
 
-        $content = $this->emailAiAnalysisService->analyzeAndSummarize($email);
+        $this->leadReplyHandlerService->handleIncomingReply($lead, $email);
 
-        if($content) {
-            $this->emailProcessingService->createContextForEmail($email, $content);
-        }
+//        if($content) {
+//            $this->emailProcessingService->createContextForEmail($email, $content);
+//        }
 
         return [$conversation, $email];
     }

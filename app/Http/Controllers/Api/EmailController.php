@@ -256,6 +256,7 @@ class EmailController extends Controller
      */
     public function show(Email $email)
     {
+
         $user = Auth::user();
         if ($email->is_private && !$user->hasPermission('view_private_emails')) {
             return response()->json(['message' => 'Not found.'], 404);

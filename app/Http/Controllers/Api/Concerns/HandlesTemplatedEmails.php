@@ -248,7 +248,20 @@ trait HandlesTemplatedEmails
 
     public function renderHtmlTemplate($data, $template = 'email_template')
     {
-        return  View::make('emails.' . $template, $data)->render();
+        try {
+            return  View::make('emails.' . $template, $data)->render();
+        }
+        catch (Exception $e) {
+
+        }
+
+        try {
+            return View::make('emails.ai_lead_outreach_template', $data)->render();
+        }
+        catch (Exception $e) {
+            return $e->getMessage();
+        }
+
     }
 
     public function getCustomEmailReadyForSending(Email $email)
