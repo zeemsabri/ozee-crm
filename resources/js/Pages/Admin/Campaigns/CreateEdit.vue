@@ -5,6 +5,7 @@ import { ref, onMounted, computed, watch } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import axios from 'axios';
+import MultiSelectDropdown from '@/Components/MultiSelectDropdown.vue';
 
 const props = defineProps({
     id: {
@@ -27,6 +28,7 @@ const form = useForm({
     ai_persona: '',
     email_template: '',
     is_active: true,
+    shareable_resource_ids: [],
 });
 
 // For the tag-like input for services
@@ -46,6 +48,23 @@ const removeService = (index) => {
 const loading = ref(false);
 const loadError = ref('');
 
+// Shareable Resources for Multi Select
+const shareableResourceOptions = ref([]);
+const shareableResourcesLoading = ref(false);
+const loadShareableResources = async () => {
+    shareableResourcesLoading.value = true;
+    try {
+        const { data } = await axios.get('/api/shareable-resources', { params: { per_page: 1000 } });
+        const items = data.data ?? data; // in case endpoint returns non-paginated in future
+        shareableResourceOptions.value = items.map((r) => ({ label: r.title, value: r.id }));
+    } catch (e) {
+        console.error('Failed to load resources', e);
+        shareableResourceOptions.value = [];
+    } finally {
+        shareableResourcesLoading.value = false;
+    }
+};
+
 const loadCampaign = async () => {
     if (!props.id) return;
     loading.value = true;
@@ -59,6 +78,7 @@ const loadCampaign = async () => {
         form.ai_persona = data.ai_persona || '';
         form.email_template = data.email_template || '';
         form.is_active = !!data.is_active;
+        form.shareable_resource_ids = Array.isArray(data.shareable_resource_ids) ? data.shareable_resource_ids : [];
     } catch (e) {
         console.error('Failed to load campaign', e);
         loadError.value = 'Failed to load campaign';
@@ -68,6 +88,7 @@ const loadCampaign = async () => {
 };
 
 onMounted(() => {
+    loadShareableResources();
     if (isEditing.value) {
         loadCampaign();
     }
@@ -86,6 +107,7 @@ const submit = async () => {
             ai_persona: form.ai_persona || null,
             email_template: form.email_template || null,
             is_active: !!form.is_active,
+            shareable_resource_ids: Array.isArray(form.shareable_resource_ids) ? form.shareable_resource_ids : [],
         };
         if (method === 'post') {
             await axios.post(url, payload);
@@ -254,16 +276,29 @@ onMounted(() => {
                             </div>
                         </div>
 
-                        <div class="flex items-center justify-end">
-                            <PrimaryButton :disabled="form.processing">
-                                {{ isEditing ? 'Save Changes' : 'Create Campaign' }}
-                            </PrimaryButton>
+                        <div class="space-y-6">
+                            <div>
+                                <label class="block font-medium text-sm text-gray-700">Link Shareable Resources</label>
+                                <MultiSelectDropdown
+                                    v-model="form.shareable_resource_ids"
+                                    :options="shareableResourceOptions"
+                                    :isMulti="true"
+                                    placeholder="Select resources to link"
+                                />
+                                <p class="text-xs text-gray-500 mt-1">Choose one or more resources to associate with this campaign.</p>
+                            </div>
+
+                            <div class="flex items-center justify-end">
+                                <PrimaryButton :disabled="form.processing || shareableResourcesLoading">
+                                    {{ isEditing ? 'Save Changes' : 'Create Campaign' }}
+                                </PrimaryButton>
+                            </div>
                         </div>
                     </form>
                 </div>
 
                 <!-- Lead Management Section (only for existing campaigns) -->
-                <div v-if="isEditing" class="mt-8 bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                <div v-if="isEditing" class="mt-8 bg-white shadow-sm sm:rounded-lg">
                     <div class="p-6 md:p-8">
                         <h3 class="text-lg font-semibold text-gray-900 mb-4">Manage Leads in this Campaign</h3>
 

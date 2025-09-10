@@ -9,12 +9,14 @@ class Lead extends Model
 {
     use HasFactory, SoftDeletes;
 
-    const STATUS_OUTREACH_SENT = 'outreach_sent';
+    const STATUS_OUTREACH_SENT = 'contacted';
     const STATUS_GENERATION_FAILED = 'generation_failed';
 
     const STATUS_NEW = 'new';
 
     const STATUS_PROCESSING = 'processing';
+
+    const STATUS_SEQUENCE_COMPLETED = 'sequence_completed';
 
     protected $fillable = [
         'first_name',

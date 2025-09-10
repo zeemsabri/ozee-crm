@@ -63,9 +63,19 @@ class CampaignController extends Controller
                 'ai_persona' => 'nullable|string',
                 'email_template' => 'nullable|string',
                 'is_active' => 'nullable|boolean',
+                'shareable_resource_ids' => 'nullable|array',
+                'shareable_resource_ids.*' => 'integer|exists:shareable_resources,id',
             ]);
 
+            $resourceIds = $validated['shareable_resource_ids'] ?? [];
+            unset($validated['shareable_resource_ids']);
+
             $campaign = Campaign::create($validated);
+            if (!empty($resourceIds)) {
+                $campaign->shareableResources()->sync($resourceIds);
+            }
+            // Return with attached resource ids for convenience
+            $campaign->setAttribute('shareable_resource_ids', $campaign->shareableResources()->pluck('shareable_resources.id'));
             return response()->json($campaign, 201);
         } catch (ValidationException $e) {
             return response()->json([
@@ -87,6 +97,9 @@ class CampaignController extends Controller
         if (!$user || !$user->hasPermission('manage_projects')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
+        $campaign->load(['shareableResources:id,title']);
+        // Attach just the IDs for easy form binding
+        $campaign->setAttribute('shareable_resource_ids', $campaign->shareableResources->pluck('id'));
         return $campaign;
     }
 
@@ -109,10 +122,22 @@ class CampaignController extends Controller
                 'ai_persona' => 'nullable|string',
                 'email_template' => 'nullable|string',
                 'is_active' => 'nullable|boolean',
+                'shareable_resource_ids' => 'nullable|array',
+                'shareable_resource_ids.*' => 'integer|exists:shareable_resources,id',
             ]);
 
+            $resourceIds = $validated['shareable_resource_ids'] ?? null; // null means do not change
+            unset($validated['shareable_resource_ids']);
+
             $campaign->update($validated);
-            return $campaign->fresh();
+
+            if (is_array($resourceIds)) {
+                $campaign->shareableResources()->sync($resourceIds);
+            }
+
+            $campaign->load('shareableResources:id,title');
+            $campaign->setAttribute('shareable_resource_ids', $campaign->shareableResources->pluck('id'));
+            return $campaign;
         } catch (ValidationException $e) {
             return response()->json([
                 'message' => 'Validation failed',

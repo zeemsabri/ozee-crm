@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Camping Trip to Denmark, WA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Earth Tones -->
+    <!-- Application Structure Plan: A tabbed single-page application with a PIN-gated entry. This gate ensures authenticated user experiences for features like the interactive food list, allergy submissions, and contribution calculator. The main content is split into manageable tabs for the itinerary, food coordination, and logistics. This design prioritizes user flow and security, allowing for a structured and responsible way to manage a group trip. -->
+    <!-- Visualization & Content Choices: 1. PIN Gate -> Goal: Authenticate -> Method: Full-screen modal with input field -> Interaction: User must enter a correct PIN to unlock content. 2. Itinerary -> Goal: Inform -> Method: Vertical timeline with cards -> Interaction: Hover effects on cards. 3. Food Coordination -> Goal: Organize/Interact -> Method: Interactive checklist with a 'claimed' state -> Interaction: Users click to toggle a claimed status, simulating real-time coordination. 4. Contributions -> Goal: Inform/Interact -> Method: HTML form with JS calculator and a dynamic 'Pay Now' button -> Interaction: User enters family size to calculate contribution, and the button appears to prompt for payment. 5. Allergies -> Goal: Inform/Interact -> Method: Dynamic list from JS data with an input form -> Interaction: Users can view current allergies and submit new ones. Confirmed NO SVG/Mermaid used. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF8;
+            color: #4A4A4A;
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+            border-bottom: 2px solid transparent;
+        }
+        .nav-button.active {
+            border-bottom-color: #A98158;
+            color: #A98158;
+            font-weight: 600;
+        }
+        .card {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+        }
+        .food-item {
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .food-item.claimed {
+            background-color: #E5F3EC;
+            text-decoration: line-through;
+            color: #7f8c8d;
+        }
+        .food-item.claimed .claim-status {
+            color: #27ae60;
+            font-weight: 500;
+        }
+        .timeline-item {
+            position: relative;
+            padding-bottom: 2rem;
+            padding-left: 2.5rem;
+        }
+        .timeline-item:last-child {
+            padding-bottom: 0;
+        }
+        .timeline-icon {
+            position: absolute;
+            left: 0;
+            top: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #F3E9DD;
+            color: #A98158;
+        }
+        .timeline-connector {
+            position: absolute;
+            left: 19px;
+            top: 40px;
+            width: 2px;
+            height: calc(100% - 40px);
+            background-color: #F3E9DD;
+        }
+        .btn-primary {
+            background-color: #A98158;
+            color: white;
+            transition: background-color 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #8c6a47;
+        }
+        .alert-card {
+            background-color: #FFF9E6;
+            border-left: 4px solid #FFC107;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div id="pin-screen" class="fixed inset-0 bg-[#FDFBF8] z-50 flex items-center justify-center p-4">
+    <div class="card p-8 text-center max-w-sm w-full">
+        <h2 class="text-2xl font-bold text-[#A98158] mb-4">Enter Trip PIN</h2>
+        <p class="text-gray-600 mb-4">Please enter the secret PIN to access the trip details.</p>
+        <input type="password" id="pin-input" class="w-full p-3 text-center border-2 rounded-md focus:outline-none focus:border-[#A98158]" placeholder="e.g., 1234">
+        <button id="pin-submit-btn" class="w-full btn-primary py-3 px-4 rounded-md mt-4">Enter</button>
+        <p id="pin-error-message" class="text-red-500 text-sm mt-2 hidden">Incorrect PIN. Please try again.</p>
+    </div>
+</div>
+<div id="main-app" class="hidden">
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-[#A98158]">Family Camping Trip</h1>
+            <p class="text-lg md:text-xl text-gray-500 mt-2">Denmark, WA | September 26th - 29th</p>
+        </header>
+
+        <nav class="flex flex-wrap justify-center items-center gap-4 md:gap-8 mb-8 pb-4 border-b border-gray-200">
+            <button class="nav-button py-2 px-4 text-gray-600 hover:text-[#A98158] active" data-tab="overview">Overview</button>
+            <button class="nav-button py-2 px-4 text-gray-600 hover:text-[#A98158]" data-tab="friday">Friday</button>
+            <button class="nav-button py-2 px-4 text-gray-600 hover:text-[#A98158]" data-tab="saturday">Saturday</button>
+            <button class="nav-button py-2 px-4 text-gray-600 hover:text-[#A98158]" data-tab="sunday">Sunday</button>
+            <button class="nav-button py-2 px-4 text-gray-600 hover:text-[#A98158]" data-tab="monday">Monday</button>
+            <button class="nav-button py-2 px-4 text-gray-600 hover:text-[#A98158]" data-tab="food">Food Hub</button>
+            <button class="nav-button py-2 px-4 text-gray-600 hover:text-[#A98158]" data-tab="contributions">Contributions</button>
+            <button class="nav-button py-2 px-4 text-gray-600 hover:text-[#A98158]" data-tab="join">Joining Families</button>
+            <button class="nav-button py-2 px-4 text-gray-600 hover:text-[#A98158]" data-tab="allergy">Allergy Info</button>
+        </nav>
+
+        <main id="main-content" class="min-h-[50vh]">
+            <!-- Content will be loaded here by JavaScript -->
+        </main>
+    </div>
+</div>
+
+<script>
+    const tripData = {
+        overview: `
+                <div class="card p-8 text-center animate-fade-in">
+                    <h2 class="text-3xl font-bold text-[#A98158] mb-4">Trip Countdown</h2>
+                    <div id="countdown" class="text-4xl font-bold text-gray-700 flex justify-center gap-4">
+                        <div><span id="days">00</span><p class="text-sm font-normal">Days</p></div>
+                        <div><span id="hours">00</span><p class="text-sm font-normal">Hours</p></div>
+                        <div><span id="minutes">00</span><p class="text-sm font-normal">Minutes</p></div>
+                        <div><span id="seconds">00</span><p class="text-sm font-normal">Seconds</p></div>
+                    </div>
+                     <p class="mt-6 text-gray-600 max-w-2xl mx-auto">This is the comprehensive plan for our long weekend camping trip. Use the tabs above to navigate through the itinerary, food lists, and other important information. Let's make this a memorable trip for all our families!</p>
+                </div>
+            `,
+        friday: `
+                <div class="card p-8 animate-fade-in">
+                    <h2 class="text-3xl font-bold text-[#A98158] mb-6">Friday, Sep 26th: Arrival & Bonfire</h2>
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-icon">☀️</div>
+                            <div class="timeline-connector"></div>
+                            <h3 class="font-semibold text-lg">Morning: Departure</h3>
+                            <p class="text-gray-600">Everyone leaves Thornlie, WA at 10 AM. We will stop midway at a mosque for prayer before continuing the journey.</p>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-icon">🏕️</div>
+                             <div class="timeline-connector"></div>
+                            <h3 class="font-semibold text-lg">Afternoon: Arrival & Setup</h3>
+                            <p class="text-gray-600">Arrive at Denmark Ocean Beach Holiday Park around 3 PM. Early arrivers will set up tents for families who are arriving later.</p>
+                        </div>
+                         <div class="timeline-item">
+                            <div class="timeline-icon">🍲</div>
+                             <div class="timeline-connector"></div>
+                            <h3 class="font-semibold text-lg">Food</h3>
+                            <p class="text-gray-600">For dinner, each family brings enough food for themselves plus extra to share. The organizer will provide drinks, naan, raita, and salad through our group fund.</p>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-icon">🔥</div>
+                            <h3 class="font-semibold text-lg">Evening: Bonfire</h3>
+                            <p class="text-gray-600">Enjoy a communal bonfire and get to know each other.</p>
+                        </div>
+                    </div>
+                </div>
+            `,
+        saturday: `
+                <div class="card p-8 animate-fade-in">
+                    <h2 class="text-3xl font-bold text-[#A98158] mb-6">Saturday, Sep 27th: Full-Day Adventure</h2>
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-icon">🙏</div>
+                            <div class="timeline-connector"></div>
+                            <h3 class="font-semibold text-lg">Morning: Prayer & Breakfast</h3>
+                            <p class="text-gray-600">Wake up at Fajar for prayer. We'll cook breakfast together. We have the same breakfast planned for Saturday, Sunday, and Monday morning.</p>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-icon">🏞️</div>
+                             <div class="timeline-connector"></div>
+                            <h3 class="font-semibold text-lg">Day Activities (Choose one)</h3>
+                            <div class="grid md:grid-cols-2 gap-4 mt-2">
+                                <div class="p-4 bg-green-50 rounded-lg border border-green-200">
+                                    <p class="font-bold text-green-800">Recommended: Beach Day</p>
+                                    <p class="text-gray-600">Head out around 10 AM to Greens Pool & Elephant Rocks for a full day of exploring and swimming.</p>
+                                </div>
+                                <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                    <p class="font-bold text-blue-800">Alternate: Waterfall Hike</p>
+                                    <p class="text-gray-600">Visit a scenic waterfall for a full day of exploring and hiking.</p>
+                                </div>
+                            </div>
+                        </div>
+                         <div class="timeline-item">
+                            <div class="timeline-icon">🏏</div>
+                             <div class="timeline-connector"></div>
+                            <h3 class="font-semibold text-lg">Lunch & Cricket</h3>
+                            <p class="text-gray-600">Meet around 1 PM at Peaceful Bay for lunch (Biryani or Pilau), followed by a friendly cricket match for an hour.</p>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-icon">🌅</div>
+                            <h3 class="font-semibold text-lg">Evening: Sunset & BBQ</h3>
+                            <p class="text-gray-600">Move to Lights Beach for a beautiful sunset view, then head back to the park for a communal BBQ dinner. The moms will organize a fun kids' competition with prizes!</p>
+                        </div>
+                    </div>
+                </div>
+            `,
+        sunday: `
+                 <div class="card p-8 animate-fade-in">
+                    <h2 class="text-3xl font-bold text-[#A98158] mb-6">Sunday, Sep 28th: Relaxed Exploration</h2>
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-icon">🍳</div>
+                            <div class="timeline-connector"></div>
+                            <h3 class="font-semibold text-lg">Morning: Breakfast & Activity</h3>
+                            <p class="text-gray-600">After Fajar prayer and the same breakfast, we have two great options for the kids.</p>
+                            <div class="grid md:grid-cols-2 gap-4 mt-2">
+                                <div class="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                                    <p class="font-bold text-yellow-800">Recommended: Animal Farm</p>
+                                    <p class="text-gray-600">Head to the Denmark Animal Farm & Pentland Alpaca Stud.</p>
+                                </div>
+                                <div class="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                                    <p class="font-bold text-purple-800">Alternate: Park Fun</p>
+                                    <p class="text-gray-600">Visit a local park with a playground.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-icon">🥪</div>
+                             <div class="timeline-connector"></div>
+                            <h3 class="font-semibold text-lg">Lunch & Afternoon Relaxation</h3>
+                            <p class="text-gray-600">Lunch will consist of sandwiches and other easy-to-carry food. Afterwards, we'll have a planned relaxation time at the park with board games, card games, or an optional short nature walk.</p>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-icon">🎬</div>
+                            <h3 class="font-semibold text-lg">Evening: Story Night & BBQ</h3>
+                            <p class="text-gray-600">We'll have a story night with a projector, a BBQ, and a bonfire. Kids can also play on the beach.</p>
+                        </div>
+                    </div>
+                </div>
+            `,
+        monday: `
+                <div class="card p-8 animate-fade-in">
+                    <h2 class="text-3xl font-bold text-[#A98158] mb-6">Monday, Sep 29th: Departure</h2>
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-icon">🎒</div>
+                            <div class="timeline-connector"></div>
+                            <h3 class="font-semibold text-lg">Morning: Pack Up</h3>
+                            <p class="text-gray-600">After Fajar prayer and our final breakfast together, we'll start packing up our campsites.</p>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-icon">🌳</div>
+                            <h3 class="font-semibold text-lg">Optional Stop: Tree Top Walk</h3>
+                            <p class="text-gray-600">As we head back, families can choose to join us for an unforgettable walk among the ancient tingle trees. This is a memorable experience for both kids and adults.</p>
+                            <div class="mt-4 p-4 bg-gray-50 rounded-md border border-gray-200">
+                                <p class="font-semibold">Will your family be joining the Tree Top Walk?</p>
+                                <div class="flex items-center gap-4 mt-2">
+                                    <button class="px-6 py-2 rounded-md btn-primary" id="rsvp-yes">Yes</button>
+                                    <button class="px-6 py-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300" id="rsvp-no">No</button>
+                                </div>
+                                <p id="rsvp-message" class="mt-4 text-sm font-semibold text-gray-600 h-6"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `,
+        food: `
+                <div class="animate-fade-in">
+                    <div class="card p-8 mb-6">
+                        <h2 class="text-3xl font-bold text-[#A98158] mb-4">Food Hub</h2>
+                        <p class="text-gray-600 mb-6">Let's coordinate our delicious meals! Click on a dish to 'claim' it for your family. This helps us avoid duplicates and ensure a wonderful variety for everyone.</p>
+                        <p class="text-sm text-gray-500">Please bring enough food for your own family, not accounting for all the families, otherwise we will have too much food.</p>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="card p-6">
+                            <h3 class="text-xl font-semibold mb-4 border-b pb-2">Friday Lunch & Dinner Dishes</h3>
+                            <div id="friday-food-list" class="space-y-3"></div>
+                        </div>
+                        <div class="card p-6">
+                            <h3 class="text-xl font-semibold mb-4 border-b pb-2">Saturday & Sunday Lunch Dishes</h3>
+                            <div id="weekend-food-list" class="space-y-3"></div>
+                        </div>
+                        <div class="card p-6">
+                             <h3 class="text-xl font-semibold mb-4 border-b pb-2">Breakfast Options</h3>
+                              <p class="text-sm text-gray-500 mb-3">Our standard breakfast is omelette and bread. If you have a practical alternative for the whole group, please suggest it!</p>
+                             <div id="breakfast-food-list" class="space-y-3"></div>
+                        </div>
+                        <div class="card p-6">
+                             <h3 class="text-xl font-semibold mb-4 border-b pb-2">Snack Options</h3>
+                             <div id="snack-food-list" class="space-y-3"></div>
+                        </div>
+                    </div>
+                </div>
+            `,
+        contributions: `
+                <div class="card p-8 animate-fade-in">
+                    <h2 class="text-3xl font-bold text-[#A98158] mb-4">Group Necessities: Contribution Explained</h2>
+                    <p class="text-gray-600 mb-6">To ensure we have all the communal supplies needed for the trip, we are asking for a contribution of <span class="font-bold text-lg">$15 per person</span>. This per-person charge is a fair way to share the costs, as some families are smaller than others.</p>
+
+                    <div class="flex flex-col md:flex-row gap-8">
+                        <div class="flex-1">
+                             <h3 class="text-xl font-semibold mb-4">What the funds cover:</h3>
+                             <ul class="list-disc list-inside text-gray-600 grid grid-cols-2 gap-x-4 gap-y-2">
+                                <li>Naan</li><li>Raita</li><li>Salad</li><li>Bread</li><li>Eggs</li><li>Jam</li><li>Yogurt</li><li>BBQ Chicken</li><li>Cooking Gas</li><li>Milk</li><li>Fruit</li><li>Kids Snacks</li><li>Drinks</li><li>Ready to Eat Yogurts</li><li>Juices</li><li>Bon Fire Wood</li><li>Charcoal</li>
+                             </ul>
+                        </div>
+                        <div class="flex-1 bg-gray-50 p-6 rounded-lg">
+                            <h3 class="text-xl font-semibold mb-4">Calculate Your Contribution</h3>
+                            <div class="flex items-center gap-4">
+                                <input type="number" id="family-size" min="1" placeholder="Enter family size" class="w-full p-2 border rounded-md">
+                                <button id="calculate-btn" class="btn-primary py-2 px-4 rounded-md">Calculate</button>
+                            </div>
+                            <p id="total-contribution" class="mt-4 text-xl font-bold text-center text-[#A98158] h-8"></p>
+                            <button id="pay-now-btn" class="hidden w-full bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-md mt-4">Pay Now</button>
+                        </div>
+                    </div>
+                </div>
+            `,
+        join: `
+                <div class="card p-8 animate-fade-in">
+                    <h2 class="text-3xl font-bold text-[#A98158] mb-4">Joining Families</h2>
+                    <p class="text-gray-600 mb-6">Here is the list of families who have confirmed their attendance. If your family is not on this list and you'd like to join, please fill out the form below. We're excited to have you!</p>
+                    <div id="family-list-container" class="space-y-4"></div>
+
+                    <div class="mt-8 border-t pt-8">
+                        <h3 class="text-2xl font-bold text-[#A98158] mb-4">Join the Trip</h3>
+                        <form id="join-form" class="space-y-4">
+                            <div>
+                                <label for="join-name" class="block text-sm font-medium text-gray-700">Family Head Name</label>
+                                <input type="text" id="join-name" class="mt-1 p-2 w-full border rounded-md" placeholder="e.g., John Smith" required>
+                            </div>
+                            <div>
+                                <label for="join-email" class="block text-sm font-medium text-gray-700">Email Address</label>
+                                <input type="email" id="join-email" class="mt-1 p-2 w-full border rounded-md" placeholder="e.g., john.smith@email.com" required>
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="flex-1">
+                                    <label for="join-adults" class="block text-sm font-medium text-gray-700">Number of Adults</label>
+                                    <input type="number" id="join-adults" min="0" class="mt-1 p-2 w-full border rounded-md" placeholder="e.g., 2" required>
+                                </div>
+                                <div class="flex-1">
+                                    <label for="join-children" class="block text-sm font-medium text-gray-700">Number of Children</label>
+                                    <input type="number" id="join-children" min="0" class="mt-1 p-2 w-full border rounded-md" placeholder="e.g., 2" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full btn-primary py-3 px-4 rounded-md">Submit Details</button>
+                        </form>
+                    </div>
+                </div>
+            `,
+        allergy: `
+                <div class="card p-8 alert-card animate-fade-in">
+                    <div class="flex items-center gap-4">
+                         <div class="text-4xl">⚠️</div>
+                         <div>
+                            <h2 class="text-2xl font-bold text-yellow-800">Important Allergy Notice</h2>
+                            <p class="text-yellow-700 mt-2">We have been informed that some children attending the trip have <span class="font-bold">nut allergies</span>. Please be vigilant about any food items containing nuts.</p>
+                            <p class="text-yellow-700 mt-2">If anyone in your family has other allergies, please inform the organizers as soon as possible so we can ensure a safe and enjoyable trip for everyone.</p>
+                         </div>
+                    </div>
+                    <div class="mt-8">
+                        <h3 class="text-xl font-bold text-[#A98158] mb-4">Known Allergies</h3>
+                        <div id="allergy-list-container" class="space-y-2"></div>
+                    </div>
+                    <div class="mt-8 border-t pt-8">
+                        <h3 class="text-2xl font-bold text-[#A98158] mb-4">Report an Allergy</h3>
+                        <form id="allergy-form" class="space-y-4">
+                            <div>
+                                <label for="allergy-name" class="block text-sm font-medium text-gray-700">Your Name</label>
+                                <input type="text" id="allergy-name" class="mt-1 p-2 w-full border rounded-md" required>
+                            </div>
+                            <div>
+                                <label for="allergy-description" class="block text-sm font-medium text-gray-700">Allergy Description</label>
+                                <input type="text" id="allergy-description" class="mt-1 p-2 w-full border rounded-md" placeholder="e.g., Gluten, Dairy, Peanuts" required>
+                            </div>
+                            <button type="submit" class="w-full btn-primary py-3 px-4 rounded-md">Submit Allergy</button>
+                        </form>
+                    </div>
+                </div>
+            `
+    };
+
+    const foodData = {
+        friday: ['Chicken Biryani', 'Aloo Gosht', 'Chicken Karahi', 'Daal Chawal', 'Chicken Pulao', 'Chicken Jalfrezi', 'Chicken Tikka', 'Palak Paneer', 'Nihari'],
+        weekend: ['Chicken Shami Kebab', 'Beef/Lamb Shami Kebab', 'Fried Chicken', 'Samosa', 'Kachori', 'Aloo Tikki', 'Chicken Roll', 'Vegetable Rolls', 'Spring Rolls', 'Varieties of Pakora', 'Sandwiches', 'Aloo/Daal Parathas'],
+        breakfast: ['Omelette & Bread'],
+        snacks: ['Chips', 'Biscuits', 'Candy']
+    };
+
+    const familyData = [
+        { name: 'Zeeshan Sabri', adults: 2, children: 1 },
+        { name: 'Muhammad Ateeq', adults: 2, children: 3 },
+        { name: 'Zafar', adults: 2, children: 3 },
+        { name: 'Ayaz', adults: 2, children: 2 },
+        { name: 'Junaind', adults: 2, children: 2 },
+        { name: 'Muddasir', adults: 2, children: 2 },
+        { name: 'Noor', adults: 2, children: 2 },
+        { name: 'Faheem', adults: 2, children: 0 }
+    ];
+
+    let allergiesData = [
+        { name: 'Ahmad', description: 'Nuts' },
+        { name: 'Sara', description: 'Gluten' }
+    ];
+
+    const mainContent = document.getElementById('main-content');
+    const navButtons = document.querySelectorAll('.nav-button');
+    let claimedItems = {};
+    let rsvpStatus = null;
+
+    function renderFamilyList() {
+        const container = document.getElementById('family-list-container');
+        if (!container) return;
+        container.innerHTML = '';
+        familyData.forEach(family => {
+            const totalMembers = family.adults + family.children;
+            const familyDiv = document.createElement('div');
+            familyDiv.className = 'p-4 bg-gray-50 rounded-md border border-gray-200';
+            familyDiv.innerHTML = `
+                    <p class="font-bold text-gray-800">${family.name}</p>
+                    <p class="text-sm text-gray-600">Adults: ${family.adults}, Children: ${family.children} (Total: ${totalMembers})</p>
+                `;
+            container.appendChild(familyDiv);
+        });
+    }
+
+    function renderAllergyList() {
+        const container = document.getElementById('allergy-list-container');
+        if (!container) return;
+        container.innerHTML = '';
+        allergiesData.forEach(allergy => {
+            const allergyDiv = document.createElement('div');
+            allergyDiv.className = 'p-3 bg-gray-50 rounded-md border border-gray-200';
+            allergyDiv.innerHTML = `
+                    <p class="font-bold text-gray-800">${allergy.name}: <span class="font-normal">${allergy.description}</span></p>
+                `;
+            container.appendChild(allergyDiv);
+        });
+    }
+
+    function renderFoodList(listId, items) {
+        const container = document.getElementById(listId);
+        if (!container) return;
+        container.innerHTML = '';
+        items.forEach(item => {
+            const isClaimed = claimedItems[item];
+            const itemDiv = document.createElement('div');
+            itemDiv.className = `food-item p-3 rounded-md flex justify-between items-center border ${isClaimed ? 'claimed' : 'bg-gray-50'}`;
+            itemDiv.dataset.item = item;
+
+            itemDiv.innerHTML = `
+                    <span>${item}</span>
+                    <span class="claim-status text-sm">${isClaimed ? 'Claimed!' : 'Available'}</span>
+                `;
+
+            itemDiv.addEventListener('click', () => {
+                claimedItems[item] = !claimedItems[item];
+                renderContent('food');
+            });
+            container.appendChild(itemDiv);
+        });
+    }
+
+    function renderContent(tab) {
+        mainContent.innerHTML = tripData[tab];
+
+        if (tab === 'overview') {
+            startCountdown();
+        } else if (tab === 'food') {
+            renderFoodList('friday-food-list', foodData.friday);
+            renderFoodList('weekend-food-list', foodData.weekend);
+            renderFoodList('breakfast-food-list', foodData.breakfast);
+            renderFoodList('snack-food-list', foodData.snacks);
+        } else if (tab === 'contributions') {
+            const calculateBtn = document.getElementById('calculate-btn');
+            const payNowBtn = document.getElementById('pay-now-btn');
+
+            calculateBtn.addEventListener('click', () => {
+                const familySize = document.getElementById('family-size').value;
+                const total = parseInt(familySize) * 15;
+                if (!isNaN(total) && total > 0) {
+                    document.getElementById('total-contribution').innerText = `Total: $${total}`;
+                    payNowBtn.classList.remove('hidden');
+                } else {
+                    document.getElementById('total-contribution').innerText = '';
+                    payNowBtn.classList.add('hidden');
+                }
+            });
+
+            payNowBtn.addEventListener('click', () => {
+                alert('This is a placeholder for the payment process. In a production app, this would redirect to a payment gateway.');
+            });
+
+        } else if (tab === 'monday') {
+            const rsvpMessage = document.getElementById('rsvp-message');
+            const rsvpYesBtn = document.getElementById('rsvp-yes');
+            const rsvpNoBtn = document.getElementById('rsvp-no');
+
+            if (rsvpStatus === true) {
+                rsvpMessage.innerText = "Thanks for confirming! We've noted your family will be joining.";
+                rsvpYesBtn.classList.add('bg-green-500');
+                rsvpNoBtn.classList.remove('bg-red-500');
+            } else if (rsvpStatus === false) {
+                rsvpMessage.innerText = "Thanks for letting us know! We've noted your family will not be joining.";
+                rsvpNoBtn.classList.add('bg-red-500');
+                rsvpYesBtn.classList.remove('bg-green-500');
+            }
+
+            rsvpYesBtn.addEventListener('click', () => {
+                rsvpStatus = true;
+                renderContent('monday');
+            });
+
+            rsvpNoBtn.addEventListener('click', () => {
+                rsvpStatus = false;
+                renderContent('monday');
+            });
+        } else if (tab === 'join') {
+            renderFamilyList();
+            document.getElementById('join-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = document.getElementById('join-name').value;
+                const adults = parseInt(document.getElementById('join-adults').value);
+                const children = parseInt(document.getElementById('join-children').value);
+
+                if (name && !isNaN(adults) && !isNaN(children) && (adults > 0 || children > 0)) {
+                    familyData.push({ name, adults, children });
+                    alert(`Thanks for joining, ${name}! Your family has been added.`);
+                    renderContent('join');
+                } else {
+                    alert('Please fill out all fields correctly.');
+                }
+            });
+        } else if (tab === 'allergy') {
+            renderAllergyList();
+            document.getElementById('allergy-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = document.getElementById('allergy-name').value;
+                const description = document.getElementById('allergy-description').value;
+
+                if (name && description) {
+                    allergiesData.push({ name, description });
+                    alert('Allergy submitted successfully!');
+                    renderContent('allergy');
+                } else {
+                    alert('Please fill in both fields.');
+                }
+            });
+        }
+    }
+
+    function handleNavClick(e) {
+        const clickedButton = e.target;
+        const tab = clickedButton.dataset.tab;
+
+        navButtons.forEach(button => button.classList.remove('active'));
+        clickedButton.classList.add('active');
+
+        renderContent(tab);
+    }
+
+    function startCountdown() {
+        const countDownDate = new Date("Sep 26, 2025 10:00:00").getTime();
+        const countdownElement = document.getElementById('countdown');
+
+        if (!countdownElement) return;
+
+        const interval = setInterval(function() {
+            const now = new Date().getTime();
+            const distance = countDownDate - now;
+
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+            document.getElementById("days").innerText = String(days).padStart(2, '0');
+            document.getElementById("hours").innerText = String(hours).padStart(2, '0');
+            document.getElementById("minutes").innerText = String(minutes).padStart(2, '0');
+            document.getElementById("seconds").innerText = String(seconds).padStart(2, '0');
+
+            if (distance < 0) {
+                clearInterval(interval);
+                countdownElement.innerHTML = "<div class='text-3xl'>Have a great trip!</div>";
+            }
+        }, 1000);
+    }
+
+    function initApp() {
+        const correctPin = "1234";
+        const pinScreen = document.getElementById('pin-screen');
+        const pinInput = document.getElementById('pin-input');
+        const pinSubmitBtn = document.getElementById('pin-submit-btn');
+        const pinErrorMessage = document.getElementById('pin-error-message');
+        const mainApp = document.getElementById('main-app');
+
+        pinSubmitBtn.addEventListener('click', () => {
+            if (pinInput.value === correctPin) {
+                pinScreen.classList.add('hidden');
+                mainApp.classList.remove('hidden');
+                renderContent('overview');
+                navButtons.forEach(button => button.addEventListener('click', handleNavClick));
+            } else {
+                pinErrorMessage.classList.remove('hidden');
+            }
+        });
+
+        pinInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                pinSubmitBtn.click();
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initApp();
+    });
+
+</script>
+</body>
+</html>

@@ -138,6 +138,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('clients', ClientController::class)->names('api.clients');
     Route::get('/leads/search', [LeadController::class, 'search']);
     Route::apiResource('leads', LeadController::class)->names('api.leads');
+    Route::post('/leads/{lead}/contexts', [LeadController::class, 'addContext']);
     Route::get('leads/{lead}/emails', [LeadController::class, 'emails']);
 
     // Campaigns
