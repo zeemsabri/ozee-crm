@@ -1,173 +1,136 @@
 Prompt for PhpStorm AI (Junie)
-ROLE: You are a senior Laravel developer tasked with building the backend for a new "AI Automation Engine."
+ROLE: You are a senior Vue.js developer specializing in creating complex, intuitive, and highly interactive user interfaces. You have a deep understanding of UI/UX principles.
 
-CONTEXT: We are building a system to replace hardcoded AI logic and scattered text files with a centralized, database-driven solution. The ultimate goal is to create a visual "AI Automation Studio" where non-technical users can build, manage, and monitor complex workflows that chain together both AI-powered actions (like generating emails) and internal CRM actions (like sending notifications or updating fields).
+CONTEXT: We are building the frontend for our "AI Automation Engine." The backend API (built in Laravel) provides CRUD endpoints for workflows, prompts, and workflow_steps. Our goal is to create a Single Page Application (SPA) called the "Automation Studio" where users can visually build and manage workflows. The user experience is paramount; it must be clear, visual, and forgiving for non-technical users.
 
-YOUR TASK: Your current task is to create the foundational backend structure. This includes the database migrations, Eloquent models with all relationships defined, and the basic CRUD API controllers and routes. You are to build the "skeleton" of the application. Do not implement the complex "brain" logic (the WorkflowEngineService or AIGenerationService) at this stage. Focus only on the database and API layer.
+YOUR TASK: Your task is to generate the foundational Vue 3 components and structure for the Automation Studio. This includes setting up the main page layout, creating the visual components for the workflow canvas, and defining the state management and API service layers.
 
-INSTRUCTIONS:
+CORE TECHNOLOGIES & LIBRARIES:
 
-Please generate the following files based on the detailed specifications below.
+Framework: Vue 3 (Composition API with <script setup>)
 
-Step 1: Create the Database Migrations
-Generate four migration files. Ensure all foreign key constraints are correctly defined with cascading deletes where appropriate to maintain data integrity.
+State Management: Pinia
 
-create_workflows_table:
+HTTP Client: Axios
 
-id (primary key)
+Styling: Tailwind CSS
 
-name (string, not nullable)
+Drag & Drop: Use the vue.draggable.next library for the workflow steps.
 
-description (text, nullable)
+Icons: Use the lucide-vue-next library for all icons.
 
-trigger_event (string, not nullable, e.g., "lead.created")
+Part 1: Overall Architecture & Design Principles
+Before you write the code, understand the user experience we are creating:
 
-is_active (boolean, default true)
+Clarity Above All: The user must be able to understand an entire workflow at a single glance. We will use a top-to-bottom flowchart metaphor.
 
-timestamps
+Guided Creation: The interface should guide the user. Instead of asking for JSON, we will use dropdowns, toggles, and visual rule builders.
 
-create_prompts_table:
+Instant Feedback: The user's changes on the configuration panel should immediately reflect on the visual canvas.
 
-id (primary key)
+Component-Driven: The entire application will be broken down into logical, reusable components.
 
-name (string, not nullable)
+Part 2: Folder & Component Structure
+Please create the following folder and file structure inside resources/js/Pages/Automation/.
 
-category (string, nullable, for organization)
+For axios reference to existing usage so it styas how we are authenticaing and use AuthenticatedLayout so we remain inside the structure 
+/Automation
+|-- /Api
+|   |-- automationApi.js  // Axios service for all API calls
+|-- /Components
+|   |-- /Blocks            // Components for each step_type on the canvas
+|   |   |-- TriggerBlock.vue
+|   |   |-- AiPromptBlock.vue
+|   |   |-- ConditionBlock.vue
+|   |-- /Configuration     // Components for the RightSidebar
+|   |   |-- TriggerConfig.vue
+|   |   |-- AiPromptConfig.vue
+|   |   |-- ConditionConfig.vue
+|   |-- WorkflowCanvas.vue // The main central panel
+|   |-- WorkflowList.vue   // The list of workflows on the left
+|-- /Store
+|   |-- workflowStore.js   // Pinia store for state management
+|-- Index.vue              // The main page component
+Part 3: Detailed Component Specifications
+Generate the code for the following Vue components.
 
-version (integer, not nullable, default 1)
+1. Store/workflowStore.js (Pinia Store)
+   This is the single source of truth for the application state.
 
-system_prompt_text (text, not nullable)
+State:
 
-model_name (string, default 'gemini-2.5-flash-preview-05-20')
+workflows: An array to hold the list of all workflows.
 
-generation_config (json, nullable)
+activeWorkflow: The full workflow object currently being edited on the canvas.
 
-template_variables (json, nullable, to document expected variables)
+selectedStep: The specific step object that is currently selected for configuration.
 
-status (string, default 'active', e.g., 'draft', 'active', 'archived')
+isLoading: A boolean for loading states.
 
-timestamps
+Actions:
 
-Constraint: Add a unique constraint on the combination of name and version.
+fetchWorkflows(): Action to get all workflows from the API.
 
-create_workflow_steps_table:
+fetchWorkflow(id): Action to get a single workflow and set it as activeWorkflow.
 
-id (primary key)
+selectStep(step): Action to set the selectedStep.
 
-workflow_id (foreign key to workflows table, cascade on delete)
+addStep(stepType): Action to create a new step object in the activeWorkflow.steps array.
 
-step_order (integer, not nullable, for sequencing)
+Getters:
 
-name (string, not nullable)
+getStepById(id): A getter to easily find a step within the activeWorkflow.
 
-step_type (string, not nullable, default 'AI_PROMPT', e.g., 'UPDATE_CRM_FIELD')
+2. Index.vue (The Main Page)
+   This component assembles the main three-panel layout.
 
-prompt_id (foreign key to prompts table, nullable)
+Layout:
 
-step_config (json, nullable, for non-AI step settings)
+A main flex container.
 
-condition_rules (json, nullable, for branching logic)
+Left Panel: The WorkflowList.vue component.
 
-delay_minutes (integer, default 0)
+Center Panel: The WorkflowCanvas.vue component.
 
-create_execution_logs_table:
+Right Panel: Your existing RightSidebar.vue component.
 
-id (bigIncrements, primary key)
+Logic:
 
-workflow_id (foreign key to workflows table)
+On mount (onMounted), it should call the fetchWorkflows action from the Pinia store.
 
-step_id (foreign key to workflow_steps table)
+The RightSidebar's content should be dynamic. It will use a dynamic <component :is="..."> to render the correct configuration panel (TriggerConfig, AiPromptConfig, etc.) based on the selectedStep.step_type from the Pinia store.
 
-triggering_object_id (string, nullable)
+3. Components/WorkflowCanvas.vue (The Centerpiece)
+   This is where the user builds the workflow.
 
-parent_execution_log_id (foreign key to its own table, nullable, for chaining)
+Props: It should get the activeWorkflow from the Pinia store.
 
-status (string, not nullable, e.g., 'SUCCESS', 'FAILURE')
+Functionality:
 
-input_context (json, nullable)
+It will use v-for to loop through the activeWorkflow.steps.
 
-raw_output (json, nullable)
+Inside the loop, it will use a dynamic <component :is="..."> to render the correct block component (TriggerBlock, AiPromptBlock, etc.) based on each step.step_type.
 
-parsed_output (json, nullable)
+It will wrap the list of steps in a draggable component from vue.draggable.next to allow reordering.
 
-error_message (text, nullable)
+Each block component should emit a select event when clicked, which calls the selectStep action in the Pinia store.
 
-duration_ms (integer, nullable)
+There should be a + button between each step to allow adding a new step. Clicking this should show a small menu of available step types and call the addStep action.
 
-token_usage (integer, nullable)
+4. Block Components (e.g., Components/Blocks/AiPromptBlock.vue)
+   These are the visual representations of steps on the canvas.
 
-cost (decimal, 10, 6, nullable)
+Props: It will receive a step object as a prop.
 
-executed_at (timestamp, default current)
+Display: It should be a styled "card" with an appropriate icon (lucide-vue-next) and display a summary of its configuration (e.g., the name of the prompt it uses).
 
-Step 2: Create the Eloquent Models
-Generate four Eloquent models. For each model, define the $fillable array for mass assignment, the $casts for JSON and boolean fields, and all necessary relationship methods.
+Styling: When this block's step.id matches the selectedStep.id in the Pinia store, it should have a prominent blue border to indicate it's selected.
 
-App\Models\Workflow.php
+5. Configuration Components (e.g., Components/Configuration/AiPromptConfig.vue)
+   These are the forms inside the RightSidebar.
 
-$fillable: ['name', 'description', 'trigger_event', 'is_active']
+Data Binding: It should get the selectedStep from the Pinia store.
 
-$casts: ['is_active' => 'boolean']
+Functionality: It will use v-model to bind its form inputs directly to the properties of the selectedStep object in the store (e.g., v-model="store.selectedStep.prompt_id").
 
-Relationships:
-
-steps(): hasMany(WorkflowStep::class) -> ordered by step_order.
-
-logs(): hasMany(ExecutionLog::class)
-
-App\Models\Prompt.php
-
-$fillable: ['name', 'category', 'version', 'system_prompt_text', 'model_name', 'generation_config', 'template_variables', 'status']
-
-$casts: ['generation_config' => 'array', 'template_variables' => 'array']
-
-Relationships:
-
-steps(): hasMany(WorkflowStep::class)
-
-App\Models\WorkflowStep.php
-
-$fillable: ['workflow_id', 'step_order', 'name', 'step_type', 'prompt_id', 'step_config', 'condition_rules', 'delay_minutes']
-
-$casts: ['step_config' => 'array', 'condition_rules' => 'array']
-
-Relationships:
-
-workflow(): belongsTo(Workflow::class)
-
-prompt(): belongsTo(Prompt::class)
-
-App\Models\ExecutionLog.php
-
-$fillable: ['workflow_id', 'step_id', ... all other fields except timestamps]
-
-$casts: ['input_context' => 'array', 'raw_output' => 'array', 'parsed_output' => 'array']
-
-Relationships:
-
-workflow(): belongsTo(Workflow::class)
-
-step(): belongsTo(WorkflowStep::class)
-
-parentLog(): belongsTo(ExecutionLog::class, 'parent_execution_log_id')
-
-childLogs(): hasMany(ExecutionLog::class, 'parent_execution_log_id')
-
-Step 3: Create the API Controllers and Routes
-Generate API resource controllers for the main models. The methods should contain basic validation and CRUD logic. Do not implement any business logic beyond creating, reading, updating, or deleting the records.
-
-Controllers:
-
-App\Http\Controllers\Api\WorkflowController
-
-App\Http\Controllers\Api\PromptController
-
-App\Http\Controllers\Api\WorkflowStepController
-
-Implement the standard index, store, show, update, and destroy methods for each. Use basic request validation in the store and update methods.
-
-API Routes (routes/api.php):
-
-Use Route::apiResource() to create the RESTful endpoints for all four controllers.
-
-Group these routes under a relevant middleware group, such as auth:sanctum.
+Reactivity: Because it's directly modifying the Pinia store object, any changes made here will be instantly reactive and reflected in the corresponding Block component on the canvas.
