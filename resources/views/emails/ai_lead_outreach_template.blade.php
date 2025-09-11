@@ -28,19 +28,23 @@
 
     <div class="content-body">
         {{-- AI-generated content starts here, feeling personal from the first line --}}
-        <p>{{ $bodyContent->greeting ?? 'Hi there,' }}</p>
+        @if(isset($bodyContent) && is_object($bodyContent))
+            <p>{{ $bodyContent->greeting ?? 'Hi there,' }}</p>
 
-        @if(isset($bodyContent->paragraphs) && is_array($bodyContent->paragraphs))
-            @foreach($bodyContent->paragraphs as $paragraph)
-                {{-- The nl2br and e() functions ensure formatting is respected and content is safe --}}
-                <p>{!! nl2br(e($paragraph)) !!}</p>
-            @endforeach
-        @endif
+            @if(isset($bodyContent->paragraphs) && is_array($bodyContent->paragraphs))
+                @foreach($bodyContent->paragraphs as $paragraph)
+                    {{-- The nl2br and e() functions ensure formatting is respected and content is safe --}}
+                    <p>{!! nl2br(e($paragraph)) !!}</p>
+                @endforeach
+            @endif
 
-        @if(isset($bodyContent->call_to_action?->text) && isset($bodyContent->call_to_action?->link))
-            <a href="{{ $bodyContent->call_to_action->link }}" class="cta-button">
-                {{ $bodyContent->call_to_action->text }}
-            </a>
+            @if(isset($bodyContent->call_to_action?->text) && isset($bodyContent->call_to_action?->link))
+                <a href="{{ $bodyContent->call_to_action->link }}" class="cta-button">
+                    {{ $bodyContent->call_to_action->text }}
+                </a>
+            @endif
+        @else
+            {!! is_string($bodyContent ?? '') ? $bodyContent : '' !!}
         @endif
 
         <!-- RECOMMENDATION 2: Simplified and Personal Signature -->
