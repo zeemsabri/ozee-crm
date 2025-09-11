@@ -2,8 +2,8 @@
 import { ref, watch, computed } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import ProjectForm from '@/Components/ProjectForm.vue'; // The main form component
-import { useGlobalPermissions, usePermissions } from '@/Directives/permissions'; // Import useGlobalPermissions and usePermissions
+import ProjectForm from '@/Components/ProjectForm.vue';
+import { useGlobalPermissions, usePermissions } from '@/Directives/permissions';
 
 // Fetch global permissions (used by ProjectForm internally for permission checks)
 const { permissions: globalPermissions, loading: globalPermissionsLoading } = useGlobalPermissions();

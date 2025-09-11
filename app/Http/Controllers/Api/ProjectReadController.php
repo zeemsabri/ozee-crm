@@ -672,7 +672,8 @@ class ProjectReadController extends Controller
         // Get all roles to avoid multiple database queries
         $roles = Role::pluck('name', 'id')->toArray();
 
-        if ($user->isSuperAdmin() || $user->isManager()) {
+        if ($user->hasPermission('view_all_projects')) {
+
             // For super admins and managers, get all projects
             $projects = Project::select('projects.id', 'projects.name', 'projects.status', 'projects.departments', 'projects.project_type')
                 ->leftJoin('project_user', function($join) use ($user) {

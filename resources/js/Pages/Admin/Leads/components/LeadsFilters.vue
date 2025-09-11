@@ -4,7 +4,8 @@ import TextInput from '@/Components/TextInput.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
-import { computed } from 'vue';
+import MultiSelectDropdown from '@/Components/MultiSelectDropdown.vue';
+import { computed, ref, onMounted } from 'vue';
 
 const props = defineProps({
   filters: { type: Object, required: true },
@@ -19,10 +20,27 @@ const emit = defineEmits(['apply', 'reset']);
 const userOptions = computed(() => (props.users || []).map(u => ({ label: u.name, value: u.id })));
 const statusOpts = computed(() => props.statusOptions || []);
 const sourceOpts = computed(() => props.sourceOptions || []);
+
+const campaignOptions = ref([]);
+const loadingCampaigns = ref(false);
+
+onMounted(async () => {
+  try {
+    loadingCampaigns.value = true;
+    const { data } = await window.axios.get('/api/campaigns', { params: { per_page: 1000 } });
+    const items = data?.data || data || [];
+    campaignOptions.value = items.map(c => ({ label: c.name, value: c.id }));
+  } catch (e) {
+    console.error('Failed to load campaigns', e);
+    campaignOptions.value = [];
+  } finally {
+    loadingCampaigns.value = false;
+  }
+});
 </script>
 
 <template>
-  <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-5">
+  <div class="grid grid-cols-1 md:grid-cols-6 gap-3 mb-5">
     <div>
       <InputLabel for="q" value="Search" />
       <TextInput id="q" v-model="props.filters.q" class="mt-1 block w-full" placeholder="Name, email, phone, company" @keyup.enter="() => emit('apply')" />
@@ -50,6 +68,16 @@ const sourceOpts = computed(() => props.sourceOptions || []);
         v-model="props.filters.assigned_to_id"
         placeholder="Any"
       />
+    </div>
+    <div>
+      <InputLabel for="campaigns" value="Campaigns" />
+      <MultiSelectDropdown
+        :options="campaignOptions"
+        v-model="props.filters.campaign_ids"
+        :isMulti="true"
+        placeholder="All"
+      />
+      <p class="text-xs text-gray-500 mt-1" v-if="loadingCampaigns">Loading campaigns…</p>
     </div>
     <div class="flex items-end gap-2">
       <PrimaryButton :disabled="props.loading" @click="emit('apply')">Apply</PrimaryButton>

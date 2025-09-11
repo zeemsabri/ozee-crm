@@ -36,39 +36,45 @@ export const usePermissionStore = defineStore('permissions', {
          * @param {number|null} projectId - The project ID (optional)
          * @returns {boolean} - Whether the user has the permission
          */
-        hasPermission: (state) => (permissionSlug, projectId = null) => {
-            // First check project-specific permissions if project ID is provided
-            if (projectId && state.projectPermissions[projectId]) {
-                const projectPermData = state.projectPermissions[projectId];
+        // Inside usePermissionStore -> getters:
 
-                // Check if permissions are in the project permissions store
-                if (projectPermData && projectPermData.permissions) {
-                    const hasPermission = projectPermData.permissions.some(p => p.slug === permissionSlug);
-                    if (hasPermission) {
-                        return true;
-                    }
-                }
+        hasPermission: (state) => (permissionSlugs, projectId = null, operator = 'and') => {
+            const slugs = Array.isArray(permissionSlugs) ? permissionSlugs : [permissionSlugs];
+
+            // If the array is empty, they have no permissions.
+            if (slugs.length === 0) {
+                return false;
             }
 
-            // Check global permissions if no project-specific permission found
-            if (state.globalPermissions && state.globalPermissions.permissions) {
-                const hasPermission = state.globalPermissions.permissions.some(p => p.slug === permissionSlug);
-                if (hasPermission) {
-                    return true;
-                }
-            }
-
-            // If user is a super admin, they have all permissions
+            // Super-admin check (this is a good place for it to avoid redundant checks)
             const user = usePage().props.auth.user;
-            if (user && (
-                (user.role_data && user.role_data.slug === 'super-admin') ||
-                user.role === 'super_admin' ||
-                user.role === 'super-admin'
-            )) {
+            if (user && user.role_data?.slug === 'super-admin') {
                 return true;
             }
 
-            return false;
+            const check = (slug) => {
+                // Project-specific check
+                if (projectId && state.projectPermissions[projectId]?.permissions) {
+                    if (state.projectPermissions[projectId].permissions.some(p => p.slug === slug)) {
+                        return true;
+                    }
+                }
+                // Global check
+                if (state.globalPermissions?.permissions) {
+                    if (state.globalPermissions.permissions.some(p => p.slug === slug)) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+
+            if (operator === 'or') {
+                // OR logic: return true if AT LEAST ONE permission check passes
+                return slugs.some(slug => check(slug));
+            } else {
+                // AND logic (default): return true only if ALL permission checks pass
+                return slugs.every(slug => check(slug));
+            }
         },
 
         /**
@@ -550,103 +556,45 @@ export const usePermissions = (projectId = null) => {
  */
 export const vPermission = {
     /**
-     * Called before the element is inserted into the document
-     * @param {HTMLElement} el - The element the directive is bound to
-     * @param {Object} binding - Directive binding object
-     * @param {Object} vnode - Virtual node
+     * A helper function to perform the permission check.
      */
-    beforeMount(el, binding, vnode) {
+    _check(el, binding) {
         const permissionStore = usePermissionStore();
 
-        // Check if the directive is used with the 'not' modifier
+        // Check for modifiers
         const isNegated = binding.modifiers.not;
-
-        // Check if the directive is used with the 'project' modifier
         const isProjectSpecific = binding.modifiers.project;
+        const isOrCondition = binding.modifiers.or;
 
         let hasPermission = false;
+        const operator = isOrCondition ? 'or' : 'and';
+
+        let permissions = binding.value;
+        let projectId = null;
 
         if (isProjectSpecific) {
-            // For project-specific permissions, binding.value should be an object with permission and projectId
             if (typeof binding.value === 'object' && binding.value.permission && binding.value.projectId) {
-                hasPermission = permissionStore.hasPermission(binding.value.permission, binding.value.projectId);
+                permissions = binding.value.permission;
+                projectId = binding.value.projectId;
             } else {
-                hasPermission = false;
-            }
-        } else {
-            // For global permissions, binding.value should be a string
-            if (typeof binding.value === 'string') {
-                hasPermission = permissionStore.hasPermission(binding.value);
-            } else {
-                hasPermission = false;
+                permissions = [];
             }
         }
 
-        // If the directive is negated, invert the result
+        if (typeof permissions === 'string' || Array.isArray(permissions)) {
+            hasPermission = permissionStore.hasPermission(permissions, projectId, operator);
+        }
+
         if (isNegated) {
             hasPermission = !hasPermission;
         }
 
-        // If the user doesn't have the permission, hide the element
         if (!hasPermission) {
-            // Store the original display value
-            el._originalDisplay = el.style.display;
-
-            // Hide the element
-            el.style.display = 'none';
-        }
-    },
-
-    /**
-     * Called when the bound element's parent component is updated
-     * @param {HTMLElement} el - The element the directive is bound to
-     * @param {Object} binding - Directive binding object
-     * @param {Object} vnode - Virtual node
-     * @param {Object} prevVnode - Previous virtual node
-     */
-    updated(el, binding, vnode, prevVnode) {
-        const permissionStore = usePermissionStore();
-
-        // Check if the directive is used with the 'not' modifier
-        const isNegated = binding.modifiers.not;
-
-        // Check if the directive is used with the 'project' modifier
-        const isProjectSpecific = binding.modifiers.project;
-
-        let hasPermission = false;
-
-        if (isProjectSpecific) {
-            // For project-specific permissions, binding.value should be an object with permission and projectId
-            if (typeof binding.value === 'object' && binding.value.permission && binding.value.projectId) {
-                hasPermission = permissionStore.hasPermission(binding.value.permission, binding.value.projectId);
-            } else {
-                hasPermission = false;
-            }
-        } else {
-            // For global permissions, binding.value should be a string
-            if (typeof binding.value === 'string') {
-                hasPermission = permissionStore.hasPermission(binding.value);
-            } else {
-                hasPermission = false;
-            }
-        }
-
-        // If the directive is negated, invert the result
-        if (isNegated) {
-            hasPermission = !hasPermission;
-        }
-
-        // If the user doesn't have the permission, hide the element
-        if (!hasPermission) {
-            // Store the original display value if not already stored
             if (el._originalDisplay === undefined) {
                 el._originalDisplay = el.style.display;
             }
-
-            // Hide the element
             el.style.display = 'none';
         } else {
-            // If the user has the permission, restore the original display value
             if (el._originalDisplay !== undefined) {
                 el.style.display = el._originalDisplay === 'none' ? '' : el._originalDisplay;
             }
@@ -654,11 +602,25 @@ export const vPermission = {
     },
 
     /**
+     * Called before the element is inserted into the document
+     */
+    beforeMount(el, binding) {
+        // CORRECTED: Use 'vPermission' instead of 'this'
+        vPermission._check(el, binding);
+    },
+
+    /**
+     * Called when the component is updated
+     */
+    updated(el, binding) {
+        // CORRECTED: Use 'vPermission' instead of 'this'
+        vPermission._check(el, binding);
+    },
+
+    /**
      * Called when the directive is unbound from the element
-     * @param {HTMLElement} el - The element the directive is bound to
      */
     unmounted(el) {
-        // Restore the original display value when the directive is unbound
         if (el._originalDisplay !== undefined) {
             el.style.display = el._originalDisplay;
             delete el._originalDisplay;
