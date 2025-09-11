@@ -100,7 +100,7 @@ class EmailAiAnalysisService
      */
     private function buildSystemPrompt(bool $isIncoming): string
     {
-        $companyDomain = config('services.gemini.company_domain', 'yourcompany.com');
+        $companyDomain = config('services.gemini.company_domain', 'ozeeweb.com.au');
 
         // --- NEW MISSION STATEMENT ---
         // This is the most important change. We tell the AI its primary goal is to APPROVE emails
@@ -127,7 +127,7 @@ class EmailAiAnalysisService
 
         $prompt .= "**Rules for `context_summary`:**\n";
         // ... (The context summary rules remain the same as before)
-        $prompt .= "1. The `context_summary` must be a concise, one-sentence summary of the key action, question, or event in the email.\n";
+        $prompt .= "1. The `context_summary` must be a concise, one to two sentences summary of the key action and information related to email, question, or event in the email.\n";
 
         if ($isIncoming) {
             $prompt .= "2. This is an INCOMING email from the client. Start the summary with '**Client**'.\n";
