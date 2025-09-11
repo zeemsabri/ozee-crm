@@ -229,7 +229,7 @@ onMounted(async () => {
                 <NavLink :href="route('kudos.index')" :active="route().current('kudos.index')">
                     Kudos
                 </NavLink>
-                <NavLink v-if="canDo('add_expendables').value" :href="route('project-expendables.index')">
+                <NavLink v-permission="'add_expendables'" :href="route('project-expendables.index')">
                     Project Expendables
                 </NavLink>
             </div>

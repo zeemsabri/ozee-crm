@@ -83,21 +83,6 @@ class ProjectActionController extends Controller
                 Log::error('Failed to create Google Chat space for project', ['project_name' => $validated['name'], 'error' => $e->getMessage()]);
             }
 
-            if ($request->hasFile('logo')) {
-                $localPath = $request->file('logo')->store('logos', 'public');
-                $projectData['logo'] = $localPath;
-
-                if (isset($projectData['google_drive_folder_id'])) {
-                    try {
-                        $fullLocalPath = Storage::disk('public')->path($localPath);
-                        $originalFilename = $request->file('logo')->getClientOriginalName();
-                        $fileId = $this->googleDriveService->uploadFile($fullLocalPath, 'logo_' . $originalFilename, $projectData['google_drive_folder_id']);
-                        $projectData['logo_google_drive_file_id'] = $fileId;
-                    } catch (\Exception $e) {
-                        Log::error('Failed to upload logo to Google Drive: ' . $e->getMessage());
-                    }
-                }
-            }
 
             $project = Project::create($projectData);
 
@@ -151,7 +136,7 @@ class ProjectActionController extends Controller
             }
 
             $isJsonRequest = $request->isJson() || $request->header('Content-Type') === 'application/json';
-            $hasFileUploads = $request->hasFile('logo') || $request->hasFile('documents');
+            $hasFileUploads = $request->hasFile('documents');
             if ($hasFileUploads) {
                 $isJsonRequest = false;
             }
@@ -224,7 +209,6 @@ class ProjectActionController extends Controller
             }
 
             if (!$isJsonRequest) {
-                $validationRules['logo'] = 'nullable|image|max:2048';
                 $validationRules['documents.*'] = 'nullable|file|mimes:pdf,doc,docx,jpg,png|max:10240';
             }
 
@@ -256,14 +240,6 @@ class ProjectActionController extends Controller
             }
 
             if ($isJsonRequest) {
-                if ($request->has('logo')) {
-                    if (is_array($request->input('logo')) && empty($request->input('logo'))) {
-                        // Do nothing
-                    } else if ($request->input('logo') === null && $project->logo) {
-                        Storage::disk('public')->delete($project->logo);
-                        $projectData['logo'] = null;
-                    }
-                }
 
                 if ($request->has('documents') && is_array($request->input('documents'))) {
                     $existingDocuments = $project->documents ?? [];

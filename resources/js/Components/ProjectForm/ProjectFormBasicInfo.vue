@@ -135,7 +135,7 @@ const submitBasicInfo = async () => {
                 preferred_keywords: response.data.preferred_keywords || localProjectForm.preferred_keywords,
                 google_chat_id: response.data.google_chat_id || localProjectForm.google_chat_id,
                 google_drive_link: response.data.google_drive_link || localProjectForm.google_drive_link,
-                logo: response.data.logo || localProjectForm.logo, // Ensure logo path is updated
+                logo: response.data.logo_url || response.data.logo || localProjectForm.logo, // Ensure logo path is updated
                 status: response.data.status || localProjectForm.status,
                 project_type: response.data.project_type || localProjectForm.project_type,
                 source: response.data.source || localProjectForm.source,
@@ -190,7 +190,7 @@ const fetchBasicInfoData = async () => {
                 preferred_keywords: data.preferred_keywords || '',
                 google_chat_id: data.google_chat_id || '',
                 google_drive_link: data.google_drive_link || '',
-                logo: data.logo || null,
+                logo: data.logo_url || data.logo || null,
                 status: data.status || 'active',
                 project_type: data.project_type || '',
                 source: data.source || '',
