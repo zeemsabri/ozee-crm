@@ -25,7 +25,36 @@ const showingNavigationDropdown = ref(false);
 const user = computed(() => usePage().props.auth.user);
 
 const { canDo } = usePermissions();
+
+// Determine if Admin menu should be visible based on any admin-related permissions
+// If a specific permission slug is not present in the system, inner links remain visible per requirement
+const canAccessProjects = canDo('manage_projects');
+const canManageUsers = canDo('create_users');
 const canManageRoles = canDo('manage_roles');
+const canManageTaskTypes = canDo('manage_task_types');
+const canAccessClients = canDo('create_clients');
+const canManageProjectTiers = computed(() => canDo('manage_project_tiers').value || canDo('view_project_tiers').value || canDo('create_project_tiers').value || canDo('edit_project_tiers').value);
+const canManageNotices = canDo('manage_notices');
+const canManageEmailTemplates = canDo('manage_email_templates');
+const canManagePlaceholderDefinitions = canDo('manage_placeholder_definitions');
+const canManagePermissions = canDo('manage_permissions');
+const canManageMonthlyBudgets = canDo('manage_monthly_budgets');
+const canViewMonthlyBudgets = canDo('view_monthly_budgets');
+
+const canSeeAdminMenu = computed(() =>
+    canAccessProjects.value ||
+    canManageUsers.value ||
+    canManageRoles.value ||
+    canManageTaskTypes.value ||
+    canAccessClients.value ||
+    canManageProjectTiers.value ||
+    canManageNotices.value ||
+    canManageEmailTemplates.value ||
+    canManagePlaceholderDefinitions.value ||
+    canManagePermissions.value ||
+    canManageMonthlyBudgets.value ||
+    canViewMonthlyBudgets.value
+);
 
 // Monthly points badge state
 const monthlyPoints = ref(null);
@@ -139,7 +168,7 @@ onMounted(async () => {
 
                         <BonusDropdown />
 
-                        <AdminDropdown v-if="canManageRoles" />
+                        <AdminDropdown v-permission="view_admin_dropdown" />
 
                     </div>
 
