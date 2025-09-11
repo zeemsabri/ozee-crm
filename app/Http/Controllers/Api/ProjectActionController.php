@@ -810,10 +810,9 @@ class ProjectActionController extends Controller
     {
 
         try {
+
             $user = Auth::user();
-            if (!$this->canManageProjects($user, $project)) {
-                return response()->json(['message' => 'Unauthorized. You do not have permission to update this project.'], 403);
-            }
+            $this->authorize('update', $project);
 
             $validationRules = [
                 'name' => 'sometimes|required|string|max:255',

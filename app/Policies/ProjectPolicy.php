@@ -97,7 +97,17 @@ class ProjectPolicy
      */
     public function update(User $user, Project $project): bool
     {
-        return $user->hasPermission('edit_projects');
+
+        if($user->hasPermission('edit_projects')) {
+            return true;
+        }
+
+        if($user->hasProjectPermission($project, 'edit_projects')) {
+            return true;
+        }
+
+        return false;
+
     }
 
     /**
