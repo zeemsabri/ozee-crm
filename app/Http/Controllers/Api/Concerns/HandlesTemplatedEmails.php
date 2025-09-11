@@ -202,7 +202,12 @@ trait HandlesTemplatedEmails
             $body = $email->body;
         }
 
-        $body = nl2br($body);
+        // Only convert newlines to <br> for plain-text bodies.
+        $decodedJson = json_decode($body);
+        $looksLikeHtml = is_string($body) && str_contains($body, '<');
+        if ($decodedJson === null && !$looksLikeHtml) {
+            $body = nl2br($body);
+        }
 
         return ['subject' => $subject, 'body' => $body];
     }
@@ -227,9 +232,11 @@ trait HandlesTemplatedEmails
             $senderDetails = $this->getSenderDetails($email);
 
             // Combine all data into a single array for the view
-            $data = $this->getData($subject, $body, $senderDetails);
+            $data = $this->getData($subject, $body, $senderDetails, $email, false);
 
-            $fullHtml = $this->renderHtmlTemplate($data);
+            // Pick the correct blade template based on saved email_template or fallback
+            $template = $email->email_template ?: Email::TEMPLATE_DEFAULT;
+            $fullHtml = $this->renderHtmlTemplate($data, $template);
 
             return response()->json([
                 'id'    =>  $email->id,
@@ -277,10 +284,11 @@ trait HandlesTemplatedEmails
             $senderDetails = $this->getSenderDetails($email);
 
             // Combine all data into a single array for the view
-            $data = $this->getData($subject, $body, $senderDetails);
+            $data = $this->getData($subject, $body, $senderDetails, $email, true);
 
-            // Use only one template for all emails
-            $fullHtml = $this->renderHtmlTemplate($data);
+            // Use saved blade template when available
+            $template = $email->email_template ?: Email::TEMPLATE_DEFAULT;
+            $fullHtml = $this->renderHtmlTemplate($data, $template);
 
             return response()->json([
                 'subject' => $subject,

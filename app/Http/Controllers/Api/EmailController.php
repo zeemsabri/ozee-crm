@@ -367,7 +367,7 @@ class EmailController extends Controller
                 $renderedContent = $this->renderEmailContent($email, true);
                 $subject = $renderedContent['subject'];
                 $renderedBody = $renderedContent['body'];
-                $template = 'email_template';
+                $template = $email->email_template ?: 'email_template';
 
             } else {
                 // For regular HTML emails
@@ -376,11 +376,14 @@ class EmailController extends Controller
 
 
                 $email->update($validated);
-                $template = 'email_template';
+                $template = $email->email_template ?: 'email_template';
             }
 
             $data = $this->getData($subject, $renderedBody, $senderDetails, $email, true);
-            $finalRenderedBody = $this->renderHtmlTemplate($data, $template);
+
+            // If the body already contains a full HTML document (e.g., from preview/editor), do not wrap it again
+            $isFullHtmlDoc = is_string($renderedBody) && (str_contains($renderedBody, '<html') || str_contains($renderedBody, '<!DOCTYPE'));
+            $finalRenderedBody = $isFullHtmlDoc ? $renderedBody : $this->renderHtmlTemplate($data, $template);
 
             // Resolve recipient(s): if a client is associated, use it; otherwise fall back to Email.to
             $recipient = $email->conversation->conversable;
@@ -963,12 +966,21 @@ class EmailController extends Controller
         try {
             // Use the renderEmailContent method from HandlesTemplatedEmails trait
             $renderedContent = $this->renderEmailContent($email, false);
+            $subject = $renderedContent['subject'];
+            $body = $renderedContent['body'];
+
+            // Build full HTML using the saved blade template for a proper editor preview
+            $senderDetails = $this->getSenderDetails($email);
+            $data = $this->getData($subject, $body, $senderDetails, $email, false);
+            $template = $email->email_template ?: \App\Models\Email::TEMPLATE_DEFAULT;
+            $fullHtml = $this->renderHtmlTemplate($data, $template);
 
             return response()->json([
-                'subject' => $renderedContent['subject'],
-                'body_html' => $renderedContent['body'],
+                'subject' => $subject,
+                'body_html' => $fullHtml,
                 'template_id' => $email->template_id,
                 'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
+                'email_template' => $email->email_template,
                 'client_id' => $email->conversation->conversable_id,
                 'type'  =>  $email->type,
                 'status'    =>  $email->status
