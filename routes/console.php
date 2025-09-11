@@ -17,6 +17,6 @@ Schedule::command('queue:work --stop-when-empty')->everyMinute();
 
 Schedule::command('points:calculate-streak')->weeklyOn(7);
 
-Schedule::command('leads:process-new')->daily();
+Schedule::command('leads:process-new')->everyFourHours();
 
 Schedule::command('leads:process-follow-ups')->daily();

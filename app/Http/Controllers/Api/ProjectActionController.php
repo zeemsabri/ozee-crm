@@ -711,11 +711,9 @@ class ProjectActionController extends Controller
      */
     public function uploadDocuments(Request $request, Project $project)
     {
-        $user = Auth::user();
+
         // Assuming canManageProjects is a method on your controller or a trait
-        if (!$this->canManageProjects($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have permission to upload documents.'], 403);
-        }
+       $this->authorize('uploadDocuments', $project);
 
         try {
             $validationRules = [
