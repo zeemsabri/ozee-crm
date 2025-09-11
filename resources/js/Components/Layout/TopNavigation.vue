@@ -168,7 +168,7 @@ onMounted(async () => {
 
                         <BonusDropdown />
 
-                        <AdminDropdown v-permission="view_admin_dropdown" />
+                        <AdminDropdown v-permission="'view_admin_dropdown'" />
 
                     </div>
 

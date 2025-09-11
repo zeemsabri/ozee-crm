@@ -1,15 +1,6 @@
 <script setup>
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
-import { usePermissions } from '@/Directives/permissions';
-
-const { canDo } = usePermissions();
-const canAccessProjects = canDo('manage_projects');
-const canManageUsers = canDo('create_users');
-const canManageRoles = canDo('manage_roles');
-const canManageTaskTypes = canDo('manage_task_types');
-const canAccessClients = canDo('create_clients');
-const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_project_tiers');
 </script>
 
 <template>
@@ -43,11 +34,11 @@ const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_proje
                         <div>
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Management</h4>
                             <div class="space-y-1">
-                                <DropdownLink v-if="canAccessProjects" :href="route('projects.index')" :active="route().current('projects.index')" class="!px-2 !py-1.5">Projects</DropdownLink>
-                                <DropdownLink v-if="canAccessClients" :href="route('clients.page')" :active="route().current('clients.page')" class="!px-2 !py-1.5">Clients</DropdownLink>
-                                <DropdownLink v-if="canManageUsers" :href="route('users.page')" :active="route().current('users.page')" class="!px-2 !py-1.5">Users</DropdownLink>
-                                <DropdownLink v-if="canAccessProjects" :href="route('leads.page')" :active="route().current('leads.page')" class="!px-2 !py-1.5">Leads</DropdownLink>
-                                <DropdownLink v-if="canAccessProjects" href="/campaigns" :active="$page.url && $page.url.startsWith('/campaigns')" class="!px-2 !py-1.5">Campaigns</DropdownLink>
+                                <DropdownLink v-permission="'manage_projects'" :href="route('projects.index')" :active="route().current('projects.index')" class="!px-2 !py-1.5">Projects</DropdownLink>
+                                <DropdownLink v-permission="'create_clients'" :href="route('clients.page')" :active="route().current('clients.page')" class="!px-2 !py-1.5">Clients</DropdownLink>
+                                <DropdownLink v-permission="'create_users'" :href="route('users.page')" :active="route().current('users.page')" class="!px-2 !py-1.5">Users</DropdownLink>
+                                <DropdownLink v-permission="'manage_projects'" :href="route('leads.page')" :active="route().current('leads.page')" class="!px-2 !py-1.5">Leads</DropdownLink>
+                                <DropdownLink v-permission="'manage_projects'" href="/campaigns" :active="$page.url && $page.url.startsWith('/campaigns')" class="!px-2 !py-1.5">Campaigns</DropdownLink>
                             </div>
                         </div>
 
@@ -55,9 +46,9 @@ const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_proje
                         <div>
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Planning / Sharing</h4>
                             <div class="space-y-1">
-                                <DropdownLink v-if="canManageUsers" :href="route('availability.index')" :active="route().current('availability.index')" class="!px-2 !py-1.5">Weekly Availability</DropdownLink>
-                                <DropdownLink v-if="canDo('manage_notices')" :href="route('admin.notice-board.index')" class="!px-2 !py-1.5">Notice Board</DropdownLink>
-                                <DropdownLink v-if="canDo('manage_notices')" :href="route('shareable-resources.page')" class="!px-2 !py-1.5">Shareable Resources</DropdownLink>
+                                <DropdownLink v-permission="'create_users'" :href="route('availability.index')" :active="route().current('availability.index')" class="!px-2 !py-1.5">Weekly Availability</DropdownLink>
+                                <DropdownLink v-permission="'manage_notices'" :href="route('admin.notice-board.index')" class="!px-2 !py-1.5">Notice Board</DropdownLink>
+                                <DropdownLink v-permission="'view_shareable_resources'" :href="route('shareable-resources.page')" class="!px-2 !py-1.5">Shareable Resources</DropdownLink>
                             </div>
                         </div>
 
@@ -65,10 +56,10 @@ const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_proje
                         <div>
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Configuration</h4>
                             <div class="space-y-1">
-                                <DropdownLink v-if="canManageTaskTypes" :href="route('task-types.page')" :active="route().current('task-types.page')" class="!px-2 !py-1.5">Task Types</DropdownLink>
-                                <DropdownLink v-if="canManageProjectTiers || canDo('create_project_tiers') || canDo('edit_project_tiers')" href="/admin/project-tiers" class="!px-2 !py-1.5">Project Tiers</DropdownLink>
-                                <DropdownLink v-if="canDo('manage_email_templates')" :href="route('email-templates.page')" :active="route().current('email-templates.page')" class="!px-2 !py-1.5">Email Templates</DropdownLink>
-                                <DropdownLink v-if="canDo('manage_placeholder_definitions')" :href="route('placeholder-definitions.page')" :active="route().current('placeholder-definitions.page')" class="!px-2 !py-1.5">Placeholder Definitions</DropdownLink>
+                                <DropdownLink v-permission="'manage_projects'" :href="route('task-types.page')" :active="route().current('task-types.page')" class="!px-2 !py-1.5">Task Types</DropdownLink>
+                                <DropdownLink v-permission="'view_project_tiers'" href="/admin/project-tiers" class="!px-2 !py-1.5">Project Tiers</DropdownLink>
+                                <DropdownLink v-permission="'manage_email_templates'" :href="route('email-templates.page')" :active="route().current('email-templates.page')" class="!px-2 !py-1.5">Email Templates</DropdownLink>
+                                <DropdownLink v-permission="'manage_placeholder_definitions'" :href="route('placeholder-definitions.page')" :active="route().current('placeholder-definitions.page')" class="!px-2 !py-1.5">Placeholder Definitions</DropdownLink>
                             </div>
                         </div>
 
@@ -76,10 +67,10 @@ const canManageProjectTiers = canDo('manage_project_tiers') || canDo('view_proje
                         <div>
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Access & Finance</h4>
                             <div class="space-y-1">
-                                <DropdownLink v-if="canManageRoles" :href="route('admin.roles.index')" class="!px-2 !py-1.5">Manage Roles</DropdownLink>
-                                <DropdownLink v-if="canDo('manage_permissions')" :href="route('admin.permissions.index')" class="!px-2 !py-1.5">Manage Permissions</DropdownLink>
-                                <DropdownLink v-if="canDo('manage_monthly_budgets')" href="/admin/monthly-budgets" class="!px-2 !py-1.5">Monthly Budgets</DropdownLink>
-                                <DropdownLink v-if="canDo('view_monthly_budgets')" href="/admin/bonus-calculator" class="!px-2 !py-1.5">Bonus Calculator</DropdownLink>
+                                <DropdownLink v-permission="'manage_roles'" :href="route('admin.roles.index')" class="!px-2 !py-1.5">Manage Roles</DropdownLink>
+                                <DropdownLink v-permission="'assign_permissions'" :href="route('admin.permissions.index')" class="!px-2 !py-1.5">Manage Permissions</DropdownLink>
+                                <DropdownLink v-permission="'manage_monthly_budgets'" href="/admin/monthly-budgets" class="!px-2 !py-1.5">Monthly Budgets</DropdownLink>
+                                <DropdownLink v-permission="'view_monthly_budgets'" href="/admin/bonus-calculator" class="!px-2 !py-1.5">Bonus Calculator</DropdownLink>
                             </div>
                         </div>
                     </div>

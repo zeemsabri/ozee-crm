@@ -484,7 +484,7 @@ onMounted(() => {
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div class="flex items-center space-x-2">
-                                            <Link :href="route('projects.edit', project.id)" v-permission="'manage_projects'" class="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:border-indigo-700 focus:ring active:bg-indigo-700 transition ease-in-out duration-150">Edit</Link>
+                                            <Link :href="route('projects.edit', project.id)" v-permission="'edit_projects'" class="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:border-indigo-700 focus:ring active:bg-indigo-700 transition ease-in-out duration-150">Edit</Link>
 
                                             <!-- Archive button (only shown for non-archived projects) -->
                                             <button
