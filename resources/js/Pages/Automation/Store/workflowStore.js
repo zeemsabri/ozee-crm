@@ -1,121 +1,153 @@
 import { defineStore } from 'pinia';
-import {
-  fetchWorkflows as apiFetchWorkflows,
-  fetchWorkflow as apiFetchWorkflow,
-  createWorkflowStep as apiCreateStep,
-  updateWorkflowStep as apiUpdateStep,
-  deleteWorkflowStep as apiDeleteStep,
-} from '../Api/automationApi';
+import * as api from '../Api/automationApi';
 
-export const useWorkflowStore = defineStore('automation-workflow', {
-  state: () => ({
-    workflows: [],
-    workflowsMeta: null,
-    activeWorkflow: null,
-    selectedStep: null,
-    isLoading: false,
-  }),
+// This helper function safely extracts the main data object from a typical Laravel API response.
+const unwrapApiResponse = (response) => {
+    if (response && response.data) {
+        return response.data;
+    }
+    return response;
+};
 
-  getters: {
-    getStepById: (state) => (id) => {
-      if (!state.activeWorkflow?.steps) return null;
-      return state.activeWorkflow.steps.find((s) => String(s.id) === String(id));
+export const useWorkflowStore = defineStore('workflow', {
+    state: () => ({
+        workflows: [],
+        prompts: [],
+        activeWorkflow: null,
+        selectedStep: null,
+        isLoading: false,
+    }),
+
+    actions: {
+        // --- WORKFLOW ACTIONS ---
+        async fetchWorkflows() {
+            this.isLoading = true;
+            try {
+                const response = await api.fetchWorkflows();
+                this.workflows = unwrapApiResponse(response) || [];
+            } catch (error) {
+                console.error("Failed to fetch workflows:", error);
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+        async fetchWorkflow(id) {
+            this.isLoading = true;
+            this.selectedStep = null;
+            try {
+                const response = await api.fetchWorkflow(id);
+                const workflow = unwrapApiResponse(response);
+
+                // This function recursively prepares the steps for our flowchart UI.
+                const initializeStepArrays = (steps) => {
+                    if (!Array.isArray(steps)) return;
+                    steps.forEach(step => {
+                        if (step.step_type === 'CONDITION') {
+                            if (!Array.isArray(step.yes_steps)) step.yes_steps = [];
+                            if (!Array.isArray(step.no_steps)) step.no_steps = [];
+                            initializeStepArrays(step.yes_steps);
+                            initializeStepArrays(step.no_steps);
+                        }
+                    });
+                };
+
+                // ** THE FIX IS HERE **
+                // We now have a much safer check to ensure 'workflow' is a valid object with steps.
+                if (workflow && typeof workflow === 'object' && Array.isArray(workflow.steps)) {
+                    initializeStepArrays(workflow.steps);
+                    this.activeWorkflow = workflow;
+                } else {
+                    // If the data is invalid, log an error and clear the active workflow.
+                    console.error(`Received invalid data structure for workflow ${id}:`, response);
+                    this.activeWorkflow = null;
+                }
+
+            } catch (error) {
+                console.error(`Failed to fetch workflow ${id}:`, error);
+                this.activeWorkflow = null;
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+        async createWorkflow(payload) {
+            const response = await api.createWorkflow(payload);
+            const newWorkflow = unwrapApiResponse(response);
+            if (newWorkflow) {
+                this.workflows.unshift(newWorkflow);
+                await this.fetchWorkflow(newWorkflow.id);
+            }
+        },
+
+        // --- STEP ACTIONS ---
+        addStep({ type, insertAfter }) {
+            if (!this.activeWorkflow) return;
+
+            const newStep = {
+                id: `temp_${Date.now()}`,
+                workflow_id: this.activeWorkflow.id,
+                name: `New ${type}`,
+                step_type: type,
+                step_order: insertAfter + 1,
+                step_config: {},
+                condition_rules: type === 'CONDITION' ? [] : null,
+            };
+
+            this.activeWorkflow.steps.splice(insertAfter + 1, 0, newStep);
+            this.selectStep(newStep);
+        },
+
+        selectStep(step) {
+            this.selectedStep = step;
+        },
+
+        async persistStep(stepToSave) {
+            if (!stepToSave || !stepToSave.workflow_id) return;
+
+            // ** THIS LOGIC IS NEW **
+            // Check if the ID is temporary (meaning it's a new step).
+            if (String(stepToSave.id).startsWith('temp_')) {
+                const { id, ...creationPayload } = stepToSave; // Omit the temporary ID
+                const response = await api.createWorkflowStep(creationPayload);
+                const savedStep = unwrapApiResponse(response);
+
+                // Replace the temporary step with the real one from the server.
+                const index = this.activeWorkflow.steps.findIndex(s => s.id === stepToSave.id);
+                if (index !== -1 && savedStep) {
+                    this.activeWorkflow.steps[index] = savedStep;
+                    this.selectedStep = savedStep;
+                }
+            } else {
+                // If it's an existing step, update it.
+                const response = await api.updateWorkflowStep(stepToSave.id, stepToSave);
+                const savedStep = unwrapApiResponse(response);
+
+                const index = this.activeWorkflow.steps.findIndex(s => s.id === stepToSave.id);
+                if (index !== -1 && savedStep) {
+                    this.activeWorkflow.steps[index] = savedStep;
+                }
+            }
+        },
+
+        // --- PROMPT ACTIONS ---
+        async fetchPrompts() {
+            try {
+                const response = await api.fetchPrompts({ per_page: 100 });
+                this.prompts = unwrapApiResponse(response) || [];
+            } catch (error) {
+                console.error("Failed to fetch prompts:", error);
+            }
+        },
+
+        async createPrompt(payload) {
+            const response = await api.createPrompt(payload);
+            const newPrompt = unwrapApiResponse(response);
+            if (newPrompt) {
+                this.prompts.unshift(newPrompt);
+            }
+            return newPrompt;
+        },
     },
-  },
-
-  actions: {
-    async fetchWorkflows(params = {}) {
-      this.isLoading = true;
-      try {
-        const page = await apiFetchWorkflows(params);
-        this.workflows = page.data || [];
-        this.workflowsMeta = { meta: page.meta, links: page.links };
-      } finally {
-        this.isLoading = false;
-      }
-    },
-
-    async fetchWorkflow(id) {
-      this.isLoading = true;
-      try {
-        const wf = await apiFetchWorkflow(id);
-        // Ensure steps array exists
-        wf.steps = Array.isArray(wf.steps) ? wf.steps : [];
-        // Normalize step_order
-        wf.steps.forEach((s, idx) => {
-          if (typeof s.step_order !== 'number') s.step_order = idx;
-        });
-        this.activeWorkflow = wf;
-        this.selectedStep = null;
-      } finally {
-        this.isLoading = false;
-      }
-    },
-
-    selectStep(step) {
-      this.selectedStep = step;
-    },
-
-    addStep(stepType) {
-      if (!this.activeWorkflow) return;
-      const steps = this.activeWorkflow.steps || (this.activeWorkflow.steps = []);
-      const nextOrder = steps.length;
-      const step = {
-        id: `temp-${Date.now()}`,
-        workflow_id: this.activeWorkflow.id,
-        step_order: nextOrder,
-        name: stepType === 'TRIGGER' ? 'Trigger' : stepType === 'CONDITION' ? 'Condition' : 'AI Prompt',
-        step_type: stepType,
-        prompt_id: null,
-        step_config: {},
-        condition_rules: stepType === 'CONDITION' ? [] : null,
-        delay_minutes: 0,
-      };
-      steps.push(step);
-      this.selectedStep = step;
-    },
-
-    reorderSteps(newOrder) {
-      if (!this.activeWorkflow) return;
-      this.activeWorkflow.steps = newOrder.map((s, idx) => ({ ...s, step_order: idx }));
-    },
-
-    async persistStep(step) {
-      // optional helper to persist to API later
-      if (String(step.id).startsWith('temp-')) {
-        const created = await apiCreateStep({
-          workflow_id: step.workflow_id,
-          step_order: step.step_order,
-          name: step.name,
-          step_type: step.step_type,
-          prompt_id: step.prompt_id,
-          step_config: step.step_config,
-          condition_rules: step.condition_rules,
-          delay_minutes: step.delay_minutes,
-        });
-        // replace temp with created
-        const idx = this.activeWorkflow.steps.findIndex((s) => s.id === step.id);
-        if (idx !== -1) this.activeWorkflow.steps[idx] = created;
-        if (this.selectedStep?.id === step.id) this.selectedStep = created;
-      } else {
-        const updated = await apiUpdateStep(step.id, step);
-        const idx = this.activeWorkflow.steps.findIndex((s) => String(s.id) === String(step.id));
-        if (idx !== -1) this.activeWorkflow.steps[idx] = updated;
-        if (this.selectedStep?.id === step.id) this.selectedStep = updated;
-      }
-    },
-
-    async deleteStep(stepId) {
-      const idx = this.activeWorkflow?.steps?.findIndex((s) => String(s.id) === String(stepId));
-      if (idx === undefined || idx < 0) return;
-      const step = this.activeWorkflow.steps[idx];
-      if (!String(step.id).startsWith('temp-')) {
-        await apiDeleteStep(step.id);
-      }
-      this.activeWorkflow.steps.splice(idx, 1);
-      // reindex orders
-      this.activeWorkflow.steps.forEach((s, i) => (s.step_order = i));
-      if (this.selectedStep?.id === stepId) this.selectedStep = null;
-    },
-  },
 });
+
