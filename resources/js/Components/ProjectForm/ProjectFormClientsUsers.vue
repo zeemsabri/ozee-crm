@@ -224,7 +224,7 @@ onMounted(() => {
 <template>
     <div class="space-y-8">
         <!-- Clients Section -->
-        <div v-if="canViewProjectClients" class="bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
+        <div v-permission.or="['view_project_clients', 'manage_project_clients']" class="bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
             <h3 class="text-xl font-semibold text-gray-800 mb-5">Project Clients</h3>
             <MultiSelectWithRoles
                 label="Select Clients"
