@@ -75,6 +75,30 @@ export const error = (message, duration = 5000) => {
     showStandardNotification(message, 'error', duration);
 };
 
+/**
+ * Parses and displays Laravel validation errors.
+ * @param {object} err The error object, likely from Axios.
+ */
+export const handleLaravelError = (err) => {
+    // Check if it's a validation error (status 422) with the expected structure
+    if (err.response && err.response.status === 422 && err.response.data.errors) {
+        const errors = err.response.data.errors;
+
+        // Get the first key (field name) from the errors object, e.g., "status"
+        const firstErrorKey = Object.keys(errors)[0];
+
+        // Get the first message from that field's array of messages
+        const firstErrorMessage = errors[firstErrorKey][0];
+
+        // Call your notification function with the extracted message
+        error(firstErrorMessage);
+    } else {
+        // Fallback for generic server errors or network issues
+        const message = err.response?.data?.message || err.message || 'An unexpected error occurred.';
+        error(message);
+    }
+};
+
 export const info = (message, duration = 5000) => {
     showStandardNotification(message, 'info', duration);
 };

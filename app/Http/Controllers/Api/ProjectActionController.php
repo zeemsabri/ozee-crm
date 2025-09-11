@@ -811,7 +811,6 @@ class ProjectActionController extends Controller
 
         try {
 
-            $user = Auth::user();
             $this->authorize('update', $project);
 
             $validationRules = [
