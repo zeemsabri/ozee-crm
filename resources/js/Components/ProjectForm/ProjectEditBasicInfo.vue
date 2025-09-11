@@ -527,7 +527,7 @@ onMounted(() => {
         <div class="mt-6 flex justify-end">
             <PrimaryButton
                 @click="submitBasicInfo"
-                v-if="canManageProjectBasicDetails"
+                v-permission="['edit_projects', 'manage_projects']"
                 :disabled="!canManageProjects || isSavingLocal || isSaving"
                 :class="{ 'opacity-50 cursor-not-allowed': isSavingLocal || isSaving }"
                 class="px-6 py-2 rounded-lg text-base shadow-md hover:shadow-lg transition-all"
