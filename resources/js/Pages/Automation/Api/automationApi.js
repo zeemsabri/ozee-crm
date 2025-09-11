@@ -47,3 +47,13 @@ export const fetchPrompts = async (params = {}) => {
   const { data } = await axios.get(`${API_BASE_URL}/prompts`, { params });
   return data; // paginator
 };
+
+export const createPrompt = async (payload) => {
+  const { data } = await axios.post(`${API_BASE_URL}/prompts`, payload);
+  return data;
+};
+
+export const updatePrompt = async (id, payload) => {
+  const { data } = await axios.put(`${API_BASE_URL}/prompts/${id}`, payload);
+  return data;
+};
