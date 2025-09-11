@@ -66,6 +66,8 @@ You MUST return a single JSON object with the following structure.
     }
   },
   "context_summary": "Replied to lead's [Identified Intent]. [Action Taken, e.g., 'Provided standard pricing' or 'Flagged for manual price input']."
+  "reason": "You reason of taking action or required approval or autosend"
+
 }
 
 For MANUAL_APPROVAL_REQUIRED status: In the paragraphs array, you must use the placeholder {PRICE_DETAILS_HERE} where the pricing information needs to be inserted by a human.

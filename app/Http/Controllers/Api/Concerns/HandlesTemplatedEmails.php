@@ -101,7 +101,7 @@ trait HandlesTemplatedEmails
      * @param bool $isFinalSend
      * @return string
      */
-    protected function getPlaceholderValue(PlaceholderDefinition $placeholder, $recipient, Project $project, bool $isFinalSend): string
+    protected function getPlaceholderValue(PlaceholderDefinition $placeholder, $recipient, Project|null $project, bool $isFinalSend): string
     {
         if (!$placeholder->source_model || !$placeholder->source_attribute) {
             return 'N/A';
@@ -125,7 +125,7 @@ trait HandlesTemplatedEmails
             return $project->{$attribute} ?? 'N/A';
         }
 
-        if ($modelClass === 'App\\Models\\MagicLink' && $placeholder->name === 'Magic Link') {
+        if ($modelClass === 'App\\Models\\MagicLink' && $placeholder->name === 'Magic Link' && $project) {
             $magicLinkUrl = $this->getMagicLinkUrl($recipient->email, $project->id, $isFinalSend);
             return '<a href="' . e($magicLinkUrl) . '">Client Portal</a>';
         }
@@ -172,7 +172,7 @@ trait HandlesTemplatedEmails
     public function renderEmailContent(Email $email, bool $isFinalSend = false)
     {
         if ($email->template_id) {
-            $recipientClient = $email->conversation->client;
+            $recipientClient = $email->conversation->client ?? $email->conversation->conversable;
             if (!$recipientClient) {
                 throw new Exception('Recipient client not found for email ID: ' . $email->id);
             }
@@ -185,7 +185,7 @@ trait HandlesTemplatedEmails
                 $template,
                 $templateData,
                 $recipientClient,
-                $email->conversation->project,
+                $email->conversation?->project,
                 $isFinalSend
             );
             $body = $this->populateAllPlaceholders(
@@ -222,6 +222,7 @@ trait HandlesTemplatedEmails
             $renderedContent = $this->renderEmailContent($email, false);
             $subject = $renderedContent['subject'];
             $body = $renderedContent['body'];
+
             // Get the sender details
             $senderDetails = $this->getSenderDetails($email);
 
@@ -334,7 +335,8 @@ trait HandlesTemplatedEmails
             'textColorPrimary' => $config['branding']['text_color_primary'],
             'textColorSecondary' => $config['branding']['text_color_secondary'],
             'borderColor' => $config['branding']['border_color'],
-            'reviewLink' => null
+            'reviewLink' => null,
+            'template'  =>  $email ? $email->template : Email::TEMPLATE_DEFAULT,
         ];
 
         // Add the tracking URL only for final sends
