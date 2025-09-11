@@ -9,6 +9,15 @@ class Lead extends Model
 {
     use HasFactory, SoftDeletes;
 
+    const STATUS_OUTREACH_SENT = 'contacted';
+    const STATUS_GENERATION_FAILED = 'generation_failed';
+
+    const STATUS_NEW = 'new';
+
+    const STATUS_PROCESSING = 'processing';
+
+    const STATUS_SEQUENCE_COMPLETED = 'sequence_completed';
+
     protected $fillable = [
         'first_name',
         'last_name',
@@ -23,6 +32,7 @@ class Lead extends Model
         'currency',
         'assigned_to_id',
         'created_by_id',
+        'campaign_id',
         'contacted_at',
         'converted_at',
         'lost_reason',
@@ -35,13 +45,17 @@ class Lead extends Model
         'tags',
         'notes',
         'metadata',
+        'next_follow_up_date',
+        'email_thread_history',
     ];
 
     protected $casts = [
         'estimated_value' => 'decimal:2',
         'contacted_at' => 'datetime',
         'converted_at' => 'datetime',
+        'next_follow_up_date' => 'datetime',
         'metadata' => 'array',
+        'email_thread_history' => 'array',
     ];
 
     protected $appends = [
@@ -57,6 +71,16 @@ class Lead extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by_id');
+    }
+
+    public function conversations()
+    {
+        return $this->morphMany(Conversation::class, 'conversable');
+    }
+
+    public function campaign()
+    {
+        return $this->belongsTo(Campaign::class);
     }
 
     public function presentations()
@@ -116,5 +140,30 @@ class Lead extends Model
     public function contexts()
     {
         return $this->morphMany(Context::class, 'linkable');
+    }
+
+    /**
+     * Latest context summary for quick display.
+     */
+    public function latestContext()
+    {
+        return $this->morphOne(Context::class, 'linkable')->latestOfMany();
+    }
+
+    /**
+     * Filter by campaign IDs (primary or additional in metadata.additional_campaign_ids).
+     */
+    public function scopeCampaigns($query, $ids)
+    {
+        if (empty($ids)) {
+            return $query;
+        }
+        $ids = is_array($ids) ? array_values(array_unique(array_map('intval', $ids))) : [(int)$ids];
+        return $query->where(function ($q) use ($ids) {
+            $q->whereIn('campaign_id', $ids);
+            foreach ($ids as $cid) {
+                $q->orWhereJsonContains('metadata->additional_campaign_ids', $cid);
+            }
+        });
     }
 }

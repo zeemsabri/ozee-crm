@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue';
 const props = defineProps({
   lead: { type: Object, required: true }
 });
@@ -32,6 +33,12 @@ const humanDateTime = (value) => {
   const timePart = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(d);
   return `${datePart} • ${timePart}`;
 };
+
+const additionalCampaignCount = computed(() => {
+  const md = props.lead?.metadata || {};
+  const arr = Array.isArray(md.additional_campaign_ids) ? md.additional_campaign_ids : [];
+  return arr.length || 0;
+});
 </script>
 
 <template>
@@ -50,6 +57,17 @@ const humanDateTime = (value) => {
     <div class="mt-1 text-sm text-gray-600 truncate" v-if="lead.company">{{ lead.company }}</div>
     <div class="mt-1 text-xs text-gray-500 truncate" v-if="lead.email">{{ lead.email }}</div>
     <div class="mt-1 text-xs text-gray-500 truncate" v-if="lead.phone">{{ lead.phone }}</div>
+
+    <!-- Campaign badges -->
+    <div class="mt-2 flex items-center gap-2 flex-wrap">
+      <span v-if="lead.campaign" class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{{ lead.campaign.name }}</span>
+      <span v-if="additionalCampaignCount" class="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">+{{ additionalCampaignCount }} more</span>
+    </div>
+
+    <!-- Latest context summary -->
+    <div v-if="lead.latest_context?.summary" class="mt-2 text-[11px] text-gray-600 line-clamp-2">
+      {{ lead.latest_context.summary }}
+    </div>
 
     <div class="mt-2 grid grid-cols-1 gap-1 text-[11px] text-gray-500">
       <div v-if="lead.contacted_at">

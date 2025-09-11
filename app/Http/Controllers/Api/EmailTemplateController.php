@@ -17,7 +17,12 @@ class EmailTemplateController extends Controller
      */
     public function index()
     {
-        return response()->json(EmailTemplate::with('placeholders')->get());
+        $query = EmailTemplate::with('placeholders');
+        $user = auth()->user();
+        if (!$user || !$user->can('view_private_templates')) {
+            $query->where('is_private', false);
+        }
+        return response()->json($query->get());
     }
 
     /**
@@ -32,6 +37,7 @@ class EmailTemplateController extends Controller
             'body_html' => 'required|string',
             'description' => 'nullable|string',
             'is_default' => 'boolean',
+            'is_private' => 'boolean',
         ]);
 
         DB::beginTransaction();
@@ -65,6 +71,7 @@ class EmailTemplateController extends Controller
             'body_html' => 'required|string',
             'description' => 'nullable|string',
             'is_default' => 'boolean',
+            'is_private' => 'boolean',
         ]);
 
         DB::beginTransaction();

@@ -96,6 +96,43 @@ const fetchLeadEmails = async (page = 1) => {
   }
 };
 
+// Contexts & Campaigns UI state
+const contextInput = ref('');
+const savingContext = ref(false);
+const contextError = ref('');
+
+const combinedCampaigns = computed(() => {
+  const arr = [];
+  if (leadState.value?.campaign) arr.push(leadState.value.campaign);
+  const extras = leadState.value?.additional_campaigns || [];
+  for (const c of extras) {
+    if (!arr.find(x => x.id === c.id)) arr.push(c);
+  }
+  return arr;
+});
+
+const addLeadContext = async () => {
+  if (!idRef?.value || !contextInput.value.trim()) return;
+  savingContext.value = true;
+  contextError.value = '';
+  try {
+    const { data } = await axios.post(`/api/leads/${idRef.value}/contexts`, { summary: contextInput.value });
+    if (data?.contexts) {
+      if (leadState.value) {
+        leadState.value.contexts = data.contexts;
+      }
+    } else {
+      await fetchLead();
+    }
+    contextInput.value = '';
+  } catch (e) {
+    console.error('Failed to add context', e);
+    contextError.value = e?.response?.data?.message || 'Failed to add context';
+  } finally {
+    savingContext.value = false;
+  }
+};
+
 // Sidebar state
 const sidebar = ref({ show: false, mode: null, title: '', data: null, loading: false });
 
@@ -194,6 +231,12 @@ onMounted(async () => {
                     <div v-if="leadState.pipeline_stage"><span class="text-gray-500">Pipeline Stage:</span> <span class="font-medium">{{ leadState.pipeline_stage }}</span></div>
                     <div v-if="leadState.estimated_value"><span class="text-gray-500">Estimated Value:</span> <span class="font-medium">{{ leadState.estimated_value }} {{ leadState.currency || 'USD' }}</span></div>
                     <div v-if="leadState.website"><span class="text-gray-500">Website:</span> <span class="font-medium">{{ leadState.website }}</span></div>
+                    <div v-if="combinedCampaigns.length">
+                      <span class="text-gray-500">Campaigns:</span>
+                      <div class="font-medium flex flex-wrap gap-1 mt-0.5">
+                        <span v-for="c in combinedCampaigns" :key="c.id" class="inline-flex items-center px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs">{{ c.name }}</span>
+                      </div>
+                    </div>
                     <div v-if="leadState.address || leadState.city || leadState.state || leadState.zip || leadState.country">
                       <span class="text-gray-500">Address:</span>
                       <div class="font-medium">
@@ -211,6 +254,30 @@ onMounted(async () => {
                     <div v-if="leadState.tags"><span class="text-gray-500">Tags:</span> <span class="font-medium">{{ leadState.tags }}</span></div>
                     <div v-if="leadState.notes"><span class="text-gray-500">Notes:</span> <span class="font-medium">{{ leadState.notes }}</span></div>
                   </div>
+                </div>
+
+                <!-- Context Section -->
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-lg font-semibold">Context</h3>
+                  </div>
+                  <div class="mb-3 flex gap-2">
+                    <input
+                      v-model="contextInput"
+                      type="text"
+                      class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                      placeholder="Add context summary..."
+                    />
+                    <PrimaryButton :disabled="savingContext || !contextInput.trim()" @click="addLeadContext">{{ savingContext ? 'Saving...' : 'Add' }}</PrimaryButton>
+                  </div>
+                  <div v-if="contextError" class="text-red-600 text-sm mb-2">{{ contextError }}</div>
+                  <ul v-if="leadState?.contexts?.length" class="space-y-2">
+                    <li v-for="c in leadState.contexts" :key="c.id" class="border rounded-md p-3 bg-white">
+                      <div class="text-sm whitespace-pre-wrap">{{ c.summary }}</div>
+                      <div class="text-xs text-gray-500 mt-1">By {{ c.user?.name || 'User' }} • {{ new Date(c.created_at).toLocaleString() }}</div>
+                    </li>
+                  </ul>
+                  <div v-else class="text-gray-500 text-sm">No context yet.</div>
                 </div>
 
                 <!-- Emails Section -->

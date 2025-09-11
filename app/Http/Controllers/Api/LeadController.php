@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
+use App\Models\Campaign;
+use App\Models\Context;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -112,18 +114,30 @@ class LeadController extends Controller
         $status = $request->string('status')->toString();
         $source = $request->string('source')->toString();
         $assignedTo = $request->input('assigned_to_id');
+        $campaignIdsParam = $request->input('campaign_ids');
         $perPage = (int)($request->input('per_page', 15));
         $perPage = $perPage > 0 && $perPage <= 100 ? $perPage : 15;
 
+        // Parse campaign_ids as CSV or array
+        $campaignIds = [];
+        if (is_string($campaignIdsParam) && trim($campaignIdsParam) !== '') {
+            $campaignIds = array_filter(array_map('intval', explode(',', $campaignIdsParam)));
+        } elseif (is_array($campaignIdsParam)) {
+            $campaignIds = array_filter(array_map('intval', $campaignIdsParam));
+        }
+
         $query = Lead::query()
-            ->with(['assignedTo:id,name,email'])
+            ->with(['assignedTo:id,name,email', 'campaign:id,name', 'latestContext'])
             ->search($q)
             ->status($status)
             ->source($source)
             ->assignedTo($assignedTo)
+            ->campaigns($campaignIds)
             ->orderByDesc('id');
 
-        return $query->paginate($perPage);
+        return $query->paginate($perPage)
+            ->withPath(url('/api/leads'))
+            ->withQueryString();
     }
 
     /**
@@ -137,6 +151,15 @@ class LeadController extends Controller
         }
 
         try {
+            // Normalize website to include scheme if missing so 'url' rule accepts bare domains
+            if ($request->filled('website')) {
+                $rawWebsite = trim((string) $request->input('website'));
+                if ($rawWebsite !== '' && !preg_match('#^[a-z][a-z0-9+.-]*://#i', $rawWebsite)) {
+                    $request->merge(['website' => 'https://' . $rawWebsite]);
+                } else {
+                    $request->merge(['website' => $rawWebsite]);
+                }
+            }
             $validated = $request->validate([
                 // Require at least one of first_name or last_name
                 'first_name' => 'nullable|required_without:last_name|string|max:255',
@@ -151,6 +174,7 @@ class LeadController extends Controller
                 'estimated_value' => 'nullable|numeric|min:0',
                 'currency' => 'nullable|string|size:3',
                 'assigned_to_id' => 'nullable|exists:users,id',
+                'campaign_id' => 'nullable|exists:campaigns,id',
                 'contacted_at' => 'nullable|date',
                 'converted_at' => 'nullable|date',
                 'lost_reason' => 'nullable|string|max:500',
@@ -192,7 +216,36 @@ class LeadController extends Controller
         if (!$user || !$user->hasPermission('manage_projects')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        return $lead->load('assignedTo:id,name,email');
+
+        // Eager load relations and contexts ordered by latest
+        $lead->load([
+            'assignedTo:id,name,email',
+            'campaign:id,name',
+            'latestContext',
+            'contexts' => function ($q) {
+                $q->with('user:id,name')->orderByDesc('id');
+            },
+        ]);
+
+        // Resolve additional campaigns from metadata.additional_campaign_ids
+        $additionalIds = [];
+        try {
+            $metadata = $lead->metadata ?? [];
+            if (is_array($metadata) && !empty($metadata['additional_campaign_ids']) && is_array($metadata['additional_campaign_ids'])) {
+                $additionalIds = array_values(array_unique(array_filter(array_map('intval', $metadata['additional_campaign_ids']))));
+            }
+        } catch (\Throwable $e) {
+            $additionalIds = [];
+        }
+        if (!empty($additionalIds)) {
+            $additional = Campaign::query()->whereIn('id', $additionalIds)->get(['id', 'name']);
+        } else {
+            $additional = collect();
+        }
+        // Attach as a dynamic attribute so it appears in JSON as additional_campaigns
+        $lead->setAttribute('additional_campaigns', $additional->values());
+
+        return $lead;
     }
 
     /**
@@ -206,6 +259,15 @@ class LeadController extends Controller
         }
 
         try {
+            // Normalize website to include scheme if missing so 'url' rule accepts bare domains
+            if ($request->filled('website')) {
+                $rawWebsite = trim((string) $request->input('website'));
+                if ($rawWebsite !== '' && !preg_match('#^[a-z][a-z0-9+.-]*://#i', $rawWebsite)) {
+                    $request->merge(['website' => 'https://' . $rawWebsite]);
+                } else {
+                    $request->merge(['website' => $rawWebsite]);
+                }
+            }
             $validated = $request->validate([
                 'first_name' => 'nullable|string|max:255',
                 'last_name' => 'nullable|string|max:255',
@@ -219,6 +281,7 @@ class LeadController extends Controller
                 'estimated_value' => 'nullable|numeric|min:0',
                 'currency' => 'nullable|string|size:3',
                 'assigned_to_id' => 'nullable|exists:users,id',
+                'campaign_id' => 'nullable|exists:campaigns,id',
                 'contacted_at' => 'nullable|date',
                 'converted_at' => 'nullable|date',
                 'lost_reason' => 'nullable|string|max:500',
@@ -263,6 +326,70 @@ class LeadController extends Controller
         } catch (\Exception $e) {
             Log::error('Error deleting lead: ' . $e->getMessage(), ['lead_id' => $lead->id]);
             return response()->json(['message' => 'Failed to delete lead'], 500);
+        }
+    }
+
+    /**
+     * Search for leads, typically for attaching to a campaign.
+     */
+    public function search(Request $request)
+    {
+
+        $user = Auth::user();
+        if (!$user || !$user->hasPermission('manage_projects')) { // Or a more general "view_leads" permission
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $q = (string) $request->input('q', '');
+        if (mb_strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        $leads = Lead::search($q)
+            ->select('id', 'first_name', 'last_name', 'email')
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get();
+
+        return response()->json($leads);
+    }
+
+    /**
+     * Add a context to the given lead.
+     */
+    public function addContext(Request $request, Lead $lead)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->hasPermission('manage_projects')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'summary' => 'required|string|max:2000',
+            'meta_data' => 'nullable|array',
+        ]);
+
+        try {
+            $context = new Context([
+                'summary' => $validated['summary'],
+                'user_id' => $user->id,
+                'meta_data' => $validated['meta_data'] ?? null,
+            ]);
+            $context->linkable()->associate($lead);
+            $context->save();
+
+            // Return fresh contexts list (ordered) for convenience
+            $lead->load(['contexts' => function ($q) {
+                $q->with('user:id,name')->orderByDesc('id');
+            }]);
+
+            return response()->json([
+                'message' => 'Context added',
+                'contexts' => $lead->contexts,
+            ], 201);
+        } catch (\Throwable $e) {
+            Log::error('Failed to add lead context: '.$e->getMessage(), ['lead_id' => $lead->id]);
+            return response()->json(['message' => 'Failed to add context'], 500);
         }
     }
 }

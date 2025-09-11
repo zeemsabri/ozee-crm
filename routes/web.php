@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\EmailController;
 use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\EmailPreviewController;
@@ -567,6 +568,24 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         ]);
     })->name('leads.show')->middleware('permission:manage_projects');
 
+    // Campaigns Admin Page
+    Route::get('/campaigns', function () {
+        return Inertia::render('Admin/Campaigns/Index');
+    })->name('campaigns.page')->middleware('permission:manage_projects');
+
+//    Route::get('/campaigns', [CampaignController::class, 'index'])->name('campaigns.all');
+    Route::get('/campaigns/create', function () {
+        return Inertia::render('Admin/Campaigns/CreateEdit', [
+            'mode' => 'create',
+        ]);
+    })->name('campaigns.create')->middleware('permission:manage_projects');
+    Route::get('/campaigns/{campaign}/edit', function ($campaign) {
+        return Inertia::render('Admin/Campaigns/CreateEdit', [
+            'id' => (int) $campaign,
+            'mode' => 'edit',
+        ]);
+    })->name('campaigns.edit')->middleware('permission:manage_projects');
+
     // Test route for User Project Role functionality
     Route::get('/test/user-project-role', [\App\Http\Controllers\TestController::class, 'testUserProjectRole'])
         ->name('test.user-project-role');
@@ -604,6 +623,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
     Route::get('/shareable-resources', function () {
         return Inertia::render('ShareableResources/Index');
     })->name('shareable-resources.page')->middleware('permission:view_shareable_resources');
+
+    // Team Resources Page
+    Route::get('/team-resources', function () {
+        return Inertia::render('TeamResources/Index');
+    })->name('team-resources.page')->middleware('permission:view_shareable_resources');
 
     // --- NEW: Email Templates Web Routes ---
     Route::get('/email-templates', function () {

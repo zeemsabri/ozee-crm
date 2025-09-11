@@ -26,6 +26,8 @@ class ShareableResource extends Model
         'thumbnail_url',
         'created_by',
         'visible_to_client',
+        'visible_to_team',
+        'is_private',
         'sent_push',
     ];
 
@@ -36,6 +38,8 @@ class ShareableResource extends Model
      */
     protected $casts = [
         'visible_to_client' => 'boolean',
+        'visible_to_team' => 'boolean',
+        'is_private' => 'boolean',
         'sent_push' => 'boolean',
     ];
 
@@ -60,6 +64,12 @@ class ShareableResource extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function campaigns()
+    {
+        return $this->belongsToMany(Campaign::class, 'campaign_shareable_resource')
+            ->withTimestamps();
     }
 
     /**

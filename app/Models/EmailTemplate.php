@@ -19,6 +19,7 @@ class EmailTemplate extends Model
         'body_html',
         'description',
         'is_default',
+        'is_private',
     ];
 
     /**

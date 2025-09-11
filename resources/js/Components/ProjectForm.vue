@@ -288,7 +288,8 @@ onMounted(async () => {
 
             <!-- Tab 4: Transactions -->
             <ProjectTransactions
-                v-if="activeTab === 'transactions' && canViewProjectTransactions"
+                v-if="activeTab === 'transactions'"
+                v-permission="'view_project_transactions'"
                 :projectId="projectId"
                 :userProjectRole="userProjectRole"
                 :isSaving="props.isSaving"

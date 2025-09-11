@@ -84,11 +84,8 @@ class UserController extends Controller
         }
 
         // Filter data based on role
-        if ($user->isSuperAdmin() || $user->isManager() || $user->isEmployee()) {
+        if ($user->hasPermission('view_users')) {
             $users = $query->orderBy('name')->get();
-        } elseif ($user->isContractor()) {
-            // Contractors can only view their own profile
-            $users = collect([$user->load(['projects'])]);
         } else {
             $users = collect();
         }

@@ -28,6 +28,14 @@ class EmailProcessingService
     public function processDraftEmail(Email $email): void
     {
         try {
+
+            $body = json_decode($email->body);
+            $isAiGenerated = is_null($email->template_id) && $body && ($body->greeting && isset($body->paragraphs));
+
+            if ($isAiGenerated) {
+                $this->processEmailOutReach($email);
+                return;
+            }
             // 1. Render the template to get the final subject and body
             // We set isFinalSend to `true` to populate all placeholders correctly.
             $renderedContent = $this->renderEmailContent($email, false);
@@ -70,17 +78,26 @@ class EmailProcessingService
         }
     }
 
+    protected function processEmailOutReach(Email $email): void
+    {
+        $renderedContent = $this->renderEmailContent($email, false);
+        $subject = $renderedContent['subject'];
+        $bodyHtml = $renderedContent['body'];
+        $this->sendApprovedEmail($email, $subject, $bodyHtml, 'ai_lead_outreach_template');
+    }
+
     /**
      * Sends an approved email using the Gmail service.
      */
-    protected function sendApprovedEmail(Email $email, string $subject, string $renderedBody): void
+    protected function sendApprovedEmail(Email $email, string $subject, string $renderedBody, $template = 'email_template'): void
     {
         // This logic is adapted from your `editAndApprove` method.
         $senderDetails = $this->getSenderDetails($email);
         $data = $this->getData($subject, $renderedBody, $senderDetails, $email, true);
-        $finalRenderedBody = $this->renderHtmlTemplate($data, 'email_template');
+        $finalRenderedBody = $this->renderHtmlTemplate($data, $template);
 
         $recipient = $email->conversation->conversable;
+
         if ($recipient && !empty($recipient->email)) {
             $this->gmailService->sendEmail(
                 $recipient->email,

@@ -28,7 +28,7 @@ class ClientController extends Controller
         $user = Auth::user();
 
         // Check if user has permission to view clients
-        if ($user->hasPermission('view_clients')) {
+        if ($user->hasPermission('view_clients') || $user->hasPermission('manage_project_clients')) {
             // Admins, Managers, Employees can see all clients
             $clients = Client::all();
         } elseif ($user->isContractor()) {

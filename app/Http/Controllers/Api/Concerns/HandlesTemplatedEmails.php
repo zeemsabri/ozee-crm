@@ -101,7 +101,7 @@ trait HandlesTemplatedEmails
      * @param bool $isFinalSend
      * @return string
      */
-    protected function getPlaceholderValue(PlaceholderDefinition $placeholder, $recipient, Project $project, bool $isFinalSend): string
+    protected function getPlaceholderValue(PlaceholderDefinition $placeholder, $recipient, Project|null $project, bool $isFinalSend): string
     {
         if (!$placeholder->source_model || !$placeholder->source_attribute) {
             return 'N/A';
@@ -125,7 +125,7 @@ trait HandlesTemplatedEmails
             return $project->{$attribute} ?? 'N/A';
         }
 
-        if ($modelClass === 'App\\Models\\MagicLink' && $placeholder->name === 'Magic Link') {
+        if ($modelClass === 'App\\Models\\MagicLink' && $placeholder->name === 'Magic Link' && $project) {
             $magicLinkUrl = $this->getMagicLinkUrl($recipient->email, $project->id, $isFinalSend);
             return '<a href="' . e($magicLinkUrl) . '">Client Portal</a>';
         }
@@ -172,7 +172,7 @@ trait HandlesTemplatedEmails
     public function renderEmailContent(Email $email, bool $isFinalSend = false)
     {
         if ($email->template_id) {
-            $recipientClient = $email->conversation->client;
+            $recipientClient = $email->conversation->client ?? $email->conversation->conversable;
             if (!$recipientClient) {
                 throw new Exception('Recipient client not found for email ID: ' . $email->id);
             }
@@ -185,7 +185,7 @@ trait HandlesTemplatedEmails
                 $template,
                 $templateData,
                 $recipientClient,
-                $email->conversation->project,
+                $email->conversation?->project,
                 $isFinalSend
             );
             $body = $this->populateAllPlaceholders(
@@ -202,7 +202,12 @@ trait HandlesTemplatedEmails
             $body = $email->body;
         }
 
-        $body = nl2br($body);
+        // Only convert newlines to <br> for plain-text bodies.
+        $decodedJson = json_decode($body);
+        $looksLikeHtml = is_string($body) && str_contains($body, '<');
+        if ($decodedJson === null && !$looksLikeHtml) {
+            $body = nl2br($body);
+        }
 
         return ['subject' => $subject, 'body' => $body];
     }
@@ -222,13 +227,16 @@ trait HandlesTemplatedEmails
             $renderedContent = $this->renderEmailContent($email, false);
             $subject = $renderedContent['subject'];
             $body = $renderedContent['body'];
+
             // Get the sender details
             $senderDetails = $this->getSenderDetails($email);
 
             // Combine all data into a single array for the view
-            $data = $this->getData($subject, $body, $senderDetails);
+            $data = $this->getData($subject, $body, $senderDetails, $email, false);
 
-            $fullHtml = $this->renderHtmlTemplate($data);
+            // Pick the correct blade template based on saved email_template or fallback
+            $template = $email->email_template ?: Email::TEMPLATE_DEFAULT;
+            $fullHtml = $this->renderHtmlTemplate($data, $template);
 
             return response()->json([
                 'id'    =>  $email->id,
@@ -248,7 +256,20 @@ trait HandlesTemplatedEmails
 
     public function renderHtmlTemplate($data, $template = 'email_template')
     {
-        return  View::make('emails.' . $template, $data)->render();
+        try {
+            return  View::make('emails.' . $template, $data)->render();
+        }
+        catch (Exception $e) {
+
+        }
+
+        try {
+            return View::make('emails.ai_lead_outreach_template', $data)->render();
+        }
+        catch (Exception $e) {
+            return $e->getMessage();
+        }
+
     }
 
     public function getCustomEmailReadyForSending(Email $email)
@@ -263,10 +284,11 @@ trait HandlesTemplatedEmails
             $senderDetails = $this->getSenderDetails($email);
 
             // Combine all data into a single array for the view
-            $data = $this->getData($subject, $body, $senderDetails);
+            $data = $this->getData($subject, $body, $senderDetails, $email, true);
 
-            // Use only one template for all emails
-            $fullHtml = $this->renderHtmlTemplate($data);
+            // Use saved blade template when available
+            $template = $email->email_template ?: Email::TEMPLATE_DEFAULT;
+            $fullHtml = $this->renderHtmlTemplate($data, $template);
 
             return response()->json([
                 'subject' => $subject,
@@ -308,7 +330,7 @@ trait HandlesTemplatedEmails
             'emailData' => [
                 'subject' => $subject,
             ],
-            'bodyContent' => $body,
+            'bodyContent' => json_decode($body) ? json_decode($body) : $body,
             'senderName' => $senderDetails['name'],
             'senderRole' => $senderDetails['role'],
             'senderPhone' => $config['company']['phone'],
@@ -321,7 +343,8 @@ trait HandlesTemplatedEmails
             'textColorPrimary' => $config['branding']['text_color_primary'],
             'textColorSecondary' => $config['branding']['text_color_secondary'],
             'borderColor' => $config['branding']['border_color'],
-            'reviewLink' => null
+            'reviewLink' => null,
+            'template'  =>  $email ? $email->template : Email::TEMPLATE_DEFAULT,
         ];
 
         // Add the tracking URL only for final sends

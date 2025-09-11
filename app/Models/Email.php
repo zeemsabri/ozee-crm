@@ -30,6 +30,10 @@ class Email extends Model
 
     const VIEW_EMAIL_PERMISSION = 'view_emails';
 
+    // Blade view names for rendering outgoing emails
+    const TEMPLATE_DEFAULT = 'email_template';
+    const TEMPLATE_AI_LEAD_OUTREACH = 'ai_lead_outreach_template';
+
     protected $appends = [
         'can_approve', 'can_open',
     ];
@@ -89,6 +93,7 @@ class Email extends Model
         'type',
         'template_id',
         'template_data',
+        'email_template',
         'is_private',
         'last_communication_at',
         'contacted_at'

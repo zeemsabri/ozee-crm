@@ -31,15 +31,22 @@ const noticesError = ref(null);
 const showNoticeModal = ref(false);
 const modalNotices = ref([]);
 
+// Latest Resources state
+const resources = ref([]);
+const resourcesLoading = ref(false);
+const resourcesError = ref(null);
+const resourcesSearch = ref('');
+
 onMounted(async () => {
     try {
         const user = usePage().props.auth?.user;
         noticesLoading.value = true;
-        const [statsResp, lbResp, wsResp, noticesResp] = await Promise.all([
+        const [statsResp, lbResp, wsResp, noticesResp, resourcesResp] = await Promise.all([
             window.axios.get('/api/leaderboard/stats'),
             window.axios.get('/api/leaderboard/monthly'),
             window.axios.get('/api/user/workspace'),
-            window.axios.get('/api/notices/unread')
+            window.axios.get('/api/notices/unread'),
+            window.axios.get('/api/shareable-resources', { params: { per_page: 5 } })
         ]);
 
         // Points from stats
@@ -63,6 +70,9 @@ onMounted(async () => {
         // Notices data
         notices.value = Array.isArray(noticesResp?.data?.data) ? noticesResp.data.data : [];
         noticesError.value = null;
+
+        // Latest resources data
+        resources.value = Array.isArray(resourcesResp?.data?.data) ? resourcesResp.data.data : [];
     } catch (e) {
         console.error('Failed to load leaderboard/workspace data', e);
         points.value = 0;
@@ -76,6 +86,21 @@ onMounted(async () => {
         noticesLoading.value = false;
     }
 });
+
+async function fetchResourcesList() {
+    try {
+        resourcesLoading.value = true;
+        const { data } = await window.axios.get('/api/shareable-resources', { params: { per_page: 5, q: resourcesSearch.value || undefined } });
+        resources.value = Array.isArray(data?.data) ? data.data : [];
+        resourcesError.value = null;
+    } catch (e) {
+        console.error('Failed to load resources', e);
+        resources.value = [];
+        resourcesError.value = 'Failed to load resources';
+    } finally {
+        resourcesLoading.value = false;
+    }
+}
 
 async function saveChecklist() {
     try {
@@ -229,6 +254,38 @@ function updateNotes(event) {
                     <button class="text-indigo-600 text-sm font-medium hover:underline" @click="openAllNotices">View all ({{ notices.length }})</button>
                 </div>
             </div>
+        </div>
+
+        <!-- Latest Resources -->
+        <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-xl font-semibold text-gray-900">Latest Resources</h3>
+                <div class="flex items-center space-x-2">
+                    <input v-model="resourcesSearch" @input="fetchResourcesList" type="text" placeholder="Search resources..." class="p-2 border rounded-lg text-sm" />
+                </div>
+            </div>
+            <div v-if="resourcesLoading" class="text-sm text-gray-500">Loading resources...</div>
+            <div v-else-if="resourcesError" class="text-sm text-red-600">{{ resourcesError }}</div>
+            <ul v-else class="space-y-2">
+                <li v-for="r in resources" :key="r.id" class="p-3 bg-gray-50 rounded-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-900">{{ r.title }}</p>
+                            <p class="text-xs text-gray-600 truncate max-w-xs">
+                                <a :href="r.url" target="_blank" rel="noopener" class="text-indigo-600 hover:underline">{{ r.url }}</a>
+                            </p>
+                        </div>
+                        <span :class="[
+                            'px-2 inline-flex text-xs leading-5 font-semibold rounded-full',
+                            r.type === 'youtube' ? 'bg-red-100 text-red-800' :
+                            r.type === 'website' ? 'bg-blue-100 text-blue-800' :
+                            r.type === 'document' ? 'bg-green-100 text-green-800' :
+                            r.type === 'image' ? 'bg-purple-100 text-purple-800' :
+                            'bg-gray-100 text-gray-800'
+                        ]">{{ r.type }}</span>
+                    </div>
+                </li>
+            </ul>
         </div>
 
         <NoticeboardModal :show="showNoticeModal" :unread-notices="modalNotices" @close="onCloseNoticeModal" />
