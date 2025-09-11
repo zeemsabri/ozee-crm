@@ -644,6 +644,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('PlaceholderDefinitions/Index');
     })->name('placeholder-definitions.page')->middleware('permission:manage_placeholder_definitions');
 
+    // Automation Studio Page
+    Route::get('/automation', function () {
+        return Inertia::render('Automation/Index');
+    })->name('automation.page')->middleware('permission:manage_projects');
+
 });
 
 // Require your existing authentication routes (login, register, logout, etc.)
