@@ -32,7 +32,7 @@ createInertiaApp({
         app.use(ZiggyVue);
 
         // Register the permission directive
-        app.directive('permission', registerPermissionDirective(app));
+        registerPermissionDirective(app);
 
         // Register the v-click-outside directive
         app.directive('click-outside', {
@@ -53,17 +53,6 @@ createInertiaApp({
 
         // Initialize the main Inertia app
         const mountedApp = app.mount(el);
-        console.log('Main Inertia app mounted.');
-
-        // Create a separate Vue app instance for the PushNotificationContainer
-        // and mount it directly to the body.
-        // const notificationAppInstance = createApp({
-        //     render: () => h(PushNotificationContainer)
-        // });
-        // const notificationMountPoint = document.createElement('div');
-        // notificationMountPoint.id = 'push-notification-mount-point';
-        // document.body.appendChild(notificationMountPoint);
-        // notificationAppInstance.mount(notificationMountPoint);
 
         // Fetch global permissions immediately after app initialization
         if (props.initialPage.props.auth && props.initialPage.props.auth.user) {
