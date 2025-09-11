@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Automation Studio Mockup</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .step-card {
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+        }
+        .step-card.selected {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
+        }
+        .step-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .config-panel {
+            display: none;
+        }
+        .config-panel.active {
+            display: block;
+        }
+        /* Styles for the connecting lines */
+        .connector {
+            position: relative;
+            text-align: center;
+            height: 40px;
+        }
+        .connector::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: #d1d5db;
+            transform: translateX(-50%);
+        }
+        .branch-container {
+            display: flex;
+            justify-content: center;
+            position: relative;
+        }
+        .branch-path {
+            flex: 1;
+            padding: 0 20px;
+        }
+        /* Branch connecting lines */
+        .branch-connector {
+            position: relative;
+            padding-top: 20px;
+        }
+        .branch-connector::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            height: 20px;
+            width: 2px;
+            background-color: #d1d5db;
+            transform: translateX(-50%);
+        }
+        .branch-connector::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 20px;
+            height: 2px;
+            background-color: #d1d5db;
+        }
+        .branch-path.yes-branch .branch-connector::after { left: 50%; }
+        .branch-path.no-branch .branch-connector::after { right: 50%; }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden">
+<div class="flex h-full bg-gray-100">
+
+    <!-- Left Panel: Workflow Library -->
+    <div class="w-1/4 max-w-sm bg-white border-r border-gray-200 flex flex-col">
+        <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-800">Workflows</h1>
+            <button class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 flex items-center gap-2">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                New Workflow
+            </button>
+        </div>
+        <div class="p-4">
+            <input type="text" placeholder="Search workflows..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="flex-1 overflow-y-auto">
+            <div class="p-4 space-y-3">
+                <!-- Workflow Item 1 -->
+                <div class="p-3 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-semibold text-gray-900">New Lead Outreach</h3>
+                        <div class="flex items-center">
+                            <span class="text-xs font-medium text-green-700 mr-2">Active</span>
+                            <div class="relative inline-block w-10 mr-2 align-middle select-none">
+                                <input type="checkbox" name="toggle" id="toggle1" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer checked:right-0 checked:border-green-400" checked/>
+                                <label for="toggle1" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-600 mt-1">Sends an initial welcome email sequence.</p>
+                </div>
+                <!-- Workflow Item 2 -->
+                <div class="p-3 bg-gray-50 border-l-4 border-gray-400 rounded-r-lg">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-semibold text-gray-900">Handle Lead Reply</h3>
+                        <div class="flex items-center">
+                            <span class="text-xs font-medium text-green-700 mr-2">Active</span>
+                            <div class="relative inline-block w-10 mr-2 align-middle select-none">
+                                <input type="checkbox" name="toggle" id="toggle2" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer checked:right-0 checked:border-green-400" checked/>
+                                <label for="toggle2" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-600 mt-1">Analyzes reply and creates internal summary.</p>
+                </div>
+                <!-- Workflow Item 3 -->
+                <div class="p-3 bg-gray-50 border-l-4 border-gray-400 rounded-r-lg">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-semibold text-gray-900">Weekly Summary</h3>
+                        <div class="flex items-center">
+                            <span class="text-xs font-medium text-gray-500 mr-2">Draft</span>
+                            <div class="relative inline-block w-10 mr-2 align-middle select-none">
+                                <input type="checkbox" name="toggle" id="toggle3" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer checked:right-0 checked:border-green-400"/>
+                                <label for="toggle3" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-600 mt-1">Generates a summary of all team activities.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Center Panel: Visual Workflow Canvas -->
+    <div class="flex-1 flex flex-col">
+        <div class="p-4 bg-white border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-xl font-bold text-gray-800">New Lead Outreach</h2>
+            <div>
+                <button class="bg-green-100 text-green-800 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-200 flex items-center gap-2">
+                    <i data-lucide="play" class="w-4 h-4"></i>
+                    Test Workflow
+                </button>
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-8" id="workflow-canvas">
+            <div class="max-w-md mx-auto">
+                <!-- Trigger -->
+                <div id="step-trigger" class="step-card bg-white p-4 rounded-lg border-2 border-dashed border-gray-400" onclick="selectStep('trigger')">
+                    <div class="flex items-center">
+                        <div class="bg-purple-100 p-2 rounded-lg">
+                            <i data-lucide="zap" class="w-6 h-6 text-purple-600"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h4 class="font-semibold text-gray-900">Trigger</h4>
+                            <p class="text-sm text-gray-600">When a Lead is Created</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="connector"><button class="w-8 h-8 bg-white border-2 rounded-full hover:bg-blue-100 text-blue-600 flex items-center justify-center absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10"><i data-lucide="plus" class="w-5 h-5"></i></button></div>
+
+                <!-- AI Prompt -->
+                <div id="step-ai-prompt" class="step-card bg-white p-4 rounded-lg shadow-sm border-2 border-transparent" onclick="selectStep('ai-prompt')">
+                    <div class="flex items-center">
+                        <div class="bg-blue-100 p-2 rounded-lg">
+                            <i data-lucide="brain-circuit" class="w-6 h-6 text-blue-600"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h4 class="font-semibold text-gray-900">Generate Email Copy</h4>
+                            <p class="text-sm text-gray-600">Prompt: Initial Outreach</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="connector"><button class="w-8 h-8 bg-white border-2 rounded-full hover:bg-blue-100 text-blue-600 flex items-center justify-center absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10"><i data-lucide="plus" class="w-5 h-5"></i></button></div>
+
+                <!-- Condition -->
+                <div id="step-condition" class="step-card bg-white p-4 rounded-lg shadow-sm border-2 border-transparent" onclick="selectStep('condition')">
+                    <div class="flex items-center">
+                        <div class="bg-orange-100 p-2 rounded-lg">
+                            <i data-lucide="git-branch" class="w-6 h-6 text-orange-600"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h4 class="font-semibold text-gray-900">Condition</h4>
+                            <p class="text-sm text-gray-600">If Lead Status is 'New'</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Branching Logic -->
+                <div class="branch-container">
+                    <div class="branch-path yes-branch">
+                        <div class="branch-connector"></div>
+                        <div class="text-sm font-semibold text-green-600 mb-2 text-center">YES</div>
+                        <div class="step-card bg-white p-4 rounded-lg shadow-sm border-2 border-transparent">
+                            <div class="flex items-center">
+                                <div class="bg-green-100 p-2 rounded-lg">
+                                    <i data-lucide="send" class="w-6 h-6 text-green-600"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <h4 class="font-semibold text-gray-900">Send Email</h4>
+                                    <p class="text-sm text-gray-600">Send generated email</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="connector"><button class="w-8 h-8 bg-white border-2 rounded-full hover:bg-blue-100 text-blue-600 flex items-center justify-center absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10"><i data-lucide="plus" class="w-5 h-5"></i></button></div>
+                    </div>
+                    <div class="branch-path no-branch">
+                        <div class="branch-connector"></div>
+                        <div class="text-sm font-semibold text-red-600 mb-2 text-center">NO</div>
+                        <div class="step-card bg-white p-4 rounded-lg shadow-sm border-2 border-transparent">
+                            <div class="flex items-center">
+                                <div class="bg-gray-100 p-2 rounded-lg">
+                                    <i data-lucide="log-out" class="w-6 h-6 text-gray-600"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <h4 class="font-semibold text-gray-900">End</h4>
+                                    <p class="text-sm text-gray-600">Stop workflow</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="connector"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Contextual Configuration -->
+    <div class="w-1/3 max-w-md bg-white border-l border-gray-200 flex flex-col">
+        <div id="config-header" class="p-4 border-b border-gray-200">
+            <h2 class="text-xl font-bold text-gray-800">Configuration</h2>
+            <p class="text-sm text-gray-500">Select a step to configure it.</p>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6">
+
+            <!-- Default Panel -->
+            <div id="config-default" class="config-panel active text-center text-gray-500">
+                <i data-lucide="mouse-pointer-click" class="w-16 h-16 mx-auto text-gray-300"></i>
+                <p class="mt-4">Select a step from the canvas to see its configuration options here.</p>
+            </div>
+
+            <!-- Trigger Config -->
+            <div id="config-trigger" class="config-panel space-y-4">
+                <h3 class="text-lg font-semibold text-gray-800">Trigger</h3>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">CRM Object</label>
+                    <select class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                        <option>Lead</option>
+                        <option>Contact</option>
+                        <option>Deal</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Event</label>
+                    <select class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                        <option>Is Created</option>
+                        <option>Is Updated</option>
+                        <option>Is Deleted</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- AI Prompt Config -->
+            <div id="config-ai-prompt" class="config-panel space-y-4">
+                <h3 class="text-lg font-semibold text-gray-800">Generate Email Copy</h3>
+                <div>
+                    <label for="prompt-select" class="block text-sm font-medium text-gray-700">Select Prompt</label>
+                    <div class="mt-1 flex rounded-md shadow-sm">
+                        <select id="prompt-select" class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-l-md">
+                            <option>Initial Outreach (v3)</option>
+                            <option>Follow-up Email (v1)</option>
+                        </select>
+                        <button class="relative -ml-px inline-flex items-center space-x-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-r-md text-gray-700 bg-gray-50 hover:bg-gray-100">
+                            <i data-lucide="plus" class="h-5 w-5 text-gray-400"></i>
+                            <span>New</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-md font-medium text-gray-700 mb-2">Magic Variable Inserter ✨</h4>
+                    <div class="p-3 bg-gray-50 rounded-lg border">
+                        <p class="text-sm text-gray-600 mb-2">Click to insert into your prompt text:</p>
+                        <div class="flex flex-wrap gap-2">
+                            <button class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-1 rounded-full hover:bg-blue-200">{"{{lead.first_name}}}</button>
+                            <button class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-1 rounded-full hover:bg-blue-200">{"{{lead.company_name}}}</button>
+                            <button class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-1 rounded-full hover:bg-blue-200">{"{{user.name}}}</button>
+                            <button class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-1 rounded-full hover:bg-blue-200">{"{{last_email.body}}}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Condition Config -->
+            <div id="config-condition" class="config-panel space-y-4">
+                <h3 class="text-lg font-semibold text-gray-800">Condition Rules</h3>
+                <div class="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                    <div class="flex items-center gap-2">
+                        <select class="w-full text-sm border-gray-300 rounded-md">
+                            <option>Lead Status</option>
+                            <option>Lead Source</option>
+                        </select>
+                        <select class="w-full text-sm border-gray-300 rounded-md">
+                            <option>is equal to</option>
+                            <option>is not equal to</option>
+                            <option>contains</option>
+                        </select>
+                        <input type="text" value="New" class="w-full text-sm border-gray-300 rounded-md">
+                        <button class="text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button class="text-sm font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                        Add AND condition
+                    </button>
+                    <button class="text-sm font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                        Add OR group
+                    </button>
+                </div>
+            </div>
+
+        </div>
+        <div class="p-4 border-t border-gray-200 bg-gray-50">
+            <button class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700">Save Workflow</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    lucide.createIcons();
+
+    let currentSelectedStep = null;
+
+    function selectStep(stepId) {
+        const stepElement = document.getElementById(`step-${stepId}`);
+
+        // Remove selection from previous step
+        if (currentSelectedStep) {
+            currentSelectedStep.classList.remove('selected');
+        }
+
+        // Add selection to current step
+        stepElement.classList.add('selected');
+        currentSelectedStep = stepElement;
+
+        // Hide all config panels
+        document.querySelectorAll('.config-panel').forEach(panel => {
+            panel.classList.remove('active');
+        });
+
+        // Show the correct config panel
+        const activeConfigPanel = document.getElementById(`config-${stepId}`);
+        if (activeConfigPanel) {
+            activeConfigPanel.classList.add('active');
+        } else {
+            document.getElementById('config-default').classList.add('active');
+        }
+
+        // Update the header
+        const configHeader = document.getElementById('config-header');
+        const stepTitle = stepElement.querySelector('h4').textContent;
+        configHeader.innerHTML = `
+                <h2 class="text-xl font-bold text-gray-800">${stepTitle}</h2>
+                <p class="text-sm text-gray-500">${stepElement.querySelector('p').textContent}</p>
+            `;
+    }
+
+    // Initially select the trigger
+    window.onload = () => {
+        selectStep('trigger');
+    }
+</script>
+<style>
+    /* Custom styles for the toggle switch */
+    .toggle-checkbox:checked {
+        right: 0;
+        border-color: #68D391;
+    }
+    .toggle-checkbox:checked + .toggle-label {
+        background-color: #68D391;
+    }
+</style>
+</body>
+</html>

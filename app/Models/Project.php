@@ -9,10 +9,15 @@ use Illuminate\Support\Facades\Storage;
 use App\Models\Traits\Taggable;
 use Illuminate\Support\Facades\Cache;
 use App\Models\CurrencyRate;
+use App\Models\FileAttachment;
 
 class Project extends Model
 {
     use HasFactory, Taggable, SoftDeletes;
+
+    protected $appends = [
+        'logo_url',
+    ];
 
     const LEADS = 'Leads';
     const MANAGEMENT = 'Management';
@@ -69,6 +74,25 @@ class Project extends Model
     public function client()
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function files()
+    {
+        return $this->morphMany(FileAttachment::class, 'fileable');
+    }
+
+    public function getLogoUrlAttribute(): ?string
+    {
+        try {
+            $file = $this->files()
+                ->whereIn('mime_type', ['image/jpeg','image/png','image/gif','image/webp','image/svg+xml'])
+                ->latest()
+                ->first();
+            if (!$file) return null;
+            return $file->thumbnail_url ?: $file->path_url;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     public function clients()

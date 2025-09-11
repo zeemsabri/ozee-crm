@@ -178,7 +178,7 @@ const submitBasicInfo = async () => {
                 reporting_sites: response.data.reporting_sites || localProjectForm.reporting_sites,
                 google_chat_id: response.data.google_chat_id || localProjectForm.google_chat_id,
                 google_drive_link: response.data.google_drive_link || localProjectForm.google_drive_link,
-                logo: response.data.logo || localProjectForm.logo, // Ensure logo path is updated
+                logo: response.data.logo_url || response.data.logo || localProjectForm.logo, // Ensure logo path is updated
                 status: response.data.status || localProjectForm.status,
                 project_type: response.data.project_type || localProjectForm.project_type,
                 source: response.data.source || localProjectForm.source,
@@ -224,7 +224,7 @@ const fetchBasicInfoData = async () => {
                 reporting_sites: data.reporting_sites || '',
                 google_chat_id: data.google_chat_id || '',
                 google_drive_link: data.google_drive_link || '',
-                logo: data.logo || null,
+                logo: data.logo_url || data.logo || null,
                 status: data.status || 'active',
                 project_type: data.project_type || '',
                 source: data.source || '',
@@ -431,7 +431,7 @@ onMounted(() => {
             </div>
 
             <!-- Project Logo -->
-            <div v-if="canManageProjectBasicDetails">
+            <div>
                 <InputLabel for="logo" value="Project Logo" />
                 <input
                     type="file"
