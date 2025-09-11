@@ -524,7 +524,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('{id}', [ComponentController::class, 'destroy']);
     });
 
-
+    // AI Automation Engine routes
+    Route::apiResource('workflows', \App\Http\Controllers\Api\WorkflowController::class);
+    Route::apiResource('prompts', \App\Http\Controllers\Api\PromptController::class);
+    Route::apiResource('workflow-steps', \App\Http\Controllers\Api\WorkflowStepController::class);
 
 });
 
