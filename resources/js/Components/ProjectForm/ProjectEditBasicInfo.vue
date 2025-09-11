@@ -6,7 +6,7 @@ import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import TagInput from '@/Components/TagInput.vue';
-import { success, error } from '@/Utils/notification';
+import {success, error, handleLaravelError} from '@/Utils/notification';
 import TimezoneSelect from "@/Components/TimezoneSelect.vue";
 import ProjectTypeInput from "@/Components/ProjectTypeInput.vue";
 import { fetchProjectSectionData } from '@/Components/ProjectForm/useProjectData'; // Import the data fetching utility
@@ -82,7 +82,6 @@ const fetchProjectTiers = async () => {
         const response = await window.axios.get('/api/project-tiers');
         projectTiers.value = response.data;
     } catch (err) {
-        console.error('Error fetching project tiers:', err);
         error('Failed to load project tiers.');
     }
 };
@@ -122,7 +121,6 @@ const submitBasicInfo = async () => {
         // Convert to string to ensure consistent type handling
         const projectTierId = String(localProjectForm.project_tier_id);
         dataToSubmit.append('project_tier_id', projectTierId);
-        console.log('Added project_tier_id:', projectTierId, 'type:', typeof projectTierId);
     } else {
         console.log('project_tier_id is null or undefined:', localProjectForm.project_tier_id);
     }
@@ -130,7 +128,6 @@ const submitBasicInfo = async () => {
     // Add profit_margin_percentage explicitly as well
     if (localProjectForm.profit_margin_percentage !== null && localProjectForm.profit_margin_percentage !== undefined) {
         dataToSubmit.append('profit_margin_percentage', localProjectForm.profit_margin_percentage);
-        console.log('Added profit_margin_percentage:', localProjectForm.profit_margin_percentage);
     }
 
     // Add the rest of the fields
@@ -161,12 +158,6 @@ const submitBasicInfo = async () => {
     // The backend should interpret the absence of the 'logo' field as 'no change to logo'.
 
     dataToSubmit.append('_method', 'PUT'); // Spoof PUT request for FormData
-
-    // Debug: Log all entries in FormData to verify project_tier_id is included
-    console.log('Form data contents:');
-    for (let [key, value] of dataToSubmit.entries()) {
-        console.log(`${key}: ${value}`);
-    }
 
     try {
         // Make the PUT request to update the existing project
@@ -200,12 +191,9 @@ const submitBasicInfo = async () => {
         }
 
     } catch (err) {
-        console.error('Error saving basic info:', err);
-        let errorMessage = 'Failed to save basic information.';
-        if (err.response && err.response.data && err.response.data.message) {
-            errorMessage = err.response.data.message;
-        }
-        error(errorMessage); // Display error notification
+
+        handleLaravelError(err);
+
     } finally {
         isSavingLocal.value = false; // End local saving indicator
     }
@@ -248,7 +236,6 @@ const fetchBasicInfoData = async () => {
             });
         }
     } catch (err) {
-        console.error('Error fetching basic info:', err);
         error('Failed to load basic project information.');
     } finally {
         isLoadingLocal.value = false;
@@ -265,14 +252,6 @@ watch(() => props.projectId, async (newId) => {
     }, 500)
 
 }, { immediate: true }); // Immediate ensures it runs on initial mount too
-
-// Add a watch on project_tier_id for debugging purposes
-watch(() => localProjectForm.project_tier_id, (newValue) => {
-    console.log('project_tier_id changed:', newValue, 'type:', typeof newValue);
-});
-
-
-
 
 // Initial data fetch on component mount
 onMounted(() => {
@@ -427,7 +406,6 @@ onMounted(() => {
                     placeholder="Select Project Tier"
                     :disabled="!canManageProjects || isSavingLocal || isSaving"
                     class="mt-1 block w-full"
-                    @change="(val) => console.log('SelectDropdown change event:', val)"
                 />
                 <InputError :message="errors.project_tier_id ? errors.project_tier_id[0] : ''" class="mt-2" />
                 <!-- Debug display of current project_tier_id value -->
