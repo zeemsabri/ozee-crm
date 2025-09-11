@@ -25,6 +25,12 @@ class ProjectPolicy
      */
     public function view(User $user, Project $project): bool
     {
+
+
+        if($user->hasPermission('view_all_projects')) {
+            return true;
+        }
+
         // Check if user has permission to view projects
         if($this->userHasProjectPermission($user, 'view_projects', $project->id)) {
             return true;
@@ -36,6 +42,34 @@ class ProjectPolicy
                 return $project->users->contains($user->id);
             }
             return true; // Managers, Employees, and Super Admins can view all projects
+        }
+
+        return false;
+    }
+
+    public function viewDocuments(User $user, Project $project): bool
+    {
+        if($user->hasPermission('view_project_documents') || $user->hasPermission('view_all_projects')) {
+            return true;
+        }
+
+        // Check if user has permission to view projects
+        if($this->userHasProjectPermission($user, 'view_project_documents', $project->id)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public function uploadDocuments(User $user, Project $project): bool
+    {
+        if($user->hasPermission('upload_project_documents') || $user->hasPermission('view_all_projects')) {
+            return true;
+        }
+
+        // Check if user has permission to view projects
+        if($this->userHasProjectPermission($user, 'upload_project_documents', $project->id)) {
+            return true;
         }
 
         return false;

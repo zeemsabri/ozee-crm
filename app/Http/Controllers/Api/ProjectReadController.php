@@ -488,11 +488,7 @@ class ProjectReadController extends Controller
      */
     public function getDocuments(Project $project)
     {
-        $user = Auth::user();
-        if (!$this->canAccessProject($user, $project) || !$this->canViewProjectDocuments($user, $project)) {
-            return response()->json(['message' => 'Unauthorized. You do not have permission to view documents.'], 403);
-        }
-
+        $this->authorize('view', $project);
         return response()->json($project->documents()->get());
     }
 
