@@ -63,10 +63,15 @@ class Schedule extends Model
 
     public function isDueAt(?Carbon $asOf = null): bool
     {
-        $asOf = $asOf ?: now();
+        $asOf = ($asOf ?: now())->copy()->startOfMinute();
         if (!$this->is_active) return false;
-        if ($this->start_at->gt($asOf)) return false;
+        if ($this->start_at && $this->start_at->gt($asOf)) return false;
         if ($this->end_at && $this->end_at->lt($asOf)) return false;
+
+        // One-time schedules are due exactly at start_at (minute precision)
+        if ($this->is_onetime) {
+            return $this->start_at && $this->start_at->copy()->startOfMinute()->equalTo($asOf);
+        }
 
         try {
             $cron = new CronExpression($this->recurrence_pattern);
@@ -80,9 +85,27 @@ class Schedule extends Model
     public function getNextRunAtAttribute(): ?Carbon
     {
         try {
+            // Handle one-time schedules more explicitly for clarity
+            if ($this->is_onetime) {
+                if (!$this->is_active) return null;
+                if ($this->last_run_at) return null; // already executed
+                if (!$this->start_at) return null;
+                return $this->start_at->isFuture() ? $this->start_at->copy() : null;
+            }
+
             $cron = new CronExpression($this->recurrence_pattern);
-            $from = now();
-            $next = $cron->getNextRunDate($from);
+
+            // Choose a stable anchor to avoid the perception of "drifting" next run
+            $now = now()->startOfMinute();
+            $anchor = $now;
+            if ($this->last_run_at && $this->last_run_at->greaterThan($anchor)) {
+                $anchor = $this->last_run_at->copy();
+            }
+            if ($this->start_at && $this->start_at->greaterThan($anchor)) {
+                $anchor = $this->start_at->copy();
+            }
+
+            $next = $cron->getNextRunDate($anchor);
             $carbon = Carbon::instance($next);
             if ($this->end_at && $carbon->gt($this->end_at)) {
                 return null;

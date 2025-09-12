@@ -41,7 +41,7 @@ class RunScheduler extends Command
                     }
 
                     if (!$schedule->isDueAt($now)) {
-                        Log::info('not due yet');
+                        // Not due yet; skip quietly to avoid noisy logs
                         continue;
                     }
 
