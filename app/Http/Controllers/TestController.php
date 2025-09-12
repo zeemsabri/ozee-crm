@@ -32,6 +32,16 @@ class TestController extends Controller
      */
     public function testUserProjectRole(Request $request)
     {
+
+        dd('hit');
+        $user = User::create(['name' => 'John', 'email' => 'john@example.com']);
+
+        // Using save() on a new or existing model instance
+        $user = User::find(1);
+        $user->name = 'Jane';
+        $user->save();
+
+        return $user;
         // Get a project ID from the request or use a default
         $projectId = $request->input('project_id');
 
@@ -58,11 +68,20 @@ class TestController extends Controller
 
     public function playGourd(Request $request)
     {
-        $user = User::first();
-        $lead = Lead::latest()->with('campaign')->first();
 
-        $job = new GenerateLeadFollowUpJob($lead, $lead->campaign);
-        return $job->handle();
+
+        // Using save() on a new or existing model instance
+        $user = User::find(1);
+        $user->name = 'Zee Sa';
+        $user->save();
+
+        return $user;
+
+//        $user = User::first();
+//        $lead = Lead::latest()->with('campaign')->first();
+//
+//        $job = new GenerateLeadFollowUpJob($lead, $lead->campaign);
+//        return $job->handle();
 
 //        $email = Email::latest()->first();
 //        $job = new ProcessDraftEmailJob($email);

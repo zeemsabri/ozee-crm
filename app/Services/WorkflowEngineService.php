@@ -30,6 +30,17 @@ class WorkflowEngineService
             'ACTION_CREATE_RECORD' => new CreateRecordStepHandler(),
             'ACTION_UPDATE_RECORD' => new UpdateRecordStepHandler(),
             'ACTION_SEND_EMAIL' => new SendEmailStepHandler(),
+            // TRIGGER steps are structural; at runtime they are a no-op
+            'TRIGGER' => new class implements StepHandlerContract {
+                public function handle(array $context, WorkflowStep $step): array
+                {
+                    return [
+                        'parsed' => [
+                            'trigger_event' => $step->step_config['trigger_event'] ?? null,
+                        ],
+                    ];
+                }
+            },
             // alias plain ACTION to action_type in step_config
             'ACTION' => new class implements StepHandlerContract {
                 public function handle(array $context, WorkflowStep $step): array

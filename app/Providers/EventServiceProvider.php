@@ -16,12 +16,10 @@ use Illuminate\Support\Facades\Event;
 // Bonus system events
 use App\Events\StandupSubmittedEvent;
 use App\Events\TaskCompletedEvent;
-use App\Events\MilestoneCompletedEvent;
 
 // Bonus system listeners
 use App\Listeners\StandupSubmittedListener;
 use App\Listeners\TaskCompletedListener;
-use App\Listeners\MilestoneCompletedListener;
 
 // Automation global model subscriber
 use App\Listeners\GlobalModelEventSubscriber;
