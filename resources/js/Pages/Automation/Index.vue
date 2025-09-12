@@ -38,6 +38,7 @@ const configComponent = computed(() => {
         case 'CONDITION':
             return ConditionConfig;
         case 'AI_PROMPT':
+        case 'ACTION_AI_PROMPT':
         default:
             return AiPromptConfig;
     }
@@ -75,7 +76,7 @@ const handleSidebarVisibility = (isVisible) => {
         >
             <template #content>
                 <!-- The `component :is` tag renders the correct config component -->
-                <component :is="configComponent" v-if="configComponent" />
+                <component :is="configComponent" v-if="configComponent" :step="store.selectedStep" />
             </template>
         </RightSidebar>
     </AuthenticatedLayout>
