@@ -203,9 +203,11 @@ export const useWorkflowStore = defineStore('workflow', {
             if (newWorkflow && typeof newWorkflow === 'object' && newWorkflow.id) {
                 this.workflows.unshift(newWorkflow);
                 await this.fetchWorkflow(newWorkflow.id);
+                return newWorkflow;
             } else {
                 console.error("Received invalid data structure after creating workflow:", response);
                 this.showAlert("Failed to create workflow.", "An unknown error occurred while creating the workflow.");
+                return null;
             }
         },
 

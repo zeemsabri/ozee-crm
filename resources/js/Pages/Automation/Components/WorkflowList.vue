@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useWorkflowStore } from '../Store/workflowStore';
 import { Loader2, Plus } from 'lucide-vue-next';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 
 const store = useWorkflowStore();
 
@@ -22,6 +23,41 @@ const newWorkflowForm = ref({
     is_active: true,
 });
 
+// Model/Event selectors to build trigger_event like `user.created`
+const selectedModel = ref(null);
+const selectedEvent = ref('created');
+
+const eventOptions = ref([
+    { value: 'created', label: 'Created' },
+    { value: 'updated', label: 'Updated' },
+    { value: 'deleted', label: 'Deleted' },
+]);
+
+const models = computed(() => store.automationSchema?.models || []);
+
+onMounted(() => {
+    if (!Object.keys(store.automationSchema).length) {
+        store.fetchAutomationSchema();
+    }
+});
+
+const computedTriggerEvent = computed(() => {
+    const m = selectedModel.value ? String(selectedModel.value).toLowerCase() : '';
+    const e = selectedEvent.value ? String(selectedEvent.value).toLowerCase() : '';
+    return m && e ? `${m}.${e}` : '';
+});
+
+// If schema models are not available (permission or other), allow manual trigger entry
+const useManualTrigger = computed(() => (models.value?.length || 0) === 0);
+
+const canCreate = computed(() => {
+    const nameOk = (newWorkflowForm.value.name || '').trim().length > 0;
+    const trig = useManualTrigger.value
+        ? (newWorkflowForm.value.trigger_event || '').trim()
+        : computedTriggerEvent.value;
+    return nameOk && !!trig;
+});
+
 const resetForm = () => {
     newWorkflowForm.value = {
         name: '',
@@ -29,22 +65,33 @@ const resetForm = () => {
         description: '',
         is_active: true,
     };
+    selectedModel.value = null;
+    selectedEvent.value = null;
 };
 
 const handleCreateWorkflow = async () => {
-    if (!newWorkflowForm.value.name || !newWorkflowForm.value.trigger_event) {
-        alert('Name and Trigger Event are required.');
+    // Build trigger_event from selections or manual input fallback
+    const trigger = useManualTrigger.value
+        ? (newWorkflowForm.value.trigger_event || '').trim().toLowerCase()
+        : computedTriggerEvent.value;
+    newWorkflowForm.value.trigger_event = trigger;
+
+    if (!canCreate.value) {
+        store.showAlert('Missing information', 'Name and Trigger Event are required.');
         return;
     }
     try {
         const newWorkflow = await store.createWorkflow(newWorkflowForm.value);
-        // After creating, automatically open it on the canvas.
-        await store.fetchWorkflow(newWorkflow.id);
-        showCreateForm.value = false;
-        resetForm();
+        if (newWorkflow && newWorkflow.id) {
+            // After creating, automatically open it on the canvas.
+            await store.fetchWorkflow(newWorkflow.id);
+            showCreateForm.value = false;
+            resetForm();
+        }
     } catch (error) {
         console.error("Failed to create workflow:", error);
-        alert('Could not create workflow. Please check the console.');
+        const msg = error?.response?.data?.message || 'Could not create workflow.';
+        store.showAlert('Create failed', msg);
     }
 };
 </script>
@@ -65,14 +112,42 @@ const handleCreateWorkflow = async () => {
                 <label class="text-xs font-medium text-gray-600">Name</label>
                 <input v-model="newWorkflowForm.name" type="text" class="mt-1 w-full border rounded px-2 py-1 text-sm" placeholder="e.g. New Lead Outreach">
             </div>
+
+            <!-- Intuitive Trigger Builder (matches TriggerConfig style) -->
             <div>
-                <label class="text-xs font-medium text-gray-600">Trigger Event</label>
-                <input v-model="newWorkflowForm.trigger_event" type="text" class="mt-1 w-full border rounded px-2 py-1 text-sm" placeholder="e.g. lead.created">
+                <label class="text-xs font-medium text-gray-600">When...</label>
+
+                <!-- If models are available from schema, show dropdown builder -->
+                <div v-if="!useManualTrigger" class="flex items-center gap-2 mt-1">
+                    <SelectDropdown
+                        v-model="selectedModel"
+                        :options="models"
+                        valueKey="name"
+                        labelKey="name"
+                        placeholder="Select a Model..."
+                        class="w-1/2"
+                    />
+                    <SelectDropdown
+                        v-model="selectedEvent"
+                        :options="eventOptions"
+                        placeholder="Select an Event..."
+                        class="w-1/2"
+                    />
+                </div>
+                <p v-if="!useManualTrigger" class="text-[11px] text-gray-500 mt-1">This builds the trigger event for you. Preview: <span class="font-mono">{{ computedTriggerEvent || '—' }}</span></p>
+
+                <!-- Fallback: manual trigger event input when schema models are unavailable (permissions, etc.) -->
+                <div v-else class="mt-1">
+                    <input v-model="newWorkflowForm.trigger_event" type="text" class="w-full border rounded px-2 py-1 text-sm" placeholder="e.g., user.created" />
+                    <p class="text-[11px] text-amber-700 mt-1">Models list is empty. Type the trigger event manually (e.g., <span class="font-mono">user.updated</span>). Ensure it matches the global event name.</p>
+                </div>
             </div>
+
             <div>
                 <label class="text-xs font-medium text-gray-600">Description</label>
                 <textarea v-model="newWorkflowForm.description" rows="2" class="mt-1 w-full border rounded px-2 py-1 text-sm"></textarea>
             </div>
+
             <div class="flex items-center gap-2">
                 <button @click="handleCreateWorkflow" class="px-3 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700">Create</button>
                 <button @click="showCreateForm = false" class="px-3 py-1 text-xs rounded-md border text-gray-600 hover:bg-gray-100">Cancel</button>

@@ -4,6 +4,7 @@ namespace App\Services\StepHandlers;
 
 use App\Models\WorkflowStep;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Event;
 
 class CreateRecordStepHandler implements StepHandlerContract
 {
@@ -29,10 +30,11 @@ class CreateRecordStepHandler implements StepHandlerContract
             $data[$key] = $this->applyTemplate($val, $context);
         }
 
-        // Avoid feedback loop: flag this instance so global subscriber ignores this event
         $instance->fill($data);
-        $instance->__automation_suppressed = true;
-        $instance->save();
+        // Avoid feedback loop: save without firing Eloquent events
+        Event::withoutEvents(function () use ($instance) {
+            $instance->save();
+        });
 
         return [
             'parsed' => [
