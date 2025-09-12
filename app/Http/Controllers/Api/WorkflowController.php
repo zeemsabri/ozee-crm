@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Workflow;
+use App\Services\WorkflowEngineService;
 use Illuminate\Http\Request;
 
 class WorkflowController extends Controller
@@ -48,5 +49,15 @@ class WorkflowController extends Controller
     {
         $workflow->delete();
         return response()->noContent();
+    }
+
+    public function run(Request $request, Workflow $workflow, WorkflowEngineService $engine)
+    {
+        $data = $request->validate([
+            'context' => ['nullable', 'array'],
+        ]);
+        $context = $data['context'] ?? [];
+        $result = $engine->execute($workflow->load('steps'), $context);
+        return response()->json($result);
     }
 }
