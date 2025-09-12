@@ -20,3 +20,5 @@ Schedule::command('points:calculate-streak')->weeklyOn(7);
 Schedule::command('leads:process-new')->everyFourHours();
 
 Schedule::command('leads:process-follow-ups')->daily();
+
+Schedule::command('app:run-scheduler')->everyMinute();
