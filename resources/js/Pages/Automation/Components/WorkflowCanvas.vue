@@ -24,7 +24,7 @@ const addFirstStep = (type) => {
             <p>Select a workflow from the left to begin building.</p>
         </div>
 
-        <div v-else class="max-w-md mx-auto">
+        <div v-else class="max-w-4xl mx-auto">
             <!-- The canvas now just uses the StepRenderer for the top-level steps -->
             <!-- ** THE FIX IS HERE ** -->
             <!-- This now checks that there's at least one step before rendering the list. -->

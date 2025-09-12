@@ -36,8 +36,49 @@ export const useWorkflowStore = defineStore('workflow', {
         activeWorkflow: null,
         selectedStep: null,
         isLoading: false,
+        // New state for the custom modal
+        modalState: {
+            show: false,
+            title: '',
+            message: '',
+            onConfirm: null,
+            onCancel: null,
+            type: 'alert', // 'alert' or 'confirm'
+        },
     }),
     actions: {
+        // --- MODAL ACTIONS ---
+        showAlert(title, message) {
+            this.modalState = {
+                show: true,
+                title,
+                message,
+                onConfirm: null,
+                onCancel: null,
+                type: 'alert',
+            };
+        },
+        showConfirm(title, message, onConfirm, onCancel) {
+            this.modalState = {
+                show: true,
+                title,
+                message,
+                onConfirm,
+                onCancel,
+                type: 'confirm',
+            };
+        },
+        hideModal() {
+            this.modalState = {
+                show: false,
+                title: '',
+                message: '',
+                onConfirm: null,
+                onCancel: null,
+                type: 'alert',
+            };
+        },
+
         // --- SCHEMA ACTIONS ---
         async fetchAutomationSchema() {
             try {
@@ -164,7 +205,7 @@ export const useWorkflowStore = defineStore('workflow', {
                 await this.fetchWorkflow(newWorkflow.id);
             } else {
                 console.error("Received invalid data structure after creating workflow:", response);
-                toast.error("Failed to create workflow.");
+                this.showAlert("Failed to create workflow.", "An unknown error occurred while creating the workflow.");
             }
         },
 
@@ -230,7 +271,7 @@ export const useWorkflowStore = defineStore('workflow', {
                         toast.success("Step deleted!");
                     } catch (error) {
                         console.error("Failed to delete step:", error);
-                        toast.error("Could not delete step.");
+                        this.showAlert("Could not delete step.", "An error occurred while deleting the step.");
                     }
                 }
             }
@@ -273,7 +314,7 @@ export const useWorkflowStore = defineStore('workflow', {
                 }
             } catch(error) {
                 console.error('Failed to save step:', error);
-                toast.error("Failed to save step.");
+                this.showAlert("Failed to save step.", "An error occurred while saving the step.");
             }
         },
 
@@ -297,4 +338,3 @@ export const useWorkflowStore = defineStore('workflow', {
         },
     },
 });
-
