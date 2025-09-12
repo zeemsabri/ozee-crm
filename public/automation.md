@@ -114,3 +114,9 @@ Notes and safeguards
 - If a mailer is not configured, SendEmailStepHandler safely logs the email instead of failing.
 - Missing handlers or models produce clear errors captured in execution_logs.
 - Delay handling currently applies to top-level steps; branch-level delays can be added similarly if needed.
+
+Global automatic triggers (no manual dispatch required)
+- A global Eloquent wildcard subscriber listens to eloquent.created:* and eloquent.updated:* for all models and dispatches WorkflowTriggerEvent with a canonical name like `lead.created` or `task.updated` and a context payload (the model's toArray plus the current user when available).
+- Configuration: see config/automation.php to enable/disable, choose verbs, and set an allow/deny list. By default, ExecutionLog is denied to avoid noise.
+- Feedback loop protection: when automation handlers write to models (Create/Update Record), they mark the instance with `__automation_suppressed = true` before save so the subscriber ignores those events.
+- You can further narrow which models trigger by setting `models.allow` or extend the deny list for noisy tables.

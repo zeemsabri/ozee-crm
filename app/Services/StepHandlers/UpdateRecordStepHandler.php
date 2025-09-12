@@ -34,6 +34,8 @@ class UpdateRecordStepHandler implements StepHandlerContract
             $data[$key] = $this->applyTemplate($val, $context);
         }
         $model->fill($data);
+        // Avoid feedback loop: flag this instance so global subscriber ignores this event
+        $model->__automation_suppressed = true;
         $model->save();
 
         return [

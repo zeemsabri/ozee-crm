@@ -4,7 +4,6 @@ namespace App\Services\StepHandlers;
 
 use App\Models\WorkflowStep;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Log;
 
 class CreateRecordStepHandler implements StepHandlerContract
 {
@@ -29,15 +28,19 @@ class CreateRecordStepHandler implements StepHandlerContract
             if (!$key) continue;
             $data[$key] = $this->applyTemplate($val, $context);
         }
-        $created = $class::query()->create($data);
+
+        // Avoid feedback loop: flag this instance so global subscriber ignores this event
+        $instance->fill($data);
+        $instance->__automation_suppressed = true;
+        $instance->save();
 
         return [
             'parsed' => [
-                'id' => $created->getKey(),
+                'id' => $instance->getKey(),
                 'model' => $class,
             ],
             'context' => [
-                strtolower(class_basename($class)) => $created->toArray(),
+                strtolower(class_basename($class)) => $instance->toArray(),
             ],
         ];
     }

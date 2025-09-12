@@ -23,6 +23,9 @@ use App\Listeners\StandupSubmittedListener;
 use App\Listeners\TaskCompletedListener;
 use App\Listeners\MilestoneCompletedListener;
 
+// Automation global model subscriber
+use App\Listeners\GlobalModelEventSubscriber;
+
 class EventServiceProvider extends ServiceProvider
 {
     /**
@@ -57,6 +60,15 @@ class EventServiceProvider extends ServiceProvider
             WorkflowTriggerListener::class,
         ],
 
+    ];
+
+    /**
+     * Register event subscribers.
+     *
+     * @var array<int, class-string>
+     */
+    protected $subscribe = [
+        GlobalModelEventSubscriber::class,
     ];
 
     /**
