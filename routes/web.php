@@ -16,6 +16,7 @@ use App\Http\Controllers\GoogleAuthController; // Import our Google Auth control
 use App\Http\Controllers\Api\MagicLinkController; // Import for magic link functionality
 use App\Http\Controllers\GoogleUserAuthController;
 use App\Http\Controllers\NoticeBoardController;
+use App\Http\Controllers\ScheduleController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -656,6 +657,17 @@ require __DIR__.'/auth.php';
 
 // Include admin routes
 require __DIR__.'/admin.php';
+
+// Schedules pages (authenticated)
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/schedules', [ScheduleController::class, 'index'])->name('schedules.index');
+    Route::get('/schedules/create', [ScheduleController::class, 'create'])->name('schedules.create');
+    Route::post('/schedules', [ScheduleController::class, 'store'])->name('schedules.store');
+    Route::get('/schedules/{schedule}/edit', [ScheduleController::class, 'edit'])->name('schedules.edit');
+    Route::put('/schedules/{schedule}', [ScheduleController::class, 'update'])->name('schedules.update');
+    Route::patch('/schedules/{schedule}/toggle', [ScheduleController::class, 'toggle'])->name('schedules.toggle');
+    Route::delete('/schedules/{schedule}', [ScheduleController::class, 'destroy'])->name('schedules.destroy');
+});
 
 
 // Notice redirect route to log interactions and redirect to destination

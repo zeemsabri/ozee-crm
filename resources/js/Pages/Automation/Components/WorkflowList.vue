@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useWorkflowStore } from '../Store/workflowStore';
 import { Loader2, Plus } from 'lucide-vue-next';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import { Link } from '@inertiajs/vue3';
 
 const store = useWorkflowStore();
 
@@ -170,8 +171,13 @@ const handleCreateWorkflow = async () => {
             'hover:bg-gray-50': store.activeWorkflow?.id !== workflow.id
           }"
                 >
-                    <p class="text-sm">{{ workflow.name }}</p>
-                    <p class="text-xs text-gray-500">{{ workflow.trigger_event }}</p>
+                    <div class="flex items-center justify-between gap-2">
+                        <div>
+                            <p class="text-sm">{{ workflow.name }}</p>
+                            <p class="text-xs text-gray-500">{{ workflow.trigger_event }}</p>
+                        </div>
+                        <Link @click.stop :href="route('schedules.create', { type: 'workflow', id: workflow.id })" class="text-xs px-2 py-1 rounded-md border text-gray-600 hover:bg-gray-100">Schedule</Link>
+                    </div>
                 </li>
             </ul>
         </div>

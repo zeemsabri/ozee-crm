@@ -17,6 +17,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\FetchEmails::class,
         \App\Console\Commands\CheckMissedBonusesCommand::class,
         \App\Console\Commands\FixStandupPointsPerProject::class,
+        \App\Console\Commands\RunScheduler::class,
     ];
 
     /**
@@ -39,6 +40,11 @@ class Kernel extends ConsoleKernel
         $schedule->command('app:check-missed-bonuses')
             ->dailyAt('01:00')
             ->appendOutputTo(storage_path('logs/check-missed-bonuses.log'));
+
+        // Optionally, run our scheduler every minute when using Laravel's task scheduler
+        // Note: In production, you can instead create a single cron entry to run:
+        // * * * * * php /path/to/artisan app:run-scheduler --quiet
+        $schedule->command('app:run-scheduler')->everyMinute();
     }
 
     /**

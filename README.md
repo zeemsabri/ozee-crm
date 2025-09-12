@@ -59,3 +59,69 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+---
+
+# Scheduler Module
+
+This application includes a flexible scheduler module that can schedule any Eloquent model (Task, Workflow, etc.) using a polymorphic relation.
+
+Highlights:
+- Polymorphic schedules table linking to any model via scheduled_item morph.
+- Cron-expression based recurrence (uses dragonmantank/cron-expression).
+- Single Artisan command to run via cron: app:run-scheduler.
+- Queued execution via RunScheduledItem job.
+- Future-proof contract App\Contracts\SchedulableAction for custom executors.
+
+## Database
+Run migrations:
+
+php artisan migrate
+
+This creates the schedules table.
+
+## Usage
+
+- For Tasks and Workflows, you can attach schedules via relation:
+
+// Task example
+$task->schedules()->create([
+    'name' => 'Daily reminder',
+    'start_at' => now(),
+    'recurrence_pattern' => '0 9 * * *', // every day at 09:00
+    'is_active' => true,
+]);
+
+// Workflow example
+$workflow->schedules()->create([
+    'name' => 'Weekly run',
+    'start_at' => now(),
+    'recurrence_pattern' => '0 8 * * 1-5', // weekdays at 08:00
+    'is_active' => true,
+]);
+
+If the target model implements App\Contracts\SchedulableAction::runScheduled(), that will be called. Otherwise, the job falls back to runScheduled(), run(), execute(), or for Workflows dispatches the existing RunWorkflowJob.
+
+## Running
+
+You can use ONE cron entry on the server:
+
+* * * * * php /path/to/artisan app:run-scheduler --quiet
+
+Alternatively, if you're already using Laravel's scheduler with schedule:run, the command is registered in Console/Kernel.php to run every minute.
+
+## Notes
+- One-time schedules: set is_onetime = true; they will deactivate after first run.
+- last_run_at updates after each execution and is used to avoid re-running within the same minute.
+- next_run_at is available as an accessor on the Schedule model (computed).
+
+## UI
+- Navigate to Schedules: /schedules (requires auth). Create new via the Create Schedule button.
+- From Automation > Workflows list, use the “Schedule” link on a workflow to open the create form pre-filled (type=workflow&id=<workflowId>).
+- The Create form is a simple 3-step wizard: Basic Details, Recurrence (Once/Daily/Weekly/Monthly/Yearly or custom cron), and Confirmation with a human-readable summary.
+- You can also open /schedules/create?type=task&id=<taskId> to prefill for a Task.
+
+## Tasks: Parent/Child (Subtask) behavior
+- The `tasks` table now has a `parent_id` that can reference another task.
+- When a Schedule is linked to a Task and becomes due, the scheduler creates a new child Task using the parent as a template (keeps task type, milestone, assignee; sets status to "To Do" and parent_id to the original task).
+- Frontend remains unchanged; subtasks are just Tasks with `parent_id` set. The legacy `Subtask` model can be ignored in the UI.
