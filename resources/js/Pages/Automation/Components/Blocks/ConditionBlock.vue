@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useWorkflowStore } from '../../Store/workflowStore';
-import { GitBranch } from 'lucide-vue-next';
+import { GitBranch, Trash2 } from 'lucide-vue-next';
 
 const props = defineProps({
     step: { type: Object, required: true },
@@ -11,7 +11,6 @@ const emit = defineEmits(['select']);
 const store = useWorkflowStore();
 const isSelected = computed(() => store.selectedStep && String(store.selectedStep.id) === String(props.step.id));
 
-// A simple computed property to provide a summary of the rules.
 const rulesSummary = computed(() => {
     const count = props.step.condition_rules?.length || 0;
     if (count === 0) return 'No rules defined';
@@ -20,11 +19,17 @@ const rulesSummary = computed(() => {
 });
 
 const onClick = () => emit('select', props.step);
+
+const onDelete = () => {
+    if (confirm('Are you sure you want to delete this step?')) {
+        store.deleteStep(props.step);
+    }
+};
 </script>
 
 <template>
     <div
-        class="rounded-lg border bg-white shadow-sm p-3 cursor-pointer hover:border-blue-400 transition-colors drag-handle"
+        class="relative rounded-lg border bg-white shadow-sm p-3 cursor-pointer hover:border-blue-400 transition-colors drag-handle"
         :class="{ 'border-blue-600 ring-2 ring-blue-200': isSelected }"
         @click="onClick"
     >
@@ -39,5 +44,8 @@ const onClick = () => emit('select', props.step);
                 </p>
             </div>
         </div>
+        <button @click.stop="onDelete" class="absolute top-1 right-1 p-1 text-gray-400 hover:text-red-600 rounded-full hover:bg-red-100/50" title="Delete Step">
+            <Trash2 class="w-3 h-3" />
+        </button>
     </div>
 </template>
