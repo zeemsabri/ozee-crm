@@ -102,3 +102,15 @@ Handling the raw response, logging token usage and cost, and returning a parsed 
 Create a WorkflowTriggerListener: This listener will be responsible for starting the workflow. It will listen for events like LeadWasCreated and check the workflows table to see if any are triggered by lead.created. If a match is found, it will dispatch a new job to the queue.
 
 Create a RunWorkflowJob: This is the queued job. It will have a constructor that accepts a Workflow instance and a $context array. The handle() method of this job will simply call $this->workflowEngineService->execute($this->workflow, $this->context).
+
+Phase 5: Automatic triggers + scheduling (implemented)
+- Fire events: dispatch new App\Events\WorkflowTriggerEvent($eventName, $context, $triggeringObjectId).
+- Listener: App\Listeners\WorkflowTriggerListener listens for WorkflowTriggerEvent and enqueues RunWorkflowJob for all active workflows whose trigger_event matches $eventName.
+- Job: App\Jobs\RunWorkflowJob loads the workflow and runs the engine (optionally resuming from a specific step if scheduled).
+- Manual trigger endpoint: POST /api/workflows/triggers/{event} with { context, triggering_object_id } to fire triggers for testing.
+- Delays: If a step has delay_minutes > 0, the engine logs the step as "scheduled" and dispatches a delayed RunWorkflowJob that will resume execution from that step when the delay elapses.
+
+Notes and safeguards
+- If a mailer is not configured, SendEmailStepHandler safely logs the email instead of failing.
+- Missing handlers or models produce clear errors captured in execution_logs.
+- Delay handling currently applies to top-level steps; branch-level delays can be added similarly if needed.

@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Events\KudoApprovedEvent;
 use App\Events\MilestoneApprovedEvent;
+use App\Events\WorkflowTriggerEvent;
 use App\Listeners\AwardKudoPointsListener;
 use App\Listeners\AwardMilestonePointsListener;
+use App\Listeners\WorkflowTriggerListener;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -48,7 +50,12 @@ class EventServiceProvider extends ServiceProvider
 
         MilestoneApprovedEvent::class   => [
             AwardMilestonePointsListener::class
-        ]
+        ],
+
+        // Automation engine trigger mapping
+        WorkflowTriggerEvent::class => [
+            WorkflowTriggerListener::class,
+        ],
 
     ];
 

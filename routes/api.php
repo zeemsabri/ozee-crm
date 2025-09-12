@@ -527,6 +527,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // AI Automation Engine routes
     Route::apiResource('workflows', \App\Http\Controllers\Api\WorkflowController::class);
     Route::post('workflows/{workflow}/run', [\App\Http\Controllers\Api\WorkflowController::class, 'run']);
+    // Endpoint to manually fire automation triggers (useful for testing)
+    Route::post('workflows/triggers/{event}', [\App\Http\Controllers\Api\AutomationTriggerController::class, 'trigger']);
     Route::apiResource('prompts', \App\Http\Controllers\Api\PromptController::class);
     Route::apiResource('workflow-steps', \App\Http\Controllers\Api\WorkflowStepController::class);
 
