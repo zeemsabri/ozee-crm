@@ -4,11 +4,13 @@ namespace App\Listeners;
 
 use App\Events\WorkflowTriggerEvent;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class GlobalModelEventSubscriber
 {
     public function subscribe($events): void
     {
+        Log::info('this hit');
         $enabled = (bool) config('automation.global_model_events.enabled', true);
         if (!$enabled) {
             return;
@@ -67,6 +69,13 @@ class GlobalModelEventSubscriber
         } catch (\Throwable $e) {
             // ignore auth errors in console/jobs
         }
+
+        // Log each model event so it's visible in storage/logs/laravel.log
+        Log::info('GlobalModelEventSubscriber model event', [
+            'event' => $eventName,
+            'model' => get_class($model),
+            'id' => (string) $model->getKey(),
+        ]);
 
         event(new WorkflowTriggerEvent($eventName, $context, (string) $model->getKey()));
     }

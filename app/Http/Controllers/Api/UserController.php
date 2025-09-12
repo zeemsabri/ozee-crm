@@ -239,9 +239,8 @@ class UserController extends Controller
             }
 
             $user->update($userData);
-
-            Log::info('User updated', ['user_id' => $user->id, 'updated_by' => Auth::id()]);
             return response()->json($user->load('role'));
+
         } catch (ValidationException $e) {
             return response()->json([
                 'message' => 'Validation failed',

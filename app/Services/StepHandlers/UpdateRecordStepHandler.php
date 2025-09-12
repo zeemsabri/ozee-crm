@@ -4,6 +4,7 @@ namespace App\Services\StepHandlers;
 
 use App\Models\WorkflowStep;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Event;
 
 class UpdateRecordStepHandler implements StepHandlerContract
 {
