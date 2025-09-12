@@ -1,6 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
+import { confirmPrompt } from '@/Utils/notification.js';
 
 const props = defineProps({
   schedules: { type: Object, required: true },
@@ -16,8 +17,13 @@ function toggleSchedule(id) {
   router.patch(route('schedules.toggle', id));
 }
 
-function deleteSchedule(id) {
-  if (confirm('Delete this schedule?')) {
+async function deleteSchedule(id) {
+  const confirmed = await confirmPrompt('Are you sure you want to delete this schedule? This action cannot be undone.', {
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    type: 'warning',
+  });
+  if (confirmed) {
     router.delete(route('schedules.destroy', id));
   }
 }
