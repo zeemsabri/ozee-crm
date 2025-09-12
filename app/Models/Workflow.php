@@ -29,4 +29,12 @@ class Workflow extends Model
     {
         return $this->hasMany(ExecutionLog::class, 'workflow_id');
     }
+
+    /**
+     * Polymorphic schedules attached to this Workflow.
+     */
+    public function schedules()
+    {
+        return $this->morphMany(\App\Models\Schedule::class, 'scheduledItem');
+    }
 }

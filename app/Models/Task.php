@@ -151,6 +151,7 @@ class Task extends Model
         'previous_status',
         'needs_approval',
         'details',
+        'parent_id',
     ];
 
     /**
@@ -349,6 +350,41 @@ class Task extends Model
     public function subtasks()
     {
         return $this->hasMany(Subtask::class, 'parent_task_id');
+    }
+
+    /**
+     * Parent Task (self-referential) when this is a child task.
+     */
+    public function parent()
+    {
+        return $this->belongsTo(Task::class, 'parent_id');
+    }
+
+    /**
+     * Child Tasks (self-referential) when this is a parent task.
+     */
+    public function children()
+    {
+        return $this->hasMany(Task::class, 'parent_id');
+    }
+
+    /**
+     * Spawn a child task from this task as a template. Accepts overrides.
+     */
+    public function spawnChildFromTemplate(array $overrides = []): Task
+    {
+        $defaults = [
+            'name' => $this->name . ' — ' . now()->format('Y-m-d H:i'),
+            'description' => $this->description,
+            'assigned_to_user_id' => $this->assigned_to_user_id,
+            'task_type_id' => $this->task_type_id,
+            'milestone_id' => $this->milestone_id,
+            'status' => self::STATUS_TO_DO,
+            'parent_id' => $this->id,
+        ];
+
+        $data = array_merge($defaults, $overrides);
+        return static::create($data);
     }
 
     // The tags() method is now provided by the Taggable trait
@@ -822,5 +858,13 @@ class Task extends Model
     public function assignee()
     {
         return $this->hasOne(\App\Models\User::class, 'id', 'assigned_to_user_id');
+    }
+
+    /**
+     * Polymorphic schedules attached to this Task.
+     */
+    public function schedules()
+    {
+        return $this->morphMany(\App\Models\Schedule::class, 'scheduledItem');
     }
 }
