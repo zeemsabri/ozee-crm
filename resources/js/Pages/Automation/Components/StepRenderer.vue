@@ -3,10 +3,11 @@ import { ref } from 'vue';
 import draggable from 'vuedraggable';
 import { useWorkflowStore } from '../Store/workflowStore';
 
-// Import all the block components
+// Import all the block components, including the new ActionBlock
 import TriggerBlock from './Blocks/TriggerBlock.vue';
 import AiPromptBlock from './Blocks/AiPromptBlock.vue';
 import ConditionBlock from './Blocks/ConditionBlock.vue';
+import ActionBlock from './Blocks/ActionBlock.vue'; // <-- Import the new block
 import { Plus } from 'lucide-vue-next';
 
 // Name the component so it can reference itself recursively in the template.
@@ -26,6 +27,8 @@ const getBlockComponent = (step) => {
     switch (step.step_type?.toUpperCase()) {
         case 'TRIGGER': return TriggerBlock;
         case 'CONDITION': return ConditionBlock;
+        case 'ACTION': return ActionBlock; // <-- Add case for the new Action type
+        case 'AI_PROMPT':
         case 'ACTION_AI_PROMPT':
         default: return AiPromptBlock;
     }
@@ -82,17 +85,18 @@ const onDragEnd = () => {
                         <Plus class="w-5 h-5" />
                     </button>
                     <div v-if="addMenuIndex === index" class="absolute z-20 top-10 p-2 bg-white border rounded-lg shadow-lg min-w-[180px]">
-                        <div class="text-xs text-gray-400 px-2 pb-1 border-b mb-1">Actions</div>
-                        <button @click="addStep('ACTION_AI_PROMPT', index)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">AI Prompt</button>
-                        <div class="text-xs text-gray-400 px-2 pb-1 border-b my-1">Logic</div>
+                        <div class="text-xs text-gray-400 px-2 pb-1 border-b mb-1">Standard</div>
+                        <!-- Add Action to the menu -->
+                        <button @click="addStep('ACTION', index)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">Action</button>
                         <button @click="addStep('CONDITION', index)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">Condition</button>
+                        <div class="text-xs text-gray-400 px-2 pb-1 border-b my-1">Advanced</div>
+                        <button @click="addStep('AI_PROMPT', index)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">AI Prompt</button>
                     </div>
                 </div>
             </div>
         </template>
 
-        <!-- ** THE FIX IS HERE ** -->
-        <!-- This footer template adds the "+ Add Step" button to empty branches. -->
+        <!-- Footer for adding steps to empty branches -->
         <template #footer>
             <div v-if="!steps?.length" class="text-center">
                 <button @click="toggleAddMenu(-1)" class="w-full text-center py-4 text-xs text-gray-500 hover:text-blue-600">
@@ -100,14 +104,14 @@ const onDragEnd = () => {
                 </button>
                 <div v-if="addMenuIndex === -1" class="relative mt-2 z-20 inline-block">
                     <div class="absolute p-2 bg-white border rounded-lg shadow-lg min-w-[180px] left-1/2 -translate-x-1/2">
-                        <div class="text-xs text-gray-400 px-2 pb-1 border-b mb-1">Actions</div>
-                        <button @click="addStep('ACTION_AI_PROMPT', -1)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">AI Prompt</button>
-                        <div class="text-xs text-gray-400 px-2 pb-1 border-b my-1">Logic</div>
+                        <div class="text-xs text-gray-400 px-2 pb-1 border-b mb-1">Standard</div>
+                        <button @click="addStep('ACTION', -1)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">Action</button>
                         <button @click="addStep('CONDITION', -1)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">Condition</button>
+                        <div class="text-xs text-gray-400 px-2 pb-1 border-b my-1">Advanced</div>
+                        <button @click="addStep('AI_PROMPT', -1)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">AI Prompt</button>
                     </div>
                 </div>
             </div>
         </template>
     </draggable>
 </template>
-

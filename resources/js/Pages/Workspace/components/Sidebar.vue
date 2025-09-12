@@ -46,7 +46,7 @@ onMounted(async () => {
             window.axios.get('/api/leaderboard/monthly'),
             window.axios.get('/api/user/workspace'),
             window.axios.get('/api/notices/unread'),
-            window.axios.get('/api/shareable-resources', { params: { per_page: 5 } })
+            window.axios.get('/api/shareable-resources', { params: { per_page: 5, visible_to_team: true } })
         ]);
 
         // Points from stats
@@ -90,7 +90,7 @@ onMounted(async () => {
 async function fetchResourcesList() {
     try {
         resourcesLoading.value = true;
-        const { data } = await window.axios.get('/api/shareable-resources', { params: { per_page: 5, q: resourcesSearch.value || undefined } });
+        const { data } = await window.axios.get('/api/shareable-resources', { params: { per_page: 5, visible_to_team: true, q: resourcesSearch.value || undefined } });
         resources.value = Array.isArray(data?.data) ? data.data : [];
         resourcesError.value = null;
     } catch (e) {

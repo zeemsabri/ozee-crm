@@ -11,6 +11,10 @@ import WorkflowCanvas from './Components/WorkflowCanvas.vue';
 import TriggerConfig from './Components/Configuration/TriggerConfig.vue';
 import AiPromptConfig from './Components/Configuration/AiPromptConfig.vue';
 import ConditionConfig from './Components/Configuration/ConditionConfig.vue';
+import ActionConfig from './Components/Configuration/ActionConfig.vue'; // <-- New import
+
+// The custom modal for alerts and confirmations
+import ConfirmModal from './Components/ConfirmModal.vue';
 
 // Import our new, stable Pinia store
 import { useWorkflowStore } from './Store/workflowStore';
@@ -37,6 +41,8 @@ const configComponent = computed(() => {
             return TriggerConfig;
         case 'CONDITION':
             return ConditionConfig;
+        case 'ACTION': // <-- New case for the action config form
+            return ActionConfig;
         case 'AI_PROMPT':
         case 'ACTION_AI_PROMPT':
         default:
@@ -79,5 +85,8 @@ const handleSidebarVisibility = (isVisible) => {
                 <component :is="configComponent" v-if="configComponent" :step="store.selectedStep" />
             </template>
         </RightSidebar>
+
+        <!-- Our custom confirmation modal, managed by the store -->
+        <ConfirmModal />
     </AuthenticatedLayout>
 </template>
