@@ -37,7 +37,6 @@ class RunScheduler extends Command
                     $count++;
                     // Prevent running more than once within the same minute
                     if ($schedule->last_run_at && $schedule->last_run_at->greaterThanOrEqualTo($startOfMinute)) {
-                        Log::info('no last run');
                         continue;
                     }
 

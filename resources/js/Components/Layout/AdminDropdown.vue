@@ -60,7 +60,8 @@ import DropdownLink from '@/Components/DropdownLink.vue';
                                 <DropdownLink v-permission="'view_project_tiers'" href="/admin/project-tiers" class="!px-2 !py-1.5">Project Tiers</DropdownLink>
                                 <DropdownLink v-permission="'manage_email_templates'" :href="route('email-templates.page')" :active="route().current('email-templates.page')" class="!px-2 !py-1.5">Email Templates</DropdownLink>
                                 <DropdownLink v-permission="'manage_placeholder_definitions'" :href="route('placeholder-definitions.page')" :active="route().current('placeholder-definitions.page')" class="!px-2 !py-1.5">Placeholder Definitions</DropdownLink>
-                                <DropdownLink v-permission="'manage_projects'" :href="route('automation.page')" :active="route().current('automation.page')" class="!px-2 !py-1.5">Automation</DropdownLink>
+                                <DropdownLink v-permission="'create_automations'" :href="route('automation.page')" :active="route().current('automation.page')" class="!px-2 !py-1.5">Automation</DropdownLink>
+                                <DropdownLink v-permission="'create_schedules'" :href="route('schedules.index')" :active="$page.url && $page.url.startsWith('/schedules')" class="!px-2 !py-1.5">Schedules</DropdownLink>
                             </div>
                         </div>
 

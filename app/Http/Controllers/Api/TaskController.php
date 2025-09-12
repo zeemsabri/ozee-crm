@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\HandlesSchedules;
+
 use App\Http\Controllers\Controller;
 use App\Models\Task;
 use App\Models\User;
@@ -15,6 +17,7 @@ use Illuminate\Support\Facades\Log;
 
 class TaskController extends Controller
 {
+    use HandlesSchedules;
     /**
      * Get today's due tasks and overdue tasks for a project.
      *
@@ -206,7 +209,35 @@ class TaskController extends Controller
         // Load relationships
         $task->load(['assignedTo', 'taskType', 'milestone', 'tags']);
 
-        return response()->json($task, 201);
+        // Optionally create a schedule when provided as nested payload
+        $attachedScheduleId = null;
+        $schedulePayload = $request->input('schedule');
+        if (is_array($schedulePayload) && !empty($schedulePayload)) {
+            $rules = [
+                'name' => ['required', 'string', 'max:255'],
+                'description' => ['nullable', 'string'],
+                'start_at' => ['required', 'date'],
+                'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
+                'mode' => ['required', 'in:once,daily,weekly,monthly,yearly,cron'],
+                'time' => ['nullable', 'string'],
+                'days_of_week' => ['array'],
+                'days_of_week.*' => ['integer', 'between:0,6'],
+                'day_of_month' => ['nullable', 'integer', 'between:1,31'],
+                'nth' => ['nullable', 'integer', 'between:1,5'],
+                'dow_for_monthly' => ['nullable', 'integer', 'between:0,6'],
+                'month' => ['nullable', 'integer', 'between:1,12'],
+                'cron' => ['nullable', 'string'],
+            ];
+            $payload = validator($schedulePayload, $rules)->validate();
+            $payload['scheduled_item_type'] = 'task';
+            $payload['scheduled_item_id'] = $task->id;
+            $schedule = $this->persistScheduleFromArray($payload);
+            $attachedScheduleId = $schedule->id;
+        }
+
+        return response()->json(array_filter([
+            'attached_schedule_id' => $attachedScheduleId,
+        ]) + $task->toArray(), 201);
     }
 
     /**
@@ -265,7 +296,35 @@ class TaskController extends Controller
         // Load relationships
         $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
 
-        return response()->json($task);
+        // Optionally create a schedule when provided during update
+        $attachedScheduleId = null;
+        $schedulePayload = $request->input('schedule');
+        if (is_array($schedulePayload) && !empty($schedulePayload)) {
+            $rules = [
+                'name' => ['required', 'string', 'max:255'],
+                'description' => ['nullable', 'string'],
+                'start_at' => ['required', 'date'],
+                'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
+                'mode' => ['required', 'in:once,daily,weekly,monthly,yearly,cron'],
+                'time' => ['nullable', 'string'],
+                'days_of_week' => ['array'],
+                'days_of_week.*' => ['integer', 'between:0,6'],
+                'day_of_month' => ['nullable', 'integer', 'between:1,31'],
+                'nth' => ['nullable', 'integer', 'between:1,5'],
+                'dow_for_monthly' => ['nullable', 'integer', 'between:0,6'],
+                'month' => ['nullable', 'integer', 'between:1,12'],
+                'cron' => ['nullable', 'string'],
+            ];
+            $payload = validator($schedulePayload, $rules)->validate();
+            $payload['scheduled_item_type'] = 'task';
+            $payload['scheduled_item_id'] = $task->id;
+            $schedule = $this->persistScheduleFromArray($payload);
+            $attachedScheduleId = $schedule->id;
+        }
+
+        return response()->json(array_filter([
+            'attached_schedule_id' => $attachedScheduleId,
+        ]) + $task->toArray());
     }
 
     /**

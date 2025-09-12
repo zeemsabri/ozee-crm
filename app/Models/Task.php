@@ -374,7 +374,7 @@ class Task extends Model
     public function spawnChildFromTemplate(array $overrides = []): Task
     {
         $defaults = [
-            'name' => $this->name . ' — ' . now()->format('Y-m-d H:i'),
+            'name' => $this->name . ' — ' . ' (scheduled)',
             'description' => $this->description,
             'assigned_to_user_id' => $this->assigned_to_user_id,
             'task_type_id' => $this->task_type_id,

@@ -53,6 +53,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\ProjectNoteController;
 use App\Http\Controllers\Api\CampaignController;
+use App\Http\Controllers\Api\ScheduleApiController;
 
 
 Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
@@ -324,6 +325,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('project-tiers', \App\Http\Controllers\Api\ProjectTierController::class);
 
     // Task Management Routes
+        // Polymorphic schedule creation for existing items
+        Route::post('schedules', [ScheduleApiController::class, 'store'])->name('api.schedules.store');
     Route::get('task-statistics', [TaskController::class, 'getTaskStatistics']);
     Route::get('assigned-tasks', [TaskController::class, 'getAssignedTasks']);
     Route::get('projects/{projectId}/due-and-overdue-tasks', [TaskController::class, 'getProjectDueAndOverdueTasks']);
