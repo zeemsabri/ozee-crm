@@ -10,7 +10,7 @@ class GlobalModelEventSubscriber
 {
     public function subscribe($events): void
     {
-        Log::info('this hit');
+
         $enabled = (bool) config('automation.global_model_events.enabled', true);
         if (!$enabled) {
             return;
@@ -34,10 +34,16 @@ class GlobalModelEventSubscriber
                 $this->handleModelEvent($payload[0], 'saved');
             });
         }
+        if (in_array('deleted', $verbs, true)) {
+            $events->listen('eloquent.deleted: *', function ($event, array $payload) {
+                $this->handleModelEvent($payload[0], 'deleted');
+            });
+        }
     }
 
     protected function handleModelEvent($model, string $verb): void
     {
+
         // Skip if handler-created update
         if (property_exists($model, '__automation_suppressed') && $model->__automation_suppressed) {
             return;
@@ -50,6 +56,7 @@ class GlobalModelEventSubscriber
         if (in_array($base, $deny, true)) return;
         if (!empty($allow) && !in_array($base, $allow, true)) return;
 
+        Log::info('Updating model event', []);
         $eventName = strtolower($base) . '.' . strtolower($verb);
 
         $context = [
