@@ -23,21 +23,56 @@ const config = computed({
 const availableModels = computed(() => automationSchema.value.map(m => m.name));
 const modelOptions = computed(() => availableModels.value.map(m => ({ value: m, label: m })));
 
-const columnsForSelectedModel = computed(() => {
-    if (!config.value.model) return [];
-    const model = automationSchema.value.find(m => m.name === config.value.model);
-    return model ? model.columns.map(col => typeof col === 'string' ? col : col.name) : [];
+const modelSchema = computed(() => {
+    if (!config.value.model) return null;
+    return automationSchema.value.find(m => m.name === config.value.model) || null;
 });
-const columnOptions = computed(() => columnsForSelectedModel.value.map(col => ({ value: col, label: col })));
 
-const operatorOptions = [
-    { value: 'is', label: 'is' },
-    { value: 'is not', label: 'is not' },
-    { value: 'contains', label: 'contains' },
-];
+const columnsForSelectedModel = computed(() => {
+    if (!modelSchema.value) return [];
+    return (modelSchema.value.columns || []).map(col => typeof col === 'string' ? { name: col, type: 'Text' } : col);
+});
+const columnOptions = computed(() => columnsForSelectedModel.value.map(col => ({ value: col.name, label: `${col.name}${col.type ? ` (${col.type})` : ''}` })));
+
+function getColumnMeta(columnName) {
+    return columnsForSelectedModel.value.find(c => c.name === columnName) || null;
+}
+
+function operatorOptionsFor(columnName) {
+    const meta = getColumnMeta(columnName);
+    const t = meta?.type || 'Text';
+    switch (t) {
+        case 'True/False':
+            return [
+                { value: '==', label: 'is' },
+                { value: '!=', label: 'is not' },
+            ];
+        case 'Number':
+            return [
+                { value: '==', label: 'equals' },
+                { value: '>', label: '>' },
+                { value: '<', label: '<' },
+                { value: '>=', label: '>=' },
+                { value: '<=', label: '<=' },
+            ];
+        case 'Date':
+        case 'DateTime':
+            return [
+                { value: '==', label: 'on' },
+                { value: '>', label: 'after' },
+                { value: '<', label: 'before' },
+            ];
+        default:
+            return [
+                { value: '==', label: 'is' },
+                { value: '!=', label: 'is not' },
+                { value: 'contains', label: 'contains' },
+            ];
+    }
+}
 
 function addCondition() {
-    const newConditions = [...(config.value.conditions || []), { column: '', operator: 'is', value: '' }];
+    const newConditions = [...(config.value.conditions || []), { column: '', operator: '==', value: '' }];
     config.value = { ...config.value, conditions: newConditions };
 }
 
@@ -92,13 +127,31 @@ function insertTokenForCondition(index, token) {
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                             <SelectDropdown
-                                :options="operatorOptions"
-                                :model-value="cond.operator || 'is'"
+                                :options="operatorOptionsFor(cond.column)"
+                                :model-value="cond.operator || '=='"
                                 placeholder="Operator"
                                 @update:modelValue="(val) => updateCondition(index, 'operator', val)"
                             />
                             <div class="flex items-center gap-1">
-                               <input type="text" :value="cond.value" @input="updateCondition(index, 'value', $event.target.value)" placeholder="Value" class="w-full border rounded px-2 py-2 text-sm" />
+                               <!-- Value control adapts to field type -->
+                               <template v-if="getColumnMeta(cond.column)?.allowed_values">
+                                   <SelectDropdown
+                                       :options="(getColumnMeta(cond.column).allowed_values || []).map(o => ({ value: o.value, label: o.label }))"
+                                       :model-value="cond.value || null"
+                                       placeholder="Select value..."
+                                       @update:modelValue="val => updateCondition(index, 'value', val)"
+                                   />
+                               </template>
+                               <template v-else-if="getColumnMeta(cond.column)?.type === 'True/False'">
+                                   <select :value="cond.value ?? 'true'" @change="updateCondition(index, 'value', $event.target.value)" class="w-full border rounded px-2 py-2 text-sm">
+                                       <option value="true">True</option>
+                                       <option value="false">False</option>
+                                   </select>
+                               </template>
+                               <template v-else>
+                                   <input :type="getColumnMeta(cond.column)?.type === 'Date' ? 'date' : (getColumnMeta(cond.column)?.type === 'DateTime' ? 'datetime-local' : 'text')" :value="cond.value" @input="updateCondition(index, 'value', $event.target.value)" placeholder="Value" class="w-full border rounded px-2 py-2 text-sm" />
+                               </template>
+
                                <DataTokenInserter
                                    :all-steps-before="allStepsBefore"
                                    :loop-context-schema="loopContextSchema"

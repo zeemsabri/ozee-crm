@@ -12,20 +12,17 @@ class AutomationSchemaController extends Controller
 {
     /**
      * Provide the data schema required by the automation builder UI.
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * Adds per-column type hints and allowed enum values using config/value_sets.php.
      */
     public function getSchema(Request $request)
     {
         // NOTE: This assumes you have a way to discover your application's models.
-        // If your existing logic for this is elsewhere, please adapt it here.
         $discoveredModels = [
             \App\Models\Task::class,
             \App\Models\Project::class,
             \App\Models\Email::class,
             Campaign::class,
-            Lead::class
+            Lead::class,
         ];
 
         $allModelEvents = $this->getModelEvents();
@@ -37,29 +34,49 @@ class AutomationSchemaController extends Controller
             $modelInstance = new $modelClass();
             $modelName = class_basename($modelInstance);
 
-            // Presuming existing logic for columns and relationships
+            // Base column list from database table
             $columns = Schema::getColumnListing($modelInstance->getTable());
             $relationships = $this->discoverRelationships($modelInstance); // Placeholder for your relationship logic
+
+            // Enrich columns with type and enum/allowed values
+            $columnsMeta = array_map(function ($col) use ($modelInstance, $modelName) {
+                $type = $this->guessColumnType($modelInstance, $col);
+                $allowed = $this->getAllowedValues($modelName, $col);
+                return [
+                    'name' => $col,
+                    'label' => $col,
+                    'type' => $type,
+                    'allowed_values' => $allowed,
+                ];
+            }, $columns);
 
             $modelsData[] = [
                 'name' => $modelName,
                 'full_class' => $modelClass,
-                'columns' => $columns,
+                'columns' => $columnsMeta,
                 'relationships' => $relationships,
                 'events' => $allModelEvents[$modelName] ?? [],
             ];
         }
 
-        // You may want to sort the models alphabetically by name
+        // Sort models alphabetically by name for UI consistency
         usort($modelsData, fn($a, $b) => strcmp($a['name'], $b['name']));
 
-        return response()->json($modelsData);
+        // Also expose campaigns (id/name) for AI context selector, when present on the frontend
+        $campaigns = [];
+        if (class_exists(Campaign::class)) {
+            $campaigns = Campaign::query()->select('id', 'name')->orderBy('name')->get();
+        }
+
+        // Return in an object shape to allow future extensions (store already supports array/object)
+        return response()->json([
+            'models' => $modelsData,
+            'campaigns' => $campaigns,
+        ]);
     }
 
     /**
      * Defines the available trigger events for each model.
-     *
-     * @return array
      */
     private function getModelEvents(): array
     {
@@ -85,10 +102,58 @@ class AutomationSchemaController extends Controller
     }
 
     /**
+     * Best-effort type inference without requiring doctrine/dbal.
+     * Uses model casts and common naming conventions.
+     */
+    private function guessColumnType($modelInstance, string $column): string
+    {
+        $casts = method_exists($modelInstance, 'getCasts') ? $modelInstance->getCasts() : [];
+        $cast = $casts[$column] ?? null;
+        $castStr = is_string($cast) ? strtolower($cast) : '';
+        if (str_contains($castStr, 'bool')) return 'True/False';
+        if (str_contains($castStr, 'int') || str_contains($castStr, 'decimal') || str_contains($castStr, 'float')) return 'Number';
+        if ($castStr === 'array' || $castStr === 'json' || $castStr === 'collection') return 'Array';
+        if (str_contains($castStr, 'datetime')) return 'DateTime';
+        if ($castStr === 'date') return 'Date';
+
+        // Heuristics by column name
+        if ($column === 'id' || str_ends_with($column, '_id')) return 'Number';
+        if (str_starts_with($column, 'is_')) return 'True/False';
+        if (str_ends_with($column, '_at')) return 'DateTime';
+        if (str_ends_with($column, '_date')) return 'Date';
+
+        return 'Text';
+    }
+
+    /**
+     * Pull allowed values for specific fields from config/value_sets.php.
+     * Supports PHP backed enums.
+     * Returns list of [value,label] pairs or null.
+     */
+    private function getAllowedValues(string $modelName, string $field): ?array
+    {
+        $def = config("value_sets.models.$modelName.$field");
+        if (!$def || !is_array($def)) return null;
+
+        $source = $def['source'] ?? null;
+        if ($source === 'php_enum' && isset($def['enum']) && is_string($def['enum']) && class_exists($def['enum'])) {
+            $enumClass = $def['enum'];
+            if (function_exists('enum_exists') ? enum_exists($enumClass) : \PHP_VERSION_ID >= 80100) {
+                $options = [];
+                foreach ($enumClass::cases() as $case) {
+                    $value = property_exists($case, 'value') ? $case->value : $case->name;
+                    $label = ucwords(str_replace(['_', '-'], ' ', (string) $case->name));
+                    $options[] = ['value' => $value, 'label' => $label];
+                }
+                return $options;
+            }
+        }
+        // Future: support other sources (config/db/model_const) as needed
+        return null;
+    }
+
+    /**
      * Placeholder for your existing relationship discovery logic.
-     *
-     * @param $modelInstance
-     * @return array
      */
     private function discoverRelationships($modelInstance): array
     {
