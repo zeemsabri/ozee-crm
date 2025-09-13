@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Campaign;
+use App\Models\Lead;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema; // Ensure this is imported
 
@@ -22,7 +24,8 @@ class AutomationSchemaController extends Controller
             \App\Models\Task::class,
             \App\Models\Project::class,
             \App\Models\Email::class,
-            // ... add all other relevant models for automation
+            Campaign::class,
+            Lead::class
         ];
 
         $allModelEvents = $this->getModelEvents();
