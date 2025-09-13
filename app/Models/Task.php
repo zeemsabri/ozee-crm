@@ -25,29 +25,35 @@ class Task extends Model
 
     protected $appends = ['creator_name'];
 
-    // Task status constants
-    public const STATUS_TO_DO = 'To Do';
-    public const STATUS_IN_PROGRESS = 'In Progress';
-    public const STATUS_PAUSED = 'Paused';
-    public const STATUS_DONE = 'Done';
-    public const STATUS_BLOCKED = 'Blocked';
-    public const STATUS_ARCHIVED = 'Archived';
+    // Task status constants (aliases maintained for backward compatibility)
+    /** @deprecated use App\Enums\TaskStatus::ToDo */
+    public const STATUS_TO_DO = \App\Enums\TaskStatus::ToDo->value;
+    /** @deprecated use App\Enums\TaskStatus::InProgress */
+    public const STATUS_IN_PROGRESS = \App\Enums\TaskStatus::InProgress->value;
+    /** @deprecated use App\Enums\TaskStatus::Paused */
+    public const STATUS_PAUSED = \App\Enums\TaskStatus::Paused->value;
+    /** @deprecated use App\Enums\TaskStatus::Done */
+    public const STATUS_DONE = \App\Enums\TaskStatus::Done->value;
+    /** @deprecated use App\Enums\TaskStatus::Blocked */
+    public const STATUS_BLOCKED = \App\Enums\TaskStatus::Blocked->value;
+    /** @deprecated use App\Enums\TaskStatus::Archived */
+    public const STATUS_ARCHIVED = \App\Enums\TaskStatus::Archived->value;
 
     // List of valid task statuses
     public const STATUSES = [
-        self::STATUS_TO_DO,
-        self::STATUS_IN_PROGRESS,
-        self::STATUS_DONE,
-        self::STATUS_BLOCKED,
-        self::STATUS_ARCHIVED,
+        \App\Enums\TaskStatus::ToDo->value,
+        \App\Enums\TaskStatus::InProgress->value,
+        \App\Enums\TaskStatus::Done->value,
+        \App\Enums\TaskStatus::Blocked->value,
+        \App\Enums\TaskStatus::Archived->value,
     ];
 
     // List of active (non-final) statuses, useful for UI/filters
     public const ACTIVE_STATUSES = [
-        self::STATUS_TO_DO,
-        self::STATUS_IN_PROGRESS,
-        self::STATUS_PAUSED,
-        self::STATUS_BLOCKED,
+        \App\Enums\TaskStatus::ToDo->value,
+        \App\Enums\TaskStatus::InProgress->value,
+        \App\Enums\TaskStatus::Paused->value,
+        \App\Enums\TaskStatus::Blocked->value,
     ];
 
     /**

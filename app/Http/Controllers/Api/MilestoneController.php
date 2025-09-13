@@ -76,11 +76,11 @@ class MilestoneController extends Controller
             ])
             // Task counts by status
             ->withCount([
-                'tasks as tasks_todo_count' => function ($q) { $q->where('status', 'To Do'); },
-                'tasks as tasks_in_progress_count' => function ($q) { $q->where('status', 'In Progress'); },
-                'tasks as tasks_paused_count' => function ($q) { $q->where('status', 'Paused'); },
-                'tasks as tasks_blocked_count' => function ($q) { $q->where('status', 'Blocked'); },
-                'tasks as tasks_done_count' => function ($q) { $q->where('status', 'Done'); },
+                'tasks as tasks_todo_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::ToDo->value); },
+                'tasks as tasks_in_progress_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::InProgress->value); },
+                'tasks as tasks_paused_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Paused->value); },
+                'tasks as tasks_blocked_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Blocked->value); },
+                'tasks as tasks_done_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Done->value); },
                 'tasks as tasks_archived_count' => function ($q) { $q->where('status', 'Archived'); },
                 'tasks as tasks_total_count'
             ])

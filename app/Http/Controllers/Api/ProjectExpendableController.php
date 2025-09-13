@@ -90,6 +90,8 @@ class ProjectExpendableController extends Controller
             'status' => $status,
         ];
 
+        // Soft-validate status via the value dictionary (does not throw when enforce=false)
+        app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable','status', $payload['status']);
 
         $expendable = $target->expendable()->create($payload);
 
@@ -251,6 +253,8 @@ class ProjectExpendableController extends Controller
             }
         }
 
+        // Soft-validate the target status transition
+        app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable','status', \App\Enums\ProjectExpendableStatus::Accepted);
         $expendable->accept($data['reason'], $user);
         return response()->json($expendable->fresh());
     }
@@ -282,6 +286,8 @@ class ProjectExpendableController extends Controller
             }
         }
 
+        // Soft-validate the target status transition
+        app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable','status', \App\Enums\ProjectExpendableStatus::Rejected);
         $expendable->reject($data['reason'], $user);
         return response()->json($expendable->fresh());
     }
