@@ -32,7 +32,8 @@ export const useWorkflowStore = defineStore('workflow', {
     state: () => ({
         workflows: [],
         prompts: [],
-        automationSchema: [], // <-- MODIFIED: Default to an empty array
+        automationSchema: [],
+        campaigns: [],
         activeWorkflow: null,
         selectedStep: null,
         isLoading: false,
@@ -81,11 +82,25 @@ export const useWorkflowStore = defineStore('workflow', {
         // --- SCHEMA ACTIONS ---
         async fetchAutomationSchema() {
             try {
-                // MODIFIED: The new API returns a direct array, which we store.
-                this.automationSchema = await api.fetchAutomationSchema() || [];
+                const resp = await api.fetchAutomationSchema();
+                // Handle both legacy (array) and new (object with models/campaigns) shapes
+                if (Array.isArray(resp)) {
+                    this.automationSchema = resp;
+                    this.campaigns = [];
+                } else if (resp && typeof resp === 'object') {
+                    // Some backends may still return models as a plain array under `models`,
+                    // or return the full array directly. Normalize to an array.
+                    const models = Array.isArray(resp.models) ? resp.models : [];
+                    this.automationSchema = models;
+                    this.campaigns = Array.isArray(resp.campaigns) ? resp.campaigns : [];
+                } else {
+                    this.automationSchema = [];
+                    this.campaigns = [];
+                }
             } catch(error) {
                 console.error("Failed to fetch automation schema:", error);
-                this.automationSchema = []; // Ensure it's an array on failure
+                this.automationSchema = [];
+                this.campaigns = [];
             }
         },
 

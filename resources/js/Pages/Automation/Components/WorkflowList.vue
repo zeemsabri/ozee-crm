@@ -16,6 +16,7 @@ const openWorkflow = (workflow) => {
 
 // --- Create New Workflow Form Logic ---
 const showCreateForm = ref(false);
+const triggerType = ref('event'); // 'event' or 'schedule'
 const newWorkflowForm = ref({
     name: '',
     trigger_event: '',
@@ -61,9 +62,14 @@ const useManualTrigger = computed(() => (models.value?.length || 0) === 0);
 
 const canCreate = computed(() => {
     const nameOk = (newWorkflowForm.value.name || '').trim().length > 0;
-    const trig = useManualTrigger.value
-        ? (newWorkflowForm.value.trigger_event || '').trim()
-        : computedTriggerEvent.value;
+    let trig = '';
+    if (triggerType.value === 'schedule') {
+        trig = 'schedule.run';
+    } else {
+        trig = useManualTrigger.value
+            ? (newWorkflowForm.value.trigger_event || '').trim()
+            : computedTriggerEvent.value;
+    }
     return nameOk && !!trig;
 });
 
@@ -76,12 +82,18 @@ const resetForm = () => {
     };
     selectedModel.value = null;
     selectedEvent.value = null;
+    triggerType.value = 'event';
 };
 
 const handleCreateWorkflow = async () => {
-    const trigger = useManualTrigger.value
-        ? (newWorkflowForm.value.trigger_event || '').trim().toLowerCase()
-        : computedTriggerEvent.value;
+    let trigger = '';
+    if (triggerType.value === 'schedule') {
+        trigger = 'schedule.run';
+    } else {
+        trigger = useManualTrigger.value
+            ? (newWorkflowForm.value.trigger_event || '').trim().toLowerCase()
+            : computedTriggerEvent.value;
+    }
     newWorkflowForm.value.trigger_event = trigger;
 
     if (!canCreate.value) {
@@ -129,8 +141,15 @@ const handleDeleteWorkflow = async (workflow) => {
             </div>
 
             <div>
-                <label class="text-xs font-medium text-gray-600">When...</label>
+                <label class="text-xs font-medium text-gray-600">Trigger Type</label>
+                <div class="flex items-center gap-2 mt-1 rounded-md bg-gray-200 p-1">
+                    <button @click="triggerType = 'event'" :class="{'bg-white shadow': triggerType === 'event', 'text-gray-600': triggerType !== 'event'}" class="w-1/2 text-center text-xs py-1 rounded-md transition-colors">On an Event</button>
+                    <button @click="triggerType = 'schedule'" :class="{'bg-white shadow': triggerType === 'schedule', 'text-gray-600': triggerType !== 'schedule'}" class="w-1/2 text-center text-xs py-1 rounded-md transition-colors">On a Schedule</button>
+                </div>
+            </div>
 
+            <div v-if="triggerType === 'event'">
+                <label class="text-xs font-medium text-gray-600">When...</label>
                 <div v-if="!useManualTrigger" class="flex items-center gap-2 mt-1">
                     <SelectDropdown
                         v-model="selectedModel"
@@ -151,11 +170,13 @@ const handleDeleteWorkflow = async (workflow) => {
                     />
                 </div>
                 <p v-if="!useManualTrigger" class="text-[11px] text-gray-500 mt-1">This builds the trigger event for you. Preview: <span class="font-mono">{{ computedTriggerEvent || '—' }}</span></p>
-
                 <div v-else class="mt-1">
                     <input v-model="newWorkflowForm.trigger_event" type="text" class="w-full border rounded px-2 py-1 text-sm" placeholder="e.g., user.created" />
                     <p class="text-[11px] text-amber-700 mt-1">Models list is empty. Type the trigger event manually (e.g., <span class="font-mono">user.updated</span>). Ensure it matches the global event name.</p>
                 </div>
+            </div>
+            <div v-else class="text-xs text-gray-600 p-2 bg-blue-50 rounded-md border border-blue-200">
+                This workflow must be attached to a Schedule to run. Its first step should be "Fetch Records".
             </div>
 
             <div>
