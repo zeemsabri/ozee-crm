@@ -19,6 +19,13 @@ const workflowName = ref('');
 const showTriggerModal = ref(false);
 
 onMounted(async () => {
+    // Ensure the automation schema is loaded for both Event and Schedule flows
+    try {
+        if (!store.automationSchema.length) {
+            await store.fetchAutomationSchema();
+        }
+    } catch (_) { /* no-op */ }
+
     if (props.automationId) {
         // For existing workflows, fetch it and then populate state
         await store.fetchWorkflow(props.automationId);
