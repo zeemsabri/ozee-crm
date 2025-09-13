@@ -81,14 +81,16 @@ const flattenSteps = (steps, parentId = null, branch = null) => {
         const stepData = { ...step };
         const if_true = stepData.if_true;
         const if_false = stepData.if_false;
+        const children = stepData.children;
         delete stepData.if_true;
         delete stepData.if_false;
+        delete stepData.children;
 
         stepData.step_order = index + 1;
         if (parentId) {
             stepData.step_config = stepData.step_config || {};
             stepData.step_config._parent_id = parentId;
-            stepData.step_config._branch = branch;
+            stepData.step_config._branch = branch; // null for FOR_EACH children
         }
 
         flatList.push(stepData);
@@ -98,6 +100,12 @@ const flattenSteps = (steps, parentId = null, branch = null) => {
                 ...flatList,
                 ...flattenSteps(if_true || [], step.id, 'yes'),
                 ...flattenSteps(if_false || [], step.id, 'no')
+            ];
+        }
+        if (step.step_type === 'FOR_EACH') {
+            flatList = [
+                ...flatList,
+                ...flattenSteps(children || [], step.id, null)
             ];
         }
     });
