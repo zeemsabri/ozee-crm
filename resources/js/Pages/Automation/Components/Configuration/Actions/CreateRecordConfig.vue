@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useWorkflowStore } from '../../../Store/workflowStore';
 import { Plus, Trash2 } from 'lucide-vue-next';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import VariablePicker from '../../VariablePicker.vue';
 
 const store = useWorkflowStore();
 const step = computed(() => store.selectedStep);
@@ -103,8 +104,9 @@ onMounted(() => {
                             :disabled="!selectedModel"
                         />
                     </div>
-                    <div>
+                    <div class="flex items-center gap-2">
                         <input v-model="field.value" type="text" class="w-full border rounded px-2 py-1 text-sm" placeholder="Value" />
+                        <VariablePicker @select="val => field.value = (field.value || '') + (field.value ? ' ' : '') + val" />
                     </div>
                     <div class="text-right">
                         <button @click="removeField(index)" class="text-red-500 hover:text-red-700 p-1" title="Remove Field">

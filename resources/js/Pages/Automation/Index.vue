@@ -12,6 +12,7 @@ import TriggerConfig from './Components/Configuration/TriggerConfig.vue';
 import AiPromptConfig from './Components/Configuration/AiPromptConfig.vue';
 import ConditionConfig from './Components/Configuration/ConditionConfig.vue';
 import ActionConfig from './Components/Configuration/ActionConfig.vue'; // <-- New import
+import QueryDataConfig from './Components/Configuration/QueryDataConfig.vue';
 
 // The custom modal for alerts and confirmations
 import ConfirmModal from './Components/ConfirmModal.vue';
@@ -43,6 +44,9 @@ const configComponent = computed(() => {
             return ConditionConfig;
         case 'ACTION': // <-- New case for the action config form
             return ActionConfig;
+        case 'QUERY_DATA':
+        case 'FETCH_RECORDS':
+            return QueryDataConfig;
         case 'AI_PROMPT':
         case 'ACTION_AI_PROMPT':
         default:

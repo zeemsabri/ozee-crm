@@ -91,6 +91,7 @@ const onDragEnd = () => {
                         <button @click="addStep('CONDITION', index)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">Condition</button>
                         <div class="text-xs text-gray-400 px-2 pb-1 border-b my-1">Advanced</div>
                         <button @click="addStep('AI_PROMPT', index)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">AI Prompt</button>
+                        <button @click="addStep('QUERY_DATA', index)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">Query Data</button>
                     </div>
                 </div>
             </div>
@@ -109,6 +110,7 @@ const onDragEnd = () => {
                         <button @click="addStep('CONDITION', -1)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">Condition</button>
                         <div class="text-xs text-gray-400 px-2 pb-1 border-b my-1">Advanced</div>
                         <button @click="addStep('AI_PROMPT', -1)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">AI Prompt</button>
+                        <button @click="addStep('QUERY_DATA', -1)" class="w-full text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">Query Data</button>
                     </div>
                 </div>
             </div>

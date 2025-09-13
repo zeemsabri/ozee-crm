@@ -12,6 +12,7 @@ use App\Services\StepHandlers\ConditionStepHandler;
 use App\Services\StepHandlers\CreateRecordStepHandler;
 use App\Services\StepHandlers\SendEmailStepHandler;
 use App\Services\StepHandlers\UpdateRecordStepHandler;
+use App\Services\StepHandlers\QueryDataStepHandler;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -30,6 +31,8 @@ class WorkflowEngineService
             'ACTION_CREATE_RECORD' => new CreateRecordStepHandler(),
             'ACTION_UPDATE_RECORD' => new UpdateRecordStepHandler(),
             'ACTION_SEND_EMAIL' => new SendEmailStepHandler(),
+            'QUERY_DATA' => new QueryDataStepHandler(),
+            'FETCH_RECORDS' => new QueryDataStepHandler(),
             // TRIGGER steps are structural; at runtime they are a no-op
             'TRIGGER' => new class implements StepHandlerContract {
                 public function handle(array $context, WorkflowStep $step): array
@@ -74,6 +77,10 @@ class WorkflowEngineService
      */
     public function execute(Workflow $workflow, array $context = [], ?ExecutionLog $parentLog = null): array
     {
+        // Seed a trigger namespace if not present for variable paths like {{ trigger.* }}
+        if (!isset($context['trigger'])) {
+            $context['trigger'] = $context;
+        }
         $results = [
             'workflow_id' => $workflow->id,
             'steps' => [],
@@ -133,6 +140,12 @@ class WorkflowEngineService
                 if (!empty($out['context']) && is_array($out['context'])) {
                     $context = array_replace_recursive($context, $out['context']);
                 }
+                // Store parsed output under step-specific keys for downstream steps
+                if (isset($out['parsed'])) {
+                    $context['step_' . $step->id] = $out['parsed'];
+                    $context['steps'] = $context['steps'] ?? [];
+                    $context['steps'][$step->id] = $out['parsed'];
+                }
 
                 $results['steps'][] = [
                     'step_id' => $step->id,
@@ -166,6 +179,9 @@ class WorkflowEngineService
      */
     public function executeFromStepId(Workflow $workflow, array $context, int $startStepId, ?ExecutionLog $parentLog = null): array
     {
+        if (!isset($context['trigger'])) {
+            $context['trigger'] = $context;
+        }
         $results = [
             'workflow_id' => $workflow->id,
             'resumed_from_step_id' => $startStepId,
@@ -228,6 +244,11 @@ class WorkflowEngineService
                 if (!empty($out['context']) && is_array($out['context'])) {
                     $context = array_replace_recursive($context, $out['context']);
                 }
+                if (isset($out['parsed'])) {
+                    $context['step_' . $step->id] = $out['parsed'];
+                    $context['steps'] = $context['steps'] ?? [];
+                    $context['steps'][$step->id] = $out['parsed'];
+                }
                 $results['steps'][] = [
                     'step_id' => $step->id,
                     'status' => 'success',
@@ -254,6 +275,9 @@ class WorkflowEngineService
      */
     public function executeSteps(array $steps, Workflow $workflow, array $context = [], ?ExecutionLog $parentLog = null): array
     {
+        if (!isset($context['trigger'])) {
+            $context['trigger'] = $context;
+        }
         $results = [];
         foreach ($steps as $step) {
             $start = microtime(true);
@@ -281,6 +305,11 @@ class WorkflowEngineService
                 ]);
                 if (!empty($out['context']) && is_array($out['context'])) {
                     $context = array_replace_recursive($context, $out['context']);
+                }
+                if (isset($out['parsed'])) {
+                    $context['step_' . $step->id] = $out['parsed'];
+                    $context['steps'] = $context['steps'] ?? [];
+                    $context['steps'][$step->id] = $out['parsed'];
                 }
                 $results[] = [
                     'step_id' => $step->id,
