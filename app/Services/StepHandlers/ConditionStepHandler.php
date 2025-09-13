@@ -162,6 +162,18 @@ class ConditionStepHandler implements StepHandlerContract
                 $left = $left + 0; $right = $right + 0;
             }
         }
+
+        // Date helpers for relative comparisons
+        $asCarbon = function ($value) {
+            if ($value instanceof \Carbon\CarbonInterface) return $value;
+            if ($value instanceof \DateTimeInterface) return \Carbon\Carbon::instance($value);
+            if (is_numeric($value)) return \Carbon\Carbon::createFromTimestamp((int)$value);
+            if (is_string($value) && trim($value) !== '') {
+                try { return \Carbon\Carbon::parse($value); } catch (\Throwable $e) { return null; }
+            }
+            return null;
+        };
+
         return match ($op) {
             '==', '=' => $this->looseEq($left, $right),
             '!=', '<>' => !$this->looseEq($left, $right),
@@ -175,6 +187,15 @@ class ConditionStepHandler implements StepHandlerContract
             'empty' => empty($left),
             'not_empty' => !empty($left),
             'truthy' => (bool)$left === true || (is_string($left) && $left !== '') || (is_numeric($left) && $left != 0),
+            'today' => function () use ($asCarbon, $left) {
+                $dt = $asCarbon($left); if (!$dt) return false; $now = \Carbon\Carbon::now($dt->getTimezone()); return $dt->isSameDay($now);
+            },
+            'in_past' => function () use ($asCarbon, $left) {
+                $dt = $asCarbon($left); if (!$dt) return false; return $dt->lt(\Carbon\Carbon::now($dt->getTimezone()));
+            },
+            'in_future' => function () use ($asCarbon, $left) {
+                $dt = $asCarbon($left); if (!$dt) return false; return $dt->gt(\Carbon\Carbon::now($dt->getTimezone()));
+            },
             default => false,
         };
     }

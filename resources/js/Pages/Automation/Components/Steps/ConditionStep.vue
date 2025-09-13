@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue';
 import { useWorkflowStore } from '../../Store/workflowStore';
 import StepCard from './StepCard.vue';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 
 const props = defineProps({
     step: { type: Object, required: true },
@@ -167,7 +168,7 @@ const availableFields = computed(() => {
         if (typeof col === 'string') {
             return { name: col, label: col, type: 'Text' }; // Assume Text for simple strings
         }
-        return { name: col.name, label: col.label || col.name, type: col.type || 'Text' };
+        return { name: col.name, label: col.label || col.name, type: col.type || 'Text', allowed_values: col.allowed_values || null };
     });
 });
 
@@ -179,11 +180,54 @@ const selectedFieldSchema = computed(() => {
 const availableOperators = computed(() => {
     const type = selectedFieldSchema.value?.type;
     switch (type) {
-        case 'Array': return [{ value: 'isNotEmpty', label: 'is not empty' }, { value: 'isEmpty', label: 'is empty' }];
-        case 'True/False': return [{ value: 'is', label: 'is' }];
-        case 'Number': return [{ value: 'equals', label: 'equals' }, { value: 'gt', label: 'is greater than' }, { value: 'lt', label: 'is less than' }];
-        default: return [{ value: 'is', label: 'is' }, { value: 'is_not', label: 'is not' }, { value: 'contains', label: 'contains' }];
+        case 'Array':
+            return [
+                { value: 'not_empty', label: 'is not empty' },
+                { value: 'empty', label: 'is empty' },
+            ];
+        case 'True/False':
+            return [
+                { value: '==', label: 'is' },
+                { value: '!=', label: 'is not' },
+            ];
+        case 'Number':
+            return [
+                { value: '==', label: 'equals' },
+                { value: '>', label: 'is greater than' },
+                { value: '<', label: 'is less than' },
+                { value: '>=', label: 'is on or after' },
+                { value: '<=', label: 'is on or before' },
+            ];
+        case 'Date':
+        case 'DateTime':
+            return [
+                { value: '==', label: 'is on' },
+                { value: '>', label: 'is after' },
+                { value: '<', label: 'is before' },
+                { value: 'in_past', label: 'is in the past' },
+                { value: 'in_future', label: 'is in the future' },
+                { value: 'today', label: 'is today' },
+            ];
+        default:
+            // Text (including enums/status where UI will provide dropdown)
+            return [
+                { value: '==', label: 'is' },
+                { value: '!=', label: 'is not' },
+                { value: 'contains', label: 'contains' },
+            ];
     }
+});
+
+const operatorRequiresValue = computed(() => {
+    const op = String(conditionConfig.value?.operator || '').toLowerCase();
+    return !['', 'empty', 'not_empty', 'in_past', 'in_future', 'today'].includes(op);
+});
+
+const inputType = computed(() => {
+    const t = selectedFieldSchema.value?.type;
+    if (t === 'Date') return 'date';
+    if (t === 'DateTime') return 'datetime-local';
+    return 'text';
 });
 </script>
 
@@ -210,12 +254,23 @@ const availableOperators = computed(() => {
                         <option v-for="op in availableOperators" :key="op.value" :value="op.value">{{ op.label }}</option>
                     </select>
 
-                    <select v-if="selectedFieldSchema?.type === 'True/False'" :value="conditionConfig.value ?? 'true'" @change="handleConfigChange('value', $event.target.value)" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm text-sm">
+                    <!-- Enum/status dropdown -->
+                    <SelectDropdown
+                        v-if="selectedFieldSchema?.allowed_values && operatorRequiresValue"
+                        :options="(selectedFieldSchema.allowed_values || []).map(o => ({ value: o.value, label: o.label }))"
+                        :model-value="conditionConfig.value ?? null"
+                        placeholder="Select value..."
+                        @update:modelValue="val => handleConfigChange('value', val)"
+                    />
+
+                    <!-- Boolean dropdown -->
+                    <select v-else-if="selectedFieldSchema?.type === 'True/False' && operatorRequiresValue" :value="conditionConfig.value ?? 'true'" @change="handleConfigChange('value', $event.target.value)" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm text-sm">
                         <option value="true">True</option>
                         <option value="false">False</option>
                     </select>
 
-                    <input v-else-if="selectedFieldSchema?.type !== 'Array'" type="text" :value="conditionConfig.value || ''" @input="handleConfigChange('value', $event.target.value)" placeholder="Value" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm text-sm"/>
+                    <!-- Date/DateTime/Text input -->
+                    <input v-else-if="selectedFieldSchema?.type !== 'Array' && operatorRequiresValue" :type="inputType" :value="conditionConfig.value || ''" @input="handleConfigChange('value', $event.target.value)" :placeholder="inputType === 'text' ? 'Value' : ''" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm text-sm"/>
                 </template>
             </div>
         </div>
