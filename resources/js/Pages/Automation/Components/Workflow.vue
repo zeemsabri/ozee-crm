@@ -14,7 +14,7 @@ const props = defineProps({
     loopContextSchema: { type: Object, default: null },
 });
 
-const emit = defineEmits(['update:steps']);
+const emit = defineEmits(['update:steps', 'add-trigger']);
 
 // This map is now complete and correct. We are NOT using shallowRef.
 const stepComponentMap = {
@@ -80,58 +80,66 @@ function handleDeleteStep(index) {
 
 <template>
     <div class="flex flex-col items-center w-full space-y-4">
-        <template v-for="(step, index) in steps" :key="step.id">
-            <div class="w-full flex flex-col items-center">
-                <!-- Renders the main card for the current step -->
-                <component
-                    :is="getStepComponent(step.step_type)"
-                    v-if="getStepComponent(step.step_type)"
-                    :step="step"
-                    :all-steps-before="[...fullContextSteps, ...steps.slice(0, index)]"
-                    :loop-context-schema="loopContextSchema"
-                    :onDelete="index > 0 ? () => handleDeleteStep(index) : null"
-                    @update:step="handleUpdateStep(index, $event)"
-                />
+        <!-- NEW: Empty state for a blank canvas -->
+        <div v-if="steps.length === 0" class="text-center p-8 border-2 border-dashed rounded-lg w-full max-w-md">
+            <h3 class="text-lg font-semibold text-gray-700">Start your Automation</h3>
+            <p class="text-sm text-gray-500 mt-1 mb-4">Every workflow starts with a trigger. How should this one begin?</p>
+            <button @click="$emit('add-trigger')" class="px-4 py-2 text-sm font-semibold rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+                Add Trigger
+            </button>
+        </div>
 
-                <!-- Renders the nested branches for IF/ELSE -->
-                <div v-if="step.step_type === 'CONDITION'" class="w-full flex mt-4 space-x-4">
-                    <div class="flex-1 bg-green-50/50 p-4 rounded-lg border border-green-200">
-                        <p class="text-center font-bold text-green-700 mb-4">IF YES</p>
-                        <Workflow
-                            :steps="step.if_true || []"
-                            @update:steps="handleUpdateStep(index, { ...step, if_true: $event })"
-                            :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
-                            :loop-context-schema="loopContextSchema"
-                        />
-                    </div>
-                    <div class="flex-1 bg-red-50/50 p-4 rounded-lg border border-red-200">
-                        <p class="text-center font-bold text-red-700 mb-4">IF NO</p>
-                        <Workflow
-                            :steps="step.if_false || []"
-                            @update:steps="handleUpdateStep(index, { ...step, if_false: $event })"
-                            :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
-                            :loop-context-schema="loopContextSchema"
-                        />
-                    </div>
-                </div>
-
-                <!-- Renders the nested container for FOR EACH -->
-                <div v-if="step.step_type === 'FOR_EACH'" class="w-full mt-4 p-4 rounded-lg border border-purple-300 bg-purple-50/50">
-                    <p class="text-center font-bold text-purple-700 mb-4">DO THIS FOR EACH ITEM</p>
-                    <Workflow
-                        :steps="step.children || []"
-                        @update:steps="handleUpdateStep(index, { ...step, children: $event })"
-                        :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
-                        :loop-context-schema="getLoopContextSchema(step)"
+        <template v-else>
+            <template v-for="(step, index) in steps" :key="step.id">
+                <div class="w-full flex flex-col items-center">
+                    <!-- Renders the main card for the current step -->
+                    <component
+                        :is="getStepComponent(step.step_type)"
+                        v-if="getStepComponent(step.step_type)"
+                        :step="step"
+                        :all-steps-before="[...fullContextSteps, ...steps.slice(0, index)]"
+                        :loop-context-schema="loopContextSchema"
+                        :onDelete="index > 0 ? () => handleDeleteStep(index) : null"
+                        @update:step="handleUpdateStep(index, $event)"
                     />
+
+                    <!-- Renders the nested branches for IF/ELSE -->
+                    <div v-if="step.step_type === 'CONDITION'" class="w-full flex mt-4 space-x-4">
+                        <div class="flex-1 bg-green-50/50 p-4 rounded-lg border border-green-200">
+                            <p class="text-center font-bold text-green-700 mb-4">IF YES</p>
+                            <Workflow
+                                :steps="step.if_true || []"
+                                @update:steps="handleUpdateStep(index, { ...step, if_true: $event })"
+                                :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
+                                :loop-context-schema="loopContextSchema"
+                            />
+                        </div>
+                        <div class="flex-1 bg-red-50/50 p-4 rounded-lg border border-red-200">
+                            <p class="text-center font-bold text-red-700 mb-4">IF NO</p>
+                            <Workflow
+                                :steps="step.if_false || []"
+                                @update:steps="handleUpdateStep(index, { ...step, if_false: $event })"
+                                :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
+                                :loop-context-schema="loopContextSchema"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Renders the nested container for FOR EACH -->
+                    <div v-if="step.step_type === 'FOR_EACH'" class="w-full mt-4 p-4 rounded-lg border border-purple-300 bg-purple-50/50">
+                        <p class="text-center font-bold text-purple-700 mb-4">DO THIS FOR EACH ITEM</p>
+                        <Workflow
+                            :steps="step.children || []"
+                            @update:steps="handleUpdateStep(index, { ...step, children: $event })"
+                            :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
+                            :loop-context-schema="getLoopContextSchema(step)"
+                        />
+                    </div>
+
                 </div>
-
-            </div>
-            <!-- Renders the "+" button to add the NEXT step -->
-            <AddStepButton @select="(type) => handleAddStep(index + 1, type)" />
+                <!-- Renders the "+" button to add the NEXT step -->
+                <AddStepButton @select="(type) => handleAddStep(index + 1, type)" />
+            </template>
         </template>
-
-        <!-- Renders a "+" button for an empty branch -->
-        <AddStepButton v-if="steps.length === 0" @select="(type) => handleAddStep(0, type)" />
     </div>
 </template>
