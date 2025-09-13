@@ -27,7 +27,7 @@ class EmailAiAnalysisService
      * @param bool $isIncoming Flag to indicate if the email is incoming or outgoing.
      * @return array|null The analysis array or null on failure.
      */
-    public function analyzeAndSummarize(string $plainTextContent, bool $isIncoming = false): ?array
+    public function     analyzeAndSummarize(string $plainTextContent, bool $isIncoming = false): ?array
     {
         if (empty($this->apiKey)) {
             Log::error('Gemini API key is not configured.');

@@ -59,6 +59,10 @@ export const updatePrompt = async (id, payload) => {
   return data;
 };
 
+export const deletePrompt = async (id) => {
+  await axios.delete(`${API_BASE_URL}/prompts/${id}`);
+};
+
 // ===================== Schema =====================
 // Fetches a data dictionary of models and their columns for Automation Studio dropdowns
 export const fetchAutomationSchema = async () => {

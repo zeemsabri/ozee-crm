@@ -12,6 +12,7 @@ use App\Services\EmailAiAnalysisService;
 use App\Services\EmailProcessingService;
 use App\Services\GmailService;
 use App\Services\LeadReplyHandlerService;
+use App\Services\WorkflowEngineService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -27,18 +28,21 @@ class EmailReceiveController extends Controller
 
     protected EmailProcessingService $emailProcessingService;
     protected LeadReplyHandlerService $leadReplyHandlerService;
+    private $workflowEngineService;
 
     public function __construct(
         GmailService $gmailService,
         EmailAiAnalysisService $emailAiAnalysisService,
         EmailProcessingService $emailProcessingService,
         LeadReplyHandlerService $leadReplyHandlerService,
+        WorkflowEngineService $workflowEngineService
     )
     {
         $this->gmailService = $gmailService;
         $this->emailAiAnalysisService = $emailAiAnalysisService;
         $this->emailProcessingService = $emailProcessingService;
         $this->leadReplyHandlerService = $leadReplyHandlerService;
+        $this->workflowEngineService = $workflowEngineService;
     }
 
     protected function extractEmailAddress(string $formattedEmail): string
@@ -194,11 +198,17 @@ class EmailReceiveController extends Controller
         $this->attachEmailAttachments($email, $emailDetails['attachments'] ?? []);
 
         // ** TRIGGER AI ANALYSIS **
-        $content = $this->emailAiAnalysisService->analyzeAndSummarize($email);
+//        $content = $this->emailAiAnalysisService->analyzeAndSummarize($email);
+        $context = [
+            'email' => $email,
+            'client' => $client,
+            'project' => $project ?? null
+        ];
+        $this->workflowEngineService->trigger('email.received', $context);
 
-        if($content) {
-            $this->emailProcessingService->createContextForEmail($email, $content);
-        }
+//        if($content) {
+//            $this->emailProcessingService->createContextForEmail($email, $content);
+//        }
 
 
         return [$conversation, $email];
