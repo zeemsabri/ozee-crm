@@ -44,7 +44,7 @@ class AutomationSchemaController extends Controller
                 $allowed = $this->getAllowedValues($modelName, $col);
                 return [
                     'name' => $col,
-                    'label' => $col,
+                    'label' => $this->prettifyLabel($col),
                     'type' => $type,
                     'allowed_values' => $allowed,
                 ];
@@ -150,6 +150,40 @@ class AutomationSchemaController extends Controller
         }
         // Future: support other sources (config/db/model_const) as needed
         return null;
+    }
+
+    /**
+     * Convert a database column name into a human-friendly label.
+     */
+    private function prettifyLabel(string $column): string
+    {
+        $lower = strtolower($column);
+        // Common special cases
+        if ($lower === 'id') return 'ID';
+        if ($lower === 'created_at') return 'Created At';
+        if ($lower === 'updated_at') return 'Updated At';
+        if ($lower === 'deleted_at') return 'Deleted At';
+
+        // Strip trailing _id to show the related entity name
+        if (str_ends_with($lower, '_id')) {
+            $lower = substr($lower, 0, -3);
+        }
+
+        // Replace underscores/dashes with spaces and Title Case
+        $spaced = str_replace(['_', '-'], ' ', $lower);
+        // Handle boolean style prefixes like is_*, has_*
+        $spaced = preg_replace_callback('/\b(is|has|was|can)\b\s+/i', function ($m) {
+            return ucfirst(strtolower($m[1])) . ' ';
+        }, $spaced);
+
+        // Title case
+        $label = ucwords($spaced);
+
+        // Small touch: URL/ID capitalization if present as words
+        $label = preg_replace('/\bId\b/', 'ID', $label);
+        $label = preg_replace('/\bUrl\b/', 'URL', $label);
+
+        return $label;
     }
 
     /**

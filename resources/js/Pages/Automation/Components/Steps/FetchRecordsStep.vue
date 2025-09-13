@@ -28,11 +28,27 @@ const modelSchema = computed(() => {
     return automationSchema.value.find(m => m.name === config.value.model) || null;
 });
 
+function humanize(name) {
+    if (!name || typeof name !== 'string') return '';
+    let lower = name.toLowerCase();
+    if (lower === 'id') return 'ID';
+    if (lower.endsWith('_id')) lower = lower.slice(0, -3);
+    lower = lower.replace(/[_-]+/g, ' ');
+    let label = lower.replace(/\b\w/g, (c) => c.toUpperCase());
+    label = label.replace(/\bId\b/g, 'ID').replace(/\bUrl\b/g, 'URL');
+    return label;
+}
+
 const columnsForSelectedModel = computed(() => {
     if (!modelSchema.value) return [];
-    return (modelSchema.value.columns || []).map(col => typeof col === 'string' ? { name: col, type: 'Text' } : col);
+    return (modelSchema.value.columns || []).map(col => {
+        if (typeof col === 'string') {
+            return { name: col, label: humanize(col), type: 'Text' };
+        }
+        return { ...col, label: col.label || humanize(col.name) };
+    });
 });
-const columnOptions = computed(() => columnsForSelectedModel.value.map(col => ({ value: col.name, label: `${col.name}${col.type ? ` (${col.type})` : ''}` })));
+const columnOptions = computed(() => columnsForSelectedModel.value.map(col => ({ value: col.name, label: `${col.label || col.name}${col.type ? ` (${col.type})` : ''}` })));
 
 function getColumnMeta(columnName) {
     return columnsForSelectedModel.value.find(c => c.name === columnName) || null;
