@@ -64,8 +64,8 @@ export const deletePrompt = async (id) => {
 };
 
 // ===================== Schema =====================
-// Fetches a data dictionary of models and their columns for Automation Studio dropdowns
+// Fetches the data dictionary for the Automation Studio builder
 export const fetchAutomationSchema = async () => {
-  const { data } = await axios.get(`${API_BASE_URL}/placeholder-definitions/models-and-columns`);
+  const { data } = await axios.get(`${API_BASE_URL}/automation/schema`);
   return data;
 };

@@ -32,18 +32,17 @@ export const useWorkflowStore = defineStore('workflow', {
     state: () => ({
         workflows: [],
         prompts: [],
-        automationSchema: {},
+        automationSchema: [], // <-- MODIFIED: Default to an empty array
         activeWorkflow: null,
         selectedStep: null,
         isLoading: false,
-        // New state for the custom modal
         modalState: {
             show: false,
             title: '',
             message: '',
             onConfirm: null,
             onCancel: null,
-            type: 'alert', // 'alert' or 'confirm'
+            type: 'alert',
         },
     }),
     actions: {
@@ -82,11 +81,11 @@ export const useWorkflowStore = defineStore('workflow', {
         // --- SCHEMA ACTIONS ---
         async fetchAutomationSchema() {
             try {
-                const schemaArray = await api.fetchAutomationSchema();
-                this.automationSchema = { models: schemaArray || [] };
+                // MODIFIED: The new API returns a direct array, which we store.
+                this.automationSchema = await api.fetchAutomationSchema() || [];
             } catch(error) {
                 console.error("Failed to fetch automation schema:", error);
-                this.automationSchema = { models: [] };
+                this.automationSchema = []; // Ensure it's an array on failure
             }
         },
 
@@ -109,11 +108,9 @@ export const useWorkflowStore = defineStore('workflow', {
                 const response = await api.fetchWorkflow(id);
                 const workflowData = unwrapApiResponse(response);
 
-                // Ensure nested arrays exist and, if necessary, reconstruct the tree from flat data using step_config._parent_id/_branch
                 const initializeStepArrays = (steps) => {
                     if (!Array.isArray(steps)) return;
                     steps.forEach(step => {
-                        // Normalize step_config to an object
                         if (!step.step_config || typeof step.step_config !== 'object' || Array.isArray(step.step_config)) {
                             step.step_config = {};
                         }
@@ -130,9 +127,8 @@ export const useWorkflowStore = defineStore('workflow', {
                     const steps = Array.isArray(wf.steps) ? wf.steps : [];
                     if (!steps.length) return;
 
-                    // Detect if already nested
                     const hasNested = steps.some(s => s && s.step_type === 'CONDITION' && ((Array.isArray(s.yes_steps) && s.yes_steps.length) || (Array.isArray(s.no_steps) && s.no_steps.length)));
-                    // Always normalize step_config first
+
                     steps.forEach(s => {
                         if (!s.step_config || typeof s.step_config !== 'object' || Array.isArray(s.step_config)) {
                             s.step_config = {};
@@ -140,13 +136,12 @@ export const useWorkflowStore = defineStore('workflow', {
                     });
                     if (hasNested) {
                         initializeStepArrays(steps);
-                        return; // Nothing to reconstruct
+                        return;
                     }
 
                     const byId = new Map();
                     steps.forEach(s => byId.set(String(s.id), s));
 
-                    // Prepare condition containers
                     steps.forEach(s => {
                         if (s.step_type === 'CONDITION') {
                             if (!Array.isArray(s.yes_steps)) s.yes_steps = [];
@@ -170,7 +165,7 @@ export const useWorkflowStore = defineStore('workflow', {
                     });
 
                     const sortByOrder = (arr) => arr.sort((a, b) => (a.step_order ?? 0) - (b.step_order ?? 0));
-                    // Sort branches
+
                     steps.forEach(s => {
                         if (s.step_type === 'CONDITION') {
                             sortByOrder(s.yes_steps);
@@ -215,10 +210,8 @@ export const useWorkflowStore = defineStore('workflow', {
             const response = await api.updateWorkflow(id, payload);
             const updated = unwrapApiResponse(response);
             if (updated && updated.id) {
-                // Update in list
                 const idx = this.workflows.findIndex(w => w.id === id);
                 if (idx !== -1) this.workflows.splice(idx, 1, updated);
-                // Update active
                 if (this.activeWorkflow && this.activeWorkflow.id === id) {
                     this.activeWorkflow = { ...this.activeWorkflow, ...updated };
                 }
@@ -264,10 +257,9 @@ export const useWorkflowStore = defineStore('workflow', {
                 condition_rules: type === 'CONDITION' ? [] : null,
             };
 
-            // If adding inside a condition branch, tag the child with its parent and branch so it can be rebuilt on reload
             if (parentStep && branch) {
                 newStep.step_config._parent_id = parentStep.id;
-                newStep.step_config._branch = branch; // 'yes' | 'no'
+                newStep.step_config._branch = branch;
             }
 
             if (type === 'CONDITION') {
@@ -336,20 +328,16 @@ export const useWorkflowStore = defineStore('workflow', {
                 }
 
                 if (savedStep) {
-                    // Defensively ensure the saved step has the required arrays for conditions.
                     if (savedStep.step_type === 'CONDITION') {
                         if (!Array.isArray(savedStep.yes_steps)) savedStep.yes_steps = [];
                         if (!Array.isArray(savedStep.no_steps)) savedStep.no_steps = [];
                     }
 
-                    // Use the new recursive helper to patch the local state.
                     const success = findAndReplaceStep(this.activeWorkflow.steps, originalStepId, savedStep);
 
                     if (success) {
-                        // Reselect the new step object to keep the sidebar in sync.
                         this.selectStep(savedStep);
                     } else {
-                        // As a fallback, reload the whole workflow if the patch fails.
                         await this.fetchWorkflow(stepToSave.workflow_id);
                     }
                 }
