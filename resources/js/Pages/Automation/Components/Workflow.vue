@@ -138,7 +138,7 @@ function handleDeleteStep(index) {
                         :step="step"
                         :all-steps-before="[...fullContextSteps, ...steps.slice(0, index)]"
                         :loop-context-schema="loopContextSchema"
-                        :onDelete="index > 0 ? () => handleDeleteStep(index) : null"
+                        :onDelete="(!allowTrigger || index > 0) ? () => handleDeleteStep(index) : null"
                         @update:step="handleUpdateStep(index, $event)"
                     />
 

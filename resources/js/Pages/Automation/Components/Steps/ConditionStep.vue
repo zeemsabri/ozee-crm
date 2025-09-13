@@ -6,7 +6,8 @@ import StepCard from './StepCard.vue';
 const props = defineProps({
     step: { type: Object, required: true },
     allStepsBefore: { type: Array, default: () => [] },
-    // NEW: When this condition is inside a For Each, the parent Workflow passes the loop schema
+    // When this condition is inside a For Each, the parent Workflow passes the loop schema.
+    // If not provided, we will infer it from the nearest FOR_EACH step.
     loopContextSchema: { type: Object, default: null },
 });
 const emit = defineEmits(['update:step', 'delete']);
@@ -18,14 +19,57 @@ const conditionConfig = computed({
     set: (newConfig) => emit('update:step', { ...props.step, step_config: newConfig }),
 });
 
+// Infer loop schema from the nearest FOR_EACH if not explicitly provided
+const effectiveLoopSchema = computed(() => {
+    if (props.loopContextSchema && Array.isArray(props.loopContextSchema.columns) && props.loopContextSchema.columns.length > 0) {
+        return props.loopContextSchema;
+    }
+    // Find nearest FOR_EACH with a sourceArray token like {{step_<id>.records}} or AI array
+    const forEach = [...props.allStepsBefore].reverse().find(s => s.step_type === 'FOR_EACH' && s.step_config?.sourceArray);
+    if (!forEach) return null;
+    const sourcePath = forEach.step_config.sourceArray;
+    const match = typeof sourcePath === 'string' ? sourcePath.match(/{{\s*step_(\w+)\.(.+?)\s*}}/) : null;
+    if (!match) return null;
+    const sourceStepId = match[1];
+    const sourceFieldName = match[2];
+    const sourceStep = props.allStepsBefore.find(s => String(s.id) === String(sourceStepId));
+    if (!sourceStep) return null;
+
+    // Case: AI Array of Objects
+    if (sourceStep.step_type === 'AI_PROMPT') {
+        const field = (sourceStep.step_config?.responseStructure || []).find(f => f.name === sourceFieldName);
+        if (field?.type === 'Array of Objects') {
+            return { name: 'Loop Item', columns: field.schema || [] };
+        }
+        return null;
+    }
+
+    // Case: Fetch Records → records array
+    if (sourceStep.step_type === 'FETCH_RECORDS' && sourceFieldName === 'records') {
+        const modelName = sourceStep.step_config?.model;
+        if (!modelName) return null;
+        const model = automationSchema.value.find(m => m.name === modelName);
+        if (!model) return null;
+        const cols = (model.columns || []).map(col => typeof col === 'string' ? { name: col } : col);
+        return { name: 'Loop Item', columns: cols };
+    }
+    return null;
+});
+
 onMounted(() => {
     if (!conditionConfig.value.sourceId) {
-        // Prefer the current loop item if we're inside a loop; otherwise default to Trigger
-        const hasLoop = props.loopContextSchema && Array.isArray(props.loopContextSchema.columns) && props.loopContextSchema.columns.length > 0;
+        // Prefer the current loop item if we can detect it; otherwise default to Trigger if present
+        const hasLoop = !!(effectiveLoopSchema.value && Array.isArray(effectiveLoopSchema.value.columns) && effectiveLoopSchema.value.columns.length > 0);
         if (hasLoop) {
             handleConfigChange('sourceId', 'loop');
         } else if (props.allStepsBefore.some(s => s.step_type === 'TRIGGER')) {
             handleConfigChange('sourceId', 'trigger');
+        }
+    } else {
+        // If user had a stale selection but we detect loop now, auto-switch to loop for clarity
+        const hasLoop = !!(effectiveLoopSchema.value && Array.isArray(effectiveLoopSchema.value.columns) && effectiveLoopSchema.value.columns.length > 0);
+        if (hasLoop && conditionConfig.value.sourceId !== 'loop') {
+            handleConfigChange('sourceId', 'loop');
         }
     }
 });
@@ -34,8 +78,8 @@ const availableDataSources = computed(() => {
     const sources = [];
 
     // Add current loop item first if available
-    if (props.loopContextSchema && Array.isArray(props.loopContextSchema.columns) && props.loopContextSchema.columns.length > 0) {
-        const cols = props.loopContextSchema.columns.map(col => {
+    if (effectiveLoopSchema.value && Array.isArray(effectiveLoopSchema.value.columns) && effectiveLoopSchema.value.columns.length > 0) {
+        const cols = effectiveLoopSchema.value.columns.map(col => {
             if (typeof col === 'string') return { name: col, type: 'Text' };
             return { name: col.name, type: col.type || 'Text' };
         });
@@ -59,7 +103,7 @@ const availableDataSources = computed(() => {
         }
     }
 
-    // AI Response sources
+    // AI Response and Fetch Records sources
     props.allStepsBefore.forEach((s, index) => {
         if (s.step_type === 'AI_PROMPT' && s.step_config?.responseStructure?.length > 0) {
             sources.push({
@@ -74,6 +118,26 @@ const availableDataSources = computed(() => {
                     })),
                 }
             });
+        }
+        // Fetch Records sources (records array + count)
+        if (s.step_type === 'FETCH_RECORDS') {
+            // When inside or inferred loop, prefer the Current Loop Item; hide raw Fetch Records arrays to avoid confusion
+            const hasLoop = !!(effectiveLoopSchema.value && Array.isArray(effectiveLoopSchema.value.columns) && effectiveLoopSchema.value.columns.length > 0);
+            if (!hasLoop) {
+                const modelName = s.step_config && s.step_config.model ? s.step_config.model : null;
+                const label = `Step ${index + 1}: Fetch Records` + (modelName ? ` — ${modelName}` : '');
+                sources.push({
+                    id: `fetch_${s.id}`,
+                    name: label,
+                    schema: {
+                        name: `Step_${s.id}_Fetch`,
+                        columns: [
+                            { name: 'records', type: 'Array' },
+                            { name: 'count', type: 'Number' },
+                        ],
+                    }
+                });
+            }
         }
     });
     return sources;
@@ -95,7 +159,7 @@ function handleConfigChange(key, value) {
 
 const selectedSource = computed(() => availableDataSources.value.find(s => s.id == conditionConfig.value.sourceId));
 
-// THIS IS THE KEY FIX
+// Available fields for the selected source
 const availableFields = computed(() => {
     if (!selectedSource.value?.schema?.columns) return [];
     // Handle both string arrays and object arrays

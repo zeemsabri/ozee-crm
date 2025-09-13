@@ -35,7 +35,7 @@ function insertToken(fieldName, token) {
                     class="w-full p-2 border border-gray-300 rounded-md text-sm"
                     placeholder="e.g., {{step_1.tasks}}"
                 />
-                <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('sourceArray', $event)" />
+                <DataTokenInserter :all-steps-before="allStepsBefore" :infer-loop-from-nearest="false" @insert="insertToken('sourceArray', $event)" />
             </div>
             <p class="text-xs text-gray-500 mt-2">
                 Inside the loop, use the <strong>Current Loop Item (from For Each)</strong> data source to access properties of the current item (e.g., <code v-pre>{{loop.item.name}}</code>).
