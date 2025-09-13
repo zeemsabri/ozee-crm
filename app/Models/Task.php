@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use App\Enums\TaskStatus;
 
 class Task extends Model
 {
@@ -79,23 +80,27 @@ class Task extends Model
             $oldStatus = $this->getOriginal('status');
             $newStatus = $changes['status'];
 
-            if ($oldStatus === 'To Do' && $newStatus === 'In Progress') {
+            // Normalize possible enum instances to string values
+            $old = is_object($oldStatus) && method_exists($oldStatus, 'value') ? $oldStatus->value : $oldStatus;
+            $new = is_object($newStatus) && method_exists($newStatus, 'value') ? $newStatus->value : $newStatus;
+
+            if ($old === TaskStatus::ToDo->value && $new === TaskStatus::InProgress->value) {
                 return 'Task was started';
-            } elseif ($oldStatus === 'In Progress' && $newStatus === 'Paused') {
+            } elseif ($old === TaskStatus::InProgress->value && $new === TaskStatus::Paused->value) {
                 return 'Task was paused';
-            } elseif ($oldStatus === 'Paused' && $newStatus === 'In Progress') {
+            } elseif ($old === TaskStatus::Paused->value && $new === TaskStatus::InProgress->value) {
                 return 'Task was resumed';
-            } elseif ($newStatus === 'Blocked') {
+            } elseif ($new === TaskStatus::Blocked->value) {
                 $blockReason = $this->block_reason ? ": {$this->block_reason}" : '';
                 return "Task was blocked{$blockReason}";
-            } elseif ($oldStatus === 'Blocked' && ($newStatus === 'To Do' || $newStatus === 'In Progress')) {
+            } elseif ($old === TaskStatus::Blocked->value && ($new === TaskStatus::ToDo->value || $new === TaskStatus::InProgress->value)) {
                 return 'Task was unblocked';
-            } elseif ($newStatus === 'Done') {
+            } elseif ($new === TaskStatus::Done->value) {
                 return 'Task was completed';
-            } elseif ($oldStatus === 'Done' && $newStatus === 'To Do') {
+            } elseif ($old === TaskStatus::Done->value && $new === TaskStatus::ToDo->value) {
                 return 'Task was revised';
             } else {
-                return "Task status changed from '{$oldStatus}' to '{$newStatus}'";
+                return "Task status changed from '{$old}' to '{$new}'";
             }
         }
 
@@ -164,6 +169,7 @@ class Task extends Model
         'actual_completion_date' => 'date',
         'details' => 'array',
         'needs_approval' => 'boolean',
+        'status' => \App\Enums\TaskStatus::class,
     ];
 
     /**
@@ -379,7 +385,7 @@ class Task extends Model
             'assigned_to_user_id' => $this->assigned_to_user_id,
             'task_type_id' => $this->task_type_id,
             'milestone_id' => $this->milestone_id,
-            'status' => self::STATUS_TO_DO,
+            'status' => TaskStatus::ToDo,
             'parent_id' => $this->id,
         ];
 
@@ -396,7 +402,7 @@ class Task extends Model
      */
     public function isCompleted()
     {
-        return $this->status === self::STATUS_DONE;
+        return ($this->status instanceof TaskStatus ? $this->status->value : (string)$this->status) === TaskStatus::Done->value;
     }
 
     /**
@@ -420,13 +426,14 @@ class Task extends Model
         // Keep a reference to the user who completed the task
         $completedBy = $user;
         $oldStatus = $this->status;
-        $this->status = self::STATUS_DONE;
+        $this->status = TaskStatus::Done;
         $date = Carbon::now()->setTimezone('Australia/Perth');
         $this->actual_completion_date = $date;
         $this->save();
 
         // Only send notification if status actually changed
-        if ($oldStatus !== self::STATUS_DONE) {
+        $old = $oldStatus instanceof TaskStatus ? $oldStatus->value : (string)$oldStatus;
+        if ($old !== TaskStatus::Done->value) {
 
             if($this->milestone) {
                 TaskCompletedEvent::dispatch($this, $this->milestone);
@@ -547,11 +554,12 @@ class Task extends Model
     public function start(User $user = null)
     {
         $oldStatus = $this->status;
-        $this->status = self::STATUS_IN_PROGRESS;
+        $this->status = TaskStatus::InProgress;
         $this->save();
 
         // Only send notification if status actually changed
-        if ($oldStatus !== self::STATUS_IN_PROGRESS) {
+        $old = $oldStatus instanceof TaskStatus ? $oldStatus->value : (string)$oldStatus;
+        if ($old !== TaskStatus::InProgress->value) {
             try {
                 // Make sure we have the Google Chat space ID
                 if (!$this->google_chat_space_id) {
@@ -635,7 +643,7 @@ class Task extends Model
      */
     public function block()
     {
-        $this->status = self::STATUS_BLOCKED;
+        $this->status = TaskStatus::Blocked;
         $this->save();
     }
 
@@ -646,7 +654,7 @@ class Task extends Model
      */
     public function archive()
     {
-        $this->status = self::STATUS_ARCHIVED;
+        $this->status = TaskStatus::Archived;
         $this->save();
     }
 

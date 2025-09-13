@@ -109,6 +109,14 @@ class PlaceholderDefinitionController extends Controller
             }
         }
 
+        // Preload value dictionary once (keep endpoint resilient on failure)
+        $valueSets = [];
+        try {
+            $valueSets = app(\App\Services\ValueDictionaryRegistry::class)->all();
+        } catch (\Throwable $e) {
+            $valueSets = [];
+        }
+
         // Second pass: infer relationships (belongsTo via *_id, hasMany via reverse FK discovery)
         foreach ($registry as $modelName => $info) {
             $relationships = [];
@@ -163,15 +171,10 @@ class PlaceholderDefinitionController extends Controller
 
             // Attach field metadata for enum/value sets if available
             $fieldMeta = [];
-            try {
-                $valueSets = app(\App\Services\ValueDictionaryRegistry::class)->all();
-                if (isset($valueSets[$info['name']]['fields'])) {
-                    foreach ($valueSets[$info['name']]['fields'] as $fieldName => $def) {
-                        $fieldMeta[$fieldName] = array_merge(['enum' => true], $def);
-                    }
+            if (!empty($valueSets[$info['name']]['fields'] ?? [])) {
+                foreach ($valueSets[$info['name']]['fields'] as $fieldName => $def) {
+                    $fieldMeta[$fieldName] = array_merge(['enum' => true], $def);
                 }
-            } catch (\Throwable $e) {
-                // Silently ignore to keep endpoint resilient if registry fails
             }
 
             $models[] = [

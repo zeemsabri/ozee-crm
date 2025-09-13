@@ -77,13 +77,16 @@ class ProjectSectionController extends Controller
                 'preferred_keywords' => 'nullable|string',
                 'reporting_sites' => 'nullable|string',
                 'google_chat_id' => 'nullable|string|max:255',
-                'status' => 'sometimes|required|in:active,completed,on_hold,archived',
+                'status' => 'sometimes|required|string',
                 'source' => 'nullable|string|max:255',
                 'google_drive_link' => 'nullable|url',
             ];
 
 
             $validated = $request->validate($validationRules);
+            if (array_key_exists('status', $validated)) {
+                app(\App\Services\ValueSetValidator::class)->validate('Project','status',$validated['status']);
+            }
 
             // Initialize project data with basic information
             $projectData = [

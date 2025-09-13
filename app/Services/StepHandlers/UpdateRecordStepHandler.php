@@ -32,7 +32,15 @@ class UpdateRecordStepHandler implements StepHandlerContract
             $key = $f['field'] ?? null;
             $val = $f['value'] ?? null;
             if (!$key) continue;
-            $data[$key] = $this->applyTemplate($val, $context);
+            $resolved = $this->applyTemplate($val, $context);
+            // Soft validation against allowed values registry (if available)
+            try {
+                app(\App\Services\ValueSetValidator::class)->validate($modelName, $key, $resolved);
+            } catch (\Throwable $e) {
+                // If enforcement is enabled, the validator may throw; rethrow to halt execution
+                throw $e;
+            }
+            $data[$key] = $resolved;
         }
         $model->fill($data);
         // Avoid feedback loop: flag this instance so global subscriber ignores this event

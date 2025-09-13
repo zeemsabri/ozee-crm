@@ -55,7 +55,7 @@ class Project extends Model
     ];
 
     protected $casts = [
-        'status' => 'string',
+        'status' => \App\Enums\ProjectStatus::class,
         'services' => 'array',
         'service_details' => 'array',
         'total_amount' => 'decimal:2',
@@ -149,7 +149,7 @@ class Project extends Model
         return $this->milestones()->create([
             'name'  =>  self::SUPPORT,
             'description'   =>  'Support milestone for tickets created by clients',
-            'status'    =>  'In Progress'
+            'status'    =>  \App\Enums\MilestoneStatus::InProgress
         ]);
     }
 
