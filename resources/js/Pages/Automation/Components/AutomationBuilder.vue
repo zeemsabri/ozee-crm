@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useWorkflowStore } from '../Store/workflowStore';
 import Workflow from './Workflow.vue';
+import TriggerSelectionModal from './Steps/TriggerSelectionModal.vue';
 
 const props = defineProps({
     automationId: {
@@ -15,6 +16,7 @@ const emit = defineEmits(['back']);
 const store = useWorkflowStore();
 const workflowSteps = ref([]);
 const workflowName = ref('');
+const showTriggerModal = ref(false);
 
 onMounted(async () => {
     if (props.automationId) {
@@ -26,21 +28,40 @@ onMounted(async () => {
             workflowName.value = store.activeWorkflow.name;
         }
     } else {
-        // For new workflows, initialize the state directly
+        // For new workflows, start with an empty array and open trigger modal
         store.activeWorkflow = null;
         workflowName.value = 'Untitled Automation';
-        workflowSteps.value = [{
-            id: `temp_${Date.now()}`,
-            step_type: 'TRIGGER',
-            name: 'New Trigger',
-            step_config: {},
-        }];
+        workflowSteps.value = [];
+        showTriggerModal.value = true;
     }
 });
 
+function handleTriggerSelect(type) {
+    let newTriggerStep;
+    if (type === 'SCHEDULE_TRIGGER') {
+        newTriggerStep = {
+            id: `temp_${Date.now()}`,
+            step_type: 'SCHEDULE_TRIGGER',
+            name: 'Starts on a Schedule',
+            step_config: { trigger_event: 'schedule.run' },
+        };
+    } else {
+        newTriggerStep = {
+            id: `temp_${Date.now()}`,
+            step_type: 'TRIGGER',
+            name: 'New Event Trigger',
+            step_config: {},
+        };
+    }
+    workflowSteps.value = [newTriggerStep];
+    showTriggerModal.value = false;
+}
+
 const isTriggerConfigured = computed(() => {
     const trigger = workflowSteps.value[0];
-    return trigger && trigger.step_config && trigger.step_config.trigger_event;
+    if (!trigger) return false;
+    if (trigger.step_type === 'SCHEDULE_TRIGGER') return true; // schedule trigger is implicitly configured
+    return !!(trigger.step_config && trigger.step_config.trigger_event);
 });
 
 const isReadyForSave = computed(() => {
@@ -58,6 +79,7 @@ const flattenSteps = (steps, parentId = null, branch = null) => {
 
         stepData.step_order = index + 1;
         if (parentId) {
+            stepData.step_config = stepData.step_config || {};
             stepData.step_config._parent_id = parentId;
             stepData.step_config._branch = branch;
         }
@@ -76,12 +98,26 @@ const flattenSteps = (steps, parentId = null, branch = null) => {
 };
 
 async function saveAndActivate() {
-    const triggerStep = workflowSteps.value[0];
-    const allSteps = flattenSteps(workflowSteps.value);
+    const triggerStep = workflowSteps.value[0] || {};
+    const payloadTriggerEvent = triggerStep.step_type === 'SCHEDULE_TRIGGER'
+        ? 'schedule.run'
+        : (triggerStep.step_config?.trigger_event || null);
+
+    // Transform steps for backend compatibility: convert SCHEDULE_TRIGGER → TRIGGER
+    const allSteps = flattenSteps(workflowSteps.value).map(s => {
+        if (s.step_type === 'SCHEDULE_TRIGGER') {
+            return {
+                ...s,
+                step_type: 'TRIGGER',
+                step_config: { ...(s.step_config || {}), trigger_event: 'schedule.run' },
+            };
+        }
+        return s;
+    });
 
     const payload = {
         name: workflowName.value,
-        trigger_event: triggerStep.step_config.trigger_event,
+        trigger_event: payloadTriggerEvent,
         is_active: true,
         steps: allSteps,
     };
@@ -130,8 +166,18 @@ async function saveAndActivate() {
                 </div>
             </div>
             <div class="p-2 sm:p-6">
-                <Workflow :steps="workflowSteps" @update:steps="workflowSteps = $event" />
+                <Workflow
+                    :steps="workflowSteps"
+                    @update:steps="workflowSteps = $event"
+                    @add-trigger="showTriggerModal = true"
+                />
             </div>
+
+            <TriggerSelectionModal
+                v-if="showTriggerModal"
+                @close="showTriggerModal = false"
+                @select="handleTriggerSelect"
+            />
         </template>
     </div>
 </template>
