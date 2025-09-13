@@ -15,14 +15,55 @@ const automationSchema = computed(() => store.automationSchema || []);
 const dataSources = computed(() => {
     const sources = [];
 
-    // NEW: If we are inside a loop, this is the most relevant context. Add it first.
-    if (props.loopContextSchema) {
+    // Try to get loop schema either from prop or infer it from nearest FOR_EACH
+    let loopSchema = props.loopContextSchema;
+
+    if (!loopSchema) {
+        const forEach = [...props.allStepsBefore].reverse().find(s => s.step_type === 'FOR_EACH' && s.step_config?.sourceArray);
+        if (forEach) {
+            const sourcePath = forEach.step_config.sourceArray;
+            const match = typeof sourcePath === 'string' ? sourcePath.match(/{{step_(\w+)\.(.+)}}/) : null;
+            if (match) {
+                const sourceStepId = match[1];
+                const sourceFieldName = match[2];
+                const sourceStep = props.allStepsBefore.find(s => String(s.id) === String(sourceStepId));
+                if (sourceStep?.step_type === 'AI_PROMPT') {
+                    const field = (sourceStep.step_config?.responseStructure || []).find(f => f.name === sourceFieldName);
+                    if (field?.type === 'Array of Objects') {
+                        loopSchema = { name: 'Loop Item', columns: (field.schema || []) };
+                    }
+                }
+                if (!loopSchema && sourceStep?.step_type === 'FETCH_RECORDS' && sourceFieldName === 'records') {
+                    const modelName = sourceStep.step_config?.model;
+                    const model = automationSchema.value.find(m => m.name === modelName);
+                    if (model) {
+                        const cols = (model.columns || []).map(col => typeof col === 'string' ? { name: col } : col);
+                        loopSchema = { name: 'Loop Item', columns: cols };
+                    }
+                }
+            }
+        }
+    }
+
+    // If we are inside a loop, this is the most relevant context. Add it first.
+    if (loopSchema && Array.isArray(loopSchema.columns)) {
         sources.push({
-            name: 'Loop Item',
-            fields: props.loopContextSchema.columns.map(col => ({
-                label: col.name,
-                value: `{{loop.item.${col.name}}}`
-            }))
+            name: 'Current Loop Item (from For Each)',
+            fields: loopSchema.columns
+                .filter(col => !!(col && col.name))
+                .map(col => ({
+                    label: col.name,
+                    value: `{{loop.item.${col.name}}}`
+                }))
+        });
+        // Also expose loop metadata
+        sources.push({
+            name: 'Loop Details',
+            fields: [
+                { label: 'index', value: '{{loop.index}}' },
+                { label: 'is_first', value: '{{loop.is_first}}' },
+                { label: 'is_last', value: '{{loop.is_last}}' },
+            ]
         });
     }
 
@@ -64,6 +105,20 @@ const dataSources = computed(() => {
             });
             sources.push({
                 name: `Step ${index + 1}: AI Response`,
+                fields,
+            });
+        }
+
+        // Include outputs from Fetch Records steps
+        if (step.step_type === 'FETCH_RECORDS') {
+            const fields = [
+                { label: 'records (array)', value: `{{step_${step.id}.records}}` },
+                { label: 'count', value: `{{step_${step.id}.count}}` },
+            ];
+            const modelName = step.step_config && step.step_config.model ? step.step_config.model : null;
+            const groupLabel = `Step ${index + 1}: Fetch Records` + (modelName ? ` — ${modelName}` : '');
+            sources.push({
+                name: groupLabel,
                 fields,
             });
         }
