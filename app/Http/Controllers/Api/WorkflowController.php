@@ -6,12 +6,90 @@ use App\Http\Controllers\Concerns\HandlesSchedules;
 
 use App\Http\Controllers\Controller;
 use App\Models\Workflow;
+use App\Models\WorkflowStep;
 use App\Services\WorkflowEngineService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class WorkflowController extends Controller
 {
     use HandlesSchedules;
+
+    /**
+     * Sync workflow steps from a flat array payload.
+     * - Preserves existing steps when id is numeric and matches.
+     * - Creates new steps for temp_* ids and maps parent references accordingly.
+     * - Deletes steps removed from the payload.
+     */
+    private function syncWorkflowSteps(Workflow $workflow, array $steps): void
+    {
+        DB::transaction(function () use ($workflow, $steps) {
+            $existing = $workflow->steps()->pluck('id')->all();
+            $existingSet = array_fill_keys(array_map('strval', $existing), true);
+
+            $idMap = []; // providedId => actualId
+            $seenActualIds = [];
+
+            // First pass: create/update rows and map ids
+            foreach ($steps as $s) {
+                $providedId = (string)($s['id'] ?? '');
+                $data = [
+                    'workflow_id' => $workflow->id,
+                    'step_order' => $s['step_order'] ?? null,
+                    'name' => $s['name'] ?? null,
+                    'step_type' => $s['step_type'] ?? null,
+                    'prompt_id' => $s['prompt_id'] ?? null,
+                    // Ensure NOT NULL constraint is respected; default to 0 when not provided
+                    'delay_minutes' => isset($s['delay_minutes']) ? (int) $s['delay_minutes'] : 0,
+                    'step_config' => is_array($s['step_config'] ?? null) ? $s['step_config'] : [],
+                    'condition_rules' => $s['condition_rules'] ?? null,
+                ];
+
+                if ($providedId !== '' && ctype_digit($providedId) && isset($existingSet[$providedId])) {
+                    // Update existing
+                    /** @var WorkflowStep $row */
+                    $row = WorkflowStep::where('workflow_id', $workflow->id)->where('id', (int)$providedId)->first();
+                    if ($row) {
+                        $row->fill($data)->save();
+                        $idMap[$providedId] = $row->id;
+                        $seenActualIds[] = $row->id;
+                        continue;
+                    }
+                }
+                // Create new
+                $row = new WorkflowStep($data);
+                $row->save();
+                $idMap[$providedId ?: ('new_'.$row->id)] = $row->id;
+                $seenActualIds[] = $row->id;
+            }
+
+            // Second pass: update parent references using the map
+            foreach ($steps as $s) {
+                $providedId = (string)($s['id'] ?? '');
+                $actualId = $idMap[$providedId] ?? null;
+                if (!$actualId) continue;
+                /** @var WorkflowStep $row */
+                $row = WorkflowStep::where('workflow_id', $workflow->id)->where('id', $actualId)->first();
+                if (!$row) continue;
+                $cfg = is_array($s['step_config'] ?? null) ? $s['step_config'] : [];
+                if (array_key_exists('_parent_id', $cfg)) {
+                    $oldParent = (string)($cfg['_parent_id'] ?? '');
+                    $newParent = $oldParent !== '' ? ($idMap[$oldParent] ?? null) : null;
+                    $cfg['_parent_id'] = $newParent;
+                    $row->step_config = $cfg;
+                    $row->save();
+                }
+            }
+
+            // Delete removed steps (present in DB but not in payload)
+            $keepIds = array_fill_keys(array_map('intval', $seenActualIds), true);
+            $toDelete = array_values(array_filter($existing, fn($id) => !isset($keepIds[(int)$id])));
+            if (!empty($toDelete)) {
+                WorkflowStep::where('workflow_id', $workflow->id)->whereIn('id', $toDelete)->delete();
+            }
+        });
+    }
+
     public function index()
     {
         return response()->json(Workflow::with('steps')->orderBy('id', 'desc')->paginate(50));
@@ -24,9 +102,18 @@ class WorkflowController extends Controller
             'description' => 'nullable|string',
             'trigger_event' => 'required|string|max:255',
             'is_active' => 'sometimes|boolean',
+            'steps' => 'sometimes|array',
         ]);
 
-        $workflow = Workflow::create($data);
+        $wfData = $data;
+        unset($wfData['steps']);
+        $workflow = Workflow::create($wfData);
+
+        // Persist steps when provided
+        $stepsPayload = $request->input('steps');
+        if (is_array($stepsPayload)) {
+            $this->syncWorkflowSteps($workflow, $stepsPayload);
+        }
 
         // Optionally create a schedule when provided as nested payload
         $attachedScheduleId = null;
@@ -74,9 +161,18 @@ class WorkflowController extends Controller
             'description' => 'nullable|string',
             'trigger_event' => 'sometimes|required|string|max:255',
             'is_active' => 'sometimes|boolean',
+            'steps' => 'sometimes|array',
         ]);
 
-        $workflow->update($data);
+        $wfData = $data;
+        unset($wfData['steps']);
+        $workflow->update($wfData);
+
+        // Persist steps when provided
+        $stepsPayload = $request->input('steps');
+        if (is_array($stepsPayload)) {
+            $this->syncWorkflowSteps($workflow, $stepsPayload);
+        }
 
         // Optionally create a schedule when provided as nested payload during update
         $attachedScheduleId = null;

@@ -42,10 +42,25 @@ function insertToken(fieldName, token) {
 
 const availableModels = computed(() => automationSchema.value.map(m => m.name));
 
+function humanize(name) {
+    if (!name || typeof name !== 'string') return '';
+    let lower = name.toLowerCase();
+    if (lower === 'id') return 'ID';
+    if (lower.endsWith('_id')) lower = lower.slice(0, -3);
+    lower = lower.replace(/[_-]+/g, ' ');
+    let label = lower.replace(/\b\w/g, (c) => c.toUpperCase());
+    label = label.replace(/\bId\b/g, 'ID').replace(/\bUrl\b/g, 'URL');
+    return label;
+}
+
 const columnsForSelectedModel = computed(() => {
     if (!actionConfig.value.target_model) return [];
     const model = automationSchema.value.find(m => m.name === actionConfig.value.target_model);
-    return model ? model.columns.map(col => typeof col === 'string' ? col : col.name) : [];
+    if (!model) return [];
+    return (model.columns || []).map(col => {
+        if (typeof col === 'string') return { name: col, label: humanize(col) };
+        return { name: col.name, label: col.label || humanize(col.name) };
+    });
 });
 
 function addField() {
@@ -146,7 +161,7 @@ function insertTokenForField(index, token) {
                             <div class="flex items-center justify-between gap-2">
                                 <select :value="field.column" @change="updateField(index, 'column', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" :disabled="!actionConfig.target_model">
                                     <option value="" disabled>Field...</option>
-                                    <option v-for="col in columnsForSelectedModel" :key="col" :value="col">{{ col }}</option>
+                                    <option v-for="col in columnsForSelectedModel" :key="col.name" :value="col.name">{{ col.label }}</option>
                                 </select>
                                 <button @click="removeField(index)" class="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50" title="Remove Field">
                                     <TrashIcon class="w-4 h-4" />

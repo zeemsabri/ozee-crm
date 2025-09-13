@@ -3,10 +3,13 @@ import { computed } from 'vue';
 import { useWorkflowStore } from '../../Store/workflowStore';
 import StepCard from './StepCard.vue';
 import { PlusIcon, XCircleIcon, TrashIcon } from 'lucide-vue-next';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 
 const props = defineProps({
     step: { type: Object, required: true },
     allStepsBefore: { type: Array, default: () => [] },
+    // When inside a For Each, Workflow passes the loop item schema here
+    loopContextSchema: { type: Object, default: null },
 });
 const emit = defineEmits(['update:step', 'delete']);
 const store = useWorkflowStore();
@@ -20,32 +23,95 @@ const aiConfig = computed({
 });
 
 const triggerStep = computed(() => props.allStepsBefore.find(s => s.step_type === 'TRIGGER'));
+const triggerModelName = computed(() => triggerStep.value?.step_config?.model || 'Trigger');
 
 const triggerSchema = computed(() => {
     if (!triggerStep.value || !triggerStep.value.step_config?.model) return null;
     return automationSchema.value.find(m => m.name === triggerStep.value.step_config.model);
 });
 
+// Selected inputs are stored as strings. For backward compatibility, plain values
+// (without a prefix) are treated as trigger fields. New values use prefixes:
+//   'trigger:fieldName' or 'loop:fieldName'.
+const selectedInputs = computed(() => Array.isArray(aiConfig.value.aiInputs) ? aiConfig.value.aiInputs : []);
+const selectedTriggerFields = computed(() => selectedInputs.value
+    .filter(v => typeof v === 'string' && (v.startsWith('trigger:') || !v.includes(':')))
+    .map(v => v.startsWith('trigger:') ? v.slice('trigger:'.length) : v)
+);
+const selectedLoopFields = computed(() => selectedInputs.value
+    .filter(v => typeof v === 'string' && v.startsWith('loop:'))
+    .map(v => v.slice('loop:'.length))
+);
+
 const availableTriggerFields = computed(() => {
     if (!triggerSchema.value) return [];
-    const selectedInputs = aiConfig.value.aiInputs || [];
-    return (triggerSchema.value.columns || []).filter(col => !selectedInputs.includes(col.name || col));
+    const taken = new Set(selectedTriggerFields.value);
+    return (triggerSchema.value.columns || []).filter(col => !taken.has(col.name || col));
+});
+
+// Prefer explicit loopContextSchema; otherwise infer from nearest FOR_EACH like ConditionStep/DataTokenInserter
+const effectiveLoopSchema = computed(() => {
+    // If provided explicitly, use it
+    if (props.loopContextSchema && Array.isArray(props.loopContextSchema.columns) && props.loopContextSchema.columns.length > 0) {
+        return props.loopContextSchema;
+    }
+    // Infer from nearest FOR_EACH in allStepsBefore
+    const forEach = [...props.allStepsBefore].reverse().find(s => s.step_type === 'FOR_EACH' && s.step_config?.sourceArray);
+    if (!forEach) return null;
+    const sourcePath = forEach.step_config.sourceArray;
+    const match = typeof sourcePath === 'string' ? sourcePath.match(/{{\s*step_(\w+)\.(.+?)\s*}}/) : null;
+    if (!match) return null;
+    const sourceStepId = match[1];
+    const sourceFieldName = match[2];
+    const sourceStep = props.allStepsBefore.find(s => String(s.id) === String(sourceStepId));
+    if (!sourceStep) return null;
+
+    // Case: AI Array of Objects
+    if (sourceStep.step_type === 'AI_PROMPT') {
+        const field = (sourceStep.step_config?.responseStructure || []).find(f => f.name === sourceFieldName);
+        if (field?.type === 'Array of Objects') {
+            return { name: 'Loop Item', columns: field.schema || [] };
+        }
+        return null;
+    }
+
+    // Case: Fetch Records → records
+    if (sourceStep.step_type === 'FETCH_RECORDS' && sourceFieldName === 'records') {
+        const modelName = sourceStep.step_config?.model;
+        if (!modelName) return null;
+        const model = automationSchema.value.find(m => m.name === modelName);
+        if (!model) return null;
+        const cols = (model.columns || []).map(col => typeof col === 'string' ? { name: col } : col);
+        return { name: 'Loop Item', columns: cols };
+    }
+    return null;
+});
+
+const availableLoopFields = computed(() => {
+    const schema = effectiveLoopSchema.value;
+    if (!schema || !Array.isArray(schema.columns) || schema.columns.length === 0) return [];
+    const taken = new Set(selectedLoopFields.value);
+    return schema.columns
+        .map(c => (typeof c === 'string' ? { name: c, label: c } : { name: c.name, label: c.label || c.name }))
+        .filter(c => c.name && !taken.has(c.name));
 });
 
 // --- HANDLER FUNCTIONS ---
 function handleConfigChange(key, value) {
     aiConfig.value = { ...aiConfig.value, [key]: value };
 }
-function handleAddInput(fieldName) {
-    if (!fieldName) return;
-    const currentInputs = aiConfig.value.aiInputs || [];
-    if (!currentInputs.includes(fieldName)) {
-        handleConfigChange('aiInputs', [...currentInputs, fieldName]);
+function handleAddInput(value, source = 'trigger') {
+    if (!value) return;
+    const current = selectedInputs.value;
+    // If the provided value already contains a prefix, keep as-is; otherwise prefix
+    const stored = value.includes(':') ? value : `${source}:${value}`;
+    if (!current.includes(stored)) {
+        handleConfigChange('aiInputs', [...current, stored]);
     }
 }
-function handleRemoveInput(fieldName) {
-    const currentInputs = aiConfig.value.aiInputs || [];
-    handleConfigChange('aiInputs', currentInputs.filter(i => i !== fieldName));
+function handleRemoveInput(storedValue) {
+    const current = selectedInputs.value;
+    handleConfigChange('aiInputs', current.filter(i => i !== storedValue));
 }
 
 // --- FIELD HANDLERS WITH NESTING SUPPORT ---
@@ -130,13 +196,32 @@ const generatedJsonPrompt = computed(() => {
             <h4 class="text-sm font-medium text-gray-700">Data to Analyze</h4>
             <div class="p-2 bg-gray-50 rounded-md border space-y-2">
                 <div v-for="input in (aiConfig.aiInputs || [])" :key="input" class="flex items-center justify-between bg-white p-1 rounded border">
-                    <span class="text-sm font-medium text-indigo-700">{{ triggerStep.step_config.model }}: {{ input }}</span>
+                    <span class="text-sm font-medium text-indigo-700">
+                        <template v-if="(typeof input === 'string') && input.startsWith('loop:')">
+                            Current Loop Item: {{ input.slice('loop:'.length) }}
+                        </template>
+                        <template v-else>
+                            {{ triggerModelName }}: {{ (typeof input === 'string' && input.startsWith('trigger:')) ? input.slice('trigger:'.length) : input }}
+                        </template>
+                    </span>
                     <button @click="handleRemoveInput(input)" class="text-gray-400 hover:text-red-500"><XCircleIcon class="h-4 w-4"/></button>
                 </div>
-                <select v-if="triggerSchema" @change="handleAddInput($event.target.value); $event.target.value='';" class="p-1.5 border border-gray-300 rounded-md bg-white w-full text-sm">
-                    <option value="" disabled selected>+ Map data from trigger...</option>
-                    <option v-for="field in availableTriggerFields" :key="field.name || field" :value="field.name || field">{{ field.label || field.name || field }}</option>
-                </select>
+                <!-- Trigger fields selector (if available) -->
+                <SelectDropdown
+                    v-if="triggerSchema"
+                    :options="(availableTriggerFields || []).map(f => ({ value: `trigger:${(f.name || f)}`, label: (f.label || f.name || f) }))"
+                    :model-value="null"
+                    placeholder="+ Map data from trigger..."
+                    @update:modelValue="(val) => handleAddInput(val, 'trigger')"
+                />
+                <!-- Loop item fields selector (if inside a For Each) -->
+                <SelectDropdown
+                    v-if="availableLoopFields.length > 0"
+                    :options="availableLoopFields.map(f => ({ value: `loop:${f.name}`, label: f.label || f.name }))"
+                    :model-value="null"
+                    placeholder="+ Map data from current loop item..."
+                    @update:modelValue="(val) => handleAddInput(val, 'loop')"
+                />
             </div>
         </div>
 

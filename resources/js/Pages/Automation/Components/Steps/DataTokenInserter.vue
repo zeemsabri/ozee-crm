@@ -14,6 +14,18 @@ const emit = defineEmits(['insert']);
 const store = useWorkflowStore();
 const automationSchema = computed(() => store.automationSchema || []);
 
+function humanize(name) {
+    if (!name || typeof name !== 'string') return '';
+    let lower = name.toLowerCase();
+    if (lower === 'id') return 'ID';
+    if (lower.endsWith('_id')) lower = lower.slice(0, -3);
+    lower = lower.replace(/[_-]+/g, ' ');
+    // Title case
+    let label = lower.replace(/\b\w/g, (c) => c.toUpperCase());
+    label = label.replace(/\bId\b/g, 'ID').replace(/\bUrl\b/g, 'URL');
+    return label;
+}
+
 const dataSources = computed(() => {
     const sources = [];
 
@@ -76,10 +88,14 @@ const dataSources = computed(() => {
         if (modelSchema) {
             sources.push({
                 name: `Trigger: ${triggerStep.step_config.model}`,
-                fields: modelSchema.columns.map(col => ({
-                    label: typeof col === 'string' ? col : col.name,
-                    value: `{{trigger.${triggerStep.step_config.model.toLowerCase()}.${typeof col === 'string' ? col : col.name}}}`
-                }))
+                fields: modelSchema.columns.map(col => {
+                    const name = typeof col === 'string' ? col : (col.name || '');
+                    const label = typeof col === 'string' ? humanize(col) : (col.label || col.name || '');
+                    return {
+                        label,
+                        value: `{{trigger.${triggerStep.step_config.model.toLowerCase()}.${name}}}`
+                    };
+                })
             });
         }
     }

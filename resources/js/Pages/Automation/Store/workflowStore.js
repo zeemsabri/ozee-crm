@@ -215,6 +215,38 @@ export const useWorkflowStore = defineStore('workflow', {
 
                 if (workflowData && typeof workflowData === 'object' && Array.isArray(workflowData.steps)) {
                     reconstructTreeIfFlat(workflowData);
+
+                    // Normalize for UI expectations: map yes/no branches to if_true/if_false
+                    const normalizeForUI = (steps) => {
+                        if (!Array.isArray(steps)) return;
+                        steps.forEach((s, i) => {
+                            if (!s || typeof s !== 'object') return;
+                            // Ensure step_config is an object
+                            if (!s.step_config || typeof s.step_config !== 'object' || Array.isArray(s.step_config)) {
+                                s.step_config = {};
+                            }
+                            // Show schedule trigger nicely in UI
+                            if (i === 0 && s.step_type === 'TRIGGER' && s.step_config?.trigger_event === 'schedule.run') {
+                                s.step_type = 'SCHEDULE_TRIGGER';
+                            }
+                            if (s.step_type === 'CONDITION') {
+                                // Map backend yes/no keys to UI keys if missing
+                                if (!Array.isArray(s.if_true)) s.if_true = Array.isArray(s.yes_steps) ? s.yes_steps : [];
+                                if (!Array.isArray(s.if_false)) s.if_false = Array.isArray(s.no_steps) ? s.no_steps : [];
+                                // Keep both in sync for safety
+                                s.yes_steps = s.if_true;
+                                s.no_steps = s.if_false;
+                                normalizeForUI(s.if_true);
+                                normalizeForUI(s.if_false);
+                            }
+                            if (s.step_type === 'FOR_EACH') {
+                                if (!Array.isArray(s.children)) s.children = [];
+                                normalizeForUI(s.children);
+                            }
+                        });
+                    };
+                    normalizeForUI(workflowData.steps);
+
                     this.activeWorkflow = workflowData;
                 } else {
                     console.error(`Received invalid data structure for workflow ${id}:`, response);
