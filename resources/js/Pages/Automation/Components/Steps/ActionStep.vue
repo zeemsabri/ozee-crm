@@ -8,6 +8,7 @@ import { PlusIcon, TrashIcon } from 'lucide-vue-next';
 const props = defineProps({
     step: { type: Object, required: true },
     allStepsBefore: { type: Array, default: () => [] },
+    loopContextSchema: { type: Object, default: null },
 });
 
 const emit = defineEmits(['update:step', 'delete']);
@@ -92,14 +93,14 @@ function insertTokenForField(index, token) {
                     <label class="block text-xs font-medium text-gray-600 mb-1">To</label>
                     <div class="flex items-center gap-2">
                         <input type="text" :value="actionConfig.to || ''" @input="handleConfigChange('to', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="e.g., {{trigger.email.sender}}" />
-                        <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('to', $event)" />
+                        <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('to', $event)" />
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Subject</label>
                     <div class="flex items-center gap-2">
                         <input type="text" :value="actionConfig.subject || ''" @input="handleConfigChange('subject', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="e.g., AI says: {{step_2.category}}" />
-                        <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('subject', $event)" />
+                        <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('subject', $event)" />
                     </div>
                 </div>
                 <div>
@@ -107,7 +108,7 @@ function insertTokenForField(index, token) {
                     <div class="relative">
                         <textarea rows="5" :value="actionConfig.body || ''" @input="handleConfigChange('body', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm"></textarea>
                         <div class="absolute top-2 right-2">
-                            <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('body', $event)" />
+                            <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('body', $event)" />
                         </div>
                     </div>
                 </div>
@@ -129,7 +130,7 @@ function insertTokenForField(index, token) {
                     <label class="block text-xs font-medium text-gray-600 mb-1">Record ID</label>
                     <div class="flex items-center gap-2">
                         <input type="text" :value="actionConfig.record_id || ''" @input="handleConfigChange('record_id', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="e.g., {{trigger.task.id}}" />
-                        <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('record_id', $event)" />
+                        <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('record_id', $event)" />
                     </div>
                 </div>
 
@@ -153,7 +154,7 @@ function insertTokenForField(index, token) {
                             </div>
                             <div class="flex items-center gap-2 mt-2">
                                 <input :value="field.value" @input="updateField(index, 'value', $event.target.value)" type="text" class="w-full border rounded px-2 py-2 text-sm" placeholder="Value..." />
-                                <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertTokenForField(index, $event)" />
+                                <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertTokenForField(index, $event)" />
                             </div>
                         </div>
                     </div>
