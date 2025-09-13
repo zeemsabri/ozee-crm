@@ -43,13 +43,28 @@ const dataSources = computed(() => {
 
     props.allStepsBefore.forEach((step, index) => {
         if (step.step_type === 'AI_PROMPT' && step.step_config?.responseStructure?.length > 0) {
-            // We only add the top-level fields here. Loop items are handled above.
-            sources.push({
-                name: `Step ${index + 1}: AI Response`,
-                fields: step.step_config.responseStructure.map(field => ({
+            // Include top-level fields and, for Array of Objects, their sub-fields as indented entries
+            const fields = [];
+            (step.step_config.responseStructure || []).forEach(field => {
+                // Always include the top-level field
+                fields.push({
                     label: field.name,
                     value: `{{step_${step.id}.${field.name}}}`
-                }))
+                });
+                // If it's an Array of Objects, also list its sub-fields
+                if (field.type === 'Array of Objects' && Array.isArray(field.schema)) {
+                    field.schema.forEach(sub => {
+                        if (!sub?.name) return;
+                        fields.push({
+                            label: `- ${sub.name}`,
+                            value: `{{step_${step.id}.${field.name}.${sub.name}}}`
+                        });
+                    });
+                }
+            });
+            sources.push({
+                name: `Step ${index + 1}: AI Response`,
+                fields,
             });
         }
     });
