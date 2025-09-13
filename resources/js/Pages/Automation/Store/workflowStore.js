@@ -135,6 +135,10 @@ export const useWorkflowStore = defineStore('workflow', {
                             initializeStepArrays(step.yes_steps);
                             initializeStepArrays(step.no_steps);
                         }
+                        if (step.step_type === 'FOR_EACH') {
+                            if (!Array.isArray(step.children)) step.children = [];
+                            initializeStepArrays(step.children);
+                        }
                     });
                 };
 
@@ -142,7 +146,16 @@ export const useWorkflowStore = defineStore('workflow', {
                     const steps = Array.isArray(wf.steps) ? wf.steps : [];
                     if (!steps.length) return;
 
-                    const hasNested = steps.some(s => s && s.step_type === 'CONDITION' && ((Array.isArray(s.yes_steps) && s.yes_steps.length) || (Array.isArray(s.no_steps) && s.no_steps.length)));
+                    const hasNested = steps.some(s => {
+                        if (!s) return false;
+                        if (s.step_type === 'CONDITION') {
+                            return (Array.isArray(s.yes_steps) && s.yes_steps.length) || (Array.isArray(s.no_steps) && s.no_steps.length);
+                        }
+                        if (s.step_type === 'FOR_EACH') {
+                            return Array.isArray(s.children) && s.children.length > 0;
+                        }
+                        return false;
+                    });
 
                     steps.forEach(s => {
                         if (!s.step_config || typeof s.step_config !== 'object' || Array.isArray(s.step_config)) {
@@ -162,17 +175,24 @@ export const useWorkflowStore = defineStore('workflow', {
                             if (!Array.isArray(s.yes_steps)) s.yes_steps = [];
                             if (!Array.isArray(s.no_steps)) s.no_steps = [];
                         }
+                        if (s.step_type === 'FOR_EACH') {
+                            if (!Array.isArray(s.children)) s.children = [];
+                        }
                     });
 
                     const topLevel = [];
                     steps.forEach(s => {
                         const parentId = s.step_config?._parent_id;
                         const branch = s.step_config?._branch;
-                        if (parentId && branch && byId.has(String(parentId))) {
+                        if (parentId && byId.has(String(parentId))) {
                             const parent = byId.get(String(parentId));
-                            if (parent && parent.step_type === 'CONDITION') {
+                            if (parent && parent.step_type === 'CONDITION' && branch) {
                                 const target = String(branch).toLowerCase() === 'no' ? parent.no_steps : parent.yes_steps;
                                 target.push(s);
+                                return;
+                            }
+                            if (parent && parent.step_type === 'FOR_EACH' && (branch === null || branch === undefined || branch === '')) {
+                                parent.children.push(s);
                                 return;
                             }
                         }
@@ -185,6 +205,9 @@ export const useWorkflowStore = defineStore('workflow', {
                         if (s.step_type === 'CONDITION') {
                             sortByOrder(s.yes_steps);
                             sortByOrder(s.no_steps);
+                        }
+                        if (s.step_type === 'FOR_EACH') {
+                            sortByOrder(s.children);
                         }
                     });
                     wf.steps = sortByOrder(topLevel);

@@ -20,6 +20,17 @@ class AiPromptStepHandler implements StepHandlerContract
             throw new \RuntimeException('Prompt not found for AI_PROMPT step');
         }
 
+        // Optionally enrich context with campaign data
+        $cfg = $step->step_config ?? [];
+        if (!empty($cfg['campaign_id']) && class_exists(\App\Models\Campaign::class)) {
+            $campaign = \App\Models\Campaign::find($cfg['campaign_id']);
+            if ($campaign) {
+                $context = array_replace_recursive($context, [
+                    'campaign' => $campaign->toArray(),
+                ]);
+            }
+        }
+
         $result = $this->ai->generate($prompt, $context);
 
         $raw = $result['raw'] ?? null;

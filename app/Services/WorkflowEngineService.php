@@ -33,7 +33,7 @@ class WorkflowEngineService
             'ACTION_SEND_EMAIL' => new SendEmailStepHandler(),
             'QUERY_DATA' => new QueryDataStepHandler(),
             'FETCH_RECORDS' => new QueryDataStepHandler(),
-            'FOR_EACH' => ForEachStepHandler::class,
+            'FOR_EACH' => new ForEachStepHandler($this),
             // TRIGGER steps are structural; at runtime they are a no-op
             'TRIGGER' => new class implements StepHandlerContract {
                 public function handle(array $context, WorkflowStep $step): array
@@ -78,6 +78,8 @@ class WorkflowEngineService
      */
     public function execute(Workflow $workflow, array $context = [], ?ExecutionLog $parentLog = null): array
     {
+        // Track if the incoming context was empty (useful for schedule-run guard)
+        $initiallyEmpty = empty($context);
         // Seed a trigger namespace if not present for variable paths like {{ trigger.* }}
         if (!isset($context['trigger'])) {
             $context['trigger'] = $context;
@@ -88,6 +90,22 @@ class WorkflowEngineService
         ];
 
         $steps = $workflow->steps()->orderBy('step_order')->get();
+
+        // Schedule-run guard: When started by schedule with empty context, enforce first non-trigger step is FETCH_RECORDS
+        if (($workflow->trigger_event ?? null) === 'schedule.run' && $initiallyEmpty) {
+            $firstNonTrigger = $steps->first(function ($s) {
+                return strtoupper($s->step_type) !== 'TRIGGER';
+            });
+            if ($firstNonTrigger && strtoupper($firstNonTrigger->step_type) !== 'FETCH_RECORDS') {
+                $message = 'Schedule-based workflow must start with a Fetch Records step.';
+                Log::error('WorkflowEngineService.execute.schedule_guard', [
+                    'workflow_id' => $workflow->id,
+                    'message' => $message,
+                ]);
+                $results['error'] = $message;
+                return $results;
+            }
+        }
 
         foreach ($steps as $step) {
             // Honor delay_minutes at the step boundary by scheduling a resume job and stopping here
@@ -330,5 +348,43 @@ class WorkflowEngineService
             }
         }
         return $results;
+    }
+
+    // Resolve template tokens against context, returning native types when the whole value is a single token
+    public function getTemplatedValue($value, array $context)
+    {
+        if (is_array($value)) {
+            return array_map(fn($v) => $this->getTemplatedValue($v, $context), $value);
+        }
+        if (!is_string($value)) {
+            return $value;
+        }
+        // If the string is exactly one token, return the raw value (could be array/object)
+        if (preg_match('/^\s*{{\s*([^}]+)\s*}}\s*$/', $value, $m)) {
+            $path = trim($m[1]);
+            return $this->getFromContextPath($context, $path);
+        }
+        // Otherwise, interpolate tokens into the string
+        return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($context) {
+            $path = trim($m[1]);
+            $val = $this->getFromContextPath($context, $path);
+            if (is_scalar($val) || $val === null) return (string) $val;
+            return json_encode($val);
+        }, $value);
+    }
+
+    protected function getFromContextPath(array $context, string $path)
+    {
+        if ($path === '') return null;
+        $parts = preg_split('/\.|\:/', $path);
+        $val = $context;
+        foreach ($parts as $p) {
+            if (is_array($val) && array_key_exists($p, $val)) {
+                $val = $val[$p];
+            } else {
+                return null;
+            }
+        }
+        return $val;
     }
 }
