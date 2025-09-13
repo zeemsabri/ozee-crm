@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useWorkflowStore } from '../../../Store/workflowStore';
+import VariablePicker from '../../VariablePicker.vue';
 
 const store = useWorkflowStore();
 const step = computed(() => store.selectedStep);
@@ -42,15 +43,24 @@ watch(emailConfig, (newConfig) => {
     <div class="space-y-4">
         <div>
             <label class="block text-xs font-medium text-gray-700">To</label>
-            <input v-model="emailConfig.to" type="text" class="mt-1 w-full border rounded px-2 py-1 text-sm" placeholder="e.g., {{ lead.email }}" />
+            <div class="mt-1 flex items-center gap-2">
+                <input v-model="emailConfig.to" type="text" class="w-full border rounded px-2 py-1 text-sm" placeholder="e.g., {{ trigger.lead.email }}" />
+                <VariablePicker @select="val => emailConfig.to = (emailConfig.to || '') + (emailConfig.to ? ' ' : '') + val" />
+            </div>
         </div>
         <div>
             <label class="block text-xs font-medium text-gray-700">Subject</label>
-            <input v-model="emailConfig.subject" type="text" class="mt-1 w-full border rounded px-2 py-1 text-sm" placeholder="e.g., Welcome to our service!" />
+            <div class="mt-1 flex items-center gap-2">
+                <input v-model="emailConfig.subject" type="text" class="w-full border rounded px-2 py-1 text-sm" placeholder="e.g., Welcome to our service!" />
+                <VariablePicker @select="val => emailConfig.subject = (emailConfig.subject || '') + (emailConfig.subject ? ' ' : '') + val" />
+            </div>
         </div>
         <div>
             <label class="block text-xs font-medium text-gray-700">Body</label>
-            <textarea v-model="emailConfig.body" rows="8" class="mt-1 w-full border rounded px-2 py-1 text-sm" placeholder="Enter the email body here. You can use variables like {{ lead.name }}"></textarea>
+            <div class="mt-1 flex items-center gap-2">
+                <textarea v-model="emailConfig.body" rows="8" class="w-full border rounded px-2 py-1 text-sm" placeholder="Enter the email body here. You can use variables like {{ trigger.lead.name }}"></textarea>
+                <VariablePicker @select="val => emailConfig.body = (emailConfig.body || '') + (emailConfig.body ? ' ' : '') + val" />
+            </div>
         </div>
     </div>
 </template>

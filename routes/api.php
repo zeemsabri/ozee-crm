@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\ComponentController;
 use App\Http\Controllers\Api\EmailTemplateController;
 use App\Http\Controllers\Api\ImageUploadController;
 use App\Http\Controllers\Api\PlaceholderDefinitionController;
+use App\Http\Controllers\Api\ValueDictionaryController;
 use App\Http\Controllers\Api\ProjectDashboard\ProjectDeliverableAction;
 use App\Http\Controllers\Api\SendEmailController;
 use App\Http\Controllers\Api\ShareableResourceController;
@@ -432,6 +433,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Protected by 'manage_placeholder_definitions' permission
     Route::get('placeholder-definitions/models-and-columns', [PlaceholderDefinitionController::class, 'getModelsAndColumns'])->middleware('permission:manage_placeholder_definitions');
     Route::apiResource('placeholder-definitions', PlaceholderDefinitionController::class)->middleware('permission:manage_placeholder_definitions');
+
+    // Value Dictionaries (Allowed Values/Enums)
+    Route::get('value-dictionaries', [ValueDictionaryController::class, 'index'])->middleware('permission:manage_placeholder_definitions');
+    Route::get('value-dictionaries/{model}/{field}', [ValueDictionaryController::class, 'show'])->middleware('permission:manage_placeholder_definitions');
 
 
     Route::post('projects/{project}/email-preview', [SendEmailController::class, 'preview']);
