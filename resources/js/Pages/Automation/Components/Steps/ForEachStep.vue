@@ -38,7 +38,7 @@ function insertToken(fieldName, token) {
                 <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('sourceArray', $event)" />
             </div>
             <p class="text-xs text-gray-500 mt-2">
-                Inside the loop, use the <strong>Loop Item</strong> data source to access properties of the current item (e.g., `{{loop.item.name}}`).
+                Inside the loop, use the <strong>Loop Item</strong> data source to access properties of the current item (e.g., <code v-pre>{{loop.item.name}}</code>).
             </p>
         </div>
     </StepCard>
