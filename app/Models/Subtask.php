@@ -6,10 +6,21 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Services\GoogleChatService;
 use Illuminate\Support\Facades\Log;
+use App\Enums\SubtaskStatus;
 
 class Subtask extends Model
 {
     use HasFactory;
+
+    // Subtask status constants (aliases maintained for backward compatibility)
+    /** @deprecated use App\Enums\SubtaskStatus::ToDo */
+    public const STATUS_TO_DO = \App\Enums\SubtaskStatus::ToDo->value;
+    /** @deprecated use App\Enums\SubtaskStatus::InProgress */
+    public const STATUS_IN_PROGRESS = \App\Enums\SubtaskStatus::InProgress->value;
+    /** @deprecated use App\Enums\SubtaskStatus::Done */
+    public const STATUS_DONE = \App\Enums\SubtaskStatus::Done->value;
+    /** @deprecated use App\Enums\SubtaskStatus::Blocked */
+    public const STATUS_BLOCKED = \App\Enums\SubtaskStatus::Blocked->value;
 
     /**
      * The attributes that are mass assignable.
@@ -34,6 +45,7 @@ class Subtask extends Model
     protected $casts = [
         'due_date' => 'date',
         'actual_completion_date' => 'date',
+        'status' => \App\Enums\SubtaskStatus::class,
     ];
 
     /**
@@ -59,7 +71,8 @@ class Subtask extends Model
      */
     public function isCompleted()
     {
-        return $this->status === 'Done';
+        $status = $this->status instanceof SubtaskStatus ? $this->status->value : (string)$this->status;
+        return $status === SubtaskStatus::Done->value;
     }
 
     /**
@@ -79,7 +92,7 @@ class Subtask extends Model
      */
     public function markAsCompleted()
     {
-        $this->status = 'Done';
+        $this->status = SubtaskStatus::Done;
         $this->actual_completion_date = now();
         $this->save();
     }
@@ -91,7 +104,7 @@ class Subtask extends Model
      */
     public function start()
     {
-        $this->status = 'In Progress';
+        $this->status = SubtaskStatus::InProgress;
         $this->save();
     }
 
@@ -102,7 +115,7 @@ class Subtask extends Model
      */
     public function block()
     {
-        $this->status = 'Blocked';
+        $this->status = SubtaskStatus::Blocked;
         $this->save();
     }
 

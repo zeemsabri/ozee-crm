@@ -303,7 +303,7 @@ class Project extends Model
     public function getBonusSummary(?\DateTime $startDate = null, ?\DateTime $endDate = null)
     {
         $query = $this->bonusTransactions()
-            ->where('status', 'processed');
+            ->where('status', \App\Enums\BonusTransactionStatus::Processed->value);
 
         if ($startDate) {
             $query->whereDate('created_at', '>=', $startDate->format('Y-m-d'));

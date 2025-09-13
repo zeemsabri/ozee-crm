@@ -8,6 +8,7 @@ namespace App\Enums;
  */
 enum ProjectStatus: string
 {
+    case Active = 'active';
     case Planned = 'planned';
     case InProgress = 'in_progress';
     case OnHold = 'on_hold';

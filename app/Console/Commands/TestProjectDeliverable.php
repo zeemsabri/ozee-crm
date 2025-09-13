@@ -81,7 +81,7 @@ class TestProjectDeliverable extends Command
         $task = new Task([
             'name' => 'Test Task for Deliverable ' . now()->format('Y-m-d H:i:s'),
             'description' => 'This is a test task associated with the deliverable',
-            'status' => 'To Do',
+            'status' => \App\Enums\TaskStatus::ToDo->value,
             'due_date' => now()->addDays(5),
         ]);
 

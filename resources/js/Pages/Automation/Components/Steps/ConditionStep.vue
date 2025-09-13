@@ -1,0 +1,134 @@
+<script setup>
+import { computed, onMounted } from 'vue';
+import { useWorkflowStore } from '../../Store/workflowStore';
+import StepCard from './StepCard.vue';
+
+const props = defineProps({
+    step: { type: Object, required: true },
+    allStepsBefore: { type: Array, default: () => [] },
+});
+const emit = defineEmits(['update:step', 'delete']);
+const store = useWorkflowStore();
+const automationSchema = computed(() => store.automationSchema || []);
+
+const conditionConfig = computed({
+    get: () => props.step.step_config || {},
+    set: (newConfig) => emit('update:step', { ...props.step, step_config: newConfig }),
+});
+
+onMounted(() => {
+    if (!conditionConfig.value.sourceId && props.allStepsBefore.some(s => s.step_type === 'TRIGGER')) {
+        handleConfigChange('sourceId', 'trigger');
+    }
+});
+
+const availableDataSources = computed(() => {
+    const sources = [];
+    const triggerStep = props.allStepsBefore.find(s => s.step_type === 'TRIGGER');
+    if (triggerStep && triggerStep.step_config?.model) {
+        const modelSchema = automationSchema.value.find(m => m.name === triggerStep.step_config.model);
+        if (modelSchema) {
+            sources.push({
+                id: 'trigger',
+                name: `Trigger: ${triggerStep.step_config.model}`,
+                schema: modelSchema,
+            });
+        }
+    }
+    props.allStepsBefore.forEach((s, index) => {
+        if (s.step_type === 'AI_PROMPT' && s.step_config?.responseStructure?.length > 0) {
+            sources.push({
+                id: s.id,
+                name: `Step ${index + 1}: AI Response`,
+                schema: {
+                    name: `Step_${s.id}_Response`,
+                    columns: s.step_config.responseStructure.map(field => ({
+                        name: field.name,
+                        type: field.type === 'Array of Objects' ? 'Array' : field.type,
+                        schema: field.schema,
+                    })),
+                }
+            });
+        }
+    });
+    return sources;
+});
+
+function handleConfigChange(key, value) {
+    const newConfig = { ...conditionConfig.value, [key]: value };
+    if (key === 'sourceId') {
+        delete newConfig.field;
+        delete newConfig.operator;
+        delete newConfig.value;
+    }
+    if (key === 'field') {
+        delete newConfig.operator;
+        delete newConfig.value;
+    }
+    conditionConfig.value = newConfig;
+}
+
+const selectedSource = computed(() => availableDataSources.value.find(s => s.id == conditionConfig.value.sourceId));
+
+// THIS IS THE KEY FIX
+const availableFields = computed(() => {
+    if (!selectedSource.value?.schema?.columns) return [];
+    // Handle both string arrays and object arrays
+    return selectedSource.value.schema.columns.map(col => {
+        if (typeof col === 'string') {
+            return { name: col, label: col, type: 'Text' }; // Assume Text for simple strings
+        }
+        return { name: col.name, label: col.label || col.name, type: col.type || 'Text' };
+    });
+});
+
+const selectedFieldSchema = computed(() => {
+    if (!conditionConfig.value.field) return null;
+    return availableFields.value.find(c => c.name === conditionConfig.value.field);
+});
+
+const availableOperators = computed(() => {
+    const type = selectedFieldSchema.value?.type;
+    switch (type) {
+        case 'Array': return [{ value: 'isNotEmpty', label: 'is not empty' }, { value: 'isEmpty', label: 'is empty' }];
+        case 'True/False': return [{ value: 'is', label: 'is' }];
+        case 'Number': return [{ value: 'equals', label: 'equals' }, { value: 'gt', label: 'is greater than' }, { value: 'lt', label: 'is less than' }];
+        default: return [{ value: 'is', label: 'is' }, { value: 'is_not', label: 'is not' }, { value: 'contains', label: 'contains' }];
+    }
+});
+</script>
+
+<template>
+    <StepCard icon="🔀" title="If/Else Condition" :onDelete="() => emit('delete')">
+        <div class="flex flex-col space-y-2 text-md p-2 bg-gray-50 rounded-md">
+            <span class="font-semibold text-gray-700">If...</span>
+            <div class="grid grid-cols-2 gap-2">
+                <select :value="conditionConfig.sourceId || ''" @change="handleConfigChange('sourceId', $event.target.value)" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm col-span-2 text-sm">
+                    <option value="" disabled>Select data source...</option>
+                    <option v-for="source in availableDataSources" :key="source.id" :value="source.id">{{ source.name }}</option>
+                </select>
+
+                <select v-if="selectedSource" :value="conditionConfig.field || ''" @change="handleConfigChange('field', $event.target.value)" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm col-span-2 text-sm">
+                    <option value="" disabled>Select field...</option>
+                    <option v-for="field in availableFields" :key="field.name" :value="field.name">
+                        {{ field.label }} ({{ field.type }})
+                    </option>
+                </select>
+
+                <template v-if="conditionConfig.field">
+                    <select :value="conditionConfig.operator || ''" @change="handleConfigChange('operator', $event.target.value)" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm text-sm" :class="{ 'col-span-2': selectedFieldSchema?.type === 'Array' }">
+                        <option value="" disabled>Select condition...</option>
+                        <option v-for="op in availableOperators" :key="op.value" :value="op.value">{{ op.label }}</option>
+                    </select>
+
+                    <select v-if="selectedFieldSchema?.type === 'True/False'" :value="conditionConfig.value ?? 'true'" @change="handleConfigChange('value', $event.target.value)" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm text-sm">
+                        <option value="true">True</option>
+                        <option value="false">False</option>
+                    </select>
+
+                    <input v-else-if="selectedFieldSchema?.type !== 'Array'" type="text" :value="conditionConfig.value || ''" @input="handleConfigChange('value', $event.target.value)" placeholder="Value" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm text-sm"/>
+                </template>
+            </div>
+        </div>
+    </StepCard>
+</template>

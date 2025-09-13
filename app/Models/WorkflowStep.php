@@ -36,4 +36,11 @@ class WorkflowStep extends Model
     {
         return $this->belongsTo(Prompt::class);
     }
+
+    public function children()
+    {
+        return $this->hasMany(WorkflowStep::class, 'step_config->_parent_id')
+            ->where('step_config->_branch', null)
+            ->orderBy('step_order');
+    }
 }

@@ -160,7 +160,18 @@ class TaskController extends Controller
 
         if ($status) {
             $statusFilter = $status;
-            $enum = TaskStatus::tryFrom($status) ?? TaskStatus::tryFrom(ucwords(strtolower((string)$status)));
+            // Coerce common input formats (case-insensitive, snake/kebab to spaces) to enum value
+            $raw = (string) $status;
+            $normalized = strtolower(str_replace(['_', '-'], ' ', $raw));
+            $enum = TaskStatus::tryFrom($raw);
+            if (!$enum) {
+                foreach (TaskStatus::cases() as $case) {
+                    if ($normalized === strtolower($case->value)) {
+                        $enum = $case;
+                        break;
+                    }
+                }
+            }
             if ($enum) {
                 $statusFilter = $enum->value;
             }
@@ -416,6 +427,9 @@ class TaskController extends Controller
             ], 422);
         }
 
+        // Soft-validate target status via the value dictionary (non-enforcing)
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::Done);
+
         // The LogsActivity trait will automatically log this activity
         $task->markAsCompleted(Auth::user());
 
@@ -433,6 +447,9 @@ class TaskController extends Controller
      */
     public function start(Task $task)
     {
+        // Soft-validate target status via the value dictionary (non-enforcing)
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::InProgress);
+
         // The LogsActivity trait will automatically log this activity
         $task->start(Auth::user());
 
@@ -569,6 +586,9 @@ class TaskController extends Controller
      */
     public function archive(Task $task)
     {
+        // Soft-validate target status via the value dictionary (non-enforcing)
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::Archived);
+
         $task->archive();
 
         // Load relationships
@@ -708,6 +728,9 @@ class TaskController extends Controller
                 'milestone_id' => $milestone->id,
                 'assigned_to_user_id' => $expendable->user_id,
             ];
+
+            // Soft-validate task status using the value dictionary (non-enforcing)
+            app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::ToDo);
 
             $task = Task::create($taskData);
             $task->load(['assignedTo', 'taskType', 'milestone']);
