@@ -29,9 +29,47 @@ return [
     // ],
 
     'models' => [
-        // Start empty; populate per model/field as you adopt enums/value sets.
+        // Initial adoption: Task.status via PHP enum, mirroring Task model constants.
+        'Task' => [
+            'status' => [
+                'source' => 'php_enum',
+                'enum' => \App\Enums\TaskStatus::class,
+            ],
+        ],
+        'Milestone' => [
+            'status' => [
+                'source' => 'php_enum',
+                'enum' => \App\Enums\MilestoneStatus::class,
+            ],
+        ],
+        'Project' => [
+            'status' => [
+                'source' => 'php_enum',
+                'enum' => \App\Enums\ProjectStatus::class,
+            ],
+        ],
+        'Email' => [
+            'status' => [
+                'source' => 'php_enum',
+                'enum' => \App\Enums\EmailStatus::class,
+            ],
+            'type' => [
+                'source' => 'php_enum',
+                'enum' => \App\Enums\EmailType::class,
+            ],
+        ],
+        'ProjectExpendable' => [
+            'status' => [
+                'source' => 'php_enum',
+                'enum' => \App\Enums\ProjectExpendableStatus::class,
+            ],
+        ],
     ],
 
     // Cache TTL in seconds for the aggregated dictionary
     'cache_ttl' => 300,
+
+    // Validation behavior
+    'enforce_validation' => false, // when true, invalid values cause ValidationException
+    'log_channel' => 'stack', // logging channel for invalid value warnings
 ];

@@ -44,7 +44,12 @@ class MilestoneController extends Controller
         }
 
         if ($status) {
-            $query->where('status', $status);
+            $statusFilter = $status;
+            $enum = \App\Enums\MilestoneStatus::tryFrom($status) ?? \App\Enums\MilestoneStatus::tryFrom(strtolower((string)$status));
+            if ($enum) {
+                $statusFilter = $enum->value;
+            }
+            $query->where('status', $statusFilter);
         }
 
         // Get the milestones: order by completion_date ascending with NULLs last
@@ -126,10 +131,12 @@ class MilestoneController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'completion_date' => 'nullable|date',
-            'status' => 'required|in:Not Started,In Progress,Completed,Overdue',
+            'status' => 'required|string',
             'project_id' => 'required|exists:projects,id',
         ]);
 
+        // Soft-validate status against registry
+        app(\App\Services\ValueSetValidator::class)->validate('Milestone','status', $validated['status']);
         // Create the milestone
         $milestone = Milestone::create($validated);
 
@@ -168,10 +175,14 @@ class MilestoneController extends Controller
             'description' => 'nullable|string',
             'completion_date' => 'nullable|date',
             'actual_completion_date' => 'nullable|date',
-            'status' => 'sometimes|required|in:Not Started,In Progress,Completed,Overdue',
+            'status' => 'sometimes|required|string',
             'project_id' => 'sometimes|required|exists:projects,id',
         ]);
 
+        // Soft-validate status when provided
+        if (array_key_exists('status', $validated)) {
+            app(\App\Services\ValueSetValidator::class)->validate('Milestone','status', $validated['status']);
+        }
         // Update the milestone
         $milestone->update($validated);
 
@@ -219,7 +230,8 @@ class MilestoneController extends Controller
         }
 
         // Update milestone status and timestamps
-        $milestone->status = 'Completed';
+        app(\App\Services\ValueSetValidator::class)->validate('Milestone','status', \App\Enums\MilestoneStatus::Completed);
+        $milestone->status = \App\Enums\MilestoneStatus::Completed;
         $milestone->completed_at = now();
         $milestone->save();
 

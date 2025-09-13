@@ -14,6 +14,7 @@ use App\Models\ProjectExpendable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use App\Enums\TaskStatus;
 
 class TaskController extends Controller
 {
@@ -94,8 +95,8 @@ class TaskController extends Controller
             $tasks = \App\Models\Task::whereIn('milestone_id', $milestoneIds)
                 ->where(function($query) {
                     // Only include tasks that are not completed or archived
-                    $query->where('status', '!=', 'Done')
-                          ->where('status', '!=', 'Archived');
+                    $query->where('status', '!=', TaskStatus::Done->value)
+                          ->where('status', '!=', TaskStatus::Archived->value);
                 })
                 ->get();
 
