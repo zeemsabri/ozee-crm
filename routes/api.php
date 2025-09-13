@@ -434,7 +434,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Protected by 'manage_placeholder_definitions' permission
     Route::get('placeholder-definitions/models-and-columns', [PlaceholderDefinitionController::class, 'getModelsAndColumns'])->middleware('permission:manage_placeholder_definitions');
     Route::apiResource('placeholder-definitions', PlaceholderDefinitionController::class)->middleware('permission:manage_placeholder_definitions');
-    Route::get('/automation/schema', [AutomationSchemaController::class, 'getSchema'])->middleware('permission:manage_automations');
+    Route::get('/automation/schema', [AutomationSchemaController::class, 'getSchema']);
 
     // Value Dictionaries (Allowed Values/Enums)
     Route::get('value-dictionaries', [ValueDictionaryController::class, 'index'])->middleware('permission:manage_placeholder_definitions');

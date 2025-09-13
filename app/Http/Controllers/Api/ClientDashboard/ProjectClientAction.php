@@ -412,7 +412,10 @@ class ProjectClientAction extends Controller
             $task->description = $request->input('description');
             $task->task_type_id = TaskType::where('name', Project::SUPPORT)->first()?->id ?? 1;
             $task->due_date = $request->input('due_date');
-            $task->status = 'To Do'; // Default status for client-created tasks
+            $task->status = \App\Enums\TaskStatus::ToDo; // Default status for client-created tasks
+
+            // Soft-validate task status via registry (non-enforcing)
+            app(\App\Services\ValueSetValidator::class)->validate('Task','status', \App\Enums\TaskStatus::ToDo);
 
             // The 'creating' model event in Task.php will handle setting creator_id and creator_type
             $task->save();

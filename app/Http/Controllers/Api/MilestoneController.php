@@ -81,7 +81,7 @@ class MilestoneController extends Controller
                 'tasks as tasks_paused_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Paused->value); },
                 'tasks as tasks_blocked_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Blocked->value); },
                 'tasks as tasks_done_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Done->value); },
-                'tasks as tasks_archived_count' => function ($q) { $q->where('status', 'Archived'); },
+                'tasks as tasks_archived_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Archived->value); },
                 'tasks as tasks_total_count'
             ])
             ->orderByRaw('completion_date IS NULL')

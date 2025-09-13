@@ -1060,6 +1060,9 @@ class EmailController extends Controller
                                 'assigned_to_user_id' => $item['assigned_to_user_id'] ?? null,
             ];
 
+            // Soft-validate task status using the value dictionary (non-enforcing)
+            app(\App\Services\ValueSetValidator::class)->validate('Task','status', \App\Enums\TaskStatus::ToDo);
+
             $task = \App\Models\Task::create($taskData);
             $task->load(['assignedTo', 'taskType', 'milestone']);
             $created[] = $task;

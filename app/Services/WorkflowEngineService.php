@@ -15,7 +15,7 @@ use App\Services\StepHandlers\UpdateRecordStepHandler;
 use App\Services\StepHandlers\QueryDataStepHandler;
 use Illuminate\Support\Facades\Log;
 use Throwable;
-
+use App\Services\StepHandlers\ForEachStepHandler;
 class WorkflowEngineService
 {
     /** @var array<string, StepHandlerContract> */
@@ -33,6 +33,7 @@ class WorkflowEngineService
             'ACTION_SEND_EMAIL' => new SendEmailStepHandler(),
             'QUERY_DATA' => new QueryDataStepHandler(),
             'FETCH_RECORDS' => new QueryDataStepHandler(),
+            'FOR_EACH' => ForEachStepHandler::class,
             // TRIGGER steps are structural; at runtime they are a no-op
             'TRIGGER' => new class implements StepHandlerContract {
                 public function handle(array $context, WorkflowStep $step): array
