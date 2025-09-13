@@ -1,11 +1,10 @@
 <script setup>
-import { shallowRef } from 'vue';
-
 import TriggerStep from './Steps/TriggerStep.vue';
 import ConditionStep from './Steps/ConditionStep.vue';
 import ActionStep from './Steps/ActionStep.vue';
 import AIStep from './Steps/AIStep.vue';
 import ForEachStep from './Steps/ForEachStep.vue';
+import FetchRecordsStep from './Steps/FetchRecordsStep.vue';
 import AddStepButton from './Steps/AddStepButton.vue';
 
 const props = defineProps({
@@ -19,6 +18,7 @@ const emit = defineEmits(['update:steps']);
 // This map is now complete and correct. We are NOT using shallowRef.
 const stepComponentMap = {
     TRIGGER: TriggerStep,
+    FETCH_RECORDS: FetchRecordsStep,
     CONDITION: ConditionStep,
     ACTION: ActionStep,
     AI_PROMPT: AIStep,

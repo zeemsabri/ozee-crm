@@ -11,6 +11,7 @@ const props = defineProps({
 const emit = defineEmits(['update:step', 'delete']);
 const store = useWorkflowStore();
 const automationSchema = computed(() => store.automationSchema || []);
+const campaigns = computed(() => store.campaigns || []);
 
 // --- COMPLETED COMPUTED PROPERTIES ---
 const aiConfig = computed({
@@ -137,6 +138,24 @@ const generatedJsonPrompt = computed(() => {
                     <option v-for="field in availableTriggerFields" :key="field.name || field" :value="field.name || field">{{ field.label || field.name || field }}</option>
                 </select>
             </div>
+        </div>
+
+        <!-- NEW: Campaign Context Selector -->
+        <div class="border-t pt-3 mt-3">
+            <label class="block text-sm font-medium text-gray-700">Campaign Context (Optional)</label>
+            <select
+                :value="aiConfig.campaign_id || ''"
+                @change="handleConfigChange('campaign_id', $event.target.value)"
+                class="w-full p-2 mt-1 border rounded-md text-sm"
+            >
+                <option value="">None</option>
+                <option v-for="campaign in campaigns" :key="campaign.id" :value="campaign.id">
+                    {{ campaign.name }}
+                </option>
+            </select>
+            <p class="text-xs text-gray-500 mt-1">
+                Data from the selected campaign will be available to the AI.
+            </p>
         </div>
 
         <div class="space-y-2">

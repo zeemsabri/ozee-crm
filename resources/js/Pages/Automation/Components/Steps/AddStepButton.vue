@@ -7,6 +7,8 @@ const emit = defineEmits(['select']);
 const isOpen = ref(false);
 
 const stepTypes = {
+    'FETCH_RECORDS': { name: 'Fetch Records', icon: '🔍', description: 'Find records that match criteria.' },
+    'FOR_EACH': { name: 'For Each', icon: '🔄', description: 'Repeat steps for each item in a list.' },
     'ACTION': { name: 'Perform an Action', icon: '⚙️', description: 'Send an email, create a task, etc.' },
     'CONDITION': { name: 'If/Else Condition', icon: '🔀', description: 'Split the workflow based on a rule.' },
     'AI_PROMPT': { name: 'Analyze with AI', icon: '🧠', description: 'Make a decision or extract information.' },
