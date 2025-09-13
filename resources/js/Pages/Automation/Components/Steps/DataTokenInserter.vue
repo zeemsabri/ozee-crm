@@ -6,6 +6,8 @@ const props = defineProps({
     allStepsBefore: { type: Array, default: () => [] },
     // This new prop will be provided when the inserter is inside a loop
     loopContextSchema: { type: Object, default: null },
+    // Controls whether we should auto-infer loop context from the nearest FOR_EACH when none is provided explicitly
+    inferLoopFromNearest: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(['insert']);
@@ -18,7 +20,7 @@ const dataSources = computed(() => {
     // Try to get loop schema either from prop or infer it from nearest FOR_EACH
     let loopSchema = props.loopContextSchema;
 
-    if (!loopSchema) {
+    if (!loopSchema && props.inferLoopFromNearest) {
         const forEach = [...props.allStepsBefore].reverse().find(s => s.step_type === 'FOR_EACH' && s.step_config?.sourceArray);
         if (forEach) {
             const sourcePath = forEach.step_config.sourceArray;
