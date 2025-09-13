@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue';
 import TriggerStep from './Steps/TriggerStep.vue';
 import ConditionStep from './Steps/ConditionStep.vue';
 import ActionStep from './Steps/ActionStep.vue';
@@ -7,11 +8,16 @@ import ForEachStep from './Steps/ForEachStep.vue';
 import FetchRecordsStep from './Steps/FetchRecordsStep.vue';
 import ScheduleTriggerStep from './Steps/ScheduleTriggerStep.vue';
 import AddStepButton from './Steps/AddStepButton.vue';
+import { useWorkflowStore } from '../Store/workflowStore';
+
+const store = useWorkflowStore();
+const automationSchema = computed(() => store.automationSchema || []);
 
 const props = defineProps({
     steps: { type: Array, required: true },
     fullContextSteps: { type: Array, default: () => [] },
     loopContextSchema: { type: Object, default: null },
+    allowTrigger: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(['update:steps', 'add-trigger']);
@@ -39,12 +45,25 @@ function getLoopContextSchema(forEachStep) {
     const sourceFieldName = match[2];
 
     const sourceStep = props.fullContextSteps.find(s => s.id == sourceStepId);
-    if (sourceStep?.step_type !== 'AI_PROMPT') return null;
 
-    const sourceField = sourceStep.step_config?.responseStructure?.find(f => f.name === sourceFieldName);
-    if (sourceField?.type !== 'Array of Objects') return null;
+    // Case 1: Looping over AI Array of Objects
+    if (sourceStep?.step_type === 'AI_PROMPT') {
+        const sourceField = sourceStep.step_config?.responseStructure?.find(f => f.name === sourceFieldName);
+        if (sourceField?.type !== 'Array of Objects') return null;
+        return { name: 'Loop Item', columns: sourceField.schema || [] };
+    }
 
-    return { name: 'Loop Item', columns: sourceField.schema || [] };
+    // Case 2: Looping over Fetch Records → records array
+    if (sourceStep?.step_type === 'FETCH_RECORDS' && sourceFieldName === 'records') {
+        const modelName = sourceStep.step_config?.model;
+        if (!modelName) return null;
+        const model = automationSchema.value.find(m => m.name === modelName);
+        if (!model) return null;
+        const cols = (model.columns || []).map(col => typeof col === 'string' ? { name: col } : col);
+        return { name: 'Loop Item', columns: cols };
+    }
+
+    return null;
 }
 
 function handleUpdateStep(index, newStepData) {
@@ -60,6 +79,8 @@ function handleAddStep(index, type) {
         name: `New ${type.replace('_', ' ')} Step`,
         step_config: {},
     };
+
+    // Prefill config for specific step types
     if (type === 'CONDITION') {
         newStep.if_true = [];
         newStep.if_false = [];
@@ -67,6 +88,15 @@ function handleAddStep(index, type) {
     if (type === 'FOR_EACH') {
         newStep.children = [];
     }
+    // UX: When adding another Fetch Records step, carry over the last selected model
+    if (type === 'FETCH_RECORDS') {
+        const priorSteps = props.steps.slice(0, index).slice().reverse();
+        const lastFetch = priorSteps.find(s => s && s.step_type === 'FETCH_RECORDS' && s.step_config && s.step_config.model);
+        if (lastFetch) {
+            newStep.step_config = { model: lastFetch.step_config.model, conditions: [] };
+        }
+    }
+
     const newSteps = [...props.steps];
     newSteps.splice(index, 0, newStep);
     emit('update:steps', newSteps);
@@ -82,11 +112,20 @@ function handleDeleteStep(index) {
     <div class="flex flex-col items-center w-full space-y-4">
         <!-- NEW: Empty state for a blank canvas -->
         <div v-if="steps.length === 0" class="text-center p-8 border-2 border-dashed rounded-lg w-full max-w-md">
-            <h3 class="text-lg font-semibold text-gray-700">Start your Automation</h3>
-            <p class="text-sm text-gray-500 mt-1 mb-4">Every workflow starts with a trigger. How should this one begin?</p>
-            <button @click="$emit('add-trigger')" class="px-4 py-2 text-sm font-semibold rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
-                Add Trigger
-            </button>
+            <template v-if="allowTrigger">
+                <h3 class="text-lg font-semibold text-gray-700">Start your Automation</h3>
+                <p class="text-sm text-gray-500 mt-1 mb-4">Every workflow starts with a trigger. How should this one begin?</p>
+                <button @click="$emit('add-trigger')" class="px-4 py-2 text-sm font-semibold rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+                    Add Trigger
+                </button>
+            </template>
+            <template v-else>
+                <h3 class="text-lg font-semibold text-gray-700">Start this flow</h3>
+                <p class="text-sm text-gray-500 mt-1 mb-4">Choose a step to add in this branch.</p>
+                <div class="flex justify-center">
+                    <AddStepButton @select="(type) => handleAddStep(0, type)" />
+                </div>
+            </template>
         </div>
 
         <template v-else>
@@ -112,6 +151,7 @@ function handleDeleteStep(index) {
                                 @update:steps="handleUpdateStep(index, { ...step, if_true: $event })"
                                 :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
                                 :loop-context-schema="loopContextSchema"
+                                :allow-trigger="false"
                             />
                         </div>
                         <div class="flex-1 bg-red-50/50 p-4 rounded-lg border border-red-200">
@@ -121,6 +161,7 @@ function handleDeleteStep(index) {
                                 @update:steps="handleUpdateStep(index, { ...step, if_false: $event })"
                                 :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
                                 :loop-context-schema="loopContextSchema"
+                                :allow-trigger="false"
                             />
                         </div>
                     </div>
@@ -133,6 +174,7 @@ function handleDeleteStep(index) {
                             @update:steps="handleUpdateStep(index, { ...step, children: $event })"
                             :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
                             :loop-context-schema="getLoopContextSchema(step)"
+                            :allow-trigger="false"
                         />
                     </div>
 

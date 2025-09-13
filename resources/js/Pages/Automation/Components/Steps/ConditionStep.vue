@@ -6,6 +6,8 @@ import StepCard from './StepCard.vue';
 const props = defineProps({
     step: { type: Object, required: true },
     allStepsBefore: { type: Array, default: () => [] },
+    // NEW: When this condition is inside a For Each, the parent Workflow passes the loop schema
+    loopContextSchema: { type: Object, default: null },
 });
 const emit = defineEmits(['update:step', 'delete']);
 const store = useWorkflowStore();
@@ -17,13 +19,34 @@ const conditionConfig = computed({
 });
 
 onMounted(() => {
-    if (!conditionConfig.value.sourceId && props.allStepsBefore.some(s => s.step_type === 'TRIGGER')) {
-        handleConfigChange('sourceId', 'trigger');
+    if (!conditionConfig.value.sourceId) {
+        // Prefer the current loop item if we're inside a loop; otherwise default to Trigger
+        const hasLoop = props.loopContextSchema && Array.isArray(props.loopContextSchema.columns) && props.loopContextSchema.columns.length > 0;
+        if (hasLoop) {
+            handleConfigChange('sourceId', 'loop');
+        } else if (props.allStepsBefore.some(s => s.step_type === 'TRIGGER')) {
+            handleConfigChange('sourceId', 'trigger');
+        }
     }
 });
 
 const availableDataSources = computed(() => {
     const sources = [];
+
+    // Add current loop item first if available
+    if (props.loopContextSchema && Array.isArray(props.loopContextSchema.columns) && props.loopContextSchema.columns.length > 0) {
+        const cols = props.loopContextSchema.columns.map(col => {
+            if (typeof col === 'string') return { name: col, type: 'Text' };
+            return { name: col.name, type: col.type || 'Text' };
+        });
+        sources.push({
+            id: 'loop',
+            name: 'Current Loop Item (from For Each)',
+            schema: { name: 'LoopItem', columns: cols },
+        });
+    }
+
+    // Trigger source
     const triggerStep = props.allStepsBefore.find(s => s.step_type === 'TRIGGER');
     if (triggerStep && triggerStep.step_config?.model) {
         const modelSchema = automationSchema.value.find(m => m.name === triggerStep.step_config.model);
@@ -35,6 +58,8 @@ const availableDataSources = computed(() => {
             });
         }
     }
+
+    // AI Response sources
     props.allStepsBefore.forEach((s, index) => {
         if (s.step_type === 'AI_PROMPT' && s.step_config?.responseStructure?.length > 0) {
             sources.push({
@@ -104,7 +129,7 @@ const availableOperators = computed(() => {
             <span class="font-semibold text-gray-700">If...</span>
             <div class="grid grid-cols-2 gap-2">
                 <select :value="conditionConfig.sourceId || ''" @change="handleConfigChange('sourceId', $event.target.value)" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm col-span-2 text-sm">
-                    <option value="" disabled>Select data source...</option>
+                    <option value="" disabled>Select data source (Trigger, Current Loop Item, AI)...</option>
                     <option v-for="source in availableDataSources" :key="source.id" :value="source.id">{{ source.name }}</option>
                 </select>
 
