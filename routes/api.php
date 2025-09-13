@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\ActivityController;
+use App\Http\Controllers\Api\AutomationSchemaController;
 use App\Http\Controllers\Api\BonusConfigurationGroupController;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientAction;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientReader;
@@ -433,6 +434,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Protected by 'manage_placeholder_definitions' permission
     Route::get('placeholder-definitions/models-and-columns', [PlaceholderDefinitionController::class, 'getModelsAndColumns'])->middleware('permission:manage_placeholder_definitions');
     Route::apiResource('placeholder-definitions', PlaceholderDefinitionController::class)->middleware('permission:manage_placeholder_definitions');
+    Route::get('/automation/schema', [AutomationSchemaController::class, 'getSchema'])->middleware('permission:manage_automations');
 
     // Value Dictionaries (Allowed Values/Enums)
     Route::get('value-dictionaries', [ValueDictionaryController::class, 'index'])->middleware('permission:manage_placeholder_definitions');
