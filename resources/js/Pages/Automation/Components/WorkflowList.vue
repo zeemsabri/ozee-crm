@@ -4,6 +4,7 @@ import { useWorkflowStore } from '../Store/workflowStore';
 import { Loader2, Plus } from 'lucide-vue-next';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import { Link } from '@inertiajs/vue3';
+import { confirmPrompt } from '@/Utils/notification.js';
 
 const store = useWorkflowStore();
 
@@ -95,6 +96,16 @@ const handleCreateWorkflow = async () => {
         store.showAlert('Create failed', msg);
     }
 };
+
+const handleToggleActive = async (workflow) => {
+    await store.toggleWorkflowActive(workflow);
+};
+
+const handleDeleteWorkflow = async (workflow) => {
+    const ok = await confirmPrompt(`Delete workflow "${workflow.name}"?`, { confirmText: 'Delete', cancelText: 'Cancel', variant: 'danger' });
+    if (!ok) return;
+    await store.deleteWorkflow(workflow.id);
+};
 </script>
 
 <template>
@@ -149,9 +160,15 @@ const handleCreateWorkflow = async () => {
                 <textarea v-model="newWorkflowForm.description" rows="2" class="mt-1 w-full border rounded px-2 py-1 text-sm"></textarea>
             </div>
 
-            <div class="flex items-center gap-2">
-                <button @click="handleCreateWorkflow" class="px-3 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700">Create</button>
-                <button @click="showCreateForm = false" class="px-3 py-1 text-xs rounded-md border text-gray-600 hover:bg-gray-100">Cancel</button>
+            <div class="flex items-center justify-between">
+                <label class="flex items-center gap-2 text-xs text-gray-700">
+                    <input type="checkbox" v-model="newWorkflowForm.is_active" class="border rounded" />
+                    Active
+                </label>
+                <div class="flex items-center gap-2">
+                    <button @click="handleCreateWorkflow" class="px-3 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700">Create</button>
+                    <button @click="showCreateForm = false" class="px-3 py-1 text-xs rounded-md border text-gray-600 hover:bg-gray-100">Cancel</button>
+                </div>
             </div>
         </div>
 
@@ -173,10 +190,21 @@ const handleCreateWorkflow = async () => {
                 >
                     <div class="flex items-center justify-between gap-2">
                         <div>
-                            <p class="text-sm">{{ workflow.name }}</p>
+                            <p class="text-sm flex items-center gap-2">
+                                {{ workflow.name }}
+                                <span class="text-[10px] px-1.5 py-0.5 rounded" :class="workflow.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'">
+                                    {{ workflow.is_active ? 'Active' : 'Inactive' }}
+                                </span>
+                            </p>
                             <p class="text-xs text-gray-500">{{ workflow.trigger_event }}</p>
                         </div>
-                        <Link @click.stop :href="route('schedules.create', { type: 'workflow', id: workflow.id })" class="text-xs px-2 py-1 rounded-md border text-gray-600 hover:bg-gray-100">Schedule</Link>
+                        <div class="flex items-center gap-2">
+                            <Link @click.stop :href="route('schedules.create', { type: 'workflow', id: workflow.id })" class="text-xs px-2 py-1 rounded-md border text-gray-600 hover:bg-gray-100">Schedule</Link>
+                            <button @click.stop="handleToggleActive(workflow)" class="text-xs px-2 py-1 rounded-md border text-gray-600 hover:bg-gray-100">
+                                {{ workflow.is_active ? 'Deactivate' : 'Activate' }}
+                            </button>
+                            <button @click.stop="handleDeleteWorkflow(workflow)" class="text-xs px-2 py-1 rounded-md border text-red-600 hover:bg-red-50">Delete</button>
+                        </div>
                     </div>
                 </li>
             </ul>

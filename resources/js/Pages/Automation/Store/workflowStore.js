@@ -211,6 +211,45 @@ export const useWorkflowStore = defineStore('workflow', {
             }
         },
 
+        async updateWorkflow(id, payload) {
+            const response = await api.updateWorkflow(id, payload);
+            const updated = unwrapApiResponse(response);
+            if (updated && updated.id) {
+                // Update in list
+                const idx = this.workflows.findIndex(w => w.id === id);
+                if (idx !== -1) this.workflows.splice(idx, 1, updated);
+                // Update active
+                if (this.activeWorkflow && this.activeWorkflow.id === id) {
+                    this.activeWorkflow = { ...this.activeWorkflow, ...updated };
+                }
+            }
+            return updated;
+        },
+
+        async toggleWorkflowActive(workflow) {
+            if (!workflow) return;
+            const id = workflow.id || workflow;
+            const current = typeof workflow === 'object' ? workflow : this.workflows.find(w => w.id === id);
+            const nextActive = !(current?.is_active ?? true);
+            return await this.updateWorkflow(id, { is_active: nextActive });
+        },
+
+        async deleteWorkflow(id) {
+            try {
+                await api.deleteWorkflow(id);
+                const idx = this.workflows.findIndex(w => w.id === id);
+                if (idx !== -1) this.workflows.splice(idx, 1);
+                if (this.activeWorkflow && this.activeWorkflow.id === id) {
+                    this.activeWorkflow = null;
+                    this.selectedStep = null;
+                }
+                toast.success('Workflow deleted');
+            } catch (e) {
+                console.error('Failed to delete workflow', e);
+                this.showAlert('Delete failed', 'Could not delete workflow.');
+            }
+        },
+
         // --- STEP ACTIONS ---
         addStep({ type, insertAfter, parentArray, parentStep = null, branch = null }) {
             if (!this.activeWorkflow) return;
@@ -337,6 +376,20 @@ export const useWorkflowStore = defineStore('workflow', {
                 this.prompts.unshift(newPrompt);
             }
             return newPrompt;
+        },
+
+        async updatePrompt(id, payload) {
+            const response = await api.updatePrompt(id, payload);
+            const updated = unwrapApiResponse(response);
+            const idx = this.prompts.findIndex(p => p.id === id);
+            if (idx !== -1 && updated) this.prompts.splice(idx, 1, updated);
+            return updated;
+        },
+
+        async deletePrompt(id) {
+            await api.deletePrompt(id);
+            const idx = this.prompts.findIndex(p => p.id === id);
+            if (idx !== -1) this.prompts.splice(idx, 1);
         },
     },
 });

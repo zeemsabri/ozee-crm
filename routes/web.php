@@ -650,6 +650,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('Automation/Index');
     })->name('automation.page')->middleware('permission:manage_projects');
 
+    // Prompts Management Page
+    Route::get('/prompts', function () {
+        return Inertia::render('Automation/Prompts/Index');
+    })->name('prompts.page')->middleware('permission:create_automations');
+
 });
 
 // Require your existing authentication routes (login, register, logout, etc.)
