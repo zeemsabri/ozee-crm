@@ -12,10 +12,13 @@ class ProjectExpendable extends Model
 {
     use HasFactory, SoftDeletes, LogsActivity;
 
-    // Approval status constants
-    public const STATUS_PENDING = 'Pending Approval';
-    public const STATUS_ACCEPTED = 'Accepted';
-    public const STATUS_REJECTED = 'Rejected';
+    // Approval status constants (kept as aliases for backward compatibility)
+    /** @deprecated use App\Enums\ProjectExpendableStatus::PendingApproval */
+    public const STATUS_PENDING = \App\Enums\ProjectExpendableStatus::PendingApproval->value;
+    /** @deprecated use App\Enums\ProjectExpendableStatus::Accepted */
+    public const STATUS_ACCEPTED = \App\Enums\ProjectExpendableStatus::Accepted->value;
+    /** @deprecated use App\Enums\ProjectExpendableStatus::Rejected */
+    public const STATUS_REJECTED = \App\Enums\ProjectExpendableStatus::Rejected->value;
 
     protected $fillable = [
         'name',

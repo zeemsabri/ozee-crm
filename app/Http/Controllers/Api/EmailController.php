@@ -1054,7 +1054,7 @@ class EmailController extends Controller
                 'description' => $item['description'] ?? null,
                 'due_date' => $item['dueDate'],
                 'priority' => $item['priority'] ?? 'Medium',
-                'status' => 'To Do',
+                'status' => \App\Enums\TaskStatus::ToDo->value,
                 'task_type_id' => $defaultTaskType->id,
                 'milestone_id' => $milestone->id,
                                 'assigned_to_user_id' => $item['assigned_to_user_id'] ?? null,

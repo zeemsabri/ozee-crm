@@ -202,7 +202,7 @@ class WorkspaceController extends Controller
                 // Budget and approved amounts
                 $budget = $currentMilestone->budget; // morphOne: may be null
                 $approvedSum = $currentMilestone->expendable()
-                    ->where('status', 'Accepted')
+                    ->where('status', \App\Enums\ProjectExpendableStatus::Accepted->value)
                     ->get(['amount', 'currency'])
                     ->reduce(function ($carry, $e) {
                         // Return raw numbers; frontend can format
