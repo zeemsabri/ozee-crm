@@ -146,6 +146,8 @@ const dataSources = computed(() => {
     return sources;
 });
 
+const hasAnyFields = computed(() => dataSources.value.some(g => Array.isArray(g.fields) && g.fields.length > 0));
+
 function handlePick(token) {
     if (token) emit('insert', token);
 }
@@ -154,7 +156,7 @@ function handlePick(token) {
 <template>
     <DataTokenPicker
         :groups="dataSources"
-        placeholder="+ Insert Data"
+        :disabled="!hasAnyFields"
         @select="handlePick"
     />
 </template>
