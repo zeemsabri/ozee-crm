@@ -17,12 +17,16 @@ class Prompt extends Model
         'model_name',
         'generation_config',
         'template_variables',
+        'response_variables',
+        'response_json_template',
         'status',
     ];
 
     protected $casts = [
         'generation_config' => 'array',
         'template_variables' => 'array',
+        'response_variables' => 'array',
+        'response_json_template' => 'array',
     ];
 
     public function steps()

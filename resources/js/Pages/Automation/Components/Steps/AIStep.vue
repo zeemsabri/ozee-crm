@@ -36,11 +36,26 @@ const promptOptions = computed(() => {
     return sortedPrompts.value.map(p => ({ value: p.id, label: `${p.name} (v${p.version})` }));
 });
 
+// Centralized config for this AI step; must be defined before any computed that uses it
+const aiConfig = computed({
+    get: () => props.step.step_config || {},
+    set: (newConfig) => emit('update:step', { ...props.step, step_config: newConfig }),
+});
+
 const selectedPrompt = computed(() => {
     const id = aiConfig.value?.promptRef?.id;
     if (!id) return null;
     return sortedPrompts.value.find(pr => String(pr.id) === String(id)) || null;
 });
+
+// Auto-apply response structure from selected prompt
+watch(selectedPrompt, (p) => {
+    if (p && Array.isArray(p.response_variables)) {
+        // Deep copy to avoid mutating store prompt
+        const structure = JSON.parse(JSON.stringify(p.response_variables));
+        handleConfigChange('responseStructure', structure);
+    }
+}, { immediate: true });
 
 onMounted(() => {
     if (!store.prompts.length) {
@@ -107,11 +122,6 @@ async function handlePromptModalSave(promptToSave) {
     }
 }
 
-// --- COMPLETED COMPUTED PROPERTIES ---
-const aiConfig = computed({
-    get: () => props.step.step_config || {},
-    set: (newConfig) => emit('update:step', { ...props.step, step_config: newConfig }),
-});
 
 const triggerStep = computed(() => props.allStepsBefore.find(s => s.step_type === 'TRIGGER'));
 const triggerModelName = computed(() => triggerStep.value?.step_config?.model || 'Trigger');
@@ -517,30 +527,25 @@ const showRelatedPicker = ref(false);
         </div>
 
         <div class="space-y-2">
-            <h4 class="text-sm font-medium text-gray-700">Define AI Response Structure</h4>
-            <div v-for="field in (aiConfig.responseStructure || [])" :key="field.id" class="p-2 border rounded-md bg-gray-50/50">
-                <div class="flex items-center space-x-2">
-                    <input type="text" placeholder="Field Name" :value="field.name" @input="handleUpdateField(field.id, 'name', $event.target.value)" class="p-1.5 border border-gray-300 rounded-md w-full text-sm"/>
-                    <select :value="field.type" @change="handleUpdateField(field.id, 'type', $event.target.value)" class="p-1.5 border border-gray-300 rounded-md bg-white text-sm">
-                        <option>Text</option>
-                        <option>Number</option>
-                        <option>True/False</option>
-                        <option>Array of Objects</option>
-                    </select>
-                    <button @click="handleDeleteField(field.id)" class="text-gray-400 hover:text-red-500 p-1"><TrashIcon class="h-4 w-4" /></button>
-                </div>
-                <div v-if="field.type === 'Array of Objects'" class="ml-4 mt-2 pt-2 border-l-2 pl-4 space-y-2">
-                    <div v-for="subField in (field.schema || [])" :key="subField.id" class="flex items-center space-x-2">
-                        <input type="text" placeholder="Sub-field Name" :value="subField.name" @input="handleUpdateField(subField.id, 'name', $event.target.value, field)" class="p-1.5 border border-gray-300 rounded-md w-full text-sm"/>
-                        <select :value="subField.type" @change="handleUpdateField(subField.id, 'type', $event.target.value, field)" class="p-1.5 border border-gray-300 rounded-md bg-white text-sm">
-                            <option>Text</option><option>Number</option><option>True/False</option>
-                        </select>
-                        <button @click="handleDeleteField(subField.id, field)" class="text-gray-400 hover:text-red-500 p-1"><TrashIcon class="h-4 w-4" /></button>
-                    </div>
-                    <button @click="handleAddField(field)" class="text-xs flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200"><PlusIcon class="h-3 w-3" /> Add Sub-field</button>
-                </div>
+            <h4 class="text-sm font-medium text-gray-700">Expected AI Response Structure</h4>
+            <div class="p-2 bg-gray-50 rounded border">
+                <p v-if="!(aiConfig.responseStructure && aiConfig.responseStructure.length)" class="text-xs text-gray-500">
+                    Link a Prompt to auto-fill the expected response structure.
+                </p>
+                <ul v-else class="text-xs text-gray-700 space-y-1">
+                    <template v-for="field in aiConfig.responseStructure" :key="'r-'+field.id">
+                        <li>
+                            <span class="font-medium">{{ field.name }}</span>: {{ field.type }}
+                            <ul v-if="field.schema && field.schema.length" class="ml-4 list-disc">
+                                <li v-for="sub in field.schema" :key="'r-'+field.id+'-'+sub.id">
+                                    <span class="font-medium">{{ sub.name }}</span>: {{ sub.type }}
+                                </li>
+                            </ul>
+                        </li>
+                    </template>
+                </ul>
+                <p class="text-[11px] text-gray-500 mt-1">To change the structure, edit the linked Prompt.</p>
             </div>
-            <button @click="handleAddField()" class="text-xs flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200"><PlusIcon class="h-3 w-3" /> Add Field</button>
         </div>
     </StepCard>
 

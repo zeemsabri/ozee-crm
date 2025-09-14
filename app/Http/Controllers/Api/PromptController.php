@@ -24,6 +24,8 @@ class PromptController extends Controller
             'model_name' => ['sometimes', 'string', 'max:255'],
             'generation_config' => ['nullable', 'array'],
             'template_variables' => ['nullable', 'array'],
+            'response_variables' => ['nullable', 'array'],
+            'response_json_template' => ['nullable', 'array'],
             'status' => ['sometimes', 'string', 'max:50'],
         ]);
 
@@ -54,6 +56,8 @@ class PromptController extends Controller
             'model_name' => ['sometimes', 'string', 'max:255'],
             'generation_config' => ['nullable', 'array'],
             'template_variables' => ['nullable', 'array'],
+            'response_variables' => ['nullable', 'array'],
+            'response_json_template' => ['nullable', 'array'],
             'status' => ['sometimes', 'string', 'max:50'],
         ]);
 
