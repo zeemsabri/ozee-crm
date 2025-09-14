@@ -1,9 +1,10 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, watch, ref } from 'vue';
 import { useWorkflowStore } from '../../Store/workflowStore';
 import StepCard from './StepCard.vue';
 import { PlusIcon, XCircleIcon, TrashIcon } from 'lucide-vue-next';
-import SelectDropdown from '@/Components/SelectDropdown.vue';
+import RelatedDataPicker from './RelatedDataPicker.vue';
+import OverlayMultiSelect from '@/Components/OverlayMultiSelect.vue';
 
 const props = defineProps({
     step: { type: Object, required: true },
@@ -82,7 +83,7 @@ const effectiveLoopSchema = computed(() => {
         const model = automationSchema.value.find(m => m.name === modelName);
         if (!model) return null;
         const cols = (model.columns || []).map(col => typeof col === 'string' ? { name: col } : col);
-        return { name: 'Loop Item', columns: cols };
+        return { name: 'Loop Item', columns: cols, modelName };
     }
     return null;
 });
@@ -95,6 +96,180 @@ const availableLoopFields = computed(() => {
         .map(c => (typeof c === 'string' ? { name: c, label: c } : { name: c.name, label: c.label || c.name }))
         .filter(c => c.name && !taken.has(c.name));
 });
+
+// Combined options for OverlayMultiSelect: Trigger fields and Current Loop Item fields
+const dataToAnalyzeOptions = computed(() => {
+    const opts = [];
+    if (triggerSchema.value) {
+        const modelLabel = triggerModelName.value || 'Trigger';
+        (triggerSchema.value.columns || []).forEach(f => {
+            const name = typeof f === 'string' ? f : (f.name || '');
+            const label = typeof f === 'string' ? f : (f.label || f.name || '');
+            if (name) opts.push({ value: `trigger:${name}`, label: `Trigger: ${modelLabel} — ${label}` });
+        });
+    }
+    if (availableLoopFields.value.length > 0) {
+        availableLoopFields.value.forEach(f => {
+            const name = f.name;
+            const label = f.label || f.name;
+            if (name) opts.push({ value: `loop:${name}`, label: `Current Loop Item — ${label}` });
+        });
+    }
+    return opts;
+});
+
+// Bridge current config to the multi-select's value format (prefixing legacy trigger fields)
+const overlaySelected = computed({
+    get: () => {
+        const sel = Array.isArray(aiConfig.value.aiInputs) ? aiConfig.value.aiInputs : [];
+        return sel.map(v => (typeof v === 'string' && v.includes(':')) ? v : `trigger:${v}`);
+    },
+    set: (arr) => {
+        handleConfigChange('aiInputs', Array.isArray(arr) ? arr : []);
+    },
+});
+
+const isAllInputsSelected = computed(() => {
+    const total = dataToAnalyzeOptions.value.length;
+    const selected = new Set(overlaySelected.value || []);
+    const allValues = new Set(dataToAnalyzeOptions.value.map(o => o.value));
+    let count = 0; allValues.forEach(v => { if (selected.has(v)) count++; });
+    return total > 0 && count === total;
+});
+function toggleSelectAllInputs() {
+    if (isAllInputsSelected.value) {
+        handleConfigChange('aiInputs', []);
+    } else {
+        handleConfigChange('aiInputs', dataToAnalyzeOptions.value.map(o => o.value));
+    }
+}
+
+// ---- Relationship builder (dynamic, based on base model) ----
+const baseModelName = computed(() => {
+    return effectiveLoopSchema.value?.modelName || triggerStep.value?.step_config?.model || null;
+});
+
+const baseModelSchema = computed(() => {
+    return baseModelName.value ? automationSchema.value.find(m => m.name === baseModelName.value) : null;
+});
+
+const relationsConfig = computed({
+    get: () => aiConfig.value.relationships || { base_model: baseModelName.value || null, roots: [], nested: {}, fields: {} },
+    set: (val) => handleConfigChange('relationships', val),
+});
+
+watch(baseModelName, (val) => {
+    const cur = relationsConfig.value || {};
+    if (cur.base_model !== val) {
+        relationsConfig.value = { ...cur, base_model: val };
+    }
+}, { immediate: true });
+
+function getModelSchemaByName(name) {
+    return automationSchema.value.find(m => m.name === name) || null;
+}
+
+const rootRelationships = computed(() => (baseModelSchema.value?.relationships || []));
+
+function isRootSelected(name) {
+    return Array.isArray(relationsConfig.value.roots) && relationsConfig.value.roots.includes(name);
+}
+function toggleRoot(name) {
+    const roots = Array.isArray(relationsConfig.value.roots) ? [...relationsConfig.value.roots] : [];
+    const idx = roots.indexOf(name);
+    if (idx >= 0) {
+        roots.splice(idx, 1);
+        // cleanup nested + fields under this path
+        const nested = { ...(relationsConfig.value.nested || {}) };
+        delete nested[name];
+        const fields = { ...(relationsConfig.value.fields || {}) };
+        Object.keys(fields).forEach(p => { if (p === name || p.startsWith(name + '.')) delete fields[p]; });
+        relationsConfig.value = { ...relationsConfig.value, roots, nested, fields };
+    } else {
+        roots.push(name);
+        relationsConfig.value = { ...relationsConfig.value, roots };
+    }
+}
+
+function getRelatedModelNameForRoot(rootName) {
+    const rel = (rootRelationships.value || []).find(r => r.name === rootName);
+    return rel ? rel.model : null;
+}
+
+function fieldOptionsForModel(modelName) {
+    const schema = getModelSchemaByName(modelName);
+    const cols = (schema?.columns || []);
+    return cols.map(c => ({ value: (typeof c === 'string' ? c : c.name), label: (typeof c === 'string' ? c : (c.label || c.name)) }));
+}
+
+function selectedFieldsForPath(path) {
+    const f = relationsConfig.value.fields || {};
+    return f[path] || [];
+}
+
+function isAllFieldsSelected(path) {
+    const sel = selectedFieldsForPath(path);
+    return Array.isArray(sel) && sel.includes('*');
+}
+
+function toggleSelectAll(path, targetModelName) {
+    const fields = { ...(relationsConfig.value.fields || {}) };
+    if (isAllFieldsSelected(path)) {
+        // remove select all
+        delete fields[path];
+    } else {
+        fields[path] = ['*'];
+    }
+    relationsConfig.value = { ...relationsConfig.value, fields };
+}
+
+function toggleField(path, field) {
+    const fields = { ...(relationsConfig.value.fields || {}) };
+    const current = Array.isArray(fields[path]) ? [...fields[path]] : [];
+    // if currently select all, reset to empty then add specific
+    const idxStar = current.indexOf('*');
+    if (idxStar >= 0) current.splice(idxStar, 1);
+    const idx = current.indexOf(field);
+    if (idx >= 0) current.splice(idx, 1); else current.push(field);
+    if (current.length === 0) delete fields[path]; else fields[path] = current;
+    relationsConfig.value = { ...relationsConfig.value, fields };
+}
+
+function nestedRelationshipsForRoot(rootName) {
+    const childModel = getRelatedModelNameForRoot(rootName);
+    const childSchema = childModel ? getModelSchemaByName(childModel) : null;
+    return childSchema?.relationships || [];
+}
+
+function isNestedSelected(rootName, childName) {
+    const nestedForRoot = relationsConfig.value.nested?.[rootName] || [];
+    return nestedForRoot.includes(childName);
+}
+function toggleNested(rootName, childName) {
+    const nested = { ...(relationsConfig.value.nested || {}) };
+    const arr = Array.isArray(nested[rootName]) ? [...nested[rootName]] : [];
+    const idx = arr.indexOf(childName);
+    if (idx >= 0) {
+        arr.splice(idx, 1);
+        // cleanup fields for this path
+        const full = `${rootName}.${childName}`;
+        const fields = { ...(relationsConfig.value.fields || {}) };
+        Object.keys(fields).forEach(p => { if (p === full || p.startsWith(full + '.')) delete fields[p]; });
+        nested[rootName] = arr;
+        relationsConfig.value = { ...relationsConfig.value, nested, fields };
+    } else {
+        arr.push(childName);
+        nested[rootName] = arr;
+        relationsConfig.value = { ...relationsConfig.value, nested };
+    }
+}
+
+function getNestedModelName(rootName, childName) {
+    const first = getRelatedModelNameForRoot(rootName);
+    const schema = first ? getModelSchemaByName(first) : null;
+    const rel = schema?.relationships?.find(r => r.name === childName);
+    return rel ? rel.model : null;
+}
 
 // --- HANDLER FUNCTIONS ---
 function handleConfigChange(key, value) {
@@ -176,6 +351,7 @@ const generatedJsonPrompt = computed(() => {
 
     return `Respond with JSON in this exact format: { ${generateSchemaString(structure)} }`;
 });
+const showRelatedPicker = ref(false);
 </script>
 
 <template>
@@ -206,41 +382,48 @@ const generatedJsonPrompt = computed(() => {
                     </span>
                     <button @click="handleRemoveInput(input)" class="text-gray-400 hover:text-red-500"><XCircleIcon class="h-4 w-4"/></button>
                 </div>
-                <!-- Trigger fields selector (if available) -->
-                <SelectDropdown
-                    v-if="triggerSchema"
-                    :options="(availableTriggerFields || []).map(f => ({ value: `trigger:${(f.name || f)}`, label: (f.label || f.name || f) }))"
-                    :model-value="null"
-                    placeholder="+ Map data from trigger..."
-                    @update:modelValue="(val) => handleAddInput(val, 'trigger')"
-                />
-                <!-- Loop item fields selector (if inside a For Each) -->
-                <SelectDropdown
-                    v-if="availableLoopFields.length > 0"
-                    :options="availableLoopFields.map(f => ({ value: `loop:${f.name}`, label: f.label || f.name }))"
-                    :model-value="null"
-                    placeholder="+ Map data from current loop item..."
-                    @update:modelValue="(val) => handleAddInput(val, 'loop')"
+                <div class="flex items-center justify-between">
+                    <label class="text-xs inline-flex items-center gap-1">
+                        <input type="checkbox" :checked="isAllInputsSelected" @change="toggleSelectAllInputs" class="rounded border-gray-300" />
+                        Select all
+                    </label>
+                </div>
+                <OverlayMultiSelect
+                    :options="dataToAnalyzeOptions"
+                    :model-value="overlaySelected"
+                    placeholder="Select fields from Trigger and/or Current Loop Item..."
+                    @update:modelValue="(arr) => overlaySelected = arr"
                 />
             </div>
         </div>
 
-        <!-- NEW: Campaign Context Selector -->
-        <div class="border-t pt-3 mt-3">
-            <label class="block text-sm font-medium text-gray-700">Campaign Context (Optional)</label>
-            <select
-                :value="aiConfig.campaign_id || ''"
-                @change="handleConfigChange('campaign_id', $event.target.value)"
-                class="w-full p-2 mt-1 border rounded-md text-sm"
-            >
-                <option value="">None</option>
-                <option v-for="campaign in campaigns" :key="campaign.id" :value="campaign.id">
-                    {{ campaign.name }}
-                </option>
-            </select>
-            <p class="text-xs text-gray-500 mt-1">
-                Data from the selected campaign will be available to the AI.
-            </p>
+        <!-- Related Data Builder (moved into a modal for cleaner UX) -->
+        <div class="border-t pt-3 mt-3" v-if="baseModelSchema">
+            <div class="flex items-center justify-between">
+                <label class="block text-sm font-medium text-gray-700">Include Related Data from {{ baseModelName }}</label>
+                <button @click="showRelatedPicker = true" type="button" class="text-xs px-2 py-1 rounded-md bg-white ring-1 ring-gray-300 hover:bg-gray-50">Choose…</button>
+            </div>
+            <div v-if="relationsConfig && ((relationsConfig.roots && relationsConfig.roots.length) || (Object.keys(relationsConfig.fields || {}).length))" class="mt-2 text-xs text-gray-700">
+                <p class="font-medium">Summary</p>
+                <ul class="list-disc ml-5 space-y-0.5">
+                    <li v-for="r in (relationsConfig.roots || [])" :key="'sum-'+r">
+                        {{ r }}
+                        <template v-if="relationsConfig.fields && relationsConfig.fields[r] && relationsConfig.fields[r].length && !relationsConfig.fields[r].includes('*')">
+                            — fields: {{ relationsConfig.fields[r].join(', ') }}
+                        </template>
+                        <template v-if="relationsConfig.nested && relationsConfig.nested[r] && relationsConfig.nested[r].length">
+                            — also: {{ relationsConfig.nested[r].map(n => r + '.' + n).join(', ') }}
+                        </template>
+                    </li>
+                </ul>
+                <p class="text-[11px] text-gray-500 mt-1">Selected related records will be available in your prompt under the with key (e.g., with.campaign, with.campaign.leads).</p>
+            </div>
+            <RelatedDataPicker
+                :show="showRelatedPicker"
+                :base-model-name="baseModelName"
+                v-model="relationsConfig"
+                @close="showRelatedPicker = false"
+            />
         </div>
 
         <div class="space-y-2">

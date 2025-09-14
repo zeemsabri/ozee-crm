@@ -7,6 +7,7 @@ use App\Models\Campaign;
 use App\Models\Lead;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema; // Ensure this is imported
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 class AutomationSchemaController extends Controller
 {
@@ -16,8 +17,8 @@ class AutomationSchemaController extends Controller
      */
     public function getSchema(Request $request)
     {
-        // NOTE: This assumes you have a way to discover your application's models.
-        $discoveredModels = [
+        // Seed with commonly used base models; we will auto-include related models discovered via reflection.
+        $seedModels = [
             \App\Models\Task::class,
             \App\Models\Project::class,
             \App\Models\Email::class,
@@ -26,40 +27,61 @@ class AutomationSchemaController extends Controller
         ];
 
         $allModelEvents = $this->getModelEvents();
-        $modelsData = [];
 
-        foreach ($discoveredModels as $modelClass) {
-            if (!class_exists($modelClass)) continue;
-
-            $modelInstance = new $modelClass();
-            $modelName = class_basename($modelInstance);
-
-            // Base column list from database table
-            $columns = Schema::getColumnListing($modelInstance->getTable());
-            $relationships = $this->discoverRelationships($modelInstance); // Placeholder for your relationship logic
-
-            // Enrich columns with type and enum/allowed values
-            $columnsMeta = array_map(function ($col) use ($modelInstance, $modelName) {
-                $type = $this->guessColumnType($modelInstance, $col);
-                $allowed = $this->getAllowedValues($modelName, $col);
+        // Helper to build one model schema array
+        $buildModel = function (string $modelClass) use ($allModelEvents) {
+            if (!class_exists($modelClass)) return null;
+            try {
+                $instance = new $modelClass();
+                $modelName = class_basename($instance);
+                $columns = Schema::getColumnListing($instance->getTable());
+                $relationships = $this->discoverRelationships($instance);
+                $columnsMeta = array_map(function ($col) use ($instance, $modelName) {
+                    $type = $this->guessColumnType($instance, $col);
+                    $allowed = $this->getAllowedValues($modelName, $col);
+                    return [
+                        'name' => $col,
+                        'label' => $this->prettifyLabel($col),
+                        'type' => $type,
+                        'allowed_values' => $allowed,
+                    ];
+                }, $columns);
                 return [
-                    'name' => $col,
-                    'label' => $this->prettifyLabel($col),
-                    'type' => $type,
-                    'allowed_values' => $allowed,
+                    'name' => $modelName,
+                    'full_class' => $modelClass,
+                    'columns' => $columnsMeta,
+                    'relationships' => $relationships,
+                    'events' => $allModelEvents[$modelName] ?? [],
                 ];
-            }, $columns);
+            } catch (\Throwable $e) {
+                return null;
+            }
+        };
 
-            $modelsData[] = [
-                'name' => $modelName,
-                'full_class' => $modelClass,
-                'columns' => $columnsMeta,
-                'relationships' => $relationships,
-                'events' => $allModelEvents[$modelName] ?? [],
-            ];
+        // BFS over relationships to include related models
+        $queue = [];
+        $seenClasses = [];
+        foreach ($seedModels as $m) { if (class_exists($m)) { $queue[] = $m; $seenClasses[$m] = true; } }
+        $modelsByName = [];
+        $iterations = 0; $max = 50; // safety guard
+        while (!empty($queue) && $iterations < $max) {
+            $iterations++;
+            $class = array_shift($queue);
+            $schema = $buildModel($class);
+            if (!$schema) continue;
+            $modelsByName[$schema['name']] = $schema;
+            // Enqueue related model classes for discovery
+            foreach (($schema['relationships'] ?? []) as $rel) {
+                $relatedClass = $rel['full_class'] ?? null;
+                if (is_string($relatedClass) && class_exists($relatedClass) && !isset($seenClasses[$relatedClass])) {
+                    $seenClasses[$relatedClass] = true;
+                    $queue[] = $relatedClass;
+                }
+            }
         }
 
         // Sort models alphabetically by name for UI consistency
+        $modelsData = array_values($modelsByName);
         usort($modelsData, fn($a, $b) => strcmp($a['name'], $b['name']));
 
         // Also expose campaigns (id/name) for AI context selector, when present on the frontend
@@ -68,7 +90,6 @@ class AutomationSchemaController extends Controller
             $campaigns = Campaign::query()->select('id', 'name')->orderBy('name')->get();
         }
 
-        // Return in an object shape to allow future extensions (store already supports array/object)
         return response()->json([
             'models' => $modelsData,
             'campaigns' => $campaigns,
@@ -191,8 +212,40 @@ class AutomationSchemaController extends Controller
      */
     private function discoverRelationships($modelInstance): array
     {
-        // This is a placeholder. Please integrate your actual logic for
-        // discovering relationships (belongsTo, hasMany, etc.) here.
-        return [];
+        $relationships = [];
+        try {
+            $ref = new \ReflectionClass($modelInstance);
+            $className = get_class($modelInstance);
+            foreach ($ref->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+                // Only consider methods declared on the concrete model class, with no parameters
+                if ($method->class !== $className) continue;
+                if ($method->isStatic()) continue;
+                if ($method->getNumberOfParameters() > 0) continue;
+                $name = $method->getName();
+                // Skip common non-relationship accessors/mutators/scopes
+                if (str_starts_with($name, 'get') || str_starts_with($name, 'set') || str_starts_with($name, 'scope')) continue;
+                if (in_array($name, ['newQuery', 'newModelQuery', 'newEloquentBuilder', 'newCollection', 'getTable'], true)) continue;
+                try {
+                    $result = $modelInstance->{$name}();
+                    if ($result instanceof Relation) {
+                        $relatedClass = get_class($result->getRelated());
+                        $relationships[] = [
+                            'name' => $name,
+                            'type' => class_basename($result),
+                            'model' => class_basename($relatedClass),
+                            'full_class' => $relatedClass,
+                        ];
+                    }
+                } catch (\Throwable $e) {
+                    // Ignore methods that are not relations or throw errors on invocation
+                    continue;
+                }
+            }
+        } catch (\Throwable $e) {
+            // If reflection fails, just return empty
+        }
+        // Sort by name for consistency
+        usort($relationships, fn($a, $b) => strcmp($a['name'], $b['name']));
+        return $relationships;
     }
 }

@@ -31,6 +31,75 @@ class AiPromptStepHandler implements StepHandlerContract
             }
         }
 
+        // NEW: Eager-load selected relationships based on base model context (Trigger or Loop Item)
+        $withTree = [];
+        $rels = $cfg['relationships'] ?? null;
+        if (is_array($rels)) {
+            $baseModel = $rels['base_model'] ?? null;
+            $roots = is_array($rels['roots'] ?? null) ? $rels['roots'] : [];
+            $nested = is_array($rels['nested'] ?? null) ? $rels['nested'] : [];
+            $fields = is_array($rels['fields'] ?? null) ? $rels['fields'] : [];
+
+            if ($baseModel) {
+                $class = $this->resolveModelClass($baseModel);
+                if ($class) {
+                    // Determine the current record id
+                    $id = null;
+                    if (isset($context['loop']['item']['id'])) {
+                        $id = $context['loop']['item']['id'];
+                    }
+                    if (!$id) {
+                        $key = strtolower($baseModel);
+                        $id = $context['trigger'][$key]['id'] ?? null;
+                    }
+
+                    if ($id) {
+                        // Build with paths
+                        $paths = [];
+                        foreach ($roots as $r) { $paths[] = $r; }
+                        foreach ($nested as $rootName => $children) {
+                            foreach ((array)$children as $c) { $paths[] = $rootName . '.' . $c; }
+                        }
+                        $paths = array_values(array_unique(array_filter($paths)));
+
+                        try {
+                            /** @var \Illuminate\Database\Eloquent\Model|null $record */
+                            $record = $class::query()->with($paths)->find($id);
+                            if ($record) {
+                                $asArr = $record->toArray();
+                                // Build `with` structure honoring field selections
+                                // Include roots explicitly (even if no nested children)
+                                foreach ($roots as $r) {
+                                    $val = $this->getFromArrayByPath($asArr, $r);
+                                    $sel = $fields[$r] ?? ['*'];
+                                    $filtered = $this->filterValueByFields($val, $sel);
+                                    $this->setArrayByPath($withTree, $r, $filtered);
+                                }
+                                // Include nested
+                                foreach ($nested as $rootName => $children) {
+                                    foreach ((array)$children as $c) {
+                                        $full = $rootName . '.' . $c;
+                                        $val = $this->getFromArrayByPath($asArr, $full);
+                                        $sel = $fields[$full] ?? ['*'];
+                                        $filtered = $this->filterValueByFields($val, $sel);
+                                        $this->setArrayByPath($withTree, $full, $filtered);
+                                    }
+                                }
+                                // Merge into context for the AI template
+                                $context = array_replace_recursive($context, ['with' => $withTree]);
+                            }
+                        } catch (\Throwable $e) {
+                            Log::warning('AiPromptStepHandler.relations_load_failed', [
+                                'base_model' => $baseModel,
+                                'id' => $id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                }
+            }
+        }
+
         $result = $this->ai->generate($prompt, $context);
 
         $raw = $result['raw'] ?? null;
@@ -91,5 +160,54 @@ class AiPromptStepHandler implements StepHandlerContract
             }
         }
         return $val;
+    }
+
+    protected function setArrayByPath(array &$target, string $path, $value): void
+    {
+        $parts = explode('.', $path);
+        $ref =& $target;
+        foreach ($parts as $i => $seg) {
+            if ($i === count($parts) - 1) {
+                $ref[$seg] = $value;
+                return;
+            }
+            if (!isset($ref[$seg]) || !is_array($ref[$seg])) {
+                $ref[$seg] = [];
+            }
+            $ref =& $ref[$seg];
+        }
+    }
+
+    protected function filterValueByFields($value, array $selected)
+    {
+        // '*' means select all
+        if (in_array('*', $selected, true)) return $value;
+        // Normalize selection keys
+        $keys = array_values(array_filter(array_map('strval', $selected), fn($k) => $k !== ''));
+        if (empty($keys)) return $value; // nothing selected => keep as-is for safety
+        if (is_array($value)) {
+            // Determine if list of rows or assoc
+            $isList = array_keys($value) === range(0, count($value) - 1);
+            if ($isList) {
+                return array_map(function ($row) use ($keys) {
+                    return is_array($row) ? array_intersect_key($row, array_fill_keys($keys, true)) : $row;
+                }, $value);
+            }
+            // associative array
+            return array_intersect_key($value, array_fill_keys($keys, true));
+        }
+        return $value;
+    }
+
+    protected function resolveModelClass(string $name): ?string
+    {
+        $candidates = [
+            $name,
+            'App\\Models\\' . $name,
+        ];
+        foreach ($candidates as $c) {
+            if (class_exists($c)) return $c;
+        }
+        return null;
     }
 }
