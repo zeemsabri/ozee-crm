@@ -3,9 +3,11 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 
 const props = defineProps({
   groups: { type: Array, default: () => [] }, // [{ name, fields: [{ label, value }] }]
-  placeholder: { type: String, default: '+ Insert Data' },
+  placeholder: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
   maxHeight: { type: String, default: '300px' },
+  minWidth: { type: [String, Number], default: 320 }, // ensure readable width
+  maxPanelWidth: { type: [String, Number], default: 480 },
 });
 
 const emit = defineEmits(['select']);
@@ -15,6 +17,12 @@ const triggerRef = ref(null);
 const portalRef = ref(null);
 const coords = ref({ top: 0, left: 0, width: 0 });
 const search = ref('');
+
+const toPx = (v) => {
+  if (typeof v === 'number') return v;
+  const n = parseInt(String(v).replace('px',''));
+  return isNaN(n) ? 0 : n;
+};
 
 function open() {
   if (props.disabled) return;
@@ -26,7 +34,18 @@ function positionPanel() {
   const el = triggerRef.value;
   if (!el) return;
   const rect = el.getBoundingClientRect();
-  coords.value = { top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: rect.width };
+  const margin = 8;
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+  const desired = Math.max(rect.width, toPx(props.minWidth));
+  const maxW = Math.min(toPx(props.maxPanelWidth), viewportWidth - margin * 2);
+  const width = Math.min(Math.max(desired, toPx(props.minWidth)), maxW);
+  let left = rect.left + window.scrollX;
+  // Shift left if overflowing viewport
+  if (left + width + margin > viewportWidth + window.scrollX) {
+    left = viewportWidth + window.scrollX - width - margin;
+    if (left < margin) left = margin;
+  }
+  coords.value = { top: rect.bottom + window.scrollY, left, width };
 }
 
 function onWindowChange() {
@@ -82,16 +101,18 @@ function selectValue(val) {
 
 <template>
   <div class="relative inline-block" ref="triggerRef">
-    <button type="button" @click="open" :disabled="disabled"
-            class="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-60">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path d="M6 8a2 2 0 110-4 2 2 0 010 4zM2 14a4 4 0 118-0H2zM14 8a2 2 0 110-4 2 2 0 010 4zM10 14a4 4 0 118-0h-8z"/></svg>
-      <span>{{ placeholder }}</span>
+    <button type="button" @click="open" :disabled="disabled" aria-label="Insert data"
+            class="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white p-1.5 text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-60">
+      <!-- Plus icon -->
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+      </svg>
     </button>
 
     <teleport to="body">
       <div v-if="isOpen" ref="portalRef"
-           class="fixed z-[1000] bg-white rounded-md shadow-xl ring-1 ring-black ring-opacity-5"
-           :style="{ top: coords.top + 'px', left: coords.left + 'px', width: coords.width + 'px' }">
+           class="fixed z-[9999] bg-white rounded-md shadow-xl ring-1 ring-black ring-opacity-5"
+           :style="{ top: coords.top + 'px', left: coords.left + 'px', width: coords.width + 'px', maxWidth: 'min(480px, 96vw)' }">
         <div class="p-2 border-b">
           <input type="text" v-model="search" placeholder="Search fields..."
                  class="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:ring-indigo-500 focus:border-indigo-500" />

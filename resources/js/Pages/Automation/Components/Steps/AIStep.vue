@@ -1,10 +1,13 @@
 <script setup>
-import { computed, watch, ref } from 'vue';
+import { computed, watch, ref, onMounted } from 'vue';
 import { useWorkflowStore } from '../../Store/workflowStore';
 import StepCard from './StepCard.vue';
 import { PlusIcon, XCircleIcon, TrashIcon } from 'lucide-vue-next';
 import RelatedDataPicker from './RelatedDataPicker.vue';
 import OverlayMultiSelect from '@/Components/OverlayMultiSelect.vue';
+import BaseFormModal from '@/Components/BaseFormModal.vue';
+import PromptForm from '@/Pages/Automation/Prompts/PromptForm.vue';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 
 const props = defineProps({
     step: { type: Object, required: true },
@@ -16,6 +19,93 @@ const emit = defineEmits(['update:step', 'delete']);
 const store = useWorkflowStore();
 const automationSchema = computed(() => store.automationSchema || []);
 const campaigns = computed(() => store.campaigns || []);
+
+// Prompts for selection / create-edit
+const prompts = computed(() => store.prompts || []);
+const sortedPrompts = computed(() => {
+    const arr = Array.isArray(prompts.value) ? [...prompts.value] : [];
+    arr.sort((a, b) => {
+        const byName = (a.name || '').localeCompare(b.name || '');
+        if (byName !== 0) return byName;
+        return (b.version || 0) - (a.version || 0);
+    });
+    return arr;
+});
+
+const promptOptions = computed(() => {
+    return sortedPrompts.value.map(p => ({ value: p.id, label: `${p.name} (v${p.version})` }));
+});
+
+const selectedPrompt = computed(() => {
+    const id = aiConfig.value?.promptRef?.id;
+    if (!id) return null;
+    return sortedPrompts.value.find(pr => String(pr.id) === String(id)) || null;
+});
+
+onMounted(() => {
+    if (!store.prompts.length) {
+        store.fetchPrompts();
+    }
+});
+
+const selectedPromptId = computed({
+    get: () => aiConfig.value?.promptRef?.id || null,
+    set: (id) => {
+        const p = sortedPrompts.value.find(pr => String(pr.id) === String(id)) || null;
+        if (p) {
+            handleConfigChange('promptRef', { id: p.id, name: p.name, version: p.version });
+        } else {
+            handleConfigChange('promptRef', null);
+        }
+    }
+});
+
+const showPromptModal = ref(false);
+const promptModalMode = ref('create'); // 'create' | 'edit'
+const modalPrompt = ref(null);
+
+function openCreatePrompt() {
+    promptModalMode.value = 'create';
+    modalPrompt.value = {
+        name: 'New Prompt',
+        category: 'General',
+        version: 1,
+        system_prompt_text: "You are a helpful AI assistant.\n\nUse the provided template variables like {{example_variable}} to craft your response.",
+        model_name: 'gemini-2.5-flash-preview-05-20',
+        generation_config: { temperature: 0.7, maxOutputTokens: 2048, responseMimeType: 'application/json' },
+        template_variables: ['example_variable'],
+        status: 'draft'
+    };
+    showPromptModal.value = true;
+}
+
+function openEditPrompt() {
+    const id = selectedPromptId.value;
+    const p = sortedPrompts.value.find(pr => pr.id === id);
+    if (!p) return;
+    promptModalMode.value = 'edit';
+    modalPrompt.value = JSON.parse(JSON.stringify(p));
+    showPromptModal.value = true;
+}
+
+async function handlePromptModalSave(promptToSave) {
+    try {
+        let saved;
+        if (promptToSave.id && !promptToSave.isNewVersion) {
+            saved = await store.updatePrompt(promptToSave.id, promptToSave);
+        } else {
+            const { id, isNewVersion, ...payload } = promptToSave;
+            saved = await store.createPrompt(payload);
+        }
+        if (saved && saved.id) {
+            selectedPromptId.value = saved.id;
+        }
+        showPromptModal.value = false;
+        modalPrompt.value = null;
+    } catch (e) {
+        console.error('Failed to save prompt from modal', e);
+    }
+}
 
 // --- COMPLETED COMPUTED PROPERTIES ---
 const aiConfig = computed({
@@ -356,16 +446,16 @@ const showRelatedPicker = ref(false);
 
 <template>
     <StepCard icon="🧠" title="Analyze with AI" :onDelete="() => emit('delete')">
-        <div>
-            <label class="block text-sm font-medium text-gray-700">System Prompt</label>
-            <textarea
-                rows="4"
-                class="w-full p-2 mt-1 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="e.g., You are a support ticket analyst."
-                :value="aiConfig.prompt || ''"
-                @input="handleConfigChange('prompt', $event.target.value)"
-            />
-            <p v-if="generatedJsonPrompt" class="text-xs text-gray-500 mt-1 italic">{{ generatedJsonPrompt }}</p>
+        <div class="mb-3">
+            <label class="block text-sm font-medium text-gray-700">Prompt</label>
+            <div class="flex gap-2 mt-1 items-center">
+                <div class="flex-1">
+                    <SelectDropdown :options="promptOptions" v-model="selectedPromptId" placeholder="— Select a prompt —" />
+                </div>
+                <button type="button" @click="openCreatePrompt" class="px-2 py-1 text-xs font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Create</button>
+                <button type="button" @click="openEditPrompt" :disabled="!selectedPromptId" class="px-2 py-1 text-xs font-semibold bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Edit</button>
+            </div>
+            <p v-if="selectedPrompt" class="text-[11px] text-gray-500 mt-1">Linked: {{ selectedPrompt.name }} (v{{ selectedPrompt.version }})</p>
         </div>
 
         <div class="space-y-2">
@@ -453,4 +543,14 @@ const showRelatedPicker = ref(false);
             <button @click="handleAddField()" class="text-xs flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200"><PlusIcon class="h-3 w-3" /> Add Field</button>
         </div>
     </StepCard>
+
+    <BaseFormModal
+        :show="showPromptModal"
+        :title="promptModalMode === 'create' ? 'Create Prompt' : 'Edit Prompt'"
+        :formData="modalPrompt || {}"
+        :showFooter="false"
+        @close="showPromptModal = false"
+    >
+        <PromptForm v-if="modalPrompt" :prompt="modalPrompt" @save="handlePromptModalSave" @cancel="showPromptModal = false; modalPrompt = null" />
+    </BaseFormModal>
 </template>
