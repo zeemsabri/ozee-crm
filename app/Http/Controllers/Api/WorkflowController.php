@@ -81,6 +81,40 @@ class WorkflowController extends Controller
                 }
             }
 
+            // Third pass: remap any string tokens that reference temp ids (e.g., {{step_temp_123.records}})
+            $replacements = [];
+            foreach ($idMap as $provided => $actual) {
+                if ($provided !== '' && $provided !== (string)$actual) {
+                    $replacements['step_' . $provided] = 'step_' . $actual;
+                }
+            }
+            if (!empty($replacements)) {
+                $applyReplacements = function ($value) use (&$applyReplacements, $replacements) {
+                    if (is_array($value)) {
+                        $out = [];
+                        foreach ($value as $k => $v) {
+                            $out[$k] = $applyReplacements($v);
+                        }
+                        return $out;
+                    }
+                    if (is_string($value)) {
+                        return str_replace(array_keys($replacements), array_values($replacements), $value);
+                    }
+                    return $value;
+                };
+
+                // Update all saved rows with remapped tokens in step_config
+                $rows = WorkflowStep::where('workflow_id', $workflow->id)->get();
+                foreach ($rows as $row) {
+                    $cfg = is_array($row->step_config) ? $row->step_config : [];
+                    $newCfg = $applyReplacements($cfg);
+                    if ($newCfg !== $cfg) {
+                        $row->step_config = $newCfg;
+                        $row->save();
+                    }
+                }
+            }
+
             // Delete removed steps (present in DB but not in payload)
             $keepIds = array_fill_keys(array_map('intval', $seenActualIds), true);
             $toDelete = array_values(array_filter($existing, fn($id) => !isset($keepIds[(int)$id])));

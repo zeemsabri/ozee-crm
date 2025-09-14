@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useWorkflowStore } from '../../Store/workflowStore';
+import DataTokenPicker from '@/Components/DataTokenPicker.vue';
 
 const props = defineProps({
     allStepsBefore: { type: Array, default: () => [] },
@@ -145,27 +146,15 @@ const dataSources = computed(() => {
     return sources;
 });
 
-function handleInsert(event) {
-    const token = event.target.value;
-    if (token) {
-        emit('insert', token);
-        event.target.value = "";
-    }
+function handlePick(token) {
+    if (token) emit('insert', token);
 }
 </script>
 
 <template>
-    <select
-        @change="handleInsert"
-        class="p-1 border border-gray-300 rounded-md bg-white text-xs focus:ring-indigo-500 focus:border-indigo-500"
-    >
-        <option value="" disabled selected>+ Insert Data</option>
-        <template v-for="source in dataSources" :key="source.name">
-            <optgroup :label="source.name">
-                <option v-for="field in source.fields" :key="field.value" :value="field.value">
-                    {{ field.label }}
-                </option>
-            </optgroup>
-        </template>
-    </select>
+    <DataTokenPicker
+        :groups="dataSources"
+        placeholder="+ Insert Data"
+        @select="handlePick"
+    />
 </template>
