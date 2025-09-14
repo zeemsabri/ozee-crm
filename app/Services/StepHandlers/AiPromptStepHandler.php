@@ -17,6 +17,14 @@ class AiPromptStepHandler implements StepHandlerContract
     {
         $prompt = $step->prompt ?: Prompt::find($step->prompt_id);
         if (!$prompt) {
+            // Fallback: resolve from step_config.promptRef.id (front-end stores link here)
+            $cfg = $step->step_config ?? [];
+            $promptId = is_array($cfg) ? ($cfg['promptRef']['id'] ?? null) : null;
+            if ($promptId) {
+                $prompt = Prompt::find($promptId);
+            }
+        }
+        if (!$prompt) {
             throw new \RuntimeException('Prompt not found for AI_PROMPT step');
         }
 

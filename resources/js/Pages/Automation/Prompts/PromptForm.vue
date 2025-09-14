@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, computed } from 'vue';
 import { FilePlusIcon, XCircleIcon, CodeIcon, ChevronDownIcon } from 'lucide-vue-next';
+import ResponseBuilder from './ResponseBuilder.vue';
 
 const props = defineProps({
     prompt: { type: Object, required: true },
@@ -16,6 +17,13 @@ if (!Array.isArray(editedPrompt.value.template_variables)) {
 if (!editedPrompt.value.generation_config || typeof editedPrompt.value.generation_config !== 'object') {
     editedPrompt.value.generation_config = {};
 }
+// Initialize response fields
+if (!Array.isArray(editedPrompt.value.response_variables)) {
+    editedPrompt.value.response_variables = [];
+}
+if (!editedPrompt.value.response_json_template || typeof editedPrompt.value.response_json_template !== 'object') {
+    editedPrompt.value.response_json_template = {};
+}
 // Apply defaults for generation config fields
 if (editedPrompt.value.generation_config.responseMimeType == null) {
     editedPrompt.value.generation_config.responseMimeType = 'application/json';
@@ -26,6 +34,7 @@ if (editedPrompt.value.generation_config.maxOutputTokens == null) {
 
 const newVariable = ref('');
 const showJsonEditor = ref(false);
+const showRightPanel = ref(true);
 
 watch(() => props.prompt, (newPrompt) => {
     editedPrompt.value = JSON.parse(JSON.stringify(newPrompt));
@@ -35,6 +44,12 @@ watch(() => props.prompt, (newPrompt) => {
     }
     if (!editedPrompt.value.generation_config || typeof editedPrompt.value.generation_config !== 'object') {
         editedPrompt.value.generation_config = {};
+    }
+    if (!Array.isArray(editedPrompt.value.response_variables)) {
+        editedPrompt.value.response_variables = [];
+    }
+    if (!editedPrompt.value.response_json_template || typeof editedPrompt.value.response_json_template !== 'object') {
+        editedPrompt.value.response_json_template = {};
     }
     // Apply defaults when prompt changes
     if (editedPrompt.value.generation_config.responseMimeType == null) {
@@ -99,23 +114,36 @@ const isNew = computed(() => !props.prompt.id);
 </script>
 
 <template>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-7xl mx-auto">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 px-2 md:px-4">
         <!-- Left Column: Main Editor -->
-        <div class="md:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">{{ isNew ? 'Create New Prompt' : `Editing: ${editedPrompt.name || props.prompt.name}` }}</h2>
+        <div :class="['bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6', showRightPanel ? 'md:col-span-2' : 'md:col-span-3']">
+            <div class="flex items-start justify-between mb-4">
+                <h2 class="text-xl font-bold text-gray-800">{{ isNew ? 'Create New Prompt' : `Editing: ${editedPrompt.name || props.prompt.name}` }}</h2>
+                <button type="button" @click="showRightPanel = !showRightPanel" class="text-xs px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 border border-gray-300">
+                    {{ showRightPanel ? 'Hide Sidebar' : 'Show Sidebar' }}
+                </button>
+            </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">System Prompt Text</label>
                 <textarea
-                    rows="20"
+                    rows="12"
                     class="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
                     placeholder="You are a helpful AI assistant..."
                     v-model="editedPrompt.system_prompt_text"
                 />
+                <div class="mt-6">
+                    <ResponseBuilder
+                        :response-variables="editedPrompt.response_variables"
+                        :response-json-template="editedPrompt.response_json_template"
+                        @update:responseVariables="val => editedPrompt.response_variables = val"
+                        @update:responseJsonTemplate="val => editedPrompt.response_json_template = val"
+                    />
+                </div>
             </div>
         </div>
 
         <!-- Right Column: Configuration -->
-        <div class="space-y-6">
+        <div v-if="showRightPanel" class="space-y-6">
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 <div class="flex flex-col gap-2">
                     <div class="flex justify-end space-x-2">
