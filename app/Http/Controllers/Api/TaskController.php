@@ -448,7 +448,7 @@ class TaskController extends Controller
     public function start(Task $task)
     {
         // Soft-validate target status via the value dictionary (non-enforcing)
-        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::InProgress);
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::InProgress->value);
 
         // The LogsActivity trait will automatically log this activity
         $task->start(Auth::user());

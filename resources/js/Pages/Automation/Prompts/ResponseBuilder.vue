@@ -33,17 +33,27 @@
 
             <!-- Right Panel: Final JSON Output -->
             <div class="p-0 md:pl-4">
-                <h2 class="text-3xl font-bold text-gray-800 mb-6">JSON Output</h2>
-                <p class="text-gray-600 mb-8">
-                    This is the final JSON object that will be sent to the AI. Any changes you make in the form will appear here.
-                </p>
+                <details>
+                    <summary class="text-base font-semibold text-gray-800 cursor-pointer">Schema JSON (Raw)</summary>
+                    <p class="text-gray-600 mb-2 mt-2">This is the full schema definition that will be saved with the prompt.</p>
+                    <textarea
+                        v-model="jsonOutput"
+                        rows="16"
+                        readonly
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm bg-gray-50 focus:outline-none resize-none font-mono"
+                    ></textarea>
+                </details>
 
-                <textarea
-                    v-model="jsonOutput"
-                    rows="20"
-                    readonly
-                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm bg-gray-50 focus:outline-none resize-none font-mono"
-                ></textarea>
+                <div class="mt-4">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-2">AI JSON Preview</h2>
+                    <p class="text-gray-600 mb-4">Preview of the generated JSON that the AI is expected to return. You can customize example values per field on the left; this preview updates live.</p>
+                    <textarea
+                        :value="aiPreviewText"
+                        rows="20"
+                        readonly
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm bg-gray-50 focus:outline-none resize-none font-mono"
+                    ></textarea>
+                </div>
             </div>
         </div>
     </div>
@@ -63,6 +73,7 @@ const emit = defineEmits(['update:responseVariables', 'update:responseJsonTempla
 
 const localSchema = ref([]);
 const jsonOutput = ref('');
+const aiPreviewText = ref('');
 const jsonImport = ref('');
 const showImport = ref(false);
 
@@ -75,6 +86,9 @@ const transformJsonToForm = (json) => {
         }
         if (field.schema) {
             newField.schema = transformJsonToForm(field.schema);
+        }
+        if (Object.prototype.hasOwnProperty.call(field, 'example')) {
+            newField.example = field.example;
         }
         return newField;
     });
@@ -96,8 +110,80 @@ const transformFormToJson = (form) => {
         if (field.schema) {
             newField.schema = transformFormToJson(field.schema);
         }
+        if (field.example !== undefined) {
+            newField.example = field.example;
+        }
         return newField;
     });
+};
+
+// Helper to normalize options to an array
+const getOptionsArray = (opts) => Array.isArray(opts) ? opts : (typeof opts === 'string' ? opts.split(',').map(s => s.trim()).filter(Boolean) : []);
+
+// Build AI JSON Preview using example overrides where provided
+const buildAiPreview = (form = []) => {
+    const output = {};
+    (form || []).forEach(field => {
+        if (!field || !field.name) return;
+        const name = field.name;
+        const type = field.type;
+        const ex = field.example;
+        switch (type) {
+            case 'Text':
+            case 'Markdown':
+            case 'File':
+            case 'User':
+            case 'Date':
+                output[name] = (ex !== undefined && ex !== null && ex !== '') ? ex : `Enter your ${name} here.`;
+                break;
+            case 'Number':
+                output[name] = (ex !== undefined && ex !== null && ex !== '') ? Number(ex) : 0;
+                break;
+            case 'Boolean':
+                if (typeof ex === 'boolean') {
+                    output[name] = ex;
+                } else if (typeof ex === 'string') {
+                    output[name] = ex.toLowerCase() === 'true';
+                } else {
+                    output[name] = true;
+                }
+                break;
+            case 'Select':
+            case 'MultiSelect': {
+                const opts = getOptionsArray(field.options);
+                output[name] = (ex !== undefined && ex !== null && ex !== '') ? ex : opts;
+                break;
+            }
+            case 'Object':
+                output[name] = buildAiPreview(field.schema);
+                break;
+            case 'Array':
+                if (field.itemType === 'Object') {
+                    output[name] = [buildAiPreview(field.schema)];
+                } else {
+                    let val;
+                    const itemType = field.itemType || 'Text';
+                    if (ex !== undefined && ex !== null && ex !== '') {
+                        if (itemType === 'Number') {
+                            val = Number(ex);
+                        } else if (itemType === 'Boolean') {
+                            val = typeof ex === 'boolean' ? ex : String(ex).toLowerCase() === 'true';
+                        } else {
+                            val = ex;
+                        }
+                    } else {
+                        if (itemType === 'Number') val = 0;
+                        else if (itemType === 'Boolean') val = true;
+                        else val = `Placeholder for ${itemType}`;
+                    }
+                    output[name] = [val];
+                }
+                break;
+            default:
+                output[name] = ex ?? null;
+        }
+    });
+    return output;
 };
 
 // Initialize from incoming props
@@ -114,6 +200,7 @@ onMounted(() => {
     // Initialize output and emit to parent
     const fullSchema = transformFormToJson(localSchema.value);
     jsonOutput.value = JSON.stringify(fullSchema, null, 2);
+    aiPreviewText.value = JSON.stringify(buildAiPreview(localSchema.value), null, 2);
     emit('update:responseVariables', JSON.parse(JSON.stringify(localSchema.value)));
     emit('update:responseJsonTemplate', fullSchema);
 });
@@ -130,10 +217,11 @@ const importJson = () => {
     }
 };
 
-// Watch for changes in the form and update the JSON output and parent
+// Watch for changes in the form and update the JSON output, AI preview, and parent
 watch(localSchema, () => {
     const fullSchema = transformFormToJson(localSchema.value);
     jsonOutput.value = JSON.stringify(fullSchema, null, 2);
+    aiPreviewText.value = JSON.stringify(buildAiPreview(localSchema.value), null, 2);
     emit('update:responseVariables', JSON.parse(JSON.stringify(localSchema.value)));
     emit('update:responseJsonTemplate', fullSchema);
 }, { deep: true });

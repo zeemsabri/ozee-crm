@@ -56,6 +56,7 @@ use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\ProjectNoteController;
 use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\ScheduleApiController;
+use App\Http\Controllers\Api\WorkflowLogController;
 
 
 Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
@@ -161,6 +162,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/upload-image', [ImageUploadController::class, 'upload']);
 
     // Project Management Routes (Split into Read and Action)
+
+    // Automation: Workflows & Logs
+    Route::get('workflows', [\App\Http\Controllers\Api\WorkflowController::class, 'index']);
+    Route::get('workflows/{workflow}', [\App\Http\Controllers\Api\WorkflowController::class, 'show']);
+    Route::post('workflows', [\App\Http\Controllers\Api\WorkflowController::class, 'store']);
+    Route::put('workflows/{workflow}', [\App\Http\Controllers\Api\WorkflowController::class, 'update']);
+    Route::delete('workflows/{workflow}', [\App\Http\Controllers\Api\WorkflowController::class, 'destroy']);
+    Route::post('workflows/{workflow}/run', [\App\Http\Controllers\Api\WorkflowController::class, 'run']);
+    Route::get('workflows/{workflow}/logs', [WorkflowLogController::class, 'index']);
     // Read Routes
     Route::get('projects', [ProjectReadController::class, 'index']);
     Route::get('projects/with-wireframes', [ProjectReadController::class, 'wireframe']);

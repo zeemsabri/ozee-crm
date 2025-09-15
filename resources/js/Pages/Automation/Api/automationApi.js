@@ -63,6 +63,12 @@ export const deletePrompt = async (id) => {
   await axios.delete(`${API_BASE_URL}/prompts/${id}`);
 };
 
+// ===================== Logs =====================
+export const fetchWorkflowLogs = async (workflowId, params = {}) => {
+  const { data } = await axios.get(`${API_BASE_URL}/workflows/${workflowId}/logs`, { params });
+  return data;
+};
+
 // ===================== Schema =====================
 // Fetches the data dictionary for the Automation Studio builder
 export const fetchAutomationSchema = async () => {

@@ -21,8 +21,8 @@ if (!editedPrompt.value.generation_config || typeof editedPrompt.value.generatio
 if (!Array.isArray(editedPrompt.value.response_variables)) {
     editedPrompt.value.response_variables = [];
 }
-if (!editedPrompt.value.response_json_template || typeof editedPrompt.value.response_json_template !== 'object') {
-    editedPrompt.value.response_json_template = {};
+if (!Array.isArray(editedPrompt.value.response_json_template)) {
+    editedPrompt.value.response_json_template = [];
 }
 // Apply defaults for generation config fields
 if (editedPrompt.value.generation_config.responseMimeType == null) {
@@ -97,8 +97,8 @@ watch(() => props.prompt, (newPrompt) => {
     if (!Array.isArray(editedPrompt.value.response_variables)) {
         editedPrompt.value.response_variables = [];
     }
-    if (!editedPrompt.value.response_json_template || typeof editedPrompt.value.response_json_template !== 'object') {
-        editedPrompt.value.response_json_template = {};
+    if (!Array.isArray(editedPrompt.value.response_json_template)) {
+        editedPrompt.value.response_json_template = [];
     }
     // Apply defaults when prompt changes
     if (editedPrompt.value.generation_config.responseMimeType == null) {
@@ -154,14 +154,12 @@ function save(isNewVersion = false) {
     const payload = { ...editedPrompt.value };
     // Ensure response fields are always present in the payload
     if (!Array.isArray(payload.response_variables)) payload.response_variables = [];
-    if (!payload.response_json_template || typeof payload.response_json_template !== 'object') payload.response_json_template = {};
+    if (!Array.isArray(payload.response_json_template)) payload.response_json_template = [];
     if (isNewVersion) {
         payload.isNewVersion = true;
         payload.version = (payload.version || 1) + 1;
     }
-    // Transform the schema to the AI-ready JSON format before saving
-    payload.response_json_template = transformedResponseJson.value;
-
+    // Do not overwrite response_json_template here; ResponseBuilder keeps it as the raw schema array.
     emit('save', payload);
 }
 

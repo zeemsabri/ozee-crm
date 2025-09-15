@@ -6,10 +6,13 @@ use App\Events\WorkflowTriggerEvent;
 use App\Jobs\RunWorkflowJob;
 use App\Models\Workflow;
 use App\Services\WorkflowEngineService;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
 
-class WorkflowTriggerListener
+class WorkflowTriggerListener implements ShouldQueue
 {
+    use InteractsWithQueue;
     /**
      * Handle the event.
      */

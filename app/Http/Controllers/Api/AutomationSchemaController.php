@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\Lead;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema; // Ensure this is imported
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -24,6 +25,7 @@ class AutomationSchemaController extends Controller
             \App\Models\Email::class,
             Campaign::class,
             Lead::class,
+            User::class
         ];
 
         $allModelEvents = $this->getModelEvents();
@@ -119,6 +121,11 @@ class AutomationSchemaController extends Controller
                 ['value' => 'created', 'label' => 'is created'],
                 ['value' => 'updated', 'label' => 'is updated'],
             ],
+            'User'  =>  [
+                ['value' => 'received', 'label' => 'is received'],
+                ['value' => 'created', 'label' => 'is created'],
+                ['value' => 'updated', 'label' => 'is updated'],
+            ]
         ];
     }
 

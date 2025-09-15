@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue';
 import { useWorkflowStore } from '../../Store/workflowStore';
 import StepCard from './StepCard.vue';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 
 const props = defineProps({
     step: {
@@ -21,6 +22,11 @@ onMounted(() => {
 });
 
 const schema = computed(() => store.automationSchema || []);
+
+// Options for SelectDropdown (models)
+const modelOptions = computed(() =>
+    schema.value.map(m => ({ label: m.name, value: m.name }))
+);
 
 // This computed property with a getter and setter makes syncing state easy.
 const selectedModel = computed({
@@ -53,34 +59,46 @@ const selectedEvent = computed({
     },
 });
 
+const selectedModelSchema = computed(() =>
+    selectedModel.value ? schema.value.find(m => m.name === selectedModel.value) : null
+);
+
 const availableEvents = computed(() => {
     if (!selectedModel.value) return [];
-    const modelSchema = schema.value.find(m => m.name === selectedModel.value);
+    const modelSchema = selectedModelSchema.value;
     return modelSchema ? modelSchema.events : [];
 });
+
+const isUnsupportedModel = computed(() => selectedModel.value && availableEvents.value.length === 0);
 
 </script>
 
 <template>
     <StepCard icon="⚡" title="1. When this happens... (Trigger)">
-        <div class="flex items-center space-x-2 text-md">
+        <div class="flex items-center flex-wrap gap-2 text-md">
             <span class="font-semibold text-gray-700">When a</span>
 
             <!-- Model Selector -->
-            <select v-model="selectedModel" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                <option :value="null" disabled>Select...</option>
-                <option v-for="model in schema" :key="model.name" :value="model.name">
-                    {{ model.name }}
-                </option>
-            </select>
+            <SelectDropdown
+                v-model="selectedModel"
+                :options="modelOptions"
+                placeholder="Select a model"
+                class="w-56"
+            />
 
             <!-- Event Selector -->
-            <select v-if="selectedModel" v-model="selectedEvent" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm">
-                <option :value="null" disabled>is...</option>
-                <option v-for="event in availableEvents" :key="event.value" :value="event.value">
-                    {{ event.label }}
-                </option>
-            </select>
+            <SelectDropdown
+                v-if="selectedModel && availableEvents.length"
+                v-model="selectedEvent"
+                :options="availableEvents"
+                placeholder="is..."
+                class="w-56"
+            />
+
+            <!-- Unsupported Model Message -->
+            <div v-if="isUnsupportedModel" class="w-full text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                Triggers are not available for “{{ selectedModel }}”. You can still use this model in conditions or actions. If you need a trigger for it, please contact your workspace admin to request support.
+            </div>
         </div>
     </StepCard>
 </template>

@@ -45,6 +45,14 @@ export const useWorkflowStore = defineStore('workflow', {
             onCancel: null,
             type: 'alert',
         },
+        logsModal: {
+            show: false,
+            isLoading: false,
+            workflow: null,
+            items: [],
+            meta: null,
+            params: { per_page: 20, page: 1, status: null, step_id: null },
+        },
     }),
     actions: {
         // --- MODAL ACTIONS ---
@@ -77,6 +85,60 @@ export const useWorkflowStore = defineStore('workflow', {
                 onCancel: null,
                 type: 'alert',
             };
+        },
+
+        // --- LOGS MODAL ACTIONS ---
+        showLogs(workflow) {
+            this.logsModal.show = true;
+            this.logsModal.workflow = workflow;
+            this.logsModal.items = [];
+            this.logsModal.meta = null;
+            this.logsModal.params.page = 1;
+            this.fetchWorkflowLogs(workflow.id);
+        },
+        hideLogs() {
+            this.logsModal = {
+                show: false,
+                isLoading: false,
+                workflow: null,
+                items: [],
+                meta: null,
+                params: { per_page: 20, page: 1, status: null, step_id: null },
+            };
+        },
+        async fetchWorkflowLogs(workflowId, extraParams = {}) {
+            this.logsModal.isLoading = true;
+            try {
+                const params = { ...this.logsModal.params, ...extraParams };
+                const resp = await api.fetchWorkflowLogs(workflowId, params);
+                // Normalize Laravel paginator shape
+                if (resp && typeof resp === 'object') {
+                    const items = Array.isArray(resp.data) ? resp.data : [];
+                    this.logsModal.items = items;
+                    this.logsModal.meta = resp.meta || null;
+                    // Maintain params.page from response if available
+                    if (resp.meta && typeof resp.meta.current_page === 'number') {
+                        this.logsModal.params.page = resp.meta.current_page;
+                    }
+                } else if (Array.isArray(resp)) {
+                    this.logsModal.items = resp;
+                    this.logsModal.meta = null;
+                } else {
+                    this.logsModal.items = [];
+                    this.logsModal.meta = null;
+                }
+            } catch (e) {
+                console.error('Failed to fetch workflow logs', e);
+                this.showAlert('Failed to load logs', 'Could not load execution logs for this workflow.');
+            } finally {
+                this.logsModal.isLoading = false;
+            }
+        },
+        async goToLogsPage(page) {
+            if (!this.logsModal.workflow) return;
+            this.logsModal.params.page = page;
+            await this.fetchWorkflowLogs(this.logsModal.workflow.id, {page});
+
         },
 
         // --- SCHEMA ACTIONS ---
