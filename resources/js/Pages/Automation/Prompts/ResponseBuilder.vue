@@ -1,8 +1,8 @@
 <template>
-    <div class="p-8 bg-gray-100 min-h-screen font-sans">
-        <div class="max-w mx-auto bg-white shadow-xl rounded-2xl overflow-hidden md:flex">
+    <div class="font-sans">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Left Panel: Form View -->
-            <div class="w-full md:w-2/3 p-6 md:p-8 border-r border-gray-200">
+            <div class="p-0 md:pr-4">
                 <h2 class="text-3xl font-bold text-gray-800 mb-6">Response Form Builder</h2>
                 <p class="text-gray-600 mb-8">
                     Manually create the response structure for the AI. Changes here will update the JSON output.
@@ -10,23 +10,29 @@
 
                 <FieldBuilder v-model:schema="localSchema" />
 
-                <div class="mt-8">
-                    <label for="jsonImport" class="block text-sm font-medium text-gray-700 mb-2">Import JSON</label>
-                    <textarea
-                        id="jsonImport"
-                        v-model="jsonImport"
-                        rows="5"
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 resize-none font-mono"
-                        placeholder="Paste your JSON schema here to import..."
-                    ></textarea>
-                    <button @click="importJson" class="mt-2 w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                        Import from JSON
+                <div class="mt-4">
+                    <button type="button" @click="showImport = !showImport" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200">
+                        {{ showImport ? 'Hide Import JSON' : 'Import JSON' }}
                     </button>
+                    <div v-if="showImport" class="mt-2">
+                        <textarea
+                            id="jsonImport"
+                            v-model="jsonImport"
+                            rows="5"
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 resize-none font-mono"
+                            placeholder="Paste your JSON schema here to import..."
+                        ></textarea>
+                        <div class="mt-2 flex justify-end">
+                            <button @click="importJson" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                Import
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Right Panel: Final JSON Output -->
-            <div class="w-full md:w-1/2 p-6 md:p-8">
+            <div class="p-0 md:pl-4">
                 <h2 class="text-3xl font-bold text-gray-800 mb-6">JSON Output</h2>
                 <p class="text-gray-600 mb-8">
                     This is the final JSON object that will be sent to the AI. Any changes you make in the form will appear here.
@@ -58,6 +64,7 @@ const emit = defineEmits(['update:responseVariables', 'update:responseJsonTempla
 const localSchema = ref([]);
 const jsonOutput = ref('');
 const jsonImport = ref('');
+const showImport = ref(false);
 
 const transformJsonToForm = (json) => {
     if (!Array.isArray(json)) return [];
