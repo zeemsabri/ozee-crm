@@ -22,7 +22,7 @@ if (!Array.isArray(editedPrompt.value.response_variables)) {
     editedPrompt.value.response_variables = [];
 }
 if (!editedPrompt.value.response_json_template || typeof editedPrompt.value.response_json_template !== 'object') {
-    editedPrompt.value.response_json_template = [];
+    editedPrompt.value.response_json_template = {};
 }
 // Apply defaults for generation config fields
 if (editedPrompt.value.generation_config.responseMimeType == null) {
@@ -35,6 +35,55 @@ if (editedPrompt.value.generation_config.maxOutputTokens == null) {
 const newVariable = ref('');
 const showJsonEditor = ref(false);
 const showRightPanel = ref(true);
+
+const transformedResponseJson = computed(() => {
+    return generateResponseJson(editedPrompt.value.response_variables);
+});
+
+// A recursive function to generate the final JSON from the schema
+const generateResponseJson = (schema) => {
+    const output = {};
+    if (!Array.isArray(schema)) return output;
+
+    schema.forEach(field => {
+        const name = field.name;
+        const type = field.type;
+
+        switch (type) {
+            case 'Text':
+            case 'Markdown':
+            case 'File':
+            case 'User':
+            case 'Date':
+                output[name] = `Enter your ${name} here.`;
+                break;
+            case 'Number':
+                output[name] = 0;
+                break;
+            case 'Boolean':
+                output[name] = true;
+                break;
+            case 'Select':
+            case 'MultiSelect':
+                output[name] = field.options;
+                break;
+            case 'Object':
+                output[name] = generateResponseJson(field.schema);
+                break;
+            case 'Array':
+                if (field.itemType === 'Object') {
+                    output[name] = [generateResponseJson(field.schema)];
+                } else {
+                    output[name] = [`Placeholder for ${field.itemType}`];
+                }
+                break;
+            default:
+                output[name] = null;
+        }
+    });
+    return output;
+};
+
 
 watch(() => props.prompt, (newPrompt) => {
     editedPrompt.value = JSON.parse(JSON.stringify(newPrompt));
@@ -49,7 +98,7 @@ watch(() => props.prompt, (newPrompt) => {
         editedPrompt.value.response_variables = [];
     }
     if (!editedPrompt.value.response_json_template || typeof editedPrompt.value.response_json_template !== 'object') {
-        editedPrompt.value.response_json_template = [];
+        editedPrompt.value.response_json_template = {};
     }
     // Apply defaults when prompt changes
     if (editedPrompt.value.generation_config.responseMimeType == null) {
@@ -110,6 +159,9 @@ function save(isNewVersion = false) {
         payload.isNewVersion = true;
         payload.version = (payload.version || 1) + 1;
     }
+    // Transform the schema to the AI-ready JSON format before saving
+    payload.response_json_template = transformedResponseJson.value;
+
     emit('save', payload);
 }
 
@@ -145,18 +197,7 @@ const isNew = computed(() => !props.prompt.id);
 
         <!-- Right Column: Configuration -->
         <div v-if="showRightPanel" class="space-y-6">
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <div class="flex flex-col gap-2">
-                    <div class="flex justify-end space-x-2">
-                        <button type="button" @click="$emit('cancel')" class="px-4 py-2 text-sm font-semibold text-gray-800 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
-                        <button type="button" @click="save(false)" class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">{{ isNew ? 'Create Prompt' : 'Save Changes' }}</button>
-                    </div>
-                    <button type="button" v-if="!isNew" @click="save(true)" class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-800 bg-gray-200 rounded-md hover:bg-gray-300">
-                        <FilePlusIcon class="h-4 w-4" />
-                        Save as New Version (v{{ (editedPrompt.version || 1) + 1 }})
-                    </button>
-                </div>
-            </div>
+
 
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-4">
                 <h3 class="font-bold text-gray-700">Configuration</h3>
@@ -243,9 +284,24 @@ const isNew = computed(() => !props.prompt.id);
                                 </select>
                             </div>
                         </div>
+
+                    </div>
+
+                </div>
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                    <div class="flex flex-col gap-2">
+                        <div class="flex justify-end space-x-2">
+                            <button type="button" @click="$emit('cancel')" class="px-4 py-2 text-sm font-semibold text-gray-800 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
+                            <button type="button" @click="save(false)" class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">{{ isNew ? 'Create Prompt' : 'Save Changes' }}</button>
+                        </div>
+                        <button type="button" v-if="!isNew" @click="save(true)" class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-800 bg-gray-200 rounded-md hover:bg-gray-300">
+                            <FilePlusIcon class="h-4 w-4" />
+                            Save as New Version (v{{ (editedPrompt.version || 1) + 1 }})
+                        </button>
                     </div>
                 </div>
             </details>
         </div>
+
     </div>
 </template>
