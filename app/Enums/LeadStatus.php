@@ -14,4 +14,11 @@ enum LeadStatus: string
     case GenerationFailed = 'generation_failed';
     case SequenceCompleted = 'sequence_completed';
     case Converted = 'converted';
+
+    case Lost   = 'lost';
+
+    case QUALIFIED = 'qualified';
+
+    case OUTREACH_SENT = 'outreach_sent';
+
 }

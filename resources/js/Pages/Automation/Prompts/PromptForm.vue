@@ -22,7 +22,7 @@ if (!Array.isArray(editedPrompt.value.response_variables)) {
     editedPrompt.value.response_variables = [];
 }
 if (!editedPrompt.value.response_json_template || typeof editedPrompt.value.response_json_template !== 'object') {
-    editedPrompt.value.response_json_template = {};
+    editedPrompt.value.response_json_template = [];
 }
 // Apply defaults for generation config fields
 if (editedPrompt.value.generation_config.responseMimeType == null) {
@@ -49,7 +49,7 @@ watch(() => props.prompt, (newPrompt) => {
         editedPrompt.value.response_variables = [];
     }
     if (!editedPrompt.value.response_json_template || typeof editedPrompt.value.response_json_template !== 'object') {
-        editedPrompt.value.response_json_template = {};
+        editedPrompt.value.response_json_template = [];
     }
     // Apply defaults when prompt changes
     if (editedPrompt.value.generation_config.responseMimeType == null) {
@@ -103,6 +103,9 @@ const generationConfigJson = computed({
 
 function save(isNewVersion = false) {
     const payload = { ...editedPrompt.value };
+    // Ensure response fields are always present in the payload
+    if (!Array.isArray(payload.response_variables)) payload.response_variables = [];
+    if (!payload.response_json_template || typeof payload.response_json_template !== 'object') payload.response_json_template = {};
     if (isNewVersion) {
         payload.isNewVersion = true;
         payload.version = (payload.version || 1) + 1;
@@ -133,10 +136,8 @@ const isNew = computed(() => !props.prompt.id);
                 />
                 <div class="mt-6">
                     <ResponseBuilder
-                        :response-variables="editedPrompt.response_variables"
-                        :response-json-template="editedPrompt.response_json_template"
-                        @update:responseVariables="val => editedPrompt.response_variables = val"
-                        @update:responseJsonTemplate="val => editedPrompt.response_json_template = val"
+                        v-model:responseVariables="editedPrompt.response_variables"
+                        v-model:responseJsonTemplate="editedPrompt.response_json_template"
                     />
                 </div>
             </div>
