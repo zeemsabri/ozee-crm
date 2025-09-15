@@ -2,6 +2,8 @@
 import { computed } from 'vue';
 import { useWorkflowStore } from '../Store/workflowStore';
 import { PlusIcon, CheckCircleIcon, XCircleIcon, PencilIcon, TrashIcon } from 'lucide-vue-next';
+import ConfirmModal from './ConfirmModal.vue';
+import WorkflowLogsModal from './WorkflowLogsModal.vue';
 
 const store = useWorkflowStore();
 const workflows = computed(() => store.workflows);
@@ -20,6 +22,10 @@ const handleDeleteWorkflow = async (workflow) => {
             await store.deleteWorkflow(workflow.id);
         }
     );
+};
+
+const handleViewLogs = (workflow) => {
+    store.showLogs(workflow);
 };
 </script>
 
@@ -74,6 +80,9 @@ const handleDeleteWorkflow = async (workflow) => {
                                 <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition"></div>
                             </div>
                         </label>
+                        <button @click="handleViewLogs(workflow)" class="px-2 py-1 text-xs rounded-md border text-gray-600 hover:bg-gray-100" title="View Logs">
+                            Logs
+                        </button>
                         <button @click="$emit('edit', workflow.id)" class="p-2 text-gray-500 hover:text-indigo-600 rounded-md hover:bg-gray-100" title="Edit">
                             <PencilIcon class="h-4 w-4" />
                         </button>
@@ -84,6 +93,10 @@ const handleDeleteWorkflow = async (workflow) => {
                 </div>
             </div>
         </div>
+
+        <!-- Mount the global confirm/alert modal -->
+        <ConfirmModal />
+        <WorkflowLogsModal />
     </div>
 </template>
 

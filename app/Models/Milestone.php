@@ -68,7 +68,7 @@ class Milestone extends Model
         'actual_completion_date' => 'date',
         'mark_completed_at' => 'datetime',
         'approved_at' => 'datetime',
-        'status' => \App\Enums\MilestoneStatus::class,
+        'status' => \App\Casts\MilestoneStatusCast::class,
     ];
 
     protected static function booted()
