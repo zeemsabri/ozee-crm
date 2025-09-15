@@ -44,8 +44,16 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import FieldBuilder from './FieldBuilder.vue';
+
+// v-model support from parent
+const props = defineProps({
+    responseVariables: { type: Array, default: () => [] },
+    // We store the complete schema JSON in response_json_template as an array
+    responseJsonTemplate: { type: Array, default: () => [] },
+});
+const emit = defineEmits(['update:responseVariables', 'update:responseJsonTemplate']);
 
 const localSchema = ref([]);
 const jsonOutput = ref('');
@@ -66,14 +74,14 @@ const transformJsonToForm = (json) => {
 };
 
 const transformFormToJson = (form) => {
-    return form.map(field => {
+    return (form || []).map(field => {
         const newField = {
             name: field.name,
             type: field.type,
             validations: field.validations || {}
         };
         if (field.options) {
-            newField.options = field.options.split(',').map(s => s.trim());
+            newField.options = typeof field.options === 'string' ? field.options.split(',').map(s => s.trim()) : field.options;
         }
         if (field.itemType) {
             newField.itemType = field.itemType;
@@ -84,6 +92,24 @@ const transformFormToJson = (form) => {
         return newField;
     });
 };
+
+// Initialize from incoming props
+onMounted(() => {
+    if (Array.isArray(props.responseVariables) && props.responseVariables.length > 0) {
+        // Use structure directly from parent
+        localSchema.value = JSON.parse(JSON.stringify(props.responseVariables));
+    } else if (Array.isArray(props.responseJsonTemplate) && props.responseJsonTemplate.length > 0) {
+        // Load full schema from response_json_template
+        localSchema.value = transformJsonToForm(props.responseJsonTemplate);
+    } else {
+        localSchema.value = [];
+    }
+    // Initialize output and emit to parent
+    const fullSchema = transformFormToJson(localSchema.value);
+    jsonOutput.value = JSON.stringify(fullSchema, null, 2);
+    emit('update:responseVariables', JSON.parse(JSON.stringify(localSchema.value)));
+    emit('update:responseJsonTemplate', fullSchema);
+});
 
 const importJson = () => {
     try {
@@ -97,13 +123,13 @@ const importJson = () => {
     }
 };
 
-// Watch for changes in the form and update the JSON output
+// Watch for changes in the form and update the JSON output and parent
 watch(localSchema, () => {
-    jsonOutput.value = JSON.stringify(transformFormToJson(localSchema.value), null, 2);
+    const fullSchema = transformFormToJson(localSchema.value);
+    jsonOutput.value = JSON.stringify(fullSchema, null, 2);
+    emit('update:responseVariables', JSON.parse(JSON.stringify(localSchema.value)));
+    emit('update:responseJsonTemplate', fullSchema);
 }, { deep: true });
-
-// Initial population of the JSON output
-jsonOutput.value = JSON.stringify([], null, 2);
 </script>
 
 <style scoped>

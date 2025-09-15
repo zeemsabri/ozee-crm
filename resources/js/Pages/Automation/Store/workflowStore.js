@@ -421,15 +421,27 @@ export const useWorkflowStore = defineStore('workflow', {
         async fetchPrompts() {
             try {
                 const response = await api.fetchPrompts({ per_page: 100 });
-                this.prompts = unwrapApiResponse(response) || [];
+                const resp = unwrapApiResponse(response);
+                // Normalize to array regardless of backend pagination shape
+                if (Array.isArray(resp)) {
+                    this.prompts = resp;
+                } else if (resp && typeof resp === 'object') {
+                    // Laravel paginator returns { data: [...], current_page, ... }
+                    const arr = Array.isArray(resp.data) ? resp.data : [];
+                    this.prompts = arr;
+                } else {
+                    this.prompts = [];
+                }
             } catch (error) {
                 console.error("Failed to fetch prompts:", error);
+                this.prompts = [];
             }
         },
 
         async createPrompt(payload) {
             const response = await api.createPrompt(payload);
             const newPrompt = unwrapApiResponse(response);
+            if (!Array.isArray(this.prompts)) this.prompts = [];
             if (newPrompt) {
                 this.prompts.unshift(newPrompt);
             }
@@ -439,8 +451,13 @@ export const useWorkflowStore = defineStore('workflow', {
         async updatePrompt(id, payload) {
             const response = await api.updatePrompt(id, payload);
             const updated = unwrapApiResponse(response);
+            if (!Array.isArray(this.prompts)) this.prompts = [];
             const idx = this.prompts.findIndex(p => p.id === id);
-            if (idx !== -1 && updated) this.prompts.splice(idx, 1, updated);
+            if (idx !== -1 && updated) {
+                this.prompts.splice(idx, 1, updated);
+            } else if (updated) {
+                this.prompts.unshift(updated);
+            }
             return updated;
         },
 

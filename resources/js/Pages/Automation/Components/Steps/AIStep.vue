@@ -89,6 +89,8 @@ function openCreatePrompt() {
         model_name: 'gemini-2.5-flash-preview-05-20',
         generation_config: { temperature: 0.7, maxOutputTokens: 2048, responseMimeType: 'application/json' },
         template_variables: ['example_variable'],
+        response_variables: [],
+        response_json_template: [],
         status: 'draft'
     };
     showPromptModal.value = true;
