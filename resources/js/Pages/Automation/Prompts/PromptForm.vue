@@ -288,19 +288,21 @@ const isNew = computed(() => !props.prompt.id);
                     </div>
 
                 </div>
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                    <div class="flex flex-col gap-2">
-                        <div class="flex justify-end space-x-2">
-                            <button type="button" @click="$emit('cancel')" class="px-4 py-2 text-sm font-semibold text-gray-800 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
-                            <button type="button" @click="save(false)" class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">{{ isNew ? 'Create Prompt' : 'Save Changes' }}</button>
-                        </div>
-                        <button type="button" v-if="!isNew" @click="save(true)" class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-800 bg-gray-200 rounded-md hover:bg-gray-300">
-                            <FilePlusIcon class="h-4 w-4" />
-                            Save as New Version (v{{ (editedPrompt.version || 1) + 1 }})
-                        </button>
-                    </div>
-                </div>
+
             </details>
+
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 border-t space-y-4">
+                <div class="flex flex-col gap-2">
+                    <div class="flex justify-end space-x-2">
+                        <button type="button" @click="$emit('cancel')" class="px-4 py-2 text-sm font-semibold text-gray-800 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
+                        <button type="button" @click="save(false)" class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">{{ isNew ? 'Create Prompt' : 'Save Changes' }}</button>
+                    </div>
+                    <button type="button" v-if="!isNew" @click="save(true)" class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-800 bg-gray-200 rounded-md hover:bg-gray-300">
+                        <FilePlusIcon class="h-4 w-4" />
+                        Save as New Version (v{{ (editedPrompt.version || 1) + 1 }})
+                    </button>
+                </div>
+            </div>
         </div>
 
     </div>
