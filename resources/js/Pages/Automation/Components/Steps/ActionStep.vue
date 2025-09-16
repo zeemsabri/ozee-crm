@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { useWorkflowStore } from '../../Store/workflowStore';
 import StepCard from './StepCard.vue';
 import DataTokenInserter from './DataTokenInserter.vue';
@@ -56,14 +56,73 @@ function humanize(name) {
     return label;
 }
 
+const selectedModel = computed(() => {
+    if (!actionConfig.value.target_model) return null;
+    return automationSchema.value.find(m => m.name === actionConfig.value.target_model) || null;
+});
+
 const columnsForSelectedModel = computed(() => {
-    if (!actionConfig.value.target_model) return [];
-    const model = automationSchema.value.find(m => m.name === actionConfig.value.target_model);
+    const model = selectedModel.value;
     if (!model) return [];
     return (model.columns || []).map(col => {
-        if (typeof col === 'string') return { name: col, label: humanize(col) };
-        return { name: col.name, label: col.label || humanize(col.name) };
+        if (typeof col === 'string') return { name: col, label: humanize(col), is_required: false };
+        return { name: col.name, label: col.label || humanize(col.name), is_required: !!col.is_required };
     });
+});
+
+const requiredFields = computed(() => (selectedModel.value?.required_on_create || []));
+const defaultsOnCreate = computed(() => selectedModel.value?.defaults_on_create || {});
+
+function isRequiredColumn(name) {
+    return requiredFields.value.includes(name);
+}
+
+function suggestTemplateFor(field) {
+    const defaults = defaultsOnCreate.value || {};
+    const model = actionConfig.value.target_model;
+    const modelKey = model ? model.toLowerCase() : '';
+    const ctxPath = `{{trigger.${modelKey}.${field}}}`;
+    if (defaults[field] !== undefined && defaults[field] !== null) {
+        return ctxPath; // prefer trigger inheritance when default present
+    }
+    if (field.endsWith('_id')) {
+        return ctxPath;
+    }
+    return '';
+}
+
+function ensureRequiredPrefill() {
+    const req = requiredFields.value || [];
+    if (!req.length) return;
+    const currentFields = Array.isArray(actionConfig.value.fields) ? [...actionConfig.value.fields] : [];
+    const presentMap = new Map();
+    currentFields.forEach(f => {
+        const key = f.column || f.field || f.name;
+        if (!key) return;
+        presentMap.set(key, true);
+    });
+    const toAdd = [];
+    for (const field of req) {
+        if (!presentMap.has(field)) {
+            toAdd.push({ column: field, value: suggestTemplateFor(field) });
+        }
+    }
+    if (toAdd.length) {
+        handleConfigChange('fields', [...currentFields, ...toAdd]);
+    }
+}
+
+function onTargetModelChange(val) {
+    handleConfigChange('target_model', val);
+    // Seed minimum required fields
+    ensureRequiredPrefill();
+}
+
+watch(() => actionConfig.value.target_model, (n, o) => {
+    if (n && n !== o) {
+        // When user changes model, recheck required seeds
+        ensureRequiredPrefill();
+    }
 });
 
 function addField() {
@@ -87,6 +146,29 @@ function insertTokenForField(index, token) {
     const currentFields = actionConfig.value.fields || [];
     const currentFieldValue = currentFields[index].value || '';
     updateField(index, 'value', currentFieldValue + token);
+}
+
+const missingRequired = computed(() => {
+    const req = requiredFields.value || [];
+    if (!req.length) return [];
+    const map = new Map();
+    const fields = Array.isArray(actionConfig.value.fields) ? actionConfig.value.fields : [];
+    fields.forEach(f => {
+        const key = f.column || f.field || f.name;
+        const val = (f.value ?? '').toString().trim();
+        if (key && val) map.set(key, true);
+    });
+    return req.filter(r => !map.has(r));
+});
+
+function canRemove(index) {
+    const fields = Array.isArray(actionConfig.value.fields) ? actionConfig.value.fields : [];
+    const col = fields[index]?.column || fields[index]?.field || fields[index]?.name;
+    if (!col) return true;
+    if (!isRequiredColumn(col)) return true;
+    // Count how many times this required column is mapped
+    const count = fields.filter(f => (f.column || f.field || f.name) === col).length;
+    return count > 1; // allow removal only if duplicate exists
 }
 </script>
 
@@ -142,7 +224,7 @@ function insertTokenForField(index, token) {
                         :model-value="actionConfig.target_model || ''"
                         :options="modelOptions"
                         placeholder="Select model..."
-                        @update:modelValue="val => handleConfigChange('target_model', val)"
+                        @update:modelValue="onTargetModelChange"
                         class="w-full"
                     />
                 </div>
@@ -162,14 +244,27 @@ function insertTokenForField(index, token) {
                             <PlusIcon class="h-3 w-3" /> Add
                         </button>
                     </div>
+
+                    <div v-if="requiredFields.length" class="mb-2 text-[11px]">
+                        <span class="text-gray-600">Required for {{ actionConfig.target_model }}:</span>
+                        <span class="ml-1" v-for="(rf, i) in requiredFields" :key="rf">
+                            <span class="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-700">{{ humanize(rf) }}</span>
+                            <span v-if="i < requiredFields.length - 1">, </span>
+                        </span>
+                        <div v-if="missingRequired.length" class="mt-1 text-red-600">Missing: {{ missingRequired.map(humanize).join(', ') }}</div>
+                    </div>
+
                     <div v-if="actionConfig.fields && actionConfig.fields.length > 0" class="space-y-2">
                         <div v-for="(field, index) in actionConfig.fields" :key="index" class="p-2 border rounded-md bg-gray-50/50">
                             <div class="flex items-center justify-between gap-2">
-                                <select :value="field.column" @change="updateField(index, 'column', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" :disabled="!actionConfig.target_model">
-                                    <option value="" disabled>Field...</option>
-                                    <option v-for="col in columnsForSelectedModel" :key="col.name" :value="col.name">{{ col.label }}</option>
-                                </select>
-                                <button @click="removeField(index)" class="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50" title="Remove Field">
+                                <div class="flex-1 flex items-center gap-2">
+                                    <select :value="field.column" @change="updateField(index, 'column', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" :disabled="!actionConfig.target_model">
+                                        <option value="" disabled>Field...</option>
+                                        <option v-for="col in columnsForSelectedModel" :key="col.name" :value="col.name">{{ col.label }}</option>
+                                    </select>
+                                    <span v-if="isRequiredColumn(field.column)" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-700">Required</span>
+                                </div>
+                                <button @click="canRemove(index) && removeField(index)" :class="[canRemove(index) ? 'text-gray-400 hover:text-red-500 hover:bg-red-50' : 'text-gray-300 cursor-not-allowed']" class="p-1 rounded-full" :title="canRemove(index) ? 'Remove Field' : 'Cannot remove required field'">
                                     <TrashIcon class="w-4 h-4" />
                                 </button>
                             </div>

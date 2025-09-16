@@ -19,7 +19,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 use App\Enums\TaskStatus;
 
-class Task extends Model
+class Task extends Model implements \App\Contracts\CreatableViaWorkflow
 {
     use HasFactory, Taggable, SoftDeletes, LogsActivity, HasUserTimezone;
 
@@ -880,5 +880,27 @@ class Task extends Model
     public function schedules()
     {
         return $this->morphMany(\App\Models\Schedule::class, 'scheduledItem');
+    }
+
+    // --- CreatableViaWorkflow contract implementation ---
+    public static function requiredOnCreate(): array
+    {
+        return ['name', 'task_type_id', 'status', 'priority'];
+    }
+
+    public static function defaultsOnCreate(array $context): array
+    {
+        $defaults = [];
+        $triggerTask = $context['trigger']['task'] ?? $context['task'] ?? null;
+        if (is_array($triggerTask)) {
+            $defaults['task_type_id'] = $triggerTask['task_type_id'] ?? null;
+            $defaults['milestone_id'] = $triggerTask['milestone_id'] ?? null;
+            $defaults['assigned_to_user_id'] = $triggerTask['assigned_to_user_id'] ?? null;
+            $defaults['priority'] = $triggerTask['priority'] ?? null;
+        }
+        // Fallback from config
+        $defaults['task_type_id'] = $defaults['task_type_id'] ?? config('automation.defaults.task.task_type_id');
+        // Remove null/empty values
+        return array_filter($defaults, fn($v) => $v !== null && $v !== '');
     }
 }

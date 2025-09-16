@@ -31,14 +31,21 @@ class AutomationSchemaController extends Controller
         $allModelEvents = $this->getModelEvents();
 
         // Helper to build one model schema array
-        $buildModel = function (string $modelClass) use ($allModelEvents) {
+        $buildModel = function (string $modelClass) use ($allModelEvents, $request) {
             if (!class_exists($modelClass)) return null;
             try {
                 $instance = new $modelClass();
                 $modelName = class_basename($instance);
                 $columns = Schema::getColumnListing($instance->getTable());
                 $relationships = $this->discoverRelationships($instance);
-                $columnsMeta = array_map(function ($col) use ($instance, $modelName) {
+                $required = [];
+                $defaults = [];
+                if (is_subclass_of($modelClass, \App\Contracts\CreatableViaWorkflow::class)) {
+                    $ctx = $request->input('context', []);
+                    try { $required = $modelClass::requiredOnCreate(); } catch (\Throwable $e) {}
+                    try { $defaults = $modelClass::defaultsOnCreate($ctx); } catch (\Throwable $e) {}
+                }
+                $columnsMeta = array_map(function ($col) use ($instance, $modelName, $required) {
                     $type = $this->guessColumnType($instance, $col);
                     $allowed = $this->getAllowedValues($modelName, $col);
                     return [
@@ -46,6 +53,7 @@ class AutomationSchemaController extends Controller
                         'label' => $this->prettifyLabel($col),
                         'type' => $type,
                         'allowed_values' => $allowed,
+                        'is_required' => in_array($col, $required, true),
                     ];
                 }, $columns);
                 return [
@@ -54,6 +62,8 @@ class AutomationSchemaController extends Controller
                     'columns' => $columnsMeta,
                     'relationships' => $relationships,
                     'events' => $allModelEvents[$modelName] ?? [],
+                    'required_on_create' => array_values(array_unique($required)),
+                    'defaults_on_create' => $defaults,
                 ];
             } catch (\Throwable $e) {
                 return null;
