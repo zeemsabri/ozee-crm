@@ -20,7 +20,7 @@ return new class extends Migration
             $table->json('parsed_output')->nullable();
             $table->text('error_message')->nullable();
             $table->integer('duration_ms')->nullable();
-            $table->integer('token_usage')->nullable();
+            $table->json('token_usage')->nullable();
             $table->decimal('cost', 10, 6)->nullable();
             $table->timestamp('executed_at')->useCurrent();
 

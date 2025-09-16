@@ -4,6 +4,7 @@ import { useWorkflowStore } from '../../Store/workflowStore';
 import StepCard from './StepCard.vue';
 import DataTokenInserter from './DataTokenInserter.vue';
 import { PlusIcon, TrashIcon } from 'lucide-vue-next';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 
 const props = defineProps({
     step: { type: Object, required: true },
@@ -41,6 +42,8 @@ function insertToken(fieldName, token) {
 }
 
 const availableModels = computed(() => automationSchema.value.map(m => m.name));
+
+const modelOptions = computed(() => (automationSchema.value || []).map(m => ({ label: m.name, value: m.name })));
 
 function humanize(name) {
     if (!name || typeof name !== 'string') return '';
@@ -135,10 +138,13 @@ function insertTokenForField(index, token) {
                     <label class="block text-xs font-medium text-gray-600 mb-1">
                         {{ actionConfig.action_type === 'CREATE_RECORD' ? 'Model to Create' : 'Model to Update' }}
                     </label>
-                    <select :value="actionConfig.target_model || ''" @change="handleConfigChange('target_model', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm">
-                        <option value="" disabled>Select model...</option>
-                        <option v-for="model in availableModels" :key="model" :value="model">{{ model }}</option>
-                    </select>
+                    <SelectDropdown
+                        :model-value="actionConfig.target_model || ''"
+                        :options="modelOptions"
+                        placeholder="Select model..."
+                        @update:modelValue="val => handleConfigChange('target_model', val)"
+                        class="w-full"
+                    />
                 </div>
 
                 <div v-if="actionConfig.action_type === 'UPDATE_RECORD'">

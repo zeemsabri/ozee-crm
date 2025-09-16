@@ -29,7 +29,8 @@ class UpdateRecordStepHandler implements StepHandlerContract
         }
         $data = [];
         foreach ($fields as $f) {
-            $key = $f['field'] ?? null;
+            // Support multiple front-end schemas: `column`, `field`, or `name`
+            $key = $f['column'] ?? ($f['field'] ?? ($f['name'] ?? null));
             $val = $f['value'] ?? null;
             if (!$key) continue;
             $resolved = $this->applyTemplate($val, $context);

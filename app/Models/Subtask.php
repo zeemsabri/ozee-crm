@@ -45,7 +45,7 @@ class Subtask extends Model
     protected $casts = [
         'due_date' => 'date',
         'actual_completion_date' => 'date',
-        'status' => \App\Enums\SubtaskStatus::class,
+        'status' => \App\Casts\MilestoneStatusCast::class . ':' . \App\Enums\SubtaskStatus::class,
     ];
 
     /**
