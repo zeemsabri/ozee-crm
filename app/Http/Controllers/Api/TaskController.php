@@ -478,7 +478,7 @@ class TaskController extends Controller
 
         // Update task status and reason
         $task->previous_status = $previousStatus;
-        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::Blocked);
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::Blocked->value);
         $task->status = TaskStatus::Blocked;
         $task->block_reason = $validated['reason'];
         $task->save();
@@ -509,7 +509,7 @@ class TaskController extends Controller
         // Restore previous status or default to To Do
         $nextStatus = $task->previous_status ?: TaskStatus::ToDo->value;
         $coerced = TaskStatus::tryFrom($nextStatus) ?? TaskStatus::tryFrom(ucwords(strtolower((string)$nextStatus)));
-        $finalStatus = $coerced ? $coerced : TaskStatus::ToDo;
+        $finalStatus = $coerced ? $coerced : TaskStatus::ToDo->value;
         app(\App\Services\ValueSetValidator::class)->validate('Task','status', $finalStatus);
         $task->status = $finalStatus;
         $task->block_reason = null;
@@ -540,7 +540,7 @@ class TaskController extends Controller
         }
 
         // Update task status
-        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::Paused);
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::Paused->value);
         $task->status = TaskStatus::Paused;
         $task->save();
 
@@ -568,7 +568,7 @@ class TaskController extends Controller
         }
 
         // Update task status
-        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::InProgress);
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::InProgress->value);
         $task->status = TaskStatus::InProgress;
         $task->save();
 
@@ -587,7 +587,7 @@ class TaskController extends Controller
     public function archive(Task $task)
     {
         // Soft-validate target status via the value dictionary (non-enforcing)
-        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::Archived);
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::Archived->value);
 
         $task->archive();
 
@@ -620,7 +620,7 @@ class TaskController extends Controller
         }
 
         // Change status back to To Do
-        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::ToDo);
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::ToDo->value);
         $task->status = TaskStatus::ToDo;
         $task->save();
 
@@ -730,7 +730,7 @@ class TaskController extends Controller
             ];
 
             // Soft-validate task status using the value dictionary (non-enforcing)
-            app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::ToDo);
+            app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::ToDo->value);
 
             $task = Task::create($taskData);
             $task->load(['assignedTo', 'taskType', 'milestone']);

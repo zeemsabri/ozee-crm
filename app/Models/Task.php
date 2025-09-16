@@ -87,8 +87,8 @@ class Task extends Model
             $newStatus = $changes['status'];
 
             // Normalize possible enum instances to string values
-            $old = is_object($oldStatus) && method_exists($oldStatus, 'value') ? $oldStatus->value : $oldStatus;
-            $new = is_object($newStatus) && method_exists($newStatus, 'value') ? $newStatus->value : $newStatus;
+            $old = is_object($oldStatus) && ISSET($oldStatus->value) ? $oldStatus->value : $oldStatus;
+            $new = is_object($newStatus) && ISSET($newStatus->value) ? $newStatus->value : $newStatus;
 
             if ($old === TaskStatus::ToDo->value && $new === TaskStatus::InProgress->value) {
                 return 'Task was started';
@@ -175,7 +175,7 @@ class Task extends Model
         'actual_completion_date' => 'date',
         'details' => 'array',
         'needs_approval' => 'boolean',
-        'status' => \App\Enums\TaskStatus::class,
+        'status' => \App\Casts\MilestoneStatusCast::class . ':' . \App\Enums\TaskStatus::class,
     ];
 
     /**

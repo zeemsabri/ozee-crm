@@ -49,13 +49,13 @@ class ValueSetValidator
             $vals = Arr::wrap($value);
             foreach ($vals as $v) {
                 // Treat enums as strings
-                $vv = is_object($v) && method_exists($v, 'value') ? (string)$v->value : (string)$v;
+                $vv = is_object($v) && ISSET($v->value) ? (string)$v->value : (string)$v;
                 if (!in_array($vv, $allowed, true)) {
                     $invalid[] = $vv;
                 }
             }
         } else {
-            $vv = is_object($value) && method_exists($value, 'value') ? (string)$value->value : (string)$value;
+            $vv = is_object($value) && ISSET($value->value) ? (string)$value->value : (string)$value;
             if (!in_array($vv, $allowed, true)) {
                 $invalid[] = $vv;
             }

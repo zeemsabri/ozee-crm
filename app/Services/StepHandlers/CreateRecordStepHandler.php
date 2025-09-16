@@ -4,11 +4,14 @@ namespace App\Services\StepHandlers;
 
 use App\Models\WorkflowStep;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 class CreateRecordStepHandler implements StepHandlerContract
 {
     public function handle(array $context, WorkflowStep $step): array
     {
+        Log::info('context: ');
+        Log::info(json_encode($context));
         $cfg = $step->step_config ?? [];
         $modelName = $cfg['target_model'] ?? null; // e.g., Lead
         $fields = $cfg['fields'] ?? [];
@@ -23,7 +26,8 @@ class CreateRecordStepHandler implements StepHandlerContract
         $instance = new $class();
         $data = [];
         foreach ($fields as $f) {
-            $key = $f['field'] ?? null;
+            // Support multiple front-end schemas: `column`, `field`, or `name`
+            $key = $f['column'] ?? ($f['field'] ?? ($f['name'] ?? null));
             $val = $f['value'] ?? null;
             if (!$key) continue;
             $resolved = $this->applyTemplate($val, $context);
@@ -37,7 +41,18 @@ class CreateRecordStepHandler implements StepHandlerContract
             $data[$key] = $resolved;
         }
 
+        // Guard: prevent blank inserts when no fields provided or nothing fillable
+        if (empty($data)) {
+            throw new \InvalidArgumentException("No fields provided for CREATE_RECORD on model {$modelName}.");
+        }
+
         $instance->fill($data);
+        // After fill, ensure we actually have attributes to save
+        $dirty = method_exists($instance, 'getDirty') ? $instance->getDirty() : $data;
+        if (empty($dirty)) {
+            throw new \InvalidArgumentException("No valid/fillable fields set for CREATE_RECORD on model {$modelName}. Check field mappings.");
+        }
+
         // Avoid feedback loop: save without firing Eloquent model events
         Model::withoutEvents(function () use ($instance) {
             $instance->save();

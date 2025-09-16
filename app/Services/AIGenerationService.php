@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Prompt;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class AIGenerationService
@@ -28,31 +29,79 @@ class AIGenerationService
     }
 
     /**
-     * Stub Gemini call - logs request and returns a simple structured output
+     * Call Gemini API to generate content based on the provided prompt and variables.
      */
     public function generate(Prompt $prompt, array $variables): array
     {
-        $system = $this->renderTemplate($prompt->system_prompt_text, $variables);
+        $apiKey = config('services.gemini.key');
+        if (!$apiKey) {
+            throw new \RuntimeException('Gemini API key is not configured.');
+        }
 
-        // In a real implementation, call Gemini here. For now, log and return stubbed output.
-        Log::info('AIGenerationService.generate', [
+        $model = $prompt->model_name ?: config('services.gemini.model', 'gemini-2.5-flash-preview-05-20');
+        $system = $this->renderTemplate($prompt->system_prompt_text ?? '', $variables);
+
+        $system = $system . ' ' . json_encode($prompt->response_json_template);
+
+        // Build payload
+        $generationConfig = is_array($prompt->generation_config) ? $prompt->generation_config : [];
+        if (!isset($generationConfig['responseMimeType'])) {
+            // Favor JSON so downstream parsing works in workflows
+            $generationConfig['responseMimeType'] = 'application/json';
+        }
+
+        $payload = [
+            'contents' => [
+                [
+                    'parts' => [[
+                        // Provide the variables as JSON for the model to consume deterministically
+                        'text' => json_encode($variables),
+                    ]],
+                ],
+            ],
+            'systemInstruction' => [
+                'parts' => [['text' => $system]],
+            ],
+            'generationConfig' => $generationConfig,
+        ];
+
+        $url = sprintf('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s', $model, $apiKey);
+
+        $response = Http::post($url, $payload);
+
+        if ($response->failed()) {
+            throw new \RuntimeException('Failed to communicate with Gemini API. Status: ' . $response->status() . ' Body: ' . $response->body());
+        }
+
+        $text = $response->json('candidates.0.content.parts.0.text', '');
+        $parsed = null;
+        if (is_string($text) && $text !== '') {
+            $decoded = json_decode($text, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $parsed = $decoded;
+            }
+        }
+
+        $usage = $response->json('usageMetadata');
+        if (!is_array($usage)) {
+            $usage = [
+                'promptTokenCount' => null,
+                'candidatesTokenCount' => null,
+                'totalTokenCount' => null,
+            ];
+        }
+
+        Log::info('AIGenerationService.generate.called', [
             'prompt_id' => $prompt->id,
-            'model' => $prompt->model_name,
-            'system' => mb_strimwidth($system, 0, 500, '...'),
-            'generation_config' => $prompt->generation_config,
+            'model' => $model,
+            'usage' => $usage,
         ]);
 
-        $text = '[AI OUTPUT] ' . substr(md5($system . json_encode($variables)), 0, 12);
         return [
-            'raw' => [
-                'model' => $prompt->model_name,
-                'text' => $text,
-            ],
-            'parsed' => [
-                'text' => $text,
-            ],
-            'token_usage' => 100,
-            'cost' => 0.0005,
+            'raw' => $text,
+            'parsed' => $parsed,
+            'token_usage' => $usage,
+            'cost' => null, // Leave null to avoid misleading cost calculations
         ];
     }
 }
