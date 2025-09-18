@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\EmailStatus;
 use App\Models\Client;
 use App\Models\Conversation;
 use App\Models\Email;
@@ -190,7 +191,7 @@ class EmailReceiveController extends Controller
             'subject' => $emailDetails['subject'],
             'body' => $emailDetails['body']['html'] ?: $emailDetails['body']['plain'],
             'type'  =>  'received',
-            'status' => 'pending_approval_received',
+            'status' => EmailStatus::PendingApprovalReceived,
             'message_id' => $emailDetails['id'],
             'sent_at' => Carbon::parse($emailDetails['date']),
         ]);
@@ -199,12 +200,12 @@ class EmailReceiveController extends Controller
 
         // ** TRIGGER AI ANALYSIS **
 //        $content = $this->emailAiAnalysisService->analyzeAndSummarize($email);
-        $context = [
-            'email' => $email,
-            'client' => $client,
-            'project' => $project ?? null
-        ];
-        $this->workflowEngineService->trigger('email.received', $context);
+//        $context = [
+//            'email' => $email,
+//            'client' => $client,
+//            'project' => $project ?? null
+//        ];
+//        $this->workflowEngineService->trigger('email.received', $context);
 
 //        if($content) {
 //            $this->emailProcessingService->createContextForEmail($email, $content);

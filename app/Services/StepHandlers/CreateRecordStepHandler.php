@@ -10,8 +10,7 @@ class CreateRecordStepHandler implements StepHandlerContract
 {
     public function handle(array $context, WorkflowStep $step): array
     {
-        Log::info('context: ');
-        Log::info(json_encode($context));
+
         $cfg = $step->step_config ?? [];
         $modelName = $cfg['target_model'] ?? null; // e.g., Lead
         $fields = $cfg['fields'] ?? [];
@@ -55,7 +54,7 @@ class CreateRecordStepHandler implements StepHandlerContract
                 }
             } catch (\Throwable $e) {
                 // Swallow defaults errors except when validator/enforcement throws (already thrown)
-                // Optionally: Log::warning('defaultsOnCreate failed: ' . $e->getMessage());
+                Optionally: Log::warning('defaultsOnCreate failed: ' . $e->getMessage());
             }
         }
 
@@ -107,9 +106,7 @@ class CreateRecordStepHandler implements StepHandlerContract
             $parts = preg_split('/\.|\:/', $path);
             $val = $ctx;
             foreach ($parts as $p) {
-                if (is_array($val) && array_key_exists($p, $val)) {
-                    $val = $val[$p];
-                } else {
+                if (is_array($val) && array_key_exists($p, $val)) {} else {
                     return '';
                 }
             }
