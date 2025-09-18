@@ -35,6 +35,12 @@ return [
                 'source' => 'php_enum',
                 'enum' => \App\Enums\TaskStatus::class,
             ],
+            'task_type_id' => [
+                'source' => 'model',
+                'class' => \App\Models\TaskType::class,
+                'value_column' => 'id',
+                'label_column' => 'name',
+            ],
         ],
         'Milestone' => [
             'status' => [

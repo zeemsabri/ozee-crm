@@ -1,10 +1,11 @@
 <script setup>
-import { computed, watch } from 'vue';
+import { computed, watch, ref, onMounted } from 'vue';
 import { useWorkflowStore } from '../../Store/workflowStore';
 import StepCard from './StepCard.vue';
 import DataTokenInserter from './DataTokenInserter.vue';
 import { PlusIcon, TrashIcon } from 'lucide-vue-next';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import axios from 'axios';
 
 const props = defineProps({
     step: { type: Object, required: true },
@@ -15,6 +16,38 @@ const props = defineProps({
 const emit = defineEmits(['update:step', 'delete']);
 const store = useWorkflowStore();
 const automationSchema = computed(() => store.automationSchema || []);
+
+// Cache for per-field value dictionaries fetched from the backend
+const dictCache = ref({}); // key: `${model}:${field}` -> [{value,label}]
+
+function dictKey(model, field) {
+    return `${model || ''}:${field || ''}`;
+}
+
+async function fetchDictionary(model, field) {
+    if (!model || !field) return null;
+    const key = dictKey(model, field);
+    if (Array.isArray(dictCache.value[key]) && dictCache.value[key].length) {
+        return dictCache.value[key];
+    }
+    try {
+        const { data } = await axios.get(`/api/value-dictionaries/${encodeURIComponent(model)}/${encodeURIComponent(field)}`);
+        let options = null;
+        if (Array.isArray(data)) {
+            options = data;
+        } else if (data && Array.isArray(data.values)) {
+            options = data.values;
+        }
+        if (Array.isArray(options) && options.length) {
+            dictCache.value[key] = options;
+            return options;
+        }
+    } catch (e) {
+        // API is permission-protected; ignore failures and fall back to schema
+        // console.debug('No dictionary for', model, field, e?.response?.status);
+    }
+    return null;
+}
 
 const actionTypes = [
     { value: 'SEND_EMAIL', label: 'Send Email' },
@@ -57,16 +90,25 @@ function humanize(name) {
 }
 
 const selectedModel = computed(() => {
-    if (!actionConfig.value.target_model) return null;
-    return automationSchema.value.find(m => m.name === actionConfig.value.target_model) || null;
+    const tm = actionConfig.value.target_model;
+    if (!tm) return null;
+    // Try exact name match
+    let found = (automationSchema.value || []).find(m => m.name === tm);
+    if (found) return found;
+    // Try full_class match
+    found = (automationSchema.value || []).find(m => m.full_class === tm);
+    if (found) return found;
+    // Try basename of provided value
+    const base = typeof tm === 'string' ? tm.split('\\').pop().split('/').pop() : tm;
+    return (automationSchema.value || []).find(m => m.name === base) || null;
 });
 
 const columnsForSelectedModel = computed(() => {
     const model = selectedModel.value;
     if (!model) return [];
     return (model.columns || []).map(col => {
-        if (typeof col === 'string') return { name: col, label: humanize(col), is_required: false };
-        return { name: col.name, label: col.label || humanize(col.name), is_required: !!col.is_required };
+        if (typeof col === 'string') return { name: col, label: humanize(col), is_required: false, allowed_values: null };
+        return { name: col.name, label: col.label || humanize(col.name), is_required: !!col.is_required, allowed_values: col.allowed_values ?? null };
     });
 });
 
@@ -82,8 +124,23 @@ function suggestTemplateFor(field) {
     const model = actionConfig.value.target_model;
     const modelKey = model ? model.toLowerCase() : '';
     const ctxPath = `{{trigger.${modelKey}.${field}}}`;
+
+    // Helper: does this field have allowed values (enum/model/options) from schema?
+    const hasAllowedValues = (() => {
+        const cols = columnsForSelectedModel.value || [];
+        const col = cols.find(c => c.name === field);
+        return !!(col && Array.isArray(col.allowed_values) && col.allowed_values.length > 0);
+    })();
+
+    // For CREATE_RECORD, avoid auto-prefilling any field that has allowed_values so the UI shows a dropdown
+    // (e.g., status, task_type_id, type, etc.).
+    if (actionConfig.value.action_type === 'CREATE_RECORD' && hasAllowedValues) {
+        return '';
+    }
+
+    // Otherwise, prefer inheriting from trigger when a sensible default exists.
     if (defaults[field] !== undefined && defaults[field] !== null) {
-        return ctxPath; // prefer trigger inheritance when default present
+        return ctxPath;
     }
     if (field.endsWith('_id')) {
         return ctxPath;
@@ -110,6 +167,13 @@ function ensureRequiredPrefill() {
     if (toAdd.length) {
         handleConfigChange('fields', [...currentFields, ...toAdd]);
     }
+    // Prefetch dictionaries for required fields, so dropdowns render immediately when applicable
+    const model = actionConfig.value.target_model;
+    if (model) {
+        for (const field of req) {
+            fetchDictionary(model, field);
+        }
+    }
 }
 
 function onTargetModelChange(val) {
@@ -118,10 +182,37 @@ function onTargetModelChange(val) {
     ensureRequiredPrefill();
 }
 
-watch(() => actionConfig.value.target_model, (n, o) => {
+watch(() => actionConfig.value.target_model, async (n, o) => {
     if (n && n !== o) {
         // When user changes model, recheck required seeds
         ensureRequiredPrefill();
+        // Prefetch dictionaries for already-selected fields under the new model
+        const fields = Array.isArray(actionConfig.value.fields) ? actionConfig.value.fields : [];
+        for (const f of fields) {
+            const name = f?.column || f?.field || f?.name;
+            if (name) await fetchDictionary(n, name);
+        }
+    }
+});
+
+// Prefetch dictionaries when fields change (including on initial hydration when editing)
+watch(() => actionConfig.value.fields, async (newFields) => {
+    const model = actionConfig.value.target_model;
+    if (!model || !Array.isArray(newFields)) return;
+    for (const f of newFields) {
+        const name = f?.column || f?.field || f?.name;
+        if (name) await fetchDictionary(model, name);
+    }
+}, { deep: true, immediate: true });
+
+onMounted(async () => {
+    const model = actionConfig.value.target_model;
+    const fields = Array.isArray(actionConfig.value.fields) ? actionConfig.value.fields : [];
+    if (model) {
+        for (const f of fields) {
+            const name = f?.column || f?.field || f?.name;
+            if (name) await fetchDictionary(model, name);
+        }
     }
 });
 
@@ -146,6 +237,30 @@ function insertTokenForField(index, token) {
     const currentFields = actionConfig.value.fields || [];
     const currentFieldValue = currentFields[index].value || '';
     updateField(index, 'value', currentFieldValue + token);
+}
+
+function getAllowedOptions(fieldRow) {
+    const model = actionConfig.value.target_model;
+    if (!model || !fieldRow) return null;
+    const fieldName = fieldRow.column || fieldRow.field || fieldRow.name;
+    if (!fieldName) return null;
+    // 1) Prefer schema-provided allowed_values when available
+    const fromSchema = (columnsForSelectedModel.value || []).find(c => c.name === fieldName)?.allowed_values;
+    if (Array.isArray(fromSchema) && fromSchema.length) return fromSchema;
+    // 2) Fall back to fetched dictionary
+    const key = dictKey(model, fieldName);
+    const fromCache = dictCache.value[key];
+    if (Array.isArray(fromCache) && fromCache.length) return fromCache;
+    return null;
+}
+
+function shouldShowSelect(fieldRow) {
+    const options = getAllowedOptions(fieldRow);
+    if (!options || !options.length) return false;
+    const val = (fieldRow.value || '').toString();
+    // If value is a token expression, keep text input to allow expressions
+    if (val.includes('{{')) return false;
+    return true;
 }
 
 const missingRequired = computed(() => {
@@ -269,7 +384,23 @@ function canRemove(index) {
                                 </button>
                             </div>
                             <div class="flex items-center gap-2 mt-2">
-                                <input :value="field.value" @input="updateField(index, 'value', $event.target.value)" type="text" class="w-full border rounded px-2 py-2 text-sm" placeholder="Value..." />
+                                <!-- If the selected column has allowed_values (enum), render a select dropdown; otherwise, use text input. -->
+                                <template v-if="actionConfig.target_model">
+                                    <template v-if="shouldShowSelect(field)">
+                                        <select :value="field.value || ''" @change="updateField(index, 'value', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm">
+                                            <option value="" disabled>Select value...</option>
+                                            <option v-for="opt in (getAllowedOptions(field) || [])" :key="opt.value" :value="opt.value">
+                                                {{ opt.label ?? opt.value }}
+                                            </option>
+                                        </select>
+                                    </template>
+                                    <template v-else>
+                                        <input :value="field.value" @input="updateField(index, 'value', $event.target.value)" type="text" class="w-full border rounded px-2 py-2 text-sm" placeholder="Value..." />
+                                    </template>
+                                </template>
+                                <template v-else>
+                                    <input :value="field.value" @input="updateField(index, 'value', $event.target.value)" type="text" class="w-full border rounded px-2 py-2 text-sm" placeholder="Value..." />
+                                </template>
                                 <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertTokenForField(index, $event)" />
                             </div>
                         </div>

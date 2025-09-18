@@ -6,7 +6,7 @@ return [
     'company' => [
         'name' => 'OZee Web & Digital',
         'phone' => '+61 456 639 389',
-        'website' => 'ozeeweb.com.au',
+        'website' => 'OZeeWeb.com.au',
         'address' => 'Thornlie, WA, 6108 Australia',
         'logo_url' => 'logo.png', // Use asset() helper for public assets
     ],

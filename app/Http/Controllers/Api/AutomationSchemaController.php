@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema; // Ensure this is imported
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\DB;
 
 class AutomationSchemaController extends Controller
 {
@@ -25,7 +26,7 @@ class AutomationSchemaController extends Controller
             \App\Models\Email::class,
             Campaign::class,
             Lead::class,
-            User::class
+//            User::class
         ];
 
         $allModelEvents = $this->getModelEvents();
@@ -40,6 +41,7 @@ class AutomationSchemaController extends Controller
                 $relationships = $this->discoverRelationships($instance);
                 $required = [];
                 $defaults = [];
+
                 if (is_subclass_of($modelClass, \App\Contracts\CreatableViaWorkflow::class)) {
                     $ctx = $request->input('context', []);
                     try { $required = $modelClass::requiredOnCreate(); } catch (\Throwable $e) {}
@@ -174,9 +176,11 @@ class AutomationSchemaController extends Controller
         if (!$def || !is_array($def)) return null;
 
         $source = $def['source'] ?? null;
+
+        // 1) PHP backed enum
         if ($source === 'php_enum' && isset($def['enum']) && is_string($def['enum']) && class_exists($def['enum'])) {
             $enumClass = $def['enum'];
-            if (function_exists('enum_exists') ? enum_exists($enumClass) : \PHP_VERSION_ID >= 80100) {
+            if ((function_exists('enum_exists') && enum_exists($enumClass)) || \PHP_VERSION_ID >= 80100) {
                 $options = [];
                 foreach ($enumClass::cases() as $case) {
                     $value = property_exists($case, 'value') ? $case->value : $case->name;
@@ -186,7 +190,50 @@ class AutomationSchemaController extends Controller
                 return $options;
             }
         }
-        // Future: support other sources (config/db/model_const) as needed
+
+        // 2) Eloquent model source (e.g., TaskType)
+        if ($source === 'model' && isset($def['class']) && class_exists($def['class'])) {
+            $class = $def['class'];
+            $valueCol = $def['value_column'] ?? 'id';
+            $labelCol = $def['label_column'] ?? 'name';
+            $activeCol = $def['active_column'] ?? null;
+            try {
+                $query = $class::query()->select([$valueCol, $labelCol]);
+                if ($activeCol) {
+                    $query->where($activeCol, true);
+                }
+                $rows = $query->orderBy($labelCol)->get();
+                return $rows->map(fn($r) => [
+                    'value' => (string) $r->{$valueCol},
+                    'label' => (string) $r->{$labelCol},
+                ])->all();
+            } catch (\Throwable $e) {
+                return null;
+            }
+        }
+
+        // 3) DB table source
+        if ($source === 'db' && isset($def['table'])) {
+            $table = $def['table'];
+            $valueCol = $def['value_column'] ?? 'id';
+            $labelCol = $def['label_column'] ?? 'name';
+            $activeCol = $def['active_column'] ?? null;
+            try {
+                $query = DB::table($table)->select([$valueCol, $labelCol]);
+                if ($activeCol) {
+                    $query->where($activeCol, true);
+                }
+                $rows = $query->orderBy($labelCol)->get();
+                return $rows->map(fn($r) => [
+                    'value' => (string) $r->{$valueCol},
+                    'label' => (string) $r->{$labelCol},
+                ])->all();
+            } catch (\Throwable $e) {
+                return null;
+            }
+        }
+
+        // Future: support other sources (config/model_const)
         return null;
     }
 

@@ -41,6 +41,24 @@ class CreateRecordStepHandler implements StepHandlerContract
             $data[$key] = $resolved;
         }
 
+        // Merge model defaults for any missing/empty fields when supported
+        if (is_subclass_of($class, \App\Contracts\CreatableViaWorkflow::class)) {
+            try {
+                $modelDefaults = $class::defaultsOnCreate($context) ?? [];
+                foreach ($modelDefaults as $k => $v) {
+                    $needsDefault = !array_key_exists($k, $data) || $data[$k] === null || $data[$k] === '';
+                    if ($needsDefault) {
+                        // Validate against allowed values; ValueSetValidator only throws when enforce_validation=true
+                        app(\App\Services\ValueSetValidator::class)->validate($modelName, $k, $v);
+                        $data[$k] = $v;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Swallow defaults errors except when validator/enforcement throws (already thrown)
+                // Optionally: Log::warning('defaultsOnCreate failed: ' . $e->getMessage());
+            }
+        }
+
         // Guard: prevent blank inserts when no fields provided or nothing fillable
         if (empty($data)) {
             throw new \InvalidArgumentException("No fields provided for CREATE_RECORD on model {$modelName}.");

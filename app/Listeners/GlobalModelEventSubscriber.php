@@ -17,6 +17,9 @@ class GlobalModelEventSubscriber
         }
 
         $verbs = config('automation.global_model_events.verbs', ['created', 'updated']);
+        Log::info('GlobalModelEventSubscriber.triggered', [
+            'json'  =>  json_encode($events)
+        ]);
         $verbs = array_map('strtolower', $verbs);
 
         if (in_array('created', $verbs, true)) {
