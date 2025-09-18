@@ -44,9 +44,10 @@ class UpdateRecordStepHandler implements StepHandlerContract
             $data[$key] = $resolved;
         }
         $model->fill($data);
-        // Avoid feedback loop: flag this instance so global subscriber ignores this event
-        $model->__automation_suppressed = true;
-        $model->save();
+        // Avoid feedback loop: persist changes without firing Eloquent model events
+        Model::withoutEvents(function () use ($model) {
+            $model->save();
+        });
 
         return [
             'parsed' => [

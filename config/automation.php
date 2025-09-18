@@ -10,7 +10,7 @@ return [
 
     // When true, triggers execute immediately in-process without relying on a queue worker.
     // Set AUTMATION_RUN_SYNC=false (or this value false) to use queued jobs instead.
-    'run_synchronously' => env('AUTOMATION_RUN_SYNC', true),
+    'run_synchronously' => env('AUTOMATION_RUN_SYNC', false),
 
     'models' => [
         // If empty, all models are allowed (except those in deny).

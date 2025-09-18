@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Events\TaskCompletedEvent;
+use App\Listeners\GlobalModelEventSubscriber;
 use App\Models\Traits\HasUserTimezone;
 use App\Models\Traits\Taggable;
 use App\Notifications\TaskAssigned;
@@ -316,6 +317,13 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
             // or assign a default (e.g., an 'admin' user or null if nullable).
             // For now, if no creator, it remains unset, allowing database to handle nullability.
         });
+
+//        static::updated(function (Task $task) {
+//            Log::info('Task updated', [
+//                'task_id'   =>  $task->id
+//            ]);
+//           GlobalModelEventSubscriber::dispatch(model: $task, from: 'task model');
+//        });
 
     }
 

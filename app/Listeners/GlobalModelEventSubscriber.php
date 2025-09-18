@@ -16,7 +16,7 @@ class GlobalModelEventSubscriber
             return;
         }
 
-        $verbs = config('automation.global_model_events.verbs', ['created', 'updated']);
+        $verbs = self::getVerbs();
         Log::info('GlobalModelEventSubscriber.triggered', [
             'json'  =>  json_encode($events)
         ]);
@@ -44,9 +44,21 @@ class GlobalModelEventSubscriber
         }
     }
 
-    protected function handleModelEvent($model, string $verb): void
+    public static function getVerbs()
+    {
+        return $verbs = config('automation.global_model_events.verbs', ['created', 'updated']);
+    }
+
+    public static function dispatch($model, string $verb = 'updated', $from = 'dispatch')
+    {
+        $self = new self();
+        $self->handleModelEvent($model, $verb, $from);
+    }
+
+    protected function handleModelEvent($model, string $verb, $from = null): void
     {
 
+        Log::info('from: ' . $from);
         // Skip if handler-created update
         if (property_exists($model, '__automation_suppressed') && $model->__automation_suppressed) {
             return;
@@ -59,7 +71,6 @@ class GlobalModelEventSubscriber
         if (in_array($base, $deny, true)) return;
         if (!empty($allow) && !in_array($base, $allow, true)) return;
 
-        Log::info('Updating model event', []);
         $eventName = strtolower($base) . '.' . strtolower($verb);
 
         $context = [
@@ -86,7 +97,6 @@ class GlobalModelEventSubscriber
             'model' => get_class($model),
             'id' => (string) $model->getKey(),
         ]);
-
-        event(new WorkflowTriggerEvent($eventName, $context, (string) $model->getKey()));
+        event(new WorkflowTriggerEvent($eventName, $context, (string) $model->getKey(), $from));
     }
 }

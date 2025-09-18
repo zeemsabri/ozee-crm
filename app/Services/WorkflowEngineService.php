@@ -137,9 +137,10 @@ class WorkflowEngineService
             ];
 
             $execLog = ExecutionLog::create($logData);
-
+//
             try {
                 $handler = $this->resolveHandler($step);
+
                 if (!$handler) {
                     throw new \RuntimeException("No handler for step type {$step->step_type}");
                 }
