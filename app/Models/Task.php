@@ -897,9 +897,11 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
             $defaults['milestone_id'] = $triggerTask['milestone_id'] ?? null;
             $defaults['assigned_to_user_id'] = $triggerTask['assigned_to_user_id'] ?? null;
             $defaults['priority'] = $triggerTask['priority'] ?? null;
+            $defaults['status'] = $triggerTask['status'] ?? null;
         }
-        // Fallback from config
+        // Fallbacks from config/enums
         $defaults['task_type_id'] = $defaults['task_type_id'] ?? config('automation.defaults.task.task_type_id');
+        $defaults['status'] = $defaults['status'] ?? (\App\Enums\TaskStatus::ToDo->value ?? null);
         // Remove null/empty values
         return array_filter($defaults, fn($v) => $v !== null && $v !== '');
     }

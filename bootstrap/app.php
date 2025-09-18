@@ -38,8 +38,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })
-    ->withProviders([
-        // You can explicitly add your provider here if it's not being found
-        App\Providers\EventServiceProvider::class,
-    ])
+//    ->withProviders([
+//        // You can explicitly add your provider here if it's not being found
+//        App\Providers\EventServiceProvider::class,
+//    ])
     ->create();
