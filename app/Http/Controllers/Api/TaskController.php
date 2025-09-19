@@ -14,6 +14,7 @@ use App\Models\ProjectExpendable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use App\Enums\TaskStatus;
 
 class TaskController extends Controller
 {
@@ -41,7 +42,7 @@ class TaskController extends Controller
                 // Or tasks that are overdue (due date is in the past and not completed)
                 ->orWhere(function($q) use ($today) {
                     $q->whereDate('due_date', '<', $today)
-                      ->where('status', '!=', 'Done');
+                      ->where('status', '!=', TaskStatus::Done->value);
                 });
             })
             ->orderBy('due_date', 'asc')
@@ -94,8 +95,8 @@ class TaskController extends Controller
             $tasks = \App\Models\Task::whereIn('milestone_id', $milestoneIds)
                 ->where(function($query) {
                     // Only include tasks that are not completed or archived
-                    $query->where('status', '!=', 'Done')
-                          ->where('status', '!=', 'Archived');
+                    $query->where('status', '!=', TaskStatus::Done->value)
+                          ->where('status', '!=', TaskStatus::Archived->value);
                 })
                 ->get();
 
@@ -158,7 +159,23 @@ class TaskController extends Controller
         }
 
         if ($status) {
-            $query->where('status', $status);
+            $statusFilter = $status;
+            // Coerce common input formats (case-insensitive, snake/kebab to spaces) to enum value
+            $raw = (string) $status;
+            $normalized = strtolower(str_replace(['_', '-'], ' ', $raw));
+            $enum = TaskStatus::tryFrom($raw);
+            if (!$enum) {
+                foreach (TaskStatus::cases() as $case) {
+                    if ($normalized === strtolower($case->value)) {
+                        $enum = $case;
+                        break;
+                    }
+                }
+            }
+            if ($enum) {
+                $statusFilter = $enum->value;
+            }
+            $query->where('status', $statusFilter);
         }
 
         if ($assignedToUserId) {
@@ -185,11 +202,20 @@ class TaskController extends Controller
             'description' => 'nullable|string',
             'assigned_to_user_id' => 'nullable|exists:users,id',
             'due_date' => 'nullable|date',
-            'status' => 'required|in:To Do,In Progress,Done,Blocked,Archived',
+            'status' => 'required|string',
             'task_type_id' => 'required|exists:task_types,id',
             'milestone_id' => 'required|exists:milestones,id',
             'needs_approval' => 'sometimes|boolean',
         ]);
+
+        // Coerce and soft-validate status via value dictionary
+        if (array_key_exists('status', $validated)) {
+            $enum = TaskStatus::tryFrom($validated['status']) ?? TaskStatus::tryFrom(ucwords(strtolower((string)$validated['status'])));
+            if ($enum) {
+                $validated['status'] = $enum->value;
+            }
+            app(\App\Services\ValueSetValidator::class)->validate('Task','status', $validated['status']);
+        }
 
         // Create the task
         $task = Task::create($validated);
@@ -266,7 +292,8 @@ class TaskController extends Controller
     public function update(Request $request, Task $task)
     {
         // Check if task is completed and trying to change priority or assignment
-        if ($task->status === 'Done') {
+        $statusEnum = $task->status instanceof TaskStatus ? $task->status : TaskStatus::tryFrom((string)$task->status);
+        if ($statusEnum === TaskStatus::Done) {
             if ($request->has('priority') || $request->has('assigned_to_user_id')) {
                 return response()->json([
                     'message' => 'Cannot change priority or assignment for a completed task. Use the Revise button to change the task status first.',
@@ -281,12 +308,21 @@ class TaskController extends Controller
             'description' => 'nullable|string',
             'assigned_to_user_id' => 'nullable|exists:users,id',
             'due_date' => 'nullable|date',
-            'status' => 'sometimes|required|in:To Do,In Progress,Done,Blocked,Archived',
+            'status' => 'sometimes|required|string',
             'task_type_id' => 'sometimes|required|exists:task_types,id',
             'milestone_id' => 'nullable|exists:milestones,id',
             'details' => 'nullable|array',
             'needs_approval' => 'sometimes|boolean',
         ]);
+
+        // Coerce and soft-validate status via value dictionary (update)
+        if (array_key_exists('status', $validated)) {
+            $enum = TaskStatus::tryFrom($validated['status']) ?? TaskStatus::tryFrom(ucwords(strtolower((string)$validated['status'])));
+            if ($enum) {
+                $validated['status'] = $enum->value;
+            }
+            app(\App\Services\ValueSetValidator::class)->validate('Task','status', $validated['status']);
+        }
 
         // Update the task
         $task->update($validated);
@@ -383,12 +419,16 @@ class TaskController extends Controller
     public function markAsCompleted(Task $task)
     {
         // Check if task can be completed (must be in progress)
-        if ($task->status !== 'In Progress') {
+        $statusEnum = $task->status instanceof TaskStatus ? $task->status : TaskStatus::tryFrom((string)$task->status);
+        if ($statusEnum !== TaskStatus::InProgress) {
             return response()->json([
                 'message' => 'Task must be started before it can be completed',
                 'status' => 'error'
             ], 422);
         }
+
+        // Soft-validate target status via the value dictionary (non-enforcing)
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::Done);
 
         // The LogsActivity trait will automatically log this activity
         $task->markAsCompleted(Auth::user());
@@ -407,6 +447,9 @@ class TaskController extends Controller
      */
     public function start(Task $task)
     {
+        // Soft-validate target status via the value dictionary (non-enforcing)
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::InProgress->value);
+
         // The LogsActivity trait will automatically log this activity
         $task->start(Auth::user());
 
@@ -431,11 +474,12 @@ class TaskController extends Controller
         ]);
 
         // Save the current status before blocking
-        $previousStatus = $task->status;
+        $previousStatus = $task->status instanceof TaskStatus ? $task->status->value : (string)$task->status;
 
         // Update task status and reason
         $task->previous_status = $previousStatus;
-        $task->status = 'Blocked';
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::Blocked->value);
+        $task->status = TaskStatus::Blocked;
         $task->block_reason = $validated['reason'];
         $task->save();
 
@@ -454,7 +498,8 @@ class TaskController extends Controller
     public function unblock(Task $task)
     {
         // Check if task is blocked
-        if ($task->status !== 'Blocked') {
+        $statusEnum = $task->status instanceof TaskStatus ? $task->status : TaskStatus::tryFrom((string)$task->status);
+        if ($statusEnum !== TaskStatus::Blocked) {
             return response()->json([
                 'message' => 'Only blocked tasks can be unblocked',
                 'status' => 'error'
@@ -462,7 +507,11 @@ class TaskController extends Controller
         }
 
         // Restore previous status or default to To Do
-        $task->status = $task->previous_status ?: 'To Do';
+        $nextStatus = $task->previous_status ?: TaskStatus::ToDo->value;
+        $coerced = TaskStatus::tryFrom($nextStatus) ?? TaskStatus::tryFrom(ucwords(strtolower((string)$nextStatus)));
+        $finalStatus = $coerced ? $coerced : TaskStatus::ToDo->value;
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', $finalStatus);
+        $task->status = $finalStatus;
         $task->block_reason = null;
         $task->previous_status = null;
         $task->save();
@@ -482,7 +531,8 @@ class TaskController extends Controller
     public function pause(Task $task)
     {
         // Check if task is in progress
-        if ($task->status !== 'In Progress') {
+        $statusEnum = $task->status instanceof TaskStatus ? $task->status : TaskStatus::tryFrom((string)$task->status);
+        if ($statusEnum !== TaskStatus::InProgress) {
             return response()->json([
                 'message' => 'Only tasks in progress can be paused',
                 'status' => 'error'
@@ -490,7 +540,8 @@ class TaskController extends Controller
         }
 
         // Update task status
-        $task->status = 'Paused';
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::Paused->value);
+        $task->status = TaskStatus::Paused;
         $task->save();
 
         // Load relationships
@@ -508,7 +559,8 @@ class TaskController extends Controller
     public function resume(Task $task)
     {
         // Check if task is paused
-        if ($task->status !== 'Paused') {
+        $statusEnum = $task->status instanceof TaskStatus ? $task->status : TaskStatus::tryFrom((string)$task->status);
+        if ($statusEnum !== TaskStatus::Paused) {
             return response()->json([
                 'message' => 'Only paused tasks can be resumed',
                 'status' => 'error'
@@ -516,7 +568,8 @@ class TaskController extends Controller
         }
 
         // Update task status
-        $task->status = 'In Progress';
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::InProgress->value);
+        $task->status = TaskStatus::InProgress;
         $task->save();
 
         // Load relationships
@@ -533,6 +586,9 @@ class TaskController extends Controller
      */
     public function archive(Task $task)
     {
+        // Soft-validate target status via the value dictionary (non-enforcing)
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::Archived->value);
+
         $task->archive();
 
         // Load relationships
@@ -555,7 +611,8 @@ class TaskController extends Controller
     public function revise(Task $task)
     {
         // Check if task is completed
-        if ($task->status !== 'Done') {
+        $statusEnum = $task->status instanceof TaskStatus ? $task->status : TaskStatus::tryFrom((string)$task->status);
+        if ($statusEnum !== TaskStatus::Done) {
             return response()->json([
                 'message' => 'Only completed tasks can be revised',
                 'status' => 'error'
@@ -563,7 +620,8 @@ class TaskController extends Controller
         }
 
         // Change status back to To Do
-        $task->status = 'To Do';
+        app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::ToDo->value);
+        $task->status = TaskStatus::ToDo;
         $task->save();
 
         // Load relationships
@@ -580,8 +638,8 @@ class TaskController extends Controller
         // Get tasks assigned to the user
         $tasks = Task::with(['milestone.project', 'taskType'])
             ->where('assigned_to_user_id', $user->id)
-            ->where('status', '!=', 'Done')
-            ->where('status', '!=', 'Archived')
+            ->where('status', '!=', TaskStatus::Done->value)
+            ->where('status', '!=', TaskStatus::Archived->value)
             ->orderBy('due_date', 'asc')
             ->get();
 
@@ -665,11 +723,14 @@ class TaskController extends Controller
                 'description' => $item['description'] ?? null,
                 'due_date' => $item['dueDate'] ?? null,
                 'priority' => $item['priority'] ?? 'Medium',
-                'status' => 'To Do',
+                'status' => TaskStatus::ToDo->value,
                 'task_type_id' => $defaultTaskType->id,
                 'milestone_id' => $milestone->id,
                 'assigned_to_user_id' => $expendable->user_id,
             ];
+
+            // Soft-validate task status using the value dictionary (non-enforcing)
+            app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::ToDo->value);
 
             $task = Task::create($taskData);
             $task->load(['assignedTo', 'taskType', 'milestone']);

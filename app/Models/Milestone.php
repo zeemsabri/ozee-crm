@@ -21,16 +21,26 @@ class Milestone extends Model
 {
     use HasFactory, Taggable;
 
-    const PENDING = 'pending';
-    const APPROVED = 'approved';
-    const REJECTED = 'rejected';
-    const COMPLETED = 'completed';
-    const IN_PROGRESS = 'in progress';
-    const OVERDUE = 'overdue';
-    const CANCELED = 'canceled';
-    const EXPIRED = 'expired';
-    const PENDING_APPROVAL = 'pending approval';
-    const PENDING_REVIEW = 'pending review';
+    /** @deprecated use App\Enums\MilestoneStatus::Pending */
+    public const PENDING = \App\Enums\MilestoneStatus::Pending->value;
+    /** @deprecated use App\Enums\MilestoneStatus::Approved */
+    public const APPROVED = \App\Enums\MilestoneStatus::Approved->value;
+    /** @deprecated use App\Enums\MilestoneStatus::Rejected */
+    public const REJECTED = \App\Enums\MilestoneStatus::Rejected->value;
+    /** @deprecated use App\Enums\MilestoneStatus::Completed */
+    public const COMPLETED = \App\Enums\MilestoneStatus::Completed->value;
+    /** @deprecated use App\Enums\MilestoneStatus::InProgress */
+    public const IN_PROGRESS = \App\Enums\MilestoneStatus::InProgress->value;
+    /** @deprecated use App\Enums\MilestoneStatus::Overdue */
+    public const OVERDUE = \App\Enums\MilestoneStatus::Overdue->value;
+    /** @deprecated use App\Enums\MilestoneStatus::Canceled */
+    public const CANCELED = \App\Enums\MilestoneStatus::Canceled->value;
+    /** @deprecated use App\Enums\MilestoneStatus::Expired */
+    public const EXPIRED = \App\Enums\MilestoneStatus::Expired->value;
+    /** @deprecated use App\Enums\MilestoneStatus::PendingApproval */
+    public const PENDING_APPROVAL = \App\Enums\MilestoneStatus::PendingApproval->value;
+    /** @deprecated use App\Enums\MilestoneStatus::PendingReview */
+    public const PENDING_REVIEW = \App\Enums\MilestoneStatus::PendingReview->value;
 
     /**
      * The attributes that are mass assignable.
@@ -58,13 +68,14 @@ class Milestone extends Model
         'actual_completion_date' => 'date',
         'mark_completed_at' => 'datetime',
         'approved_at' => 'datetime',
+        'status' => \App\Casts\MilestoneStatusCast::class,
     ];
 
     protected static function booted()
     {
         // Dispatch the standup event after the note has been created so it has a persisted ID
         static::updated(function (Milestone $milestone) {
-            if($milestone->status === self::APPROVED) {
+            if ($milestone->status === \App\Enums\MilestoneStatus::Approved) {
                 MilestoneApprovedEvent::dispatch($milestone); //This will reward points to each user in milestone
             }
         });
@@ -123,7 +134,7 @@ class Milestone extends Model
      */
     public function isCompleted()
     {
-        return $this->status === 'Completed';
+        return $this->status === \App\Enums\MilestoneStatus::Completed;
     }
 
     /**
@@ -133,7 +144,7 @@ class Milestone extends Model
      */
     public function isOverdue()
     {
-        return $this->status === 'Overdue' ||
+        return $this->status === \App\Enums\MilestoneStatus::Overdue ||
                ($this->completion_date && $this->completion_date->isPast() && !$this->isCompleted());
     }
 
@@ -144,7 +155,7 @@ class Milestone extends Model
      */
     public function markAsCompleted()
     {
-        $this->status = 'Completed';
+        $this->status = \App\Enums\MilestoneStatus::Completed;
         $this->actual_completion_date = now();
         $this->save();
     }
@@ -156,7 +167,7 @@ class Milestone extends Model
      */
     public function start()
     {
-        $this->status = 'In Progress';
+        $this->status = \App\Enums\MilestoneStatus::InProgress;
         $this->save();
     }
 

@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use App\Enums\SubtaskStatus;
 
 class SubtaskController extends Controller
 {
@@ -34,7 +35,22 @@ class SubtaskController extends Controller
         }
 
         if ($status) {
-            $query->where('status', $status);
+            $statusFilter = $status;
+            $raw = (string) $status;
+            $normalized = strtolower(str_replace(['_', '-'], ' ', $raw));
+            $enum = SubtaskStatus::tryFrom($raw);
+            if (!$enum) {
+                foreach (SubtaskStatus::cases() as $case) {
+                    if ($normalized === strtolower($case->value)) {
+                        $enum = $case;
+                        break;
+                    }
+                }
+            }
+            if ($enum) {
+                $statusFilter = $enum->value;
+            }
+            $query->where('status', $statusFilter);
         }
 
         if ($assignedToUserId) {
@@ -61,9 +77,19 @@ class SubtaskController extends Controller
             'description' => 'nullable|string',
             'assigned_to_user_id' => 'nullable|exists:users,id',
             'due_date' => 'nullable|date',
-            'status' => 'required|in:To Do,In Progress,Done,Blocked',
+            'status' => 'required|string',
             'parent_task_id' => 'required|exists:tasks,id',
         ]);
+
+        // Coerce and soft-validate status via value dictionary
+        if (array_key_exists('status', $validated)) {
+            $raw = (string)$validated['status'];
+            $enum = SubtaskStatus::tryFrom($raw) ?? SubtaskStatus::tryFrom(ucwords(strtolower($raw)));
+            if ($enum) {
+                $validated['status'] = $enum->value;
+            }
+            app(\App\Services\ValueSetValidator::class)->validate('Subtask','status', $validated['status']);
+        }
 
         // Create the subtask
         $subtask = Subtask::create($validated);

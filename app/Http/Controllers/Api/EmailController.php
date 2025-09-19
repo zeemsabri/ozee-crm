@@ -138,6 +138,10 @@ class EmailController extends Controller
                 'status' => 'sometimes|in:draft,pending_approval',
             ]);
 
+            if (array_key_exists('status', $validated)) {
+                app(\App\Services\ValueSetValidator::class)->validate('Email','status',$validated['status']);
+            }
+
             // Decide which handler to use
             if (!empty($validated['template_id'])) {
                 $email = $this->handleTemplatedEmail($user, $validated);
@@ -228,7 +232,7 @@ class EmailController extends Controller
                 'template_id' => $validated['template_id'],
                 'template_data' => json_encode($validated['template_data'] ?? []),
                 'status' => Email::STATUS_DRAFT,
-                'type' => 'sent', // Set type to sent for outgoing emails
+                'type' => \App\Enums\EmailType::Sent, // Set type to sent for outgoing emails
             ]);
 
             ProcessDraftEmailJob::dispatch($email);
@@ -334,7 +338,8 @@ class EmailController extends Controller
             return response()->json(['error' => 'No authenticated user found for approval.'], 401);
         }
 
-        if (!in_array($email->status, ['pending_approval', 'pending_approval_received'])) {
+        $statusEnum = $email->status instanceof \App\Enums\EmailStatus ? $email->status : \App\Enums\EmailStatus::tryFrom((string)$email->status);
+        if (!in_array($statusEnum, [\App\Enums\EmailStatus::PendingApproval, \App\Enums\EmailStatus::PendingApprovalReceived], true)) {
             return response()->json(['message' => 'Email is not in pending approval status.'], 400);
         }
 
@@ -394,7 +399,7 @@ class EmailController extends Controller
                 $recipients = is_array($email->to) ? $email->to : (empty($email->to) ? [] : [$email->to]);
             }
 
-            if ($email->status === 'pending_approval' && !empty($recipients)) {
+            if ($statusEnum === \App\Enums\EmailStatus::PendingApproval && !empty($recipients)) {
                 // Send to first recipient for now (extend to multiple later if required)
                 $this->gmailService->sendEmail(
                     $recipients[0],
@@ -403,8 +408,10 @@ class EmailController extends Controller
                 );
             }
 
+            app(\App\Services\ValueSetValidator::class)->validate('Email','status', \App\Enums\EmailStatus::Sent);
+
             $email->update([
-                'status' => 'sent',
+                'status' => \App\Enums\EmailStatus::Sent,
                 'approved_by' => $approver->id,
                 'sent_at' => now()
             ]);
@@ -435,13 +442,15 @@ class EmailController extends Controller
             return response()->json(['message' => 'Unauthorized to approve received emails.'], 403);
         }
 
-        if ($email->status !== 'pending_approval_received') {
+        $statusEnum = $email->status instanceof \App\Enums\EmailStatus ? $email->status : \App\Enums\EmailStatus::tryFrom((string)$email->status);
+        if ($statusEnum !== \App\Enums\EmailStatus::PendingApprovalReceived) {
             return response()->json(['message' => 'Email is not in pending approval received status.'], 400);
         }
 
         try {
+            app(\App\Services\ValueSetValidator::class)->validate('Email','status', \App\Enums\EmailStatus::Received);
             $email->update([
-                'status' => 'received',
+                'status' => \App\Enums\EmailStatus::Received,
                 'approved_by' => $user->id,
             ]);
 
@@ -464,7 +473,8 @@ class EmailController extends Controller
             return response()->json(['message' => 'Unauthorized to edit and approve received emails.'], 403);
         }
 
-        if ($email->status !== 'pending_approval_received') {
+        $statusEnum = $email->status instanceof \App\Enums\EmailStatus ? $email->status : \App\Enums\EmailStatus::tryFrom((string)$email->status);
+        if ($statusEnum !== \App\Enums\EmailStatus::PendingApprovalReceived) {
             return response()->json(['message' => 'Email is not in pending approval received status.'], 400);
         }
 
@@ -475,8 +485,9 @@ class EmailController extends Controller
             ]);
 
             $email->update($validated);
+            app(\App\Services\ValueSetValidator::class)->validate('Email','status', \App\Enums\EmailStatus::Received);
             $email->update([
-                'status' => 'received',
+                'status' => \App\Enums\EmailStatus::Received,
                 'approved_by' => $user->id,
             ]);
 
@@ -510,7 +521,8 @@ class EmailController extends Controller
             return response()->json(['message' => 'Unauthorized to reject received emails.'], 403);
         }
 
-        if ($email->status !== 'pending_approval_received') {
+        $statusEnum = $email->status instanceof \App\Enums\EmailStatus ? $email->status : \App\Enums\EmailStatus::tryFrom((string)$email->status);
+        if ($statusEnum !== \App\Enums\EmailStatus::PendingApprovalReceived) {
             return response()->json(['message' => 'Email is not in pending approval received status.'], 400);
         }
 
@@ -519,8 +531,9 @@ class EmailController extends Controller
                 'rejection_reason' => 'required|string|min:10',
             ]);
 
+            app(\App\Services\ValueSetValidator::class)->validate('Email','status', \App\Enums\EmailStatus::Rejected);
             $email->update([
-                'status' => 'rejected',
+                'status' => \App\Enums\EmailStatus::Rejected,
                 'rejection_reason' => $validated['rejection_reason'],
                 'approved_by' => $user->id,
             ]);
@@ -553,8 +566,9 @@ class EmailController extends Controller
                 'rejection_reason' => 'required|string|min:10',
             ]);
 
+            app(\App\Services\ValueSetValidator::class)->validate('Email','status', \App\Enums\EmailStatus::Rejected);
             $email->update([
-                'status' => 'rejected',
+                'status' => \App\Enums\EmailStatus::Rejected,
                 'rejection_reason' => $validated['rejection_reason'],
                 'approved_by' => $user->id,
             ]);
@@ -595,7 +609,7 @@ class EmailController extends Controller
             'conversation.conversable',
             'sender'
         ])
-            ->whereIn('status', [ 'pending_approval', 'pending_approval_received'])
+            ->whereIn('status', [ \App\Enums\EmailStatus::PendingApproval->value, \App\Enums\EmailStatus::PendingApprovalReceived->value])
             ->orderBy('created_at', 'asc')
             ->get(); // Or paginate
 
@@ -620,7 +634,7 @@ class EmailController extends Controller
             'conversation.conversable',
             'sender:id,name'
         ])
-            ->whereIn('status', ['pending_approval', 'pending_approval_received'])
+            ->whereIn('status', [\App\Enums\EmailStatus::PendingApproval->value, \App\Enums\EmailStatus::PendingApprovalReceived->value])
             ->orderBy('created_at', 'asc')
             ->get();
 
@@ -658,8 +672,8 @@ class EmailController extends Controller
     public function rejected()
     {
         $query = Auth::user()->isContractor()
-            ? Email::visibleTo(Auth::user())->where('sender_id', Auth::id())->where('status', '=', 'rejected')
-            : Email::visibleTo(Auth::user())->where('status', 'rejected');
+            ? Email::visibleTo(Auth::user())->where('sender_id', Auth::id())->where('status', '=', \App\Enums\EmailStatus::Rejected->value)
+            : Email::visibleTo(Auth::user())->where('status', \App\Enums\EmailStatus::Rejected->value);
         return $query->with(['conversation.project', 'conversation.conversable', 'sender'])->get();
     }
 
@@ -669,8 +683,8 @@ class EmailController extends Controller
     public function rejectedSimplified()
     {
         $query = Auth::user()->isContractor()
-            ? Email::where('sender_id', Auth::id())->where('status', '=', 'rejected')
-            : Email::where('status', 'rejected');
+            ? Email::where('sender_id', Auth::id())->where('status', '=', \App\Enums\EmailStatus::Rejected->value)
+            : Email::where('status', \App\Enums\EmailStatus::Rejected->value);
 
         $emails = $query->get();
 
@@ -690,12 +704,14 @@ class EmailController extends Controller
     public function resubmit(Request $request, Email $email)
     {
 
-        if ($email->status !== 'rejected') {
+        $statusEnum = $email->status instanceof \App\Enums\EmailStatus ? $email->status : \App\Enums\EmailStatus::tryFrom((string)$email->status);
+        if ($statusEnum !== \App\Enums\EmailStatus::Rejected) {
             return response()->json(['message' => 'Only rejected emails can be resubmitted.'], 422);
         }
 
+        app(\App\Services\ValueSetValidator::class)->validate('Email','status', \App\Enums\EmailStatus::PendingApproval);
         $email->update([
-            'status' => 'pending_approval',
+            'status' => \App\Enums\EmailStatus::PendingApproval,
             'rejection_reason' => null,
             'approved_by' => null,
             'sent_at' => null,
@@ -1038,11 +1054,14 @@ class EmailController extends Controller
                 'description' => $item['description'] ?? null,
                 'due_date' => $item['dueDate'],
                 'priority' => $item['priority'] ?? 'Medium',
-                'status' => 'To Do',
+                'status' => \App\Enums\TaskStatus::ToDo->value,
                 'task_type_id' => $defaultTaskType->id,
                 'milestone_id' => $milestone->id,
                                 'assigned_to_user_id' => $item['assigned_to_user_id'] ?? null,
             ];
+
+            // Soft-validate task status using the value dictionary (non-enforcing)
+            app(\App\Services\ValueSetValidator::class)->validate('Task','status', \App\Enums\TaskStatus::ToDo);
 
             $task = \App\Models\Task::create($taskData);
             $task->load(['assignedTo', 'taskType', 'milestone']);

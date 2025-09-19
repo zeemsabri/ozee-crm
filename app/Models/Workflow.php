@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Workflow extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -19,6 +20,18 @@ class Workflow extends Model
     protected $casts = [
         'is_active' => 'boolean',
     ];
+
+    protected static function booted()
+    {
+        static::deleting(function (Workflow $workflow) {
+            // When soft-deleting a workflow, also soft-delete its steps to keep data consistent
+            if (method_exists($workflow, 'steps')) {
+                $workflow->steps()->get()->each(function (WorkflowStep $step) {
+                    $step->delete();
+                });
+            }
+        });
+    }
 
     public function steps()
     {

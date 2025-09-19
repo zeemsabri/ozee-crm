@@ -79,12 +79,15 @@
 </head>
 <body>
 <div class="email-container">
+    @if(isset($show_signature) && $show_signature === true)
     <div class="header">
         <h1>{{ $emailData['subject'] ?? 'Important Update' }}</h1>
     </div>
+    @endif
     <div class="content-body">
         {!! $bodyContent !!}
 
+    @if(isset($show_signature) && $show_signature === true)
         <!-- Signature Block -->
         <div class="signature-block">
             <table role="presentation">
@@ -125,6 +128,7 @@
             </table>
         </div>
     </div>
+
     <div class="footer">
         <p>&copy; {{ date('Y') }} OZee Web & Digital. All rights reserved.</p>
         <p>Powered by MMS IT & Web Solutions PTY Ltd.</p>
@@ -134,6 +138,7 @@
         @endif
         <p>{{ $companyAddress ?? 'Thornlie, WA, 6108 Australia' }}</p>
     </div>
+    @endif
 </div>
 @if(isset($emailTrackingUrl))
     <img src="{{ $emailTrackingUrl }}" alt="" width="1" height="1" style="display: none;"/>

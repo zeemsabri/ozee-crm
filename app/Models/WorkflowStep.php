@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class WorkflowStep extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     public $timestamps = false;
 
@@ -35,5 +36,12 @@ class WorkflowStep extends Model
     public function prompt()
     {
         return $this->belongsTo(Prompt::class);
+    }
+
+    public function children()
+    {
+        return $this->hasMany(WorkflowStep::class, 'step_config->_parent_id')
+            ->where('step_config->_branch', null)
+            ->orderBy('step_order');
     }
 }

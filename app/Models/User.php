@@ -375,7 +375,7 @@ class User extends Authenticatable
     {
         $query = $this->bonusTransactions()
             ->where('type', 'bonus')
-            ->where('status', 'processed');
+            ->where('status', \App\Enums\BonusTransactionStatus::Processed->value);
 
         if ($projectId) {
             $query->where('project_id', $projectId);
@@ -404,7 +404,7 @@ class User extends Authenticatable
     {
         $query = $this->bonusTransactions()
             ->where('type', 'penalty')
-            ->where('status', 'processed');
+            ->where('status', \App\Enums\BonusTransactionStatus::Processed->value);
 
         if ($projectId) {
             $query->where('project_id', $projectId);
@@ -447,7 +447,7 @@ class User extends Authenticatable
     public function getBonusSummary(?\DateTime $startDate = null, ?\DateTime $endDate = null)
     {
         $query = $this->bonusTransactions()
-            ->where('status', 'processed');
+            ->where('status', \App\Enums\BonusTransactionStatus::Processed->value);
 
         if ($startDate) {
             $query->whereDate('created_at', '>=', $startDate->format('Y-m-d'));

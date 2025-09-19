@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\ActivityController;
+use App\Http\Controllers\Api\AutomationSchemaController;
 use App\Http\Controllers\Api\BonusConfigurationGroupController;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientAction;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientReader;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Api\ComponentController;
 use App\Http\Controllers\Api\EmailTemplateController;
 use App\Http\Controllers\Api\ImageUploadController;
 use App\Http\Controllers\Api\PlaceholderDefinitionController;
+use App\Http\Controllers\Api\ValueDictionaryController;
 use App\Http\Controllers\Api\ProjectDashboard\ProjectDeliverableAction;
 use App\Http\Controllers\Api\SendEmailController;
 use App\Http\Controllers\Api\ShareableResourceController;
@@ -54,6 +56,7 @@ use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\ProjectNoteController;
 use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\ScheduleApiController;
+use App\Http\Controllers\Api\WorkflowLogController;
 
 
 Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
@@ -159,6 +162,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/upload-image', [ImageUploadController::class, 'upload']);
 
     // Project Management Routes (Split into Read and Action)
+
+    // Automation: Workflows & Logs
+    Route::get('workflows', [\App\Http\Controllers\Api\WorkflowController::class, 'index']);
+    Route::get('workflows/{workflow}', [\App\Http\Controllers\Api\WorkflowController::class, 'show']);
+    Route::post('workflows', [\App\Http\Controllers\Api\WorkflowController::class, 'store']);
+    Route::put('workflows/{workflow}', [\App\Http\Controllers\Api\WorkflowController::class, 'update']);
+    Route::delete('workflows/{workflow}', [\App\Http\Controllers\Api\WorkflowController::class, 'destroy']);
+    Route::post('workflows/{workflow}/run', [\App\Http\Controllers\Api\WorkflowController::class, 'run']);
+    Route::get('workflows/{workflow}/logs', [WorkflowLogController::class, 'index']);
     // Read Routes
     Route::get('projects', [ProjectReadController::class, 'index']);
     Route::get('projects/with-wireframes', [ProjectReadController::class, 'wireframe']);
@@ -432,6 +444,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // Protected by 'manage_placeholder_definitions' permission
     Route::get('placeholder-definitions/models-and-columns', [PlaceholderDefinitionController::class, 'getModelsAndColumns'])->middleware('permission:manage_placeholder_definitions');
     Route::apiResource('placeholder-definitions', PlaceholderDefinitionController::class)->middleware('permission:manage_placeholder_definitions');
+    Route::get('/automation/schema', [AutomationSchemaController::class, 'getSchema']);
+
+    // Value Dictionaries (Allowed Values/Enums)
+    Route::get('value-dictionaries', [ValueDictionaryController::class, 'index'])->middleware('permission:manage_placeholder_definitions');
+    Route::get('value-dictionaries/{model}/{field}', [ValueDictionaryController::class, 'show'])->middleware('permission:manage_placeholder_definitions');
 
 
     Route::post('projects/{project}/email-preview', [SendEmailController::class, 'preview']);

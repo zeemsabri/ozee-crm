@@ -12,10 +12,13 @@ class ProjectExpendable extends Model
 {
     use HasFactory, SoftDeletes, LogsActivity;
 
-    // Approval status constants
-    public const STATUS_PENDING = 'Pending Approval';
-    public const STATUS_ACCEPTED = 'Accepted';
-    public const STATUS_REJECTED = 'Rejected';
+    // Approval status constants (kept as aliases for backward compatibility)
+    /** @deprecated use App\Enums\ProjectExpendableStatus::PendingApproval */
+    public const STATUS_PENDING = \App\Enums\ProjectExpendableStatus::PendingApproval->value;
+    /** @deprecated use App\Enums\ProjectExpendableStatus::Accepted */
+    public const STATUS_ACCEPTED = \App\Enums\ProjectExpendableStatus::Accepted->value;
+    /** @deprecated use App\Enums\ProjectExpendableStatus::Rejected */
+    public const STATUS_REJECTED = \App\Enums\ProjectExpendableStatus::Rejected->value;
 
     protected $fillable = [
         'name',
@@ -33,7 +36,7 @@ class ProjectExpendable extends Model
     protected $casts = [
         'amount' => 'decimal:2',
         'balance' => 'decimal:2',
-        'status' => 'string',
+        'status' => \App\Enums\ProjectExpendableStatus::class,
         'currency' => 'string',
     ];
 
@@ -41,7 +44,7 @@ class ProjectExpendable extends Model
     {
         static::creating(function (self $model) {
             if (empty($model->status)) {
-                $model->status = self::STATUS_PENDING;
+                $model->status = \App\Enums\ProjectExpendableStatus::PendingApproval;
             }
         });
     }
@@ -72,26 +75,26 @@ class ProjectExpendable extends Model
     // Actions
     public function accept(string $reason, User $causer = null): void
     {
-        $this->status = self::STATUS_ACCEPTED;
+        $this->status = \App\Enums\ProjectExpendableStatus::Accepted;
         $this->save();
 
         activity('project_expendable')
             ->performedOn($this)
             ->causedBy($causer ?? auth()->user())
-            ->withProperties(['reason' => $reason, 'status' => self::STATUS_ACCEPTED])
+            ->withProperties(['reason' => $reason, 'status' => \App\Enums\ProjectExpendableStatus::Accepted->value])
             ->event('expendable.accepted')
             ->log("Expendable '{$this->name}' accepted");
     }
 
     public function reject(string $reason, User $causer = null): void
     {
-        $this->status = self::STATUS_REJECTED;
+        $this->status = \App\Enums\ProjectExpendableStatus::Rejected;
         $this->save();
 
         activity('project_expendable')
             ->performedOn($this)
             ->causedBy($causer ?? auth()->user())
-            ->withProperties(['reason' => $reason, 'status' => self::STATUS_REJECTED])
+            ->withProperties(['reason' => $reason, 'status' => \App\Enums\ProjectExpendableStatus::Rejected->value])
             ->event('expendable.rejected')
             ->log("Expendable '{$this->name}' rejected");
     }

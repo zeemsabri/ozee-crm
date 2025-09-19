@@ -15,16 +15,24 @@ class Email extends Model
 {
     use HasFactory, Taggable, SoftDeletes;
 
-    const STATUS_PENDING_APPROVAL = 'pending_approval_received';
+/** @deprecated use App\Enums\EmailStatus::PendingApprovalReceived */
+    public const STATUS_PENDING_APPROVAL = \App\Enums\EmailStatus::PendingApprovalReceived->value;
 
-    const STATUS_PENDING_APPROVAL_SENT = 'pending_approval';
-    const STATUS_APPROVED = 'sent';
-    const STATUS_REJECTED = 'rejected_received';
-    const STATUS_SENT = 'sent';
-    const STATUS_DRAFT = 'draft';
+    /** @deprecated use App\Enums\EmailStatus::PendingApproval */
+    public const STATUS_PENDING_APPROVAL_SENT = \App\Enums\EmailStatus::PendingApproval->value;
+    /** @deprecated use App\Enums\EmailStatus::Sent */
+    public const STATUS_APPROVED = \App\Enums\EmailStatus::Sent->value;
+    /** @deprecated use App\Enums\EmailStatus::RejectedReceived */
+    public const STATUS_REJECTED = \App\Enums\EmailStatus::RejectedReceived->value;
+    /** @deprecated use App\Enums\EmailStatus::Sent */
+    public const STATUS_SENT = \App\Enums\EmailStatus::Sent->value;
+    /** @deprecated use App\Enums\EmailStatus::Draft */
+    public const STATUS_DRAFT = \App\Enums\EmailStatus::Draft->value;
 
-    const TYPE_RECEIVED = 'received';
-    const TYPE_SENT = 'sent';
+    /** @deprecated use App\Enums\EmailType::Received */
+    public const TYPE_RECEIVED = \App\Enums\EmailType::Received->value;
+    /** @deprecated use App\Enums\EmailType::Sent */
+    public const TYPE_SENT = \App\Enums\EmailType::Sent->value;
     const APPROVE_RECEIVED_EMAILS_PERMISSION = 'approve_received_emails';
     const APPROVE_SENT_EMAIL_PERMISSION = 'approve_emails';
 
@@ -42,8 +50,12 @@ class Email extends Model
     {
         static::updated(function (Email $email) {
             // Only trigger when moving into sent state
-            $typeIsSent = strtolower($email->type ?? '') === 'sent';
-            $statusIsSent = strtolower($email->status ?? '') === 'sent';
+            $typeIsSent = ($email->type instanceof \App\Enums\EmailType)
+                ? ($email->type === \App\Enums\EmailType::Sent)
+                : (strtolower((string)$email->type) === 'sent');
+            $statusIsSent = ($email->status instanceof \App\Enums\EmailStatus)
+                ? ($email->status === \App\Enums\EmailStatus::Sent)
+                : (strtolower((string)$email->status) === 'sent');
             $changedToSent = $email->wasChanged('status');
 
             if ($changedToSent && $typeIsSent && $statusIsSent) {
@@ -105,6 +117,8 @@ class Email extends Model
         'to' => 'array', // If 'to' can store multiple recipients as JSON
         'template_data' => 'array',
         'is_private' => 'boolean',
+        'status' => \App\Enums\EmailStatus::class,
+        'type' => \App\Enums\EmailType::class,
     ];
 
     public function conversation()
@@ -154,7 +168,15 @@ class Email extends Model
      */
     public function isViewableByNonManagers()
     {
-        return in_array($this->status, ['approved', 'sent', 'received']);
+        $statusIsSent = ($this->status instanceof \App\Enums\EmailStatus)
+            ? ($this->status === \App\Enums\EmailStatus::Sent)
+            : (strtolower((string)$this->status) === \App\Enums\EmailStatus::Sent->value);
+
+        $typeIsReceived = ($this->type instanceof \App\Enums\EmailType)
+            ? ($this->type === \App\Enums\EmailType::Received)
+            : (strtolower((string)$this->type) === \App\Enums\EmailType::Received->value);
+
+        return $statusIsSent || $typeIsReceived;
     }
 
     /**
@@ -202,41 +224,44 @@ class Email extends Model
 
     public function getCanApproveAttribute()
     {
-
         $user = request()?->user();
 
-        if(!$user) {
+        if (!$user) {
             return false;
         }
 
-        if($this->status === self::STATUS_DRAFT) {
+        // Normalize status to enum when possible
+        $statusEnum = $this->status instanceof \App\Enums\EmailStatus
+            ? $this->status
+            : \App\Enums\EmailStatus::tryFrom(strtolower((string)$this->status));
+
+        if ($statusEnum === \App\Enums\EmailStatus::Draft) {
             return false;
         }
 
         $canApprove = false; // Default to false
 
         // Check approval permission for outgoing emails
-        if ($this->status === 'pending_approval' && $this->conversation?->project?->id) {
-            if ($user->hasProjectPermission($this->conversation->project->id, 'approve_emails')
-            ) {
+        if ($statusEnum === \App\Enums\EmailStatus::PendingApproval && $this->conversation?->project?->id) {
+            if ($user->hasProjectPermission($this->conversation->project->id, self::APPROVE_SENT_EMAIL_PERMISSION)) {
                 $canApprove = true;
             }
         }
 
-        if(get_class($this->conversation->conversable) === Lead::class && $user->hasPermission('contact_lead')) {
+        // For leads, allow approval with 'contact_lead' permission
+        if (get_class($this->conversation->conversable) === Lead::class && $user->hasPermission('contact_lead')) {
             $canApprove = true;
         }
 
         // Check approval permission for incoming emails
-        if ($this->status === 'pending_approval_received') {
+        if ($statusEnum === \App\Enums\EmailStatus::PendingApprovalReceived) {
             // This assumes hasPermission('approve_received_emails') is a global permission
-            if ($user->hasPermission('approve_received_emails')) {
+            if ($user->hasPermission(self::APPROVE_RECEIVED_EMAILS_PERMISSION)) {
                 $canApprove = true;
             }
         }
 
         return $canApprove;
-
     }
 
 }

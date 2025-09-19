@@ -9,14 +9,19 @@ class Lead extends Model
 {
     use HasFactory, SoftDeletes;
 
-    const STATUS_OUTREACH_SENT = 'contacted';
-    const STATUS_GENERATION_FAILED = 'generation_failed';
+    /** @deprecated use App\Enums\LeadStatus::Contacted */
+    public const STATUS_OUTREACH_SENT = \App\Enums\LeadStatus::Contacted->value;
+    /** @deprecated use App\Enums\LeadStatus::GenerationFailed */
+    public const STATUS_GENERATION_FAILED = \App\Enums\LeadStatus::GenerationFailed->value;
 
-    const STATUS_NEW = 'new';
+    /** @deprecated use App\Enums\LeadStatus::New */
+    public const STATUS_NEW = \App\Enums\LeadStatus::New->value;
 
-    const STATUS_PROCESSING = 'processing';
+    /** @deprecated use App\Enums\LeadStatus::Processing */
+    public const STATUS_PROCESSING = \App\Enums\LeadStatus::Processing->value;
 
-    const STATUS_SEQUENCE_COMPLETED = 'sequence_completed';
+    /** @deprecated use App\Enums\LeadStatus::SequenceCompleted */
+    public const STATUS_SEQUENCE_COMPLETED = \App\Enums\LeadStatus::SequenceCompleted->value;
 
     protected $fillable = [
         'first_name',
@@ -56,6 +61,7 @@ class Lead extends Model
         'next_follow_up_date' => 'datetime',
         'metadata' => 'array',
         'email_thread_history' => 'array',
+        'status' => \App\Enums\LeadStatus::class,
     ];
 
     protected $appends = [
@@ -98,7 +104,8 @@ class Lead extends Model
     public function scopeStatus($query, ?string $status)
     {
         if ($status !== null && $status !== '') {
-            $query->where('status', $status);
+            $enum = \App\Enums\LeadStatus::tryFrom($status) ?? \App\Enums\LeadStatus::tryFrom(strtolower((string)$status));
+            $query->where('status', $enum ? $enum->value : $status);
         }
         return $query;
     }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Events\TaskCompletedEvent;
+use App\Listeners\GlobalModelEventSubscriber;
 use App\Models\Traits\HasUserTimezone;
 use App\Models\Traits\Taggable;
 use App\Notifications\TaskAssigned;
@@ -17,36 +18,43 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use App\Enums\TaskStatus;
 
-class Task extends Model
+class Task extends Model implements \App\Contracts\CreatableViaWorkflow
 {
     use HasFactory, Taggable, SoftDeletes, LogsActivity, HasUserTimezone;
 
     protected $appends = ['creator_name'];
 
-    // Task status constants
-    public const STATUS_TO_DO = 'To Do';
-    public const STATUS_IN_PROGRESS = 'In Progress';
-    public const STATUS_PAUSED = 'Paused';
-    public const STATUS_DONE = 'Done';
-    public const STATUS_BLOCKED = 'Blocked';
-    public const STATUS_ARCHIVED = 'Archived';
+    // Task status constants (aliases maintained for backward compatibility)
+    /** @deprecated use App\Enums\TaskStatus::ToDo */
+    public const STATUS_TO_DO = \App\Enums\TaskStatus::ToDo->value;
+    /** @deprecated use App\Enums\TaskStatus::InProgress */
+    public const STATUS_IN_PROGRESS = \App\Enums\TaskStatus::InProgress->value;
+    /** @deprecated use App\Enums\TaskStatus::Paused */
+    public const STATUS_PAUSED = \App\Enums\TaskStatus::Paused->value;
+    /** @deprecated use App\Enums\TaskStatus::Done */
+    public const STATUS_DONE = \App\Enums\TaskStatus::Done->value;
+    /** @deprecated use App\Enums\TaskStatus::Blocked */
+    public const STATUS_BLOCKED = \App\Enums\TaskStatus::Blocked->value;
+    /** @deprecated use App\Enums\TaskStatus::Archived */
+    public const STATUS_ARCHIVED = \App\Enums\TaskStatus::Archived->value;
 
     // List of valid task statuses
     public const STATUSES = [
-        self::STATUS_TO_DO,
-        self::STATUS_IN_PROGRESS,
-        self::STATUS_DONE,
-        self::STATUS_BLOCKED,
-        self::STATUS_ARCHIVED,
+        \App\Enums\TaskStatus::ToDo->value,
+        \App\Enums\TaskStatus::InProgress->value,
+        \App\Enums\TaskStatus::Done->value,
+        \App\Enums\TaskStatus::Blocked->value,
+        \App\Enums\TaskStatus::Archived->value,
     ];
 
     // List of active (non-final) statuses, useful for UI/filters
     public const ACTIVE_STATUSES = [
-        self::STATUS_TO_DO,
-        self::STATUS_IN_PROGRESS,
-        self::STATUS_PAUSED,
-        self::STATUS_BLOCKED,
+        \App\Enums\TaskStatus::ToDo->value,
+        \App\Enums\TaskStatus::InProgress->value,
+        \App\Enums\TaskStatus::Paused->value,
+        \App\Enums\TaskStatus::Blocked->value,
     ];
 
     /**
@@ -79,23 +87,27 @@ class Task extends Model
             $oldStatus = $this->getOriginal('status');
             $newStatus = $changes['status'];
 
-            if ($oldStatus === 'To Do' && $newStatus === 'In Progress') {
+            // Normalize possible enum instances to string values
+            $old = is_object($oldStatus) && ISSET($oldStatus->value) ? $oldStatus->value : $oldStatus;
+            $new = is_object($newStatus) && ISSET($newStatus->value) ? $newStatus->value : $newStatus;
+
+            if ($old === TaskStatus::ToDo->value && $new === TaskStatus::InProgress->value) {
                 return 'Task was started';
-            } elseif ($oldStatus === 'In Progress' && $newStatus === 'Paused') {
+            } elseif ($old === TaskStatus::InProgress->value && $new === TaskStatus::Paused->value) {
                 return 'Task was paused';
-            } elseif ($oldStatus === 'Paused' && $newStatus === 'In Progress') {
+            } elseif ($old === TaskStatus::Paused->value && $new === TaskStatus::InProgress->value) {
                 return 'Task was resumed';
-            } elseif ($newStatus === 'Blocked') {
+            } elseif ($new === TaskStatus::Blocked->value) {
                 $blockReason = $this->block_reason ? ": {$this->block_reason}" : '';
                 return "Task was blocked{$blockReason}";
-            } elseif ($oldStatus === 'Blocked' && ($newStatus === 'To Do' || $newStatus === 'In Progress')) {
+            } elseif ($old === TaskStatus::Blocked->value && ($new === TaskStatus::ToDo->value || $new === TaskStatus::InProgress->value)) {
                 return 'Task was unblocked';
-            } elseif ($newStatus === 'Done') {
+            } elseif ($new === TaskStatus::Done->value) {
                 return 'Task was completed';
-            } elseif ($oldStatus === 'Done' && $newStatus === 'To Do') {
+            } elseif ($old === TaskStatus::Done->value && $new === TaskStatus::ToDo->value) {
                 return 'Task was revised';
             } else {
-                return "Task status changed from '{$oldStatus}' to '{$newStatus}'";
+                return "Task status changed from '{$old}' to '{$new}'";
             }
         }
 
@@ -164,6 +176,7 @@ class Task extends Model
         'actual_completion_date' => 'date',
         'details' => 'array',
         'needs_approval' => 'boolean',
+        'status' => \App\Casts\MilestoneStatusCast::class . ':' . \App\Enums\TaskStatus::class,
     ];
 
     /**
@@ -305,6 +318,13 @@ class Task extends Model
             // For now, if no creator, it remains unset, allowing database to handle nullability.
         });
 
+//        static::updated(function (Task $task) {
+//            Log::info('Task updated', [
+//                'task_id'   =>  $task->id
+//            ]);
+//           GlobalModelEventSubscriber::dispatch(model: $task, from: 'task model');
+//        });
+
     }
 
     /**
@@ -379,7 +399,7 @@ class Task extends Model
             'assigned_to_user_id' => $this->assigned_to_user_id,
             'task_type_id' => $this->task_type_id,
             'milestone_id' => $this->milestone_id,
-            'status' => self::STATUS_TO_DO,
+            'status' => TaskStatus::ToDo,
             'parent_id' => $this->id,
         ];
 
@@ -396,7 +416,7 @@ class Task extends Model
      */
     public function isCompleted()
     {
-        return $this->status === self::STATUS_DONE;
+        return ($this->status instanceof TaskStatus ? $this->status->value : (string)$this->status) === TaskStatus::Done->value;
     }
 
     /**
@@ -420,13 +440,14 @@ class Task extends Model
         // Keep a reference to the user who completed the task
         $completedBy = $user;
         $oldStatus = $this->status;
-        $this->status = self::STATUS_DONE;
+        $this->status = TaskStatus::Done;
         $date = Carbon::now()->setTimezone('Australia/Perth');
         $this->actual_completion_date = $date;
         $this->save();
 
         // Only send notification if status actually changed
-        if ($oldStatus !== self::STATUS_DONE) {
+        $old = $oldStatus instanceof TaskStatus ? $oldStatus->value : (string)$oldStatus;
+        if ($old !== TaskStatus::Done->value) {
 
             if($this->milestone) {
                 TaskCompletedEvent::dispatch($this, $this->milestone);
@@ -547,11 +568,12 @@ class Task extends Model
     public function start(User $user = null)
     {
         $oldStatus = $this->status;
-        $this->status = self::STATUS_IN_PROGRESS;
+        $this->status = TaskStatus::InProgress;
         $this->save();
 
         // Only send notification if status actually changed
-        if ($oldStatus !== self::STATUS_IN_PROGRESS) {
+        $old = $oldStatus instanceof TaskStatus ? $oldStatus->value : (string)$oldStatus;
+        if ($old !== TaskStatus::InProgress->value) {
             try {
                 // Make sure we have the Google Chat space ID
                 if (!$this->google_chat_space_id) {
@@ -635,7 +657,7 @@ class Task extends Model
      */
     public function block()
     {
-        $this->status = self::STATUS_BLOCKED;
+        $this->status = TaskStatus::Blocked;
         $this->save();
     }
 
@@ -646,7 +668,7 @@ class Task extends Model
      */
     public function archive()
     {
-        $this->status = self::STATUS_ARCHIVED;
+        $this->status = TaskStatus::Archived;
         $this->save();
     }
 
@@ -866,5 +888,29 @@ class Task extends Model
     public function schedules()
     {
         return $this->morphMany(\App\Models\Schedule::class, 'scheduledItem');
+    }
+
+    // --- CreatableViaWorkflow contract implementation ---
+    public static function requiredOnCreate(): array
+    {
+        return ['name', 'task_type_id', 'status', 'priority'];
+    }
+
+    public static function defaultsOnCreate(array $context): array
+    {
+        $defaults = [];
+        $triggerTask = $context['trigger']['task'] ?? $context['task'] ?? null;
+        if (is_array($triggerTask)) {
+            $defaults['task_type_id'] = $triggerTask['task_type_id'] ?? null;
+            $defaults['milestone_id'] = $triggerTask['milestone_id'] ?? null;
+            $defaults['assigned_to_user_id'] = $triggerTask['assigned_to_user_id'] ?? null;
+            $defaults['priority'] = $triggerTask['priority'] ?? null;
+            $defaults['status'] = $triggerTask['status'] ?? null;
+        }
+        // Fallbacks from config/enums
+        $defaults['task_type_id'] = $defaults['task_type_id'] ?? config('automation.defaults.task.task_type_id');
+        $defaults['status'] = $defaults['status'] ?? (\App\Enums\TaskStatus::ToDo->value ?? null);
+        // Remove null/empty values
+        return array_filter($defaults, fn($v) => $v !== null && $v !== '');
     }
 }

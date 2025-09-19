@@ -12,9 +12,11 @@ use App\Services\StepHandlers\ConditionStepHandler;
 use App\Services\StepHandlers\CreateRecordStepHandler;
 use App\Services\StepHandlers\SendEmailStepHandler;
 use App\Services\StepHandlers\UpdateRecordStepHandler;
+use App\Services\StepHandlers\QueryDataStepHandler;
 use Illuminate\Support\Facades\Log;
 use Throwable;
-
+use App\Services\StepHandlers\ForEachStepHandler;
+use App\Services\StepHandlers\TransformContentStepHandler;
 class WorkflowEngineService
 {
     /** @var array<string, StepHandlerContract> */
@@ -30,6 +32,10 @@ class WorkflowEngineService
             'ACTION_CREATE_RECORD' => new CreateRecordStepHandler(),
             'ACTION_UPDATE_RECORD' => new UpdateRecordStepHandler(),
             'ACTION_SEND_EMAIL' => new SendEmailStepHandler(),
+            'QUERY_DATA' => new QueryDataStepHandler(),
+            'FETCH_RECORDS' => new QueryDataStepHandler(),
+            'FOR_EACH' => new ForEachStepHandler($this),
+            'TRANSFORM_CONTENT' => new TransformContentStepHandler($this),
             // TRIGGER steps are structural; at runtime they are a no-op
             'TRIGGER' => new class implements StepHandlerContract {
                 public function handle(array $context, WorkflowStep $step): array
@@ -74,6 +80,12 @@ class WorkflowEngineService
      */
     public function execute(Workflow $workflow, array $context = [], ?ExecutionLog $parentLog = null): array
     {
+        // Track if the incoming context was empty (useful for schedule-run guard)
+        $initiallyEmpty = empty($context);
+        // Seed a trigger namespace if not present for variable paths like {{ trigger.* }}
+        if (!isset($context['trigger'])) {
+            $context['trigger'] = $context;
+        }
         $results = [
             'workflow_id' => $workflow->id,
             'steps' => [],
@@ -81,7 +93,28 @@ class WorkflowEngineService
 
         $steps = $workflow->steps()->orderBy('step_order')->get();
 
+        // Schedule-run guard: When started by schedule with empty context, enforce first non-trigger step is FETCH_RECORDS
+        if (($workflow->trigger_event ?? null) === 'schedule.run' && $initiallyEmpty) {
+            $firstNonTrigger = $steps->first(function ($s) {
+                return strtoupper($s->step_type) !== 'TRIGGER';
+            });
+            if ($firstNonTrigger && strtoupper($firstNonTrigger->step_type) !== 'FETCH_RECORDS') {
+                $message = 'Schedule-based workflow must start with a Fetch Records step.';
+                Log::error('WorkflowEngineService.execute.schedule_guard', [
+                    'workflow_id' => $workflow->id,
+                    'message' => $message,
+                ]);
+                $results['error'] = $message;
+                return $results;
+            }
+        }
+
         foreach ($steps as $step) {
+            // Skip nested steps (children of containers like CONDITION). Their execution is handled by the parent handler via executeSteps().
+            $cfg = $step->step_config ?? [];
+            if (!empty($cfg['_parent_id'])) {
+                continue;
+            }
             // Honor delay_minutes at the step boundary by scheduling a resume job and stopping here
             if (($step->delay_minutes ?? 0) > 0) {
                 $execLog = ExecutionLog::create([
@@ -111,9 +144,10 @@ class WorkflowEngineService
             ];
 
             $execLog = ExecutionLog::create($logData);
-
+//
             try {
                 $handler = $this->resolveHandler($step);
+
                 if (!$handler) {
                     throw new \RuntimeException("No handler for step type {$step->step_type}");
                 }
@@ -132,6 +166,12 @@ class WorkflowEngineService
                 // Merge context if provided
                 if (!empty($out['context']) && is_array($out['context'])) {
                     $context = array_replace_recursive($context, $out['context']);
+                }
+                // Store parsed output under step-specific keys for downstream steps
+                if (isset($out['parsed'])) {
+                    $context['step_' . $step->id] = $out['parsed'];
+                    $context['steps'] = $context['steps'] ?? [];
+                    $context['steps'][$step->id] = $out['parsed'];
                 }
 
                 $results['steps'][] = [
@@ -166,6 +206,9 @@ class WorkflowEngineService
      */
     public function executeFromStepId(Workflow $workflow, array $context, int $startStepId, ?ExecutionLog $parentLog = null): array
     {
+        if (!isset($context['trigger'])) {
+            $context['trigger'] = $context;
+        }
         $results = [
             'workflow_id' => $workflow->id,
             'resumed_from_step_id' => $startStepId,
@@ -228,6 +271,11 @@ class WorkflowEngineService
                 if (!empty($out['context']) && is_array($out['context'])) {
                     $context = array_replace_recursive($context, $out['context']);
                 }
+                if (isset($out['parsed'])) {
+                    $context['step_' . $step->id] = $out['parsed'];
+                    $context['steps'] = $context['steps'] ?? [];
+                    $context['steps'][$step->id] = $out['parsed'];
+                }
                 $results['steps'][] = [
                     'step_id' => $step->id,
                     'status' => 'success',
@@ -254,6 +302,9 @@ class WorkflowEngineService
      */
     public function executeSteps(array $steps, Workflow $workflow, array $context = [], ?ExecutionLog $parentLog = null): array
     {
+        if (!isset($context['trigger'])) {
+            $context['trigger'] = $context;
+        }
         $results = [];
         foreach ($steps as $step) {
             $start = microtime(true);
@@ -282,6 +333,11 @@ class WorkflowEngineService
                 if (!empty($out['context']) && is_array($out['context'])) {
                     $context = array_replace_recursive($context, $out['context']);
                 }
+                if (isset($out['parsed'])) {
+                    $context['step_' . $step->id] = $out['parsed'];
+                    $context['steps'] = $context['steps'] ?? [];
+                    $context['steps'][$step->id] = $out['parsed'];
+                }
                 $results[] = [
                     'step_id' => $step->id,
                     'status' => 'success',
@@ -300,5 +356,43 @@ class WorkflowEngineService
             }
         }
         return $results;
+    }
+
+    // Resolve template tokens against context, returning native types when the whole value is a single token
+    public function getTemplatedValue($value, array $context)
+    {
+        if (is_array($value)) {
+            return array_map(fn($v) => $this->getTemplatedValue($v, $context), $value);
+        }
+        if (!is_string($value)) {
+            return $value;
+        }
+        // If the string is exactly one token, return the raw value (could be array/object)
+        if (preg_match('/^\s*{{\s*([^}]+)\s*}}\s*$/', $value, $m)) {
+            $path = trim($m[1]);
+            return $this->getFromContextPath($context, $path);
+        }
+        // Otherwise, interpolate tokens into the string
+        return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($context) {
+            $path = trim($m[1]);
+            $val = $this->getFromContextPath($context, $path);
+            if (is_scalar($val) || $val === null) return (string) $val;
+            return json_encode($val);
+        }, $value);
+    }
+
+    protected function getFromContextPath(array $context, string $path)
+    {
+        if ($path === '') return null;
+        $parts = preg_split('/\.|\:/', $path);
+        $val = $context;
+        foreach ($parts as $p) {
+            if (is_array($val) && array_key_exists($p, $val)) {
+                $val = $val[$p];
+            } else {
+                return null;
+            }
+        }
+        return $val;
     }
 }
