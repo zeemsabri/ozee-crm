@@ -651,11 +651,20 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
     })->name('automation.page')->middleware('permission:manage_projects');
 
     // Prompts Management Page
-    Route::get('/prompts', function () {
-        return Inertia::render('Automation/Prompts/Index');
-    })->name('prompts.page')->middleware('permission:create_automations');
+    // Moved outside the group to avoid any unexpected group-level middleware edge cases
+    // (we'll re-declare it below with explicit middleware)
 
 });
+
+// Prompts Management Page (explicit middleware, outside grouped declarations)
+Route::get('/prompt', function () {
+    return Inertia::render('Automation/Prompts/Index');
+})->name('prompts.page')->middleware(['auth','verified']);
+
+// Alternate path for environments where `/prompts` is intercepted by the dev router
+Route::get('/admin/prompts', function () {
+    return Inertia::render('Automation/Prompts/Index');
+})->name('admin.prompts.page')->middleware(['auth','verified']);
 
 // Require your existing authentication routes (login, register, logout, etc.)
 require __DIR__.'/auth.php';

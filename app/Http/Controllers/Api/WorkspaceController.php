@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\Task;
@@ -101,7 +102,7 @@ class WorkspaceController extends Controller
                     ->from('milestones')
                     ->join('tasks', 'tasks.milestone_id', '=', 'milestones.id')
                     ->whereColumn('milestones.project_id', 'projects.id')
-                    ->where('tasks.status', '!=', Task::STATUS_DONE);
+                    ->where('tasks.status', '!=', TaskStatus::Done);
             };
             if ($pending === 'with') {
                 $query->whereExists($sub);
@@ -136,7 +137,7 @@ class WorkspaceController extends Controller
             // Base task query for this project
             $baseQuery = Task::query()
                 ->whereIn('milestone_id', $milestoneIds)
-                ->whereNot('status', Task::STATUS_DONE);
+                ->whereNot('status', TaskStatus::Done);
 
             // Scope to own tasks if doer
             if ($effectiveRole === 'doer') {
@@ -202,7 +203,7 @@ class WorkspaceController extends Controller
                 // Budget and approved amounts
                 $budget = $currentMilestone->budget; // morphOne: may be null
                 $approvedSum = $currentMilestone->expendable()
-                    ->where('status', 'Accepted')
+                    ->where('status', \App\Enums\ProjectExpendableStatus::Accepted->value)
                     ->get(['amount', 'currency'])
                     ->reduce(function ($carry, $e) {
                         // Return raw numbers; frontend can format

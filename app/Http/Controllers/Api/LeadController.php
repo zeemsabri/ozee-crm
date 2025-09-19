@@ -92,7 +92,8 @@ class LeadController extends Controller
                 'notes' => $lead->notes,
                 'lead_id' => $lead->id,
             ]);
-            $lead->update(['status' => 'converted', 'converted_at' => now()]);
+            app(\App\Services\ValueSetValidator::class)->validate('Lead','status', \App\Enums\LeadStatus::Converted);
+            $lead->update(['status' => \App\Enums\LeadStatus::Converted, 'converted_at' => now()]);
             return response()->json(['client_id' => $clientModel->id], 200);
         } catch (\Throwable $e) {
             Log::error('Lead convert error: '.$e->getMessage(), ['lead_id' => $lead->id]);
@@ -191,6 +192,15 @@ class LeadController extends Controller
                 'first_name.required_without' => 'Please provide at least a first or last name.',
                 'last_name.required_without' => 'Please provide at least a first or last name.',
             ]);
+
+            // Soft-validate and coerce status when provided
+            if (array_key_exists('status', $validated)) {
+                $enum = \App\Enums\LeadStatus::tryFrom($validated['status']) ?? \App\Enums\LeadStatus::tryFrom(strtolower((string)$validated['status']));
+                if ($enum) {
+                    $validated['status'] = $enum->value;
+                }
+                app(\App\Services\ValueSetValidator::class)->validate('Lead','status', $validated['status']);
+            }
 
             $validated['created_by_id'] = $user->id;
             $lead = Lead::create($validated);
@@ -295,6 +305,15 @@ class LeadController extends Controller
                 'notes' => 'nullable|string',
                 'metadata' => 'nullable|array',
             ]);
+
+            // Soft-validate and coerce status when provided
+            if (array_key_exists('status', $validated)) {
+                $enum = \App\Enums\LeadStatus::tryFrom($validated['status']) ?? \App\Enums\LeadStatus::tryFrom(strtolower((string)$validated['status']));
+                if ($enum) {
+                    $validated['status'] = $enum->value;
+                }
+                app(\App\Services\ValueSetValidator::class)->validate('Lead','status', $validated['status']);
+            }
 
             $lead->update($validated);
 

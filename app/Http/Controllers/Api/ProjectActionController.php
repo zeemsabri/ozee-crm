@@ -51,6 +51,9 @@ class ProjectActionController extends Controller
     {
         try {
             $validated = $request->validated();
+            if (array_key_exists('status', $validated)) {
+                app(\App\Services\ValueSetValidator::class)->validate('Project','status',$validated['status']);
+            }
 
             $projectData = [
                 'name' => $validated['name'],
@@ -162,7 +165,7 @@ class ProjectActionController extends Controller
                 'preferred_keywords' => 'nullable|string',
                 'google_chat_id' => 'nullable|string|max:255',
                 'client_id' => 'sometimes|required|exists:clients,id',
-                'status' => 'sometimes|required|in:active,completed,on_hold,archived',
+                'status' => 'sometimes|required|string',
                 'project_type' => 'nullable|string|max:255',
                 'source' => 'nullable|string|max:255',
                 'google_drive_link' => 'nullable|url',
@@ -213,6 +216,9 @@ class ProjectActionController extends Controller
             }
 
             $validated = $request->validate($validationRules);
+            if (array_key_exists('status', $validated)) {
+                app(\App\Services\ValueSetValidator::class)->validate('Project','status',$validated['status']);
+            }
 
             $projectData = [
                 'name' => $validated['name'] ?? $project->name,
@@ -797,7 +803,7 @@ class ProjectActionController extends Controller
                 'preferred_keywords' => 'nullable|string',
                 'reporting_sites' => 'nullable|string',
                 'google_chat_id' => 'nullable|string|max:255',
-                'status' => 'sometimes|required|in:active,completed,on_hold,archived',
+                'status' => 'sometimes|required|string',
                 'source' => 'nullable|string|max:255',
                 'google_drive_link' => 'nullable|url', // Keep this validation
                 'project_type'  =>  'required|string|max:30',
@@ -853,6 +859,11 @@ class ProjectActionController extends Controller
                 Log::info('Google Drive link set to null, clearing folder ID.', ['project_id' => $project->id]);
             }
             // --- END NEW LOGIC ---
+
+            // Soft-validate status if present using registry
+            if (array_key_exists('status', $projectData)) {
+                app(\App\Services\ValueSetValidator::class)->validate('Project','status',$projectData['status']);
+            }
 
             $project->update($projectData);
 

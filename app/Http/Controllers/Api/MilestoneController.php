@@ -44,7 +44,12 @@ class MilestoneController extends Controller
         }
 
         if ($status) {
-            $query->where('status', $status);
+            $statusFilter = $status;
+            $enum = \App\Enums\MilestoneStatus::tryFrom($status) ?? \App\Enums\MilestoneStatus::tryFrom(strtolower((string)$status));
+            if ($enum) {
+                $statusFilter = $enum->value;
+            }
+            $query->where('status', $statusFilter);
         }
 
         // Get the milestones: order by completion_date ascending with NULLs last
@@ -71,12 +76,12 @@ class MilestoneController extends Controller
             ])
             // Task counts by status
             ->withCount([
-                'tasks as tasks_todo_count' => function ($q) { $q->where('status', 'To Do'); },
-                'tasks as tasks_in_progress_count' => function ($q) { $q->where('status', 'In Progress'); },
-                'tasks as tasks_paused_count' => function ($q) { $q->where('status', 'Paused'); },
-                'tasks as tasks_blocked_count' => function ($q) { $q->where('status', 'Blocked'); },
-                'tasks as tasks_done_count' => function ($q) { $q->where('status', 'Done'); },
-                'tasks as tasks_archived_count' => function ($q) { $q->where('status', 'Archived'); },
+                'tasks as tasks_todo_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::ToDo->value); },
+                'tasks as tasks_in_progress_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::InProgress->value); },
+                'tasks as tasks_paused_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Paused->value); },
+                'tasks as tasks_blocked_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Blocked->value); },
+                'tasks as tasks_done_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Done->value); },
+                'tasks as tasks_archived_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Archived->value); },
                 'tasks as tasks_total_count'
             ])
             ->orderByRaw('completion_date IS NULL')
@@ -126,10 +131,12 @@ class MilestoneController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'completion_date' => 'nullable|date',
-            'status' => 'required|in:Not Started,In Progress,Completed,Overdue',
+            'status' => 'required|string',
             'project_id' => 'required|exists:projects,id',
         ]);
 
+        // Soft-validate status against registry
+        app(\App\Services\ValueSetValidator::class)->validate('Milestone','status', $validated['status']);
         // Create the milestone
         $milestone = Milestone::create($validated);
 
@@ -168,10 +175,14 @@ class MilestoneController extends Controller
             'description' => 'nullable|string',
             'completion_date' => 'nullable|date',
             'actual_completion_date' => 'nullable|date',
-            'status' => 'sometimes|required|in:Not Started,In Progress,Completed,Overdue',
+            'status' => 'sometimes|required|string',
             'project_id' => 'sometimes|required|exists:projects,id',
         ]);
 
+        // Soft-validate status when provided
+        if (array_key_exists('status', $validated)) {
+            app(\App\Services\ValueSetValidator::class)->validate('Milestone','status', $validated['status']);
+        }
         // Update the milestone
         $milestone->update($validated);
 
@@ -219,7 +230,8 @@ class MilestoneController extends Controller
         }
 
         // Update milestone status and timestamps
-        $milestone->status = 'Completed';
+        app(\App\Services\ValueSetValidator::class)->validate('Milestone','status', \App\Enums\MilestoneStatus::Completed);
+        $milestone->status = \App\Enums\MilestoneStatus::Completed;
         $milestone->completed_at = now();
         $milestone->save();
 

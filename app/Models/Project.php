@@ -55,7 +55,7 @@ class Project extends Model
     ];
 
     protected $casts = [
-        'status' => 'string',
+        'status' => \App\Enums\ProjectStatus::class,
         'services' => 'array',
         'service_details' => 'array',
         'total_amount' => 'decimal:2',
@@ -149,7 +149,7 @@ class Project extends Model
         return $this->milestones()->create([
             'name'  =>  self::SUPPORT,
             'description'   =>  'Support milestone for tickets created by clients',
-            'status'    =>  'In Progress'
+            'status'    =>  \App\Enums\MilestoneStatus::InProgress
         ]);
     }
 
@@ -303,7 +303,7 @@ class Project extends Model
     public function getBonusSummary(?\DateTime $startDate = null, ?\DateTime $endDate = null)
     {
         $query = $this->bonusTransactions()
-            ->where('status', 'processed');
+            ->where('status', \App\Enums\BonusTransactionStatus::Processed->value);
 
         if ($startDate) {
             $query->whereDate('created_at', '>=', $startDate->format('Y-m-d'));

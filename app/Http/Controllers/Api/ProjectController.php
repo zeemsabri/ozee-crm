@@ -76,6 +76,9 @@ class ProjectController extends Controller
         try {
             // Get validated data
             $validated = $request->validated();
+            if (array_key_exists('status', $validated)) {
+                app(\App\Services\ValueSetValidator::class)->validate('Project','status',$validated['status']);
+            }
 
             // Basic project data
             $projectData = [
@@ -644,7 +647,7 @@ class ProjectController extends Controller
                 'preferred_keywords' => 'nullable|string',
                 'google_chat_id' => 'nullable|string|max:255',
                 'client_id' => 'sometimes|required|exists:clients,id',
-                'status' => 'sometimes|required|in:active,completed,on_hold,archived',
+                'status' => 'sometimes|required|string',
                 'project_type' => 'nullable|string|max:255',
                 'source' => 'nullable|string|max:255',
                 'google_drive_link' => 'nullable|url',
@@ -702,6 +705,9 @@ class ProjectController extends Controller
             }
 
             $validated = $request->validate($validationRules);
+            if (array_key_exists('status', $validated)) {
+                app(\App\Services\ValueSetValidator::class)->validate('Project','status',$validated['status']);
+            }
 
             // Initialize project data with basic information
             $projectData = [

@@ -87,29 +87,105 @@ class PlaceholderDefinitionController extends Controller
     public function getModelsAndColumns()
     {
         $models = [];
+        $schema = DB::getSchemaBuilder();
         // Get all files in the App/Models directory
         $modelFiles = File::files(app_path('Models'));
 
+        // First pass: collect base info (class, table, columns)
+        $registry = [];
         foreach ($modelFiles as $modelFile) {
             $modelName = $modelFile->getFilenameWithoutExtension();
             $className = 'App\\Models\\' . $modelName;
-
-            // Check if the class is a subclass of Eloquent\Model
             if (class_exists($className) && is_subclass_of($className, 'Illuminate\Database\Eloquent\Model')) {
-                // Get table name from model
-                $modelInstance = new $className();
-                $tableName = $modelInstance->getTable();
-
-                // Get columns from the table
-                $columns = DB::getSchemaBuilder()->getColumnListing($tableName);
-
-                $models[] = [
+                $instance = new $className();
+                $table = $instance->getTable();
+                $columns = $schema->getColumnListing($table);
+                $registry[$modelName] = [
                     'name' => $modelName,
                     'full_class' => $className,
+                    'table' => $table,
                     'columns' => $columns,
                 ];
             }
         }
+
+        // Preload value dictionary once (keep endpoint resilient on failure)
+        $valueSets = [];
+        try {
+            $valueSets = app(\App\Services\ValueDictionaryRegistry::class)->all();
+        } catch (\Throwable $e) {
+            $valueSets = [];
+        }
+
+        // Second pass: infer relationships (belongsTo via *_id, hasMany via reverse FK discovery)
+        foreach ($registry as $modelName => $info) {
+            $relationships = [];
+            // belongsTo: scan own columns for *_id
+            foreach ($info['columns'] as $col) {
+                if (str_ends_with($col, '_id')) {
+                    $relatedBase = Str::studly(Str::beforeLast($col, '_id'));
+                    if (isset($registry[$relatedBase])) {
+                        $relationships[] = [
+                            'name' => Str::camel($relatedBase),
+                            'type' => 'belongsTo',
+                            'model' => $relatedBase,
+                            'full_class' => $registry[$relatedBase]['full_class'],
+                            'foreign_key' => $col,
+                            'columns' => $registry[$relatedBase]['columns'],
+                        ];
+                    } else {
+                        $candidate = 'App\\Models\\' . $relatedBase;
+                        if (class_exists($candidate)) {
+                            // Load columns if possible
+                            $inst = new $candidate();
+                            $relTable = $inst->getTable();
+                            $relCols = $schema->hasTable($relTable) ? $schema->getColumnListing($relTable) : [];
+                            $relationships[] = [
+                                'name' => Str::camel($relatedBase),
+                                'type' => 'belongsTo',
+                                'model' => $relatedBase,
+                                'full_class' => $candidate,
+                                'foreign_key' => $col,
+                                'columns' => $relCols,
+                            ];
+                        }
+                    }
+                }
+            }
+
+            // hasMany: other models that have currentModel_id
+            $currentFk = Str::snake(Str::singular($modelName)) . '_id';
+            foreach ($registry as $otherName => $otherInfo) {
+                if ($otherName === $modelName) continue;
+                if (in_array($currentFk, $otherInfo['columns'], true)) {
+                    $relationships[] = [
+                        'name' => Str::camel(Str::pluralStudly($otherName)),
+                        'type' => 'hasMany',
+                        'model' => $otherName,
+                        'full_class' => $otherInfo['full_class'],
+                        'foreign_key' => $currentFk,
+                        'columns' => $otherInfo['columns'],
+                    ];
+                }
+            }
+
+            // Attach field metadata for enum/value sets if available
+            $fieldMeta = [];
+            if (!empty($valueSets[$info['name']]['fields'] ?? [])) {
+                foreach ($valueSets[$info['name']]['fields'] as $fieldName => $def) {
+                    $fieldMeta[$fieldName] = array_merge(['enum' => true], $def);
+                }
+            }
+
+            $models[] = [
+                'name' => $info['name'],
+                'full_class' => $info['full_class'],
+                'columns' => $info['columns'],
+                'relationships' => $relationships,
+                'field_meta' => $fieldMeta,
+            ];
+        }
+
         return response()->json($models);
     }
 }

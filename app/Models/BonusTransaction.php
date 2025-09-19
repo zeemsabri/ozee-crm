@@ -9,6 +9,14 @@ use App\Models\BonusConfiguration;
 
 class BonusTransaction extends Model
 {
+    /** @deprecated use App\Enums\BonusTransactionStatus::Pending */
+    public const STATUS_PENDING = \App\Enums\BonusTransactionStatus::Pending->value;
+    /** @deprecated use App\Enums\BonusTransactionStatus::Approved */
+    public const STATUS_APPROVED = \App\Enums\BonusTransactionStatus::Approved->value;
+    /** @deprecated use App\Enums\BonusTransactionStatus::Rejected */
+    public const STATUS_REJECTED = \App\Enums\BonusTransactionStatus::Rejected->value;
+    /** @deprecated use App\Enums\BonusTransactionStatus::Processed */
+    public const STATUS_PROCESSED = \App\Enums\BonusTransactionStatus::Processed->value;
     /**
      * The attributes that are mass assignable.
      *
@@ -37,6 +45,7 @@ class BonusTransaction extends Model
         'amount' => 'decimal:2',
         'processed_at' => 'datetime',
         'metadata' => 'array',
+        'status' => \App\Enums\BonusTransactionStatus::class,
     ];
 
     /**

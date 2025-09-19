@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Concerns;
 
+use App\Enums\EmailType;
 use App\Models\Client;
 use App\Models\EmailTemplate;
 use App\Models\Lead;
@@ -256,6 +257,7 @@ trait HandlesTemplatedEmails
 
     public function renderHtmlTemplate($data, $template = 'email_template')
     {
+
         try {
             return  View::make('emails.' . $template, $data)->render();
         }
@@ -306,6 +308,7 @@ trait HandlesTemplatedEmails
 
     public function getSenderDetails(Email $email)
     {
+
         $sender = $email->sender;
 
         if(get_class($email->conversation->conversable) === Lead::class) {
@@ -326,26 +329,32 @@ trait HandlesTemplatedEmails
         // Load all reusable data from the new config file
         $config = config('branding');
 
+
         $data =  [
-            'emailData' => [
-                'subject' => $subject,
-            ],
-            'bodyContent' => json_decode($body) ? json_decode($body) : $body,
-            'senderName' => $senderDetails['name'],
-            'senderRole' => $senderDetails['role'],
-            'senderPhone' => $config['company']['phone'],
-            'senderWebsite' => $config['company']['website'],
-            'companyLogoUrl' => asset($config['company']['logo_url']),
-            'socialIcons' => $config['social_icons'],
-            'brandPrimaryColor' => $config['branding']['brand_primary_color'],
-            'brandSecondaryColor' => $config['branding']['brand_secondary_color'],
-            'backgroundColor' => $config['branding']['background_color'],
-            'textColorPrimary' => $config['branding']['text_color_primary'],
-            'textColorSecondary' => $config['branding']['text_color_secondary'],
-            'borderColor' => $config['branding']['border_color'],
-            'reviewLink' => null,
-            'template'  =>  $email ? $email->template : Email::TEMPLATE_DEFAULT,
-        ];
+                'emailData' => [
+                    'subject' => $subject,
+                ],
+                'bodyContent' => json_decode($body) ? json_decode($body) : $body,
+                'senderName' => $senderDetails['name'],
+                'senderRole' => $senderDetails['role'],
+                'senderPhone' => $config['company']['phone'],
+                'senderWebsite' => $config['company']['website'],
+                'companyLogoUrl' => asset($config['company']['logo_url']),
+                'socialIcons' => $config['social_icons'],
+                'brandPrimaryColor' => $config['branding']['brand_primary_color'],
+                'brandSecondaryColor' => $config['branding']['brand_secondary_color'],
+                'backgroundColor' => $config['branding']['background_color'],
+                'textColorPrimary' => $config['branding']['text_color_primary'],
+                'textColorSecondary' => $config['branding']['text_color_secondary'],
+                'borderColor' => $config['branding']['border_color'],
+                'reviewLink' => null,
+                'template'  =>  $email ? $email->template : Email::TEMPLATE_DEFAULT,
+                'show_signature'    =>  true
+            ];
+
+        if($email->type === EmailType::Received) {
+            $data['show_signature'] =  false;
+        }
 
         // Add the tracking URL only for final sends
         if ($isFinalSend && $email) {

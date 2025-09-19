@@ -32,18 +32,27 @@ export const useWorkflowStore = defineStore('workflow', {
     state: () => ({
         workflows: [],
         prompts: [],
-        automationSchema: {},
+        automationSchema: [],
+        campaigns: [],
+        morphMap: [],
         activeWorkflow: null,
         selectedStep: null,
         isLoading: false,
-        // New state for the custom modal
         modalState: {
             show: false,
             title: '',
             message: '',
             onConfirm: null,
             onCancel: null,
-            type: 'alert', // 'alert' or 'confirm'
+            type: 'alert',
+        },
+        logsModal: {
+            show: false,
+            isLoading: false,
+            workflow: null,
+            items: [],
+            meta: null,
+            params: { per_page: 20, page: 1, status: null, step_id: null },
         },
     }),
     actions: {
@@ -79,14 +88,83 @@ export const useWorkflowStore = defineStore('workflow', {
             };
         },
 
+        // --- LOGS MODAL ACTIONS ---
+        showLogs(workflow) {
+            this.logsModal.show = true;
+            this.logsModal.workflow = workflow;
+            this.logsModal.items = [];
+            this.logsModal.meta = null;
+            this.logsModal.params.page = 1;
+            this.fetchWorkflowLogs(workflow.id);
+        },
+        hideLogs() {
+            this.logsModal = {
+                show: false,
+                isLoading: false,
+                workflow: null,
+                items: [],
+                meta: null,
+                params: { per_page: 20, page: 1, status: null, step_id: null },
+            };
+        },
+        async fetchWorkflowLogs(workflowId, extraParams = {}) {
+            this.logsModal.isLoading = true;
+            try {
+                const params = { ...this.logsModal.params, ...extraParams };
+                const resp = await api.fetchWorkflowLogs(workflowId, params);
+                // Normalize Laravel paginator shape
+                if (resp && typeof resp === 'object') {
+                    const items = Array.isArray(resp.data) ? resp.data : [];
+                    this.logsModal.items = items;
+                    this.logsModal.meta = resp.meta || null;
+                    // Maintain params.page from response if available
+                    if (resp.meta && typeof resp.meta.current_page === 'number') {
+                        this.logsModal.params.page = resp.meta.current_page;
+                    }
+                } else if (Array.isArray(resp)) {
+                    this.logsModal.items = resp;
+                    this.logsModal.meta = null;
+                } else {
+                    this.logsModal.items = [];
+                    this.logsModal.meta = null;
+                }
+            } catch (e) {
+                console.error('Failed to fetch workflow logs', e);
+                this.showAlert('Failed to load logs', 'Could not load execution logs for this workflow.');
+            } finally {
+                this.logsModal.isLoading = false;
+            }
+        },
+        async goToLogsPage(page) {
+            if (!this.logsModal.workflow) return;
+            this.logsModal.params.page = page;
+            await this.fetchWorkflowLogs(this.logsModal.workflow.id, {page});
+
+        },
+
         // --- SCHEMA ACTIONS ---
         async fetchAutomationSchema() {
             try {
-                const schemaArray = await api.fetchAutomationSchema();
-                this.automationSchema = { models: schemaArray || [] };
+                const resp = await api.fetchAutomationSchema();
+                // Handle both legacy (array) and new (object with models/campaigns) shapes
+                if (Array.isArray(resp)) {
+                    this.automationSchema = resp;
+                    this.campaigns = [];
+                } else if (resp && typeof resp === 'object') {
+                    // Some backends may still return models as a plain array under `models`,
+                    // or return the full array directly. Normalize to an array.
+                    const models = Array.isArray(resp.models) ? resp.models : [];
+                    this.automationSchema = models;
+                    this.campaigns = Array.isArray(resp.campaigns) ? resp.campaigns : [];
+                    this.morphMap = Array.isArray(resp.morph_map) ? resp.morph_map : [];
+                } else {
+                    this.automationSchema = [];
+                    this.campaigns = [];
+                }
             } catch(error) {
                 console.error("Failed to fetch automation schema:", error);
-                this.automationSchema = { models: [] };
+                this.automationSchema = [];
+                this.campaigns = [];
             }
         },
 
@@ -109,11 +187,9 @@ export const useWorkflowStore = defineStore('workflow', {
                 const response = await api.fetchWorkflow(id);
                 const workflowData = unwrapApiResponse(response);
 
-                // Ensure nested arrays exist and, if necessary, reconstruct the tree from flat data using step_config._parent_id/_branch
                 const initializeStepArrays = (steps) => {
                     if (!Array.isArray(steps)) return;
                     steps.forEach(step => {
-                        // Normalize step_config to an object
                         if (!step.step_config || typeof step.step_config !== 'object' || Array.isArray(step.step_config)) {
                             step.step_config = {};
                         }
@@ -123,6 +199,10 @@ export const useWorkflowStore = defineStore('workflow', {
                             initializeStepArrays(step.yes_steps);
                             initializeStepArrays(step.no_steps);
                         }
+                        if (step.step_type === 'FOR_EACH') {
+                            if (!Array.isArray(step.children)) step.children = [];
+                            initializeStepArrays(step.children);
+                        }
                     });
                 };
 
@@ -130,9 +210,17 @@ export const useWorkflowStore = defineStore('workflow', {
                     const steps = Array.isArray(wf.steps) ? wf.steps : [];
                     if (!steps.length) return;
 
-                    // Detect if already nested
-                    const hasNested = steps.some(s => s && s.step_type === 'CONDITION' && ((Array.isArray(s.yes_steps) && s.yes_steps.length) || (Array.isArray(s.no_steps) && s.no_steps.length)));
-                    // Always normalize step_config first
+                    const hasNested = steps.some(s => {
+                        if (!s) return false;
+                        if (s.step_type === 'CONDITION') {
+                            return (Array.isArray(s.yes_steps) && s.yes_steps.length) || (Array.isArray(s.no_steps) && s.no_steps.length);
+                        }
+                        if (s.step_type === 'FOR_EACH') {
+                            return Array.isArray(s.children) && s.children.length > 0;
+                        }
+                        return false;
+                    });
+
                     steps.forEach(s => {
                         if (!s.step_config || typeof s.step_config !== 'object' || Array.isArray(s.step_config)) {
                             s.step_config = {};
@@ -140,17 +228,19 @@ export const useWorkflowStore = defineStore('workflow', {
                     });
                     if (hasNested) {
                         initializeStepArrays(steps);
-                        return; // Nothing to reconstruct
+                        return;
                     }
 
                     const byId = new Map();
                     steps.forEach(s => byId.set(String(s.id), s));
 
-                    // Prepare condition containers
                     steps.forEach(s => {
                         if (s.step_type === 'CONDITION') {
                             if (!Array.isArray(s.yes_steps)) s.yes_steps = [];
                             if (!Array.isArray(s.no_steps)) s.no_steps = [];
+                        }
+                        if (s.step_type === 'FOR_EACH') {
+                            if (!Array.isArray(s.children)) s.children = [];
                         }
                     });
 
@@ -158,11 +248,15 @@ export const useWorkflowStore = defineStore('workflow', {
                     steps.forEach(s => {
                         const parentId = s.step_config?._parent_id;
                         const branch = s.step_config?._branch;
-                        if (parentId && branch && byId.has(String(parentId))) {
+                        if (parentId && byId.has(String(parentId))) {
                             const parent = byId.get(String(parentId));
-                            if (parent && parent.step_type === 'CONDITION') {
+                            if (parent && parent.step_type === 'CONDITION' && branch) {
                                 const target = String(branch).toLowerCase() === 'no' ? parent.no_steps : parent.yes_steps;
                                 target.push(s);
+                                return;
+                            }
+                            if (parent && parent.step_type === 'FOR_EACH' && (branch === null || branch === undefined || branch === '')) {
+                                parent.children.push(s);
                                 return;
                             }
                         }
@@ -170,11 +264,14 @@ export const useWorkflowStore = defineStore('workflow', {
                     });
 
                     const sortByOrder = (arr) => arr.sort((a, b) => (a.step_order ?? 0) - (b.step_order ?? 0));
-                    // Sort branches
+
                     steps.forEach(s => {
                         if (s.step_type === 'CONDITION') {
                             sortByOrder(s.yes_steps);
                             sortByOrder(s.no_steps);
+                        }
+                        if (s.step_type === 'FOR_EACH') {
+                            sortByOrder(s.children);
                         }
                     });
                     wf.steps = sortByOrder(topLevel);
@@ -182,6 +279,38 @@ export const useWorkflowStore = defineStore('workflow', {
 
                 if (workflowData && typeof workflowData === 'object' && Array.isArray(workflowData.steps)) {
                     reconstructTreeIfFlat(workflowData);
+
+                    // Normalize for UI expectations: map yes/no branches to if_true/if_false
+                    const normalizeForUI = (steps) => {
+                        if (!Array.isArray(steps)) return;
+                        steps.forEach((s, i) => {
+                            if (!s || typeof s !== 'object') return;
+                            // Ensure step_config is an object
+                            if (!s.step_config || typeof s.step_config !== 'object' || Array.isArray(s.step_config)) {
+                                s.step_config = {};
+                            }
+                            // Show schedule trigger nicely in UI
+                            if (i === 0 && s.step_type === 'TRIGGER' && s.step_config?.trigger_event === 'schedule.run') {
+                                s.step_type = 'SCHEDULE_TRIGGER';
+                            }
+                            if (s.step_type === 'CONDITION') {
+                                // Map backend yes/no keys to UI keys if missing
+                                if (!Array.isArray(s.if_true)) s.if_true = Array.isArray(s.yes_steps) ? s.yes_steps : [];
+                                if (!Array.isArray(s.if_false)) s.if_false = Array.isArray(s.no_steps) ? s.no_steps : [];
+                                // Keep both in sync for safety
+                                s.yes_steps = s.if_true;
+                                s.no_steps = s.if_false;
+                                normalizeForUI(s.if_true);
+                                normalizeForUI(s.if_false);
+                            }
+                            if (s.step_type === 'FOR_EACH') {
+                                if (!Array.isArray(s.children)) s.children = [];
+                                normalizeForUI(s.children);
+                            }
+                        });
+                    };
+                    normalizeForUI(workflowData.steps);
+
                     this.activeWorkflow = workflowData;
                 } else {
                     console.error(`Received invalid data structure for workflow ${id}:`, response);
@@ -215,10 +344,8 @@ export const useWorkflowStore = defineStore('workflow', {
             const response = await api.updateWorkflow(id, payload);
             const updated = unwrapApiResponse(response);
             if (updated && updated.id) {
-                // Update in list
                 const idx = this.workflows.findIndex(w => w.id === id);
                 if (idx !== -1) this.workflows.splice(idx, 1, updated);
-                // Update active
                 if (this.activeWorkflow && this.activeWorkflow.id === id) {
                     this.activeWorkflow = { ...this.activeWorkflow, ...updated };
                 }
@@ -264,10 +391,9 @@ export const useWorkflowStore = defineStore('workflow', {
                 condition_rules: type === 'CONDITION' ? [] : null,
             };
 
-            // If adding inside a condition branch, tag the child with its parent and branch so it can be rebuilt on reload
             if (parentStep && branch) {
                 newStep.step_config._parent_id = parentStep.id;
-                newStep.step_config._branch = branch; // 'yes' | 'no'
+                newStep.step_config._branch = branch;
             }
 
             if (type === 'CONDITION') {
@@ -336,20 +462,16 @@ export const useWorkflowStore = defineStore('workflow', {
                 }
 
                 if (savedStep) {
-                    // Defensively ensure the saved step has the required arrays for conditions.
                     if (savedStep.step_type === 'CONDITION') {
                         if (!Array.isArray(savedStep.yes_steps)) savedStep.yes_steps = [];
                         if (!Array.isArray(savedStep.no_steps)) savedStep.no_steps = [];
                     }
 
-                    // Use the new recursive helper to patch the local state.
                     const success = findAndReplaceStep(this.activeWorkflow.steps, originalStepId, savedStep);
 
                     if (success) {
-                        // Reselect the new step object to keep the sidebar in sync.
                         this.selectStep(savedStep);
                     } else {
-                        // As a fallback, reload the whole workflow if the patch fails.
                         await this.fetchWorkflow(stepToSave.workflow_id);
                     }
                 }
@@ -363,15 +485,27 @@ export const useWorkflowStore = defineStore('workflow', {
         async fetchPrompts() {
             try {
                 const response = await api.fetchPrompts({ per_page: 100 });
-                this.prompts = unwrapApiResponse(response) || [];
+                const resp = unwrapApiResponse(response);
+                // Normalize to array regardless of backend pagination shape
+                if (Array.isArray(resp)) {
+                    this.prompts = resp;
+                } else if (resp && typeof resp === 'object') {
+                    // Laravel paginator returns { data: [...], current_page, ... }
+                    const arr = Array.isArray(resp.data) ? resp.data : [];
+                    this.prompts = arr;
+                } else {
+                    this.prompts = [];
+                }
             } catch (error) {
                 console.error("Failed to fetch prompts:", error);
+                this.prompts = [];
             }
         },
 
         async createPrompt(payload) {
             const response = await api.createPrompt(payload);
             const newPrompt = unwrapApiResponse(response);
+            if (!Array.isArray(this.prompts)) this.prompts = [];
             if (newPrompt) {
                 this.prompts.unshift(newPrompt);
             }
@@ -381,8 +515,13 @@ export const useWorkflowStore = defineStore('workflow', {
         async updatePrompt(id, payload) {
             const response = await api.updatePrompt(id, payload);
             const updated = unwrapApiResponse(response);
+            if (!Array.isArray(this.prompts)) this.prompts = [];
             const idx = this.prompts.findIndex(p => p.id === id);
-            if (idx !== -1 && updated) this.prompts.splice(idx, 1, updated);
+            if (idx !== -1 && updated) {
+                this.prompts.splice(idx, 1, updated);
+            } else if (updated) {
+                this.prompts.unshift(updated);
+            }
             return updated;
         },
 
