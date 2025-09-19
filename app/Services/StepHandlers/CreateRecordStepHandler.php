@@ -129,7 +129,8 @@ class CreateRecordStepHandler implements StepHandlerContract
         // If string is exactly one token, return the raw value (could be array/object)
         if (preg_match('/^\s*{{\s*([^}]+)\s*}}\s*$/', $value, $m)) {
             $path = trim($m[1]);
-            return $this->getFromContextPath($ctx, $path);
+            $val = $this->getFromContextPath($ctx, $path);
+            return $val === null ? '' : $val;
         }
 
         // Otherwise interpolate
