@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\Role;
 use App\Models\Permission;
+use Carbon\Carbon;
 
 class InboxController extends Controller
 {
@@ -86,19 +87,31 @@ class InboxController extends Controller
         $perPage = $request->input('per_page', 15);
         $page = $request->input('page', 1);
 
-        // Apply filters if provided
+        // Normalize filters to accept both camelCase and snake_case from frontend
+        $type      = $request->input('type');
+        $status    = $request->input('status');
+        $statuses  = $request->input('statuses'); // optional array
+        $projectId = $request->input('project_id') ?? $request->input('projectId');
+        $senderId  = $request->input('sender_id') ?? $request->input('senderId');
+        $startDate = $request->input('start_date') ?? $request->input('startDate');
+        $endDate   = $request->input('end_date') ?? $request->input('endDate');
+        $search    = $request->input('search');
+        // is_read is optional; when provided, we filter based on user interactions
+        $isRead    = $request->has('is_read') ? filter_var($request->input('is_read'), FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) : null;
+
+        // Apply base visibility filter and accessible projects/leads
         $query = Email::visibleTo($user)->whereHas('conversation', function ($query) use ($projectIds, $user) {
             $query->whereIn('project_id', $projectIds);
 
-            if($user->hasPermission('contact_lead')) {
+            if ($user->hasPermission('contact_lead')) {
                 $query->orWhereNull('project_id');
             }
-
         });
 
-        // Apply filters based on request parameters
-        if ($request->has('type') && !empty($request->type)) {
-            if ($request->type === 'new') {
+        // Apply filters based on normalized parameters
+        if (!empty($type)) {
+            if ($type === 'new') {
+                // Limit to statuses considered as "inbox new" and unread for the user
                 $query->whereIn('status', ['pending_approval', 'pending_approval_received', 'received', 'sent', 'draft'])
                     ->whereNotExists(function ($subQuery) use ($user) {
                         $subQuery->select(DB::raw(1))
@@ -108,41 +121,67 @@ class InboxController extends Controller
                             ->where('user_interactions.user_id', $user->id)
                             ->where('user_interactions.interaction_type', 'read');
                     });
-            } elseif ($request->type === 'waiting-approval') {
+            } elseif ($type === 'waiting-approval') {
                 $query->whereIn('status', ['pending_approval', 'pending_approval_received']);
-            } elseif ($request->type !== 'all') {
-                $query->where('type', $request->type);
+            } elseif ($type !== 'all') {
+                $query->where('type', $type);
             }
         }
 
-        // This handles cases where the type filter is 'all' or not set, and a specific status is selected
-        if ($request->has('status') && !empty($request->status)) {
-            $query->where('status', $request->status);
+        // If explicit statuses array provided, it takes precedence
+        if (is_array($statuses) && !empty($statuses)) {
+            $query->whereIn('status', $statuses);
         }
 
-        if ($request->has('projectId') && !empty($request->projectId)) {
-            $query->whereHas('conversation', function ($query) use ($request) {
-                $query->where('project_id', $request->projectId);
+        // Apply single status (overrides type-driven implications for status)
+        if (!empty($status)) {
+            $query->where('status', $status);
+        }
+
+        if (!empty($projectId)) {
+            $query->whereHas('conversation', function ($q) use ($projectId) {
+                $q->where('project_id', $projectId);
             });
         }
 
-        if ($request->has('sender_id') && !empty($request->sender_id)) {
-            $query->where('sender_id', $request->sender_id);
+        if (!empty($senderId)) {
+            $query->where('sender_id', $senderId);
         }
 
-        if ($request->has('start_date') && !empty($request->start_date)) {
-            $query->whereDate('created_at', '>=', $request->start_date);
+        // Date range filtering with inclusive end-of-day handling
+        if (!empty($startDate) || !empty($endDate)) {
+            $start = $startDate ? Carbon::parse($startDate)->startOfDay() : Carbon::minValue();
+            $end   = $endDate   ? Carbon::parse($endDate)->endOfDay()   : Carbon::maxValue();
+            $query->whereBetween('created_at', [$start, $end]);
         }
 
-        if ($request->has('end_date') && !empty($request->end_date)) {
-            $query->whereDate('created_at', '<=', $request->end_date);
+        // Optional is_read filter (independent of type)
+        if ($isRead !== null) {
+            if ($isRead) {
+                $query->whereExists(function ($subQuery) use ($user) {
+                    $subQuery->select(DB::raw(1))
+                        ->from('user_interactions')
+                        ->whereColumn('user_interactions.interactable_id', 'emails.id')
+                        ->where('user_interactions.interactable_type', 'App\\Models\\Email')
+                        ->where('user_interactions.user_id', $user->id)
+                        ->where('user_interactions.interaction_type', 'read');
+                });
+            } else {
+                $query->whereNotExists(function ($subQuery) use ($user) {
+                    $subQuery->select(DB::raw(1))
+                        ->from('user_interactions')
+                        ->whereColumn('user_interactions.interactable_id', 'emails.id')
+                        ->where('user_interactions.interactable_type', 'App\\Models\\Email')
+                        ->where('user_interactions.user_id', $user->id)
+                        ->where('user_interactions.interaction_type', 'read');
+                });
+            }
         }
 
-        if ($request->has('search') && !empty($request->search)) {
-            $search = $request->search;
-            $query->where(function ($query) use ($search) {
-                $query->where('subject', 'like', "%{$search}%")
-                    ->orWhere('body', 'like', "%{$search}%");
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('subject', 'like', "%{$search}%")
+                  ->orWhere('body', 'like', "%{$search}%");
             });
         }
 
