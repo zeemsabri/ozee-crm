@@ -141,6 +141,33 @@ const dataSources = computed(() => {
                 fields,
             });
         }
+
+        // Include outputs from Transform Content steps
+        if (step.step_type === 'TRANSFORM_CONTENT') {
+            const fields = [
+                { label: 'cleaned_body', value: `{{step_${step.id}.cleaned_body}}` },
+                { label: 'result', value: `{{step_${step.id}.result}}` },
+            ];
+            sources.push({
+                name: `Step ${index + 1}: Transformed Content`,
+                fields,
+            });
+        }
+
+        // Include outputs from Create Record actions
+        if (step.step_type === 'ACTION' && step.step_config && step.step_config.action_type === 'CREATE_RECORD') {
+            const modelName = step.step_config.target_model || '';
+            const groupLabel = `Step ${index + 1}: Create Record` + (modelName ? ` — ${modelName}` : '');
+            const fields = [
+                { label: 'new_record_id', value: `{{step_${step.id}.new_record_id}}` },
+                // legacy id for backward compatibility
+                { label: 'id (legacy)', value: `{{step_${step.id}.id}}` },
+            ];
+            sources.push({
+                name: groupLabel,
+                fields,
+            });
+        }
     });
 
     return sources;

@@ -62,12 +62,18 @@ class UpdateRecordStepHandler implements StepHandlerContract
 
     protected function resolveModelClass(string $name): ?string
     {
-        $candidates = [
-            $name,
-            'App\\Models\\' . $name,
-        ];
+        $base = class_basename($name);
+        $candidates = [];
+        // Prefer App\Models first
+        $candidates[] = 'App\\Models\\' . $base;
+        if (str_contains($name, '\\')) {
+            $candidates[] = $name;
+        }
+        $candidates[] = $base; // last resort
         foreach ($candidates as $c) {
-            if (class_exists($c)) return $c;
+            if (class_exists($c) && is_subclass_of($c, \Illuminate\Database\Eloquent\Model::class)) {
+                return $c;
+            }
         }
         return null;
     }

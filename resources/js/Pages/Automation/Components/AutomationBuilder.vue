@@ -180,14 +180,16 @@ async function saveAndActivate() {
                     </button>
                 </div>
             </div>
-            <div class="p-2 sm:p-6 pb-40">
-                <Workflow
-                    :steps="workflowSteps"
-                    @update:steps="workflowSteps = $event"
-                    @add-trigger="showTriggerModal = true"
-                />
-                <!-- Bottom spacer to ensure dropdowns/menus near the end remain visible -->
-                <div class="h-60"></div>
+            <div class="p-2 sm:p-6 pb-40 overflow-x-auto">
+                <div class="inline-block min-w-max">
+                    <Workflow
+                        :steps="workflowSteps"
+                        @update:steps="workflowSteps = $event"
+                        @add-trigger="showTriggerModal = true"
+                    />
+                    <!-- Bottom spacer to ensure dropdowns/menus near the end remain visible -->
+                    <div class="h-60"></div>
+                </div>
             </div>
 
             <TriggerSelectionModal

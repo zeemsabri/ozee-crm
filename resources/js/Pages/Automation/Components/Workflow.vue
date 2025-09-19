@@ -9,6 +9,7 @@ import FetchRecordsStep from './Steps/FetchRecordsStep.vue';
 import ScheduleTriggerStep from './Steps/ScheduleTriggerStep.vue';
 import AddStepButton from './Steps/AddStepButton.vue';
 import { useWorkflowStore } from '../Store/workflowStore';
+import TransformStep from './Steps/TransformStep.vue';
 
 const store = useWorkflowStore();
 const automationSchema = computed(() => store.automationSchema || []);
@@ -24,13 +25,14 @@ const emit = defineEmits(['update:steps', 'add-trigger']);
 
 // This map is now complete and correct. We are NOT using shallowRef.
 const stepComponentMap = {
-    TRIGGER: TriggerStep,
-    SCHEDULE_TRIGGER: ScheduleTriggerStep,
-    FETCH_RECORDS: FetchRecordsStep,
-    CONDITION: ConditionStep,
-    ACTION: ActionStep,
-    AI_PROMPT: AIStep,
-    FOR_EACH: ForEachStep,
+  TRIGGER: TriggerStep,
+  SCHEDULE_TRIGGER: ScheduleTriggerStep,
+  FETCH_RECORDS: FetchRecordsStep,
+  CONDITION: ConditionStep,
+  ACTION: ActionStep,
+  AI_PROMPT: AIStep,
+  FOR_EACH: ForEachStep,
+  TRANSFORM_CONTENT: TransformStep,
 };
 
 const getStepComponent = (stepType) => stepComponentMap[stepType] || null;

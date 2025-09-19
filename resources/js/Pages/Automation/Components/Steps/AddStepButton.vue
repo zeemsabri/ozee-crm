@@ -12,6 +12,7 @@ const stepTypes = {
     'ACTION': { name: 'Perform an Action', icon: '⚙️', description: 'Send an email, create a task, etc.' },
     'CONDITION': { name: 'If/Else Condition', icon: '🔀', description: 'Split the workflow based on a rule.' },
     'AI_PROMPT': { name: 'Analyze with AI', icon: '🧠', description: 'Make a decision or extract information.' },
+    'TRANSFORM_CONTENT': { name: 'Transform Content', icon: '✂️', description: 'Modify text: trim, replace, etc.' },
 };
 
 function handleSelect(type) {

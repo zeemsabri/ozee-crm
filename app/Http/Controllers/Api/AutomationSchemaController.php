@@ -47,15 +47,74 @@ class AutomationSchemaController extends Controller
                     try { $required = $modelClass::requiredOnCreate(); } catch (\Throwable $e) {}
                     try { $defaults = $modelClass::defaultsOnCreate($ctx); } catch (\Throwable $e) {}
                 }
-                $columnsMeta = array_map(function ($col) use ($instance, $modelName, $required) {
+                // Optional, model-provided field metadata for friendly labels/descriptions/UI hints
+                $fieldMeta = [];
+                try {
+                    if (method_exists($modelClass, 'fieldMetaForWorkflow')) {
+                        $fieldMeta = $modelClass::fieldMetaForWorkflow();
+                    }
+                } catch (\Throwable $e) { /* no-op */ }
+
+                // Build quick lookup of MorphTo relations to enable *_type dropdowns
+                $morphRelations = [];
+                foreach (($relationships ?? []) as $rel) {
+                    if (($rel['type'] ?? null) === 'MorphTo' && !empty($rel['name'])) {
+                        $morphRelations[$rel['name']] = true;
+                    }
+                }
+
+                $columnsMeta = array_map(function ($col) use ($instance, $modelName, $required, $fieldMeta, $morphRelations) {
                     $type = $this->guessColumnType($instance, $col);
                     $allowed = $this->getAllowedValues($modelName, $col);
+
+                    // Friendly label/description/ui from model meta
+                    $label = $this->prettifyLabel($col);
+                    $description = null;
+                    $ui = null;
+                    if (!empty($fieldMeta[$col])) {
+                        $label = $fieldMeta[$col]['label'] ?? $label;
+                        $description = $fieldMeta[$col]['description'] ?? null;
+                        $ui = $fieldMeta[$col]['ui'] ?? null;
+                    }
+
+                    // Detect morph-type columns (e.g., referencable_type for relation 'referencable')
+                    if (str_ends_with($col, '_type')) {
+                        $base = substr($col, 0, -5);
+                        if (isset($morphRelations[$base])) {
+                            $morphMap = Relation::morphMap() ?: [];
+                            $options = [];
+                            if (!empty($morphMap)) {
+                                foreach ($morphMap as $alias => $class) {
+                                    $options[] = [ 'value' => $alias, 'label' => class_basename($class) ];
+                                }
+                            } else {
+                                // Fallback to seed models exposed in schema
+                                $known = [\App\Models\Task::class, \App\Models\Project::class, \App\Models\Email::class];
+                                foreach ($known as $class) {
+                                    if (class_exists($class)) {
+                                        $options[] = [ 'value' => $class, 'label' => class_basename($class) ];
+                                    }
+                                }
+                            }
+                            if (!empty($options)) {
+                                $allowed = $options;
+                                $type = 'enum';
+                                $ui = $ui ?: 'morph_type';
+                                if (!$description) {
+                                    $description = 'Select the type of item (e.g., Task, Project, Email).';
+                                }
+                            }
+                        }
+                    }
+
                     return [
                         'name' => $col,
-                        'label' => $this->prettifyLabel($col),
+                        'label' => $label,
                         'type' => $type,
                         'allowed_values' => $allowed,
                         'is_required' => in_array($col, $required, true),
+                        'description' => $description,
+                        'ui' => $ui,
                     ];
                 }, $columns);
                 return [
@@ -107,6 +166,8 @@ class AutomationSchemaController extends Controller
         return response()->json([
             'models' => $modelsData,
             'campaigns' => $campaigns,
+            'transforms' => $this->getTransformOptions(),
+            'morph_map' => $this->getMorphMapForUi(),
         ]);
     }
 
@@ -311,5 +372,48 @@ class AutomationSchemaController extends Controller
         // Sort by name for consistency
         usort($relationships, fn($a, $b) => strcmp($a['name'], $b['name']));
         return $relationships;
+    }
+    private function getTransformOptions(): array
+    {
+        return [
+            [ 'value' => 'remove_after_marker', 'label' => 'Remove content after a marker' ],
+            [ 'value' => 'find_and_replace', 'label' => 'Find and replace text' ],
+        ];
+    }
+
+    private function getMorphMapForUi(): array
+    {
+        $map = Relation::morphMap() ?: [];
+        $out = [];
+        if (!empty($map)) {
+            foreach ($map as $alias => $class) {
+                $out[] = [
+                    'alias' => $alias,
+                    'class' => $class,
+                    'label' => class_basename($class),
+                ];
+            }
+            return $out;
+        }
+        // Fallback when no global morph map is configured: suggest common models present in the app
+        $fallbacks = [
+            \App\Models\Client::class,
+            \App\Models\Lead::class,
+            \App\Models\Project::class,
+            \App\Models\Task::class,
+            \App\Models\Email::class,
+            \App\Models\User::class,
+        ];
+        foreach ($fallbacks as $class) {
+            if (class_exists($class)) {
+                $alias = strtolower(class_basename($class));
+                $out[] = [
+                    'alias' => $alias,
+                    'class' => $class,
+                    'label' => class_basename($class),
+                ];
+            }
+        }
+        return $out;
     }
 }
