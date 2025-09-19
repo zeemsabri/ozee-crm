@@ -110,6 +110,11 @@ class WorkflowEngineService
         }
 
         foreach ($steps as $step) {
+            // Skip nested steps (children of containers like CONDITION). Their execution is handled by the parent handler via executeSteps().
+            $cfg = $step->step_config ?? [];
+            if (!empty($cfg['_parent_id'])) {
+                continue;
+            }
             // Honor delay_minutes at the step boundary by scheduling a resume job and stopping here
             if (($step->delay_minutes ?? 0) > 0) {
                 $execLog = ExecutionLog::create([
