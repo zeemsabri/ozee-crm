@@ -100,6 +100,7 @@ const availableDataSources = computed(() => {
                 id: 'trigger',
                 name: `Trigger: ${triggerStep.step_config.model}`,
                 schema: modelSchema,
+                basePathPrefix: (triggerStep.step_config.model || '').toString().toLowerCase(),
             });
         }
     }
@@ -164,11 +165,16 @@ const selectedSource = computed(() => availableDataSources.value.find(s => s.id 
 const availableFields = computed(() => {
     if (!selectedSource.value?.schema?.columns) return [];
     // Handle both string arrays and object arrays
+    const prefix = selectedSource.value?.basePathPrefix || null;
     return selectedSource.value.schema.columns.map(col => {
         if (typeof col === 'string') {
-            return { name: col, label: col, type: 'Text' }; // Assume Text for simple strings
+            const fieldName = col;
+            const fullName = prefix ? `${prefix}.${fieldName}` : fieldName;
+            return { name: fullName, label: col, type: 'Text' }; // Assume Text for simple strings
         }
-        return { name: col.name, label: col.label || col.name, type: col.type || 'Text', allowed_values: col.allowed_values || null };
+        const fieldName = col.name;
+        const fullName = prefix ? `${prefix}.${fieldName}` : fieldName;
+        return { name: fullName, label: col.label || col.name, type: col.type || 'Text', allowed_values: col.allowed_values || null };
     });
 });
 
