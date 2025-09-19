@@ -3,7 +3,7 @@
 return [
     // Toggle the global model event listener
     'global_model_events' => [
-        'enabled' => false,
+        'enabled' => env('AUTOMATION', false),
         // Which Eloquent verbs to listen for. Supported: created, updated, saved, deleted
         'verbs' => ['created', 'updated'],
     ],
