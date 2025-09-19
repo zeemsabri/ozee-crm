@@ -352,7 +352,7 @@ trait HandlesTemplatedEmails
                 'show_signature'    =>  true
             ];
 
-        if($email->type === EmailType::Received) {
+        if($email?->type === EmailType::Received) {
             $data['show_signature'] =  false;
         }
 
