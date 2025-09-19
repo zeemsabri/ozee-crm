@@ -3,8 +3,9 @@ import { ref, computed, watch } from 'vue';
 import { useWorkflowStore } from '@/Pages/Automation/Store/workflowStore';
 
 const props = defineProps({
-  mode: { type: String, default: 'id' }, // 'id' | 'type'
-  allStepsBefore: { type: Array, default: () => [] },
+    mode: { type: String, default: 'id' },
+    allStepsBefore: { type: Array, default: () => [] },
+    value: { type: String, default: '' },
 });
 const emit = defineEmits(['select']);
 
@@ -117,13 +118,94 @@ const availableRelations = computed(() => {
   return model.relationships || [];
 });
 
+const displayText = computed(() => {
+  if (props.mode === 'type') {
+    if (!chosenMorphAlias.value) return '';
+    const mm = morphMap.value.find(m => m.alias === chosenMorphAlias.value);
+    return mm ? mm.label || mm.alias : chosenMorphAlias.value;
+  }
+  if (!start.value) return '';
+  const base = start.value?.baseToken || '';
+  const relPath = path.value.length ? `.${path.value.join('.')}` : '';
+  const field = props.mode === 'id' ? '.id' : '';
+  const token = `${base}${relPath}${field}`;
+  return token.replace(/^trigger\./, 'trigger.');
+});
+
 watch(start, () => reset());
+
+// New function to parse the token back into the component's state
+function parseToken(token) {
+    // Special handling for morph type alias values (not wrapped in {{ }})
+    if (props.mode === 'type') {
+        if (!token || typeof token !== 'string') {
+            chosenMorphAlias.value = '';
+            return;
+        }
+        const morph = morphMap.value.find(m => m.alias === token);
+        if (morph) {
+            chosenMorphAlias.value = morph.alias;
+            return;
+        }
+        // If token isn't a recognized alias, clear and continue to try parsing as a path token (in case)
+        chosenMorphAlias.value = '';
+    }
+
+    if (!token || typeof token !== 'string' || !token.startsWith('{{')) {
+        start.value = null;
+        path.value = [];
+        return;
+    }
+
+    // Strip the outer {{ }} and split by dot
+    const segments = token.replace(/[{}]/g, '').trim().split('.');
+
+    if (segments.length < 2) {
+        start.value = null;
+        path.value = [];
+        return;
+    }
+
+    // Determine the base and path segments based on the token format
+    const basePart = segments[0];
+    let pathSegments;
+
+    if (basePart.toLowerCase() === 'trigger') {
+        // segments: ["trigger", "<model>", ...relations..., "<field>"]
+        pathSegments = segments.slice(2);
+    } else {
+        // segments: ["<baseModel>", ...relations..., "<field>"]
+        pathSegments = segments.slice(1);
+    }
+
+    // Find the starting source based on the determined base part
+    const baseSource = startSources.value.find(s => {
+        const sBase = s.id === 'trigger' ? 'trigger' : s.modelName.toLowerCase();
+        return sBase === basePart.toLowerCase();
+    });
+
+    if (baseSource) {
+        start.value = baseSource;
+        // The last segment is the field name, not a relationship
+        path.value = pathSegments.slice(0, -1);
+    } else {
+        // If the base isn't found, reset everything
+        start.value = null;
+        path.value = [];
+    }
+}
+
+// Watch for changes to the 'value' prop and parse it
+watch(() => props.value, (newValue) => {
+    parseToken(newValue);
+}, { immediate: true });
 
 </script>
 
 <template>
-  <div class="relative inline-block">
+  <div class="relative inline-flex items-center gap-2">
     <button type="button" @click="isOpen = !isOpen" class="px-2 py-1 text-xs rounded bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">Pick via relationships</button>
+<!--    <span v-if="displayText" class="text-[11px] text-gray-600 font-mono truncate max-w-[260px]" :title="displayText">{{ props.mode === 'type' ? displayText : `${displayText}` }}</span>-->
     <div v-if="isOpen" class="absolute z-50 mt-2 w-96 bg-white border rounded shadow p-3">
       <div class="space-y-2">
         <div>

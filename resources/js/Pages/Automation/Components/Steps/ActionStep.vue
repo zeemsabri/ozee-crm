@@ -428,8 +428,15 @@ function canRemove(index) {
                                     <input :value="field.value" @input="updateField(index, 'value', $event.target.value)" type="text" class="w-full border rounded px-2 py-2 text-sm" placeholder="Value..." />
                                 </template>
                                 <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertTokenForField(index, $event)" />
-                                <RelationshipPathPicker v-if="shouldOfferRelationshipPicker(field)" :mode="getPickerMode(field)" :all-steps-before="allStepsBefore" @select="val => updateField(index, 'value', val)" />
+                                <RelationshipPathPicker
+                                    v-if="shouldOfferRelationshipPicker(field)"
+                                    :mode="getPickerMode(field)"
+                                    :all-steps-before="allStepsBefore"
+                                    :value="field.value"
+                                    @select="val => updateField(index, 'value', val)" />
+
                             </div>
+                            <p class="mt-1 text-[14px] text-gray-500">Selected Relationship: <strong>{{ field.value }}</strong></p>
                             <p v-if="getColumnMeta(field.column)?.description" class="mt-1 text-[11px] text-gray-500">
                                 {{ getColumnMeta(field.column).description }}
                             </p>
