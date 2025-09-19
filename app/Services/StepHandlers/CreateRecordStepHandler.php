@@ -54,7 +54,7 @@ class CreateRecordStepHandler implements StepHandlerContract
                 }
             } catch (\Throwable $e) {
                 // Swallow defaults errors except when validator/enforcement throws (already thrown)
-                Optionally: Log::warning('defaultsOnCreate failed: ' . $e->getMessage());
+                // Optionally: Log::warning('defaultsOnCreate failed: ' . $e->getMessage());
             }
         }
 
@@ -77,8 +77,14 @@ class CreateRecordStepHandler implements StepHandlerContract
 
         return [
             'parsed' => [
-                'id' => $instance->getKey(),
+                'id' => $instance->getKey(), // legacy
+                'new_record_id' => $instance->getKey(), // standardized output for downstream steps
                 'model' => $class,
+                // Optional schema to help UI token pickers
+                'schema' => [
+                    'new_record_id' => 'ID',
+                    'id' => 'ID',
+                ],
             ],
             'context' => [
                 strtolower(class_basename($class)) => $instance->toArray(),
@@ -88,12 +94,22 @@ class CreateRecordStepHandler implements StepHandlerContract
 
     protected function resolveModelClass(string $name): ?string
     {
-        $candidates = [
-            $name,
-            'App\\Models\\' . $name,
-        ];
+        // Normalize to base name for convenience, but allow FQCN too
+        $base = class_basename($name);
+        $candidates = [];
+        // Prefer the App\Models namespace first to avoid resolving Facades like Illuminate\Support\Facades\Context
+        $candidates[] = 'App\\Models\\' . $base;
+        // If a fully-qualified class name was provided, consider it next
+        if (str_contains($name, '\\')) {
+            $candidates[] = $name;
+        }
+        // As a last resort, try the bare name (may collide with Facades; we'll validate below)
+        $candidates[] = $base;
+
         foreach ($candidates as $c) {
-            if (class_exists($c)) return $c;
+            if (class_exists($c) && is_subclass_of($c, \Illuminate\Database\Eloquent\Model::class)) {
+                return $c;
+            }
         }
         return null;
     }
@@ -106,7 +122,9 @@ class CreateRecordStepHandler implements StepHandlerContract
             $parts = preg_split('/\.|\:/', $path);
             $val = $ctx;
             foreach ($parts as $p) {
-                if (is_array($val) && array_key_exists($p, $val)) {} else {
+                if (is_array($val) && array_key_exists($p, $val)) {
+                    $val = $val[$p];
+                } else {
                     return '';
                 }
             }

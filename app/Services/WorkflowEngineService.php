@@ -16,6 +16,7 @@ use App\Services\StepHandlers\QueryDataStepHandler;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 use App\Services\StepHandlers\ForEachStepHandler;
+use App\Services\StepHandlers\TransformContentStepHandler;
 class WorkflowEngineService
 {
     /** @var array<string, StepHandlerContract> */
@@ -34,6 +35,7 @@ class WorkflowEngineService
             'QUERY_DATA' => new QueryDataStepHandler(),
             'FETCH_RECORDS' => new QueryDataStepHandler(),
             'FOR_EACH' => new ForEachStepHandler($this),
+            'TRANSFORM_CONTENT' => new TransformContentStepHandler($this),
             // TRIGGER steps are structural; at runtime they are a no-op
             'TRIGGER' => new class implements StepHandlerContract {
                 public function handle(array $context, WorkflowStep $step): array

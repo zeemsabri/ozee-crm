@@ -34,6 +34,7 @@ export const useWorkflowStore = defineStore('workflow', {
         prompts: [],
         automationSchema: [],
         campaigns: [],
+        morphMap: [],
         activeWorkflow: null,
         selectedStep: null,
         isLoading: false,
@@ -155,6 +156,7 @@ export const useWorkflowStore = defineStore('workflow', {
                     const models = Array.isArray(resp.models) ? resp.models : [];
                     this.automationSchema = models;
                     this.campaigns = Array.isArray(resp.campaigns) ? resp.campaigns : [];
+                    this.morphMap = Array.isArray(resp.morph_map) ? resp.morph_map : [];
                 } else {
                     this.automationSchema = [];
                     this.campaigns = [];

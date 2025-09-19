@@ -6,6 +6,7 @@ import DataTokenInserter from './DataTokenInserter.vue';
 import { PlusIcon, TrashIcon } from 'lucide-vue-next';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import axios from 'axios';
+import RelationshipPathPicker from '@/Components/RelationshipPathPicker.vue';
 
 const props = defineProps({
     step: { type: Object, required: true },
@@ -107,10 +108,35 @@ const columnsForSelectedModel = computed(() => {
     const model = selectedModel.value;
     if (!model) return [];
     return (model.columns || []).map(col => {
-        if (typeof col === 'string') return { name: col, label: humanize(col), is_required: false, allowed_values: null };
-        return { name: col.name, label: col.label || humanize(col.name), is_required: !!col.is_required, allowed_values: col.allowed_values ?? null };
+        if (typeof col === 'string') return { name: col, label: humanize(col), is_required: false, allowed_values: null, description: null, ui: null };
+        return {
+            name: col.name,
+            label: col.label || humanize(col.name),
+            is_required: !!col.is_required,
+            allowed_values: col.allowed_values ?? null,
+            description: col.description || null,
+            ui: col.ui || null,
+        };
     });
 });
+
+function getColumnMeta(columnName) {
+    return columnsForSelectedModel.value.find(c => c.name === columnName) || null;
+}
+
+function isMorphTypeColumn(name) {
+    return typeof name === 'string' && name.endsWith('_type');
+}
+function isIdColumn(name) {
+    return typeof name === 'string' && name.endsWith('_id');
+}
+function shouldOfferRelationshipPicker(field) {
+    const col = getColumnMeta(field.column);
+    return isIdColumn(field.column) || (isMorphTypeColumn(field.column) && (col?.ui === 'morph_type' || Array.isArray(col?.allowed_values)));
+}
+function getPickerMode(field) {
+    return isMorphTypeColumn(field.column) ? 'type' : 'id';
+}
 
 const requiredFields = computed(() => (selectedModel.value?.required_on_create || []));
 const defaultsOnCreate = computed(() => selectedModel.value?.defaults_on_create || {});
@@ -402,7 +428,11 @@ function canRemove(index) {
                                     <input :value="field.value" @input="updateField(index, 'value', $event.target.value)" type="text" class="w-full border rounded px-2 py-2 text-sm" placeholder="Value..." />
                                 </template>
                                 <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertTokenForField(index, $event)" />
+                                <RelationshipPathPicker v-if="shouldOfferRelationshipPicker(field)" :mode="getPickerMode(field)" :all-steps-before="allStepsBefore" @select="val => updateField(index, 'value', val)" />
                             </div>
+                            <p v-if="getColumnMeta(field.column)?.description" class="mt-1 text-[11px] text-gray-500">
+                                {{ getColumnMeta(field.column).description }}
+                            </p>
                         </div>
                     </div>
                 </div>
