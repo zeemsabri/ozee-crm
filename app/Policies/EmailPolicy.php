@@ -90,6 +90,11 @@ class EmailPolicy
      */
     public function editAndApprove(User $user, Email $email): bool
     {
+
+        if($user->hasPermission('approve_received_emails')) {
+            return true;
+        }
+
         return $this->userHasProjectPermission($user, ['approve_emails', 'resubmit_emails'], $email->conversation?->project_id);
     }
 
