@@ -4,6 +4,11 @@ namespace App\Services\StepHandlers;
 
 use App\Models\WorkflowStep;
 use App\Services\WorkflowEngineService;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
+use DateTimeInterface;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 
 class ConditionStepHandler implements StepHandlerContract
 {
@@ -13,7 +18,6 @@ class ConditionStepHandler implements StepHandlerContract
 
     public function handle(array $context, WorkflowStep $step): array
     {
-        // Determine evaluation mode: new shape (step_config.rules + logic) or legacy (condition_rules)
         $cfg = $step->step_config ?? [];
         $logic = strtoupper($cfg['logic'] ?? 'AND');
         $newRules = $cfg['rules'] ?? null;
@@ -22,6 +26,7 @@ class ConditionStepHandler implements StepHandlerContract
         if (is_array($newRules) && count($newRules) > 0) {
             $result = $this->evaluateNewRules($newRules, $logic, $context);
         } else {
+            // This is the function that handles all of your legacy conditions
             $result = $this->evaluateLegacyRules($legacyRules, $logic, $context);
         }
 
@@ -29,7 +34,6 @@ class ConditionStepHandler implements StepHandlerContract
         $branch = $result ? 'yes_steps' : 'no_steps';
         $children = $step->$branch ?? [];
 
-        // If not nested, try to discover children from flat steps using _parent_id/_branch markers
         if (!is_array($children) || count($children) === 0) {
             $all = $step->workflow->steps()->orderBy('step_order')->get();
             $children = [];
@@ -67,19 +71,38 @@ class ConditionStepHandler implements StepHandlerContract
     protected function evaluateLegacyRules(array $rules, string $logic, array $context): bool
     {
         if (!is_array($rules) || count($rules) === 0) {
-            return true; // no rules means YES
+            return true;
         }
+
         $logic = strtoupper($logic);
         $results = [];
+
         foreach ($rules as $rule) {
+            $sourceId = $rule['sourceId'] ?? null;
             $field = $rule['field'] ?? null;
             $operator = $rule['operator'] ?? ($rule['op'] ?? '==');
-            if (!$field) { $results[] = false; continue; }
-            $left = $this->getFromContext($context, $field);
+
+            if (!$sourceId || !$field) {
+                $results[] = false;
+                continue;
+            }
+
+            // Correctly construct the full path
+            $path = $sourceId . '.' . $field;
+
+            $left = $this->getFromContext($context, $path);
             $right = $this->applyTemplate($rule['value'] ?? null, $context);
+
+            // Crucial check to prevent false positives when a value is not found
+            if ($left === null && $right !== null) {
+                $results[] = false;
+                continue;
+            }
+
             $results[] = $this->compareAny($left, $operator, $right);
         }
-        return $logic === 'OR' ? in_array(true, $results, true) : !in_array(false, $results, true);
+
+        return $logic === 'OR' ? Arr::hasAny($results, true) : !Arr::hasAny($results, false);
     }
 
     /**
@@ -90,7 +113,6 @@ class ConditionStepHandler implements StepHandlerContract
         $logic = strtoupper($logic);
         $results = [];
         foreach ($rules as $r) {
-            // Backward compatibility fallback if provided in field/value keys
             if (!isset($r['left']) && isset($r['field'])) {
                 $r['left'] = ['type' => 'var', 'path' => $r['field']];
             }
@@ -102,7 +124,7 @@ class ConditionStepHandler implements StepHandlerContract
             $rightVal = $this->resolveSide($r['right'] ?? ['type' => 'literal', 'value' => null], $context);
             $results[] = $this->compareAny($leftVal, $op, $rightVal);
         }
-        return $logic === 'OR' ? in_array(true, $results, true) : !in_array(false, $results, true);
+        return $logic === 'OR' ? Arr::hasAny($results, true) : !Arr::hasAny($results, false);
     }
 
     protected function resolveSide(array $side, array $ctx)
@@ -112,24 +134,13 @@ class ConditionStepHandler implements StepHandlerContract
             $path = (string)($side['path'] ?? '');
             return $this->getFromContext($ctx, $path);
         }
-        // literal with template interpolation support
         $val = $side['value'] ?? null;
         return $this->applyTemplate($val, $ctx);
     }
 
     protected function getFromContext(array $context, string $path)
     {
-        if ($path === '') return null;
-        $parts = preg_split('/\.|\:/', $path);
-        $val = $context;
-        foreach ($parts as $p) {
-            if (is_array($val) && array_key_exists($p, $val)) {
-                $val = $val[$p];
-            } else {
-                return null;
-            }
-        }
-        return $val;
+        return Arr::get($context, Str::replace('.', '.', $path));
     }
 
     protected function applyTemplate($value, array $ctx)
@@ -137,18 +148,12 @@ class ConditionStepHandler implements StepHandlerContract
         if (is_array($value)) {
             return array_map(fn($v) => $this->applyTemplate($v, $ctx), $value);
         }
-        if (!is_string($value)) return $value;
+        if (!is_string($value)) {
+            return $value;
+        }
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($ctx) {
             $path = trim($m[1]);
-            $parts = preg_split('/\.|\:/', $path);
-            $val = $ctx;
-            foreach ($parts as $p) {
-                if (is_array($val) && array_key_exists($p, $val)) {
-                    $val = $val[$p];
-                } else {
-                    return '';
-                }
-            }
+            $val = Arr::get($ctx, $path);
             return is_scalar($val) ? (string) $val : json_encode($val);
         }, $value);
     }
@@ -156,20 +161,23 @@ class ConditionStepHandler implements StepHandlerContract
     protected function compareAny($left, string $operator, $right): bool
     {
         $op = strtolower(trim($operator));
-        // Numeric coercion for numeric comparisons
-        if (in_array($op, ['>','>=','<','<=','> =','< ='])) {
+        if (in_array($op, ['>', '>=', '<', '<=', '> =', '< ='])) {
             if (is_numeric($left) && is_numeric($right)) {
-                $left = $left + 0; $right = $right + 0;
+                $left = $left + 0;
+                $right = $right + 0;
             }
         }
 
-        // Date helpers for relative comparisons
         $asCarbon = function ($value) {
-            if ($value instanceof \Carbon\CarbonInterface) return $value;
-            if ($value instanceof \DateTimeInterface) return \Carbon\Carbon::instance($value);
-            if (is_numeric($value)) return \Carbon\Carbon::createFromTimestamp((int)$value);
+            if ($value instanceof CarbonInterface) return $value;
+            if ($value instanceof DateTimeInterface) return Carbon::instance($value);
+            if (is_numeric($value)) return Carbon::createFromTimestamp((int)$value);
             if (is_string($value) && trim($value) !== '') {
-                try { return \Carbon\Carbon::parse($value); } catch (\Throwable $e) { return null; }
+                try {
+                    return Carbon::parse($value);
+                } catch (\Throwable $e) {
+                    return null;
+                }
             }
             return null;
         };
@@ -186,15 +194,22 @@ class ConditionStepHandler implements StepHandlerContract
             'contains' => $this->contains($left, $right),
             'empty' => empty($left),
             'not_empty' => !empty($left),
-            'truthy' => (bool)$left === true || (is_string($left) && $left !== '') || (is_numeric($left) && $left != 0),
+            'truthy' => (bool)$left || (is_string($left) && $left !== '') || (is_numeric($left) && $left != 0),
             'today' => function () use ($asCarbon, $left) {
-                $dt = $asCarbon($left); if (!$dt) return false; $now = \Carbon\Carbon::now($dt->getTimezone()); return $dt->isSameDay($now);
+                $dt = $asCarbon($left);
+                if (!$dt) return false;
+                $now = Carbon::now($dt->getTimezone());
+                return $dt->isSameDay($now);
             },
             'in_past' => function () use ($asCarbon, $left) {
-                $dt = $asCarbon($left); if (!$dt) return false; return $dt->lt(\Carbon\Carbon::now($dt->getTimezone()));
+                $dt = $asCarbon($left);
+                if (!$dt) return false;
+                return $dt->lt(Carbon::now($dt->getTimezone()));
             },
             'in_future' => function () use ($asCarbon, $left) {
-                $dt = $asCarbon($left); if (!$dt) return false; return $dt->gt(\Carbon\Carbon::now($dt->getTimezone()));
+                $dt = $asCarbon($left);
+                if (!$dt) return false;
+                return $dt->gt(Carbon::now($dt->getTimezone()));
             },
             default => false,
         };
@@ -202,16 +217,30 @@ class ConditionStepHandler implements StepHandlerContract
 
     protected function looseEq($a, $b): bool
     {
+        // If either side is an array, compare their JSON representation.
         if (is_array($a) || is_array($b)) {
             return json_encode($a) === json_encode($b);
         }
+
+        // Specifically handle string representations of booleans.
+        // This correctly compares a boolean from context (e.g., false)
+        // with a string from the rule (e.g., "false").
+        if (is_string($b)) {
+            if (strtolower($b) === 'true') {
+                return (bool)$a === true;
+            }
+            if (strtolower($b) === 'false') {
+                return (bool)$a === false;
+            }
+        }
+
+        // Fallback to the original string comparison for all other cases.
         return (string)$a === (string)$b;
     }
 
     protected function inArray($needle, $haystack): bool
     {
         if (!is_array($haystack)) {
-            // allow CSV string
             if (is_string($haystack)) {
                 $haystack = array_values(array_filter(array_map('trim', explode(',', $haystack)), fn($x) => $x !== ''));
             } else {
@@ -224,7 +253,7 @@ class ConditionStepHandler implements StepHandlerContract
     protected function contains($container, $item): bool
     {
         if (is_string($container)) {
-            return is_string($item) ? str_contains($container, $item) : false;
+            return is_string($item) ? Str::contains($container, $item) : false;
         }
         if (is_array($container)) {
             return in_array($item, $container, true);

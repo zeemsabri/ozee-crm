@@ -3,7 +3,7 @@
 return [
     // Toggle the global model event listener
     'global_model_events' => [
-        'enabled' => env('AUTOMATION', false),
+        'enabled' => env('AUTOMATION', true),
         // Which Eloquent verbs to listen for. Supported: created, updated, saved, deleted
         'verbs' => ['created', 'updated'],
     ],
@@ -15,7 +15,7 @@ return [
     'models' => [
         // If empty, all models are allowed (except those in deny).
         // Example: ['Lead', 'Task']
-        'allow' => ['Task', 'Project', 'Email', 'Campaign', 'Lead'],
+        'allow' => ['Task', 'Project', 'Email', 'Campaign', 'Lead', 'User'],
         // Models that will never trigger automations
         'deny' => ['ExecutionLog'],
     ],

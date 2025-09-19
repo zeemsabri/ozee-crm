@@ -25,6 +25,8 @@ class WorkflowEngineService
     public function __construct(
         AIGenerationService $ai,
     ) {
+
+        Log::info(json_encode($this, JSON_PRETTY_PRINT));
         // Register default handlers
         $this->handlers = [
             'AI_PROMPT' => new AiPromptStepHandler($ai),
