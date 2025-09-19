@@ -46,8 +46,8 @@ class SendEmailController extends Controller
             'client_id' => 'required|exists:clients,id',
             'template_data' => 'nullable|array',
         ]);
-
-        try {
+//
+//        try {
             $template = EmailTemplate::with('placeholders')->findOrFail($validatedData['template_id']);
             $recipientClient = Client::findOrFail($validatedData['client_id']);
             $templateData = $validatedData['template_data'] ?? [];
@@ -87,12 +87,12 @@ class SendEmailController extends Controller
                 'body_html' => $fullHtml,
             ]);
 
-        } catch (\Exception $e) {
-            Log::error('Error generating email preview: ' . $e->getMessage(), [
-                'template_id' => $validatedData['template_id'],
-                'error' => $e->getTraceAsString(),
-            ]);
-            return response()->json(['message' => 'Error generating email preview: ' . $e->getMessage()], 500);
-        }
+//        } catch (\Exception $e) {
+//            Log::error('Error generating email preview: ' . $e->getMessage(), [
+//                'template_id' => $validatedData['template_id'],
+//                'error' => $e->getTraceAsString(),
+//            ]);
+//            return response()->json(['message' => 'Error generating email preview: ' . $e->getMessage()], 500);
+//        }
     }
 }

@@ -3,7 +3,7 @@ import { computed, watch, ref, onMounted } from 'vue';
 import { useWorkflowStore } from '../../Store/workflowStore';
 import StepCard from './StepCard.vue';
 import DataTokenInserter from './DataTokenInserter.vue';
-import { PlusIcon, TrashIcon } from 'lucide-vue-next';
+import { PlusIcon, TrashIcon, ClockIcon } from 'lucide-vue-next';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import axios from 'axios';
 import RelationshipPathPicker from '@/Components/RelationshipPathPicker.vue';
@@ -52,6 +52,7 @@ async function fetchDictionary(model, field) {
 
 const actionTypes = [
     { value: 'SEND_EMAIL', label: 'Send Email' },
+    { value: 'PROCESS_EMAIL', label: 'Process Email' },
     { value: 'CREATE_RECORD', label: 'Create Record' },
     { value: 'UPDATE_RECORD', label: 'Update Record' },
     { value: 'CHECK_MILESTONE_COMPLETION', label: 'Check for Milestone Completion & Update' },
@@ -311,6 +312,12 @@ function canRemove(index) {
     const count = fields.filter(f => (f.column || f.field || f.name) === col).length;
     return count > 1; // allow removal only if duplicate exists
 }
+// Delay UI state and updater
+const showDelay = ref(false);
+function updateDelayMinutes(val) {
+    const minutes = Math.max(0, parseInt(val ?? 0, 10) || 0);
+    emit('update:step', { ...props.step, delay_minutes: minutes });
+}
 </script>
 
 <template>
@@ -325,6 +332,17 @@ function canRemove(index) {
                 {{ action.label }}
             </option>
         </select>
+
+        <div class="mt-2 flex items-center gap-2 text-xs text-gray-600">
+            <button type="button" @click="showDelay = !showDelay" class="p-1.5 rounded-md border text-gray-600 hover:bg-gray-50" title="Set delay (minutes)">
+                <ClockIcon class="w-4 h-4" />
+            </button>
+            <div v-if="showDelay" class="flex items-center gap-2">
+                <label>Delay</label>
+                <input type="number" min="0" :value="props.step.delay_minutes || 0" @input="updateDelayMinutes($event.target.value)" class="w-20 p-1 border rounded" />
+                <span>minutes</span>
+            </div>
+        </div>
 
         <div v-if="actionConfig.action_type" class="space-y-4 mt-4 border-t pt-4">
 
@@ -445,7 +463,23 @@ function canRemove(index) {
                 </div>
             </template>
 
-            <!-- == "SMART ACTION" PLACEHOLDER == -->
+            <!-- == PROCESS EMAIL CONFIG == -->
+            <template v-if="actionConfig.action_type === 'PROCESS_EMAIL'">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Email ID Path</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" :value="actionConfig.email_id_path || 'trigger.id'" @input="handleConfigChange('email_id_path', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="e.g., {{ trigger.id }} or {{ record.id }}" />
+                        <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('email_id_path', $event)" />
+                    </div>
+                    <p class="mt-1 text-[11px] text-gray-500">Context path to the Email ID. Defaults to <code>trigger.id</code>.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Queue (optional)</label>
+                    <input type="text" :value="actionConfig.on_queue || ''" @input="handleConfigChange('on_queue', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="e.g., emails or default" />
+                </div>
+            </template>
+
+            <!-- == \"SMART ACTION\" PLACEHOLDER == -->
             <template v-if="actionConfig.action_type === 'CHECK_MILESTONE_COMPLETION'">
                 <div class="p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-800 text-sm rounded-r-md">
                     <p class="font-semibold">This is a smart action.</p>

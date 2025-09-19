@@ -16,4 +16,5 @@ enum EmailStatus: string
     case Received = 'received';
     case Sent = 'sent';
     case Draft = 'draft';
+    case AutoSend = 'auto_send';
 }
