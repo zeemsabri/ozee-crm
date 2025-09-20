@@ -21,8 +21,8 @@ const chosenMorphAlias = ref('');
 
 const startSources = computed(() => {
   const sources = [];
-  // Trigger model
-  const triggerStep = props.allStepsBefore.find(s => s.step_type === 'TRIGGER' && s.step_config?.model);
+  // Trigger model (supports TRIGGER and SCHEDULE_TRIGGER)
+  const triggerStep = props.allStepsBefore.find(s => (s.step_type === 'TRIGGER' || s.step_type === 'SCHEDULE_TRIGGER') && s.step_config?.model);
   if (triggerStep?.step_config?.model) {
     const modelName = triggerStep.step_config.model;
     sources.push({

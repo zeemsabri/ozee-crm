@@ -20,17 +20,15 @@ class ConditionStepHandler implements StepHandlerContract
     {
         $cfg = $step->step_config ?? [];
         $logic = strtoupper($cfg['logic'] ?? 'AND');
-        $newRules = $cfg['rules'] ?? null;
-        $legacyRules = $step->condition_rules ?? [];
 
-        if (is_array($newRules) && count($newRules) > 0) {
-            $result = $this->evaluateNewRules($newRules, $logic, $context);
-        } else {
-            // This is the function that handles all of your legacy conditions
-            $result = $this->evaluateLegacyRules($legacyRules, $logic, $context);
-        }
+        // This is the key change: We now get the rules from EITHER the new `step_config.rules`
+        // property OR fall back to the old `condition_rules` property for backwards compatibility.
+        $rules = $cfg['rules'] ?? $step->condition_rules ?? [];
 
-        // Determine branch
+        // We now have a single, unified evaluation method.
+        $result = $this->evaluateRules($rules, $logic, $context);
+
+        // Determine branch (this logic remains unchanged)
         $branch = $result ? 'yes_steps' : 'no_steps';
         $children = $step->$branch ?? [];
 
@@ -48,7 +46,7 @@ class ConditionStepHandler implements StepHandlerContract
             }
         }
 
-        // Execute selected branch
+        // Execute selected branch (this logic remains unchanged)
         if (is_array($children) && count($children) > 0) {
             $this->engine->executeSteps($children, $step->workflow, $context);
         }
@@ -66,65 +64,39 @@ class ConditionStepHandler implements StepHandlerContract
     }
 
     /**
-     * Legacy: [{ field, operator, value }], implicit AND unless $logic='OR'
+     * This is our new, unified rule evaluation engine.
+     * It includes a compatibility layer to handle old rule formats on the fly.
      */
-    protected function evaluateLegacyRules(array $rules, string $logic, array $context): bool
+    protected function evaluateRules(array $rules, string $logic, array $context): bool
     {
-        if (!is_array($rules) || count($rules) === 0) {
-            return true;
+        if (empty($rules)) {
+            return true; // No rules means the condition passes.
         }
 
         $logic = strtoupper($logic);
         $results = [];
 
         foreach ($rules as $rule) {
-            $sourceId = $rule['sourceId'] ?? null;
-            $field = $rule['field'] ?? null;
-            $operator = $rule['operator'] ?? ($rule['op'] ?? '==');
-
-            if (!$sourceId || !$field) {
-                $results[] = false;
-                continue;
+            // --- BACKWARDS-COMPATIBILITY LAYER ---
+            // If a rule doesn't have a 'left' property but has the old 'field' property,
+            // we dynamically convert it to the new, structured format.
+            if (!isset($rule['left']) && isset($rule['field'])) {
+                // The frontend now sends the full path in 'field', so we just use it.
+                $rule['left'] = ['type' => 'var', 'path' => $rule['field']];
             }
-
-            // Correctly construct the full path
-            $path = $sourceId . '.' . $field;
-
-            $left = $this->getFromContext($context, $path);
-            $right = $this->applyTemplate($rule['value'] ?? null, $context);
-
-            // Crucial check to prevent false positives when a value is not found
-            if ($left === null && $right !== null) {
-                $results[] = false;
-                continue;
+            if (!isset($rule['right']) && array_key_exists('value', $rule)) {
+                $rule['right'] = ['type' => 'literal', 'value' => $rule['value']];
             }
+            // --- END COMPATIBILITY LAYER ---
 
-            $results[] = $this->compareAny($left, $operator, $right);
-        }
+            $op = $rule['operator'] ?? ($rule['op'] ?? '==');
+            $leftVal = $this->resolveSide($rule['left'] ?? ['type' => 'literal', 'value' => null], $context);
+            $rightVal = $this->resolveSide($rule['right'] ?? ['type' => 'literal', 'value' => null], $context);
 
-        return $logic === 'OR' ? Arr::hasAny($results, true) : !Arr::hasAny($results, false);
-    }
-
-    /**
-     * New shape: rules: [{ left:{type:'var'|'literal',path|value}, operator, right:{...} }], with group logic.
-     */
-    protected function evaluateNewRules(array $rules, string $logic, array $context): bool
-    {
-        $logic = strtoupper($logic);
-        $results = [];
-        foreach ($rules as $r) {
-            if (!isset($r['left']) && isset($r['field'])) {
-                $r['left'] = ['type' => 'var', 'path' => $r['field']];
-            }
-            if (!isset($r['right']) && array_key_exists('value', $r)) {
-                $r['right'] = ['type' => 'literal', 'value' => $r['value']];
-            }
-            $op = $r['operator'] ?? ($r['op'] ?? '==');
-            $leftVal = $this->resolveSide($r['left'] ?? ['type' => 'literal', 'value' => null], $context);
-            $rightVal = $this->resolveSide($r['right'] ?? ['type' => 'literal', 'value' => null], $context);
             $results[] = $this->compareAny($leftVal, $op, $rightVal);
         }
-        return $logic === 'OR' ? Arr::hasAny($results, true) : !Arr::hasAny($results, false);
+
+        return $logic === 'OR' ? Arr::hasAny($results, true) : !in_array(false, $results, true);
     }
 
     protected function resolveSide(array $side, array $ctx)
@@ -140,7 +112,8 @@ class ConditionStepHandler implements StepHandlerContract
 
     protected function getFromContext(array $context, string $path)
     {
-        return Arr::get($context, Str::replace('.', '.', $path));
+        // Using Arr::get allows for dot notation to access nested data.
+        return Arr::get($context, $path);
     }
 
     protected function applyTemplate($value, array $ctx)
@@ -195,46 +168,43 @@ class ConditionStepHandler implements StepHandlerContract
             'empty' => empty($left),
             'not_empty' => !empty($left),
             'truthy' => (bool)$left || (is_string($left) && $left !== '') || (is_numeric($left) && $left != 0),
-            'today' => function () use ($asCarbon, $left) {
+            'today' => (function () use ($asCarbon, $left) {
                 $dt = $asCarbon($left);
                 if (!$dt) return false;
                 $now = Carbon::now($dt->getTimezone());
                 return $dt->isSameDay($now);
-            },
-            'in_past' => function () use ($asCarbon, $left) {
+            })(),
+            'in_past' => (function () use ($asCarbon, $left) {
                 $dt = $asCarbon($left);
                 if (!$dt) return false;
                 return $dt->lt(Carbon::now($dt->getTimezone()));
-            },
-            'in_future' => function () use ($asCarbon, $left) {
+            })(),
+            'in_future' => (function () use ($asCarbon, $left) {
                 $dt = $asCarbon($left);
                 if (!$dt) return false;
                 return $dt->gt(Carbon::now($dt->getTimezone()));
-            },
+            })(),
             default => false,
         };
     }
 
+    /**
+     * Updated loose equality check to correctly handle boolean strings.
+     */
     protected function looseEq($a, $b): bool
     {
-        // If either side is an array, compare their JSON representation.
         if (is_array($a) || is_array($b)) {
             return json_encode($a) === json_encode($b);
         }
 
-        // Specifically handle string representations of booleans.
         // This correctly compares a boolean from context (e.g., false)
         // with a string from the rule (e.g., "false").
-        if (is_string($b)) {
-            if (strtolower($b) === 'true') {
-                return (bool)$a === true;
-            }
-            if (strtolower($b) === 'false') {
-                return (bool)$a === false;
-            }
+        if (is_bool($a)) {
+            $b_str = strtolower(trim((string)$b));
+            if ($b_str === 'true') return $a === true;
+            if ($b_str === 'false') return $a === false;
         }
 
-        // Fallback to the original string comparison for all other cases.
         return (string)$a === (string)$b;
     }
 

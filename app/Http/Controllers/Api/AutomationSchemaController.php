@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
+use App\Models\Client;
 use App\Models\Lead;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -89,7 +90,7 @@ class AutomationSchemaController extends Controller
                                 }
                             } else {
                                 // Fallback to seed models exposed in schema
-                                $known = [\App\Models\Task::class, \App\Models\Project::class, \App\Models\Email::class];
+                                $known = [\App\Models\Task::class, \App\Models\Project::class, \App\Models\Email::class, Client::class, Lead::class, User::class, User::class];
                                 foreach ($known as $class) {
                                     if (class_exists($class)) {
                                         $options[] = [ 'value' => $class, 'label' => class_basename($class) ];
@@ -233,6 +234,7 @@ class AutomationSchemaController extends Controller
      */
     private function getAllowedValues(string $modelName, string $field): ?array
     {
+
         $def = config("value_sets.models.$modelName.$field");
         if (!$def || !is_array($def)) return null;
 

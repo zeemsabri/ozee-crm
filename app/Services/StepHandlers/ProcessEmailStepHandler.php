@@ -5,25 +5,22 @@ namespace App\Services\StepHandlers;
 use App\Jobs\ProcessDraftEmailJob;
 use App\Models\Email;
 use App\Models\WorkflowStep;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 
 class ProcessEmailStepHandler implements StepHandlerContract
 {
     /**
      * Handle the PROCESS_EMAIL action step.
-     *
-     * Expected configuration on the step (step_config):
-     * - email_id_path (string, optional): context path to the email id. Defaults to 'trigger.id'.
-     * - on_queue (string, optional): queue name to dispatch the job to.
      */
     public function handle(array $context, WorkflowStep $step): array
     {
         $cfg = $step->step_config ?? [];
-        $idPath = $cfg['email_id_path'] ?? 'trigger.id';
+        $emailId = $this->resolveEmailId($context, $cfg);
 
-        $emailId = $this->getFromContextPath($context, $idPath);
         if (!$emailId) {
-            throw new \RuntimeException("PROCESS_EMAIL: Unable to resolve email id from path '{$idPath}'.");
+            $configuredPath = $cfg['email_id_path'] ?? 'none';
+            throw new \RuntimeException("PROCESS_EMAIL: Unable to resolve a valid email ID. No value found at configured path ('{$configuredPath}') or in default locations ('trigger.email.id', 'triggering_object_id').");
         }
 
         $email = Email::find($emailId);
@@ -31,7 +28,6 @@ class ProcessEmailStepHandler implements StepHandlerContract
             throw new \RuntimeException("PROCESS_EMAIL: Email not found for id {$emailId}.");
         }
 
-        // Dispatch the existing job which preserves all current processing logic/templates
         $job = new ProcessDraftEmailJob($email);
         $dispatch = dispatch($job);
         if (!empty($cfg['on_queue'])) {
@@ -53,20 +49,36 @@ class ProcessEmailStepHandler implements StepHandlerContract
     }
 
     /**
-     * Minimal context path resolver (dot notation), mirroring engine behavior.
+     * Intelligently resolves the email ID from the context.
+     *
+     * This method provides a more robust way to find the email ID by checking
+     * an explicitly configured path first, then falling back to common default paths.
      */
-    protected function getFromContextPath(array $context, string $path)
+    protected function resolveEmailId(array $context, array $config): ?int
     {
-        if ($path === '') return null;
-        $parts = preg_split('/\.|\:/', $path);
-        $val = $context;
-        foreach ($parts as $p) {
-            if (is_array($val) && array_key_exists($p, $val)) {
-                $val = $val[$p];
-            } else {
-                return null;
+        // 1. Prioritize the explicitly configured path.
+        if (!empty($config['email_id_path'])) {
+            $emailId = Arr::get($context, $config['email_id_path']);
+            if ($emailId) {
+                return (int)$emailId;
             }
         }
-        return $val;
+
+        // 2. If no specific path is set, try common default locations.
+        $defaultPaths = [
+            'trigger.email.id',     // Standard for 'email.created' triggers
+            'triggering_object_id', // A common top-level identifier
+            'trigger.id',           // The original, less specific default
+        ];
+
+        foreach ($defaultPaths as $path) {
+            $emailId = Arr::get($context, $path);
+            if ($emailId) {
+                return (int)$emailId;
+            }
+        }
+
+        // 3. If not found anywhere, return null.
+        return null;
     }
 }

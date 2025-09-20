@@ -463,23 +463,7 @@ function updateDelayMinutes(val) {
                 </div>
             </template>
 
-            <!-- == PROCESS EMAIL CONFIG == -->
-            <template v-if="actionConfig.action_type === 'PROCESS_EMAIL'">
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Email ID Path</label>
-                    <div class="flex items-center gap-2">
-                        <input type="text" :value="actionConfig.email_id_path || 'trigger.id'" @input="handleConfigChange('email_id_path', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="e.g., {{ trigger.id }} or {{ record.id }}" />
-                        <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('email_id_path', $event)" />
-                    </div>
-                    <p class="mt-1 text-[11px] text-gray-500">Context path to the Email ID. Defaults to <code>trigger.id</code>.</p>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Queue (optional)</label>
-                    <input type="text" :value="actionConfig.on_queue || ''" @input="handleConfigChange('on_queue', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="e.g., emails or default" />
-                </div>
-            </template>
-
-            <!-- == \"SMART ACTION\" PLACEHOLDER == -->
+            <!-- == "SMART ACTION" PLACEHOLDER == -->
             <template v-if="actionConfig.action_type === 'CHECK_MILESTONE_COMPLETION'">
                 <div class="p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-800 text-sm rounded-r-md">
                     <p class="font-semibold">This is a smart action.</p>

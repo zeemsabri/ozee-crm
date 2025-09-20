@@ -59,6 +59,10 @@ return [
                 'source' => 'php_enum',
                 'enum' => \App\Enums\EmailStatus::class,
             ],
+            'sender_type'   =>  [
+                'source'    =>  'model',
+                'class'     =>  \App\Models\Client::class,
+            ],
             'type' => [
                 'source' => 'php_enum',
                 'enum' => \App\Enums\EmailType::class,
