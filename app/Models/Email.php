@@ -264,4 +264,16 @@ class Email extends Model
         return $canApprove;
     }
 
+    public static function fieldMetaForWorkflow(): array
+    {
+        return [
+
+            'sender_type' => [
+                'label' => 'Sender Type',
+                'description' => 'Choose what Client, Lead or User',
+                'ui' => 'morph_type',
+            ],
+        ];
+    }
+
 }
