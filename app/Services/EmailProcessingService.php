@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\EmailStatus;
 use App\Http\Controllers\Api\Concerns\HandlesTemplatedEmails;
 use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Models\Email;
@@ -44,32 +45,32 @@ class EmailProcessingService
 
             // 2. Prepare plain text version for the AI
             // This is crucial for cost-effectiveness and accuracy.
-            $plainTextForAI = $this->prepareTextForAI($subject, $bodyHtml);
+//            $plainTextForAI = $this->prepareTextForAI($subject, $bodyHtml);
 
             // 3. Get AI analysis and context
-            $aiResponse = $this->aiAnalysisService->analyzeAndSummarize($plainTextForAI);
-
-            if (!$aiResponse) {
-                // If AI fails, move to pending approval for safety
-                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
-                return;
-            }
+//            $aiResponse = $this->aiAnalysisService->analyzeAndSummarize($plainTextForAI);
+//
+//            if (!$aiResponse) {
+//                // If AI fails, move to pending approval for safety
+//                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
+//                return;
+//            }
 
             // 4. Create the context from the AI's response
-            $this->createContextForEmail($email, $aiResponse);
+//            $this->createContextForEmail($email, $aiResponse);
 
             // 5. Decide the next step based on AI feedback
-            if ($aiResponse['approval_required']) {
-                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
-                Log::info('Email moved to pending approval by AI.', ['email_id' => $email->id, 'reason' => $aiResponse['reason']]);
-            } else {
+//            if ($aiResponse['approval_required']) {
+//                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
+//                Log::info('Email moved to pending approval by AI.', ['email_id' => $email->id, 'reason' => $aiResponse['reason']]);
+//            } else {
                 // Auto-approved! Send the email.
                 $this->sendApprovedEmail($email, $subject, $bodyHtml);
-                Log::info('Email auto-approved and sent by AI.', ['email_id' => $email->id]);
-            }
+//                Log::info('Email auto-approved and sent by AI.', ['email_id' => $email->id]);
+//            }
         } catch (Throwable $e) {
             // If any part of the process fails, ensure it goes to manual approval.
-            $email->update(['status' => Email::STATUS_PENDING_APPROVAL]);
+            $email->update(['status' => EmailStatus::PendingApproval]);
             Log::error('Error in EmailProcessingService.', [
                 'email_id' => $email->id,
                 'error' => $e->getMessage(),
@@ -96,7 +97,7 @@ class EmailProcessingService
         $data = $this->getData($subject, $renderedBody, $senderDetails, $email, true);
         $finalRenderedBody = $this->renderHtmlTemplate($data, $template);
 
-        $recipient = $email->conversation->conversable;
+        $recipient = $email->conversation?->conversable ?? null;
 
         if ($recipient && !empty($recipient->email)) {
             $this->gmailService->sendEmail(
@@ -107,7 +108,7 @@ class EmailProcessingService
 
             // Update email status after sending
             $email->update([
-                'status' => Email::STATUS_SENT,
+                'status' => EmailStatus::Sent,
                 // We can use a dedicated system user ID or null for 'approved_by'
                 'approved_by' => User::where('email', 'info@ozeeweb.com.au')->first()->id ?? null,
                 'sent_at' => now()
@@ -126,7 +127,7 @@ class EmailProcessingService
     {
 
         if(isset($aiResponse['approval_required']) && $aiResponse['approval_required'] === false){
-            $email->update(['status' => Email::STATUS_APPROVED]);
+            $email->update(['status' => EmailStatus::Sent]);
         }
 
         $context = new \App\Models\Context([

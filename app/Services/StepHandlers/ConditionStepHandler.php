@@ -77,32 +77,29 @@ class ConditionStepHandler implements StepHandlerContract
             $leftVal = $this->resolveSide($rule['left'] ?? ['type' => 'literal', 'value' => null], $context);
             $rightVal = $this->resolveSide($rule['right'] ?? ['type' => 'literal', 'value' => null], $context);
 
+            // THE CRITICAL FIX: Explicitly check for null when a value is expected.
+            // This prevents incorrect evaluations when a relationship path does not exist.
+            if ($leftVal === null && $rightVal !== null && $op !== '!=' && $op !== '<>') {
+                $results[] = false;
+                continue;
+            }
+
             $results[] = $this->compareAny($leftVal, $op, $rightVal);
         }
 
         return $logic === 'OR' ? Arr::hasAny($results, true) : !in_array(false, $results, true);
     }
 
-    /**
-     * Resolves a value from a rule's 'left' or 'right' side configuration.
-     */
     protected function resolveSide(array $side, array $ctx)
     {
         $type = strtolower((string)($side['type'] ?? 'literal'));
-
-        // If 'type' is 'var', the path should always be treated as a key to look up in the context.
         if ($type === 'var') {
             $path = (string)($side['path'] ?? '');
-
-            // First, unwrap the path if it's a token like {{...}}
             if (preg_match('/^{{\s*([^}]+)\s*}}$/', $path, $matches)) {
                 $path = trim($matches[1]);
             }
-            // Now, $path is always a simple dot-notation string, which we can safely look up.
             return Arr::get($ctx, $path);
         }
-
-        // If 'type' is 'literal', the value might contain tokens that need to be interpolated.
         $val = $side['value'] ?? null;
         return $this->applyTemplate($val, $ctx);
     }
@@ -115,14 +112,10 @@ class ConditionStepHandler implements StepHandlerContract
         if (!is_string($value)) {
             return $value;
         }
-
-        // If the value is a single token, resolve it and return the raw value.
         if (preg_match('/^{{\s*([^}]+)\s*}}$/', $value, $matches)) {
             $path = trim($matches[1]);
             return Arr::get($ctx, $path);
         }
-
-        // If it's a string with one or more tokens inside it, interpolate them.
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($ctx) {
             $path = trim($m[1]);
             $val = Arr::get($ctx, $path);
