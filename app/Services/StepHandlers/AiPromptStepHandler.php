@@ -5,110 +5,30 @@ namespace App\Services\StepHandlers;
 use App\Models\Prompt;
 use App\Models\WorkflowStep;
 use App\Services\AIGenerationService;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class AiPromptStepHandler implements StepHandlerContract
 {
+
     public function __construct(
         protected AIGenerationService $ai,
     ) {}
 
     public function handle(array $context, WorkflowStep $step): array
     {
-        $prompt = $step->prompt ?: Prompt::find($step->prompt_id);
-        if (!$prompt) {
-            // Fallback: resolve from step_config.promptRef.id (front-end stores link here)
-            $cfg = $step->step_config ?? [];
-            $promptId = is_array($cfg) ? ($cfg['promptRef']['id'] ?? null) : null;
-            if ($promptId) {
-                $prompt = Prompt::find($promptId);
-            }
-        }
+        $cfg = $step->step_config ?? [];
+
+        $prompt = $this->resolvePrompt($step, $cfg);
         if (!$prompt) {
             throw new \RuntimeException('Prompt not found for AI_PROMPT step');
         }
 
-        // Optionally enrich context with campaign data
-        $cfg = $step->step_config ?? [];
-        if (!empty($cfg['campaign_id']) && class_exists(\App\Models\Campaign::class)) {
-            $campaign = \App\Models\Campaign::find($cfg['campaign_id']);
-            if ($campaign) {
-                $context = array_replace_recursive($context, [
-                    'campaign' => $campaign->toArray(),
-                ]);
-            }
-        }
+        $promptData = $this->gatherPromptData($context, $cfg);
 
-        // NEW: Eager-load selected relationships based on base model context (Trigger or Loop Item)
-        $withTree = [];
-        $rels = $cfg['relationships'] ?? null;
-        if (is_array($rels)) {
-            $baseModel = $rels['base_model'] ?? null;
-            $roots = is_array($rels['roots'] ?? null) ? $rels['roots'] : [];
-            $nested = is_array($rels['nested'] ?? null) ? $rels['nested'] : [];
-            $fields = is_array($rels['fields'] ?? null) ? $rels['fields'] : [];
-
-            if ($baseModel) {
-                $class = $this->resolveModelClass($baseModel);
-                if ($class) {
-                    // Determine the current record id
-                    $id = null;
-                    if (isset($context['loop']['item']['id'])) {
-                        $id = $context['loop']['item']['id'];
-                    }
-                    if (!$id) {
-                        $key = strtolower($baseModel);
-                        $id = $context['trigger'][$key]['id'] ?? null;
-                    }
-
-                    if ($id) {
-                        // Build with paths
-                        $paths = [];
-                        foreach ($roots as $r) { $paths[] = $r; }
-                        foreach ($nested as $rootName => $children) {
-                            foreach ((array)$children as $c) { $paths[] = $rootName . '.' . $c; }
-                        }
-                        $paths = array_values(array_unique(array_filter($paths)));
-
-                        try {
-                            /** @var \Illuminate\Database\Eloquent\Model|null $record */
-                            $record = $class::query()->with($paths)->find($id);
-                            if ($record) {
-                                $asArr = $record->toArray();
-                                // Build `with` structure honoring field selections
-                                // Include roots explicitly (even if no nested children)
-                                foreach ($roots as $r) {
-                                    $val = $this->getFromArrayByPath($asArr, $r);
-                                    $sel = $fields[$r] ?? ['*'];
-                                    $filtered = $this->filterValueByFields($val, $sel);
-                                    $this->setArrayByPath($withTree, $r, $filtered);
-                                }
-                                // Include nested
-                                foreach ($nested as $rootName => $children) {
-                                    foreach ((array)$children as $c) {
-                                        $full = $rootName . '.' . $c;
-                                        $val = $this->getFromArrayByPath($asArr, $full);
-                                        $sel = $fields[$full] ?? ['*'];
-                                        $filtered = $this->filterValueByFields($val, $sel);
-                                        $this->setArrayByPath($withTree, $full, $filtered);
-                                    }
-                                }
-                                // Merge into context for the AI template
-                                $context = array_replace_recursive($context, ['with' => $withTree]);
-                            }
-                        } catch (\Throwable $e) {
-                            Log::warning('AiPromptStepHandler.relations_load_failed', [
-                                'base_model' => $baseModel,
-                                'id' => $id,
-                                'error' => $e->getMessage(),
-                            ]);
-                        }
-                    }
-                }
-            }
-        }
-
-        $result = $this->ai->generate($prompt, $context);
+        $result = $this->ai->generate($prompt, $promptData);
 
         $raw = $result['raw'] ?? null;
         $parsed = $result['parsed'] ?? null;
@@ -119,103 +39,141 @@ class AiPromptStepHandler implements StepHandlerContract
             }
         }
 
-        // Optional response mapping: map parsed keys into context as simple variables
-        $mapping = $step->step_config['response_mapping'] ?? [];
-        $mappedOut = [];
-        if (is_array($mapping) && is_array($parsed)) {
-            // Support two formats: ['alias' => 'path.to.key'] or [['alias' => 'x', 'path' => 'a.b']]
-            foreach ($mapping as $k => $v) {
-                if (is_array($v)) {
-                    $alias = $v['alias'] ?? ($v['to'] ?? null);
-                    $path = $v['path'] ?? ($v['from'] ?? null);
-                } else {
-                    $alias = is_string($k) ? $k : (is_string($v) ? $v : null);
-                    $path = is_string($v) ? $v : (is_string($k) ? $k : null);
-                }
-                if (!$alias || !$path) continue;
-                $val = $this->getFromArrayByPath($parsed, $path);
-                $mappedOut[$alias] = $val;
-            }
-        }
-
-        $contextOut = [
-            'ai' => [
-                'last_output' => $parsed ?? $raw,
-            ],
-        ];
-        if (!empty($mappedOut)) {
-            $contextOut = array_replace_recursive($contextOut, $mappedOut);
-        }
-
         return [
             'raw' => $raw,
             'parsed' => $parsed,
             'token_usage' => $result['token_usage'] ?? null,
             'cost' => $result['cost'] ?? null,
-            'context' => $contextOut,
+            'context' => [
+                'ai' => ['last_output' => $parsed ?? $raw],
+            ],
         ];
     }
 
-    protected function getFromArrayByPath(array $data, string $path)
+    protected function resolvePrompt(WorkflowStep $step, array $config): ?Prompt
     {
-        $parts = preg_split('/\.|\:/', $path);
-        $val = $data;
-        foreach ($parts as $p) {
-            if (is_array($val) && array_key_exists($p, $val)) {
-                $val = $val[$p];
-            } else {
-                return null;
-            }
+        if ($step->prompt) {
+            return $step->prompt;
         }
-        return $val;
+        $promptId = $config['promptRef']['id'] ?? null;
+        if ($promptId) {
+            return Prompt::find($promptId);
+        }
+        // Fallback for inline/hardcoded prompts in the config.
+        if (!empty($config['prompt']) && is_string($config['prompt'])) {
+            return new Prompt(['system_prompt_text' => $config['prompt']]);
+        }
+        return null;
     }
 
-    protected function setArrayByPath(array &$target, string $path, $value): void
+    protected function gatherPromptData(array $context, array $config): array
     {
-        $parts = explode('.', $path);
-        $ref =& $target;
-        foreach ($parts as $i => $seg) {
-            if ($i === count($parts) - 1) {
-                $ref[$seg] = $value;
-                return;
-            }
-            if (!isset($ref[$seg]) || !is_array($ref[$seg])) {
-                $ref[$seg] = [];
-            }
-            $ref =& $ref[$seg];
+        $promptData = [];
+        $baseModel = null;
+        $baseModelId = null;
+
+        // Determine the primary data source (loop or trigger).
+        $loopItem = $context['loop']['item'] ?? null;
+        $triggerData = $context['trigger'] ?? [];
+
+        if ($loopItem) {
+            $baseModel = $this->resolveModelFromContext($loopItem);
+            $baseModelId = $loopItem['id'] ?? null;
+        } else {
+            $baseModel = $this->resolveModelFromContext($triggerData);
+            // Ensure $baseModel is not null before using it as an array key.
+            $baseModelKey = $baseModel ? strtolower($baseModel) : '';
+            $baseModelId = $context['triggering_object_id'] ?? ($triggerData[$baseModelKey]['id'] ?? null);
         }
+
+        // 1. Gather direct inputs from the determined source.
+        $inputs = $config['aiInputs'] ?? [];
+        foreach ($inputs as $input) {
+            [$source, $path] = explode(':', $input, 2) + ['trigger', ''];
+            $dataRoot = ($source === 'loop' && $loopItem) ? $loopItem : $triggerData;
+            $key = last(explode('.', $path));
+            $promptData[$key] = Arr::get($dataRoot, $path);
+        }
+
+        // 2. Gather related data if configured.
+        $relationsConfig = $config['relationships'] ?? null;
+        // THE FIX: Ensure $baseModel is a valid string before proceeding.
+        if ($relationsConfig && $baseModel && $baseModelId) {
+            // Ensure the base_model in the config matches our context.
+            $relationsConfig['base_model'] = $baseModel;
+            $relatedData = $this->gatherRelatedData($relationsConfig, $baseModelId);
+            if (!empty($relatedData)) {
+                $promptData['with'] = $relatedData;
+            }
+        }
+
+        return $promptData;
     }
 
-    protected function filterValueByFields($value, array $selected)
+    protected function gatherRelatedData(array $relationsConfig, int $baseModelId): array
     {
-        // '*' means select all
-        if (in_array('*', $selected, true)) return $value;
-        // Normalize selection keys
-        $keys = array_values(array_filter(array_map('strval', $selected), fn($k) => $k !== ''));
-        if (empty($keys)) return $value; // nothing selected => keep as-is for safety
-        if (is_array($value)) {
-            // Determine if list of rows or assoc
-            $isList = array_keys($value) === range(0, count($value) - 1);
-            if ($isList) {
-                return array_map(function ($row) use ($keys) {
-                    return is_array($row) ? array_intersect_key($row, array_fill_keys($keys, true)) : $row;
-                }, $value);
-            }
-            // associative array
-            return array_intersect_key($value, array_fill_keys($keys, true));
+        $baseModelClass = $this->resolveModelClass($relationsConfig['base_model']);
+        if (!$baseModelClass) {
+            Log::warning("AI_PROMPT: Base model class not found for '{$relationsConfig['base_model']}'.");
+            return [];
         }
-        return $value;
+
+        $query = $baseModelClass::query();
+        $eagerLoad = [];
+
+        $roots = $relationsConfig['roots'] ?? [];
+        $fields = $relationsConfig['fields'] ?? [];
+        $nested = $relationsConfig['nested'] ?? [];
+
+        foreach ($roots as $rootRelation) {
+            $nestedRelations = $nested[$rootRelation] ?? [];
+            // THE FIX: Pass $rootRelation into the closure's `use` statement.
+            $eagerLoad[$rootRelation] = function ($q) use ($rootRelation, $nestedRelations, $fields) {
+                // THE FIX: Apply field selections to the top-level relation itself.
+                $rootFields = $fields[$rootRelation] ?? ['*'];
+                if ($rootFields !== ['*'] && !in_array('id', $rootFields)) {
+                    $rootFields[] = 'id';
+                }
+                $q->select($rootFields);
+
+                // Load nested relations with their specific field selections.
+                foreach ($nestedRelations as $nestedRelation) {
+                    $nestedPath = "{$rootRelation}.{$nestedRelation}";
+                    $nestedFields = $fields[$nestedPath] ?? ['*'];
+                    if ($nestedFields !== ['*'] && !in_array('id', $nestedFields)) $nestedFields[] = 'id';
+                    $q->with([$nestedRelation => fn($nq) => $nq->select($nestedFields)]);
+                }
+            };
+        }
+
+        if (empty($eagerLoad)) return [];
+
+        $modelInstance = $query->with($eagerLoad)->find($baseModelId);
+        // No need to call filterRelations anymore as selections are done in the query.
+        return $modelInstance ? $modelInstance->getRelations() : [];
     }
 
     protected function resolveModelClass(string $name): ?string
     {
-        $candidates = [
-            $name,
-            'App\\Models\\' . $name,
-        ];
+        $candidates = [ $name, 'App\\Models\\' . $name ];
         foreach ($candidates as $c) {
             if (class_exists($c)) return $c;
         }
         return null;
     }
+
+    private function resolveModelFromContext(array $context): ?string
+    {
+        if (empty($context)) return null;
+        // Heuristic: find the key that holds the main model data.
+        $keys = array_keys($context);
+        foreach ($keys as $key) {
+            if (is_array($context[$key]) && isset($context[$key]['id'])) {
+                // Assuming the key is the lowercase model name.
+                return Str::studly($key);
+            }
+        }
+        return null;
+    }
 }
+

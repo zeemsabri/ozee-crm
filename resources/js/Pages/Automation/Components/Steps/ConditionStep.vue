@@ -17,6 +17,37 @@ const store = useWorkflowStore();
 const automationSchema = computed(() => store.automationSchema || []);
 const morphMap = computed(() => store.morphMap || []);
 
+// Determine loop schema: prefer explicit prop, else infer from nearest FOR_EACH
+const loopSchema = computed(() => {
+    if (props.loopContextSchema && Array.isArray(props.loopContextSchema.columns) && props.loopContextSchema.columns.length) {
+        return props.loopContextSchema;
+    }
+    // Fallback inference like DataTokenInserter
+    const forEach = [...props.allStepsBefore].reverse().find(s => s.step_type === 'FOR_EACH' && s.step_config?.sourceArray);
+    if (!forEach) return null;
+    const sourcePath = forEach.step_config.sourceArray;
+    const match = typeof sourcePath === 'string' ? sourcePath.match(/{{step_(\w+)\.(.+)}}/) : null;
+    if (!match) return null;
+    const sourceStepId = match[1];
+    const sourceFieldName = match[2];
+    const sourceStep = props.allStepsBefore.find(s => String(s.id) === String(sourceStepId));
+    if (sourceStep?.step_type === 'AI_PROMPT') {
+        const field = (sourceStep.step_config?.responseStructure || []).find(f => f.name === sourceFieldName);
+        if (field?.type === 'Array of Objects') {
+            return { name: 'Loop Item', columns: (field.schema || []) };
+        }
+    }
+    if (sourceStep?.step_type === 'FETCH_RECORDS' && sourceFieldName === 'records') {
+        const modelName = sourceStep.step_config?.model;
+        const model = (automationSchema.value || []).find(m => m.name === modelName);
+        if (model) {
+            const cols = (model.columns || []).map(col => typeof col === 'string' ? { name: col } : col);
+            return { name: 'Loop Item', columns: cols };
+        }
+    }
+    return null;
+});
+
 const conditionConfig = computed({
     get: () => {
         const config = props.step.step_config || {};
@@ -87,6 +118,25 @@ const triggerStep = computed(() => props.allStepsBefore.find(s => ['TRIGGER', 'S
 
 const availableFields = computed(() => {
     const fields = [];
+
+    // 0. Loop Context (when inside ForEach)
+    if (loopSchema.value && Array.isArray(loopSchema.value.columns)) {
+        // Loop item fields
+        loopSchema.value.columns.filter(col => !!col?.name).forEach(col => {
+            fields.push({
+                value: `{{loop.item.${col.name}}}`,
+                name: `{{loop.item.${col.name}}}`,
+                label: `Loop Item: ${col.label || col.name}`,
+                type: col.type || 'Text',
+                group: 'Current Loop Item',
+                allowed_values: col.allowed_values || null,
+            });
+        });
+        // Loop meta
+        fields.push({ value: '{{loop.index}}', name: '{{loop.index}}', label: 'Loop: index', type: 'Number', group: 'Loop Details' });
+        fields.push({ value: '{{loop.is_first}}', name: '{{loop.is_first}}', label: 'Loop: is_first', type: 'True/False', group: 'Loop Details' });
+        fields.push({ value: '{{loop.is_last}}', name: '{{loop.is_last}}', label: 'Loop: is_last', type: 'True/False', group: 'Loop Details' });
+    }
 
     // 1. Workflow Context Fields
     fields.push({
@@ -171,7 +221,22 @@ function resolveFieldMetaForPath(path) {
     const segs = raw.split('.');
     if (!segs.length) return null;
 
-    // Determine base
+    // Special case: loop.item paths
+    if (segs[0] === 'loop') {
+        // Expected formats: loop.item.FIELD | loop.index | loop.is_first | loop.is_last
+        if (segs[1] === 'item' && segs.length >= 3) {
+            const fieldName = segs.slice(2).join('.'); // support flat fields; nested unsupported
+            const cols = (loopSchema.value?.columns || []).map(c => (typeof c === 'string' ? { name: c } : c));
+            const col = cols.find(c => c.name === fieldName);
+            if (!col) return { type: 'Text', allowed_values: null };
+            return { type: col.type || 'Text', allowed_values: col.allowed_values || null };
+        }
+        if (segs[1] === 'index') return { type: 'Number', allowed_values: null };
+        if (segs[1] === 'is_first' || segs[1] === 'is_last') return { type: 'True/False', allowed_values: null };
+        return { type: 'Text', allowed_values: null };
+    }
+
+    // Determine base for trigger/other
     let idx = 0;
     let baseToken = segs[idx++];
     let modelName = null;

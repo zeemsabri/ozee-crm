@@ -20,6 +20,11 @@ class RunWorkflowJob implements ShouldQueue, ShouldBeUniqueUntilProcessing
      */
     public int $uniqueFor = 60;
 
+    public int $tries = 3;
+    public int $timeout = 120; // seconds
+    public bool $failOnTimeout = true;
+    public $backoff = [60, 300, 900]; // 1m, 5m, 15m
+
     public function __construct(
         public int $workflowId,
         public array $context = [],
