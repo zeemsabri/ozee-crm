@@ -5,6 +5,7 @@ namespace App\Services\StepHandlers;
 use App\Models\WorkflowStep;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class QueryDataStepHandler implements StepHandlerContract
 {
@@ -25,7 +26,8 @@ class QueryDataStepHandler implements StepHandlerContract
 
         $conditions = $cfg['conditions'] ?? [];
         foreach ($conditions as $cond) {
-            $field = $cond['field'] ?? null;
+            // QueryDataStepHandler.php: Line 26 (Updated)
+            $field = $cond['field'] ?? ($cond['column'] ?? null);
             $op = $cond['op'] ?? ($cond['operator'] ?? '=');
             $val = $cond['value'] ?? null;
             if (!$field) continue;
@@ -54,6 +56,13 @@ class QueryDataStepHandler implements StepHandlerContract
         }
         $limit = (int)($cfg['limit'] ?? 50);
         if ($limit <= 0 || $limit > 1000) { $limit = 50; }
+
+
+// Log the query
+        Log::info('Executing query', [
+            'sql' => $q->limit($limit)->toSql(),
+            'bindings' => $q->getBindings()
+        ]);
 
         // Execute
         $records = $q->limit($limit)->get();
@@ -121,6 +130,8 @@ class QueryDataStepHandler implements StepHandlerContract
         if (is_array($value)) {
             return array_map(fn($v) => $this->applyTemplate($v, $ctx), $value);
         }
+        if($value === "true") return 1;
+        if($value === "false") return 0;
         if (!is_string($value)) return $value;
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($ctx) {
             $path = trim($m[1]);

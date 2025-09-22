@@ -303,7 +303,7 @@ class WorkflowEngineService
     /**
      * Utility used by condition handler to execute a subset of steps
      */
-    public function executeSteps(array $steps, Workflow $workflow, array $context = [], ?ExecutionLog $parentLog = null): array
+    public function executeSteps(iterable $steps, Workflow $workflow, array $context = [], ?ExecutionLog $parentLog = null): array
     {
         if (!isset($context['trigger'])) {
             $context['trigger'] = $context;
