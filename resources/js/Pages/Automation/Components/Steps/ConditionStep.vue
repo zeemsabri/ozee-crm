@@ -90,6 +90,7 @@ const availableFields = computed(() => {
 
     // 1. Workflow Context Fields
     fields.push({
+        value: 'triggering_object_id',
         name: 'triggering_object_id',
         label: 'Triggering Object ID',
         type: 'Number',
@@ -105,6 +106,7 @@ const availableFields = computed(() => {
             (modelSchema.columns || []).forEach(col => {
                 const c = typeof col === 'string' ? { name: col } : col;
                 fields.push({
+                    value: `trigger.${modelKey}.${c.name}`,
                     name: `trigger.${modelKey}.${c.name}`,
                     label: `${triggerModelName}: ${c.label || c.name}`,
                     type: c.type || 'Text',
@@ -114,9 +116,9 @@ const availableFields = computed(() => {
             });
         }
     } else if (triggerStep.value) {
-        fields.push({ name: 'trigger.user.id', label: 'Triggering User ID', type: 'Number', group: 'Trigger Data' });
-        fields.push({ name: 'trigger.email.type', label: 'Trigger Email Type', type: 'Text', group: 'Trigger Data' });
-        fields.push({ name: 'trigger.email.status', label: 'Trigger Email Status', type: 'Text', group: 'Trigger Data' });
+        fields.push({ value: 'trigger.user.id', name: 'trigger.user.id', label: 'Triggering User ID', type: 'Number', group: 'Trigger Data' });
+        fields.push({ value: 'trigger.email.type', name: 'trigger.email.type', label: 'Trigger Email Type', type: 'Text', group: 'Trigger Data' });
+        fields.push({ value: 'trigger.email.status', name: 'trigger.email.status', label: 'Trigger Email Status', type: 'Text', group: 'Trigger Data' });
     }
 
     // 3. Previous Step Outputs
@@ -124,6 +126,7 @@ const availableFields = computed(() => {
         if (s.step_type === 'AI_PROMPT' && s.step_config?.responseStructure?.length > 0) {
             s.step_config.responseStructure.forEach(field => {
                 fields.push({
+                    value: `step_${s.id}.${field.name}`,
                     name: `step_${s.id}.${field.name}`,
                     label: `Step ${index + 1} (AI): ${field.name}`,
                     type: field.type,
@@ -132,7 +135,7 @@ const availableFields = computed(() => {
             });
         }
         if (s.step_type === 'FETCH_RECORDS') {
-            fields.push({ name: `step_${s.id}.count`, label: `Step ${index + 1} (Fetch): Count`, type: 'Number', group: `Step ${index + 1}: ${s.name}`});
+            fields.push({ value: `step_${s.id}.count`, name: `step_${s.id}.count`, label: `Step ${index + 1} (Fetch): Count`, type: 'Number', group: `Step ${index + 1}: ${s.name}`});
         }
     });
 
@@ -141,28 +144,66 @@ const availableFields = computed(() => {
 
 function getFieldSchema(fieldPath) {
     if (!fieldPath) return null;
-    return availableFields.value.find(c => c.name === fieldPath)
-        || { name: fieldPath, label: fieldPath, type: 'Text' };
+    return availableFields.value.find(c => c.value === fieldPath || c.name === fieldPath)
+        || { name: fieldPath, value: fieldPath, label: fieldPath, type: 'Text' };
 }
 
-// NEW: Helper to check if a path came from the relationship picker
+// NEW: Helper to check if a path came from the relationship picker (token like {{...}})
 function isRelationshipPath(path) {
     if (!path || typeof path !== 'string') return false;
-    // A path is from the relationship picker if it's not a pre-defined field.
-    return !availableFields.value.some(f => f.name === path);
+    return path.startsWith('{{');
 }
 
 // NEW: Helper to detect morph type columns for special UI handling
 function isMorphTypeColumn(fieldPath) {
     if (!fieldPath || typeof fieldPath !== 'string') return false;
-    // This is a heuristic: a column ending in `_type` is likely a morph type identifier.
-    // A more robust solution would involve the backend schema explicitly flagging these columns.
-    return fieldPath.endsWith('_type');
+    const clean = getCleanPath(fieldPath);
+    return clean.endsWith('_type');
 }
 
 // NEW: Options for the morph type dropdown
 const morphMapOptions = computed(() => (morphMap.value || []).map(m => ({ value: m.alias, label: m.label || m.alias })));
 
+// Resolve field meta for a relationship token like {{trigger.email.conversation.conversable.timezone}}
+function resolveFieldMetaForPath(path) {
+    if (!path || typeof path !== 'string') return null;
+    const raw = getCleanPath(path);
+    const segs = raw.split('.');
+    if (!segs.length) return null;
+
+    // Determine base
+    let idx = 0;
+    let baseToken = segs[idx++];
+    let modelName = null;
+    if (baseToken.toLowerCase() === 'trigger') {
+        modelName = (segs[idx++] || '').toLowerCase();
+    } else {
+        modelName = baseToken.toLowerCase();
+    }
+    let current = (automationSchema.value || []).find(m => (m.name || '').toLowerCase() === modelName) || null;
+    if (!current) return null;
+
+    // Walk relations until last segment (field)
+    for (; idx < segs.length - 1; idx++) {
+        const relName = segs[idx];
+        const meta = (current.relationships || []).find(r => r.name === relName);
+        if (!meta) return null;
+        if (meta.type === 'MorphTo') {
+            // If the token chooses concrete model via type, the field will belong to that model.
+            // But generic paths without type can't be resolved precisely.
+            return { type: 'Text', allowed_values: null };
+        }
+        const next = (automationSchema.value || []).find(m => m.full_class === meta.full_class || m.name === meta.model);
+        if (!next) return null;
+        current = next;
+    }
+
+    const fieldName = segs[segs.length - 1];
+    const col = (current.columns || []).find(c => (typeof c === 'string' ? c === fieldName : c.name === fieldName));
+    if (!col) return { type: 'Text', allowed_values: null };
+    if (typeof col === 'string') return { type: 'Text', allowed_values: null };
+    return { type: col.type || 'Text', allowed_values: col.allowed_values || null };
+}
 
 function getAvailableOperators(rule) {
     const path = getSelectedField(rule);
@@ -172,11 +213,9 @@ function getAvailableOperators(rule) {
     }
 
     if (isRelationshipPath(path)) {
-        const last = path.split('.').pop() || '';
-        if (last.endsWith('_id') || last === 'id' || last.endsWith('_count')) {
-            return operatorSets.Number;
-        }
-        return operatorSets.Text; // Default for unknown relationship fields
+        const meta = resolveFieldMetaForPath(path) || {};
+        const t = meta.type || 'Text';
+        return operatorSets[t] || operatorSets.Text;
     }
 
     const type = getFieldSchema(path)?.type;
@@ -197,11 +236,32 @@ function operatorRequiresValue(operator) {
     return !['', 'empty', 'not_empty', 'in_past', 'in_future', 'today'].includes(op);
 }
 
+function getFieldValueOptions(rule) {
+    const path = getSelectedField(rule);
+    if (isMorphTypeColumn(path)) {
+        // Morph types use the global morph map
+        return morphMapOptions.value;
+    }
+    if (isRelationshipPath(path)) {
+        const meta = resolveFieldMetaForPath(path);
+        return meta?.allowed_values || null;
+    }
+    return getFieldSchema(path)?.allowed_values || null;
+}
+
 function getInputType(fieldPath) {
+    if (isRelationshipPath(fieldPath)) {
+        const meta = resolveFieldMetaForPath(fieldPath) || {};
+        if (meta.type === 'Date') return 'date';
+        if (meta.type === 'DateTime') return 'datetime-local';
+        if (meta.type === 'Number') return 'number';
+        return 'text';
+    }
     const schema = getFieldSchema(fieldPath);
     if (!schema) return 'text';
     if (schema.type === 'Date') return 'date';
     if (schema.type === 'DateTime') return 'datetime-local';
+    if (schema.type === 'Number') return 'number';
     return 'text';
 }
 </script>
@@ -235,7 +295,7 @@ function getInputType(fieldPath) {
                                     class="w-full"
                                 />
                                 <RelationshipPathPicker
-                                    mode="id"
+                                    mode="field"
                                     :all-steps-before="allStepsBefore"
                                     :value="getSelectedField(rule)"
                                     @select="val => updateRule(index, 'field', val)"
@@ -243,7 +303,7 @@ function getInputType(fieldPath) {
                             </div>
 
                             <!-- NEW: Display for relationship path to give user feedback -->
-                            <p v-if="isRelationshipPath(getSelectedField(rule))" class="text-[11px] text-gray-600 font-mono mt-1 px-1 truncate" :title="getSelectedField(rule)">
+                            <p v-if="isRelationshipPath(getSelectedField(rule))" class="text-[11px] text-gray-600 font-mono mt-1 px-2 py-1 bg-gray-50 rounded overflow-hidden break-words" :title="getSelectedField(rule)">
                                 Path: {{ getCleanPath(getSelectedField(rule)) }}
                             </p>
 
@@ -264,14 +324,14 @@ function getInputType(fieldPath) {
                                     />
                                     <!-- Enum/status Dropdown -->
                                     <SelectDropdown
-                                        v-else-if="getFieldSchema(getSelectedField(rule))?.allowed_values"
-                                        :options="(getFieldSchema(getSelectedField(rule)).allowed_values || []).map(o => ({ value: o.value, label: o.label }))"
+                                        v-else-if="getFieldValueOptions(rule)"
+                                        :options="(getFieldValueOptions(rule) || []).map(o => ({ value: o.value, label: o.label }))"
                                         :model-value="getRuleValue(rule)"
                                         placeholder="Select value..."
                                         @update:modelValue="val => updateRule(index, 'value', val)"
                                     />
                                     <!-- Boolean Dropdown -->
-                                    <select v-else-if="getFieldSchema(getSelectedField(rule))?.type === 'True/False'" :value="getRuleValue(rule) ?? 'true'" @change="updateRule(index, 'value', $event.target.value)" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm text-sm">
+                                    <select v-else-if="(isRelationshipPath(getSelectedField(rule)) ? (resolveFieldMetaForPath(getSelectedField(rule))?.type === 'True/False') : (getFieldSchema(getSelectedField(rule))?.type === 'True/False'))" :value="getRuleValue(rule) ?? 'true'" @change="updateRule(index, 'value', $event.target.value)" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm text-sm">
                                         <option value="true">True</option>
                                         <option value="false">False</option>
                                     </select>
@@ -282,8 +342,15 @@ function getInputType(fieldPath) {
                         </div>
 
                         <!-- Delete Rule Button -->
-                        <button @click="removeRule(index)" class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full" title="Remove condition" :disabled="conditionConfig.rules.length <= 1" :class="{ 'opacity-50 cursor-not-allowed': conditionConfig.rules.length <= 1 }">
+                        <button @click="removeRule(index)" class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full" title="Remove condition" aria-label="Remove condition" :disabled="conditionConfig.rules.length <= 1" :class="{ 'opacity-50 cursor-not-allowed': conditionConfig.rules.length <= 1 }">
                             <TrashIcon class="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    <!-- Secondary Remove action for clarity -->
+                    <div class="mt-2 flex items-center justify-end">
+                        <button @click="removeRule(index)" class="text-xs text-red-600 hover:text-red-700 hover:underline" :disabled="conditionConfig.rules.length <= 1" :class="{ 'opacity-50 cursor-not-allowed': conditionConfig.rules.length <= 1 }">
+                            Remove this condition
                         </button>
                     </div>
                 </div>

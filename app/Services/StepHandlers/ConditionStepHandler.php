@@ -20,15 +20,9 @@ class ConditionStepHandler implements StepHandlerContract
     {
         $cfg = $step->step_config ?? [];
         $logic = strtoupper($cfg['logic'] ?? 'AND');
-
-        // This is the key change: We now get the rules from EITHER the new `step_config.rules`
-        // property OR fall back to the old `condition_rules` property for backwards compatibility.
         $rules = $cfg['rules'] ?? $step->condition_rules ?? [];
-
-        // We now have a single, unified evaluation method.
         $result = $this->evaluateRules($rules, $logic, $context);
 
-        // Determine branch (this logic remains unchanged)
         $branch = $result ? 'yes_steps' : 'no_steps';
         $children = $step->$branch ?? [];
 
@@ -46,7 +40,6 @@ class ConditionStepHandler implements StepHandlerContract
             }
         }
 
-        // Execute selected branch (this logic remains unchanged)
         if (is_array($children) && count($children) > 0) {
             $this->engine->executeSteps($children, $step->workflow, $context);
         }
@@ -63,31 +56,22 @@ class ConditionStepHandler implements StepHandlerContract
         ];
     }
 
-    /**
-     * This is our new, unified rule evaluation engine.
-     * It includes a compatibility layer to handle old rule formats on the fly.
-     */
     protected function evaluateRules(array $rules, string $logic, array $context): bool
     {
         if (empty($rules)) {
-            return true; // No rules means the condition passes.
+            return true;
         }
 
         $logic = strtoupper($logic);
         $results = [];
 
         foreach ($rules as $rule) {
-            // --- BACKWARDS-COMPATIBILITY LAYER ---
-            // If a rule doesn't have a 'left' property but has the old 'field' property,
-            // we dynamically convert it to the new, structured format.
             if (!isset($rule['left']) && isset($rule['field'])) {
-                // The frontend now sends the full path in 'field', so we just use it.
                 $rule['left'] = ['type' => 'var', 'path' => $rule['field']];
             }
             if (!isset($rule['right']) && array_key_exists('value', $rule)) {
                 $rule['right'] = ['type' => 'literal', 'value' => $rule['value']];
             }
-            // --- END COMPATIBILITY LAYER ---
 
             $op = $rule['operator'] ?? ($rule['op'] ?? '==');
             $leftVal = $this->resolveSide($rule['left'] ?? ['type' => 'literal', 'value' => null], $context);
@@ -99,21 +83,28 @@ class ConditionStepHandler implements StepHandlerContract
         return $logic === 'OR' ? Arr::hasAny($results, true) : !in_array(false, $results, true);
     }
 
+    /**
+     * Resolves a value from a rule's 'left' or 'right' side configuration.
+     */
     protected function resolveSide(array $side, array $ctx)
     {
         $type = strtolower((string)($side['type'] ?? 'literal'));
+
+        // If 'type' is 'var', the path should always be treated as a key to look up in the context.
         if ($type === 'var') {
             $path = (string)($side['path'] ?? '');
-            return $this->getFromContext($ctx, $path);
+
+            // First, unwrap the path if it's a token like {{...}}
+            if (preg_match('/^{{\s*([^}]+)\s*}}$/', $path, $matches)) {
+                $path = trim($matches[1]);
+            }
+            // Now, $path is always a simple dot-notation string, which we can safely look up.
+            return Arr::get($ctx, $path);
         }
+
+        // If 'type' is 'literal', the value might contain tokens that need to be interpolated.
         $val = $side['value'] ?? null;
         return $this->applyTemplate($val, $ctx);
-    }
-
-    protected function getFromContext(array $context, string $path)
-    {
-        // Using Arr::get allows for dot notation to access nested data.
-        return Arr::get($context, $path);
     }
 
     protected function applyTemplate($value, array $ctx)
@@ -124,12 +115,21 @@ class ConditionStepHandler implements StepHandlerContract
         if (!is_string($value)) {
             return $value;
         }
+
+        // If the value is a single token, resolve it and return the raw value.
+        if (preg_match('/^{{\s*([^}]+)\s*}}$/', $value, $matches)) {
+            $path = trim($matches[1]);
+            return Arr::get($ctx, $path);
+        }
+
+        // If it's a string with one or more tokens inside it, interpolate them.
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($ctx) {
             $path = trim($m[1]);
             $val = Arr::get($ctx, $path);
             return is_scalar($val) ? (string) $val : json_encode($val);
         }, $value);
     }
+
 
     protected function compareAny($left, string $operator, $right): bool
     {
@@ -188,17 +188,12 @@ class ConditionStepHandler implements StepHandlerContract
         };
     }
 
-    /**
-     * Updated loose equality check to correctly handle boolean strings.
-     */
     protected function looseEq($a, $b): bool
     {
         if (is_array($a) || is_array($b)) {
             return json_encode($a) === json_encode($b);
         }
 
-        // This correctly compares a boolean from context (e.g., false)
-        // with a string from the rule (e.g., "false").
         if (is_bool($a)) {
             $b_str = strtolower(trim((string)$b));
             if ($b_str === 'true') return $a === true;
@@ -231,3 +226,4 @@ class ConditionStepHandler implements StepHandlerContract
         return false;
     }
 }
+
