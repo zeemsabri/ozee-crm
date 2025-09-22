@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Log;
 
 class Schedule extends Model
 {
@@ -64,9 +65,13 @@ class Schedule extends Model
     public function isDueAt(?Carbon $asOf = null): bool
     {
         $asOf = ($asOf ?: now())->copy()->startOfMinute();
+        Log::info($asOf);
         if (!$this->is_active) return false;
+        Log::info('is active');
         if ($this->start_at && $this->start_at->gt($asOf)) return false;
+        Log::info('start at');
         if ($this->end_at && $this->end_at->lt($asOf)) return false;
+        Log::info('end at');
 
         // One-time schedules are due exactly at start_at (minute precision)
         if ($this->is_onetime) {
@@ -75,6 +80,7 @@ class Schedule extends Model
 
         try {
             $cron = new CronExpression($this->recurrence_pattern);
+            Log::info('cron');
             // CronExpression::isDue supports DateTimeInterface|string
             return $cron->isDue($asOf->toDateTimeString());
         } catch (\Throwable $e) {

@@ -9,9 +9,9 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 
-Schedule::command(\App\Console\Commands\FetchEmails::class)->everyFiveMinutes();
-
-Schedule::job(new \App\Jobs\FetchCurrencyRatesJob)->daily();
+//Schedule::command(\App\Console\Commands\FetchEmails::class)->everyFiveMinutes();
+//
+//Schedule::job(new \App\Jobs\FetchCurrencyRatesJob)->daily();
 
 Schedule::command('queue:work --stop-when-empty')->everyMinute();
 
@@ -21,4 +21,4 @@ Schedule::command('queue:work --stop-when-empty')->everyMinute();
 //
 //Schedule::command('leads:process-follow-ups')->daily();
 //
-//Schedule::command('app:run-scheduler')->everyMinute();
+Schedule::command('app:run-scheduler')->everyMinute();

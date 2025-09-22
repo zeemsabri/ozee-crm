@@ -126,7 +126,7 @@ trait HandlesEmailCreation
             'type' => 'sent',
         ]);
 
-        ProcessDraftEmailJob::dispatch($email);
+//        ProcessDraftEmailJob::dispatch($email);
 
         $conversation->update(['last_activity_at' => now()]);
         return $email;
@@ -169,7 +169,7 @@ trait HandlesEmailCreation
             'type' => 'sent',
         ]);
 
-        ProcessDraftEmailJob::dispatch($email);
+//        ProcessDraftEmailJob::dispatch($email);
 
         $conversation->update(['last_activity_at' => now()]);
         return $email;
