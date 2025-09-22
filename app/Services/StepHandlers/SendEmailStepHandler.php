@@ -2,13 +2,14 @@
 
 namespace App\Services\StepHandlers;
 
+use App\Models\ExecutionLog;
 use App\Models\WorkflowStep;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class SendEmailStepHandler implements StepHandlerContract
 {
-    public function handle(array $context, WorkflowStep $step): array
+    public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
         $to = $this->applyTemplate((string)($cfg['to'] ?? ''), $context);

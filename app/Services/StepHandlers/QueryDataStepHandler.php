@@ -2,6 +2,7 @@
 
 namespace App\Services\StepHandlers;
 
+use App\Models\ExecutionLog;
 use App\Models\WorkflowStep;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -9,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 class QueryDataStepHandler implements StepHandlerContract
 {
-    public function handle(array $context, WorkflowStep $step): array
+    public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
         $modelName = $cfg['model'] ?? ($cfg['target_model'] ?? null);

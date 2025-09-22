@@ -2,6 +2,7 @@
 
 namespace App\Services\StepHandlers;
 
+use App\Models\ExecutionLog;
 use App\Models\Prompt;
 use App\Models\WorkflowStep;
 use App\Services\AIGenerationService;
@@ -17,7 +18,7 @@ class AiPromptStepHandler implements StepHandlerContract
         protected AIGenerationService $ai,
     ) {}
 
-    public function handle(array $context, WorkflowStep $step): array
+    public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
 
@@ -26,27 +27,27 @@ class AiPromptStepHandler implements StepHandlerContract
             throw new \RuntimeException('Prompt not found for AI_PROMPT step');
         }
 
+//        $promptData = $this->gatherPromptData($context, $cfg);
+
+//        $result = $this->ai->generate($prompt, $promptData);
+
         $promptData = $this->gatherPromptData($context, $cfg);
 
-        $result = $this->ai->generate($prompt, $promptData);
-
-        $raw = $result['raw'] ?? null;
-        $parsed = $result['parsed'] ?? null;
-        if (!$parsed && is_string($raw)) {
-            $decoded = json_decode($raw, true);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                $parsed = $decoded;
-            }
-        }
+        // --- REPLACEMENT ---
+        // Instead of calling the service directly, dispatch the async job.
+        \App\Jobs\GenerateAiContentJob::dispatch(
+            $step->workflow_id,
+            $prompt->id,
+            $step->id,
+            $promptData,
+            $context,
+            $execLog
+        );
+        // --- END REPLACEMENT ---
 
         return [
-            'raw' => $raw,
-            'parsed' => $parsed,
-            'token_usage' => $result['token_usage'] ?? null,
-            'cost' => $result['cost'] ?? null,
-            'context' => [
-                'ai' => ['last_output' => $parsed ?? $raw],
-            ],
+            'parsed' => ['status' => 'AI_JOB_DISPATCHED'],
+            'context' => [], // IMPORTANT: Do not merge any context here
         ];
     }
 

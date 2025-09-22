@@ -2,6 +2,7 @@
 
 namespace App\Services\StepHandlers;
 
+use App\Models\ExecutionLog;
 use App\Models\WorkflowStep;
 use App\Services\WorkflowEngineService;
 
@@ -11,7 +12,7 @@ class TransformContentStepHandler implements StepHandlerContract
         protected WorkflowEngineService $engine,
     ) {}
 
-    public function handle(array $context, WorkflowStep $step): array
+    public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
         $type = (string)($cfg['type'] ?? '');
