@@ -2,6 +2,7 @@
 
 namespace App\Services\StepHandlers;
 
+use App\Models\ExecutionLog;
 use App\Models\WorkflowStep;
 use App\Services\WorkflowEngineService;
 
@@ -11,7 +12,7 @@ class ForEachStepHandler implements StepHandlerContract
         protected WorkflowEngineService $engine,
     ) {}
 
-    public function handle(array $context, WorkflowStep $step): array
+    public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
         $source = $cfg['sourceArray'] ?? null;
@@ -61,8 +62,8 @@ class ForEachStepHandler implements StepHandlerContract
                 'is_first' => $index === 0,
                 'is_last' => $index === ($total - 1),
             ];
-            // Execute children within the iteration context
-            $this->engine->executeSteps($children, $step->workflow, $iterationContext);
+            // Execute children within the iteration context, passing current exec log as parent
+            $this->engine->executeSteps($children, $step->workflow, $iterationContext, $execLog);
         }
 
         return [

@@ -41,7 +41,7 @@ class WorkflowEngineService
             'ACTION_PROCESS_EMAIL' => new \App\Services\StepHandlers\ProcessEmailStepHandler(),
             // TRIGGER steps are structural; at runtime they are a no-op
             'TRIGGER' => new class implements StepHandlerContract {
-                public function handle(array $context, WorkflowStep $step): array
+                public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
                 {
                     return [
                         'parsed' => [
@@ -52,7 +52,7 @@ class WorkflowEngineService
             },
             // alias plain ACTION to action_type in step_config
             'ACTION' => new class implements StepHandlerContract {
-                public function handle(array $context, WorkflowStep $step): array
+                public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
                 {
                     $type = strtoupper((string)($step->step_config['action_type'] ?? ''));
                     // No-op; actual dispatch handled in engine's resolveHandler
@@ -154,7 +154,16 @@ class WorkflowEngineService
                 if (!$handler) {
                     throw new \RuntimeException("No handler for step type {$step->step_type}");
                 }
-                $out = $handler->handle($context, $step);
+                $out = $handler->handle($context, $step, $execLog);
+
+                if (($out['parsed']['status'] ?? null) === 'AI_JOB_DISPATCHED') {
+                    $results['steps'][] = [
+                        'step_id' => $step->id,
+                        'status' => 'delegated_async',
+                    ];
+                    // Stop processing further steps in this job.
+                    break;
+                }
 
                 $duration = (int) ((microtime(true) - $start) * 1000);
                 $execLog->update([
@@ -261,7 +270,15 @@ class WorkflowEngineService
                 if (!$handler) {
                     throw new \RuntimeException("No handler for step type {$step->step_type}");
                 }
-                $out = $handler->handle($context, $step);
+                $out = $handler->handle($context, $step, $execLog);
+                if (($out['parsed']['status'] ?? null) === 'AI_JOB_DISPATCHED') {
+                    $results['steps'][] = [
+                        'step_id' => $step->id,
+                        'status' => 'delegated_async',
+                    ];
+                    // Stop processing further steps in this job.
+                    break;
+                }
                 $duration = (int) ((microtime(true) - $start) * 1000);
                 $execLog->update([
                     'status' => 'success',
@@ -323,7 +340,15 @@ class WorkflowEngineService
                 if (!$handler) {
                     throw new \RuntimeException("No handler for step type {$step->step_type}");
                 }
-                $out = $handler->handle($context, $step);
+                $out = $handler->handle($context, $step, $execLog);
+                if (($out['parsed']['status'] ?? null) === 'AI_JOB_DISPATCHED') {
+                    $results['steps'][] = [
+                        'step_id' => $step->id,
+                        'status' => 'delegated_async',
+                    ];
+                    // Stop processing further steps in this job.
+                    break;
+                }
                 $duration = (int) ((microtime(true) - $start) * 1000);
                 $execLog->update([
                     'status' => 'success',

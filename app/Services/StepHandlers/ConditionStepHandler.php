@@ -2,6 +2,7 @@
 
 namespace App\Services\StepHandlers;
 
+use App\Models\ExecutionLog;
 use App\Models\WorkflowStep;
 use App\Services\WorkflowEngineService;
 use Carbon\Carbon;
@@ -16,7 +17,7 @@ class ConditionStepHandler implements StepHandlerContract
         protected WorkflowEngineService $engine,
     ) {}
 
-    public function handle(array $context, WorkflowStep $step): array
+    public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
         $logic = strtoupper($cfg['logic'] ?? 'AND');
@@ -41,7 +42,7 @@ class ConditionStepHandler implements StepHandlerContract
         }
 
         if (is_array($children) && count($children) > 0) {
-            $this->engine->executeSteps($children, $step->workflow, $context);
+            $this->engine->executeSteps($children, $step->workflow, $context, $execLog);
         }
 
         return [

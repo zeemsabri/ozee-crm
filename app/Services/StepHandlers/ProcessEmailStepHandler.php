@@ -4,6 +4,7 @@ namespace App\Services\StepHandlers;
 
 use App\Jobs\ProcessDraftEmailJob;
 use App\Models\Email;
+use App\Models\ExecutionLog;
 use App\Models\WorkflowStep;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
@@ -13,7 +14,7 @@ class ProcessEmailStepHandler implements StepHandlerContract
     /**
      * Handle the PROCESS_EMAIL action step.
      */
-    public function handle(array $context, WorkflowStep $step): array
+    public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
         $emailId = $this->resolveEmailId($context, $cfg);
