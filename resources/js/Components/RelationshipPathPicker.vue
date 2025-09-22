@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { useWorkflowStore } from '@/Pages/Automation/Store/workflowStore';
 
 const props = defineProps({
-    mode: { type: String, default: 'id' },
+    mode: { type: String, default: 'id' }, // 'id' | 'type' | 'field'
     allStepsBefore: { type: Array, default: () => [] },
     value: { type: String, default: '' },
 });
@@ -18,6 +18,7 @@ const isOpen = ref(false);
 const start = ref(null); // { id, label, baseToken, modelName }
 const path = ref([]); // array of relation names
 const chosenMorphAlias = ref('');
+const chosenField = ref(''); // for mode="field"
 
 const startSources = computed(() => {
   const sources = [];
@@ -52,52 +53,53 @@ const currentModel = computed(() => {
   return models.value.find(m => m.name === start.value.modelName) || null;
 });
 
-const relationships = computed(() => currentModel.value?.relationships || []);
-
 function reset() {
   path.value = [];
   chosenMorphAlias.value = '';
+  chosenField.value = '';
 }
 
 function addRelation(relName) {
   if (!relName) return;
   path.value.push(relName);
+  chosenField.value = '';
 }
 
-function currentToken() {
-  const base = start.value?.baseToken || '';
-  const relPath = path.value.length ? `.${path.value.join('.')}` : '';
-  const field = props.mode === 'id' ? '.id' : '';
-  return `{{${base}${relPath}${field}}}`;
-}
-
-function onSelect() {
-  if (props.mode === 'type') {
-    // For morph type selection, emit alias if chosen, otherwise emit empty to keep UI predictable
-    if (chosenMorphAlias.value) emit('select', chosenMorphAlias.value);
-    else emit('select', '');
-  } else {
-    emit('select', currentToken());
-  }
-  isOpen.value = false;
-}
-
-// For simplicity, we detect if the last chosen relation is MorphTo by checking relationships meta
-const lastRelMeta = computed(() => {
-  if (!currentModel.value || path.value.length === 0) return null;
+// Determine meta of last chosen relation while walking forward
+function traverseToTerminalModel() {
+  if (!currentModel.value) return { model: null, lastRelMeta: null };
   let model = currentModel.value;
   let lastMeta = null;
   for (const relName of path.value) {
     const meta = (model.relationships || []).find(r => r.name === relName);
-    if (!meta) return null;
+    if (!meta) return { model: null, lastRelMeta: null };
     lastMeta = meta;
-    // advance model if determinable (skip MorphTo because it has no full_class)
     if (meta.type !== 'MorphTo' && meta.full_class) {
       const next = models.value.find(m => m.full_class === meta.full_class || m.name === meta.model);
-      if (next) model = next;
+      if (!next) return { model, lastRelMeta: meta };
+      model = next;
+    } else {
+      // Stop at MorphTo; subsequent model depends on chosenMorphAlias
+      break;
     }
   }
-  return lastMeta;
+  return { model, lastRelMeta };
+}
+
+const lastRelMeta = computed(() => traverseToTerminalModel().lastRelMeta);
+
+// Resolve terminal model schema, respecting MorphTo type selection
+const terminalModelSchema = computed(() => {
+  const { model, lastRelMeta } = traverseToTerminalModel();
+  if (!model) return null;
+  if (!lastRelMeta || lastRelMeta.type !== 'MorphTo') {
+    return model;
+  }
+  if (!chosenMorphAlias.value) return null;
+  const mm = morphMap.value.find(x => x.alias === chosenMorphAlias.value);
+  if (!mm) return null;
+  const baseName = (mm.class || '').split('\\').pop();
+  return models.value.find(s => s.name === baseName) || null;
 });
 
 const availableRelations = computed(() => {
@@ -111,103 +113,96 @@ const availableRelations = computed(() => {
       const next = models.value.find(m => m.full_class === meta.full_class || m.name === meta.model);
       if (next) model = next; else return [];
     } else {
-      // MorphTo: we can still allow continuing, but structure unknown; stop here for v1
+      // Stop on MorphTo; field selection will follow
       return [];
     }
   }
   return model.relationships || [];
 });
 
-const displayText = computed(() => {
-  if (props.mode === 'type') {
-    if (!chosenMorphAlias.value) return '';
-    const mm = morphMap.value.find(m => m.alias === chosenMorphAlias.value);
-    return mm ? mm.label || mm.alias : chosenMorphAlias.value;
-  }
-  if (!start.value) return '';
+const terminalFields = computed(() => {
+  const tm = terminalModelSchema.value;
+  if (!tm) return [];
+  return (tm.columns || []).map(c => {
+    const name = typeof c === 'string' ? c : c.name;
+    const label = typeof c === 'string' ? c : (c.label || c.name);
+    return { value: name, label };
+  });
+});
+
+function buildToken() {
   const base = start.value?.baseToken || '';
   const relPath = path.value.length ? `.${path.value.join('.')}` : '';
-  const field = props.mode === 'id' ? '.id' : '';
-  const token = `${base}${relPath}${field}`;
-  return token.replace(/^trigger\./, 'trigger.');
-});
+  if (props.mode === 'id') {
+    return `{{${base}${relPath}.id}}`;
+  }
+  if (props.mode === 'field') {
+    if (!chosenField.value) return '';
+    return `{{${base}${relPath}.${chosenField.value}}}`;
+  }
+  return '';
+}
+
+function onSelect() {
+  if (props.mode === 'type') {
+    if (chosenMorphAlias.value) emit('select', chosenMorphAlias.value);
+    else emit('select', '');
+  } else {
+    emit('select', buildToken());
+  }
+  isOpen.value = false;
+}
 
 watch(start, () => reset());
 
-// New function to parse the token back into the component's state
+// Parse incoming value
 function parseToken(token) {
-    // Special handling for morph type alias values (not wrapped in {{ }})
-    if (props.mode === 'type') {
-        if (!token || typeof token !== 'string') {
-            chosenMorphAlias.value = '';
-            return;
-        }
-        const morph = morphMap.value.find(m => m.alias === token);
-        if (morph) {
-            chosenMorphAlias.value = morph.alias;
-            return;
-        }
-        // If token isn't a recognized alias, clear and continue to try parsing as a path token (in case)
-        chosenMorphAlias.value = '';
+  // Special handling for morph type alias values (not wrapped in {{ }})
+  if (props.mode === 'type') {
+    if (!token || typeof token !== 'string') {
+      chosenMorphAlias.value = '';
+      return;
     }
+    const morph = morphMap.value.find(m => m.alias === token);
+    if (morph) { chosenMorphAlias.value = morph.alias; return; }
+    chosenMorphAlias.value = '';
+  }
 
-    if (!token || typeof token !== 'string' || !token.startsWith('{{')) {
-        start.value = null;
-        path.value = [];
-        return;
-    }
+  if (!token || typeof token !== 'string' || !token.startsWith('{{')) {
+    start.value = null; path.value = []; chosenField.value = ''; chosenMorphAlias.value='';
+    return;
+  }
 
-    // Strip the outer {{ }} and split by dot
-    const segments = token.replace(/[{}]/g, '').trim().split('.');
+  const segments = token.replace(/[{}]/g, '').trim().split('.');
+  if (segments.length < 2) {
+    start.value = null; path.value = []; chosenField.value = ''; return;
+  }
 
-    if (segments.length < 2) {
-        start.value = null;
-        path.value = [];
-        return;
-    }
+  const basePart = segments[0];
+  const isTrigger = basePart.toLowerCase() === 'trigger';
+  const baseSource = startSources.value.find(s => {
+    const sBase = s.id === 'trigger' ? 'trigger' : s.modelName.toLowerCase();
+    return sBase === basePart.toLowerCase();
+  });
+  if (!baseSource) { start.value = null; path.value = []; chosenField.value = ''; return; }
+  start.value = baseSource;
 
-    // Determine the base and path segments based on the token format
-    const basePart = segments[0];
-    let pathSegments;
-
-    if (basePart.toLowerCase() === 'trigger') {
-        // segments: ["trigger", "<model>", ...relations..., "<field>"]
-        pathSegments = segments.slice(2);
-    } else {
-        // segments: ["<baseModel>", ...relations..., "<field>"]
-        pathSegments = segments.slice(1);
-    }
-
-    // Find the starting source based on the determined base part
-    const baseSource = startSources.value.find(s => {
-        const sBase = s.id === 'trigger' ? 'trigger' : s.modelName.toLowerCase();
-        return sBase === basePart.toLowerCase();
-    });
-
-    if (baseSource) {
-        start.value = baseSource;
-        // The last segment is the field name, not a relationship
-        path.value = pathSegments.slice(0, -1);
-    } else {
-        // If the base isn't found, reset everything
-        start.value = null;
-        path.value = [];
-    }
+  const afterBase = isTrigger ? segments.slice(2) : segments.slice(1);
+  if (afterBase.length === 0) { path.value = []; chosenField.value = ''; return; }
+  // Last is field, rest are relations
+  path.value = afterBase.slice(0, -1);
+  chosenField.value = afterBase[afterBase.length - 1] || '';
 }
 
-// Watch for changes to the 'value' prop and parse it
-watch(() => props.value, (newValue) => {
-    parseToken(newValue);
-}, { immediate: true });
+watch(() => props.value, (newValue) => { parseToken(newValue); }, { immediate: true });
 
 </script>
 
 <template>
   <div class="relative inline-flex items-center gap-2">
-    <button type="button" @click="isOpen = !isOpen" class="px-2 py-1 text-xs rounded bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100">Pick via relationships</button>
-<!--    <span v-if="displayText" class="text-[11px] text-gray-600 font-mono truncate max-w-[260px]" :title="displayText">{{ props.mode === 'type' ? displayText : `${displayText}` }}</span>-->
-    <div v-if="isOpen" class="absolute z-50 mt-2 w-96 bg-white border rounded shadow p-3">
-      <div class="space-y-2">
+    <button type="button" @click="isOpen = !isOpen" class="px-2 py-1 text-xs rounded bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 shrink-0">Pick via relationships</button>
+    <div v-if="isOpen" class="absolute z-50 mt-2 w-[28rem] bg-white border rounded shadow p-3">
+      <div class="space-y-3">
         <div>
           <label class="block text-xs text-gray-600 mb-1">Start from</label>
           <div class="flex items-center gap-2">
@@ -225,7 +220,7 @@ watch(() => props.value, (newValue) => {
             <template v-for="(seg, idx) in path" :key="idx">
               <span class="inline-flex items-center text-xs bg-gray-100 px-2 py-1 rounded border">
                 {{ seg }}
-                <button type="button" class="ml-1 text-gray-400 hover:text-red-600" @click="path.splice(idx)">×</button>
+                <button type="button" class="ml-1 text-gray-400 hover:text-red-600" @click="path.splice(idx); chosenField='';">×</button>
               </span>
             </template>
             <button v-if="path.length" type="button" @click="reset()" class="ml-auto text-[11px] px-2 py-1 rounded border bg-white hover:bg-gray-50">Clear path</button>
@@ -246,11 +241,27 @@ watch(() => props.value, (newValue) => {
           </select>
         </div>
 
+        <div v-if="props.mode === 'field' && lastRelMeta && lastRelMeta.type === 'MorphTo'">
+          <label class="block text-xs text-gray-600 mb-1">Select type</label>
+          <select v-model="chosenMorphAlias" class="w-full p-2 border rounded text-sm">
+            <option value="">Choose a type...</option>
+            <option v-for="m in morphMap" :key="m.alias" :value="m.alias">{{ m.label }}</option>
+          </select>
+        </div>
+
+        <div v-if="props.mode === 'field'">
+          <label class="block text-xs text-gray-600 mb-1">Select field</label>
+          <select v-model="chosenField" class="w-full p-2 border rounded text-sm" :disabled="!terminalModelSchema">
+            <option value="" disabled>Select a field...</option>
+            <option v-for="f in terminalFields" :key="f.value" :value="f.value">{{ f.label }}</option>
+          </select>
+        </div>
+
         <div class="flex items-center justify-between mt-3">
-          <div v-if="props.mode === 'id'" class="text-[11px] text-gray-500 truncate">Token preview: <span class="font-mono">{{ currentToken() }}</span></div>
+          <div v-if="props.mode !== 'type'" class="text-[11px] text-gray-500 truncate">Token preview: <span class="font-mono">{{ buildToken() }}</span></div>
           <div class="flex items-center gap-2 ml-auto">
             <button @click="isOpen=false" class="px-2 py-1 text-xs rounded border">Cancel</button>
-            <button @click="onSelect" class="px-2 py-1 text-xs rounded bg-indigo-600 text-white">Use</button>
+            <button @click="onSelect" class="px-2 py-1 text-xs rounded bg-indigo-600 text-white" :disabled="props.mode==='field' && !chosenField">Use</button>
           </div>
         </div>
       </div>
