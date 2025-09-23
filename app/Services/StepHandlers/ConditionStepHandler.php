@@ -78,17 +78,10 @@ class ConditionStepHandler implements StepHandlerContract
             $leftVal = $this->resolveSide($rule['left'] ?? ['type' => 'literal', 'value' => null], $context);
             $rightVal = $this->resolveSide($rule['right'] ?? ['type' => 'literal', 'value' => null], $context);
 
-            // THE CRITICAL FIX: Explicitly check for null when a value is expected.
-            // This prevents incorrect evaluations when a relationship path does not exist.
-            if ($leftVal === null && $rightVal !== null && $op !== '!=' && $op !== '<>') {
-                $results[] = false;
-                continue;
-            }
-
             $results[] = $this->compareAny($leftVal, $op, $rightVal);
         }
 
-        return $logic === 'OR' ? Arr::hasAny($results, true) : !in_array(false, $results, true);
+        return $logic === 'OR' ? in_array(true, $results, true) : !in_array(false, $results, true);
     }
 
     protected function resolveSide(array $side, array $ctx)
@@ -99,10 +92,38 @@ class ConditionStepHandler implements StepHandlerContract
             if (preg_match('/^{{\s*([^}]+)\s*}}$/', $path, $matches)) {
                 $path = trim($matches[1]);
             }
-            return Arr::get($ctx, $path);
+            // Use the new, smarter function
+            return $this->getFromContextPath($ctx, $path);
         }
         $val = $side['value'] ?? null;
         return $this->applyTemplate($val, $ctx);
+    }
+
+    /**
+     * Intelligently resolves a path from the context, including a fallback
+     * to check inside the '.parsed' key for step data.
+     */
+    protected function getFromContextPath(array $context, string $path)
+    {
+        // 1. Try the direct path first (e.g., "trigger.email.id").
+        $value = Arr::get($context, $path);
+        if ($value !== null) {
+            return $value;
+        }
+
+        // 2. If direct path fails, try a ".parsed" fallback for step data (e.g., "step_109.parsed.summary").
+        if (str_starts_with($path, 'step_')) {
+            $parts = explode('.', $path, 2);
+            if (count($parts) > 1) {
+                $fallbackPath = $parts[0] . '.parsed.' . $parts[1];
+                $value = Arr::get($context, $fallbackPath);
+                if ($value !== null) {
+                    return $value;
+                }
+            }
+        }
+
+        return null; // Return null if not found in either location
     }
 
     protected function applyTemplate($value, array $ctx)
@@ -115,11 +136,12 @@ class ConditionStepHandler implements StepHandlerContract
         }
         if (preg_match('/^{{\s*([^}]+)\s*}}$/', $value, $matches)) {
             $path = trim($matches[1]);
-            return Arr::get($ctx, $path);
+            // Use the new, smarter function here as well for consistency
+            return $this->getFromContextPath($ctx, $path);
         }
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($ctx) {
             $path = trim($m[1]);
-            $val = Arr::get($ctx, $path);
+            $val = $this->getFromContextPath($ctx, $path);
             return is_scalar($val) ? (string) $val : json_encode($val);
         }, $value);
     }
@@ -220,4 +242,3 @@ class ConditionStepHandler implements StepHandlerContract
         return false;
     }
 }
-

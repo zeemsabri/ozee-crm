@@ -33,7 +33,8 @@ class TestController extends Controller
     public function testUserProjectRole(Request $request)
     {
 
-        dd('hit');
+
+
         $user = User::create(['name' => 'John', 'email' => 'john@example.com']);
 
         // Using save() on a new or existing model instance
@@ -69,6 +70,9 @@ class TestController extends Controller
     public function playGourd(Request $request)
     {
 
+        $email = Email::find(403);
+
+        return $email->conversation->conversable;
 
         // Using save() on a new or existing model instance
         $user = User::find(1);
