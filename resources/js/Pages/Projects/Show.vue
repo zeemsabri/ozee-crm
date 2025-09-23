@@ -107,7 +107,7 @@ const canEditProject = computed(() => {
 });
 
 const canViewEmails = computed(() => canView('emails').value);
-const canComposeEmails = computed(() => canDo('compose_emails').value);
+const canComposeEmails = computed(() => canDo('create_custom_emails').value);
 const canApproveEmails = computed(() => canDo('approve_emails').value);
 const canViewNotes = computed(() => canView('project_notes').value);
 const canAddNotes = computed(() => canDo('add_project_notes').value);
