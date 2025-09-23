@@ -265,9 +265,9 @@ onMounted(() => {
         <div class="flex justify-between items-center mb-4">
             <h4 class="text-lg font-semibold text-gray-900">Email Communication</h4>
             <div v-if="canComposeEmails" class="flex gap-3">
-                <PrimaryButton class="bg-indigo-600 hover:bg-indigo-700 transition-colors" @click="showComposeEmailModal = true">
-                    Compose Email
-                </PrimaryButton>
+<!--                <PrimaryButton class="bg-indigo-600 hover:bg-indigo-700 transition-colors" @click="showComposeEmailModal = true">-->
+<!--                    Compose Email-->
+<!--                </PrimaryButton>-->
             </div>
             <div v-if="emailError" class="mt-2 bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded relative" role="alert">
                 <span class="block sm:inline">{{ emailError }}</span>

@@ -777,7 +777,7 @@ class EmailController extends Controller
 
         // Eager load the conversation with client and project IDs for the frontend
         $query = Email::visibleTo($user)->with([
-            'sender:id,name',
+            'sender',
             'conversation:id,conversable_id,project_id',
             'conversation.conversable'
         ])->whereIn('conversation_id', $conversationIds);
