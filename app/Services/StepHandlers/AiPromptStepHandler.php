@@ -27,10 +27,6 @@ class AiPromptStepHandler implements StepHandlerContract
             throw new \RuntimeException('Prompt not found for AI_PROMPT step');
         }
 
-//        $promptData = $this->gatherPromptData($context, $cfg);
-
-//        $result = $this->ai->generate($prompt, $promptData);
-
         $promptData = $this->gatherPromptData($context, $cfg);
 
         // --- REPLACEMENT ---
@@ -69,42 +65,55 @@ class AiPromptStepHandler implements StepHandlerContract
         return null;
     }
 
+    /**
+     * Gathers data for the AI prompt from the context based on step configuration.
+     * This version includes fixes for input parsing and model detection.
+     */
     protected function gatherPromptData(array $context, array $config): array
     {
         $promptData = [];
-        $baseModel = null;
-        $baseModelId = null;
-
-        // Determine the primary data source (loop or trigger).
         $loopItem = $context['loop']['item'] ?? null;
         $triggerData = $context['trigger'] ?? [];
 
-        if ($loopItem) {
-            $baseModel = $this->resolveModelFromContext($loopItem);
-            $baseModelId = $loopItem['id'] ?? null;
-        } else {
-            $baseModel = $this->resolveModelFromContext($triggerData);
-            // Ensure $baseModel is not null before using it as an array key.
-            $baseModelKey = $baseModel ? strtolower($baseModel) : '';
-            $baseModelId = $context['triggering_object_id'] ?? ($triggerData[$baseModelKey]['id'] ?? null);
-        }
+        // First, determine the primary model within the trigger context.
+        $baseModelName = $this->resolveModelFromContext($context);
+        $baseModelKey = $baseModelName ? strtolower($baseModelName) : null;
 
         // 1. Gather direct inputs from the determined source.
         $inputs = $config['aiInputs'] ?? [];
         foreach ($inputs as $input) {
-            [$source, $path] = explode(':', $input, 2) + ['trigger', ''];
+            $source = 'trigger'; // Default source
+            $path = $input;
+
+            if (str_contains($input, ':')) {
+                [$source, $path] = explode(':', $input, 2);
+            }
+
             $dataRoot = ($source === 'loop' && $loopItem) ? $loopItem : $triggerData;
             $key = last(explode('.', $path));
-            $promptData[$key] = Arr::get($dataRoot, $path);
+
+            if ($key) {
+                $value = null;
+                // FIX: First, try to get data from within the primary model object (e.g., from 'trigger.email.subject')
+                if ($source === 'trigger' && $baseModelKey) {
+                    $value = Arr::get($dataRoot, $baseModelKey . '.' . $path);
+                }
+
+                // Fallback: If not found, try the path from the root of the data source (e.g., 'trigger.event')
+                if ($value === null) {
+                    $value = Arr::get($dataRoot, $path);
+                }
+                $promptData[$key] = $value;
+            }
         }
 
         // 2. Gather related data if configured.
+        $baseModelId = $context['triggering_object_id'] ?? ($triggerData[$baseModelKey]['id'] ?? null);
+
         $relationsConfig = $config['relationships'] ?? null;
-        // THE FIX: Ensure $baseModel is a valid string before proceeding.
-        if ($relationsConfig && $baseModel && $baseModelId) {
-            // Ensure the base_model in the config matches our context.
-            $relationsConfig['base_model'] = $baseModel;
-            $relatedData = $this->gatherRelatedData($relationsConfig, $baseModelId);
+        if ($relationsConfig && $baseModelName && $baseModelId) {
+            $relationsConfig['base_model'] = $baseModelName;
+            $relatedData = $this->gatherRelatedData($relationsConfig, (int)$baseModelId);
             if (!empty($relatedData)) {
                 $promptData['with'] = $relatedData;
             }
@@ -130,16 +139,13 @@ class AiPromptStepHandler implements StepHandlerContract
 
         foreach ($roots as $rootRelation) {
             $nestedRelations = $nested[$rootRelation] ?? [];
-            // THE FIX: Pass $rootRelation into the closure's `use` statement.
             $eagerLoad[$rootRelation] = function ($q) use ($rootRelation, $nestedRelations, $fields) {
-                // THE FIX: Apply field selections to the top-level relation itself.
                 $rootFields = $fields[$rootRelation] ?? ['*'];
                 if ($rootFields !== ['*'] && !in_array('id', $rootFields)) {
                     $rootFields[] = 'id';
                 }
                 $q->select($rootFields);
 
-                // Load nested relations with their specific field selections.
                 foreach ($nestedRelations as $nestedRelation) {
                     $nestedPath = "{$rootRelation}.{$nestedRelation}";
                     $nestedFields = $fields[$nestedPath] ?? ['*'];
@@ -152,30 +158,47 @@ class AiPromptStepHandler implements StepHandlerContract
         if (empty($eagerLoad)) return [];
 
         $modelInstance = $query->with($eagerLoad)->find($baseModelId);
-        // No need to call filterRelations anymore as selections are done in the query.
         return $modelInstance ? $modelInstance->getRelations() : [];
     }
 
     protected function resolveModelClass(string $name): ?string
     {
-        $candidates = [ $name, 'App\\Models\\' . $name ];
+        $baseName = Str::studly(class_basename($name));
+        $candidates = [ $name, 'App\\Models\\' . $baseName ];
         foreach ($candidates as $c) {
             if (class_exists($c)) return $c;
         }
         return null;
     }
 
+    /**
+     * Accurately determines the primary model from the workflow context.
+     * This version uses the triggering_object_id for more reliable detection.
+     */
     private function resolveModelFromContext(array $context): ?string
     {
-        if (empty($context)) return null;
-        // Heuristic: find the key that holds the main model data.
-        $keys = array_keys($context);
-        foreach ($keys as $key) {
-            if (is_array($context[$key]) && isset($context[$key]['id'])) {
-                // Assuming the key is the lowercase model name.
-                return Str::studly($key);
+        if (empty($context)) {
+            return null;
+        }
+
+        $triggeringId = $context['triggering_object_id'] ?? null;
+        $triggerContext = $context['trigger'] ?? $context;
+
+        // Best case - Find the model whose ID matches the triggering object ID.
+        if ($triggeringId) {
+            foreach ($triggerContext as $key => $value) {
+                if (is_array($value) && isset($value['id']) && (string)$value['id'] === (string)$triggeringId) {
+                    return Str::studly($key);
+                }
             }
         }
+
+        // Fallback: Infer from event name, e.g., "email.created" -> "Email"
+        $eventName = $context['event'] ?? ($triggerContext['event'] ?? null);
+        if ($eventName && str_contains($eventName, '.')) {
+            return Str::studly(explode('.', $eventName)[0]);
+        }
+
         return null;
     }
 }

@@ -34,8 +34,6 @@ class CreateRecordStepHandler implements StepHandlerContract
 
             $resolved = $this->applyTemplate($val, $context);
 
-            // THE FIX: If the resolved value is an array or object, automatically encode it as a JSON string.
-            // This robustly handles complex outputs from AI steps without breaking the SQL query.
             if (is_array($resolved) || is_object($resolved)) {
                 $resolved = json_encode($resolved);
             }
@@ -75,9 +73,7 @@ class CreateRecordStepHandler implements StepHandlerContract
             throw new \InvalidArgumentException("No valid/fillable fields set for CREATE_RECORD on model {$modelName}. Check field mappings.");
         }
 
-//        Model::withoutEvents(function () use ($instance) {
-            $instance->save();
-//        });
+        $instance->save();
 
         return [
             'parsed' => [
@@ -105,14 +101,12 @@ class CreateRecordStepHandler implements StepHandlerContract
         $candidates[] = $base;
 
         foreach ($candidates as $c) {
-            if (class_exists($c) && is_subclass_of($c, \Illuminate\Database\Eloquent\Model::class)) {
+            if (class_exists($c) && is_subclass_of($c, Model::class)) {
                 return $c;
             }
         }
         return null;
     }
-
-    // In both CreateRecordStepHandler.php and UpdateRecordStepHandler.php
 
     protected function applyTemplate($value, array $ctx)
     {
@@ -123,13 +117,11 @@ class CreateRecordStepHandler implements StepHandlerContract
             return $value;
         }
 
-        // If the entire string is a single variable, we can return complex types (like arrays)
         if (preg_match('/^\s*{{\s*([^}]+)\s*}}\s*$/', $value, $m)) {
             $path = trim($m[1]);
             return $this->getFromContextPath($ctx, $path);
         }
 
-        // Otherwise, we interpolate multiple variables into a string
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($ctx) {
             $path = trim($m[1]);
             $val = $this->getFromContextPath($ctx, $path);
@@ -137,29 +129,76 @@ class CreateRecordStepHandler implements StepHandlerContract
             if (is_scalar($val) || $val === null) {
                 return (string) $val;
             }
-            // If we inject an array/object into a string, it must be JSON
             return json_encode($val);
         }, $value);
     }
 
+    /**
+     * Intelligently resolves a path from the context. It prioritizes simple
+     * lookups (including a '.parsed' fallback) before attempting to
+     * dynamically load Eloquent relationships.
+     */
     protected function getFromContextPath(array $context, string $path)
     {
-        if (strpos($path, '.') === false) {
-            return \Illuminate\Support\Arr::get($context, $path);
+        // 1. Try the direct path first (e.g., "trigger.email.id").
+        $value = Arr::get($context, $path);
+        if ($value !== null) {
+            return $value;
         }
 
-        // Try the direct path first
-        $value = \Illuminate\Support\Arr::get($context, $path);
-
-        // If the direct path is null, try the '.parsed.' fallback
-        if ($value === null) {
+        // 2. If direct path fails, try a ".parsed" fallback for step data (e.g., "step_109.parsed.summary").
+        if (str_starts_with($path, 'step_')) {
             $parts = explode('.', $path, 2);
-            $fallbackPath = $parts[0] . '.parsed.' . $parts[1];
-            $value = \Illuminate\Support\Arr::get($context, $fallbackPath);
+            if (count($parts) > 1) {
+                $fallbackPath = $parts[0] . '.parsed.' . $parts[1];
+                $value = Arr::get($context, $fallbackPath);
+                if ($value !== null) {
+                    return $value;
+                }
+            }
         }
 
-        return $value;
+        // --- 3. ELOQUENT LOADING FALLBACK (if simple lookups fail) ---
+        $parts = explode('.', $path);
+        $currentValue = $context;
+        $modelKey = null;
+
+        foreach ($parts as $index => $part) {
+            if ($currentValue instanceof Model) {
+                try {
+                    $currentValue = $currentValue->{$part};
+                    continue;
+                } catch (\Throwable $e) { return null; }
+            }
+
+            if (is_array($currentValue) && array_key_exists($part, $currentValue)) {
+                $currentValue = $currentValue[$part];
+                $modelKey = $part;
+                continue;
+            }
+
+            if (is_array($currentValue) && isset($currentValue['id']) && $modelKey) {
+                $modelClass = $this->resolveModelClass(Str::studly($modelKey));
+                if ($modelClass) {
+                    $loadedModel = $modelClass::find($currentValue['id']);
+                    if ($loadedModel) {
+                        try {
+                            $subValue = $loadedModel;
+                            foreach (array_slice($parts, $index) as $subPart) {
+                                $subValue = $subValue->{$subPart};
+                            }
+                            return $subValue;
+                        } catch (\Throwable $e) { return null; }
+                    }
+                }
+            }
+
+            return null; // Path failed at this part
+        }
+
+        return $currentValue;
     }
+
 
     protected function normalizeMorphType(string $key, $value)
     {

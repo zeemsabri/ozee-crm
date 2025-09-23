@@ -109,14 +109,14 @@ class GenerateAiContentJob implements ShouldQueue
             ];
 
             // 4. If there is a next step, dispatch a new job to continue the workflow
-            if ($nextStepId) {
-                RunWorkflowJob::dispatch(
-                    $this->workflowId,
-                    $this->context,
-                    $nextStepId,
-                    'wf:'.$this->workflowId.'|start:'.$nextStepId
-                );
-            }
+//            if ($nextStepId) {
+//                RunWorkflowJob::dispatch(
+//                    $this->workflowId,
+//                    $this->context,
+//                    $nextStepId,
+//                    'wf:'.$this->workflowId.'|start:'.$nextStepId
+//                );
+//            }
 
             $duration = (int) ((microtime(true) - $start) * 1000);
             $this->execLog->update([
