@@ -35,13 +35,15 @@ class AiPromptStepHandler implements StepHandlerContract
 
         // --- REPLACEMENT ---
         // Instead of calling the service directly, dispatch the async job.
+        $nextSiblingIds = $context['_resume_next_sibling_ids'] ?? [];
         \App\Jobs\GenerateAiContentJob::dispatch(
             $step->workflow_id,
             $prompt->id,
             $step->id,
             $promptData,
             $context,
-            $execLog
+            $execLog,
+            $nextSiblingIds
         );
         // --- END REPLACEMENT ---
 
