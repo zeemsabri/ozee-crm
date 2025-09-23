@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Concerns;
 
+use App\Enums\EmailStatus;
 use App\Jobs\ProcessDraftEmailJob;
 use App\Models\Client;
 use App\Models\Conversation;
@@ -122,7 +123,7 @@ trait HandlesEmailCreation
             'subject' => $validated['subject'],
             'template_id' => $validated['template_id'],
             'template_data' => json_encode($validated['template_data'] ?? []),
-            'status' => $validated['status'] ?? Email::STATUS_DRAFT,
+            'status' => $validated['status'] ?? EmailStatus::PendingApproval,
             'type' => 'sent',
         ]);
 
