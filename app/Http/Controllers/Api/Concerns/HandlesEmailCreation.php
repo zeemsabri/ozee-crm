@@ -64,7 +64,7 @@ trait HandlesEmailCreation
             'to' => $emails,
             'subject' => $validated['subject'],
             'body' => $greeting . '<br/>' . $validated['body'],
-            'status' => $validated['status'] ?? 'pending_approval',
+            'status' => EmailStatus::Draft,
             'type' => 'sent',
         ]);
 
@@ -123,7 +123,7 @@ trait HandlesEmailCreation
             'subject' => $validated['subject'],
             'template_id' => $validated['template_id'],
             'template_data' => json_encode($validated['template_data'] ?? []),
-            'status' => $validated['status'] ?? EmailStatus::PendingApproval,
+            'status' => $validated['status'] ?? EmailStatus::Draft,
             'type' => 'sent',
         ]);
 
@@ -166,7 +166,7 @@ trait HandlesEmailCreation
             'to' => $emails,
             'subject' => $validated['subject'],
             'body' => $greeting . '<br/>' . $validated['body'],
-            'status' => $validated['status'] ?? Email::STATUS_DRAFT,
+            'status' => EmailStatus::Draft,
             'type' => 'sent',
         ]);
 
