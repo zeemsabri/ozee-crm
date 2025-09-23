@@ -28,7 +28,8 @@ class GenerateAiContentJob implements ShouldQueue
         public int $currentStepId,
         public array $promptData,
         public array $context,
-        public ExecutionLog $execLog
+        public ExecutionLog $execLog,
+        public array $resumeNextSiblingIds = []
     ) {}
 
     public function handle(AIGenerationService $aiService, WorkflowEngineService $engine): void
@@ -66,11 +67,27 @@ class GenerateAiContentJob implements ShouldQueue
             $this->context['steps'][$this->currentStepId] = $this->context['step_' . $this->currentStepId];
 
 
-            // 3. Find the next step in the workflow to resume execution
-            $nextStep = $workflow->steps()
-                ->where('step_order', '>', $workflow->steps()->find($this->currentStepId)->step_order)
-                ->orderBy('step_order', 'asc')
-                ->first();
+            // Execute any remaining sibling steps within the same container scope before resuming top-level
+            if (!empty($this->resumeNextSiblingIds)) {
+                $siblingSteps = $workflow->steps()
+                    ->whereIn('id', $this->resumeNextSiblingIds)
+                    ->orderBy('step_order', 'asc')
+                    ->orderBy('id', 'asc')
+                    ->get();
+                $engine->executeSteps($siblingSteps, $workflow, $this->context, $this->execLog);
+            }
+
+            // 3. Determine resume point after the nearest top-level ancestor of the AI step
+            $ancestorTopLevelId = $engine->findTopLevelAncestorId($workflow, $this->currentStepId);
+            $nextStepId = $ancestorTopLevelId ? $engine->findNextTopLevelStepIdAfter($workflow, $ancestorTopLevelId) : null;
+
+            Log::info('AI resume planning', [
+                'workflow_id' => $this->workflowId,
+                'current_step_id' => $this->currentStepId,
+                'ancestor_top_level_id' => $ancestorTopLevelId,
+                'next_top_level_id' => $nextStepId,
+                'sibling_ids_executed' => $this->resumeNextSiblingIds,
+            ]);
 
             $raw = $result['raw'] ?? null;
             $parsed = $result['parsed'] ?? null;
@@ -92,8 +109,13 @@ class GenerateAiContentJob implements ShouldQueue
             ];
 
             // 4. If there is a next step, dispatch a new job to continue the workflow
-            if ($nextStep) {
-                RunWorkflowJob::dispatch($this->workflowId, $this->context, $nextStep->id);
+            if ($nextStepId) {
+                RunWorkflowJob::dispatch(
+                    $this->workflowId,
+                    $this->context,
+                    $nextStepId,
+                    'wf:'.$this->workflowId.'|start:'.$nextStepId
+                );
             }
 
             $duration = (int) ((microtime(true) - $start) * 1000);

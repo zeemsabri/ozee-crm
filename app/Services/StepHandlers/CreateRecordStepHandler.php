@@ -75,9 +75,9 @@ class CreateRecordStepHandler implements StepHandlerContract
             throw new \InvalidArgumentException("No valid/fillable fields set for CREATE_RECORD on model {$modelName}. Check field mappings.");
         }
 
-        Model::withoutEvents(function () use ($instance) {
+//        Model::withoutEvents(function () use ($instance) {
             $instance->save();
-        });
+//        });
 
         return [
             'parsed' => [
@@ -112,24 +112,53 @@ class CreateRecordStepHandler implements StepHandlerContract
         return null;
     }
 
+    // In both CreateRecordStepHandler.php and UpdateRecordStepHandler.php
+
     protected function applyTemplate($value, array $ctx)
     {
         if (is_array($value)) {
             return array_map(fn($v) => $this->applyTemplate($v, $ctx), $value);
         }
-        if (!is_string($value)) return $value;
-
-        if (preg_match('/^\s*{{\s*([^}]+)\s*}}\s*$/', $value, $m)) {
-            $path = trim($m[1]);
-            return Arr::get($ctx, $path);
+        if (!is_string($value)) {
+            return $value;
         }
 
+        // If the entire string is a single variable, we can return complex types (like arrays)
+        if (preg_match('/^\s*{{\s*([^}]+)\s*}}\s*$/', $value, $m)) {
+            $path = trim($m[1]);
+            return $this->getFromContextPath($ctx, $path);
+        }
+
+        // Otherwise, we interpolate multiple variables into a string
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($ctx) {
             $path = trim($m[1]);
-            $val = Arr::get($ctx, $path);
-            if (is_scalar($val) || $val === null) return (string) $val;
+            $val = $this->getFromContextPath($ctx, $path);
+
+            if (is_scalar($val) || $val === null) {
+                return (string) $val;
+            }
+            // If we inject an array/object into a string, it must be JSON
             return json_encode($val);
         }, $value);
+    }
+
+    protected function getFromContextPath(array $context, string $path)
+    {
+        if (strpos($path, '.') === false) {
+            return \Illuminate\Support\Arr::get($context, $path);
+        }
+
+        // Try the direct path first
+        $value = \Illuminate\Support\Arr::get($context, $path);
+
+        // If the direct path is null, try the '.parsed.' fallback
+        if ($value === null) {
+            $parts = explode('.', $path, 2);
+            $fallbackPath = $parts[0] . '.parsed.' . $parts[1];
+            $value = \Illuminate\Support\Arr::get($context, $fallbackPath);
+        }
+
+        return $value;
     }
 
     protected function normalizeMorphType(string $key, $value)

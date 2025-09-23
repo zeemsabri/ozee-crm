@@ -94,7 +94,11 @@ class WorkflowEngineService
             'steps' => [],
         ];
 
-        $steps = $workflow->steps()->orderBy('step_order')->get();
+        $steps = $workflow->steps()->orderBy('step_order')->orderBy('id')->get();
+        $topLevel = $steps->filter(function ($s) {
+            $cfg = $s->step_config ?? [];
+            return empty($cfg['_parent_id']);
+        })->values();
 
         // Schedule-run guard: When started by schedule with empty context, enforce first non-trigger step is FETCH_RECORDS
         if (($workflow->trigger_event ?? null) === 'schedule.run' && $initiallyEmpty) {
@@ -154,7 +158,15 @@ class WorkflowEngineService
                 if (!$handler) {
                     throw new \RuntimeException("No handler for step type {$step->step_type}");
                 }
-                $out = $handler->handle($context, $step, $execLog);
+
+                // Compute remaining top-level siblings for resume hinting
+                $idxTop = $topLevel->search(fn ($s) => (int)$s->id === (int)$step->id);
+                $remainingTop = $idxTop !== false ? $topLevel->slice($idxTop + 1) : collect();
+                $remainingIds = $remainingTop->pluck('id')->map(fn($v) => (int) $v)->values()->all();
+                $ctxForHandler = $context;
+                $ctxForHandler['_resume_next_sibling_ids'] = $remainingIds;
+
+                $out = $handler->handle($ctxForHandler, $step, $execLog);
 
                 if (($out['parsed']['status'] ?? null) === 'AI_JOB_DISPATCHED') {
                     $results['steps'][] = [
@@ -227,7 +239,11 @@ class WorkflowEngineService
             'steps' => [],
         ];
 
-        $steps = $workflow->steps()->orderBy('step_order')->get();
+        $steps = $workflow->steps()->orderBy('step_order')->orderBy('id')->get();
+        $topLevel = $steps->filter(function ($s) {
+            $cfg = $s->step_config ?? [];
+            return empty($cfg['_parent_id']);
+        })->values();
         $startProcessing = false;
         foreach ($steps as $step) {
             if (!$startProcessing) {
@@ -236,6 +252,12 @@ class WorkflowEngineService
                 } else {
                     continue;
                 }
+            }
+
+            // Skip nested steps; only top-level steps are executed in this traversal.
+            $cfg = $step->step_config ?? [];
+            if (!empty($cfg['_parent_id'])) {
+                continue;
             }
 
             // If we encounter another delay, schedule and stop again
@@ -270,7 +292,14 @@ class WorkflowEngineService
                 if (!$handler) {
                     throw new \RuntimeException("No handler for step type {$step->step_type}");
                 }
-                $out = $handler->handle($context, $step, $execLog);
+                // Compute remaining top-level siblings for resume hinting
+                $idxTop = $topLevel->search(fn ($s) => (int)$s->id === (int)$step->id);
+                $remainingTop = $idxTop !== false ? $topLevel->slice($idxTop + 1) : collect();
+                $remainingIds = $remainingTop->pluck('id')->map(fn($v) => (int) $v)->values()->all();
+                $ctxForHandler = $context;
+                $ctxForHandler['_resume_next_sibling_ids'] = $remainingIds;
+
+                $out = $handler->handle($ctxForHandler, $step, $execLog);
                 if (($out['parsed']['status'] ?? null) === 'AI_JOB_DISPATCHED') {
                     $results['steps'][] = [
                         'step_id' => $step->id,
@@ -318,6 +347,74 @@ class WorkflowEngineService
     }
 
     /**
+     * Determine the next top-level step ID after the given step in a deterministic order.
+     * Order: step_order ASC, id ASC. Returns null if current is last or not found.
+     */
+    public function findNextTopLevelStepId(Workflow $workflow, int $currentStepId): ?int
+    {
+        $ordered = $workflow->steps()
+            ->orderBy('step_order', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $idx = $ordered->search(fn ($s) => (int)$s->id === (int)$currentStepId);
+        if ($idx === false) {
+            return null;
+        }
+        $next = $ordered->get($idx + 1);
+        return $next?->id;
+    }
+
+    /**
+     * Walk up the parent chain (via step_config._parent_id) to find the nearest top-level ancestor.
+     * If the given step is already top-level, its own ID is returned. Returns null if the step is missing.
+     */
+    public function findTopLevelAncestorId(Workflow $workflow, int $stepId): ?int
+    {
+        $step = $workflow->steps()->where('id', $stepId)->first();
+        if (!$step) return null;
+
+        $guard = 0;
+        while ($guard < 50) {
+            $cfg = $step->step_config ?? [];
+            $parentId = $cfg['_parent_id'] ?? null;
+            if (!$parentId) {
+                return (int) $step->id;
+            }
+            $parent = $workflow->steps()->where('id', (int)$parentId)->first();
+            if (!$parent) {
+                // Broken parent chain; treat the original as top-level to avoid null resume.
+                return (int) $stepId;
+            }
+            $step = $parent;
+            $guard++;
+        }
+        return (int) $stepId; // Safety fallback
+    }
+
+    /**
+     * Determine the next top-level step after the provided top-level step ID.
+     * Uses deterministic ordering (step_order ASC, id ASC) and filters out nested steps.
+     */
+    public function findNextTopLevelStepIdAfter(Workflow $workflow, int $topLevelStepId): ?int
+    {
+        $orderedTop = $workflow->steps()
+            ->orderBy('step_order', 'asc')
+            ->orderBy('id', 'asc')
+            ->get()
+            ->filter(function ($s) {
+                $cfg = $s->step_config ?? [];
+                return empty($cfg['_parent_id']);
+            })
+            ->values();
+
+        $idx = $orderedTop->search(fn ($s) => (int)$s->id === (int)$topLevelStepId);
+        if ($idx === false) return null;
+        $next = $orderedTop->get($idx + 1);
+        return $next?->id;
+    }
+
+    /**
      * Utility used by condition handler to execute a subset of steps
      */
     public function executeSteps(iterable $steps, Workflow $workflow, array $context = [], ?ExecutionLog $parentLog = null): array
@@ -326,7 +423,11 @@ class WorkflowEngineService
             $context['trigger'] = $context;
         }
         $results = [];
-        foreach ($steps as $step) {
+
+        // Normalize iterable to an indexed list so we can compute remaining siblings deterministically
+        $list = is_array($steps) ? array_values($steps) : collect($steps)->values()->all();
+
+        foreach ($list as $idx => $step) {
             $start = microtime(true);
             $execLog = ExecutionLog::create([
                 'workflow_id' => $workflow->id,
@@ -340,7 +441,14 @@ class WorkflowEngineService
                 if (!$handler) {
                     throw new \RuntimeException("No handler for step type {$step->step_type}");
                 }
-                $out = $handler->handle($context, $step, $execLog);
+
+                // Compute remaining sibling IDs within this scope
+                $remaining = array_slice($list, $idx + 1);
+                $remainingIds = array_map(fn($s) => (int) $s->id, $remaining);
+                $ctxForHandler = $context;
+                $ctxForHandler['_resume_next_sibling_ids'] = $remainingIds;
+
+                $out = $handler->handle($ctxForHandler, $step, $execLog);
                 if (($out['parsed']['status'] ?? null) === 'AI_JOB_DISPATCHED') {
                     $results['steps'][] = [
                         'step_id' => $step->id,

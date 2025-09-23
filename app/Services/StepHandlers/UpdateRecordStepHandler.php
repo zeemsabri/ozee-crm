@@ -83,43 +83,53 @@ class UpdateRecordStepHandler implements StepHandlerContract
         return null;
     }
 
+    // In both CreateRecordStepHandler.php and UpdateRecordStepHandler.php
+
     protected function applyTemplate($value, array $ctx)
     {
-        // Match WorkflowEngineService::getTemplatedValue semantics
         if (is_array($value)) {
             return array_map(fn($v) => $this->applyTemplate($v, $ctx), $value);
         }
-        if (!is_string($value)) return $value;
-
-        // If string is exactly one token, return the raw value (could be array/object)
-        if (preg_match('/^\s*{{\s*([^}]+)\s*}}\s*$/', $value, $m)) {
-            $path = trim($m[1]);
-            $val = $this->getFromContextPath($ctx, $path);
-            return $val === null ? '' : $val;
+        if (!is_string($value)) {
+            return $value;
         }
 
-        // Otherwise interpolate
+        // If the entire string is a single variable, we can return complex types (like arrays)
+        if (preg_match('/^\s*{{\s*([^}]+)\s*}}\s*$/', $value, $m)) {
+            $path = trim($m[1]);
+            return $this->getFromContextPath($ctx, $path);
+        }
+
+        // Otherwise, we interpolate multiple variables into a string
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($ctx) {
             $path = trim($m[1]);
             $val = $this->getFromContextPath($ctx, $path);
-            if (is_scalar($val) || $val === null) return (string) $val;
+
+            if (is_scalar($val) || $val === null) {
+                return (string) $val;
+            }
+            // If we inject an array/object into a string, it must be JSON
             return json_encode($val);
         }, $value);
     }
 
-    protected function getFromContextPath(array $ctx, string $path)
+    protected function getFromContextPath(array $context, string $path)
     {
-        if ($path === '') return null;
-        $parts = preg_split('/\.|\:/', $path);
-        $val = $ctx;
-        foreach ($parts as $p) {
-            if (is_array($val) && array_key_exists($p, $val)) {
-                $val = $val[$p];
-            } else {
-                return null;
-            }
+        if (strpos($path, '.') === false) {
+            return \Illuminate\Support\Arr::get($context, $path);
         }
-        return $val;
+
+        // Try the direct path first
+        $value = \Illuminate\Support\Arr::get($context, $path);
+
+        // If the direct path is null, try the '.parsed.' fallback
+        if ($value === null) {
+            $parts = explode('.', $path, 2);
+            $fallbackPath = $parts[0] . '.parsed.' . $parts[1];
+            $value = \Illuminate\Support\Arr::get($context, $fallbackPath);
+        }
+
+        return $value;
     }
 
     protected function normalizeMorphType(string $key, $value)
