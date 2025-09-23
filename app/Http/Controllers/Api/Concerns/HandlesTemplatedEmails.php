@@ -243,7 +243,8 @@ trait HandlesTemplatedEmails
                 'id'    =>  $email->id,
                 'subject' => $subject,
                 'body_html' => $fullHtml,
-                'status'    =>  $email->status
+                'status'    =>  $email->status,
+                'contexts' => $email->contexts()->get(['id','summary','meta_data'])
             ]);
 
         } catch (Exception $e) {

@@ -200,6 +200,40 @@ watch(localEmail, (newLocalEmail) => {
         fetchAttachments();
     }
 });
+
+// Format contexts.meta_data for tooltip display
+const formatValue = (v) => {
+    if (typeof v === 'boolean') return v ? 'true' : 'false';
+    if (v === 1) return 'true';
+    if (v === 0) return 'false';
+    if (v && typeof v === 'object') {
+        try { return JSON.stringify(v); } catch { return String(v); }
+    }
+    return String(v ?? '');
+};
+
+const formatContextMeta = (meta) => {
+    if (meta == null) return '';
+    let data = meta;
+    if (typeof data === 'string') {
+        try {
+            const parsed = JSON.parse(data);
+            if (parsed && typeof parsed === 'object') {
+                data = parsed;
+            }
+        } catch (e) {
+            // Not valid JSON; fall back to raw string
+            return String(data);
+        }
+    }
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+        return Object.entries(data)
+            .map(([k, v]) => `${k}: ${formatValue(v)}`)
+            .join('\n');
+    }
+    return String(data);
+};
+
 </script>
 
 <template>
@@ -212,6 +246,17 @@ watch(localEmail, (newLocalEmail) => {
     <div v-else-if="localEmail" class="space-y-4 p-4">
         <!-- Email Header -->
         <div class="border-b pb-4">
+            <!-- Context summaries above the subject -->
+            <div v-if="Array.isArray(localEmail?.contexts) && localEmail.contexts.length" class="mb-3 flex flex-col space-y-2">
+                <div
+                    v-for="ctx in localEmail.contexts"
+                    :key="ctx.id || ctx.summary"
+                    class="w-full text-sm px-3 py-2 rounded-md bg-indigo-50 text-indigo-900 border border-indigo-200 leading-snug whitespace-pre-wrap break-words"
+                    :title="formatContextMeta(ctx?.meta_data)"
+                >
+                    {{ ctx.summary }}
+                </div>
+            </div>
             <h2 class="text-xl font-semibold text-gray-800">{{ localEmail.subject }}</h2>
             <div class="text-sm text-gray-600 mt-1">
                 From: {{ props.email?.sender?.name || 'Unknown' }}
