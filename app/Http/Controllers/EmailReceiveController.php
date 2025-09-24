@@ -189,7 +189,7 @@ class EmailReceiveController extends Controller
             'sender_id' => $client->id,
             'to' => [$authorizedGmailAccount],
             'subject' => $emailDetails['subject'],
-            'body' => $emailDetails['body']['html'] ?: $emailDetails['body']['plain'],
+            'body' => $emailDetails['body']['plain'] ?: $emailDetails['body']['html'],
             'type'  =>  'received',
             'status' => EmailStatus::Draft,
             'message_id' => $emailDetails['id'],
