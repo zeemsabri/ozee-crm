@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\EmailStatus;
+use App\Enums\EmailType;
 use App\Models\Client;
 use App\Models\Conversation;
 use App\Models\Email;
@@ -249,8 +250,8 @@ class EmailReceiveController extends Controller
             'sender_id' => $conversableId,
             'to' => [$authorizedGmailAccount],
             'subject' => $emailDetails['subject'],
-            'body' => $emailDetails['body']['html'] ?: $emailDetails['body']['plain'],
-            'type'  =>  'received',
+            'body' => $emailDetails['body']['plain'] ?: $emailDetails['body']['html'],
+            'type'  =>  EmailType::Received,
             'status' => EmailStatus::Received,
             'is_private'    =>   true,
             'message_id' => $emailDetails['id'],
