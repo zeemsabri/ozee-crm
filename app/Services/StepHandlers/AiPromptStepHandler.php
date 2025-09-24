@@ -75,6 +75,24 @@ class AiPromptStepHandler implements StepHandlerContract
         $loopItem = $context['loop']['item'] ?? null;
         $triggerData = $context['trigger'] ?? [];
 
+        // If user provided a free-text body (can include tokens), resolve and prioritize it under 'body'
+        $freeText = trim((string)($config['freeText'] ?? ''));
+        if ($freeText !== '') {
+            try {
+                /** @var \App\Services\WorkflowEngineService $engine */
+                $engine = app(\App\Services\WorkflowEngineService::class);
+                $resolved = $engine->getTemplatedValue($freeText, $context);
+                // Ensure scalar string for prompt input
+                if (!is_string($resolved)) {
+                    $resolved = is_scalar($resolved) ? (string) $resolved : json_encode($resolved);
+                }
+                $promptData['body'] = $resolved;
+            } catch (\Throwable $e) {
+                // Fallback: use raw freeText if engine not available
+                $promptData['body'] = $freeText;
+            }
+        }
+
         // First, determine the primary model within the trigger context.
         $baseModelName = $this->resolveModelFromContext($context);
         $baseModelKey = $baseModelName ? strtolower($baseModelName) : null;

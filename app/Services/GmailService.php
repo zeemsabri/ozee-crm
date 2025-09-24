@@ -110,6 +110,8 @@ class GmailService
             $message = $this->gmailService->users_messages->get('me', $messageId, ['format' => 'full']);
             $payload = $message->getPayload();
 
+            Log::info(json_encode($payload->getParts()));
+
             $parsedHeaders = [];
             foreach ($payload->getHeaders() as $header) {
                 $parsedHeaders[strtolower($header->getName())] = $header->getValue();

@@ -8,6 +8,7 @@ import OverlayMultiSelect from '@/Components/OverlayMultiSelect.vue';
 import BaseFormModal from '@/Components/BaseFormModal.vue';
 import PromptForm from '@/Pages/Automation/Prompts/PromptForm.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import DataTokenInserter from './DataTokenInserter.vue';
 
 const props = defineProps({
     step: { type: Object, required: true },
@@ -454,6 +455,11 @@ const generatedJsonPrompt = computed(() => {
     return `Respond with JSON in this exact format: { ${generateSchemaString(structure)} }`;
 });
 const showRelatedPicker = ref(false);
+
+function handleFreeTextInsert(token) {
+    const cur = (aiConfig.value.freeText || '');
+    handleConfigChange('freeText', cur + token);
+}
 </script>
 
 <template>
@@ -468,6 +474,25 @@ const showRelatedPicker = ref(false);
                 <button type="button" @click="openEditPrompt" :disabled="!selectedPromptId" class="px-2 py-1 text-xs font-semibold bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Edit</button>
             </div>
             <p v-if="selectedPrompt" class="text-[11px] text-gray-500 mt-1">Linked: {{ selectedPrompt.name }} (v{{ selectedPrompt.version }})</p>
+        </div>
+
+        <!-- Optional custom text body to send to AI (tokens supported). If provided, it will be prioritized. -->
+        <div class="space-y-1 mb-4">
+            <label class="block text-sm font-medium text-gray-700">Custom Text (optional)</label>
+            <div class="flex items-start gap-2 mt-1">
+                <textarea
+                    :value="aiConfig.freeText || ''"
+                    @input="handleConfigChange('freeText', $event.target.value)"
+                    class="w-full p-2 border border-gray-300 rounded-md text-sm min-h-[90px]"
+                    placeholder="Type or paste text here… You can insert tokens like {{trigger.email.body}} or {{step_12.cleaned_body}}"
+                ></textarea>
+                <DataTokenInserter
+                    :all-steps-before="allStepsBefore"
+                    :loop-context-schema="loopContextSchema"
+                    @insert="handleFreeTextInsert"
+                />
+            </div>
+            <p class="text-[11px] text-gray-500">If provided, this text will be sent to the AI as the primary body, even if fields are selected below.</p>
         </div>
 
         <div class="space-y-2">

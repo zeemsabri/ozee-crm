@@ -87,6 +87,9 @@ class EmailReceiveController extends Controller
 
             foreach ($messageIds as $messageId) {
                 $emailDetails = $this->gmailService->getMessage($messageId);
+
+                Log::info(json_encode($emailDetails));
+
                 $date = Carbon::parse($emailDetails['date'])->setTimezone('UTC');
                 $emailDetails['date'] = $date;
 
@@ -184,13 +187,16 @@ class EmailReceiveController extends Controller
             Log::info('New Conversation Created (client+project):', ['conversation_id' => $conversation->id, 'subject' => $emailDetails['subject']]);
         }
 
+        $body = $emailDetails['body']['plain'] ?: $emailDetails['body']['html'];
+
         $email = Email::create([
             'conversation_id' => $conversation->id,
             'sender_type'   =>  Client::class,
             'sender_id' => $client->id,
             'to' => [$authorizedGmailAccount],
             'subject' => $emailDetails['subject'],
-            'body' => $emailDetails['body']['plain'] ?: $emailDetails['body']['html'],
+            'body' => $body,
+            'template_data' =>  strip_tags($body),
             'type'  =>  'received',
             'status' => EmailStatus::Draft,
             'message_id' => $emailDetails['id'],
