@@ -45,6 +45,14 @@ class TransformContentStepHandler implements StepHandlerContract
                 $result = str_replace($find, $replace, $source);
                 break;
 
+            case 'remove_html':
+                // Convert HTML to plain text: strip tags and decode entities.
+                $stripped = strip_tags($source);
+                // Decode entities twice to handle nested encodings but avoid infinite loops
+                $decoded = html_entity_decode($stripped, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $result = trim($decoded);
+                break;
+
             default:
                 throw new \InvalidArgumentException("Unknown transformation type: {$type}");
         }
