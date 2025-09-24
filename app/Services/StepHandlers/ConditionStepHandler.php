@@ -8,6 +8,7 @@ use App\Services\WorkflowEngineService;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use DateTimeInterface;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
@@ -75,8 +76,14 @@ class ConditionStepHandler implements StepHandlerContract
             }
 
             $op = $rule['operator'] ?? ($rule['op'] ?? '==');
+            $leftPath = $rule['left']['path'] ?? null;
             $leftVal = $this->resolveSide($rule['left'] ?? ['type' => 'literal', 'value' => null], $context);
             $rightVal = $this->resolveSide($rule['right'] ?? ['type' => 'literal', 'value' => null], $context);
+
+            // If comparing a morph type column, normalize the right-hand side value for easier authoring.
+            if ($leftPath && Str::endsWith($leftPath, '_type') && is_string($rightVal)) {
+                $rightVal = $this->normalizeMorphType($rightVal);
+            }
 
             $results[] = $this->compareAny($leftVal, $op, $rightVal);
         }
@@ -92,26 +99,19 @@ class ConditionStepHandler implements StepHandlerContract
             if (preg_match('/^{{\s*([^}]+)\s*}}$/', $path, $matches)) {
                 $path = trim($matches[1]);
             }
-            // Use the new, smarter function
             return $this->getFromContextPath($ctx, $path);
         }
         $val = $side['value'] ?? null;
         return $this->applyTemplate($val, $ctx);
     }
 
-    /**
-     * Intelligently resolves a path from the context, including a fallback
-     * to check inside the '.parsed' key for step data.
-     */
     protected function getFromContextPath(array $context, string $path)
     {
-        // 1. Try the direct path first (e.g., "trigger.email.id").
         $value = Arr::get($context, $path);
         if ($value !== null) {
             return $value;
         }
 
-        // 2. If direct path fails, try a ".parsed" fallback for step data (e.g., "step_109.parsed.summary").
         if (str_starts_with($path, 'step_')) {
             $parts = explode('.', $path, 2);
             if (count($parts) > 1) {
@@ -123,7 +123,7 @@ class ConditionStepHandler implements StepHandlerContract
             }
         }
 
-        return null; // Return null if not found in either location
+        return null;
     }
 
     protected function applyTemplate($value, array $ctx)
@@ -136,7 +136,6 @@ class ConditionStepHandler implements StepHandlerContract
         }
         if (preg_match('/^{{\s*([^}]+)\s*}}$/', $value, $matches)) {
             $path = trim($matches[1]);
-            // Use the new, smarter function here as well for consistency
             return $this->getFromContextPath($ctx, $path);
         }
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($ctx) {
@@ -144,6 +143,22 @@ class ConditionStepHandler implements StepHandlerContract
             $val = $this->getFromContextPath($ctx, $path);
             return is_scalar($val) ? (string) $val : json_encode($val);
         }, $value);
+    }
+
+    /**
+     * Normalizes a potential morph map alias (e.g., "client") to its FQCN.
+     */
+    protected function normalizeMorphType(string $value): string
+    {
+        if (class_exists($value)) return $value;
+
+        $mapped = Relation::getMorphedModel($value) ?: Relation::getMorphedModel(strtolower($value));
+        if ($mapped && class_exists($mapped)) return $mapped;
+
+        $candidate = 'App\\Models\\' . Str::studly($value);
+        if (class_exists($candidate)) return $candidate;
+
+        return $value;
     }
 
 
@@ -242,3 +257,4 @@ class ConditionStepHandler implements StepHandlerContract
         return false;
     }
 }
+

@@ -124,7 +124,15 @@ const pretty = (obj) => {
                         <div v-if="log.triggering_object_id">Object ID: <span class="text-gray-800">{{ log.triggering_object_id }}</span></div>
                       </div>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <div>
+                        <div class="text-xs font-semibold text-gray-700 mb-1">Step Config</div>
+                        <pre class="bg-white border rounded p-2 max-h-48 overflow-auto text-xs whitespace-pre-wrap">{{ pretty(log.step?.step_config) || '-' }}</pre>
+                        <div v-if="log.step?.condition_rules" class="mt-2">
+                          <div class="text-[11px] font-semibold text-gray-600 mb-0.5">Condition Rules</div>
+                          <pre class="bg-white border rounded p-2 max-h-40 overflow-auto text-xs whitespace-pre-wrap">{{ pretty(log.step?.condition_rules) }}</pre>
+                        </div>
+                      </div>
                       <div>
                         <div class="text-xs font-semibold text-gray-700 mb-1">Input Context</div>
                         <pre class="bg-white border rounded p-2 max-h-48 overflow-auto text-xs whitespace-pre-wrap">{{ pretty(log.input_context) }}</pre>
