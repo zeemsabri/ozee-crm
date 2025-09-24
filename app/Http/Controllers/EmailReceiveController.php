@@ -251,7 +251,8 @@ class EmailReceiveController extends Controller
             'subject' => $emailDetails['subject'],
             'body' => $emailDetails['body']['html'] ?: $emailDetails['body']['plain'],
             'type'  =>  'received',
-            'status' => 'pending_approval_received',
+            'status' => EmailStatus::Received,
+            'is_private'    =>   true,
             'message_id' => $emailDetails['id'],
             'sent_at' => Carbon::parse($emailDetails['date']),
         ]);
