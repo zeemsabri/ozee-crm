@@ -9,7 +9,7 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 
-Schedule::command(\App\Console\Commands\FetchEmails::class)->everyFiveMinutes();
+Schedule::command(\App\Console\Commands\FetchEmails::class)->everyMinute();
 //
 Schedule::job(new \App\Jobs\FetchCurrencyRatesJob)->daily();
 
