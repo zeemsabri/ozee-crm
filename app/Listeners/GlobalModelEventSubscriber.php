@@ -57,8 +57,6 @@ class GlobalModelEventSubscriber
 
     protected function handleModelEvent($model, string $verb, $from = null): void
     {
-
-        Log::info('from: ' . $from);
         // Skip if handler-created update
         if (property_exists($model, '__automation_suppressed') && $model->__automation_suppressed) {
             return;

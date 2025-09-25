@@ -357,6 +357,11 @@ class InboxController extends Controller
      */
     private function getAccessibleProjectIds($user)
     {
+
+        if($user->hasPermission('view_all_emails')) {
+            return Project::select('id')->get()->pluck('id')->toArray();
+        }
+
         // Get all projects where the user has the view_emails permission
         return Project::whereHas('users', function ($query) use ($user) {
             $query->where('users.id', $user->id);

@@ -144,7 +144,6 @@ class AiPromptStepHandler implements StepHandlerContract
     {
         $baseModelClass = $this->resolveModelClass($relationsConfig['base_model']);
         if (!$baseModelClass) {
-            Log::warning("AI_PROMPT: Base model class not found for '{$relationsConfig['base_model']}'.");
             return [];
         }
 

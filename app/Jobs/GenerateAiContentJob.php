@@ -38,7 +38,6 @@ class GenerateAiContentJob implements ShouldQueue
         $prompt = Prompt::find($this->promptId);
 
         if (!$workflow || !$prompt) {
-            Log::error('GenerateAiContentJob failed: Workflow or Prompt not found.');
             return;
         }
 
@@ -80,14 +79,6 @@ class GenerateAiContentJob implements ShouldQueue
             // 3. Determine resume point after the nearest top-level ancestor of the AI step
             $ancestorTopLevelId = $engine->findTopLevelAncestorId($workflow, $this->currentStepId);
             $nextStepId = $ancestorTopLevelId ? $engine->findNextTopLevelStepIdAfter($workflow, $ancestorTopLevelId) : null;
-
-            Log::info('AI resume planning', [
-                'workflow_id' => $this->workflowId,
-                'current_step_id' => $this->currentStepId,
-                'ancestor_top_level_id' => $ancestorTopLevelId,
-                'next_top_level_id' => $nextStepId,
-                'sibling_ids_executed' => $this->resumeNextSiblingIds,
-            ]);
 
             $raw = $result['raw'] ?? null;
             $parsed = $result['parsed'] ?? null;
@@ -132,12 +123,6 @@ class GenerateAiContentJob implements ShouldQueue
             $this->execLog->update([
                 'status' => 'error',
                 'error' => $e->getMessage(),
-            ]);
-            Log::error('GenerateAiContentJob failed: ' . $e->getMessage(), [
-                'workflow_id' => $this->workflowId,
-                'prompt_id' => $this->promptId,
-                'step_id' => $this->currentStepId,
-                'context' => $this->context,
             ]);
         }
     }
