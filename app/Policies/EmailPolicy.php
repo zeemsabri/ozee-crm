@@ -139,6 +139,10 @@ class EmailPolicy
      */
     public function approveOrView(User $user, Email $email): bool
     {
+
+        if($user->hasPermission('approve_all_emails')) {
+            return true;
+        }
         // Logic for sent emails
         if ($email->type === 'sent') {
             // The sender can always view their own sent email.
