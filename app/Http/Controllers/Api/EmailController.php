@@ -993,7 +993,7 @@ class EmailController extends Controller
 
             return response()->json([
                 'subject' => $subject,
-                'body_html' => $fullHtml,
+                'body_html' => $data['bodyContent'] ?? $data,
                 'template_id' => $email->template_id,
                 'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
                 'email_template' => $email->email_template,
