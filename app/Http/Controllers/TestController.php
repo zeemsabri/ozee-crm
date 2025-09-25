@@ -70,38 +70,35 @@ class TestController extends Controller
     public function playGourd(Request $request)
     {
 
-        $email = Email::find(403);
+        $marker = $request->input('marker');
+        $source = $request->input('source');
 
-        return $email->conversation->conversable;
+        // --- Step 1: Prepare and validate the marker ---
+        $cleanMarker = trim($marker);
 
-        // Using save() on a new or existing model instance
-        $user = User::find(1);
-        $user->name = 'Zee Sa';
-        $user->save();
+        // If the marker is empty after trimming, we can't search for it.
+        if ($cleanMarker === '') {
+            return $source;
+        }
 
-        return $user;
+        // --- Step 2: Find the first occurrence of the marker in the text ---
+        // We use a case-insensitive search (stripos) for better reliability.
+        $markerPosition = stripos($source, $cleanMarker);
 
-//        $user = User::first();
-//        $lead = Lead::latest()->with('campaign')->first();
-//
-//        $job = new GenerateLeadFollowUpJob($lead, $lead->campaign);
-//        return $job->handle();
+        // --- Step 3: Handle the case where the marker is not found ---
+        if ($markerPosition === false) {
+            // If the marker doesn't exist in the source text, return the original text.
+            return $source;
+        }
 
-//        $email = Email::latest()->first();
-//        $job = new ProcessDraftEmailJob($email);
-//        $job->handle(new EmailProcessingService($this->aiAnalysisService, $this->gmailService, $this->magicLinkService));
-//        $email->status = 'pending_approval';
-//        $email->save();
+        // --- Step 4: Calculate the length of the text to keep ---
+        // This includes all text from the beginning up to the very end of the marker.
+        $lengthToKeep = $markerPosition + strlen($cleanMarker);
 
-//        if($request->notify === 'approval') {
-//            $user->notify(new EmailApprovalRequired($email));
-//        }
-//
-////        $task = Task::first();
-//        if($request->notify === 'approved') {
-//            $user->notify(new EmailApproved($email));
-//        }
+        // --- Step 5: Extract the desired part of the string and clean it up ---
+        $substring = substr($source, 0, $lengthToKeep);
 
-        return 'done';
+        // Finally, trim the result to remove any unwanted leading/trailing whitespace.
+        return trim($substring);
     }
 }

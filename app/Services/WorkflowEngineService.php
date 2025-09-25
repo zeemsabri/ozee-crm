@@ -517,18 +517,61 @@ class WorkflowEngineService
         }, $value);
     }
 
+    // This function should replace the existing getFromContextPath method
+// in your App\Services\WorkflowEngineService.php file.
+
     protected function getFromContextPath(array $context, string $path)
     {
-        if ($path === '') return null;
-        $parts = preg_split('/\.|\:/', $path);
-        $val = $context;
-        foreach ($parts as $p) {
-            if (is_array($val) && array_key_exists($p, $val)) {
-                $val = $val[$p];
+        if ($path === '') {
+            return null;
+        }
+
+        // Use the original logic to split the path by either a dot or a colon.
+        $originalParts = preg_split('/\.|\:/', $path);
+
+        // --- Attempt 1: Try the original path exactly as the old function did ---
+        $value = $context;
+        $isFound = true;
+        foreach ($originalParts as $part) {
+            if (is_array($value) && array_key_exists($part, $value)) {
+                $value = $value[$part];
             } else {
-                return null;
+                $isFound = false;
+                break;
             }
         }
-        return $val;
+
+        // If the original path was valid, return the value immediately.
+        if ($isFound) {
+            return $value;
+        }
+
+        // --- Attempt 2: If not found, try the fallback path with ".parsed" ---
+        if (count($originalParts) > 1) {
+            // Construct the fallback parts, e.g., ['step_115', 'parsed', 'remove_after']
+            $fallbackParts = array_merge(
+                [$originalParts[0]],
+                ['parsed'],
+                array_slice($originalParts, 1)
+            );
+
+            $fallbackValue = $context;
+            $isFallbackFound = true;
+            foreach ($fallbackParts as $part) {
+                if (is_array($fallbackValue) && array_key_exists($part, $fallbackValue)) {
+                    $fallbackValue = $fallbackValue[$part];
+                } else {
+                    $isFallbackFound = false;
+                    break;
+                }
+            }
+
+            if ($isFallbackFound) {
+                return $fallbackValue;
+            }
+        }
+
+        // If neither the original nor the fallback path worked, return null.
+        return null;
     }
 }

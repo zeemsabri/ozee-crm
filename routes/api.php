@@ -84,6 +84,7 @@ Route::post('/client-magic-link', [MagicLinkController::class, 'sendClientMagicL
 Route::post('/client-api/verify', [MagicLinkController::class, 'verifyClient']);
 
 Route::get('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
+Route::post('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
 
 // Public Bugs Reporting Endpoints
 Route::prefix('bugs')->group(function () {
