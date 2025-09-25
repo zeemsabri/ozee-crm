@@ -185,8 +185,7 @@ class EmailReceiveController extends Controller
             'sender_id' => $client->id,
             'to' => [$authorizedGmailAccount],
             'subject' => $emailDetails['subject'],
-//            'body' => $this->cleanEmailBody($body),
-            'body' => $body,
+            'body' => $this->cleanEmailBody($body),
             'template_data' =>  strip_tags($body),
             'type'  =>  'received',
             'status' => EmailStatus::Draft,
@@ -255,13 +254,15 @@ class EmailReceiveController extends Controller
             ]);
         }
 
+        $body = $emailDetails['body']['plain'] ?: $emailDetails['body']['html'];
+
         $email = Email::create([
             'conversation_id' => $conversation->id,
             'sender_type'   =>  $conversableType,
             'sender_id' => $conversableId,
             'to' => [$authorizedGmailAccount],
             'subject' => $emailDetails['subject'],
-            'body' => $emailDetails['body']['plain'] ?: $emailDetails['body']['html'],
+            'body' => $this->cleanEmailBody($body),
             'type'  =>  EmailType::Received,
             'status' => EmailStatus::Received,
             'is_private'    =>   true,
