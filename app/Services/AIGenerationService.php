@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Prompt;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 
 class AIGenerationService
 {
@@ -65,10 +64,6 @@ class AIGenerationService
             'generationConfig' => $generationConfig,
         ];
 
-        Log::info('AIGenerationService.generate.payload', [
-            'prompt'    =>  $payload
-        ]);
-
         $url = sprintf('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s', $model, $apiKey);
 
         $response = Http::post($url, $payload);
@@ -94,12 +89,6 @@ class AIGenerationService
                 'totalTokenCount' => null,
             ];
         }
-
-        Log::info('AIGenerationService.generate.called', [
-            'prompt_id' => $prompt->id,
-            'model' => $model,
-            'usage' => $usage,
-        ]);
 
         return [
             'raw' => $text,

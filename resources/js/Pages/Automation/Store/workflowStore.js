@@ -112,14 +112,33 @@ export const useWorkflowStore = defineStore('workflow', {
             try {
                 const params = { ...this.logsModal.params, ...extraParams };
                 const resp = await api.fetchWorkflowLogs(workflowId, params);
-                // Normalize Laravel paginator shape
+                // Normalize Laravel paginator shape (supports both nested meta or flat paginator fields)
                 if (resp && typeof resp === 'object') {
                     const items = Array.isArray(resp.data) ? resp.data : [];
                     this.logsModal.items = items;
-                    this.logsModal.meta = resp.meta || null;
+
+                    // Build meta from either resp.meta or flat fields
+                    let meta = null;
+                    if (resp.meta && typeof resp.meta === 'object') {
+                        meta = resp.meta;
+                    } else if (
+                        typeof resp.current_page === 'number' ||
+                        typeof resp.last_page === 'number'
+                    ) {
+                        meta = {
+                            current_page: resp.current_page ?? 1,
+                            last_page: resp.last_page ?? 1,
+                            per_page: resp.per_page ?? params.per_page ?? 20,
+                            total: resp.total ?? (Array.isArray(items) ? items.length : 0),
+                            from: resp.from ?? null,
+                            to: resp.to ?? null,
+                        };
+                    }
+                    this.logsModal.meta = meta;
+
                     // Maintain params.page from response if available
-                    if (resp.meta && typeof resp.meta.current_page === 'number') {
-                        this.logsModal.params.page = resp.meta.current_page;
+                    if (meta && typeof meta.current_page === 'number') {
+                        this.logsModal.params.page = meta.current_page;
                     }
                 } else if (Array.isArray(resp)) {
                     this.logsModal.items = resp;

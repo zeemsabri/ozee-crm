@@ -62,17 +62,13 @@ class EmailReceiveController extends Controller
                 ->orderByDesc('sent_at')
                 ->first();
 
-            Log::info('Last received email:', ['email_id' => $lastReceivedEmail->id ?? 'none', 'sent_at' => $lastReceivedEmail->sent_at ?? 'none']);
-
             $query = 'is:inbox';
             if ($lastReceivedEmail) {
                 $afterDate = Carbon::parse($lastReceivedEmail->sent_at)
                     ->subMinutes(5)
                     ->unix();
                 $query .= " after:{$afterDate}";
-                Log::info('Fetching emails with query:', ['query' => $query]);
             } else {
-                Log::info('No previous received emails found. Fetching initial batch (e.g., last 50).');
                 $query .= ' newer_than:30d';
             }
 
@@ -88,13 +84,10 @@ class EmailReceiveController extends Controller
             foreach ($messageIds as $messageId) {
                 $emailDetails = $this->gmailService->getMessage($messageId);
 
-                Log::info(json_encode($emailDetails));
-
                 $date = Carbon::parse($emailDetails['date'])->setTimezone('UTC');
                 $emailDetails['date'] = $date;
 
                 if ($lastReceivedEmail && Carbon::parse($emailDetails['date'])->lte(Carbon::parse($lastReceivedEmail->sent_at))) {
-                    Log::info('Skipping email because it is older than the last received email:', ['email_id' => $emailDetails['id'], 'sent_at' => $emailDetails['date']]);;
                     continue;
                 }
 
@@ -147,7 +140,6 @@ class EmailReceiveController extends Controller
                         'status'    =>  $emailDetails['status'] ?? null,
                     ];
 
-                    Log::info('Received Email Stored:', ['email_id' => $email->id, 'gmail_id' => $emailDetails['id'], 'subject' => $emailDetails['subject']]);
                 }
             }
 
@@ -162,7 +154,6 @@ class EmailReceiveController extends Controller
 
 
         } catch (\Exception $e) {
-            Log::error('Error receiving emails:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return response()->json(['message' => 'Failed to receive emails: ' . $e->getMessage()], 500);
         }
     }
@@ -184,7 +175,6 @@ class EmailReceiveController extends Controller
                 'conversable_id' => $client->id,
                 'last_activity_at' => Carbon::parse($emailDetails['date']),
             ]);
-            Log::info('New Conversation Created (client+project):', ['conversation_id' => $conversation->id, 'subject' => $emailDetails['subject']]);
         }
 
         $body = $emailDetails['body']['plain'] ?: $emailDetails['body']['html'];
@@ -195,7 +185,7 @@ class EmailReceiveController extends Controller
             'sender_id' => $client->id,
             'to' => [$authorizedGmailAccount],
             'subject' => $emailDetails['subject'],
-            'body' => $body,
+            'body' => $this->cleanEmailBody($body),
             'template_data' =>  strip_tags($body),
             'type'  =>  'received',
             'status' => EmailStatus::Draft,
@@ -220,6 +210,21 @@ class EmailReceiveController extends Controller
 
 
         return [$conversation, $email];
+    }
+
+    private function cleanEmailBody($html)
+    {
+        $sourceWithNewlines = preg_replace('/<br\s*\/?>/i', "\n", $html);
+
+        $sourceWithNewlines = preg_replace('/(<\/p>|<\/div>|<\/li>|<\/h[1-6]>)/i', "\n\n", $sourceWithNewlines);
+
+        $stripped = strip_tags($sourceWithNewlines);
+
+        // 4. Decode HTML entities and trim whitespace.
+        $decoded = html_entity_decode($stripped, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return trim($decoded);
+
     }
 
     private function handleEmailWithoutProjectOrLead(?Client $client, ?Lead $lead, array $emailDetails, string $authorizedGmailAccount): array
@@ -247,7 +252,6 @@ class EmailReceiveController extends Controller
                 'conversable_id' => $conversableId,
                 'last_activity_at' => Carbon::parse($emailDetails['date']),
             ]);
-            Log::info('New Conversation Created (no project):', ['conversation_id' => $conversation->id, 'subject' => $emailDetails['subject']]);
         }
 
         $email = Email::create([
