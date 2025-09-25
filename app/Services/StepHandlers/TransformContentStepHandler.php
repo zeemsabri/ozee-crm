@@ -33,7 +33,9 @@ class TransformContentStepHandler implements StepHandlerContract
 
         switch ($type) {
             case 'remove_after_marker':
-                $marker = $this->engine->getTemplatedValue($cfg['marker'] ?? '', $context);
+                // Support both `marker` and `remove_after` keys for configuration flexibility
+                $rawMarker = $cfg['marker'] ?? ($cfg['remove_after'] ?? '');
+                $marker = $this->engine->getTemplatedValue($rawMarker, $context);
                 if (!is_string($marker)) {
                     $marker = is_scalar($marker) ? (string) $marker : json_encode($marker);
                 }
@@ -81,44 +83,38 @@ class TransformContentStepHandler implements StepHandlerContract
      */
     protected function removeAfterMarker(string $source, string $marker): string
     {
-        Log::info('cleaning');
-        // 1. Validate the marker
-        $trimmedMarker = trim($marker);
-        if ($trimmedMarker === '') {
+//        $marker = $request->input('marker');
+//        $source = $request->input('source');
+
+        Log::info('marker: ' . $marker);
+        Log::info('source: ' . $source);
+        // --- Step 1: Prepare and validate the marker ---
+        $cleanMarker = trim($marker);
+
+        // If the marker is empty after trimming, we can't search for it.
+        if ($cleanMarker === '') {
             return $source;
         }
 
-        // 2. Create a simplified, "normalized" version of the marker for reliable comparison.
-        $normalizedMarker = $this->normalizeStringForComparison($trimmedMarker);
-        if ($normalizedMarker === '') {
-            return $source; // Marker might only contain characters that get stripped.
-        }
+        // --- Step 2: Find the first occurrence of the marker in the text ---
+        // We use a case-insensitive search (stripos) for better reliability.
+        $markerPosition = stripos($source, $cleanMarker);
 
-        // 3. Split the original source into lines. Using a regex is best for mixed line endings.
-        $originalLines = preg_split('/(\r\n|\n|\r)/', $source);
-        $linesToKeep = [];
-        $markerFound = false;
-
-        // 4. Go through each original line to find the marker.
-        foreach ($originalLines as $line) {
-            $linesToKeep[] = $line;
-
-            // 5. Normalize the current line to compare it with the normalized marker.
-            $normalizedLine = $this->normalizeStringForComparison($line);
-
-            // 6. Perform the check. str_contains is a clear and direct way to do this.
-            if (str_contains($normalizedLine, $normalizedMarker)) {
-                $markerFound = true;
-                break; // Exit the loop as soon as the target line is found and included.
-            }
-        }
-
-        if (!$markerFound) {
+        // --- Step 3: Handle the case where the marker is not found ---
+        if ($markerPosition === false) {
+            // If the marker doesn't exist in the source text, return the original text.
             return $source;
         }
 
-        // 7. Join the original lines we've collected back into a string.
-        return trim(implode(PHP_EOL, $linesToKeep));
+        // --- Step 4: Calculate the length of the text to keep ---
+        // This includes all text from the beginning up to the very end of the marker.
+        $lengthToKeep = $markerPosition + strlen($cleanMarker);
+
+        // --- Step 5: Extract the desired part of the string and clean it up ---
+        $substring = substr($source, 0, $lengthToKeep);
+
+        // Finally, trim the result to remove any unwanted leading/trailing whitespace.
+        return trim($substring);
     }
 
     /**
