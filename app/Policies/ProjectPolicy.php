@@ -225,7 +225,10 @@ class ProjectPolicy
     }
 
     // restore and forceDelete can be left as false/not implemented for MVP
-    public function restore(User $user, Project $project): bool { return false; }
+    public function restore(User $user, Project $project): bool
+    {
+        return $user->hasPermission('restore_permission');
+    }
     public function forceDelete(User $user, Project $project): bool { return false; }
 
     public function addExpendables(User $user, Project $project)
