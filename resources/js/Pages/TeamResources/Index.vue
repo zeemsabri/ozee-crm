@@ -29,10 +29,19 @@ const total = ref(0);
 const typeOptions = ref([]);
 const projects = ref([]);
 
-// Modal state
+// --- Modal States ---
 const selectedResource = ref(null);
 const showCopyModal = ref(false);
 const selectedProjectId = ref(null);
+
+const showAddModal = ref(false);
+const newResource = ref({
+    title: '',
+    url: '',
+    type: null,
+    tags: '', // Handled as a comma-separated string in the UI
+});
+
 
 // --- API CALLS ---
 
@@ -122,6 +131,46 @@ async function confirmCopy() {
     }
 }
 
+function openAddModal() {
+    newResource.value = {
+        title: '',
+        url: '',
+        // Default to the first available type, if any
+        type: typeOptions.value.length ? typeOptions.value[0].value : null,
+        tags: '',
+    };
+    showAddModal.value = true;
+}
+
+async function confirmAddResource() {
+    // Basic validation
+    if (!newResource.value.title || !newResource.value.url || !newResource.value.type) {
+        return error('Please fill in all required fields: Title, URL, and Type.');
+    }
+
+    try {
+        const payload = {
+            title: newResource.value.title,
+            url: newResource.value.url,
+            type: newResource.value.type,
+            // API likely expects an array of strings for tags.
+            // We convert the comma-separated string from the input into an array.
+            tags: newResource.value.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+        };
+
+        // The endpoint is assumed to be POST /api/shareable-resources
+        await window.axios.post('/api/shareable-resources', payload);
+
+        success('Resource added successfully!');
+        showAddModal.value = false;
+        fetchResources(); // Refresh the list to show the new resource
+    } catch (e) {
+        console.error('Failed to add resource', e);
+        error(e?.response?.data?.message || 'An error occurred while adding the resource.');
+    }
+}
+
+
 function resetFilters() {
     filters.value.search = '';
     filters.value.types = [];
@@ -137,30 +186,33 @@ const hasActiveFilters = computed(() => {
 <template>
     <AuthenticatedLayout>
         <div class="p-4 sm:p-6 lg:p-8">
+            <!-- Main Header -->
             <header class="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between mb-8">
                 <div>
                     <h1 class="text-3xl font-bold text-gray-900">Team Resources</h1>
                     <p class="mt-1 text-sm text-gray-500">Browse, search, and manage shared resources for your team.</p>
                 </div>
                 <div class="mt-4 sm:mt-0 flex items-center space-x-2">
+                    <!-- View Switcher -->
                     <div class="inline-flex rounded-md shadow-sm">
                         <button @click="viewMode = 'grid'" :class="['px-3 py-2 rounded-l-md border border-gray-300', viewMode === 'grid' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50']">
+                            <!-- Grid Icon (SVG) -->
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM13 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2h-2z" /></svg>
                         </button>
                         <button @click="viewMode = 'list'" :class="['px-3 py-2 -ml-px rounded-r-md border border-gray-300', viewMode === 'list' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50']">
+                            <!-- List Icon (SVG) -->
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
                         </button>
                     </div>
-                    <button class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md shadow-sm hover:bg-indigo-700">
-                        Add Resource
-                    </button>
                 </div>
             </header>
 
             <div class="flex gap-8">
+                <!-- Filters Sidebar -->
                 <aside class="w-64 hidden lg:block">
                     <h2 class="text-lg font-semibold text-gray-800 mb-4">Filter Options</h2>
                     <div class="space-y-6">
+                        <!-- Search Filter -->
                         <div>
                             <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
                             <div class="mt-1 relative">
@@ -170,6 +222,7 @@ const hasActiveFilters = computed(() => {
                                 </div>
                             </div>
                         </div>
+                        <!-- Type Filter -->
                         <div>
                             <h3 class="text-sm font-medium text-gray-700">Type</h3>
                             <div class="mt-2 space-y-2">
@@ -179,14 +232,17 @@ const hasActiveFilters = computed(() => {
                                 </div>
                             </div>
                         </div>
+                        <!-- Clear Filters Button -->
                         <div v-if="hasActiveFilters">
                             <button @click="resetFilters" class="w-full text-sm text-indigo-600 hover:text-indigo-800">Clear all filters</button>
                         </div>
                     </div>
                 </aside>
 
+                <!-- Main Content Area -->
                 <main class="flex-1">
                     <div v-if="isLoading">
+                        <!-- Skeleton Loader -->
                         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                             <div v-for="i in 6" :key="i" class="bg-white p-4 rounded-lg shadow animate-pulse">
                                 <div class="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
@@ -208,6 +264,7 @@ const hasActiveFilters = computed(() => {
                     </div>
 
                     <div v-else>
+                        <!-- Grid View -->
                         <div v-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                             <div v-for="r in resources" :key="r.id" class="bg-white rounded-lg shadow border border-gray-200 hover:shadow-lg transition-shadow duration-300 flex flex-col">
                                 <div class="p-5 flex-grow">
@@ -227,6 +284,7 @@ const hasActiveFilters = computed(() => {
                             </div>
                         </div>
 
+                        <!-- List View -->
                         <div v-if="viewMode === 'list'" class="overflow-x-auto rounded-lg border">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
@@ -257,6 +315,7 @@ const hasActiveFilters = computed(() => {
                             </table>
                         </div>
 
+                        <!-- Redesigned Pagination -->
                         <div class="flex items-center justify-between mt-6">
                             <div class="text-sm text-gray-600">
                                 Showing <span class="font-medium">{{ resources.length }}</span> of <span class="font-medium">{{ total }}</span> results
@@ -271,6 +330,7 @@ const hasActiveFilters = computed(() => {
             </div>
         </div>
 
+        <!-- Redesigned Copy Modal -->
         <div v-if="showCopyModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="showCopyModal=false">
             <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
                 <h3 class="text-xl font-semibold text-gray-900 mb-2">Copy to Project</h3>
@@ -288,5 +348,40 @@ const hasActiveFilters = computed(() => {
                 </div>
             </div>
         </div>
+
+        <!-- Add Resource Modal -->
+        <div v-if="showAddModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="showAddModal=false">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
+                <h3 class="text-xl font-semibold text-gray-900 mb-4">Add New Resource</h3>
+                <form @submit.prevent="confirmAddResource">
+                    <div class="space-y-4">
+                        <div>
+                            <label for="add-title" class="block text-sm font-medium text-gray-700">Title</label>
+                            <input v-model="newResource.title" id="add-title" type="text" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                        </div>
+                        <div>
+                            <label for="add-url" class="block text-sm font-medium text-gray-700">URL</label>
+                            <input v-model="newResource.url" id="add-url" type="url" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                        </div>
+                        <div>
+                            <label for="add-type" class="block text-sm font-medium text-gray-700">Type</label>
+                            <select v-model="newResource.type" id="add-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                                <option v-for="opt in typeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="add-tags" class="block text-sm font-medium text-gray-700">Tags</label>
+                            <input v-model="newResource.tags" id="add-tags" type="text" placeholder="e.g. design, inspiration, vue" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <p class="mt-1 text-xs text-gray-500">Separate tags with a comma.</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button type="button" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50" @click="showAddModal=false">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700">Save Resource</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
     </AuthenticatedLayout>
 </template>
