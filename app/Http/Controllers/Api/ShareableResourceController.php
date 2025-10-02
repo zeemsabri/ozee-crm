@@ -76,8 +76,6 @@ class ShareableResourceController extends Controller
             'visible_to_team' => 'boolean',
             'is_private' => 'boolean',
             'visibility' => 'nullable|string|in:client,team,private',
-            'tag_ids' => 'nullable|array',
-            'tag_ids.*' => 'exists:tags,id',
         ]);
 
         if ($validator->fails()) {
@@ -110,10 +108,8 @@ class ShareableResourceController extends Controller
             'is_private' => $is_private ?? false,
         ]);
 
-        // Sync tags if provided
-        if ($request->has('tag_ids')) {
-            $resource->syncTags($request->tag_ids);
-        }
+        $resource->syncTags($request->tags);
+
 
         return response()->json($resource->load('tags'), 201);
     }
@@ -151,10 +147,10 @@ class ShareableResourceController extends Controller
             'visible_to_client' => 'boolean',
             'visible_to_team' => 'boolean',
             'is_private' => 'boolean',
-            'visibility' => 'nullable|string|in:client,team,private',
-            'tag_ids' => 'nullable|array',
-            'tag_ids.*' => 'exists:tags,id',
+            'visibility' => 'nullable|string|in:client,team,private'
         ]);
+
+        $resource->syncTags($request->tags ?? []);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -186,11 +182,6 @@ class ShareableResourceController extends Controller
         $payload['is_private'] = $is_private;
 
         $resource->update($payload);
-
-        // Sync tags if provided
-        if ($request->has('tag_ids')) {
-            $resource->syncTags($request->tag_ids);
-        }
 
         return response()->json($resource->load('tags'));
     }
