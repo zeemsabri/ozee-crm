@@ -75,6 +75,7 @@ const formatDataForApi = (data) => {
         type: data.type,
         thumbnail_url: data.thumbnail_url,
         visibility: data.visibility, // 'client' | 'team' | 'private'
+        tags: data.tags
     };
     // Optional: map tags to tag_ids if provided as array of ids or objects
     if (Array.isArray(data.tags) && data.tags.length) {

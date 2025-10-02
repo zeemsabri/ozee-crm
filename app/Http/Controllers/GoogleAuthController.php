@@ -32,7 +32,7 @@ class GoogleAuthController extends Controller
             Calendar::CALENDAR_EVENTS,
             'email',             // To get the user's email address
             'profile',           // To get basic profile info
-            Drive::DRIVE_FILE,// NEW: Scope for managing calendar events
+            Drive::DRIVE,// NEW: Scope for managing calendar events
             'https://www.googleapis.com/auth/chat.spaces',
             'https://www.googleapis.com/auth/chat.messages',
             'https://www.googleapis.com/auth/chat.memberships',

@@ -119,6 +119,7 @@ class GoogleDriveService
 
             $copiedFile = $this->driveService->files->copy($sourceFileId, $file, [
                 'fields' => 'id, webViewLink', // Request ID and webViewLink for the new file
+                'supportsAllDrives' => true,      // Add this for robustness with Shared Drives
             ]);
 
             Log::info('File copied in Google Drive', [
@@ -141,6 +142,61 @@ class GoogleDriveService
             throw $e;
         }
     }
+
+    /**
+     * [DEBUG] Lists files and folders visible to the service account in its root.
+     *
+     * @return array
+     */
+    public function listRootFilesAndFolders(?string $fileName = null, $mimeType = 'application/vnd.google-apps.document'): array
+    {
+        try {
+            $foundFiles = [];
+            $queryParts = ["trashed=false"];
+
+            // If a specific file name is provided, add it to the search query.
+            if ($fileName) {
+                $escapedFileName = addslashes($fileName);
+                $queryParts[] = "name = '{$escapedFileName}'";
+            }
+
+            // If a specific mimeType is provided, add it to the search query.
+            if ($mimeType) {
+                $escapedMimeType = addslashes($mimeType);
+                $queryParts[] = "mimeType = '{$escapedMimeType}'";
+            }
+
+            $optParams = [
+                'q' => implode(' and ', $queryParts),
+                'pageSize' => 100,
+                'fields' => 'files(id, name, mimeType, shared, capabilities, parents)',
+                'supportsAllDrives' => true,
+                'includeItemsFromAllDrives' => true,
+            ];
+
+            $results = $this->driveService->files->listFiles($optParams);
+
+            foreach ($results->getFiles() as $file) {
+                $foundFiles[] = [
+                    'name' => $file->getName(),
+                    'id' => $file->getId(),
+                    'mimeType' => $file->getMimeType(),
+                    'shared' => $file->getShared(),
+                    'canCopy' => $file->getCapabilities() ? $file->getCapabilities()->getCanCopy() : null,
+                    'parents' => $file->getParents(),
+                ];
+            }
+
+            return $foundFiles;
+        } catch (\Exception $e) {
+            Log::error('Error listing/finding files: ' . $e->getMessage(), [
+                'error' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+
     /**
      * Delete a file or folder in Google Drive.
      *

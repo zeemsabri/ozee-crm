@@ -70,7 +70,7 @@ class ShareableResourceController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'url' => 'required|url|max:2048',
-            'type' => 'required|string|in:youtube,website,document,image,other',
+            'type' => 'required|string|in:' . collect(config('options.shareable_resource_types'))->pluck('value')->implode(','),
             'thumbnail_url' => 'nullable|url|max:2048',
             'visible_to_client' => 'boolean',
             'visible_to_team' => 'boolean',
@@ -108,7 +108,7 @@ class ShareableResourceController extends Controller
             'is_private' => $is_private ?? false,
         ]);
 
-        $resource->syncTags($request->tags);
+        $resource->syncTags($request->tags ?? []);
 
 
         return response()->json($resource->load('tags'), 201);
@@ -142,7 +142,7 @@ class ShareableResourceController extends Controller
             'title' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
             'url' => 'sometimes|required|url|max:2048',
-            'type' => 'sometimes|required|string|in:youtube,website,document,image,other',
+            'type' => 'required|string|in:' . collect(config('options.shareable_resource_types'))->pluck('value')->implode(','),
             'thumbnail_url' => 'nullable|url|max:2048',
             'visible_to_client' => 'boolean',
             'visible_to_team' => 'boolean',

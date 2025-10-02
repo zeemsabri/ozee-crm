@@ -12,6 +12,14 @@ const page = ref(1);
 const perPage = ref(10);
 const total = ref(0);
 
+// New: option metadata and projects for selection
+const typeOptions = ref([]); // from /api/options/shareable_resource_types
+const projects = ref([]);    // from /api/projects-simplified
+
+const selectedResource = ref(null);
+const showCopyModal = ref(false);
+const selectedProjectId = ref(null);
+
 async function fetchResources() {
   isLoading.value = true;
   fetchError.value = null;
@@ -30,9 +38,60 @@ async function fetchResources() {
   }
 }
 
+async function fetchTypeOptions() {
+  try {
+    const { data } = await window.axios.get('/api/options/shareable_resource_types');
+    typeOptions.value = Array.isArray(data) ? data : [];
+  } catch (_) {
+    typeOptions.value = [];
+  }
+}
+
+async function fetchProjects() {
+  try {
+    const { data } = await window.axios.get('/api/projects-simplified');
+    projects.value = Array.isArray(data) ? data : [];
+  } catch (_) {
+    projects.value = [];
+  }
+}
+
+onMounted(() => {
+  fetchTypeOptions();
+  fetchProjects();
+  fetchResources();
+});
+
 watch([search, page, perPage], fetchResources);
 
-onMounted(fetchResources);
+function typeAllows(resourceType, action) {
+  const opt = typeOptions.value.find(o => o.value === resourceType);
+  const allow = Array.isArray(opt?.allow) ? opt.allow : [];
+  return allow.includes(action);
+}
+
+function openCopyModal(resource) {
+  selectedResource.value = resource;
+  selectedProjectId.value = null;
+  showCopyModal.value = true;
+}
+
+async function confirmCopy() {
+  if (!selectedResource.value || !selectedProjectId.value) {
+    return error('Please select a project');
+  }
+  try {
+    await window.axios.post(`/api/shareable-resources/${selectedResource.value.id}/copy-to-project`, {
+      project_id: selectedProjectId.value,
+    });
+    success('Copied to project.');
+    showCopyModal.value = false;
+    selectedResource.value = null;
+  } catch (e) {
+    console.error(e);
+    error(e?.response?.data?.message || 'Failed to copy.');
+  }
+}
 </script>
 
 <template>
@@ -57,6 +116,7 @@ onMounted(fetchResources);
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">URL</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>
+              <th class="px-6 py-3"></th>
             </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -70,6 +130,13 @@ onMounted(fetchResources);
                   <span v-if="!r.tags || !r.tags.length" class="text-gray-400 text-sm">No tags</span>
                 </div>
               </td>
+              <td class="px-6 py-4 text-right">
+                <button
+                  v-if="typeAllows(r.type, 'copy')"
+                  class="px-3 py-1.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded"
+                  @click="openCopyModal(r)"
+                >Copy</button>
+              </td>
             </tr>
             </tbody>
           </table>
@@ -80,6 +147,24 @@ onMounted(fetchResources);
           <div class="space-x-2">
             <button class="px-3 py-1 border rounded" :disabled="page<=1" @click="page = Math.max(1, page-1)">Prev</button>
             <button class="px-3 py-1 border rounded" :disabled="resources.length < perPage" @click="page = page+1">Next</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Copy Modal (simple) -->
+      <div v-if="showCopyModal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div class="bg-white rounded shadow p-4 w-full max-w-md">
+          <h3 class="text-lg font-semibold mb-3">Copy to Project</h3>
+          <div class="mb-3">
+            <label class="block text-sm text-gray-700 mb-1">Select Project</label>
+            <select v-model="selectedProjectId" class="border rounded w-full p-2">
+              <option :value="null">-- Select --</option>
+              <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button class="px-3 py-1.5 border rounded" @click="showCopyModal=false">Cancel</button>
+            <button class="px-3 py-1.5 bg-emerald-600 text-white rounded" @click="confirmCopy">Copy</button>
           </div>
         </div>
       </div>
