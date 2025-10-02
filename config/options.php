@@ -8,6 +8,7 @@ return [
         ['value' => 'website', 'label' => 'Website'],
         ['value' => 'youtube', 'label' => 'YouTube Video'],
         ['value' => 'document', 'label' => 'Document'],
+        ['value' => 'google_doc', 'label' => 'Google Document', 'allow' => ['copy']],
         ['value' => 'image', 'label' => 'Image'],
         ['value' => 'other', 'label' => 'Other'],
     ],

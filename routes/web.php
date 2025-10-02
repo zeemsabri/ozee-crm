@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\EmailController;
+use App\Http\Controllers\Api\ShareableResourceCopyController;
 use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\EmailPreviewController;
 use App\Http\Controllers\EmailReceiveController;
@@ -144,6 +145,7 @@ Route::get('/google/redirect', [GoogleAuthController::class, 'redirectToGoogle']
 // For this MVP, we are storing to file, so no direct user login needed for this specific route.
 Route::get('/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])->name('google.callback');
 
+Route::get('/debug/list-drive-files', [ShareableResourceCopyController::class, 'debugListFiles']);
 // --- Google User OAuth Routes (for user-based authentication) ---
 
 Route::get('/user/google/redirect', [GoogleUserAuthController::class, 'redirectToGoogle'])->name('user.google.redirect');

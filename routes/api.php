@@ -111,6 +111,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Centralized options endpoint
     Route::get('options/{key}', [OptionsController::class, 'show']);
 
+    // Shareable Resource Copy endpoint
+    Route::post('shareable-resources/{resource}/copy-to-project', [\App\Http\Controllers\Api\ShareableResourceCopyController::class, 'copyToProject']);
+
     // Test Form Route for BaseFormModal testing
     Route::post('/test-form', [\App\Http\Controllers\Api\TestFormController::class, 'store']);
 
