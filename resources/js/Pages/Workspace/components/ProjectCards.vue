@@ -75,6 +75,7 @@ const buildManagerCardFromApi = (p) => {
         name: p.name,
         role: 'Manager',
         health: mapStatusToHealth(p.status),
+        google_chat_id: p.google_chat_id || null,
         alert: null,
         overview: {
             milestone: milestoneText,
@@ -122,11 +123,12 @@ const buildManagerCardFromApi = (p) => {
 
 const buildContributorCardFromApi = (p) => {
     const cm = p.current_milestone || null;
-    const card = {
+const card = {
         id: p.id,
         name: p.name,
         role: 'Contributor',
         health: mapStatusToHealth(p.status),
+        google_chat_id: p.google_chat_id || null,
         tasks: {
             today: (p.tasks?.today || []).map(t => ({ id: t.id, name: t.name, status: t.status })),
             tomorrow: (p.tasks?.tomorrow || []).map(t => ({ id: t.id, name: t.name, status: t.status })),

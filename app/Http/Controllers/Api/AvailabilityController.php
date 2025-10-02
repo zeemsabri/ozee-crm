@@ -281,6 +281,8 @@ class AvailabilityController extends Controller
      */
     public function shouldShowPrompt(): \Illuminate\Http\JsonResponse
     {
+
+
         $user = Auth::user();
         $today = Carbon::now();
         $isWeekday = $today->isWeekday();
@@ -364,6 +366,11 @@ class AvailabilityController extends Controller
             if (!$allNextWeekdaysCovered) {
                 $shouldBlockUser = true;
             }
+        }
+
+        if(!env('CHECK_AVAILABILITY', true)){
+            $shouldShowPrompt = false;
+            $shouldBlockUser = false;
         }
 
         // --- Final Response ---

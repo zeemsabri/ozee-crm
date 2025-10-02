@@ -102,6 +102,46 @@ class GoogleDriveService
     }
 
     /**
+     * Copy a file to a new destination in Google Drive.
+     *
+     * @param string $sourceFileId The ID of the file to copy.
+     * @param string $destinationFolderId The ID of the folder to copy the file to.
+     * @param string $newFileName The new name for the copied file.
+     * @return array An array containing the new file's ID and web link.
+     * @throws \Exception
+     */
+    public function copyFile(string $sourceFileId, string $destinationFolderId, string $newFileName): array
+    {
+        try {
+            $file = new Drive\DriveFile();
+            $file->setName($newFileName);
+            $file->setParents([$destinationFolderId]);
+
+            $copiedFile = $this->driveService->files->copy($sourceFileId, $file, [
+                'fields' => 'id, webViewLink', // Request ID and webViewLink for the new file
+            ]);
+
+            Log::info('File copied in Google Drive', [
+                'source_file_id' => $sourceFileId,
+                'copied_file_id' => $copiedFile->id,
+                'destination_folder_id' => $destinationFolderId,
+                'new_file_name' => $newFileName,
+            ]);
+
+            return [
+                'id' => $copiedFile->id,
+                'link' => $copiedFile->getWebViewLink(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Error copying file in Google Drive: ' . $e->getMessage(), [
+                'source_file_id' => $sourceFileId,
+                'destination_folder_id' => $destinationFolderId,
+                'error' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+    /**
      * Delete a file or folder in Google Drive.
      *
      * @param string $fileId

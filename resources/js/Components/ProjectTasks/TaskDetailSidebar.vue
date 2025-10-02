@@ -15,6 +15,7 @@ import * as taskState from '@/Utils/taskState.js';
 import Modal from "@/Components/Modal.vue";
 import ChecklistComponent from '@/Components/ChecklistComponent.vue';
 import ChecklistCreator from '@/Components/ChecklistCreator.vue';
+import BlockReasonModal from '@/Components/BlockReasonModal.vue';
 import { SaveIcon } from "lucide-vue-next";
 
 const props = defineProps({
@@ -425,23 +426,16 @@ const blockTask = async () => {
     // let's integrate a simple modal here.
 };
 
-// New state for the block modal inside the sidebar
+// New state for the block modal (reused via BlockReasonModal)
 const showBlockTaskModal = ref(false);
-const blockReason = ref('');
 
 const openBlockTaskModal = () => {
-    blockReason.value = '';
     showBlockTaskModal.value = true;
 };
 
-const handleBlockTask = async () => {
-    if (!blockReason.value.trim()) {
-        notification.warning('Please provide a reason for blocking the task');
-        return;
-    }
-
+const confirmBlockTask = async (reason) => {
     try {
-        task.value = await taskState.blockTask(task.value, blockReason.value);
+        task.value = await taskState.blockTask(task.value, reason);
         notification.success('Task blocked successfully');
         emit('task-updated', task.value);
         fetchTaskActivities();
@@ -881,39 +875,15 @@ const latestBlockActivity = computed(() => {
             @note-added="handleNoteAdded"
         />
 
-        <!-- Block Task Modal for Sidebar -->
-        <Modal :show="showBlockTaskModal" @close="showBlockTaskModal = false">
-            <div class="p-6">
-                <h2 class="text-lg font-medium text-gray-900 mb-4">
-                    Block Task
-                </h2>
-
-                <div class="mb-4">
-                    <p class="text-sm text-gray-600 mb-2">
-                        Please provide a reason for blocking this task:
-                    </p>
-                    <textarea
-                        v-model="blockReason"
-                        class="w-full rounded-md shadow-sm border-gray-300 focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                        rows="3"
-                        placeholder="Enter reason for blocking..."
-                    ></textarea>
-                </div>
-
-                <div class="flex justify-end space-x-3">
-                    <SecondaryButton @click="showBlockTaskModal = false">
-                        Cancel
-                    </SecondaryButton>
-                    <PrimaryButton
-                        @click="handleBlockTask"
-                        :disabled="!blockReason.trim()"
-                        class="bg-red-600 hover:bg-red-700"
-                    >
-                        Block Task
-                    </PrimaryButton>
-                </div>
-            </div>
-        </Modal>
+<!-- Block Task Modal for Sidebar -->
+        <BlockReasonModal
+            :show="showBlockTaskModal"
+            title="Block Task"
+            confirm-text="Block Task"
+            placeholder="Enter reason for blocking..."
+            @close="showBlockTaskModal = false"
+            @confirm="confirmBlockTask"
+        />
 
         <!-- File Viewer Modal -->
         <Modal :show="showFileViewer" @close="closeFileViewer">

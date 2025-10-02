@@ -57,6 +57,7 @@ use App\Http\Controllers\Api\ProjectNoteController;
 use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\ScheduleApiController;
 use App\Http\Controllers\Api\WorkflowLogController;
+use App\Http\Controllers\Api\OptionsController;
 
 
 Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
@@ -106,6 +107,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    // Centralized options endpoint
+    Route::get('options/{key}', [OptionsController::class, 'show']);
 
     // Test Form Route for BaseFormModal testing
     Route::post('/test-form', [\App\Http\Controllers\Api\TestFormController::class, 'store']);
@@ -236,7 +240,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Workspace API
     Route::get('workspace/projects', [WorkspaceController::class, 'projects']);
-        Route::get('workspace/projects/{project}/completed-tasks', [WorkspaceController::class, 'completedTasks']);
+    Route::get('workspace/projects/{project}/completed-tasks', [WorkspaceController::class, 'completedTasks']);
     Route::put('projects/{project}/sections/services-payment', [ProjectActionController::class, 'updateServicesAndPayment']);
     Route::put('projects/{project}/sections/transactions', [ProjectActionController::class, 'updateTransactions']);
     Route::put('projects/{project}/sections/notes', [ProjectActionController::class, 'updateNotes']);

@@ -1,5 +1,6 @@
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { ref, reactive, onMounted, watch } from 'vue';
+import axios from 'axios';
 import BaseFormModal from '@/Components/BaseFormModal.vue'; // Adjust path if necessary
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -40,14 +41,26 @@ const form = reactive({
     tags: [], // Array to hold tags from TagInput component
 });
 
-// Options for the 'type' dropdown, based on your migration file
-const resourceTypeOptions = computed(() => [
+// Options for the 'type' dropdown, fetched from API with fallback
+const defaultResourceTypeOptions = [
     { value: 'website', label: 'Website' },
     { value: 'youtube', label: 'YouTube Video' },
     { value: 'document', label: 'Document' },
     { value: 'image', label: 'Image' },
     { value: 'other', label: 'Other' },
-]);
+];
+const resourceTypeOptions = ref(defaultResourceTypeOptions);
+
+onMounted(async () => {
+    try {
+        const { data } = await axios.get('/api/options/shareable_resource_types');
+        if (Array.isArray(data) && data.length) {
+            resourceTypeOptions.value = data;
+        }
+    } catch (e) {
+        resourceTypeOptions.value = defaultResourceTypeOptions;
+    }
+});
 
 // Watch for changes in the resource prop and update the form
 onMounted(() => {

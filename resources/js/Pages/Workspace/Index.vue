@@ -1,11 +1,15 @@
 <script setup>
-import { Head } from '@inertiajs/vue3';
-import { ref, computed, onMounted } from 'vue';
+import { Head, usePage } from '@inertiajs/vue3';
+import { ref, computed, onMounted, watch } from 'vue';
 import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Filters from '@/Pages/Workspace/components/Filters.vue';
 import ProjectCards from '@/Pages/Workspace/components/ProjectCards.vue';
 import Sidebar from '@/Pages/Workspace/components/Sidebar.vue';
+import KanbanBoard from '@/Components/KanbanBoard.vue';
+import BlockReasonModal from '@/Components/BlockReasonModal.vue';
+import * as taskState from '@/Utils/taskState.js';
+import { openTaskDetailSidebar } from '@/Utils/sidebar';
 
 // Mock data to simulate fetching from a backend
 const projects = ref([
@@ -160,6 +164,171 @@ function handleUpdateNotes(newNotes) {
     localStorage.setItem('my_dashboard_notes', newNotes);
 }
 
+// Kanban toggle
+const kanbanView = ref(localStorage.getItem('workspace_kanban_view') === '1');
+
+watch(kanbanView, (v) => {
+    try { localStorage.setItem('workspace_kanban_view', v ? '1' : '0'); } catch (e) {}
+});
+
+// Kanban columns and data scaffolding
+const kanbanColumns = [
+    { key: 'To Do', title: 'To Do' },
+    { key: 'In Progress', title: 'In Progress' },
+    { key: 'Paused', title: 'Paused' },
+    { key: 'Blocked', title: 'Blocked' },
+    { key: 'Done', title: 'Done' },
+    { key: 'Archived', title: 'Archived' },
+];
+
+// Assigned tasks for Kanban
+const assignedTasks = ref([]);
+const loadingAssignedTasks = ref(false);
+const tasksError = ref('');
+
+const fetchAssignedTasksAll = async () => {
+    const userId = usePage().props.auth?.user?.id;
+    if (!userId) return;
+    loadingAssignedTasks.value = true;
+    tasksError.value = '';
+    try {
+        const { data } = await window.axios.get('/api/tasks', { params: { assigned_to_user_id: userId } });
+        assignedTasks.value = Array.isArray(data) ? data : [];
+    } catch (e) {
+        console.error('Failed to load assigned tasks for kanban', e);
+        tasksError.value = 'Failed to load tasks';
+        assignedTasks.value = [];
+    } finally {
+        loadingAssignedTasks.value = false;
+    }
+};
+
+watch(kanbanView, (on) => {
+    setTimeout(() => {
+        if (on && assignedTasks.value.length === 0 && !loadingAssignedTasks.value) {
+            fetchAssignedTasksAll();
+        }
+    }, 500)
+
+}, { immediate: true });
+
+const itemsByColumn = computed(() => {
+    const init = {
+        'To Do': [],
+        'In Progress': [],
+        'Paused': [],
+        'Blocked': [],
+        'Done': [],
+        'Archived': [],
+    };
+    for (const t of assignedTasks.value) {
+        const key = t.status && init[t.status] !== undefined ? t.status : 'To Do';
+        init[key].push(t);
+    }
+    return init;
+});
+
+// Block reason modal state for workspace-level actions
+const showBlockReason = ref(false);
+const taskPendingBlock = ref(null);
+
+const openWorkspaceBlockModal = (task) => {
+    taskPendingBlock.value = task;
+    showBlockReason.value = true;
+};
+
+const confirmWorkspaceBlock = async (reason) => {
+    if (!taskPendingBlock.value) return;
+    try {
+        const updated = await taskState.blockTask(taskPendingBlock.value, reason);
+        updateTaskInList(updated);
+    } catch (e) {
+        console.error('Failed to block task from workspace:', e);
+    } finally {
+        showBlockReason.value = false;
+        taskPendingBlock.value = null;
+    }
+};
+
+// Helpers for transitions
+const getTransition = (from, to) => {
+    if (from === to) return null;
+    // Main allowed paths
+    if (from === 'To Do' && to === 'In Progress') return 'start';
+    if (from === 'In Progress' && to === 'Paused') return 'pause';
+    if (from === 'Paused' && to === 'In Progress') return 'resume';
+    if (from === 'In Progress' && to === 'Done') return 'complete';
+    if ((from === 'To Do' || from === 'In Progress' || from === 'Paused') && to === 'Blocked') return 'block';
+    if (from === 'Blocked' && to === 'In Progress') return 'unblock_to_inprogress';
+    if (from === 'Done' && to === 'To Do') return 'revise';
+    // Disallow direct moves to Archived or other unsupported jumps
+    return null;
+};
+
+const updateTaskInList = (updated) => {
+    if (!updated) return;
+    const idx = assignedTasks.value.findIndex(t => String(t.id) === String(updated.id));
+    if (idx >= 0) {
+        assignedTasks.value[idx] = { ...assignedTasks.value[idx], ...updated };
+    } else {
+        assignedTasks.value.push(updated);
+    }
+};
+
+const handleKanbanDrop = async ({ data, to }) => {
+    if (!data || !to) return;
+
+    const from = data.status;
+    const action = getTransition(from, to);
+    if (!action) return; // silently ignore disallowed moves
+
+    // Optimistic move
+    const prev = { ...data };
+    data.status = to;
+    updateTaskInList(data);
+
+    try {
+        let updated;
+        switch (action) {
+            case 'start':
+                updated = await taskState.startTask(prev);
+                break;
+            case 'pause':
+                updated = await taskState.pauseTask(prev);
+                break;
+            case 'resume':
+                updated = await taskState.resumeTask(prev);
+                break;
+            case 'complete':
+                updated = await taskState.completeTask(prev);
+                break;
+            case 'block':
+                // For block we collect reason via modal and return without API here
+                // Revert optimistic change for now; modal flow will update
+                data.status = prev.status;
+                updateTaskInList(prev);
+                return openWorkspaceBlockModal(prev);
+            case 'unblock_to_inprogress':
+                // Unblock first; server restores previous status (or To Do)
+                updated = await taskState.unblockTask(prev);
+                // If not in progress yet, try to transition forward to reach In Progress
+                if (updated.status === 'To Do') {
+                    updated = await taskState.startTask(updated);
+                }
+                break;
+            case 'revise':
+                updated = await taskState.reviseTask(prev);
+                break;
+            default:
+                throw new Error('Unsupported transition');
+        }
+        updateTaskInList(updated);
+    } catch (e) {
+        // Roll back
+        updateTaskInList(prev);
+    }
+};
+
 // Initialize currency conversion similar to Admin/ProjectExpendables
 onMounted(async () => {
     try {
@@ -177,20 +346,32 @@ onMounted(async () => {
     <Head title="My Workspace" />
 
     <AuthenticatedLayout>
-        <template #header>
+<template #header>
             <div class="flex items-center justify-between">
-                <h2 class="font-semibold text-xl text-gray-800 leading-tight">Workspace</h2>
+                <div class="flex items-center gap-3">
+                    <button
+                        type="button"
+                        class="px-3 py-1.5 rounded-md border text-sm transition
+                               border-gray-300 text-gray-700 hover:bg-gray-50
+                               data-[active=true]:bg-indigo-600 data-[active=true]:text-white data-[active=true]:border-indigo-600"
+                        :data-active="kanbanView ? 'true' : 'false'"
+                        @click="kanbanView = !kanbanView"
+                    >
+                        Kanban
+                    </button>
+                    <h2 class="font-semibold text-xl text-gray-800 leading-tight">Workspace</h2>
+                </div>
             </div>
         </template>
 
-        <div class="py-10">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+<div class="py-10">
+            <div :class="kanbanView ? 'max-w-none w-full px-4 sm:px-6 lg:px-8' : 'max-w-7xl mx-auto sm:px-6 lg:px-8'">
                 <div class="mb-6">
                     <!-- Filters component emits 'update:filter' to change the active filter -->
-                    <Filters @update:filter="activeFilter = $event" :active-filter="activeFilter" :search="searchTerm" @update:search="searchTerm = $event" :pending-filter="pendingFilter" @update:pending="pendingFilter = $event" />
+                    <Filters v-if="!kanbanView" @update:filter="activeFilter = $event" :active-filter="activeFilter" :search="searchTerm" @update:search="searchTerm = $event" :pending-filter="pendingFilter" @update:pending="pendingFilter = $event" />
                 </div>
 
-                <div class="flex flex-col lg:flex-row gap-8">
+                <div v-if="!kanbanView" class="flex flex-col lg:flex-row gap-8">
                     <div class="lg:w-2/3">
                         <!-- ProjectCards fetches and paginates from API; pass search and filter -->
                         <ProjectCards :search="searchTerm" :active-filter="activeFilter" :pending-filter="pendingFilter" />
@@ -205,6 +386,44 @@ onMounted(async () => {
                             @update-notes="handleUpdateNotes"
                         />
                     </div>
+                </div>
+
+                <!-- Kanban view -->
+                <div v-else class="mt-4">
+                    <div class="mb-3 flex items-center justify-between">
+                        <h3 class="text-lg font-semibold text-gray-800">My Tasks (Kanban)</h3>
+                        <span v-if="loadingAssignedTasks" class="text-xs text-gray-500">Loading...</span>
+                        <span v-else-if="tasksError" class="text-xs text-red-600">{{ tasksError }}</span>
+                    </div>
+                    <KanbanBoard
+                        :columns="kanbanColumns"
+                        :items-by-column="itemsByColumn"
+                        :loading="loadingAssignedTasks"
+@drop="handleKanbanDrop"
+                    >
+                        <template #item="{ item, columnKey }">
+                            <div
+                                class="p-3 rounded-md bg-white border border-gray-200 shadow-sm cursor-move"
+                                draggable="true"
+                                @dragstart="(e) => e.dataTransfer.setData('text/plain', JSON.stringify(item))"
+                                @click.stop="openTaskDetailSidebar(item.id, item.milestone?.project_id)"
+                                :title="item.milestone?.name ? `${item.name} — ${item.milestone.name}` : item.name"
+                            >
+                                <div class="text-sm font-medium text-gray-800 truncate">{{ item.name || item.title || 'Task' }}</div>
+                                <div class="text-xs text-gray-500 truncate" v-if="item.milestone?.name">{{ item.milestone.name }}</div>
+                            </div>
+                        </template>
+                    </KanbanBoard>
+
+                    <!-- Block reason modal for workspace-level blocking -->
+                    <BlockReasonModal
+                        :show="showBlockReason"
+                        title="Block Task"
+                        confirm-text="Block Task"
+                        placeholder="Enter reason for blocking..."
+                        @close="showBlockReason = false"
+                        @confirm="confirmWorkspaceBlock"
+                    />
                 </div>
             </div>
         </div>

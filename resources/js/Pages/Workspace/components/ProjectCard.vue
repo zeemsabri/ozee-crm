@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { openTaskDetailSidebar } from '@/Utils/sidebar';
 import { formatCurrency, convertCurrency, displayCurrency } from '@/Utils/currency';
+import { ChatBubbleOvalLeftIcon } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
     project: Object,
@@ -23,6 +24,19 @@ const completedTasks = ref([]);
 
 const completedList = computed(() => completedLoaded.value ? completedTasks.value : (props.project.tasks?.completed || []));
 const completedCount = computed(() => Array.isArray(completedList.value) ? completedList.value.length : 0);
+
+const correctChatUrl = computed(() => {
+    // Guard against null or empty values
+    if (!props.project || !props.project.google_chat_id) {
+        return '#'; // Return a safe fallback
+    }
+
+    // Replace the incorrect "spaces/" with the correct "space/"
+    const correctedPath = props.project.google_chat_id.replace('spaces/', 'space/');
+
+    // Return the full, valid URL
+    return `https://mail.google.com/chat/u/0/#chat/${correctedPath}`;
+});
 
 function statusChip(status) {
     const s = String(status || '').toLowerCase();
@@ -206,7 +220,19 @@ function urgencyColor(dateStr) {
                     :aria-label="`Project health status: ${project.health.replace('-', ' ')}`">
                 </div>
             </div>
-            <Link :href="route('projects.show', project.id)" class="text-indigo-600 text-sm font-medium hover:underline">View Project</Link>
+            <div class="flex items-center gap-3">
+                <a
+                    v-if="project.google_chat_id"
+                    :href="correctChatUrl"  target="_blank"
+                    rel="noopener"
+                    class="text-gray-500 hover:text-indigo-600"
+                    title="Open Google Chat"
+                    aria-label="Open Google Chat"
+                >
+                    <ChatBubbleOvalLeftIcon class="h-5 w-5" />
+                </a>
+                <Link :href="route('projects.show', project.id)" class="text-indigo-600 text-sm font-medium hover:underline">View Project</Link>
+            </div>
         </div>
 
         <!-- Priority Alert Section -->

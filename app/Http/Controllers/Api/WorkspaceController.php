@@ -40,13 +40,13 @@ class WorkspaceController extends Controller
 
         // Base query: mirror logic from ProjectReadController@getProjectsSimplified
         if ($isGlobalManager) {
-            $query = Project::select('projects.id', 'projects.name', 'projects.status', 'projects.project_manager_id', 'projects.project_admin_id', 'projects.project_type', 'projects.last_email_sent', 'projects.last_email_received')
+            $query = Project::select('projects.id', 'projects.name', 'projects.status', 'projects.project_manager_id', 'projects.project_admin_id', 'projects.project_type', 'projects.last_email_sent', 'projects.last_email_received', 'projects.google_chat_id')
                 ->from('projects')
                 ->with('tags')
                 ->orderBy('projects.id', 'desc');
         } else {
             $query = $user->projects()
-                ->select('projects.id', 'projects.name', 'projects.status', 'projects.project_manager_id', 'projects.project_admin_id', 'projects.project_type', 'projects.last_email_sent', 'projects.last_email_received')
+                ->select('projects.id', 'projects.name', 'projects.status', 'projects.project_manager_id', 'projects.project_admin_id', 'projects.project_type', 'projects.last_email_sent', 'projects.last_email_received', 'projects.google_chat_id')
                 ->with('tags')
                 ->orderBy('projects.id', 'desc');
         }
@@ -245,6 +245,7 @@ class WorkspaceController extends Controller
                 'id' => $project->id,
                 'name' => $project->name,
                 'status' => $project->status,
+                'google_chat_id' => $project->google_chat_id,
                 'project_type' => $project->project_type,
                 'role' => $role, // keep actual role for label; visibility already handled
                 'milestones' => $milestones,
