@@ -2,6 +2,8 @@
 
 namespace App\Policies;
 
+use App\Enums\EmailStatus;
+use App\Enums\EmailType;
 use App\Models\Email;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
@@ -143,8 +145,10 @@ class EmailPolicy
         if($user->hasPermission('approve_all_emails')) {
             return true;
         }
+
         // Logic for sent emails
-        if ($email->type === 'sent') {
+        if ($email->type === EmailType::Sent) {
+
             // The sender can always view their own sent email.
             if ($user->id === $email->sender_id) {
                 return true;
@@ -152,23 +156,23 @@ class EmailPolicy
 
             // Super Admin and Manager can approve/view any sent email.
             // This is handled by the `approve` policy which checks for `approve_emails` permission.
-            if($email->status === 'pending_approval') {
+            if($email->status === EmailStatus::PendingApproval) {
                 return $this->approve($user, $email) || $this->userHasProjectPermission($user, 'approve_emails', $email->conversation->project_id);
             }
-            if($email->status === 'sent') {
+            if($email->status === EmailStatus::Sent) {
                 return $this->approve($user, $email) || $this->userHasProjectPermission($user, 'view_emails', $email->conversation->project_id);
             }
 
         }
 
         // Logic for received emails
-        if ($email->type === 'received') {
+        if ($email->type === EmailType::Received) {
 
-            if($email->status === 'pending_approval_received') {
+            if($email->status === EmailStatus::PendingApprovalReceived) {
                 return $user->hasPermission('approve_received_emails') || $this->userHasProjectPermission($user, 'approve_received_emails', $email->conversation->project_id);
             }
 
-            if($email->status === 'received') {
+            if($email->status === EmailStatus::Received) {
                 return $user->hasPermission('view_emails') || $this->userHasProjectPermission($user, 'view_emails', $email->conversation->project_id);
             }
 
