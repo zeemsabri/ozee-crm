@@ -10,11 +10,22 @@ use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Collection; // Import Collection for getClientsAttribute
 use App\Services\GoogleUserService;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Builder;
 
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
+    /**
+     * Apply a global scope to always order users by name.
+     */
+    protected static function booted()
+    {
+        static::addGlobalScope('orderByName', function (Builder $query) {
+            $table = (new static)->getTable();
+            $query->orderBy($table . '.name');
+        });
+    }
 
     /**
      * Polymorphic notes attached to this user (ProjectNote noteable morph).

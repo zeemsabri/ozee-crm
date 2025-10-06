@@ -677,11 +677,13 @@ class ProjectReadController extends Controller
                          ->where('project_user.user_id', '=', $user->id);
                 })
                 ->addSelect('project_user.role_id')
+                ->orderBy('projects.name')
                 ->get();
         } else {
             // For regular users, get only their projects
             $projects = $user->projects()
                 ->select('projects.id', 'projects.name', 'projects.status', 'project_user.role_id', 'projects.departments', 'projects.project_type')
+                ->orderBy('projects.name')
                 ->get();
         }
 
