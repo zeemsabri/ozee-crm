@@ -11,10 +11,12 @@ use App\Models\Milestone;
 use App\Models\TaskType;
 use App\Models\Tag;
 use App\Models\ProjectExpendable;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Enums\TaskStatus;
+use Throwable;
 
 class TaskController extends Controller
 {
@@ -34,7 +36,7 @@ class TaskController extends Controller
         $today = now()->startOfDay();
 
         // Query tasks that are due today or overdue
-        $tasks = Task::with(['assignedTo', 'taskType', 'milestone'])
+        $tasks = Task::with(['assignedTo', 'taskType', 'milestone.project'])
             ->whereIn('milestone_id', $milestoneIds)
             ->where(function($query) use ($today) {
                 // Tasks due today
@@ -149,13 +151,26 @@ class TaskController extends Controller
         $milestoneId = $request->query('milestone_id');
         $status = $request->query('status');
         $assignedToUserId = $request->query('assigned_to_user_id');
+        $projectId = $request->query('project_id');
+        $statuses = $request->query('statuses'); // comma-separated list
+        $updatedSince = $request->query('updated_since'); // date string
+        $completedOn = $request->query('completed_on'); // date string
+        $completedSince = $request->query('completed_since'); // date string
+        $completedUntil = $request->query('completed_until'); // date string
+        $perPage = (int) $request->query('per_page');
 
         // Start with a base query
-        $query = Task::with(['assignedTo', 'taskType', 'milestone', 'tags']);
+        $query = Task::with(['assignedTo', 'taskType', 'milestone.project', 'tags']);
 
         // Apply filters if provided
         if ($milestoneId) {
             $query->where('milestone_id', $milestoneId);
+        }
+
+        if ($projectId) {
+            $query->whereHas('milestone', function ($q) use ($projectId) {
+                $q->where('project_id', $projectId);
+            });
         }
 
         if ($status) {
@@ -178,13 +193,78 @@ class TaskController extends Controller
             $query->where('status', $statusFilter);
         }
 
+        if ($statuses) {
+            $list = collect(explode(',', $statuses))
+                ->map(fn($s) => trim($s))
+                ->filter()
+                ->map(function ($raw) {
+                    $enum = TaskStatus::tryFrom($raw) ?? TaskStatus::tryFrom(ucwords(strtolower(str_replace(['_', '-'], ' ', $raw))));
+                    return $enum ? $enum->value : $raw; // allow raw fallback
+                })
+                ->values()
+                ->all();
+            if (!empty($list)) {
+                $query->whereIn('status', $list);
+            }
+        }
+
         if ($assignedToUserId) {
             $query->where('assigned_to_user_id', $assignedToUserId);
         }
 
-        // Get the tasks
-        $tasks = $query->orderBy('due_date', 'asc')->get();
+        // Due until filter (e.g., due_until=today) to constrain to due or overdue tasks
+        if ($request->has('due_until')) {
+            try {
+                $dueDate = Carbon::parse($request->query('due_until'))->endOfDay();
+                $query->whereDate('due_date', '<=', $dueDate);
+            } catch (Throwable $e) {
+                // ignore invalid date
+            }
+        }
 
+        if ($updatedSince) {
+            try {
+                $date = Carbon::parse($updatedSince)->startOfDay();
+                $query->where('updated_at', '>=', $date);
+            } catch (Throwable $e) {
+                // ignore invalid date
+            }
+        }
+
+        // Completed date filters (prefer completed_at column)
+        if ($completedOn) {
+            try {
+                $date = Carbon::parse($completedOn)->toDateString();
+                $query->whereDate('completed_at', $date);
+            } catch (Throwable $e) {
+                // ignore invalid date
+            }
+        } else {
+            if ($completedSince) {
+                try {
+                    $since = Carbon::parse($completedSince)->startOfDay();
+                    $query->where('completed_at', '>=', $since);
+                } catch (Throwable $e) {}
+            }
+            if ($completedUntil) {
+                try {
+                    $until = Carbon::parse($completedUntil)->endOfDay();
+                    $query->where('completed_at', '<=', $until);
+                } catch (Throwable $e) {}
+            }
+        }
+
+        // Order newest updated first by default when paginating to keep payload relevant
+        $query->orderBy('updated_at', 'desc');
+
+        // Return paginated when per_page provided; otherwise return full list (legacy)
+        if ($perPage > 0) {
+            $perPage = max(1, min($perPage, 1000));
+            $paginator = $query->paginate($perPage);
+            return response()->json($paginator);
+        }
+
+        $tasks = $query->get();
         return response()->json($tasks);
     }
 
@@ -233,7 +313,7 @@ class TaskController extends Controller
         }
 
         // Load relationships
-        $task->load(['assignedTo', 'taskType', 'milestone', 'tags']);
+        $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags']);
 
         // Optionally create a schedule when provided as nested payload
         $attachedScheduleId = null;
@@ -275,7 +355,7 @@ class TaskController extends Controller
     public function show(Task $task)
     {
         // Load relationships
-        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks', 'notes' => function ($q) {
+        $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks', 'notes' => function ($q) {
             $q->select('id', 'content', 'noteable_type', 'noteable_id', 'created_at', 'creator_type', 'creator_id');
         }]);
 
@@ -330,7 +410,7 @@ class TaskController extends Controller
         $task->syncTags($request->tags ?? []);
 
         // Load relationships
-        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+        $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks']);
 
         // Optionally create a schedule when provided during update
         $attachedScheduleId = null;
@@ -434,7 +514,7 @@ class TaskController extends Controller
         $task->markAsCompleted(Auth::user());
 
         // Load relationships
-        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+        $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks']);
 
         return response()->json($task);
     }
@@ -454,7 +534,7 @@ class TaskController extends Controller
         $task->start(Auth::user());
 
         // Load relationships
-        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+        $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks']);
 
         return response()->json($task);
     }
@@ -484,7 +564,7 @@ class TaskController extends Controller
         $task->save();
 
         // Load relationships
-        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+        $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks']);
 
         return response()->json($task);
     }
@@ -517,7 +597,7 @@ class TaskController extends Controller
         $task->save();
 
         // Load relationships
-        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+        $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks']);
 
         return response()->json($task);
     }
@@ -545,7 +625,7 @@ class TaskController extends Controller
         $task->save();
 
         // Load relationships
-        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+        $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks']);
 
         return response()->json($task);
     }
@@ -573,7 +653,7 @@ class TaskController extends Controller
         $task->save();
 
         // Load relationships
-        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+        $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks']);
 
         return response()->json($task);
     }
@@ -592,7 +672,7 @@ class TaskController extends Controller
         $task->archive();
 
         // Load relationships
-        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+        $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks']);
 
         return response()->json($task);
     }
@@ -625,7 +705,7 @@ class TaskController extends Controller
         $task->save();
 
         // Load relationships
-        $task->load(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks']);
+        $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks']);
 
         return response()->json($task);
     }
@@ -733,7 +813,7 @@ class TaskController extends Controller
             app(\App\Services\ValueSetValidator::class)->validate('Task','status', TaskStatus::ToDo->value);
 
             $task = Task::create($taskData);
-            $task->load(['assignedTo', 'taskType', 'milestone']);
+            $task->load(['assignedTo', 'taskType', 'milestone.project']);
             $created[] = $task;
         }
 
