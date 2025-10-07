@@ -33,6 +33,12 @@ const dataSources = computed(() => {
     // Try to get loop schema either from prop or infer it from nearest FOR_EACH
     let loopSchema = props.loopContextSchema;
 
+    const isArrayOfObjects = (field) => {
+        const t = String(field?.type || '').toLowerCase();
+        const it = String(field?.itemType || '').toLowerCase();
+        return t === 'array of objects' || (t === 'array' && it === 'object');
+    };
+
     if (!loopSchema && props.inferLoopFromNearest) {
         const forEach = [...props.allStepsBefore].reverse().find(s => s.step_type === 'FOR_EACH' && s.step_config?.sourceArray);
         if (forEach) {
@@ -44,7 +50,7 @@ const dataSources = computed(() => {
                 const sourceStep = props.allStepsBefore.find(s => String(s.id) === String(sourceStepId));
                 if (sourceStep?.step_type === 'AI_PROMPT') {
                     const field = (sourceStep.step_config?.responseStructure || []).find(f => f.name === sourceFieldName);
-                    if (field?.type === 'Array of Objects') {
+                    if (isArrayOfObjects(field)) {
                         loopSchema = { name: 'Loop Item', columns: (field.schema || []) };
                     }
                 }
@@ -111,8 +117,8 @@ const dataSources = computed(() => {
                     label: field.name,
                     value: `{{step_${step.id}.${field.name}}}`
                 });
-                // If it's an Array of Objects, also list its sub-fields
-                if (field.type === 'Array of Objects' && Array.isArray(field.schema)) {
+                // If it's an Array of Objects (or Array with itemType Object), also list its sub-fields
+                if (isArrayOfObjects(field) && Array.isArray(field.schema)) {
                     field.schema.forEach(sub => {
                         if (!sub?.name) return;
                         fields.push({

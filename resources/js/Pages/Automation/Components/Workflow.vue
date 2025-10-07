@@ -48,10 +48,16 @@ function getLoopContextSchema(forEachStep) {
 
     const sourceStep = props.fullContextSteps.find(s => s.id == sourceStepId);
 
+    const isArrayOfObjects = (field) => {
+        const t = String(field?.type || '').toLowerCase();
+        const it = String(field?.itemType || '').toLowerCase();
+        return t === 'array of objects' || (t === 'array' && it === 'object');
+    };
+
     // Case 1: Looping over AI Array of Objects
     if (sourceStep?.step_type === 'AI_PROMPT') {
         const sourceField = sourceStep.step_config?.responseStructure?.find(f => f.name === sourceFieldName);
-        if (sourceField?.type !== 'Array of Objects') return null;
+        if (!isArrayOfObjects(sourceField)) return null;
         return { name: 'Loop Item', columns: sourceField.schema || [] };
     }
 
