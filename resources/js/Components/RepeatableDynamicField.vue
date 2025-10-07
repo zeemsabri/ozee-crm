@@ -1,0 +1,158 @@
+<script setup>
+import { ref, watch } from 'vue';
+import draggable from 'vuedraggable';
+import TextInput from '@/Components/TextInput.vue';
+import PrimaryButton from '@/Components/PrimaryButton.vue';
+import { InformationCircleIcon, TrashIcon } from '@heroicons/vue/24/outline';
+
+const props = defineProps({
+  modelValue: { type: Array, default: () => [] },
+  allowLinks: { type: Boolean, default: false },
+  placeholderName: { type: String, default: 'item' },
+  addButtonText: { type: String, default: 'Add item' },
+  labelPlaceholder: { type: String, default: 'Label' },
+  urlPlaceholder: { type: String, default: 'https://example.com' },
+  itemPlaceholder: { type: String, default: 'Enter value' },
+});
+
+const emit = defineEmits(['update:modelValue']);
+
+const localItems = ref([...props.modelValue]);
+
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    // Replace local items when parent changes
+    localItems.value = Array.isArray(newVal) ? [...newVal] : [];
+  },
+  { deep: true }
+);
+
+watch(
+  localItems,
+  (newVal) => {
+    emit('update:modelValue', newVal);
+  },
+  { deep: true }
+);
+
+const linkRegex = /^\((.*?)\)\[(.*?)\]$/;
+
+const addTextItem = () => {
+  localItems.value.push('');
+};
+
+const addLinkItem = () => {
+  localItems.value.push('(Label)[]');
+};
+
+const confirmAndRemove = (index) => {
+  const ok = window.confirm('Remove this item?');
+  if (ok) {
+    localItems.value.splice(index, 1);
+  }
+};
+
+const isLinkItem = (value) => typeof value === 'string' && linkRegex.test(value);
+
+const parseLink = (value) => {
+  // Expect format: (Label)[URL]
+  const match = typeof value === 'string' ? value.match(linkRegex) : null;
+  return {
+    label: match ? match[1] : '',
+    url: match ? match[2] : '',
+  };
+};
+
+const buildLink = (label, url) => {
+  return `(${label || ''})[${url || ''}]`;
+};
+
+const convertToLink = (index) => {
+  const current = localItems.value[index] ?? '';
+  // Use current text as label, empty URL
+  localItems.value[index] = buildLink(current, '');
+};
+
+const convertToText = (index) => {
+  const { label, url } = parseLink(localItems.value[index]);
+  // Prefer label as text; if empty, fallback to URL
+  localItems.value[index] = label || url || '';
+};
+</script>
+
+<template>
+  <div class="space-y-3">
+    <div class="flex items-start gap-3">
+      <div class="flex gap-2">
+        <PrimaryButton type="button" @click="addTextItem">
+          Add text
+        </PrimaryButton>
+        <PrimaryButton v-if="allowLinks" type="button" @click="addLinkItem">
+          Add link
+        </PrimaryButton>
+      </div>
+      <div v-if="allowLinks" class="flex items-start text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+        <InformationCircleIcon class="h-5 w-5 text-indigo-500 mr-2 mt-0.5" />
+        <div>
+          You can insert inline links by typing: <code>(Label)[https://example.com]</code> inside any text item. You can also add a dedicated link item with the button. Drag to reorder.
+        </div>
+      </div>
+    </div>
+
+    <draggable
+      v-model="localItems"
+      item-key="__index"
+      handle=".drag-handle"
+      class="space-y-2"
+    >
+      <template #item="{ element, index }">
+        <div class="flex items-start gap-2">
+          <button type="button" class="drag-handle cursor-move text-gray-400 hover:text-gray-600 p-2" aria-label="Drag to reorder">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M7 4a1 1 0 110-2 1 1 0 010 2zM13 4a1 1 0 110-2 1 1 0 010 2zM7 11a1 1 0 110-2 1 1 0 010 2zM13 11a1 1 0 110-2 1 1 0 010 2zM7 18a1 1 0 110-2 1 1 0 010 2zM13 18a1 1 0 110-2 1 1 0 010 2z" />
+            </svg>
+          </button>
+
+          <div class="flex-1">
+            <div v-if="isLinkItem(element)" class="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+              <TextInput
+                :id="`${placeholderName}-${index}-label`"
+                type="text"
+                class="block w-full"
+                :placeholder="labelPlaceholder"
+                :model-value="parseLink(element).label"
+                @update:model-value="(val) => { const p = parseLink(localItems[index]); localItems[index] = buildLink(val, p.url); }"
+              />
+              <TextInput
+                :id="`${placeholderName}-${index}-url`"
+                type="url"
+                class="block w-full"
+                :placeholder="urlPlaceholder"
+                :model-value="parseLink(element).url"
+                @update:model-value="(val) => { const p = parseLink(localItems[index]); localItems[index] = buildLink(p.label, val); }"
+              />
+            </div>
+            <div v-else>
+              <TextInput
+                :id="`${placeholderName}-${index}`"
+                type="text"
+                class="block w-full"
+                :placeholder="itemPlaceholder"
+                v-model="localItems[index]"
+              />
+            </div>
+            <div class="mt-1 flex gap-2">
+              <button v-if="allowLinks && !isLinkItem(element)" type="button" class="text-xs text-indigo-600 hover:underline" @click="convertToLink(index)">Convert to link</button>
+              <button v-if="allowLinks && isLinkItem(element)" type="button" class="text-xs text-indigo-600 hover:underline" @click="convertToText(index)">Convert to text</button>
+            </div>
+          </div>
+
+          <button type="button" class="text-red-500 hover:text-red-600 p-2" @click="confirmAndRemove(index)" aria-label="Remove item">
+            <TrashIcon class="h-5 w-5" />
+          </button>
+        </div>
+      </template>
+    </draggable>
+  </div>
+</template>

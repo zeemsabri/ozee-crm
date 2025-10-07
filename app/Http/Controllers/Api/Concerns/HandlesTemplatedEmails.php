@@ -41,31 +41,93 @@ trait HandlesTemplatedEmails
                 $placeholderTag = "{{ {$key} }}";
                 $replacementValue = '';
 
-                if ($placeholder->is_dynamic) {
-                    $stringValue = is_array($value) ? '' : (string)($value ?? '');
-                    if ($placeholder->is_link) {
-                        $replacementValue = '<a href="' . e($stringValue) . '">' . e($key) . '</a>';
-                    } else {
-                        $replacementValue = $stringValue;
+                $isDynamic = (bool) $placeholder->is_dynamic;
+                $isRepeatable = (bool) $placeholder->is_repeatable;
+                $isSelectable = (bool) $placeholder->is_selectable;
+                $isLink = (bool) $placeholder->is_link;
+
+                // Helper: parse (Label)[URL]
+                $parseLink = function ($str) {
+                    if (!is_string($str)) return null;
+                    if (preg_match('/^\((.*?)\)\[(.*?)\]$/', $str, $m)) {
+                        return ['label' => $m[1], 'url' => $m[2]];
                     }
-                } elseif ($placeholder->is_repeatable) {
+                    return null;
+                };
+                // Helper: linkify inline (Label)[URL] occurrences within any text
+                $linkifyInline = function ($text) use ($parseLink) {
+                    if (!is_string($text) || $text === '') {
+                        return '';
+                    }
+                    $pattern = '/\((.*?)\)\[(.*?)\]/';
+                    $result = '';
+                    $offset = 0;
+                    while (preg_match($pattern, $text, $m, PREG_OFFSET_CAPTURE, $offset)) {
+                        $start = $m[0][1];
+                        $len = strlen($m[0][0]);
+                        $before = substr($text, $offset, $start - $offset);
+                        $result .= e($before);
+                        $label = $m[1][0] ?? '';
+                        $url = $m[2][0] ?? '';
+                        if ($url !== '') {
+                            $result .= '<a href="' . e($url) . '">' . e($label ?: $url) . '</a>';
+                        } else {
+                            // If URL empty, just render the original text escaped
+                            $result .= e($m[0][0]);
+                        }
+                        $offset = $start + $len;
+                    }
+                    $result .= e(substr($text, $offset));
+                    return $result;
+                };
+
+                if ($isRepeatable && $isDynamic) {
+                    // New: repeatable dynamic values (array of strings), mixed text and links
+                    if (is_array($value) && !empty($value)) {
+                        $html = '';
+                        foreach ($value as $item) {
+                            $link = $parseLink($item);
+                            if ($link && !empty($link['url'])) {
+                                $label = e($link['label'] ?: $link['url']);
+                                $url = e($link['url']);
+                                $html .= '<p><a href="' . $url . '">' . $label . '</a></p>';
+                            } else {
+                                $html .= '<p>' . $linkifyInline((string) $item) . '</p>';
+                            }
+                        }
+                        $replacementValue = $html;
+                    }
+                } elseif ($isRepeatable) {
+                    // Existing: repeatable from source model (IDs)
                     if (is_array($value) && !empty($value) && $placeholder->source_model && $placeholder->source_attribute) {
                         $modelClass = $placeholder->source_model;
                         $attribute = $placeholder->source_attribute;
                         $items = $modelClass::whereIn('id', $value)->get();
                         $listHtml = '<ul>';
                         foreach ($items as $item) {
-                            $listHtml .= '<li>' . ($item->{$attribute} ?? 'N/A') . '</li>';
+                            $listHtml .= '<li>' . e($item->{$attribute} ?? 'N/A') . '</li>';
                         }
                         $listHtml .= '</ul>';
                         $replacementValue = $listHtml;
                     }
-                } elseif ($placeholder->is_selectable) {
+                } elseif ($isDynamic) {
+                    // Single dynamic value (string); may be link syntax
+                    $stringValue = is_array($value) ? '' : (string)($value ?? '');
+                    $link = $parseLink($stringValue);
+                    if ($link && !empty($link['url'])) {
+                        $label = e($link['label'] ?: $link['url']);
+                        $url = e($link['url']);
+                        $replacementValue = '<a href="' . $url . '">' . $label . '</a>';
+                    } else {
+                        // Also linkify inline patterns within the text
+                        $replacementValue = $linkifyInline($stringValue);
+                    }
+                } elseif ($isSelectable) {
                     if ($value && $placeholder->source_model && $placeholder->source_attribute) {
                         $modelClass = $placeholder->source_model;
                         $attribute = $placeholder->source_attribute;
                         $item = $modelClass::find($value);
-                        $replacementValue = $item->{$attribute} ?? 'N/A';
+                        $replacementValue = e($item->{$attribute} ?? 'N/A');
                     }
                 }
 
@@ -104,7 +166,15 @@ trait HandlesTemplatedEmails
      */
     protected function getPlaceholderValue(PlaceholderDefinition $placeholder, $recipient, Project|null $project, bool $isFinalSend): string
     {
+        // Heuristic fallbacks when no source model/attribute defined
         if (!$placeholder->source_model || !$placeholder->source_attribute) {
+            $name = strtolower(trim($placeholder->name));
+            if ($recipient && ($name === 'client name' || $name === 'client_name' || $name === 'client')) {
+                return $recipient->name ?? 'N/A';
+            }
+            if ($project && ($name === 'project name' || $name === 'project_name' || $name === 'project')) {
+                return $project->name ?? 'N/A';
+            }
             return 'N/A';
         }
 

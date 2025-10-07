@@ -8,6 +8,7 @@ import { usePermissions } from '@/Directives/permissions';
 import CustomMultiSelect from '@/Components/CustomMultiSelect.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import RepeatableDynamicField from '@/Components/RepeatableDynamicField.vue';
 
 const props = defineProps({
     show: {
@@ -149,15 +150,17 @@ watch(() => props.show, (newValue) => {
 
 watch(selectedTemplate, (newTemplate) => {
     emailForm.template_data = {};
+    linkFieldState.value = {};
     if (newTemplate && newTemplate.placeholders) {
         newTemplate.placeholders.forEach(placeholder => {
-            if (placeholder.is_dynamic) {
+            if (placeholder.is_repeatable) {
+                emailForm.template_data[placeholder.name] = [];
+            } else if (placeholder.is_selectable) {
+                emailForm.template_data[placeholder.name] = null;
+            } else {
                 emailForm.template_data[placeholder.name] = '';
-            } else if (placeholder.is_repeatable || placeholder.is_selectable) {
-                if(placeholder.is_repeatable) {
-                    emailForm.template_data[placeholder.name] = [];
-                } else {
-                    emailForm.template_data[placeholder.name] = null;
+                if (placeholder.is_dynamic && placeholder.is_link) {
+                    linkFieldState.value[placeholder.name] = { label: '', url: '' };
                 }
             }
         });
@@ -208,6 +211,10 @@ const templateOptions = computed(() => {
 const inputPlaceholders = computed(() => {
     return selectedTemplate.value ? selectedTemplate.value.placeholders.filter(p => p.is_dynamic || p.is_repeatable || p.is_selectable) : [];
 });
+
+// Local state for single dynamic link placeholders
+const linkFieldState = ref({});
+const buildLinkString = (label, url) => `(${label || ''})[${url || ''}]`;
 
 const apiEndpoint = computed(() => `/api/emails/templated`);
 
@@ -337,58 +344,89 @@ onMounted(() => {
                 <div v-if="selectedTemplate">
                     <h4 class="text-md font-semibold text-gray-800 mb-3">Dynamic Placeholders</h4>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        <div v-for="placeholder in inputPlaceholders" :key="placeholder.id">
-                            <div class="mb-4">
-                                <InputLabel :for="placeholder.name" :value="placeholder.name" />
-                                <template v-if="placeholder.is_repeatable && placeholder.source_model">
-                                    <CustomMultiSelect
-                                        :id="placeholder.name"
-                                        v-model="emailForm.template_data[placeholder.name]"
-                                        :options="sourceModelsData[placeholder.source_model.split('\\').pop()] || []"
-                                        :placeholder="`Select one or more ${placeholder.name}`"
-                                        :label-key="placeholder.source_attribute"
-                                        track-by="id"
-                                        class="mt-1"
-                                    />
-                                    <div v-if="loadingSourceModels" class="text-xs text-gray-500 mt-1">
-                                        Loading {{ placeholder.source_model.split('\\').pop() }}...
-                                    </div>
-                                </template>
-                                <template v-else-if="placeholder.is_selectable && placeholder.source_model">
-                                    <SelectDropdown
-                                        :id="placeholder.name"
-                                        v-model="emailForm.template_data[placeholder.name]"
-                                        :options="sourceModelsData[placeholder.source_model.split('\\').pop()] || []"
-                                        :placeholder="`Select a ${placeholder.name}`"
-                                        :value-key="placeholder.trackBy ?? 'id'"
-                                        :label-key="placeholder.source_attribute"
-                                        :allow-empty="true"
-                                        class="mt-1"
-                                    />
-                                    <div v-if="loadingSourceModels" class="text-xs text-gray-500 mt-1">
-                                        Loading {{ placeholder.source_model.split('\\').pop() }}...
-                                    </div>
-                                </template>
-                                <template v-else-if="placeholder.is_dynamic && placeholder.is_link">
-                                    <TextInput
-                                        :id="placeholder.name"
-                                        type="url"
-                                        class="mt-1 block w-full"
-                                        v-model="emailForm.template_data[placeholder.name]"
-                                        placeholder="Enter URL"
-                                    />
-                                </template>
-                                <template v-else>
-                                    <TextInput
-                                        :id="placeholder.name"
-                                        type="text"
-                                        class="mt-1 block w-full"
-                                        v-model="emailForm.template_data[placeholder.name]"
-                                    />
-                                </template>
-                                <InputError :message="errors[`template_data.${placeholder.name}`] ? errors[`template_data.${placeholder.name}`][0] : ''" class="mt-2" />
-                            </div>
-                        </div>
+<div v-for="placeholder in inputPlaceholders" :key="placeholder.id">
+    <div class="mb-4">
+        <InputLabel :for="placeholder.name" :value="placeholder.name" />
+
+        <!-- Repeatable + dynamic (no source model): free-form with drag-and-drop -->
+        <template v-if="placeholder.is_repeatable && placeholder.is_dynamic && !placeholder.source_model">
+<RepeatableDynamicField
+                v-model="emailForm.template_data[placeholder.name]"
+                :allow-links="Boolean(placeholder.is_link)"
+                :placeholder-name="placeholder.name"
+                :add-button-text="`Add ${placeholder.name}`"
+                :item-placeholder="`Enter ${placeholder.name}`"
+            />
+        </template>
+
+        <!-- Repeatable from source model -->
+        <template v-else-if="placeholder.is_repeatable && placeholder.source_model">
+            <CustomMultiSelect
+                :id="placeholder.name"
+                v-model="emailForm.template_data[placeholder.name]"
+                :options="sourceModelsData[placeholder.source_model.split('\\').pop()] || []"
+                :placeholder="`Select one or more ${placeholder.name}`"
+                :label-key="placeholder.source_attribute"
+                track-by="id"
+                class="mt-1"
+            />
+            <div v-if="loadingSourceModels" class="text-xs text-gray-500 mt-1">
+                Loading {{ placeholder.source_model.split('\\').pop() }}...
+            </div>
+        </template>
+
+        <!-- Selectable from source model -->
+        <template v-else-if="placeholder.is_selectable && placeholder.source_model">
+            <SelectDropdown
+                :id="placeholder.name"
+                v-model="emailForm.template_data[placeholder.name]"
+                :options="sourceModelsData[placeholder.source_model.split('\\').pop()] || []"
+                :placeholder="`Select a ${placeholder.name}`"
+                :value-key="placeholder.trackBy ?? 'id'"
+                :label-key="placeholder.source_attribute"
+                :allow-empty="true"
+                class="mt-1"
+            />
+            <div v-if="loadingSourceModels" class="text-xs text-gray-500 mt-1">
+                Loading {{ placeholder.source_model.split('\\').pop() }}...
+            </div>
+        </template>
+
+        <!-- Single dynamic link (build (Label)[URL]) -->
+        <template v-else-if="placeholder.is_dynamic && placeholder.is_link">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <TextInput
+                    :id="`${placeholder.name}-label`"
+                    v-model="linkFieldState[placeholder.name].label"
+                    type="text"
+                    class="mt-1 block w-full"
+                    placeholder="Link text/label"
+                    @update:model-value="(val) => { emailForm.template_data[placeholder.name] = buildLinkString(val, linkFieldState[placeholder.name].url); }"
+                />
+                <TextInput
+                    :id="`${placeholder.name}-url`"
+                    v-model="linkFieldState[placeholder.name].url"
+                    type="url"
+                    class="mt-1 block w-full"
+                    placeholder="https://example.com"
+                    @update:model-value="(val) => { emailForm.template_data[placeholder.name] = buildLinkString(linkFieldState[placeholder.name].label, val); }"
+                />
+            </div>
+        </template>
+
+        <!-- Fallback text input -->
+        <template v-else>
+            <TextInput
+                :id="placeholder.name"
+                type="text"
+                class="mt-1 block w-full"
+                v-model="emailForm.template_data[placeholder.name]"
+            />
+        </template>
+
+        <InputError :message="errors[`template_data.${placeholder.name}`] ? errors[`template_data.${placeholder.name}`][0] : ''" class="mt-2" />
+    </div>
+</div>
                     </div>
                 </div>
 
