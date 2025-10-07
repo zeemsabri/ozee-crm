@@ -7,6 +7,7 @@ import InputError from '@/Components/InputError.vue';
 import OZeeMultiSelect from '@/Components/CustomMultiSelect.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import RepeatableDynamicField from '@/Components/RepeatableDynamicField.vue';
 import { useForm } from '@inertiajs/vue3';
 import { useEmailTemplate } from '@/Composables/useEmailTemplate';
 import Modal from '@/Components/Modal.vue';
@@ -50,6 +51,16 @@ const inputPlaceholders = computed(() => {
     if (!selectedTemplate.value) return [];
     return selectedTemplate.value.placeholders.filter(p => p.is_dynamic || p.is_repeatable || p.is_selectable);
 });
+
+// Local state for non-repeatable link placeholders (label + url -> "(Label)[URL]")
+const linkFieldState = ref({});
+
+const parseLinkString = (val) => {
+    const match = typeof val === 'string' ? val.match(/^\((.*?)\)\[(.*?)\]$/) : null;
+    return { label: match ? match[1] : '', url: match ? match[2] : '' };
+};
+
+const buildLinkString = (label, url) => `(${label || ''})[${url || ''}]`;
 
 const templateOptions = computed(() => {
     return templates.value.map(template => ({
@@ -212,15 +223,21 @@ watch(() => form.project_id, (newProjectId) => {
 
 watch(() => form.template_id, (newTemplateId) => {
     form.template_data = {};
+    linkFieldState.value = {}; // reset link field local state
     const newTemplate = templates.value.find(t => t.id === newTemplateId);
     if (newTemplate) {
         newTemplate.placeholders.forEach(placeholder => {
             if (placeholder.is_repeatable) {
+                // For repeatable + dynamic, we still initialize as an array
                 form.template_data[placeholder.name] = [];
             } else if (placeholder.is_selectable) {
                 form.template_data[placeholder.name] = null;
             } else {
+                // dynamic single values (including single link) start empty
                 form.template_data[placeholder.name] = '';
+                if (placeholder.is_dynamic && placeholder.is_link) {
+                    linkFieldState.value[placeholder.name] = { label: '', url: '' };
+                }
             }
         });
         fetchSourceModelsData(newTemplate);
@@ -292,44 +309,80 @@ onMounted(() => {
                 </div>
 
                 <div v-if="form.template_id && form.project_id" class="space-y-4">
-                    <div v-for="placeholder in inputPlaceholders" :key="placeholder.name">
-                        <InputLabel :for="placeholder.name" :value="placeholder.label || placeholder.name" />
+<div v-for="placeholder in inputPlaceholders" :key="placeholder.name">
+    <InputLabel :for="placeholder.name" :value="placeholder.label || placeholder.name" />
 
-                        <div v-if="placeholder.is_repeatable">
-                            <div v-if="loadingSourceModels" class="text-gray-500 text-sm mt-1">Loading options...</div>
-                            <OZeeMultiSelect
-                                v-else
-                                v-model="form.template_data[placeholder.name]"
-                                :options="sourceModelsData[placeholder.name] || []"
-                                :placeholder="`Select ${placeholder.name}`"
-                                label-key="label"
-                                value-key="id"
-                                class="mt-1"
-                            />
-                        </div>
-                        <div v-else-if="placeholder.is_selectable">
-                            <div v-if="loadingSourceModels" class="text-gray-500 text-sm mt-1">Loading options...</div>
-                            <SelectDropdown
-                                v-else
-                                :id="placeholder.name"
-                                v-model="form.template_data[placeholder.name]"
-                                :options="sourceModelsData[placeholder.name] || []"
-                                :placeholder="`Select a ${placeholder.name}`"
-                                value-key="id"
-                                label-key="label"
-                                class="mt-1 block w-full"
-                            />
-                        </div>
-                        <TextInput
-                            v-else
-                            :id="placeholder.name"
-                            v-model="form.template_data[placeholder.name]"
-                            type="text"
-                            class="mt-1 block w-full"
-                            :placeholder="`Enter a value for ${placeholder.name}`"
-                        />
-                        <InputError :message="form.errors[`template_data.${placeholder.name}`]" class="mt-2" />
-                    </div>
+    <!-- Repeatable + dynamic: free-form multi items with drag-and-drop -->
+    <div v-if="placeholder.is_repeatable && placeholder.is_dynamic">
+<RepeatableDynamicField
+            v-model="form.template_data[placeholder.name]"
+            :allow-links="Boolean(placeholder.is_link)"
+            :placeholder-name="placeholder.name"
+            :add-button-text="`Add ${placeholder.label || placeholder.name}`"
+            :item-placeholder="`Enter ${placeholder.label || placeholder.name}`"
+        />
+    </div>
+
+    <!-- Repeatable (from source model): multi-select -->
+    <div v-else-if="placeholder.is_repeatable">
+        <div v-if="loadingSourceModels" class="text-gray-500 text-sm mt-1">Loading options...</div>
+        <OZeeMultiSelect
+            v-else
+            v-model="form.template_data[placeholder.name]"
+            :options="sourceModelsData[placeholder.name] || []"
+            :placeholder="`Select ${placeholder.name}`"
+            label-key="label"
+            value-key="id"
+            class="mt-1"
+        />
+    </div>
+
+    <!-- Selectable (single from source model): dropdown -->
+    <div v-else-if="placeholder.is_selectable">
+        <div v-if="loadingSourceModels" class="text-gray-500 text-sm mt-1">Loading options...</div>
+        <SelectDropdown
+            v-else
+            :id="placeholder.name"
+            v-model="form.template_data[placeholder.name]"
+            :options="sourceModelsData[placeholder.name] || []"
+            :placeholder="`Select a ${placeholder.name}`"
+            value-key="id"
+            label-key="label"
+            class="mt-1 block w-full"
+        />
+    </div>
+
+    <!-- Single dynamic link: label + url to build (Label)[URL] -->
+    <div v-else-if="placeholder.is_dynamic && placeholder.is_link" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <TextInput
+            :id="`${placeholder.name}-label`"
+            v-model="linkFieldState[placeholder.name].label"
+            type="text"
+            class="mt-1 block w-full"
+            placeholder="Link text/label"
+            @update:model-value="(val) => { form.template_data[placeholder.name] = buildLinkString(val, linkFieldState[placeholder.name].url); }"
+        />
+        <TextInput
+            :id="`${placeholder.name}-url`"
+            v-model="linkFieldState[placeholder.name].url"
+            type="url"
+            class="mt-1 block w-full"
+            placeholder="https://example.com"
+            @update:model-value="(val) => { form.template_data[placeholder.name] = buildLinkString(linkFieldState[placeholder.name].label, val); }"
+        />
+    </div>
+
+    <!-- Fallback: single-line text input for dynamic value -->
+    <TextInput
+        v-else
+        :id="placeholder.name"
+        v-model="form.template_data[placeholder.name]"
+        type="text"
+        class="mt-1 block w-full"
+        :placeholder="`Enter a value for ${placeholder.name}`"
+    />
+    <InputError :message="form.errors[`template_data.${placeholder.name}`]" class="mt-2" />
+</div>
                 </div>
 
                 <div v-if="form.template_id" class="mt-6">
