@@ -170,10 +170,16 @@ const effectiveLoopSchema = computed(() => {
     const sourceStep = props.allStepsBefore.find(s => String(s.id) === String(sourceStepId));
     if (!sourceStep) return null;
 
+    const isArrayOfObjects = (field) => {
+        const t = String(field?.type || '').toLowerCase();
+        const it = String(field?.itemType || '').toLowerCase();
+        return t === 'array of objects' || (t === 'array' && it === 'object');
+    };
+
     // Case: AI Array of Objects
     if (sourceStep.step_type === 'AI_PROMPT') {
         const field = (sourceStep.step_config?.responseStructure || []).find(f => f.name === sourceFieldName);
-        if (field?.type === 'Array of Objects') {
+        if (isArrayOfObjects(field)) {
             return { name: 'Loop Item', columns: field.schema || [] };
         }
         return null;

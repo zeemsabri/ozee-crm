@@ -204,11 +204,11 @@ trait HandlesTemplatedEmails
         }
 
         // Only convert newlines to <br> for plain-text bodies.
-        $decodedJson = json_decode($body);
-        $looksLikeHtml = is_string($body) && str_contains($body, '<');
-        if ($decodedJson === null && !$looksLikeHtml) {
+//        $decodedJson = json_decode($body);
+//        $looksLikeHtml = is_string($body) && str_contains($body, '<');
+//        if ($decodedJson === null && !$looksLikeHtml) {
             $body = nl2br($body);
-        }
+//        }
 
         return ['subject' => $subject, 'body' => $body];
     }
