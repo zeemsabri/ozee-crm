@@ -29,6 +29,8 @@ class AiPromptStepHandler implements StepHandlerContract
 
         $promptData = $this->gatherPromptData($context, $cfg);
 
+        Log::info(json_encode($promptData));
+
         // --- REPLACEMENT ---
         // Instead of calling the service directly, dispatch the async job.
         $nextSiblingIds = $context['_resume_next_sibling_ids'] ?? [];
@@ -86,7 +88,7 @@ class AiPromptStepHandler implements StepHandlerContract
                 if (!is_string($resolved)) {
                     $resolved = is_scalar($resolved) ? (string) $resolved : json_encode($resolved);
                 }
-                $promptData['body'] = $resolved;
+                $promptData['context_data'] = $resolved;
             } catch (\Throwable $e) {
                 // Fallback: use raw freeText if engine not available
                 $promptData['body'] = $freeText;

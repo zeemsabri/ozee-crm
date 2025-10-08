@@ -17,9 +17,6 @@ class GlobalModelEventSubscriber
         }
 
         $verbs = self::getVerbs();
-        Log::info('GlobalModelEventSubscriber.triggered', [
-            'json'  =>  json_encode($events)
-        ]);
         $verbs = array_map('strtolower', $verbs);
 
         if (in_array('created', $verbs, true)) {
@@ -89,12 +86,6 @@ class GlobalModelEventSubscriber
             // ignore auth errors in console/jobs
         }
 
-        // Log each model event so it's visible in storage/logs/laravel.log
-        Log::info('GlobalModelEventSubscriber model event', [
-            'event' => $eventName,
-            'model' => get_class($model),
-            'id' => (string) $model->getKey(),
-        ]);
         event(new WorkflowTriggerEvent($eventName, $context, (string) $model->getKey(), $from));
     }
 }

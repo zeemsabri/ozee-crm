@@ -29,7 +29,6 @@ class GmailService
             $this->gmailService->users_messages->trash('me', $messageId);
             return true;
         } catch (Exception $e) {
-            Log::error('Failed to trash Gmail message: ' . $e->getMessage(), ['message_id' => $messageId, 'exception' => $e]);
             throw new Exception('Failed to trash Gmail message: ' . $e->getMessage());
         }
     }
@@ -105,8 +104,6 @@ class GmailService
             $message = $this->gmailService->users_messages->get('me', $messageId, ['format' => 'full']);
             $payload = $message->getPayload();
 
-            Log::info(json_encode($payload->getParts()));
-
             $parsedHeaders = [];
             foreach ($payload->getHeaders() as $header) {
                 $parsedHeaders[strtolower($header->getName())] = $header->getValue();
@@ -179,11 +176,9 @@ class GmailService
                 $emailData['body']['html'] = $this->decodeBase64Url($payload->getBody()->getData());
             }
 
-            Log::info('Fetched Gmail message details, including attachments', ['message_id' => $messageId, 'subject' => $emailData['subject']]);
             return $emailData;
 
         } catch (Exception $e) {
-            Log::error('Failed to retrieve Gmail message: ' . $e->getMessage(), ['message_id' => $messageId, 'exception' => $e]);
             throw new Exception('Failed to retrieve message: ' . $e->getMessage());
         }
     }
