@@ -42,7 +42,7 @@ class KudoController extends Controller
     public function store(Request $request)
     {
         $user = $request->user();
-        $this->authorize('create', Kudo::class);
+//        $this->authorize('create', Kudo::class);
 
         $validated = $request->validate([
             'recipient_id' => 'required|exists:users,id|different:sender_id',
