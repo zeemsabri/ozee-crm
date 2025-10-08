@@ -44,6 +44,7 @@ class GenerateAiContentJob implements ShouldQueue
         try {
             $start = microtime(true);
 
+            Log::info(json_encode($this->promptData));
             // 1. Execute the AI generation
             $result = $aiService->generate($prompt, $this->promptData);
             $parsed = $result['parsed'] ?? null;

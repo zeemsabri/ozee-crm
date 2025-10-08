@@ -27,7 +27,6 @@ class GmailService
     {
         try {
             $this->gmailService->users_messages->trash('me', $messageId);
-            Log::info('Gmail message moved to trash', ['message_id' => $messageId]);
             return true;
         } catch (Exception $e) {
             Log::error('Failed to trash Gmail message: ' . $e->getMessage(), ['message_id' => $messageId, 'exception' => $e]);
@@ -60,10 +59,8 @@ class GmailService
 
         try {
             $sentMessage = $this->gmailService->users_messages->send('me', $message);
-            Log::info('Email sent successfully via Gmail API', ['to' => $to, 'subject' => $subject, 'message_id' => $sentMessage->getId()]);
             return $sentMessage->getId();
         } catch (Exception $e) {
-            Log::error('Failed to send email via Gmail API: ' . $e->getMessage(), ['to' => $to, 'subject' => $subject, 'error' => $e->getTraceAsString()]);
             throw new Exception('Failed to send email: ' . $e->getMessage());
         }
     }
@@ -89,10 +86,8 @@ class GmailService
                     $messageIds[] = $message->getId();
                 }
             }
-            Log::info('Listed Gmail messages', ['count' => count($messageIds), 'query' => $query]);
             return $messageIds;
         } catch (Exception $e) {
-            Log::error('Failed to list Gmail messages: ' . $e->getMessage(), ['query' => $query, 'exception' => $e]);
             throw new Exception('Failed to list messages: ' . $e->getMessage());
         }
     }
