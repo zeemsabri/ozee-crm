@@ -227,11 +227,18 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                     $messageText .= "📅 *Due Date*: {$task->due_date->format('Y-m-d')}\n";
                 }
 
-                // Send the message to the project's Google Chat space
-                $messageResult = $chatService->sendMessage(
-                    $project->google_chat_id,
-                    $messageText
-                );
+                if(env('PUSH_TO_CHAT', true)) {
+                    // Send the message to the project's Google Chat space
+                    $messageResult = $chatService->sendMessage(
+                        $project->google_chat_id,
+                        $messageText
+                    );
+                }
+                else {
+                    return;
+                }
+
+
 
                 // Save the Google Chat space ID to the task
                 $task->google_chat_space_id = $project->google_chat_id;
