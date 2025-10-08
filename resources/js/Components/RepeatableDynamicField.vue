@@ -19,21 +19,36 @@ const emit = defineEmits(['update:modelValue']);
 
 const localItems = ref([...props.modelValue]);
 
+// Helper: shallow equality for arrays of primitives (strings)
+const arraysEqual = (a, b) => {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+};
+
+// When parent updates modelValue, sync localItems only if different
 watch(
   () => props.modelValue,
   (newVal) => {
-    // Replace local items when parent changes
-    localItems.value = Array.isArray(newVal) ? [...newVal] : [];
-  },
-  { deep: true }
+    const incoming = Array.isArray(newVal) ? newVal : [];
+    if (!arraysEqual(incoming, localItems.value)) {
+      localItems.value = [...incoming];
+    }
+  }
 );
 
+// When localItems change, emit update only if different from parent value
 watch(
-  localItems,
+  () => [...localItems.value],
   (newVal) => {
-    emit('update:modelValue', newVal);
-  },
-  { deep: true }
+    const parentVal = Array.isArray(props.modelValue) ? props.modelValue : [];
+    if (!arraysEqual(newVal, parentVal)) {
+      emit('update:modelValue', newVal);
+    }
+  }
 );
 
 const linkRegex = /^\((.*?)\)\[(.*?)\]$/;

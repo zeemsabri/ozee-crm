@@ -142,6 +142,23 @@ const dataSources = computed(() => {
             ];
             const modelName = step.step_config && step.step_config.model ? step.step_config.model : null;
             const groupLabel = `Step ${index + 1}: Fetch Records` + (modelName ? ` — ${modelName}` : '');
+
+            // If this Fetch step is configured to return a single record, expose its fields
+            if (step.step_config && step.step_config.single && modelName) {
+                const model = automationSchema.value.find(m => m.name === modelName);
+                if (model) {
+                    (model.columns || []).forEach(col => {
+                        const name = typeof col === 'string' ? col : (col.name || '');
+                        const label = typeof col === 'string' ? humanize(col) : (col.label || col.name || '');
+                        if (name) {
+                            fields.push({ label: `record.${label}`, value: `{{step_${step.id}.record.${name}}}` });
+                        }
+                    });
+                }
+                // Also expose the whole record object (useful for JSON serialization)
+                fields.push({ label: 'record (object)', value: `{{step_${step.id}.record}}` });
+            }
+
             sources.push({
                 name: groupLabel,
                 fields,

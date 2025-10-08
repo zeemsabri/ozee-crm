@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Prompt;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class AIGenerationService
 {
@@ -63,6 +64,8 @@ class AIGenerationService
             ],
             'generationConfig' => $generationConfig,
         ];
+
+        Log::info(json_encode($payload));
 
         $url = sprintf('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s', $model, $apiKey);
 

@@ -1,10 +1,11 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useWorkflowStore } from '../../Store/workflowStore';
 import StepCard from './StepCard.vue';
 import DataTokenInserter from './DataTokenInserter.vue';
 import { PlusIcon, TrashIcon } from 'lucide-vue-next';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import RelatedDataPicker from './RelatedDataPicker.vue';
 
 const props = defineProps({
     step: { type: Object, required: true },
@@ -108,13 +109,29 @@ function insertTokenForCondition(index, token) {
     const currentValue = currentConditions[index]?.value || '';
     updateCondition(index, 'value', `${currentValue}${token}`);
 }
+
+// Relationships UI
+const showRelations = ref(false);
+const relationshipsSummary = computed(() => {
+    const rels = config.value.relationships || {};
+    const roots = Array.isArray(rels.roots) ? rels.roots : [];
+    const nested = rels.nested || {};
+    if (!roots.length) return 'None';
+    const parts = [];
+    roots.forEach(r => {
+        const kids = Array.isArray(nested[r]) ? nested[r] : [];
+        if (kids.length) parts.push(`${r} (+ ${kids.join(', ')})`);
+        else parts.push(r);
+    });
+    return parts.join(', ');
+});
 </script>
 
 <template>
     <StepCard icon="🔍" title="Fetch Records" :onDelete="() => emit('delete')">
         <div class="space-y-3">
             <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Find all records from</label>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Find records from</label>
                 <SelectDropdown
                     :options="modelOptions"
                     :model-value="config.model || null"
@@ -122,14 +139,15 @@ function insertTokenForCondition(index, token) {
                     @update:modelValue="(val) => config = { ...config, model: val, conditions: [] }"
                 />
             </div>
-            <div v-if="config.model">
-                <div class="flex items-center justify-between mb-2">
+
+            <div v-if="config.model" class="space-y-3">
+                <div class="flex items-center justify-between">
                     <label class="text-xs font-medium text-gray-600">Where conditions match</label>
                     <button @click="addCondition" class="flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-gray-100 hover:bg-gray-200"><PlusIcon class="h-3 w-3" /> Add</button>
                 </div>
                 <div class="space-y-2">
                     <div v-for="(cond, index) in config.conditions" :key="index" class="p-2 border rounded-md bg-gray-50/50 space-y-2">
-                         <div class="grid grid-cols-3 gap-2 items-center">
+                        <div class="grid grid-cols-3 gap-2 items-center">
                             <SelectDropdown
                                 :options="columnOptions"
                                 :model-value="cond.column || null"
@@ -137,9 +155,9 @@ function insertTokenForCondition(index, token) {
                                 @update:modelValue="(val) => updateCondition(index, 'column', val)"
                                 class="col-span-2"
                             />
-                             <div class="flex items-center justify-end">
+                            <div class="flex items-center justify-end">
                                 <button @click="removeCondition(index)" class="p-1 text-gray-400 hover:text-red-500"><TrashIcon class="w-4 h-4" /></button>
-                             </div>
+                            </div>
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                             <SelectDropdown
@@ -149,33 +167,59 @@ function insertTokenForCondition(index, token) {
                                 @update:modelValue="(val) => updateCondition(index, 'operator', val)"
                             />
                             <div class="flex items-center gap-1">
-                               <!-- Value control adapts to field type -->
-                               <template v-if="getColumnMeta(cond.column)?.allowed_values">
-                                   <SelectDropdown
-                                       :options="(getColumnMeta(cond.column).allowed_values || []).map(o => ({ value: o.value, label: o.label }))"
-                                       :model-value="cond.value || null"
-                                       placeholder="Select value..."
-                                       @update:modelValue="val => updateCondition(index, 'value', val)"
-                                   />
-                               </template>
-                               <template v-else-if="getColumnMeta(cond.column)?.type === 'True/False'">
-                                   <select :value="cond.value ?? 'true'" @change="updateCondition(index, 'value', $event.target.value)" class="w-full border rounded px-2 py-2 text-sm">
-                                       <option value="true">True</option>
-                                       <option value="false">False</option>
-                                   </select>
-                               </template>
-                               <template v-else>
-                                   <input :type="getColumnMeta(cond.column)?.type === 'Date' ? 'date' : (getColumnMeta(cond.column)?.type === 'DateTime' ? 'datetime-local' : 'text')" :value="cond.value" @input="updateCondition(index, 'value', $event.target.value)" placeholder="Value" class="w-full border rounded px-2 py-2 text-sm" />
-                               </template>
+                                <!-- Value control adapts to field type -->
+                                <template v-if="getColumnMeta(cond.column)?.allowed_values">
+                                    <SelectDropdown
+                                        :options="(getColumnMeta(cond.column).allowed_values || []).map(o => ({ value: o.value, label: o.label }))"
+                                        :model-value="cond.value || null"
+                                        placeholder="Select value..."
+                                        @update:modelValue="val => updateCondition(index, 'value', val)"
+                                    />
+                                </template>
+                                <template v-else-if="getColumnMeta(cond.column)?.type === 'True/False'">
+                                    <select :value="cond.value ?? 'true'" @change="updateCondition(index, 'value', $event.target.value)" class="w-full border rounded px-2 py-2 text-sm">
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </template>
+                                <template v-else>
+                                    <input :type="getColumnMeta(cond.column)?.type === 'Date' ? 'date' : (getColumnMeta(cond.column)?.type === 'DateTime' ? 'datetime-local' : 'text')" :value="cond.value" @input="updateCondition(index, 'value', $event.target.value)" placeholder="Value" class="w-full border rounded px-2 py-2 text-sm" />
+                                </template>
 
-                               <DataTokenInserter
-                                   :all-steps-before="allStepsBefore"
-                                   :loop-context-schema="loopContextSchema"
-                                   @insert="insertTokenForCondition(index, $event)"
+                                <DataTokenInserter
+                                    :all-steps-before="allStepsBefore"
+                                    :loop-context-schema="loopContextSchema"
+                                    @insert="insertTokenForCondition(index, $event)"
                                 />
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Fetch mode: single vs multiple -->
+                <div class="flex items-center gap-2 pt-1">
+                    <label class="inline-flex items-center gap-2 text-sm">
+                        <input type="checkbox" :checked="!!config.single" @change="config = { ...config, single: $event.target.checked }" class="rounded border-gray-300" />
+                        Only first match (single record)
+                    </label>
+                </div>
+
+                <!-- Relationships include -->
+                <div class="p-2 border rounded-md bg-gray-50/60">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-medium text-gray-700">Include Related Data</p>
+                            <p class="text-[11px] text-gray-500">{{ relationshipsSummary }}</p>
+                        </div>
+                        <button type="button" class="text-xs px-2 py-1 rounded-md bg-white ring-1 ring-gray-300 hover:bg-gray-50" @click="showRelations = true">Choose…</button>
+                    </div>
+                    <RelatedDataPicker
+                        :show="showRelations"
+                        :base-model-name="config.model"
+                        :model-value="config.relationships || { base_model: config.model, roots: [], nested: {}, fields: {} }"
+                        @update:modelValue="(val) => config = { ...config, relationships: val }"
+                        @close="showRelations = false"
+                    />
                 </div>
             </div>
         </div>

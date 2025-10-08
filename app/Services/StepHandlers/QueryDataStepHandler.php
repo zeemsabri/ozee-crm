@@ -25,9 +25,32 @@ class QueryDataStepHandler implements StepHandlerContract
         /** @var \Illuminate\Database\Eloquent\Builder $q */
         $q = $class::query();
 
+        // Eager-load relationships if requested
+        $with = [];
+        // Simple array of relation paths, e.g., ["user.projects", "email.conversation"]
+        if (!empty($cfg['with']) && is_array($cfg['with'])) {
+            $with = array_values(array_filter(array_map('strval', $cfg['with']), fn($p) => $p !== ''));
+        }
+        // Relationships payload from RelatedDataPicker (roots + nested)
+        if (empty($with) && !empty($cfg['relationships']) && is_array($cfg['relationships'])) {
+            $rels = $cfg['relationships'];
+            $roots = is_array($rels['roots'] ?? null) ? $rels['roots'] : [];
+            foreach ($roots as $root) {
+                $with[] = (string) $root;
+                $nested = is_array(($rels['nested'] ?? [])[$root] ?? null) ? ($rels['nested'][$root] ?? []) : [];
+                foreach ($nested as $child) {
+                    $with[] = $root . '.' . $child;
+                }
+            }
+            // De-duplicate
+            $with = array_values(array_unique(array_filter($with)));
+        }
+        if (!empty($with)) {
+            $q->with($with);
+        }
+
         $conditions = $cfg['conditions'] ?? [];
         foreach ($conditions as $cond) {
-            // QueryDataStepHandler.php: Line 26 (Updated)
             $field = $cond['field'] ?? ($cond['column'] ?? null);
             $op = $cond['op'] ?? ($cond['operator'] ?? '=');
             $val = $cond['value'] ?? null;
@@ -55,32 +78,49 @@ class QueryDataStepHandler implements StepHandlerContract
                 if ($f) { $q->orderBy($f, in_array($d, ['asc','desc']) ? $d : 'asc'); }
             }
         }
-        $limit = (int)($cfg['limit'] ?? 50);
-        if ($limit <= 0 || $limit > 1000) { $limit = 50; }
 
-
-// Log the query
-        Log::info('Executing query', [
-            'sql' => $q->limit($limit)->toSql(),
-            'bindings' => $q->getBindings()
-        ]);
-
-        // Execute
-        $records = $q->limit($limit)->get();
+        $single = (bool)($cfg['single'] ?? false) || (isset($cfg['mode']) && strtolower((string)$cfg['mode']) === 'single');
         $countOnly = (bool)($cfg['count_only'] ?? false);
-        $count = $countOnly ? (clone $q)->count() : $records->count();
 
-        $recordsArr = $countOnly ? [] : $records->map(function ($m) {
-            if ($m instanceof Model) {
-                return $m->toArray();
-            }
-            return (array)$m;
-        })->values()->all();
+        // Logging preview (avoid mutating builder before execution)
+        try {
+            Log::info('Executing query', [
+                'sql' => $q->toSql(),
+                'bindings' => $q->getBindings(),
+                'with' => $with,
+                'single' => $single,
+            ]);
+        } catch (\Throwable $e) {
+            // ignore log failures
+        }
 
-        $parsed = [
-            'count' => $count,
-            'records' => $recordsArr,
-        ];
+        if ($single) {
+            $record = $q->first();
+            $count = $record ? 1 : 0;
+            $recordArr = $record instanceof Model ? $record->toArray() : ($record ? (array)$record : null);
+            $parsed = [
+                'count' => $count,
+                'record' => $recordArr,
+                // keep records for compatibility (single-item array)
+                'records' => $recordArr ? [$recordArr] : [],
+            ];
+        } else {
+            // Respect limit for multi fetch, with sane bounds
+            $limit = (int)($cfg['limit'] ?? 50);
+            if ($limit <= 0 || $limit > 1000) { $limit = 50; }
+            $records = $q->limit($limit)->get();
+            $count = $countOnly ? (clone $q)->count() : $records->count();
+            $recordsArr = $countOnly ? [] : $records->map(function ($m) {
+                if ($m instanceof Model) {
+                    return $m->toArray();
+                }
+                return (array)$m;
+            })->values()->all();
+            $parsed = [
+                'count' => $count,
+                'records' => $recordsArr,
+            ];
+        }
 
         $outputKey = $cfg['output_key'] ?? null;
         $contextOut = [];
@@ -131,8 +171,8 @@ class QueryDataStepHandler implements StepHandlerContract
         if (is_array($value)) {
             return array_map(fn($v) => $this->applyTemplate($v, $ctx), $value);
         }
-        if($value === "true") return 1;
-        if($value === "false") return 0;
+        if ($value === "true") return 1;
+        if ($value === "false") return 0;
         if (!is_string($value)) return $value;
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($ctx) {
             $path = trim($m[1]);
