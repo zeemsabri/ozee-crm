@@ -1,1 +1,0 @@
-import{v as s,K as t,a,o as r,b as o,t as c}from"./app-CDr3a6VS.js";const n={class:"text-sm text-red-600"},l={__name:"InputError",props:{message:{type:String}},setup(e){return(i,m)=>s((r(),a("div",null,[o("p",n,c(e.message),1)],512)),[[t,e.message]])}};export{l as _};
