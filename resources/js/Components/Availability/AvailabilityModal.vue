@@ -127,7 +127,8 @@ const fetchExistingAvailabilities = async () => {
             response.data.availabilities.forEach(availability => {
                 const dateString = availability.date.split('T')[0];
                 if (dailyAvailabilities.value[dateString]) {
-                    dailyAvailabilities.value[dateString].isSelected = true;
+                    // FIX: DO NOT SET isSelected when loading existing data.
+                    // It should only be set on user interaction within the modal.
                     dailyAvailabilities.value[dateString].isAvailable = availability.is_available;
                     if (availability.is_available) {
                         dailyAvailabilities.value[dateString].timeSlots =
@@ -175,12 +176,6 @@ watch(() => props.show, async (newValue) => {
     }
 }, { immediate: true });
 
-
-
-const isDaySelected = computed(() => {
-    return !!selectedDate.value;
-});
-
 const selectedDayData = computed(() => {
     return dailyAvailabilities.value[selectedDate.value] || {
         isSelected: false,
@@ -191,7 +186,9 @@ const selectedDayData = computed(() => {
 });
 
 const isAnyDaySelected = computed(() => {
-    return isDaySelected;
+    // This is the correct logic.
+    // It checks if any day's data has actually been modified.
+    return Object.values(dailyAvailabilities.value).some(day => day.isSelected);
 });
 
 const isSelectedDayValid = computed(() => {
@@ -208,9 +205,6 @@ const isSelectedDayValid = computed(() => {
 
 const handleDaySelection = (date) => {
     selectedDate.value = date;
-    if (dailyAvailabilities.value[date]) {
-        dailyAvailabilities.value[date].isSelected = true;
-    }
 };
 
 const addTimeSlot = () => {
@@ -319,8 +313,13 @@ const submitForm = async () => {
         }
     }
 
-    if (availabilitiesToSubmit.length === 0) {
+    if (availabilitiesToSubmit.length === 0 && !hasGeneralError) {
         errors.value.general = 'Please select and set availability for at least one day.';
+        isSubmitting.value = false;
+        return;
+    }
+
+    if (hasGeneralError) {
         isSubmitting.value = false;
         return;
     }
@@ -411,7 +410,7 @@ const submitForm = async () => {
 
                             <!-- Availability status badge -->
                             <span
-                                v-if="dailyAvailabilities[dateObj.value]?.isSelected"
+                                v-if="(dailyAvailabilities[dateObj.value]?.timeSlots[0]?.start_time && dailyAvailabilities[dateObj.value]?.timeSlots[0]?.end_time) || dailyAvailabilities[dateObj.value]?.reason"
                                 class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
                                 :class="{
                                     'bg-emerald-100 text-emerald-800': dailyAvailabilities[dateObj.value].isAvailable,
@@ -430,99 +429,101 @@ const submitForm = async () => {
 
                 <!-- Right Column: Detail Form or Placeholder Message -->
                 <div v-if="selectedDate" class="lg:col-span-2 p-6 bg-gray-50 rounded-xl shadow-inner">
-                    <div v-if="selectedDate">
-                        <h3 class="text-xl font-semibold text-gray-800 mb-4">
-                            Availability for {{ weekDates.find(d => d.value === selectedDate)?.label }}
-                        </h3>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">
+                        Availability for {{ weekDates.find(d => d.value === selectedDate)?.label }}
+                    </h3>
 
-                        <!-- Bulk action button -->
-                        <div class="mb-4 text-sm text-right">
-                            <button
-                                type="button"
-                                @click="applyToAll"
-                                :disabled="!isSelectedDayValid"
-                                :class="{ 'opacity-50 cursor-not-allowed': !isSelectedDayValid }"
-                                class="text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out"
+                    <!-- Bulk action button -->
+                    <div class="mb-4 text-sm text-right">
+                        <button
+                            type="button"
+                            @click="applyToAll"
+                            :disabled="!isSelectedDayValid"
+                            :class="{ 'opacity-50 cursor-not-allowed': !isSelectedDayValid }"
+                            class="text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" />
+                                <path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z" />
+                            </svg>
+                            Apply to all days
+                        </button>
+                    </div>
+
+                    <!-- Availability toggle -->
+                    <div class="flex items-center justify-between mb-6 p-4 rounded-lg bg-white shadow-sm border border-gray-200">
+                        <span class="text-sm font-medium text-gray-700">I am available on this day</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                :checked="selectedDayData.isAvailable"
+                                @change="handleIsAvailableToggle($event.target.checked)"
+                                class="sr-only peer"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" />
-                                    <path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z" />
-                                </svg>
-                                Apply to all days
-                            </button>
-                        </div>
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+                    <InputError :message="errors[selectedDate]?.general" class="mt-2" />
 
-                        <!-- Availability toggle -->
-                        <div class="flex items-center justify-between mb-6 p-4 rounded-lg bg-white shadow-sm border border-gray-200">
-                            <span class="text-sm font-medium text-gray-700">I am available on this day</span>
-                            <label class="relative inline-flex items-center cursor-pointer">
+                    <div v-if="selectedDayData.isAvailable">
+                        <InputLabel value="Available Time Slots" class="text-gray-800 mb-2" />
+                        <InputError :message="errors[selectedDate]?.timeSlots" class="mt-2 mb-4" />
+
+                        <div v-for="(slot, index) in selectedDayData.timeSlots" :key="index" class="flex items-center space-x-2 mb-4">
+                            <div class="flex-1">
                                 <input
-                                    type="checkbox"
-                                    :checked="selectedDayData.isAvailable"
-                                    @change="handleIsAvailableToggle($event.target.checked)"
-                                    class="sr-only peer"
-                                >
-                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                            </label>
-                        </div>
-                        <InputError :message="errors[selectedDate]?.general" class="mt-2" />
+                                    type="time"
+                                    v-model="dailyAvailabilities[selectedDate].timeSlots[index].start_time"
+                                    @change="dailyAvailabilities[selectedDate].isSelected = true"
+                                    class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                                />
+                            </div>
 
-                        <div v-if="selectedDayData.isAvailable">
-                            <InputLabel value="Available Time Slots" class="text-gray-800 mb-2" />
-                            <InputError :message="errors[selectedDate]?.timeSlots" class="mt-2 mb-4" />
+                            <span class="text-gray-500">-</span>
 
-                            <div v-for="(slot, index) in selectedDayData.timeSlots" :key="index" class="flex items-center space-x-2 mb-4">
-                                <div class="flex-1">
-                                    <input
-                                        type="time"
-                                        v-model="dailyAvailabilities[selectedDate].timeSlots[index].start_time"
-                                        class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                                    />
-                                </div>
-
-                                <span class="text-gray-500">-</span>
-
-                                <div class="flex-1">
-                                    <input
-                                        type="time"
-                                        v-model="dailyAvailabilities[selectedDate].timeSlots[index].end_time"
-                                        class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                                    />
-                                </div>
-
-                                <button
-                                    type="button"
-                                    @click="removeTimeSlot(index)"
-                                    v-if="dailyAvailabilities[selectedDate].timeSlots.length > 1"
-                                    class="p-2 text-red-600 hover:text-red-800 transition duration-150 ease-in-out"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
-                                    </svg>
-                                </button>
+                            <div class="flex-1">
+                                <input
+                                    type="time"
+                                    v-model="dailyAvailabilities[selectedDate].timeSlots[index].end_time"
+                                    @change="dailyAvailabilities[selectedDate].isSelected = true"
+                                    class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                                />
                             </div>
 
                             <button
                                 type="button"
-                                @click="addTimeSlot"
-                                class="mt-2 w-full flex items-center justify-center px-4 py-2 border border-dashed border-indigo-300 rounded-lg text-indigo-600 hover:bg-indigo-50 transition duration-150 ease-in-out"
+                                @click="removeTimeSlot(index)"
+                                v-if="dailyAvailabilities[selectedDate].timeSlots.length > 1"
+                                class="p-2 text-red-600 hover:text-red-800 transition duration-150 ease-in-out"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
                                 </svg>
-                                Add Another Time Slot
                             </button>
                         </div>
-                        <div v-else>
-                            <InputLabel value="Reason for Not Available" class="text-gray-800 mb-2" />
-                            <textarea
-                                v-model="dailyAvailabilities[selectedDate].reason"
-                                rows="3"
-                                class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                                placeholder="e.g., Out of office, Holiday, Meeting all day"
-                            ></textarea>
-                            <InputError :message="errors[selectedDate]?.reason" class="mt-2" />
-                        </div>
+
+                        <button
+                            type="button"
+                            @click="addTimeSlot"
+                            class="mt-2 w-full flex items-center justify-center px-4 py-2 border border-dashed border-indigo-300 rounded-lg text-indigo-600 hover:bg-indigo-50 transition duration-150 ease-in-out"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                            </svg>
+                            Add Another Time Slot
+                        </button>
+                    </div>
+                    <div v-else>
+                        <InputLabel value="Reason for Not Available" class="text-gray-800 mb-2" />
+                        <textarea
+                            v-model="dailyAvailabilities[selectedDate].reason"
+                            @input="dailyAvailabilities[selectedDate].isSelected = true"
+                            rows="3"
+                            class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                            placeholder="e.g., Out of office, Holiday, Meeting all day"
+                        ></textarea>
+                        <InputError :message="errors[selectedDate]?.reason" class="mt-2" />
+                    </div>
                 </div>
                 <div v-else class="lg:col-span-2 p-6 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center">
                     <p class="text-gray-500 text-lg font-medium">
@@ -530,26 +531,28 @@ const submitForm = async () => {
                     </p>
                 </div>
             </div>
-
-            <!-- Form Actions (only show when there is something to save) -->
-            <div v-if="isAnyDaySelected" class="mt-8 sticky bottom-0 bg-white pt-4 border-t flex justify-end gap-3">
-                <SecondaryButton @click="$emit('close')">
-                    Cancel
-                </SecondaryButton>
-
-                <PrimaryButton @click="submitForm" :disabled="isSubmitting" :class="{ 'opacity-50 cursor-not-allowed': isSubmitting }">
-                    <span v-if="isSubmitting" class="flex items-center">
-                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Saving...
-                    </span>
-                    <span v-else>Save Availability</span>
-                </PrimaryButton>
-            </div>
         </div>
-    </div>
 
+        <!-- Modal Footer with Buttons (Always Visible) -->
+        <div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3">
+            <SecondaryButton @click="$emit('close')">
+                Cancel
+            </SecondaryButton>
+
+            <PrimaryButton
+                @click="submitForm"
+                :disabled="isSubmitting || !isAnyDaySelected"
+                :class="{ 'opacity-50 cursor-not-allowed': isSubmitting || !isAnyDaySelected }"
+            >
+                <span v-if="isSubmitting" class="flex items-center">
+                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Saving...
+                </span>
+                <span v-else>Save Availability</span>
+            </PrimaryButton>
+        </div>
     </Modal>
 </template>
