@@ -149,14 +149,37 @@ watch(() => props.show, async (newValue) => {
     if (newValue) {
         errors.value = {};
         reasonForLateSubmission.value = '';
-        isCurrentWeekMode.value = false;
-        weekDates.value = generateNextWeekDates();
+
+        // Decide which week to show first based on API status
+        try {
+            ensureAuthHeaders();
+            const { data } = await axios.get('/api/availability-prompt');
+            const needsCurrentWeek = !(data.all_current_weekdays_covered ?? true);
+            if (needsCurrentWeek) {
+                isCurrentWeekMode.value = true;
+                weekDates.value = generateCurrentWeekDates();
+            } else {
+                isCurrentWeekMode.value = false;
+                weekDates.value = generateNextWeekDates();
+            }
+        } catch (e) {
+            // Fallback to next week if API status fails
+            isCurrentWeekMode.value = false;
+            weekDates.value = generateNextWeekDates();
+        }
+
         await fetchExistingAvailabilities();
         selectedDate.value = null; // Do not pre-select on modal open
     } else {
         selectedDate.value = null;
     }
 }, { immediate: true });
+
+
+
+const isDaySelected = computed(() => {
+    return !!selectedDate.value;
+});
 
 const selectedDayData = computed(() => {
     return dailyAvailabilities.value[selectedDate.value] || {
@@ -168,7 +191,7 @@ const selectedDayData = computed(() => {
 });
 
 const isAnyDaySelected = computed(() => {
-    return Object.values(dailyAvailabilities.value).some(day => day.isSelected);
+    return isDaySelected;
 });
 
 const isSelectedDayValid = computed(() => {
@@ -182,7 +205,6 @@ const isSelectedDayValid = computed(() => {
         return wordCount >= 2;
     }
 });
-
 
 const handleDaySelection = (date) => {
     selectedDate.value = date;
@@ -323,7 +345,7 @@ const submitForm = async () => {
 </script>
 
 <template>
-    <Modal :show="show" @close="$emit('close')" max-width="4xl">
+    <Modal :show="show" @close="$emit('close')" max-width="4xl" closeable>
         <div class="p-8">
             <h2 class="text-2xl font-bold text-gray-900">
                 Set Your Weekly Availability
@@ -479,30 +501,28 @@ const submitForm = async () => {
                                     </svg>
                                 </button>
                             </div>
+
+                            <button
+                                type="button"
+                                @click="addTimeSlot"
+                                class="mt-2 w-full flex items-center justify-center px-4 py-2 border border-dashed border-indigo-300 rounded-lg text-indigo-600 hover:bg-indigo-50 transition duration-150 ease-in-out"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                                </svg>
+                                Add Another Time Slot
+                            </button>
                         </div>
-
-                        <button
-                            type="button"
-                            @click="addTimeSlot"
-                            class="mt-2 w-full flex items-center justify-center px-4 py-2 border border-dashed border-indigo-300 rounded-lg text-indigo-600 hover:bg-indigo-50 transition duration-150 ease-in-out"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
-                            </svg>
-                            Add Another Time Slot
-                        </button>
-                    </div>
-
-                    <div v-else>
-                        <InputLabel value="Reason for Not Available" class="text-gray-800 mb-2" />
-                        <textarea
-                            v-model="dailyAvailabilities[selectedDate].reason"
-                            rows="3"
-                            class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                            placeholder="e.g., Out of office, Holiday, Meeting all day"
-                        ></textarea>
-                        <InputError :message="errors[selectedDate]?.reason" class="mt-2" />
-                    </div>
+                        <div v-else>
+                            <InputLabel value="Reason for Not Available" class="text-gray-800 mb-2" />
+                            <textarea
+                                v-model="dailyAvailabilities[selectedDate].reason"
+                                rows="3"
+                                class="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                                placeholder="e.g., Out of office, Holiday, Meeting all day"
+                            ></textarea>
+                            <InputError :message="errors[selectedDate]?.reason" class="mt-2" />
+                        </div>
                 </div>
                 <div v-else class="lg:col-span-2 p-6 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center">
                     <p class="text-gray-500 text-lg font-medium">
@@ -511,13 +531,13 @@ const submitForm = async () => {
                 </div>
             </div>
 
-            <!-- Form Actions -->
-            <div class="mt-8 flex justify-end space-x-3">
+            <!-- Form Actions (only show when there is something to save) -->
+            <div v-if="isAnyDaySelected" class="mt-8 sticky bottom-0 bg-white pt-4 border-t flex justify-end gap-3">
                 <SecondaryButton @click="$emit('close')">
                     Cancel
                 </SecondaryButton>
 
-                <PrimaryButton @click="submitForm" :disabled="isSubmitting || !isAnyDaySelected" :class="{ 'opacity-50 cursor-not-allowed': isSubmitting || !isAnyDaySelected }">
+                <PrimaryButton @click="submitForm" :disabled="isSubmitting" :class="{ 'opacity-50 cursor-not-allowed': isSubmitting }">
                     <span v-if="isSubmitting" class="flex items-center">
                         <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -529,5 +549,7 @@ const submitForm = async () => {
                 </PrimaryButton>
             </div>
         </div>
+    </div>
+
     </Modal>
 </template>

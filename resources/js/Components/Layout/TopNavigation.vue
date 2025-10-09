@@ -76,7 +76,7 @@ onMounted(async () => {
 </script>
 
 <template>
-    <nav class="bg-white z-[50] relative w-full shadow-sm border-b border-gray-100">
+    <nav class="bg-white z-[49] relative w-full shadow-sm border-b border-gray-100">
         <!-- Main Header Bar -->
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 justify-between items-center">
