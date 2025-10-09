@@ -2,13 +2,16 @@
 import { Head } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import AvailabilityCalendar from '@/Components/Availability/AvailabilityCalendar.vue';
+import {useGlobalPermissions, usePermissions} from "@/Directives/permissions.js";
 
 const props = defineProps({
     auth: Object,
 });
 
-// Check if user is admin or manager
-const isAdmin = props.auth?.user?.role_data?.slug === 'super-admin' || props.auth?.user?.role_data?.slug === 'manager';
+const { permissions: globalPermissions, loading: globalPermissionsLoading } = useGlobalPermissions();
+const { canDo } = usePermissions();
+const canViewUserAvailability = canDo('view_users_availability');
+
 </script>
 
 <template>
@@ -31,7 +34,7 @@ const isAdmin = props.auth?.user?.role_data?.slug === 'super-admin' || props.aut
 
                         <AvailabilityCalendar
                             :user-id="props.auth?.user?.id"
-                            :is-admin="isAdmin"
+                            :is-admin="canViewUserAvailability"
                         />
                     </div>
                 </div>
