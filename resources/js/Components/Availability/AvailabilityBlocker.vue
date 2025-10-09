@@ -9,7 +9,11 @@ import axios from 'axios';
 const shouldBlock = ref(false);
 const loading = ref(true);
 const showAvailabilityModal = ref(false);
-const nextWeekDates = ref([]);
+
+// Additional state for smarter messaging
+const allCurrentWeekdaysCovered = ref(true);
+const allNextWeekdaysCovered = ref(true);
+const isFridayOnwards = ref(false);
 
 // Get current user ID from auth
 const currentUserId = computed(() => {
@@ -24,64 +28,41 @@ const ensureAuthHeaders = () => {
     }
 };
 
-// Check if we should block the user
+// Check if we should block the user (always rely on API and then sync localStorage)
 const checkShouldBlock = async () => {
     loading.value = true;
-
-    // First check localStorage which is updated by AvailabilityPrompt
-    const storedShouldBlock = localStorage.getItem('shouldBlockUser');
-    const storedAllWeekdaysCovered = localStorage.getItem('allWeekdaysCovered');
-
-    if (storedShouldBlock === 'true' && storedAllWeekdaysCovered === 'false') {
-        shouldBlock.value = true;
-        await fetchNextWeekDates();
-    } else {
-        // If not found in localStorage, fetch from API
-        try {
-            ensureAuthHeaders();
-            const response = await axios.get('/api/availability-prompt');
-            shouldBlock.value = response.data.should_block_user && !response.data.all_weekdays_covered;
-
-            if (shouldBlock.value) {
-                await fetchNextWeekDates();
-            }
-        } catch (error) {
-            console.error('Error checking if user should be blocked:', error);
-            shouldBlock.value = false;
-        }
-    }
-
-    loading.value = false;
-};
-
-// Fetch next week dates for the availability modal
-const fetchNextWeekDates = async () => {
     try {
         ensureAuthHeaders();
-        const response = await axios.get('/api/availability-prompt');
-        generateNextWeekDates(response.data.next_week_start, response.data.next_week_end);
-    } catch (error) {
-        console.error('Error fetching next week dates:', error);
-    }
-};
+        const { data } = await axios.get('/api/availability-prompt');
 
-// Generate dates for next week
-const generateNextWeekDates = (startDateStr, endDateStr) => {
-    const dates = [];
-    const startDate = new Date(startDateStr);
-    const endDate = new Date(endDateStr);
+        // Update state from API
+        shouldBlock.value = !!data.should_block_user;
+        allCurrentWeekdaysCovered.value = !!data.all_current_weekdays_covered;
+        allNextWeekdaysCovered.value = !!(data.all_next_weekdays_covered ?? data.all_weekdays_covered);
+        isFridayOnwards.value = !!data.is_friday_onwards;
 
-    // Create an array of dates from start to end
-    const currentDate = new Date(startDate);
-    while (currentDate <= endDate) {
-        dates.push({
-            value: currentDate.toISOString().split('T')[0],
-            label: currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+        // Keep localStorage in sync for other parts of the app
+        localStorage.setItem('shouldBlockUser', String(shouldBlock.value));
+        localStorage.setItem('allCurrentWeekdaysCovered', String(allCurrentWeekdaysCovered.value));
+        localStorage.setItem('allNextWeekdaysCovered', String(allNextWeekdaysCovered.value));
+        // Back-compat key
+        localStorage.setItem('allWeekdaysCovered', String(allNextWeekdaysCovered.value));
+
+        // Emit global event so listeners can react immediately
+        const event = new CustomEvent('availability-status-updated', {
+            detail: {
+                shouldBlockUser: shouldBlock.value,
+                allCurrentWeekdaysCovered: allCurrentWeekdaysCovered.value,
+                allNextWeekdaysCovered: allNextWeekdaysCovered.value
+            }
         });
-        currentDate.setDate(currentDate.getDate() + 1);
+        window.dispatchEvent(event);
+    } catch (error) {
+        console.error('Error checking if user should be blocked:', error);
+        shouldBlock.value = false;
+    } finally {
+        loading.value = false;
     }
-
-    nextWeekDates.value = dates;
 };
 
 // Open the availability modal
@@ -91,13 +72,19 @@ const openAvailabilityModal = () => {
 
 // Handle availability saved
 const handleAvailabilitySaved = () => {
-    // Recheck if we should still block the user
+    // Recheck if we should still block the user and update global state
     checkShouldBlock();
 };
 
 // Listen for the availability-status-updated event
 const handleAvailabilityStatusUpdated = (event) => {
-    shouldBlock.value = event.detail.shouldBlockUser && !event.detail.allWeekdaysCovered;
+    shouldBlock.value = !!event.detail.shouldBlockUser;
+    if ('allCurrentWeekdaysCovered' in event.detail) {
+        allCurrentWeekdaysCovered.value = !!event.detail.allCurrentWeekdaysCovered;
+    }
+    if ('allNextWeekdaysCovered' in event.detail) {
+        allNextWeekdaysCovered.value = !!event.detail.allNextWeekdaysCovered;
+    }
 };
 
 // Handle visibility change - check blocking status when page becomes visible
@@ -112,7 +99,7 @@ const handleVisibilityChange = () => {
 
 // Handle storage changes from other tabs/windows
 const handleStorageChange = (event) => {
-    if (event.key === 'shouldBlockUser' || event.key === 'allWeekdaysCovered') {
+    if (['shouldBlockUser', 'allWeekdaysCovered', 'allCurrentWeekdaysCovered', 'allNextWeekdaysCovered'].includes(event.key)) {
         // When localStorage changes, check if we should block
         nextTick(() => {
             checkShouldBlock();
@@ -150,9 +137,19 @@ onUnmounted(() => {
                 <h2 class="text-xl font-bold text-gray-900">Action Required</h2>
             </div>
 
-            <p class="mb-6 text-gray-700">
-                You must submit your availability for all weekdays of next week before you can continue using the application.
-                This is required for planning meetings and work schedules.
+            <p class="mb-4 text-gray-700">
+                <template v-if="!allCurrentWeekdaysCovered && !allNextWeekdaysCovered">
+                    You need to submit your availability for the current week (up to today) and for all weekdays of next week.
+                </template>
+                <template v-else-if="!allCurrentWeekdaysCovered">
+                    You need to submit your availability for the current week (up to today).
+                </template>
+                <template v-else>
+                    You must submit your availability for all weekdays of next week before you can continue using the application.
+                </template>
+            </p>
+            <p class="mb-6 text-gray-600">
+                This information is required for planning meetings and work schedules.
             </p>
 
             <div class="flex justify-center">
@@ -167,8 +164,6 @@ onUnmounted(() => {
             <!-- Availability Modal -->
             <AvailabilityModal
                 :show="showAvailabilityModal"
-                :next-week-dates="nextWeekDates"
-                :date="nextWeekDates.length > 0 ? nextWeekDates[0].value : ''"
                 :userId="currentUserId"
                 @close="showAvailabilityModal = false"
                 @availability-saved="handleAvailabilitySaved"

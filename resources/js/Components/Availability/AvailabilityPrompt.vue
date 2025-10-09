@@ -42,12 +42,14 @@ const checkShouldShowPrompt = async () => {
         const response = await axios.get('/api/availability-prompt'); // Fetch data from the API
 
         // Update reactive state with data from the API response
-        showPrompt.value = response.data.should_show_prompt;
         shouldBlockUser.value = response.data.should_block_user;
         // Backward compatibility: prefer specific key if present else fallback
         allNextWeekdaysCovered.value = (response.data.all_next_weekdays_covered ?? response.data.all_weekdays_covered) || false;
+        const allCurrentWeekdaysCovered = response.data.all_current_weekdays_covered ?? true;
         currentDay.value = response.data.current_day;
         isThursdayToSaturday.value = response.data.is_thursday_to_saturday;
+        // Show prompt if backend says so OR it's Thu-Sat (so users can still update)
+        showPrompt.value = response.data.should_show_prompt || isThursdayToSaturday.value;
 
         // Generate dates for next week if the prompt is active
         if (showPrompt.value) {
@@ -57,14 +59,17 @@ const checkShouldShowPrompt = async () => {
         // Store blocking status in localStorage for other components to read.
         // This is a common pattern for sharing global state in simple setups.
         localStorage.setItem('shouldBlockUser', String(shouldBlockUser.value));
-        localStorage.setItem('allWeekdaysCovered', String(allNextWeekdaysCovered.value)); // Compatibility with AvailabilityBlocker
+        localStorage.setItem('allNextWeekdaysCovered', String(allNextWeekdaysCovered.value));
+        localStorage.setItem('allCurrentWeekdaysCovered', String(!!allCurrentWeekdaysCovered));
+        localStorage.setItem('allWeekdaysCovered', String(allNextWeekdaysCovered.value)); // Compatibility with older listeners
 
         // Dispatch a custom event to notify other components about the availability status change.
         // This is a reactive way for loosely coupled components to communicate.
         const event = new CustomEvent('availability-status-updated', {
             detail: {
                 shouldBlockUser: shouldBlockUser.value,
-                allWeekdaysCovered: allNextWeekdaysCovered.value
+                allNextWeekdaysCovered: allNextWeekdaysCovered.value,
+                allCurrentWeekdaysCovered: !!allCurrentWeekdaysCovered
             }
         });
         window.dispatchEvent(event);
@@ -162,14 +167,18 @@ onUnmounted(() => {
                 <svg v-else class="h-6 w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
                 </svg>
-                <p class="ml-3 text-sm font-medium"
+<p class="ml-3 text-sm font-medium"
                    :class="shouldBlockUser ? 'text-red-800' : 'text-indigo-800'">
-                    <!-- Consolidated Message Logic -->
+                    <!-- Smarter, contextual messaging -->
                     <template v-if="shouldBlockUser">
-                        <span class="font-bold">Action Required:</span> You must submit your availability for all weekdays of next week to unlock all features.
+                        <span class="font-bold">Action Required:</span>
+                        <span>
+                            <!-- We can't directly access current-week flag here, so provide clear general guidance -->
+                            You may need to submit availability for the current week (up to today) and for all weekdays of next week.
+                        </span>
                     </template>
                     <template v-else-if="!allNextWeekdaysCovered">
-                        Please submit your availability for next week. This helps in planning meetings and work schedules.
+                        Please submit your availability for next week. If you missed last week's deadline, you may also need to submit for the current week.
                     </template>
                     <template v-else>
                         Thank you for submitting your availability for next week! You can still update it if needed.

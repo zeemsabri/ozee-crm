@@ -77,9 +77,9 @@ const maxWidthClass = computed(() => {
 
 <template>
     <Transition leave-to-class="opacity-0" enter-from-class="opacity-0">
-        <div v-show="show" class="fixed inset-0 z-[100] transform transition-all">
-            <div class="absolute inset-0 bg-gray-500/75 backdrop-blur-sm transition-opacity" @click="close"></div>
-            <div class="fixed inset-0 z-[10] overflow-y-auto px-4 py-6 sm:px-0">
+        <div v-show="show" class="fixed inset-0 z-[2000] transform transition-all">
+            <div class="absolute inset-0 z-[2000] bg-gray-500/75 backdrop-blur-sm transition-opacity" @click="close"></div>
+            <div class="fixed inset-0 z-[2001] overflow-y-auto px-4 py-6 sm:px-0">
                 <div id="modal-notification-portal"></div>
                 <Transition
                     enter-active-class="ease-out duration-300"
