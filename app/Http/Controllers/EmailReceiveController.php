@@ -123,6 +123,9 @@ class EmailReceiveController extends Controller
                     $result = $this->handleEmailWithoutProjectOrLead(null, $lead, $emailDetails, $authorizedGmailAccount);
                     $processed = true;
                 }
+                else {
+                    $result = $this->handleUnknownEmail($emailDetails, $authorizedGmailAccount);
+                }
 
                 if (!empty($result)) {
                     [$conversation, $email] = $result;
@@ -158,24 +161,29 @@ class EmailReceiveController extends Controller
         }
     }
 
+    private function handleUnknownEmail(array $emailDetails, string $authorizedGmailAccount): array
+    {
+
+        // ** TRIGGER AI ANALYSIS **
+//        $content = $this->emailAiAnalysisService->analyzeAndSummarize($email);
+//        $context = [
+//            'email' => $email,
+//            'client' => $client,
+//            'project' => $project ?? null
+//        ];
+//        $this->workflowEngineService->trigger('email.received', $context);
+
+//        if($content) {
+//            $this->emailProcessingService->createContextForEmail($email, $content);
+//        }
+
+
+    }
+
     private function handleClientEmailWithProject(Client $client, Project $project, array $emailDetails, string $authorizedGmailAccount): array
     {
-        // Find conversation by subject + client conversable + project
-        $conversation = Conversation::where('subject', $emailDetails['subject'])
-            ->where('project_id', $project->id)
-            ->where('conversable_type', Client::class)
-            ->where('conversable_id', $client->id)
-            ->first();
 
-        if (!$conversation) {
-            $conversation = Conversation::create([
-                'subject' => $emailDetails['subject'],
-                'project_id' => $project->id,
-                'conversable_type' => Client::class,
-                'conversable_id' => $client->id,
-                'last_activity_at' => Carbon::parse($emailDetails['date']),
-            ]);
-        }
+        $conversation = $this->createConversation($emailDetails, $client, $project);
 
         $body = $emailDetails['body']['plain'] ?: $emailDetails['body']['html'];
 
@@ -195,21 +203,28 @@ class EmailReceiveController extends Controller
 
         $this->attachEmailAttachments($email, $emailDetails['attachments'] ?? []);
 
-        // ** TRIGGER AI ANALYSIS **
-//        $content = $this->emailAiAnalysisService->analyzeAndSummarize($email);
-//        $context = [
-//            'email' => $email,
-//            'client' => $client,
-//            'project' => $project ?? null
-//        ];
-//        $this->workflowEngineService->trigger('email.received', $context);
-
-//        if($content) {
-//            $this->emailProcessingService->createContextForEmail($email, $content);
-//        }
-
-
         return [$conversation, $email];
+    }
+
+    private function createConversation($emailDetails, Client|Lead $conversable, $project)
+    {
+        // Find conversation by subject + client conversable + project
+        $conversation = Conversation::where('subject', $emailDetails['subject'])
+            ->where('project_id', $project->id)
+            ->where('conversable_type', get_class($conversable))
+            ->where('conversable_id', $conversable->id)
+            ->first();
+
+        if (!$conversation) {
+            $conversation = Conversation::create([
+                'subject' => $emailDetails['subject'],
+                'project_id' => $project->id,
+                'conversable_type' => get_class($conversable),
+                'conversable_id' => $conversable->id,
+                'last_activity_at' => Carbon::parse($emailDetails['date']),
+            ]);
+        }
+        return $conversation;
     }
 
     private function cleanEmailBody($html)
@@ -230,33 +245,39 @@ class EmailReceiveController extends Controller
     private function handleEmailWithoutProjectOrLead(?Client $client, ?Lead $lead, array $emailDetails, string $authorizedGmailAccount): array
     {
         // Determine conversable
-        $conversableType = $client ? Client::class : Lead::class;
-        $conversableId = $client ? $client->id : ($lead ? $lead->id : null);
-
-        // If still none, bail (shouldn't happen because caller checks)
-//        if (!$conversableId) {
-//            return [];
-//        }
-
-        $conversation = Conversation::where('subject', $emailDetails['subject'])
-            ->whereNull('project_id')
-            ->where('conversable_type', $conversableType)
-            ->where('conversable_id', $conversableId)
-            ->first();
-
-        if (!$conversation) {
-            $conversation = Conversation::create([
-                'subject' => $emailDetails['subject'],
-                'project_id' => null, // explicit null project
-                'conversable_type' => $conversableType,
-                'conversable_id' => $conversableId,
-                'last_activity_at' => Carbon::parse($emailDetails['date']),
-            ]);
+        if($client) {
+            $conversableClass = new Client();
+            $conversable = $client;
+            $conversableId = $conversable ? $conversable->id : null;
         }
+        else {
+            $conversableClass = new Lead();
+            $conversable = $lead;
+            $conversableId = $lead ? $lead->id : null;
+        }
+
+        $conversableType = get_class($conversable);
+
+        $conversation = $this->createConversation($emailDetails, $conversableClass, $conversableId);
 
         $body = $emailDetails['body']['plain'] ?: $emailDetails['body']['html'];
 
-        $email = Email::create([
+        $email = $this->createEmail($conversation, $conversableType, $conversableId, $emailDetails, $authorizedGmailAccount, $body);
+
+        $this->attachEmailAttachments($email, $emailDetails['attachments'] ?? []);
+
+        $this->leadReplyHandlerService->handleIncomingReply($lead, $email);
+
+//        if($content) {
+//            $this->emailProcessingService->createContextForEmail($email, $content);
+//        }
+
+        return [$conversation, $email];
+    }
+
+    private function createEmail($conversation, $conversableType, $conversableId, $emailDetails, $authorizedGmailAccount, $body)
+    {
+        return Email::create([
             'conversation_id' => $conversation->id,
             'sender_type'   =>  $conversableType,
             'sender_id' => $conversableId,
@@ -269,16 +290,6 @@ class EmailReceiveController extends Controller
             'message_id' => $emailDetails['id'],
             'sent_at' => Carbon::parse($emailDetails['date']),
         ]);
-
-        $this->attachEmailAttachments($email, $emailDetails['attachments'] ?? []);
-
-        $this->leadReplyHandlerService->handleIncomingReply($lead, $email);
-
-//        if($content) {
-//            $this->emailProcessingService->createContextForEmail($email, $content);
-//        }
-
-        return [$conversation, $email];
     }
 
     private function attachEmailAttachments(Email $email, array $attachments): void
