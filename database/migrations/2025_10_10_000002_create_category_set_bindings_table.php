@@ -1,0 +1,25 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('category_set_bindings', function (Blueprint $table) {
+            $table->unsignedBigInteger('category_set_id');
+            $table->string('model_type');
+            $table->timestamps();
+
+            $table->foreign('category_set_id')->references('id')->on('category_sets')->onDelete('cascade');
+            $table->primary(['category_set_id', 'model_type']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('category_set_bindings');
+    }
+};

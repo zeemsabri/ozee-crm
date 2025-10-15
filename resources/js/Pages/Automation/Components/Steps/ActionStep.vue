@@ -55,6 +55,7 @@ const actionTypes = [
     { value: 'PROCESS_EMAIL', label: 'Process Email' },
     { value: 'CREATE_RECORD', label: 'Create Record' },
     { value: 'UPDATE_RECORD', label: 'Update Record' },
+    { value: 'SYNC_RELATIONSHIP', label: 'Sync Relationship' },
     { value: 'CHECK_MILESTONE_COMPLETION', label: 'Check for Milestone Completion & Update' },
 ];
 
@@ -460,6 +461,75 @@ function updateDelayMinutes(val) {
                             </p>
                         </div>
                     </div>
+                </div>
+            </template>
+
+            <!-- == SYNC RELATIONSHIP CONFIG == -->
+            <template v-if="actionConfig.action_type === 'SYNC_RELATIONSHIP'">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Target Model</label>
+                    <SelectDropdown
+                        :model-value="actionConfig.target_model || ''"
+                        :options="modelOptions"
+                        placeholder="Select model..."
+                        @update:modelValue="onTargetModelChange"
+                        class="w-full"
+                    />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Record ID</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" :value="actionConfig.record_id || ''" @input="handleConfigChange('record_id', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="e.g., {{trigger.task.id}}" />
+                        <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('record_id', $event)" />
+                    </div>
+                </div>
+
+                <div v-if="selectedModel">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Relationship</label>
+                    <select 
+                        :value="actionConfig.relationship || ''"
+                        @change="handleConfigChange('relationship', $event.target.value)"
+                        class="w-full p-2 border border-gray-300 rounded-md text-sm bg-white shadow-sm"
+                    >
+                        <option value="" disabled>Select relationship...</option>
+                        <option v-for="rel in selectedModel.relationships.filter(r => ['BelongsToMany', 'MorphToMany'].includes(r.type))" :key="rel.name" :value="rel.name">
+                            {{ humanize(rel.name) }} ({{ rel.type }})
+                        </option>
+                    </select>
+                    <p v-if="actionConfig.relationship" class="mt-1 text-[11px] text-gray-500">
+                        This will sync the many-to-many relationship "{{ actionConfig.relationship }}" on the selected {{ actionConfig.target_model }} record.
+                    </p>
+                </div>
+
+                <div v-if="actionConfig.relationship">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Sync Mode</label>
+                    <select 
+                        :value="actionConfig.sync_mode || 'sync'"
+                        @change="handleConfigChange('sync_mode', $event.target.value)"
+                        class="w-full p-2 border border-gray-300 rounded-md text-sm bg-white shadow-sm"
+                    >
+                        <option value="sync">Sync (Replace all with new IDs)</option>
+                        <option value="attach">Attach (Add new IDs without removing existing)</option>
+                        <option value="detach">Detach (Remove specified IDs)</option>
+                    </select>
+                </div>
+
+                <div v-if="actionConfig.relationship">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Related Record IDs</label>
+                    <div class="flex items-center gap-2">
+                        <input 
+                            type="text" 
+                            :value="actionConfig.related_ids || ''" 
+                            @input="handleConfigChange('related_ids', $event.target.value)" 
+                            class="w-full p-2 border border-gray-300 rounded-md text-sm" 
+                            placeholder="e.g., {{step_1.category_ids}} or 1,2,3" 
+                        />
+                        <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('related_ids', $event)" />
+                    </div>
+                    <p class="mt-1 text-[11px] text-gray-500">
+                        Comma-separated list of IDs to sync/attach/detach. Can use tokens from previous steps.
+                    </p>
                 </div>
             </template>
 

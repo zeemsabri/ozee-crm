@@ -58,6 +58,8 @@ use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\ScheduleApiController;
 use App\Http\Controllers\Api\WorkflowLogController;
 use App\Http\Controllers\Api\OptionsController;
+use App\Http\Controllers\Api\CategorySetController;
+use App\Http\Controllers\Api\CategoryController as AdminCategoryController;
 
 
 Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
@@ -110,6 +112,20 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Centralized options endpoint
     Route::get('options/{key}', [OptionsController::class, 'show']);
+
+    // Category Sets & Categories
+    Route::get('category-sets', [CategorySetController::class, 'index']);
+    Route::post('category-sets', [CategorySetController::class, 'store']);
+    Route::put('category-sets/{categorySet}', [CategorySetController::class, 'update']);
+    Route::delete('category-sets/{categorySet}', [CategorySetController::class, 'destroy']);
+    Route::get('category-sets/{categorySet}/categories', [AdminCategoryController::class, 'index']);
+    Route::post('categories', [AdminCategoryController::class, 'store']);
+    Route::put('categories/{category}', [AdminCategoryController::class, 'update']);
+    Route::patch('categories/{category}', [AdminCategoryController::class, 'update']);
+    Route::delete('categories/{category}', [AdminCategoryController::class, 'destroy']);
+
+    // Available models for bindings
+    Route::get('models/available', [ModelDataController::class, 'availableModels']);
 
     // Shareable Resource Copy endpoint
     Route::post('shareable-resources/{resource}/copy-to-project', [\App\Http\Controllers\Api\ShareableResourceCopyController::class, 'copyToProject']);

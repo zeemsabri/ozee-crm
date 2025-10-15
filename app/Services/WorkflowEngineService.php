@@ -13,6 +13,7 @@ use App\Services\StepHandlers\CreateRecordStepHandler;
 use App\Services\StepHandlers\SendEmailStepHandler;
 use App\Services\StepHandlers\UpdateRecordStepHandler;
 use App\Services\StepHandlers\QueryDataStepHandler;
+use App\Services\StepHandlers\SyncRelationshipStepHandler;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 use App\Services\StepHandlers\ForEachStepHandler;
@@ -33,6 +34,7 @@ class WorkflowEngineService
             'CONDITION' => new ConditionStepHandler($this),
             'ACTION_CREATE_RECORD' => new CreateRecordStepHandler(),
             'ACTION_UPDATE_RECORD' => new UpdateRecordStepHandler(),
+            'ACTION_SYNC_RELATIONSHIP' => new SyncRelationshipStepHandler($this),
             'ACTION_SEND_EMAIL' => new SendEmailStepHandler(),
             'QUERY_DATA' => new QueryDataStepHandler(),
             'FETCH_RECORDS' => new QueryDataStepHandler(),

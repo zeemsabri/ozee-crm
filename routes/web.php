@@ -249,6 +249,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         })
           ->name('pm-payout-calculator.index');
 
+        // Categories CRUD Page
+        Route::get('/categories', function () {
+            return Inertia::render('Admin/Categories/Index');
+        })->name('categories.index');
+
         Route::get('/monthly-budgets/current', [\App\Http\Controllers\Admin\MonthlyBudgetController::class, 'getCurrentBudget'])
             ->middleware(['permission:view_monthly_budgets'])
             ->name('monthly-budgets.current');

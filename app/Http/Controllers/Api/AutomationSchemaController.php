@@ -25,6 +25,8 @@ class AutomationSchemaController extends Controller
             \App\Models\Task::class,
             \App\Models\Project::class,
             \App\Models\Email::class,
+            \App\Models\Category::class,
+            \App\Models\CategorySet::class,
             Campaign::class,
             Lead::class,
 //            User::class
@@ -34,6 +36,7 @@ class AutomationSchemaController extends Controller
 
         // Helper to build one model schema array
         $buildModel = function (string $modelClass) use ($allModelEvents, $request) {
+
             if (!class_exists($modelClass)) return null;
             try {
                 $instance = new $modelClass();
@@ -137,7 +140,7 @@ class AutomationSchemaController extends Controller
         $seenClasses = [];
         foreach ($seedModels as $m) { if (class_exists($m)) { $queue[] = $m; $seenClasses[$m] = true; } }
         $modelsByName = [];
-        $iterations = 0; $max = 50; // safety guard
+        $iterations = 0; $max = 99; // safety guard
         while (!empty($queue) && $iterations < $max) {
             $iterations++;
             $class = array_shift($queue);
