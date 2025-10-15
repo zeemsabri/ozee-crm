@@ -1,6 +1,7 @@
 <?php
 namespace App\Models;
 
+use App\Models\Traits\HasCategories;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Traits\Taggable;
@@ -8,7 +9,7 @@ use App\Models\ProjectNote;
 
 class Client extends Model
 {
-    use HasFactory, Taggable;
+    use HasFactory, Taggable, HasCategories;
 
     protected $fillable = [
         'name',
@@ -52,7 +53,7 @@ class Client extends Model
 
     public function conversations()
     {
-        return $this->hasMany(Conversation::class);
+        return $this->morphMany(Conversation::class, 'conversable');
     }
 
     /**

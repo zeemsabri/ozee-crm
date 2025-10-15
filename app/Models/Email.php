@@ -8,12 +8,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Traits\Taggable;
+use App\Models\Traits\HasCategories;
 use App\Services\PointsService;
 use Illuminate\Support\Facades\Log;
 
 class Email extends Model
 {
-    use HasFactory, Taggable, SoftDeletes;
+    use HasFactory, Taggable, SoftDeletes, HasCategories;
 
 /** @deprecated use App\Enums\EmailStatus::PendingApprovalReceived */
     public const STATUS_PENDING_APPROVAL = \App\Enums\EmailStatus::PendingApprovalReceived->value;
@@ -243,13 +244,22 @@ class Email extends Model
 
         // Check approval permission for outgoing emails
         if ($statusEnum === \App\Enums\EmailStatus::PendingApproval && $this->conversation?->project?->id) {
+
+            if($user->hasPermission('approve_all_emails')) {
+                $canApprove = true;
+            }
+
             if ($user->hasProjectPermission($this->conversation->project->id, self::APPROVE_SENT_EMAIL_PERMISSION)) {
                 $canApprove = true;
             }
         }
 
         // For leads, allow approval with 'contact_lead' permission
-        if (get_class($this->conversation->conversable) === Lead::class && $user->hasPermission('contact_lead')) {
+        if ($this->conversation?->conversable && get_class($this->conversation->conversable) === Lead::class && $user->hasPermission('contact_lead')) {
+            $canApprove = true;
+        }
+
+        if(!$this->conversation?->conversable && $user->hasPermission('contact_leads')) {
             $canApprove = true;
         }
 

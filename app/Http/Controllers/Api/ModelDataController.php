@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Project;
+use Illuminate\Database\Eloquent\Model as EloquentModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
@@ -84,5 +85,46 @@ class ModelDataController extends Controller
         } catch (\Exception $e) {
             return response()->json(['message' => 'Failed to fetch source model data: ' . $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Return available Eloquent model class names under App\\Models.
+     * Used by admin UI for binding Category Sets to model types.
+     */
+    public function availableModels()
+    {
+        $modelsPath = app_path('Models');
+        $classes = [];
+        if (File::exists($modelsPath)) {
+            $files = File::allFiles($modelsPath);
+            foreach ($files as $file) {
+                $relativePath = trim(str_replace($modelsPath, '', $file->getPathname()), DIRECTORY_SEPARATOR);
+                if (str_contains($relativePath, 'Traits'.DIRECTORY_SEPARATOR)) {
+                    continue; // skip traits
+                }
+                if ($file->getExtension() !== 'php') {
+                    continue;
+                }
+                $classBase = str_replace(['/', '.php'], ['\\', ''], $relativePath);
+                $fqcn = 'App\\Models\\' . $classBase;
+                if (!class_exists($fqcn)) {
+                    continue;
+                }
+                if (is_a($fqcn, EloquentModel::class, true)) {
+                    $classes[] = $fqcn;
+                }
+            }
+        }
+
+        // Build label/value pairs
+        $options = collect($classes)
+            ->unique()
+            ->sort()
+            ->map(fn($fqcn) => [
+                'value' => $fqcn,
+                'label' => class_basename($fqcn),
+            ])->values();
+
+        return response()->json($options);
     }
 }

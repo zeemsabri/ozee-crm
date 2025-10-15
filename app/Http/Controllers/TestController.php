@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\EmailStatus;
+use App\Enums\EmailType;
 use App\Jobs\GenerateLeadFollowUpJob;
 use App\Jobs\ProcessDraftEmailJob;
+use App\Models\Client;
 use App\Models\Email;
 use App\Models\Lead;
 use App\Models\Task;
@@ -69,6 +72,50 @@ class TestController extends Controller
 
     public function playGourd(Request $request)
     {
+
+//        return Client::availableCategoryOptions();
+//        return Email::availableCategoryOptions('emails');
+
+        $emailDetails = [
+            'name'  =>  'Test Lead',
+            'from' =>  'test@test1.com',
+            'subject'   =>  'Test Subject',
+            'to'    =>  'info@ozeeweb.com.au',
+            'body'  =>  'Test body',
+        ];
+
+        $client =   Client::createOrFirst(
+            ['email'  =>  $emailDetails['from'] ?? null],
+            ['name' => $emailDetails['name'] ?? null]
+        );
+
+        $options = Client::availableCategoryOptions('other');
+        $client->syncCategories(collect($options)->pluck('value')->toArray());
+
+        $conversation = $client->conversations()->where('subject', $emailDetails['subject'])->first();
+        if(!$conversation) {
+            $conversation = $client->conversations()->createOrFirst(
+                ['subject' => $emailDetails['subject']],
+                [
+                    'project_id' => $client->projects()->first()?->id,
+                    'last_activity_at' => now()
+                ]
+            );
+        }
+
+        $conversation->emails()->create([
+            'sender_type'   =>  get_class($client),
+            'sender_id'     =>  $client->id,
+            'to'            =>  $emailDetails['to'] ?? null,
+            'subject'       =>  $emailDetails['subject'] ?? null,
+            'body'          =>  $emailDetails['body'] ?? null,
+            'status'        =>  EmailStatus::Unknown,
+            'type'          =>  EmailType::Received,
+        ]);
+
+        return $conversation;
+
+        return $client;
 
         $marker = $request->input('marker');
         $source = $request->input('source');
