@@ -389,7 +389,7 @@ trait HandlesTemplatedEmails
             ];
         }
 
-        if(get_class($email->conversation?->conversable) === Lead::class) {
+        if($sender && get_class($email->conversation?->conversable) === Lead::class) {
             return [
                 'name' => $sender->name ?? 'Original Sender',
                 'role'  =>  null
