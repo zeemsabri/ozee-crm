@@ -57,7 +57,7 @@ class EmailReceiveController extends Controller
 
     public function receiveEmails()
     {
-//        try {
+        try {
             $lastReceivedEmail = Email::where('type', 'received')
                 ->orderByDesc('sent_at')
                 ->first();
@@ -169,10 +169,10 @@ class EmailReceiveController extends Controller
 
 
 
-//        } catch (\Exception $e) {
-//            Log::error($e->getMessage());
-//            return response()->json(['message' => 'Failed to receive emails: ' . $e->getMessage()], 500);
-//        }
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            return response()->json(['message' => 'Failed to receive emails: ' . $e->getMessage()], 500);
+        }
     }
 
     private function handleUnknownEmail(array $emailDetails, string $from, string $authorizedGmailAccount): array
