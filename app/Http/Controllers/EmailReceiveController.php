@@ -84,13 +84,14 @@ class EmailReceiveController extends Controller
             foreach ($messageIds as $messageId) {
                 $emailDetails = $this->gmailService->getMessage($messageId);
 
+
                 $date = Carbon::parse($emailDetails['date'])->setTimezone('UTC');
                 $emailDetails['date'] = $date;
 
-                if ($lastReceivedEmail && Carbon::parse($emailDetails['date'])->lte(Carbon::parse($lastReceivedEmail->sent_at))) {
-                    Log::info('Skipping email with date ' . $emailDetails['date'] . ' ' . $messageId . ' because it is older than the last received email.');
-                    continue;
-                }
+//                if ($lastReceivedEmail && Carbon::parse($emailDetails['date'])->lte(Carbon::parse($lastReceivedEmail->sent_at))) {
+//                    Log::info('Skipping email with date ' . $emailDetails['date'] . ' ' . $messageId . ' because it is older than the last received email.');
+//                    continue;
+//                }
 
                 if (Email::where('message_id', $emailDetails['id'])->exists()) {
                     Log::info('Skipping email with message ID ' . $emailDetails['id'] . ' because it has already been received.');
@@ -291,7 +292,13 @@ class EmailReceiveController extends Controller
 
         $body = $emailDetails['body']['plain'] ?: $emailDetails['body']['html'];
 
-        $email = $this->createEmail($conversation, $emailDetails, $authorizedGmailAccount, $body, $conversableType, $conversableId);
+        $email = $this->createEmail(
+            conversation: $conversation,
+            emailDetails: $emailDetails,
+            authorizedGmailAccount: $authorizedGmailAccount,
+            body: $body,
+            conversableType: $conversableType,
+            conversableId: $conversableId);
 
         $this->attachEmailAttachments($email, $emailDetails['attachments'] ?? []);
 
