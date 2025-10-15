@@ -382,7 +382,14 @@ trait HandlesTemplatedEmails
 
         $sender = $email->sender;
 
-        if(get_class($email->conversation->conversable) === Lead::class) {
+        if(!$sender && $email->type === EmailType::Received->value) {
+            return [
+                'name'  =>  '',
+                'role'  =>  ''
+            ];
+        }
+
+        if(get_class($email->conversation?->conversable) === Lead::class) {
             return [
                 'name' => $sender->name ?? 'Original Sender',
                 'role'  =>  null
@@ -390,7 +397,7 @@ trait HandlesTemplatedEmails
         }
 
         return [
-            'name' => $sender->name ?? 'Original Sender',
+            'name' => $sender?->name ?? 'Original Sender',
             'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
         ];
     }
