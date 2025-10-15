@@ -65,7 +65,7 @@ class Lead extends Model
     ];
 
     protected $appends = [
-        'full_name',
+        'full_name', 'name'
     ];
 
     // Relationships
@@ -96,6 +96,11 @@ class Lead extends Model
 
     // Accessors
     public function getFullNameAttribute(): string
+    {
+        return trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+    }
+
+    public function getNameAttribute(): string
     {
         return trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
     }
