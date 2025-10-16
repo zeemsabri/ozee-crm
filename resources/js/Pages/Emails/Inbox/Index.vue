@@ -4,6 +4,7 @@ import { Head, usePage } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import RightSidebar from '@/Components/RightSidebar.vue';
 import EmailFilters from '@/Pages/Emails/Inbox/Components/EmailFilters.vue';
+import EmailCategoryFilters from '@/Pages/Emails/Inbox/Components/EmailCategoryFilters.vue';
 import EmailList from '@/Pages/Emails/Inbox/Components/EmailList.vue';
 import EmailDetailsContent from '@/Pages/Emails/Inbox/Components/EmailDetailsContent.vue';
 import ComposeEmailContent from '@/Pages/Emails/Inbox/Components/ComposeEmailContent.vue';
@@ -46,6 +47,7 @@ const inboxState = reactive({
         search: '',
         projectId: null,
         senderId: '',
+        categoryIds: [],
     },
     // The email list and related loading/error state
     emails: [],
@@ -150,7 +152,12 @@ const fetchEmails = async (page = 1) => {
     inboxState.emailError = null;
 
     try {
-        const response = await fetchEmailsApi(inboxState.filters, page);
+        // Include category_ids in the filters when making API call
+        const filtersWithCategories = {
+            ...inboxState.filters,
+            category_ids: inboxState.filters.categoryIds
+        };
+        const response = await fetchEmailsApi(filtersWithCategories, page);
         inboxState.emails = response.data;
         inboxState.pagination = {
             currentPage: response.current_page,
@@ -183,10 +190,15 @@ const handleFilterTypeChange = (newType) => {
         inboxState.filters.search = '';
         inboxState.filters.projectId = null;
         inboxState.filters.senderId = '';
+        // Keep categoryIds when changing type - they should work additively
     }
     if (newType !== 'waiting-approval' && newType !== 'received') {
         inboxState.counts[newType] = 0;
     }
+};
+
+const handleCategoryFiltersChange = (selectedCategories) => {
+    inboxState.filters.categoryIds = selectedCategories;
 };
 
 const showNotification = (notification) => {
@@ -325,6 +337,13 @@ watch(() => inboxState.filters, () => {
                                 <span class="hidden sm:inline">Refresh</span>
                             </button>
                         </div>
+
+                        <!-- Category Filters -->
+                        <EmailCategoryFilters
+                            :selected-categories="inboxState.filters.categoryIds"
+                            :filters="inboxState.filters"
+                            @update:selected-categories="handleCategoryFiltersChange"
+                        />
 
                         <div class="p-6">
                             <EmailList
