@@ -405,9 +405,26 @@ class ProjectActionController extends Controller
                     Log::info('Added members to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'added_emails' => $addedUserEmails, 'response' => $responseArray]);
                 }
                 if (!empty($removedUserEmails)) {
-                    $usersToDetach = User::whereIn('email', $removedUserEmails)->get();
-                    $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToDetach->toArray());
-                    Log::info('Removed members from Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'removed_emails' => $removedUserEmails]);
+                    // Only remove users who are not project leads or Google Chat members
+                    $usersToActuallyRemove = [];
+                    foreach ($removedUserEmails as $email) {
+                        $user = User::where('email', $email)->first();
+                        if ($user && 
+                            $user->id !== $project->project_manager_id && 
+                            $user->id !== $project->project_admin_id &&
+                            !$project->googleChatMembers()->where('user_id', $user->id)->exists()) {
+                            $usersToActuallyRemove[] = $user;
+                        }
+                    }
+                    
+                    if (!empty($usersToActuallyRemove)) {
+                        $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToActuallyRemove);
+                        Log::info('Removed members from Google Chat space', [
+                            'project_id' => $project->id, 
+                            'space_name' => $project->google_chat_id, 
+                            'removed_emails' => array_map(fn($u) => $u->email, $usersToActuallyRemove)
+                        ]);
+                    }
                 }
             } catch (\Exception $e) {
                 Log::error('Failed to update Google Chat space members', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
@@ -935,9 +952,89 @@ class ProjectActionController extends Controller
             'project_admin_id' => 'nullable|exists:users,id',
         ]);
 
+        // Get current leads for comparison
+        $currentManagerId = $project->project_manager_id;
+        $currentAdminId = $project->project_admin_id;
+        
         $project->project_manager_id = $validated['project_manager_id'] ?? null;
         $project->project_admin_id = $validated['project_admin_id'] ?? null;
         $project->save();
+
+        // Handle Google Chat integration for project leads
+        if ($project->google_chat_id) {
+            try {
+                $emailsToAdd = [];
+                $emailsToRemove = [];
+                
+                // Handle manager changes
+                if ($currentManagerId !== $project->project_manager_id) {
+                    if ($currentManagerId) {
+                        $oldManager = User::find($currentManagerId);
+                        if ($oldManager && !$this->userIsInProjectUsers($project, $oldManager->id) && 
+                            $oldManager->id !== $project->project_admin_id) {
+                            $emailsToRemove[] = $oldManager->email;
+                        }
+                    }
+                    if ($project->project_manager_id) {
+                        $newManager = User::find($project->project_manager_id);
+                        if ($newManager && !$this->userIsInProjectUsers($project, $newManager->id)) {
+                            $emailsToAdd[] = $newManager->email;
+                        }
+                    }
+                }
+                
+                // Handle admin changes  
+                if ($currentAdminId !== $project->project_admin_id) {
+                    if ($currentAdminId) {
+                        $oldAdmin = User::find($currentAdminId);
+                        if ($oldAdmin && !$this->userIsInProjectUsers($project, $oldAdmin->id) && 
+                            $oldAdmin->id !== $project->project_manager_id) {
+                            $emailsToRemove[] = $oldAdmin->email;
+                        }
+                    }
+                    if ($project->project_admin_id) {
+                        $newAdmin = User::find($project->project_admin_id);
+                        if ($newAdmin && !$this->userIsInProjectUsers($project, $newAdmin->id)) {
+                            $emailsToAdd[] = $newAdmin->email;
+                        }
+                    }
+                }
+                
+                // Add new leads to Google Chat
+                if (!empty($emailsToAdd)) {
+                    $responseArray = $this->googleChatService->addMembersToSpace($project->google_chat_id, $emailsToAdd);
+                    foreach ($responseArray as $userInfo) {
+                        if (isset($userInfo['email']) && isset($userInfo['chat_name'])) {
+                            User::where('email', $userInfo['email'])->update(['chat_name' => $userInfo['chat_name']]);
+                        }
+                    }
+                    Log::info('Added project leads to Google Chat space', [
+                        'project_id' => $project->id, 
+                        'space_name' => $project->google_chat_id, 
+                        'added_emails' => $emailsToAdd, 
+                        'response' => $responseArray
+                    ]);
+                }
+                
+                // Remove old leads from Google Chat (only if they're not in project users)
+                if (!empty($emailsToRemove)) {
+                    $usersToDetach = User::whereIn('email', $emailsToRemove)->get();
+                    $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToDetach->toArray());
+                    Log::info('Removed old project leads from Google Chat space', [
+                        'project_id' => $project->id, 
+                        'space_name' => $project->google_chat_id, 
+                        'removed_emails' => $emailsToRemove
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to update Google Chat space for project leads', [
+                    'project_id' => $project->id, 
+                    'space_name' => $project->google_chat_id, 
+                    'error' => $e->getMessage(), 
+                    'exception' => $e
+                ]);
+            }
+        }
 
         $project->load(['manager:id,name,email', 'admin:id,name,email']);
 
@@ -1495,6 +1592,136 @@ class ProjectActionController extends Controller
             ]);
             return response()->json(['message' => 'Failed to add comment.'], 500);
         }
+    }
+
+    /**
+     * Check if a user is in the project users (pivot table)
+     */
+    private function userIsInProjectUsers(Project $project, $userId)
+    {
+        return $project->users()->where('user_id', $userId)->exists();
+    }
+
+    /**
+     * Attach Google Chat members to a project.
+     *
+     * @param Request $request
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function attachGoogleChatMembers(Request $request, Project $project)
+    {
+        $user = Auth::user();
+        if (!$this->canManageProjects($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to manage Google Chat members.'], 403);
+        }
+
+        $validated = $request->validate([
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'exists:users,id',
+        ]);
+
+        $currentChatMembers = $project->googleChatMembers()->get();
+        $currentChatMemberEmails = $currentChatMembers->pluck('email')->toArray();
+
+        $project->googleChatMembers()->sync($validated['user_ids']);
+
+        $project->load('googleChatMembers');
+        $newChatMembers = $project->googleChatMembers;
+        $newChatMemberEmails = $newChatMembers->pluck('email')->toArray();
+
+        $addedChatMemberEmails = array_diff($newChatMemberEmails, $currentChatMemberEmails);
+        $removedChatMemberEmails = array_diff($currentChatMemberEmails, $newChatMemberEmails);
+
+        if ($project->google_chat_id) {
+            try {
+                if (!empty($addedChatMemberEmails)) {
+                    $responseArray = $this->googleChatService->addMembersToSpace($project->google_chat_id, $addedChatMemberEmails);
+                    foreach ($responseArray as $userInfo) {
+                        if (isset($userInfo['email']) && isset($userInfo['chat_name'])) {
+                            User::where('email', $userInfo['email'])->update(['chat_name' => $userInfo['chat_name']]);
+                        }
+                    }
+                    Log::info('Added Google Chat members to space', [
+                        'project_id' => $project->id, 
+                        'space_name' => $project->google_chat_id, 
+                        'added_emails' => $addedChatMemberEmails, 
+                        'response' => $responseArray
+                    ]);
+                }
+                if (!empty($removedChatMemberEmails)) {
+                    $usersToDetach = User::whereIn('email', $removedChatMemberEmails)->get();
+                    $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToDetach->toArray());
+                    Log::info('Removed Google Chat members from space', [
+                        'project_id' => $project->id, 
+                        'space_name' => $project->google_chat_id, 
+                        'removed_emails' => $removedChatMemberEmails
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to update Google Chat space members', [
+                    'project_id' => $project->id, 
+                    'space_name' => $project->google_chat_id, 
+                    'error' => $e->getMessage(), 
+                    'exception' => $e
+                ]);
+            }
+        }
+
+        return response()->json($project->googleChatMembers, 200);
+    }
+
+    /**
+     * Detach Google Chat members from a project.
+     *
+     * @param Request $request
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function detachGoogleChatMembers(Request $request, Project $project)
+    {
+        $user = Auth::user();
+        if (!$this->canManageProjects($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to manage Google Chat members.'], 403);
+        }
+
+        $validated = $request->validate([
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'exists:users,id',
+        ]);
+
+        $usersToDetach = User::whereIn('id', $validated['user_ids'])->get();
+        $project->googleChatMembers()->detach($validated['user_ids']);
+
+        if ($project->google_chat_id && $usersToDetach->count() > 0) {
+            try {
+                // Only remove users who are not project leads or regular project users
+                $usersToActuallyRemove = $usersToDetach->filter(function($user) use ($project) {
+                    return $user->id !== $project->project_manager_id && 
+                           $user->id !== $project->project_admin_id &&
+                           !$this->userIsInProjectUsers($project, $user->id);
+                });
+                
+                if ($usersToActuallyRemove->count() > 0) {
+                    $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToActuallyRemove->toArray());
+                    Log::info('Removed Google Chat members from space', [
+                        'project_id' => $project->id, 
+                        'space_name' => $project->google_chat_id, 
+                        'removed_emails' => $usersToActuallyRemove->pluck('email')->toArray()
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to remove Google Chat space members', [
+                    'project_id' => $project->id, 
+                    'space_name' => $project->google_chat_id, 
+                    'error' => $e->getMessage(), 
+                    'exception' => $e
+                ]);
+            }
+        }
+
+        $project->load('googleChatMembers');
+        return response()->json($project->googleChatMembers);
     }
 
     /**

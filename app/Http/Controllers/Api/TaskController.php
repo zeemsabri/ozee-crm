@@ -152,6 +152,7 @@ class TaskController extends Controller
         $status = $request->query('status');
         $assignedToUserId = $request->query('assigned_to_user_id');
         $projectId = $request->query('project_id');
+        $projectIds = $request->query('project_ids'); // comma-separated list of project IDs
         $statuses = $request->query('statuses'); // comma-separated list
         $updatedSince = $request->query('updated_since'); // date string
         $completedOn = $request->query('completed_on'); // date string
@@ -171,6 +172,15 @@ class TaskController extends Controller
             $query->whereHas('milestone', function ($q) use ($projectId) {
                 $q->where('project_id', $projectId);
             });
+        }
+
+        if ($projectIds) {
+            $ids = array_filter(explode(',', $projectIds), 'is_numeric');
+            if (!empty($ids)) {
+                $query->whereHas('milestone', function ($q) use ($ids) {
+                    $q->whereIn('project_id', $ids);
+                });
+            }
         }
 
         if ($status) {

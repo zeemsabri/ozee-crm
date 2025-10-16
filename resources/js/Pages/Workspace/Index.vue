@@ -307,10 +307,12 @@ const loadAllUsers = async () => {
     try {
         const { data } = await window.axios.get('/api/users');
         const base = (Array.isArray(data) ? data : []).map(u => ({ value: u.id, label: u.name }));
-        usersOptions.value = canDo('view_all_user').value ? [{ value: '__all__', label: 'All Users' }, ...base] : base;
+        // Always show 'All Users' filter to everyone
+        usersOptions.value = [{ value: '__all__', label: 'All Users' }, ...base];
     } catch (e) {
         console.error('Failed to fetch users', e);
-        usersOptions.value = canDo('view_all_user').value ? [{ value: '__all__', label: 'All Users' }] : [];
+        // Always show 'All Users' filter to everyone, even on error
+        usersOptions.value = [{ value: '__all__', label: 'All Users' }];
     }
 };
 
@@ -340,7 +342,8 @@ const loadUsersFromAccessibleProjects = async () => {
         }
     }));
     const list = Array.from(unique.values()).sort((a,b)=> String(a.label).localeCompare(String(b.label)));
-    usersOptions.value = canDo('view_all_user').value ? [{ value: '__all__', label: 'All Users' }, ...list] : list;
+    // Always show 'All Users' filter to everyone
+    usersOptions.value = [{ value: '__all__', label: 'All Users' }, ...list];
 };
 
 // Load milestones for a project
@@ -360,7 +363,8 @@ const loadProjectMilestones = async (pid) => {
 onMounted(async () => {
     try { await permissionStore.fetchGlobalPermissions(); } catch (_) {}
     await loadProjects();
-    // Users: decide source based on permission
+    // Users: Always use accessible projects approach to respect user project access
+    // but ensure All Users filter is available to everyone
     if (canDo('view_all_user').value) {
         await loadAllUsers();
     } else {
@@ -368,7 +372,7 @@ onMounted(async () => {
     }
 });
 
-// React to project selection changes
+    // React to project selection changes
 watch(projectId, async (pid) => {
     // Reset milestone state
     milestoneId.value = null;
@@ -384,14 +388,16 @@ watch(projectId, async (pid) => {
         }
     } else {
         if (pid) {
-            usersOptions.value = await loadProjectUsers(pid);
+            const list = await loadProjectUsers(pid);
+            // Always show 'All Users' filter to everyone
+            usersOptions.value = [{ value: '__all__', label: 'All Users' }, ...list];
         } else {
             await loadUsersFromAccessibleProjects();
         }
     }
 
 // If currently viewing All Users, re-fetch tasks with new project scope to avoid massive payloads
-    if (kanbanView.value && canDo('view_all_user').value && assigneeId.value === '__all__') {
+    if (kanbanView.value && assigneeId.value === '__all__') {
         const baseParams = {};
         if (pid) baseParams.project_id = pid;
         await fetchAllUsersScopedTasks(baseParams);
@@ -436,7 +442,19 @@ const fetchAllUsersScopedTasks = async (baseParams = {}) => {
     tasksError.value = '';
     try {
         const todayStr = new Date().toISOString().slice(0,10);
-        const params = { ...baseParams, per_page: 500, statuses: 'To Do,In Progress,Paused,Blocked,Done', due_until: todayStr };
+        let params = { ...baseParams, per_page: 500, statuses: 'To Do,In Progress,Paused,Blocked,Done', due_until: todayStr };
+        
+        // If user doesn't have view_all_user permission and no specific project is selected,
+        // we need to limit to their accessible projects
+        if (!canDo('view_all_user').value && !baseParams.project_id) {
+            const accessibleProjectIds = projectOptions.value
+                .map(p => p.value)
+                .filter(v => v !== null);
+            if (accessibleProjectIds.length > 0) {
+                params.project_ids = accessibleProjectIds.join(',');
+            }
+        }
+        
         const res = await window.axios.get('/api/tasks', { params });
         const list = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.data) ? res.data.data : []);
         assignedTasks.value = list;
@@ -465,7 +483,9 @@ watch(assigneeId, async (v) => {
     // Build scoped params
     const baseParams = {};
     if (projectId.value) baseParams.project_id = projectId.value;
-if (canDo('view_all_user').value && v === '__all__') {
+    
+    if (v === '__all__') {
+        // All users can now use 'All Users' filter, but tasks are scoped to their accessible projects
         await fetchAllUsersScopedTasks(baseParams);
     } else if (v) {
         await fetchTasksWithParams({ ...baseParams, assigned_to_user_id: v, per_page: 500 });
