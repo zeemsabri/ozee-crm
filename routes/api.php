@@ -223,6 +223,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('projects/{project}/sections/notes', [ProjectReadController::class, 'getNotes']); // Re-uses getNotes
     Route::get('projects/{project}/users', [ProjectReadController::class, 'getProjectUsers']);
     Route::get('projects/{project}/clients', [ProjectReadController::class, 'getProjectClients']);
+    Route::get('projects/{project}/google-chat-members', [ProjectReadController::class, 'getGoogleChatMembers']);
     Route::get('projects/{project}/contract-details', [ProjectReadController::class, 'getContractDetails']);
 
     // Action Routes
@@ -233,6 +234,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('projects/{project}/detach-users', [ProjectActionController::class, 'detachUsers'])->name('projects.detach-users');
     Route::post('projects/{project}/attach-clients', [ProjectActionController::class, 'attachClients'])->name('projects.attach-clients');
     Route::post('projects/{project}/detach-clients', [ProjectActionController::class, 'detach-clients']);
+    Route::post('projects/{project}/attach-google-chat-members', [ProjectActionController::class, 'attachGoogleChatMembers'])->name('projects.attach-google-chat-members');
+    Route::post('projects/{project}/detach-google-chat-members', [ProjectActionController::class, 'detachGoogleChatMembers'])->name('projects.detach-google-chat-members');
     Route::post('projects/{project}/transactions', [\App\Http\Controllers\Api\TransactionsController::class, 'addTransactions'])->middleware('process.basic:transaction_type,App\\Models\\TransactionType');
     Route::patch('projects/{project}/transactions/{transaction}/process-payment', [\App\Http\Controllers\Api\TransactionsController::class, 'processPayment']);
     Route::post('projects/{project}/notes', [ProjectActionController::class, 'addNotes']);

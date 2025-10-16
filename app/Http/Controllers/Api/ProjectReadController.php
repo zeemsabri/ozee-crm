@@ -269,8 +269,33 @@ class ProjectReadController extends Controller
             $query->withPivot('role_id'); // Ensure pivot data (earning, bonus) is loaded
         }]);
 
+        // Start with users from the pivot table
+        $users = $project->users;
+        $userIds = $users->pluck('id')->toArray();
 
-        $project->users->each(function ($user) {
+        // Add project manager if exists and not already included
+        if ($project->project_manager_id && !in_array($project->project_manager_id, $userIds)) {
+            $manager = User::with(['role.permissions'])->find($project->project_manager_id);
+            if ($manager) {
+                // Create a fake pivot object for consistency with other users
+                $manager->pivot = (object) ['role_id' => null, 'role' => 'Project Manager'];
+                $users->push($manager);
+                $userIds[] = $manager->id;
+            }
+        }
+
+        // Add project admin if exists and not already included
+        if ($project->project_admin_id && !in_array($project->project_admin_id, $userIds)) {
+            $admin = User::with(['role.permissions'])->find($project->project_admin_id);
+            if ($admin) {
+                // Create a fake pivot object for consistency with other users
+                $admin->pivot = (object) ['role_id' => null, 'role' => 'Project Admin'];
+                $users->push($admin);
+                $userIds[] = $admin->id;
+            }
+        }
+
+        $users->each(function ($user) {
             $user->load(['role.permissions']);
             if (isset($user->pivot->role_id)) {
                 $projectRole = \App\Models\Role::with('permissions')->find($user->pivot->role_id);
@@ -293,7 +318,7 @@ class ProjectReadController extends Controller
             }
         });
 
-        return response()->json($project->users);
+        return response()->json($users->unique('id')->values());
     }
 
     /**
@@ -890,5 +915,19 @@ class ProjectReadController extends Controller
             ->get();
 
         return response()->json($standups);
+    }
+
+    /**
+     * Get Google Chat members for a project.
+     *
+     * @param Project $project
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getGoogleChatMembers(Project $project)
+    {
+        $this->authorize('view', $project);
+        
+        $project->load('googleChatMembers');
+        return response()->json($project->googleChatMembers);
     }
 }

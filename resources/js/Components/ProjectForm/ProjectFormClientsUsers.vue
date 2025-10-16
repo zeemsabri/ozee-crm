@@ -4,6 +4,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import MultiSelectWithRoles from '@/Components/MultiSelectWithRoles.vue';
+import MultiSelectDropdown from '@/Components/MultiSelectDropdown.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import { success, error } from '@/Utils/notification';
@@ -63,6 +64,7 @@ const localClientsUsersForm = reactive({
     contract_details: '',
     project_manager_id: null,
     project_admin_id: null,
+    google_chat_member_ids: [],
 });
 
 const clientSaving = ref(false);
@@ -76,6 +78,10 @@ const userSaveError = ref('');
 const leadsSaving = ref(false);
 const leadsSaveSuccess = ref(false);
 const leadsSaveError = ref('');
+
+const googleChatMembersSaving = ref(false);
+const googleChatMembersSaveSuccess = ref(false);
+const googleChatMembersSaveError = ref('');
 
 
 // Function to fetch clients and users data for this specific tab
@@ -109,6 +115,14 @@ const fetchClientsUsersData = async () => {
         } catch (e) {
             // ignore basic info failure here
         }
+        
+        // Fetch Google Chat members
+        try {
+            const chatMembers = await window.axios.get(`/api/projects/${props.projectId}/google-chat-members`);
+            localClientsUsersForm.google_chat_member_ids = chatMembers.data ? chatMembers.data.map(member => member.id) : [];
+        } catch (e) {
+            // ignore failure here
+        }
     } catch (err) {
         console.error('Error fetching clients/users data:', err);
         error('Failed to load clients and users data.');
@@ -139,6 +153,32 @@ const handleSaveLeads = async () => {
         setTimeout(() => leadsSaveSuccess.value = false, 3000);
     }
 };
+
+// Save Google Chat members
+const handleSaveGoogleChatMembers = async () => {
+    if (!props.projectId) {
+        error('Project ID is missing. Cannot save Google Chat members.');
+        return;
+    }
+    googleChatMembersSaving.value = true;
+    googleChatMembersSaveSuccess.value = false;
+    googleChatMembersSaveError.value = '';
+    try {
+        await window.axios.post(`/api/projects/${props.projectId}/attach-google-chat-members`, {
+            user_ids: localClientsUsersForm.google_chat_member_ids,
+        });
+        success('Google Chat members updated successfully!');
+        googleChatMembersSaveSuccess.value = true;
+    } catch (err) {
+        console.error('Error saving Google Chat members:', err);
+        googleChatMembersSaveError.value = err.response?.data?.message || 'Failed to save Google Chat members.';
+        error(googleChatMembersSaveError.value);
+    } finally {
+        googleChatMembersSaving.value = false;
+        setTimeout(() => googleChatMembersSaveSuccess.value = false, 3000);
+    }
+};
+
 // Watch for projectId changes to re-fetch data
 watch(() => props.projectId, async (newId) => {
     if (newId) {
@@ -353,6 +393,42 @@ onMounted(() => {
             <div v-if="userSaveError" class="mt-3 text-red-600 text-sm flex items-center">
                 <svg class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 {{ userSaveError }}
+            </div>
+        </div>
+
+        <!-- Google Chat Members Section -->
+        <div v-if="canViewProjectUsers" class="bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
+            <h3 class="text-xl font-semibold text-gray-800 mb-5">Google Chat Members</h3>
+            <p class="text-sm text-gray-600 mb-4">
+                Add users who need access to the project's Google Chat space but are not project leads or team members. 
+                This is useful for administrators or stakeholders who need to stay informed.
+            </p>
+            <div class="mb-4">
+                <InputLabel for="google_chat_members" value="Select Users for Google Chat" class="mb-2" />
+                <MultiSelectDropdown
+                    v-model="localClientsUsersForm.google_chat_member_ids"
+                    :options="(users || []).map(user => ({ value: user.id, label: `${user.name} (${user.email})` }))"
+                    :is-multi="true"
+                    :disabled="!canManageProjectUsers || isSaving || googleChatMembersSaving"
+                    placeholder="Search and select users for Google Chat"
+                    max-height="200px"
+                />
+                <InputError :message="errors.google_chat_member_ids ? errors.google_chat_member_ids[0] : ''" class="mt-2" />
+            </div>
+            <div v-if="canManageProjectUsers" class="mt-6 flex justify-end">
+                <PrimaryButton @click="handleSaveGoogleChatMembers" :disabled="googleChatMembersSaving || isSaving"
+                               class="px-6 py-3 rounded-lg text-lg shadow-md hover:shadow-lg transition-all duration-200">
+                    <span v-if="googleChatMembersSaving">Saving Chat Members...</span>
+                    <span v-else>Save Chat Members</span>
+                </PrimaryButton>
+            </div>
+            <div v-if="googleChatMembersSaveSuccess" class="mt-3 text-green-600 text-sm flex items-center">
+                <svg class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Google Chat members saved successfully!
+            </div>
+            <div v-if="googleChatMembersSaveError" class="mt-3 text-red-600 text-sm flex items-center">
+                <svg class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                {{ googleChatMembersSaveError }}
             </div>
         </div>
     </div>

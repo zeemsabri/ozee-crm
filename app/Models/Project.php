@@ -115,6 +115,11 @@ class Project extends Model
         return $this->belongsTo(User::class, 'project_admin_id');
     }
 
+    public function googleChatMembers()
+    {
+        return $this->belongsToMany(User::class, 'project_google_chat_members');
+    }
+
     public function conversations()
     {
         return $this->hasMany(Conversation::class);

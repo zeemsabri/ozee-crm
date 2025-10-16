@@ -298,6 +298,7 @@ class EmailReceiveController extends Controller
             emailDetails: $emailDetails,
             authorizedGmailAccount: $authorizedGmailAccount,
             body: $body,
+            status: EmailStatus::Received,
             conversableType: $conversableType,
             conversableId: $conversableId);
 
