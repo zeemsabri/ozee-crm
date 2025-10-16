@@ -382,7 +382,7 @@ trait HandlesTemplatedEmails
 
         $sender = $email->sender;
 
-        if($email->type === EmailType::Received->value) {
+        if($email->type === EmailType::Received) {
             return [
                 'name'  =>  '',
                 'role'  =>  ''

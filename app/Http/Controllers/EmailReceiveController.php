@@ -60,6 +60,7 @@ class EmailReceiveController extends Controller
         try {
             $lastReceivedEmail = Email::where('type', 'received')
                 ->orderByDesc('sent_at')
+                ->withTrashed()
                 ->first();
 
             $query = 'is:inbox';
