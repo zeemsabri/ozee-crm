@@ -7,6 +7,7 @@ use App\Models\Email;
 use App\Models\Lead;
 use App\Models\Project;
 use App\Models\UserInteraction;
+use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -96,6 +97,7 @@ class InboxController extends Controller
         $startDate = $request->input('start_date') ?? $request->input('startDate');
         $endDate   = $request->input('end_date') ?? $request->input('endDate');
         $search    = $request->input('search');
+        $categoryIds = $request->input('category_ids', []);
         // is_read is optional; when provided, we filter based on user interactions
         $isRead    = $request->has('is_read') ? filter_var($request->input('is_read'), FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) : null;
 
@@ -185,6 +187,23 @@ class InboxController extends Controller
             });
         }
 
+        // Category filtering
+        if (!empty($categoryIds) && is_array($categoryIds)) {
+            if (count($categoryIds) === 1) {
+                // Single category - simple filter
+                $query->whereHas('categories', function ($q) use ($categoryIds) {
+                    $q->where('categories.id', $categoryIds[0]);
+                });
+            } else {
+                // Multiple categories - additive (emails must belong to ALL selected categories)
+                foreach ($categoryIds as $categoryId) {
+                    $query->whereHas('categories', function ($q) use ($categoryId) {
+                        $q->where('categories.id', $categoryId);
+                    });
+                }
+            }
+        }
+
         $emails = $query->with(['sender', 'conversation.project', 'approver'])
             ->orderBy('created_at', 'desc')
             ->select('emails.*') // Ensure all columns are selected
@@ -236,6 +255,162 @@ class InboxController extends Controller
             'waiting-approval' => $waitingApprovalCount,
             'received' => $receivedCount,
         ]);
+    }
+
+    /**
+     * Get category statistics for the authenticated user's inbox.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function categoryStats(Request $request)
+    {
+        $user = Auth::user();
+
+        // Check if user has view_all_emails permission
+        if (!$user->hasPermission('view_all_emails')) {
+            return response()->json([
+                'categories' => [],
+            ]);
+        }
+
+        // Get all projects the user has access to
+        $projectIds = $this->getAccessibleProjectIds($user);
+
+        if (empty($projectIds)) {
+            return response()->json([
+                'categories' => [],
+            ]);
+        }
+
+        // Get current filters to apply them to category counts
+        $type = $request->input('type');
+        $status = $request->input('status');
+        $startDate = $request->input('start_date') ?? $request->input('startDate');
+        $endDate = $request->input('end_date') ?? $request->input('endDate');
+        $search = $request->input('search');
+        $projectId = $request->input('project_id') ?? $request->input('projectId');
+        $senderId = $request->input('sender_id') ?? $request->input('senderId');
+
+        // Get categories that are available for Email model
+        $categories = Email::availableCategories();
+
+        $categoryStats = [];
+
+        foreach ($categories as $category) {
+            // Base query for emails in accessible projects with this category
+            $query = Email::visibleTo($user)
+                ->whereHas('conversation', function ($query) use ($projectIds, $user) {
+                    $query->whereIn('project_id', $projectIds);
+                    if ($user->hasPermission('contact_lead')) {
+                        $query->orWhereNull('project_id');
+                    }
+                })
+                ->whereHas('categories', function ($q) use ($category) {
+                    $q->where('categories.id', $category->id);
+                });
+
+            // Apply the same filters as the main email list
+            $this->applyFilters($query, $user, $type, $status, $startDate, $endDate, $search, $projectId, $senderId);
+
+            $totalCount = $query->count();
+
+            // Count unread emails in this category
+            $unreadQuery = clone $query;
+            $unreadQuery->whereNotExists(function ($subQuery) use ($user) {
+                $subQuery->select(DB::raw(1))
+                    ->from('user_interactions')
+                    ->whereColumn('user_interactions.interactable_id', 'emails.id')
+                    ->where('user_interactions.interactable_type', 'App\\Models\\Email')
+                    ->where('user_interactions.user_id', $user->id)
+                    ->where('user_interactions.interaction_type', 'read');
+            });
+
+            $unreadCount = $unreadQuery->count();
+
+            if ($totalCount > 0) {
+                $categoryStats[] = [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                    'slug' => $category->slug ?? strtolower(str_replace(' ', '-', $category->name)),
+                    'total_count' => $totalCount,
+                    'unread_count' => $unreadCount,
+                    'has_unread' => $unreadCount > 0,
+                ];
+            }
+        }
+
+        // Sort categories: those with unread emails first, then alphabetically
+        usort($categoryStats, function ($a, $b) {
+            if ($a['has_unread'] && !$b['has_unread']) {
+                return -1;
+            }
+            if (!$a['has_unread'] && $b['has_unread']) {
+                return 1;
+            }
+            return strcmp($a['name'], $b['name']);
+        });
+
+        return response()->json([
+            'categories' => $categoryStats,
+        ]);
+    }
+
+    /**
+     * Apply filters to email query (extracted for reusability)
+     */
+    private function applyFilters($query, $user, $type, $status, $startDate, $endDate, $search, $projectId, $senderId)
+    {
+        // Apply type filter
+        if (!empty($type)) {
+            if ($type === 'new') {
+                $query->whereIn('status', ['pending_approval', 'pending_approval_received', 'received', 'sent', 'draft'])
+                    ->whereNotExists(function ($subQuery) use ($user) {
+                        $subQuery->select(DB::raw(1))
+                            ->from('user_interactions')
+                            ->whereColumn('user_interactions.interactable_id', 'emails.id')
+                            ->where('user_interactions.interactable_type', 'App\\Models\\Email')
+                            ->where('user_interactions.user_id', $user->id)
+                            ->where('user_interactions.interaction_type', 'read');
+                    });
+            } elseif ($type === 'waiting-approval') {
+                $query->whereIn('status', ['pending_approval', 'pending_approval_received']);
+            } elseif ($type !== 'all') {
+                $query->where('type', $type);
+            }
+        }
+
+        // Apply status filter
+        if (!empty($status)) {
+            $query->where('status', $status);
+        }
+
+        // Apply project filter
+        if (!empty($projectId)) {
+            $query->whereHas('conversation', function ($q) use ($projectId) {
+                $q->where('project_id', $projectId);
+            });
+        }
+
+        // Apply sender filter
+        if (!empty($senderId)) {
+            $query->where('sender_id', $senderId);
+        }
+
+        // Apply date range filter
+        if (!empty($startDate) || !empty($endDate)) {
+            $start = $startDate ? Carbon::parse($startDate)->startOfDay() : Carbon::minValue();
+            $end = $endDate ? Carbon::parse($endDate)->endOfDay() : Carbon::maxValue();
+            $query->whereBetween('created_at', [$start, $end]);
+        }
+
+        // Apply search filter
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('subject', 'like', "%{$search}%")
+                  ->orWhere('body', 'like', "%{$search}%");
+            });
+        }
     }
 
     /**

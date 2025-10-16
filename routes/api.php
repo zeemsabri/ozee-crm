@@ -303,6 +303,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('inbox/all-emails', [InboxController::class, 'allEmails']);
     Route::get('inbox/waiting-approval', [InboxController::class, 'waitingApproval']);
     Route::get('inbox/counts', [InboxController::class, 'counts']);
+    Route::get('inbox/category-stats', [InboxController::class, 'categoryStats']);
 
     Route::post('inbox/emails/{email}/mark-as-read', [InboxController::class, 'markAsRead']);
 
