@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\ProjectNote;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -926,7 +927,7 @@ class ProjectReadController extends Controller
     public function getGoogleChatMembers(Project $project)
     {
         $this->authorize('view', $project);
-        
+
         $project->load('googleChatMembers');
         return response()->json($project->googleChatMembers);
     }
