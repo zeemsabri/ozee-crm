@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Enums\EmailStatus;
 use App\Enums\EmailType;
 use App\Models\Email;
+use App\Models\Project;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 
@@ -39,9 +40,18 @@ class EmailPolicy
      * Determine whether the user can create emails.
      * All authenticated users can create emails (for submission).
      */
-    public function create(User $user): bool
+    public function create(User $user, Project|null $project = null): bool
     {
-        return $user->hasPermission('compose_emails');
+
+        if($user->hasPermission('view_all_emails') || $user->hasPermission('compose_emails')) {
+            return true;
+        }
+
+        if ($project && !$user->projects->contains($project->id)) {
+            return false;
+        }
+
+        return false;
     }
 
     /**

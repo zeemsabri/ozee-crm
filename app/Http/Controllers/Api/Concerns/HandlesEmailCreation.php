@@ -23,9 +23,7 @@ trait HandlesEmailCreation
     {
         $project = Project::with('clients')->findOrFail($validated['project_id']);
 
-        if (!$user->projects->contains($project->id)) {
-            abort(403, 'Unauthorized: You are not assigned to this project.');
-        }
+        $this->authorize('create', [Email::class, $project]);
 
         // Normalize client IDs
         $clientIds = array_map(fn ($c) => $c['id'], $validated['client_ids'] ?? []);
