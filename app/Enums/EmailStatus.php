@@ -17,5 +17,7 @@ enum EmailStatus: string
     case Sent = 'sent';
     case Draft = 'draft';
     case Unknown = 'unknown';
+
+    case Approved = 'approved';
     case AutoSend = 'auto_send';
 }

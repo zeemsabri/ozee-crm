@@ -174,15 +174,55 @@ const availableFields = computed(() => {
     // 3. Previous Step Outputs
     props.allStepsBefore.forEach((s, index) => {
         if (s.step_type === 'AI_PROMPT' && s.step_config?.responseStructure?.length > 0) {
-            s.step_config.responseStructure.forEach(field => {
-                fields.push({
-                    value: `step_${s.id}.${field.name}`,
-                    name: `step_${s.id}.${field.name}`,
-                    label: `Step ${index + 1} (AI): ${field.name}`,
-                    type: field.type,
-                    group: `Step ${index + 1}: ${s.name}`,
+            // Helper function to check if field is Array of Objects
+            const isArrayOfObjects = (field) => {
+                const t = String(field?.type || '').toLowerCase();
+                const it = String(field?.itemType || '').toLowerCase();
+                return t === 'array of objects' || (t === 'array' && it === 'object');
+            };
+            
+            // Recursive function to add fields and their nested children
+            const addFieldsRecursively = (fieldsList, parentPath = '', indentLevel = 0) => {
+                (fieldsList || []).forEach(field => {
+                    if (!field?.name) return;
+                    
+                    const currentPath = parentPath ? `${parentPath}.${field.name}` : field.name;
+                    const indent = '  '.repeat(indentLevel);
+                    
+                    // Always add the current field
+                    fields.push({
+                        value: `step_${s.id}.${currentPath}`,
+                        name: `step_${s.id}.${currentPath}`,
+                        label: `Step ${index + 1} (AI): ${indent}${field.name}`,
+                        type: field.type,
+                        group: `Step ${index + 1}: ${s.name}`,
+                        allowed_values: field.allowed_values || null,
+                    });
+                    
+                    // Handle nested fields based on field type
+                    if (Array.isArray(field.schema)) {
+                        if (isArrayOfObjects(field)) {
+                            // Array of Objects: show nested fields with array access notation
+                            field.schema.forEach(sub => {
+                                if (!sub?.name) return;
+                                fields.push({
+                                    value: `step_${s.id}.${currentPath}.${sub.name}`,
+                                    name: `step_${s.id}.${currentPath}.${sub.name}`,
+                                    label: `Step ${index + 1} (AI): ${indent}  - ${sub.name} (from array)`,
+                                    type: sub.type || 'Text',
+                                    group: `Step ${index + 1}: ${s.name}`,
+                                    allowed_values: sub.allowed_values || null,
+                                });
+                            });
+                        } else if (field.type === 'Object') {
+                            // Regular Object: show nested fields with direct access
+                            addFieldsRecursively(field.schema, currentPath, indentLevel + 1);
+                        }
+                    }
                 });
-            });
+            };
+            
+            addFieldsRecursively(s.step_config.responseStructure);
         }
         if (s.step_type === 'FETCH_RECORDS') {
             fields.push({ value: `step_${s.id}.count`, name: `step_${s.id}.count`, label: `Step ${index + 1} (Fetch): Count`, type: 'Number', group: `Step ${index + 1}: ${s.name}`});

@@ -63,7 +63,7 @@ class EmailController extends Controller
                 try {
                     $this->gmailService->trashMessage($gmailId);
                 } catch (\Throwable $e) {
-                    \Log::error('Failed to trash Gmail message for email', ['email_id' => $email->id, 'error' => $e->getMessage()]);
+                    Log::error('Failed to trash Gmail message for email', ['email_id' => $email->id, 'error' => $e->getMessage()]);
                     $errors[] = 'Failed to delete Gmail copy: ' . $e->getMessage();
                 }
             } else {
@@ -76,7 +76,7 @@ class EmailController extends Controller
             try {
                 $email->delete();
             } catch (\Throwable $e) {
-                \Log::error('Failed to delete local email', ['email_id' => $email->id, 'error' => $e->getMessage()]);
+                Log::error('Failed to delete local email', ['email_id' => $email->id, 'error' => $e->getMessage()]);
                 $errors[] = 'Failed to delete local copy: ' . $e->getMessage();
             }
         }
@@ -998,6 +998,7 @@ class EmailController extends Controller
                 'template_data' => $email->template_data ? json_decode($email->template_data, true) : null,
                 'email_template' => $email->email_template,
                 'client_id' => $email->conversation->conversable_id,
+                'full_html' => $fullHtml,
                 'type'  =>  $email->type,
                 'status'    =>  $email->status
             ]);

@@ -50,7 +50,7 @@
         <!-- RECOMMENDATION 2: Simplified and Personal Signature -->
         <!-- This signature block is designed to look more like a personal, typed signature -->
         <!-- rather than a corporate block, enhancing the one-to-one feel of the email. -->
-        <div class="signature" style="margin-top: 30px;">
+        <div @if(isset($show_signature) && $show_signature === true) class="signature" style="margin-top: 30px;">
             <p style="color: {{ config('branding.branding.text_color_secondary', '#4a5568') }};">All the best,</p>
             <p style="font-weight: bold; color: {{ config('branding.branding.text_color_primary') }};">{{ $senderName ?? config('branding.company.name') }}</p>
             <p style="color: {{ config('branding.branding.text_color_secondary', '#4a5568') }};">{{ $senderRole ?? 'Digital Strategist' }}</p>
@@ -60,16 +60,16 @@
             <p style="font-size: 13px; color: {{ config('branding.branding.text_color_secondary') }};">
                 <b style="color: {{ config('branding.branding.brand_primary_color') }};">W:</b> <a href="https://{{ config('branding.company.website') }}" target="_blank" class="text-link" style="color: {{ config('branding.branding.brand_primary_color') }};">{{ config('branding.company.website') }}</a>
             </p>
-        </div>
+        </div @endif >
     </div>
-    <div class="footer">
+    <div  @if(isset($show_signature) && $show_signature === true) class="footer">
         {{-- The footer remains for professionalism and legal compliance --}}
         <p>&copy; {{ date('Y') }} {{ config('branding.company.name') }}. All rights reserved.</p>
         <p>{{ config('branding.company.address') }}</p>
         @if(config('branding.reviewLink'))
             <p>How did we do? <a href="{{ config('branding.reviewLink') }}" target="_blank" class="text-link" style="color: {{ config('branding.branding.brand_primary_color') }}; font-weight: bold;">Leave a review!</a></p>
         @endif
-    </div>
+    </div @endif >
 </div>
 @if(isset($emailTrackingUrl))
     <img src="{{ $emailTrackingUrl }}" alt="" width="1" height="1" style="display: none;"/>

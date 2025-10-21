@@ -6,11 +6,16 @@ use App\Jobs\ProcessDraftEmailJob;
 use App\Models\Email;
 use App\Models\ExecutionLog;
 use App\Models\WorkflowStep;
+use App\Services\WorkflowEngineService;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 
 class ProcessEmailStepHandler implements StepHandlerContract
 {
+    public function __construct(
+        protected ?WorkflowEngineService $engine = null
+    ) {}
+
     /**
      * Handle the PROCESS_EMAIL action step.
      */
@@ -20,8 +25,9 @@ class ProcessEmailStepHandler implements StepHandlerContract
         $emailId = $this->resolveEmailId($context, $cfg);
 
         if (!$emailId) {
+            $configuredEmailId = $cfg['email_id'] ?? 'none';
             $configuredPath = $cfg['email_id_path'] ?? 'none';
-            throw new \RuntimeException("PROCESS_EMAIL: Unable to resolve a valid email ID. No value found at configured path ('{$configuredPath}') or in default locations ('trigger.email.id', 'triggering_object_id').");
+            throw new \RuntimeException("PROCESS_EMAIL: Unable to resolve a valid email ID. Configured email_id: '{$configuredEmailId}', configured path: '{$configuredPath}'. Tried default locations: 'email.id', 'trigger.email.id', 'triggering_object_id'.");
         }
 
         $email = Email::find($emailId);
@@ -53,11 +59,29 @@ class ProcessEmailStepHandler implements StepHandlerContract
      * Intelligently resolves the email ID from the context.
      *
      * This method provides a more robust way to find the email ID by checking
-     * an explicitly configured path first, then falling back to common default paths.
+     * direct configuration first, then template resolution, then fallback paths.
      */
     protected function resolveEmailId(array $context, array $config): ?int
     {
-        // 1. Prioritize the explicitly configured path.
+        // 1. Check for direct email_id configuration (with template support)
+        if (!empty($config['email_id'])) {
+            $emailIdValue = $config['email_id'];
+            
+            // If we have the engine, use template resolution
+            if ($this->engine) {
+                $resolvedValue = $this->engine->getTemplatedValue($emailIdValue, $context);
+                if ($resolvedValue) {
+                    return (int)$resolvedValue;
+                }
+            } else {
+                // Fallback: if it's a simple integer, use it directly
+                if (is_numeric($emailIdValue)) {
+                    return (int)$emailIdValue;
+                }
+            }
+        }
+
+        // 2. Legacy support: explicitly configured path
         if (!empty($config['email_id_path'])) {
             $emailId = Arr::get($context, $config['email_id_path']);
             if ($emailId) {
@@ -65,11 +89,11 @@ class ProcessEmailStepHandler implements StepHandlerContract
             }
         }
 
-        // 2. If no specific path is set, try common default locations.
+        // 3. Try common default locations in order of preference
         $defaultPaths = [
-            'trigger.email.id',     // Standard for 'email.created' triggers
-            'triggering_object_id', // A common top-level identifier
-            'trigger.id',           // The original, less specific default
+            'email.id',             // Most common: direct email context
+            'trigger.email.id',     // Standard for 'email.created' triggers  
+            'triggering_object_id', // Fallback identifier (can be wrong!)
         ];
 
         foreach ($defaultPaths as $path) {
@@ -79,7 +103,7 @@ class ProcessEmailStepHandler implements StepHandlerContract
             }
         }
 
-        // 3. If not found anywhere, return null.
+        // 4. If not found anywhere, return null
         return null;
     }
 }

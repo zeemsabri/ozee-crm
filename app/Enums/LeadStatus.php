@@ -9,6 +9,9 @@ namespace App\Enums;
 enum LeadStatus: string
 {
     case New = 'new';
+
+    case HOT_INCOMING = 'hot_incoming';
+    case HOT_OUTGOING = 'hot_outgoing';
     case Processing = 'processing';
     case Contacted = 'contacted';
     case GenerationFailed = 'generation_failed';

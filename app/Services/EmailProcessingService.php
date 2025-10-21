@@ -34,9 +34,11 @@ class EmailProcessingService
             $isAiGenerated = is_null($email->template_id) && $body && ($body->greeting && isset($body->paragraphs));
 
             if ($isAiGenerated) {
+                Log::info('this is ai generated email');;
                 $this->processEmailOutReach($email);
                 return;
             }
+            Log::info('this is not ai generated email');
             // 1. Render the template to get the final subject and body
             // We set isFinalSend to `true` to populate all placeholders correctly.
             $renderedContent = $this->renderEmailContent($email, true);
@@ -96,10 +98,12 @@ class EmailProcessingService
         $senderDetails = $this->getSenderDetails($email);
         $data = $this->getData($subject, $renderedBody, $senderDetails, $email, true);
         $finalRenderedBody = $this->renderHtmlTemplate($data, $template);
-
+        Log::info(json_encode($email));
         $recipient = $email->conversation?->conversable ?? null;
 
+        Log::info('recipient', ['recipient' => $recipient]);
         if ($recipient && !empty($recipient->email)) {
+            Log::info('sending email', ['recipient' => $recipient->email]);;
             $this->gmailService->sendEmail(
                 $recipient->email,
                 $subject,

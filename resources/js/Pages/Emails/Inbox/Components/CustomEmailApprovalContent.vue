@@ -29,7 +29,17 @@ const fetchEmailDetails = async () => {
     // Use preview endpoint that returns rendered subject/body_html/body
     const { data } = await axios.get(`/api/emails/${props.email.id}/edit-content`);
     form.value.subject = data.subject;
-    form.value.body = data.body_html || data.body;
+
+    const body = data.body_html || data.body;
+    console.log('para:');
+    console.log(body);
+    if(body.paragraphs && data.full_html) {
+        form.value.body = data.full_html;
+    }
+    else {
+        form.value.body = body;
+    }
+
   } catch (e) {
     console.error('Failed to load email content', e);
     emit('error', e);

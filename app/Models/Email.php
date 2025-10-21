@@ -16,7 +16,7 @@ class Email extends Model
 {
     use HasFactory, Taggable, SoftDeletes, HasCategories;
 
-/** @deprecated use App\Enums\EmailStatus::PendingApprovalReceived */
+    /** @deprecated use App\Enums\EmailStatus::PendingApprovalReceived */
     public const STATUS_PENDING_APPROVAL = \App\Enums\EmailStatus::PendingApprovalReceived->value;
 
     /** @deprecated use App\Enums\EmailStatus::PendingApproval */
@@ -36,6 +36,9 @@ class Email extends Model
     public const TYPE_SENT = \App\Enums\EmailType::Sent->value;
     const APPROVE_RECEIVED_EMAILS_PERMISSION = 'approve_received_emails';
     const APPROVE_SENT_EMAIL_PERMISSION = 'approve_emails';
+
+    /** @deprecated use App\Enums\EmailStatus::Approved */
+    public const APPROVED = 'approved';
 
     const VIEW_EMAIL_PERMISSION = 'view_emails';
 

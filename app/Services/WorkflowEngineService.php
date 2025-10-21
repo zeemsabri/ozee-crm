@@ -40,7 +40,7 @@ class WorkflowEngineService
             'FETCH_RECORDS' => new QueryDataStepHandler(),
             'FOR_EACH' => new ForEachStepHandler($this),
             'TRANSFORM_CONTENT' => new TransformContentStepHandler($this),
-            'ACTION_PROCESS_EMAIL' => new \App\Services\StepHandlers\ProcessEmailStepHandler(),
+            'ACTION_PROCESS_EMAIL' => new \App\Services\StepHandlers\ProcessEmailStepHandler($this),
             // TRIGGER steps are structural; at runtime they are a no-op
             'TRIGGER' => new class implements StepHandlerContract {
                 public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array

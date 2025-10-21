@@ -198,6 +198,10 @@ class AutomationSchemaController extends Controller
                 ['value' => 'created', 'label' => 'is created'],
                 ['value' => 'updated', 'label' => 'is updated'],
             ],
+            'Lead' => [
+                ['value' => 'created', 'label' => 'is created'],
+                ['value' => 'updated', 'label' => 'is updated'],
+            ],
             'User'  =>  [
                 ['value' => 'received', 'label' => 'is received'],
                 ['value' => 'created', 'label' => 'is created'],
