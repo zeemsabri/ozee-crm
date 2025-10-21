@@ -374,6 +374,40 @@ function updateDelayMinutes(val) {
                 </div>
             </template>
 
+            <!-- == PROCESS EMAIL CONFIG == -->
+            <template v-if="actionConfig.action_type === 'PROCESS_EMAIL'">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Email ID</label>
+                    <div class="flex items-center gap-2">
+                        <input 
+                            type="text" 
+                            :value="actionConfig.email_id || ''" 
+                            @input="handleConfigChange('email_id', $event.target.value)" 
+                            class="w-full p-2 border border-gray-300 rounded-md text-sm" 
+                            :placeholder="'e.g., ' + '{{email.id}}' + ' or ' + '{{step_3.new_record_id}}'"
+                        />
+                        <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('email_id', $event)" />
+                    </div>
+                    <p class="mt-1 text-[11px] text-gray-500">
+                        Specify the ID of the email to process. Use the token inserter to select from available context data.
+                    </p>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Queue (Optional)</label>
+                    <input 
+                        type="text" 
+                        :value="actionConfig.on_queue || ''" 
+                        @input="handleConfigChange('on_queue', $event.target.value)" 
+                        class="w-full p-2 border border-gray-300 rounded-md text-sm" 
+                        placeholder="e.g., emails, default" 
+                    />
+                    <p class="mt-1 text-[11px] text-gray-500">
+                        Optional queue name for processing the email. Leave blank to use default queue.
+                    </p>
+                </div>
+            </template>
+
             <!-- == CREATE/UPDATE RECORD CONFIG (Compact Layout) == -->
             <template v-if="actionConfig.action_type === 'CREATE_RECORD' || actionConfig.action_type === 'UPDATE_RECORD'">
                 <div>
@@ -523,7 +557,7 @@ function updateDelayMinutes(val) {
                             :value="actionConfig.related_ids || ''" 
                             @input="handleConfigChange('related_ids', $event.target.value)" 
                             class="w-full p-2 border border-gray-300 rounded-md text-sm" 
-                            placeholder="e.g., {{step_1.category_ids}} or 1,2,3" 
+                            :placeholder="'e.g., ' + '{{step_1.category_ids}}' + ' or 1,2,3'"
                         />
                         <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('related_ids', $event)" />
                     </div>

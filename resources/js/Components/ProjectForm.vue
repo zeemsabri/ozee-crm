@@ -63,7 +63,15 @@ const canManageProjectServicesAndPayments = canManage('project_services_and_paym
 const canAddProjectNotes = canDo('add_project_notes', userProjectRole);
 const canManageProjectUsers = canManage('project_users', userProjectRole);
 const canManageProjectClients = canManage('project_clients', userProjectRole);
-const canManageProjectBasicDetails = canDo('manage_project_basic_details', userProjectRole);
+const canManageProjectBasicDetails = computed(() => {
+    if (canDo('manage_project_basic_details', userProjectRole).value === true) {
+        return true;
+    }
+    if (canManage('manage_project_basic_details').value === true) {
+        return true;
+    }
+    return false;
+});
 
 const canViewProjectDocuments = canView('project_documents', userProjectRole);
 const canViewProjectServicesAndPayments = canView('project_services_and_payments', userProjectRole);

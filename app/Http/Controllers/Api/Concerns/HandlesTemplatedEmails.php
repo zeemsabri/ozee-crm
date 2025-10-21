@@ -407,12 +407,14 @@ trait HandlesTemplatedEmails
         // Load all reusable data from the new config file
         $config = config('branding');
 
+        $body = json_decode($body) ? json_decode($body) : $body;
+        $showSignatures = !((!$isFinalSend && isset($body->paragraphs)));
 
         $data =  [
                 'emailData' => [
                     'subject' => $subject,
                 ],
-                'bodyContent' => json_decode($body) ? json_decode($body) : $body,
+                'bodyContent' => $body,
                 'senderName' => $senderDetails['name'],
                 'senderRole' => $senderDetails['role'],
                 'senderPhone' => $config['company']['phone'],
@@ -427,7 +429,7 @@ trait HandlesTemplatedEmails
                 'borderColor' => $config['branding']['border_color'],
                 'reviewLink' => null,
                 'template'  =>  $email ? $email->template : Email::TEMPLATE_DEFAULT,
-                'show_signature'    =>  true
+                'show_signature'    =>  true,
             ];
 
         if($email?->type === EmailType::Received) {

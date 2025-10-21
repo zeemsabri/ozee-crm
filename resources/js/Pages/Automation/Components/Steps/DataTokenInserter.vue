@@ -109,25 +109,42 @@ const dataSources = computed(() => {
 
     props.allStepsBefore.forEach((step, index) => {
         if (step.step_type === 'AI_PROMPT' && step.step_config?.responseStructure?.length > 0) {
-            // Include top-level fields and, for Array of Objects, their sub-fields as indented entries
+            // Include top-level fields and their nested sub-fields
             const fields = [];
-            (step.step_config.responseStructure || []).forEach(field => {
-                // Always include the top-level field
-                fields.push({
-                    label: field.name,
-                    value: `{{step_${step.id}.${field.name}}}`
-                });
-                // If it's an Array of Objects (or Array with itemType Object), also list its sub-fields
-                if (isArrayOfObjects(field) && Array.isArray(field.schema)) {
-                    field.schema.forEach(sub => {
-                        if (!sub?.name) return;
-                        fields.push({
-                            label: `- ${sub.name}`,
-                            value: `{{step_${step.id}.${field.name}.${sub.name}}}`
-                        });
+            
+            const addFieldsRecursively = (fieldsList, parentPath = '', indentLevel = 0) => {
+                (fieldsList || []).forEach(field => {
+                    if (!field?.name) return;
+                    
+                    const currentPath = parentPath ? `${parentPath}.${field.name}` : field.name;
+                    const indent = '  '.repeat(indentLevel);
+                    
+                    // Always include the current field
+                    fields.push({
+                        label: `${indent}${field.name}`,
+                        value: `{{step_${step.id}.${currentPath}}}`
                     });
-                }
-            });
+                    
+                    // Handle nested fields based on field type
+                    if (Array.isArray(field.schema)) {
+                        if (isArrayOfObjects(field)) {
+                            // Array of Objects: show nested fields with array access notation
+                            field.schema.forEach(sub => {
+                                if (!sub?.name) return;
+                                fields.push({
+                                    label: `${indent}  - ${sub.name} (from array item)`,
+                                    value: `{{step_${step.id}.${currentPath}.${sub.name}}}`
+                                });
+                            });
+                        } else if (field.type === 'Object') {
+                            // Regular Object: show nested fields with direct access
+                            addFieldsRecursively(field.schema, currentPath, indentLevel + 1);
+                        }
+                    }
+                });
+            };
+            
+            addFieldsRecursively(step.step_config.responseStructure);
             sources.push({
                 name: `Step ${index + 1}: AI Response`,
                 fields,
