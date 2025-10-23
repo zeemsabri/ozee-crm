@@ -38,6 +38,9 @@ class CreateRecordStepHandler implements StepHandlerContract
                 $resolved = json_encode($resolved);
             }
 
+            // Process special functions like NOW(), CURRENT_TIMESTAMP, etc.
+            $resolved = $this->processFunctions($resolved);
+
             $resolved = $this->normalizeMorphType($key, $resolved);
 
             try {
@@ -209,6 +212,37 @@ class CreateRecordStepHandler implements StepHandlerContract
         if ($mapped && class_exists($mapped)) return $mapped;
         $candidate = 'App\\Models\\' . Str::studly($value);
         if (class_exists($candidate)) return $candidate;
+        return $value;
+    }
+
+    /**
+     * Process special function calls in field values.
+     * Supports: NOW(), CURRENT_TIMESTAMP, TODAY(), NULL
+     */
+    protected function processFunctions($value)
+    {
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        $trimmed = trim(strtoupper($value));
+
+        // Handle NOW() - returns current datetime
+        if ($trimmed === 'NOW()' || $trimmed === 'CURRENT_TIMESTAMP' || $trimmed === 'CURRENT_TIMESTAMP()') {
+            return now();
+        }
+
+        // Handle TODAY() - returns current date at midnight
+        if ($trimmed === 'TODAY()') {
+            return now()->startOfDay();
+        }
+
+        // Handle NULL
+        if ($trimmed === 'NULL') {
+            return null;
+        }
+
+        // Return original value if no function matched
         return $value;
     }
 }

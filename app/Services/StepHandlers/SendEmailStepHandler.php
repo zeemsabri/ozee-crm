@@ -4,17 +4,31 @@ namespace App\Services\StepHandlers;
 
 use App\Models\ExecutionLog;
 use App\Models\WorkflowStep;
+use App\Services\WorkflowEngineService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class SendEmailStepHandler implements StepHandlerContract
 {
+    public function __construct(
+        protected ?WorkflowEngineService $engine = null
+    ) {}
+
     public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
-        $to = $this->applyTemplate((string)($cfg['to'] ?? ''), $context);
-        $subject = $this->applyTemplate((string)($cfg['subject'] ?? ''), $context);
-        $body = $this->applyTemplate((string)($cfg['body'] ?? ''), $context);
+        
+        // Use WorkflowEngineService's template resolution if available (supports nested paths and .parsed fallback)
+        if ($this->engine) {
+            $to = (string) $this->engine->getTemplatedValue((string)($cfg['to'] ?? ''), $context);
+            $subject = (string) $this->engine->getTemplatedValue((string)($cfg['subject'] ?? ''), $context);
+            $body = (string) $this->engine->getTemplatedValue((string)($cfg['body'] ?? ''), $context);
+        } else {
+            // Fallback to local template method
+            $to = $this->applyTemplate((string)($cfg['to'] ?? ''), $context);
+            $subject = $this->applyTemplate((string)($cfg['subject'] ?? ''), $context);
+            $body = $this->applyTemplate((string)($cfg['body'] ?? ''), $context);
+        }
 
         if (!$to) {
             throw new \InvalidArgumentException('to is required for SEND_EMAIL');
