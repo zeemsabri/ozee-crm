@@ -37,6 +37,8 @@ class UpdateRecordStepHandler implements StepHandlerContract
             $val = $f['value'] ?? null;
             if (!$key) continue;
             $resolved = $this->applyTemplate($val, $context);
+            // Process special functions like NOW(), CURRENT_TIMESTAMP, etc.
+            $resolved = $this->processFunctions($resolved);
             // Normalize morph type aliases like "client" to FQCN when saving *_type columns
             $resolved = $this->normalizeMorphType($key, $resolved);
             // Soft validation against allowed values registry (if available)
@@ -149,6 +151,37 @@ class UpdateRecordStepHandler implements StepHandlerContract
         $candidate = 'App\\Models\\' . Str::studly($value);
         if (class_exists($candidate)) return $candidate;
 
+        return $value;
+    }
+
+    /**
+     * Process special function calls in field values.
+     * Supports: NOW(), CURRENT_TIMESTAMP, TODAY(), NULL
+     */
+    protected function processFunctions($value)
+    {
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        $trimmed = trim(strtoupper($value));
+
+        // Handle NOW() - returns current datetime
+        if ($trimmed === 'NOW()' || $trimmed === 'CURRENT_TIMESTAMP' || $trimmed === 'CURRENT_TIMESTAMP()') {
+            return now();
+        }
+
+        // Handle TODAY() - returns current date at midnight
+        if ($trimmed === 'TODAY()') {
+            return now()->startOfDay();
+        }
+
+        // Handle NULL
+        if ($trimmed === 'NULL') {
+            return null;
+        }
+
+        // Return original value if no function matched
         return $value;
     }
 }

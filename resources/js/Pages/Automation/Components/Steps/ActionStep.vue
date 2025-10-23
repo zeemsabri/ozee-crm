@@ -432,11 +432,19 @@ function updateDelayMinutes(val) {
                 </div>
 
                 <div>
-                    <div class="flex items-center justify-between mb-2">
+                    <div class="mb-2">
                         <label class="text-xs font-medium text-gray-600">Fields to set</label>
-                        <button @click="addField" class="flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-gray-100 hover:bg-gray-200">
-                            <PlusIcon class="h-3 w-3" /> Add
-                        </button>
+                    </div>
+
+                    <!-- Helpful Tips -->
+                    <div class="mb-3 p-2 bg-blue-50 border-l-2 border-blue-400 text-[11px] text-gray-700">
+                        <p class="font-medium text-blue-800 mb-1">💡 Quick Tips:</p>
+                        <ul class="space-y-0.5 ml-3">
+                            <li>• Use <code class="px-1 bg-white rounded">NOW()</code> for current timestamp (e.g., deleted_at, published_at)</li>
+                            <li>• Use <code class="px-1 bg-white rounded">TODAY()</code> for current date at midnight</li>
+                            <li>• Use <code class="px-1 bg-white rounded">NULL</code> to clear optional fields</li>
+                            <li>• Use the <strong>token inserter (➕)</strong> to access data from triggers & previous steps</li>
+                        </ul>
                     </div>
 
                     <div v-if="requiredFields.length" class="mb-2 text-[11px]">
@@ -494,6 +502,13 @@ function updateDelayMinutes(val) {
                                 {{ getColumnMeta(field.column).description }}
                             </p>
                         </div>
+                    </div>
+
+                    <!-- Add Field Button at Bottom -->
+                    <div class="mt-3">
+                        <button @click="addField" class="w-full flex items-center justify-center gap-1 px-3 py-2 text-sm rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200">
+                            <PlusIcon class="h-4 w-4" /> Add Field
+                        </button>
                     </div>
                 </div>
             </template>

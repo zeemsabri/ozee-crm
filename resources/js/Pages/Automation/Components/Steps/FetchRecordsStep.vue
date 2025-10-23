@@ -63,27 +63,45 @@ function operatorOptionsFor(columnName) {
             return [
                 { value: '==', label: 'is' },
                 { value: '!=', label: 'is not' },
+                { value: 'is_null', label: 'is null' },
+                { value: 'is_not_null', label: 'is not null' },
             ];
         case 'Number':
             return [
                 { value: '==', label: 'equals' },
+                { value: '!=', label: 'not equals' },
                 { value: '>', label: '>' },
                 { value: '<', label: '<' },
                 { value: '>=', label: '>=' },
                 { value: '<=', label: '<=' },
+                { value: 'is_null', label: 'is null' },
+                { value: 'is_not_null', label: 'is not null' },
             ];
         case 'Date':
         case 'DateTime':
             return [
                 { value: '==', label: 'on' },
+                { value: '!=', label: 'not on' },
                 { value: '>', label: 'after' },
                 { value: '<', label: 'before' },
+                { value: '>=', label: 'on or after' },
+                { value: '<=', label: 'on or before' },
+                { value: 'is_null', label: 'is null' },
+                { value: 'is_not_null', label: 'is not null' },
+                { value: 'older_than_hours', label: 'older than X hours' },
+                { value: 'within_hours', label: 'within last X hours' },
+                { value: 'older_than_days', label: 'older than X days' },
+                { value: 'within_days', label: 'within last X days' },
             ];
         default:
             return [
                 { value: '==', label: 'is' },
                 { value: '!=', label: 'is not' },
                 { value: 'contains', label: 'contains' },
+                { value: 'starts_with', label: 'starts with' },
+                { value: 'ends_with', label: 'ends with' },
+                { value: 'is_null', label: 'is null' },
+                { value: 'is_not_null', label: 'is not null' },
             ];
     }
 }
@@ -167,8 +185,11 @@ const relationshipsSummary = computed(() => {
                                 @update:modelValue="(val) => updateCondition(index, 'operator', val)"
                             />
                             <div class="flex items-center gap-1">
-                                <!-- Value control adapts to field type -->
-                                <template v-if="getColumnMeta(cond.column)?.allowed_values">
+                                <!-- Value control adapts to field type and operator -->
+                                <template v-if="cond.operator === 'is_null' || cond.operator === 'is_not_null'">
+                                    <span class="text-xs text-gray-500 italic px-2">No value needed</span>
+                                </template>
+                                <template v-else-if="getColumnMeta(cond.column)?.allowed_values">
                                     <SelectDropdown
                                         :options="(getColumnMeta(cond.column).allowed_values || []).map(o => ({ value: o.value, label: o.label }))"
                                         :model-value="cond.value || null"
@@ -181,6 +202,12 @@ const relationshipsSummary = computed(() => {
                                         <option value="true">True</option>
                                         <option value="false">False</option>
                                     </select>
+                                </template>
+                                <template v-else-if="cond.operator === 'older_than_hours' || cond.operator === 'within_hours'">
+                                    <input type="number" :value="cond.value" @input="updateCondition(index, 'value', $event.target.value)" placeholder="Hours (e.g. 24)" min="1" class="w-full border rounded px-2 py-2 text-sm" />
+                                </template>
+                                <template v-else-if="cond.operator === 'older_than_days' || cond.operator === 'within_days'">
+                                    <input type="number" :value="cond.value" @input="updateCondition(index, 'value', $event.target.value)" placeholder="Days (e.g. 7)" min="1" class="w-full border rounded px-2 py-2 text-sm" />
                                 </template>
                                 <template v-else>
                                     <input :type="getColumnMeta(cond.column)?.type === 'Date' ? 'date' : (getColumnMeta(cond.column)?.type === 'DateTime' ? 'datetime-local' : 'text')" :value="cond.value" @input="updateCondition(index, 'value', $event.target.value)" placeholder="Value" class="w-full border rounded px-2 py-2 text-sm" />

@@ -35,7 +35,7 @@ class WorkflowEngineService
             'ACTION_CREATE_RECORD' => new CreateRecordStepHandler(),
             'ACTION_UPDATE_RECORD' => new UpdateRecordStepHandler(),
             'ACTION_SYNC_RELATIONSHIP' => new SyncRelationshipStepHandler($this),
-            'ACTION_SEND_EMAIL' => new SendEmailStepHandler(),
+            'ACTION_SEND_EMAIL' => new SendEmailStepHandler($this),
             'QUERY_DATA' => new QueryDataStepHandler(),
             'FETCH_RECORDS' => new QueryDataStepHandler(),
             'FOR_EACH' => new ForEachStepHandler($this),
