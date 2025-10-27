@@ -50,4 +50,24 @@ class Workflow extends Model
     {
         return $this->morphMany(\App\Models\Schedule::class, 'scheduledItem');
     }
+
+    /**
+     * Execute this workflow when triggered by a schedule.
+     */
+    public function runScheduled(\App\Models\Schedule $schedule): void
+    {
+        // Dispatch the workflow job with schedule.run event context
+        \App\Jobs\RunWorkflowJob::dispatch(
+            $this->id,
+            [
+                'event' => 'schedule.run',
+                'schedule_id' => $schedule->id,
+                'trigger' => [
+                    'event' => 'schedule.run',
+                    'schedule_id' => $schedule->id,
+                    'triggered_at' => now()->toIso8601String(),
+                ],
+            ]
+        );
+    }
 }

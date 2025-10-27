@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class RunWorkflowJob implements ShouldQueue, ShouldBeUniqueUntilProcessing
 {
@@ -50,8 +51,10 @@ class RunWorkflowJob implements ShouldQueue, ShouldBeUniqueUntilProcessing
         }
 
         if ($this->startStepId) {
+            Log::info('execute flow with step id');
             $engine->executeFromStepId($workflow, $this->context, $this->startStepId);
         } else {
+            Log::info('execute flow');
             $engine->execute($workflow, $this->context);
         }
     }

@@ -605,15 +605,25 @@ export const vPermission = {
      * Called before the element is inserted into the document
      */
     beforeMount(el, binding) {
-        // CORRECTED: Use 'vPermission' instead of 'this'
+        const permissionStore = usePermissionStore();
+        
+        // Initial check
         vPermission._check(el, binding);
+        
+        // Watch for permission changes
+        // Use $subscribe to watch for state changes in the Pinia store
+        const unsubscribe = permissionStore.$subscribe(() => {
+            vPermission._check(el, binding);
+        });
+        
+        // Store the unsubscribe function so we can clean up later
+        el._permissionUnsubscribe = unsubscribe;
     },
 
     /**
      * Called when the component is updated
      */
     updated(el, binding) {
-        // CORRECTED: Use 'vPermission' instead of 'this'
         vPermission._check(el, binding);
     },
 
@@ -621,6 +631,12 @@ export const vPermission = {
      * Called when the directive is unbound from the element
      */
     unmounted(el) {
+        // Clean up the permission store subscription
+        if (el._permissionUnsubscribe) {
+            el._permissionUnsubscribe();
+            delete el._permissionUnsubscribe;
+        }
+        
         if (el._originalDisplay !== undefined) {
             el.style.display = el._originalDisplay;
             delete el._originalDisplay;

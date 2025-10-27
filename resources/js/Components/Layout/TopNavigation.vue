@@ -41,20 +41,8 @@ const canManagePermissions = canDo('manage_permissions');
 const canManageMonthlyBudgets = canDo('manage_monthly_budgets');
 const canViewMonthlyBudgets = canDo('view_monthly_budgets');
 
-const canSeeAdminMenu = computed(() =>
-    canAccessProjects.value ||
-    canManageUsers.value ||
-    canManageRoles.value ||
-    canManageTaskTypes.value ||
-    canAccessClients.value ||
-    canManageProjectTiers.value ||
-    canManageNotices.value ||
-    canManageEmailTemplates.value ||
-    canManagePlaceholderDefinitions.value ||
-    canManagePermissions.value ||
-    canManageMonthlyBudgets.value ||
-    canViewMonthlyBudgets.value
-);
+const canSeeAdminMenu = canDo('view_admin_menu');
+const canViewAdminDropdown = canDo('view_admin_dropdown');
 
 // Monthly points badge state
 const monthlyPoints = ref(null);
@@ -168,7 +156,7 @@ onMounted(async () => {
 
                         <BonusDropdown />
 
-                        <AdminDropdown v-permission="'view_admin_dropdown'" />
+                        <AdminDropdown v-if="canViewAdminDropdown" />
 
                     </div>
 
