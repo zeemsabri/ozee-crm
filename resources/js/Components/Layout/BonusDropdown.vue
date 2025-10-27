@@ -42,7 +42,7 @@ const { canDo } = usePermissions();
                         <div v-if="canDo('add_expendables').value">
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Management</h4>
                             <div class="space-y-1">
-                                <DropdownLink v-if="canDo('add_expendables').value" :href="route('project-expendables.index')" class="!px-2 !py-1.5">Project Expendables</DropdownLink>
+                                <DropdownLink v-permission="'add_expendables'" :href="route('project-expendables.index')" class="!px-2 !py-1.5">Project Expendables</DropdownLink>
                             </div>
                         </div>
 
