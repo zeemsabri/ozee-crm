@@ -60,10 +60,7 @@ class UserPolicy
         // Check if user has permission to edit users
         if ($currentUser->hasPermission('edit_users')) {
             // Managers should only be able to edit employees and contractors
-            if ($currentUser->isManager()) {
-                return ($user->isEmployee() || $user->isContractor());
-            }
-            return true;
+            return $currentUser->hasPermission('manage_roles');
         }
 
         // A user can update their own profile.
