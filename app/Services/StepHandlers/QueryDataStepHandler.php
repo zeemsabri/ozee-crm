@@ -160,8 +160,12 @@ class QueryDataStepHandler implements StepHandlerContract
             '<=' => ['<=', $val, 'where'],
             '>' => ['>', $val, 'where'],
             '<' => ['<', $val, 'where'],
-            'is null', 'null' => ['=', null, 'whereNull'],
-            'is not null', 'not null', 'not_null' => ['!=', null, 'whereNotNull'],
+            'is null', 'is_null', 'null' => ['=', null, 'whereNull'],
+            'is not null', 'is_not_null', 'not null', 'not_null' => ['!=', null, 'whereNotNull'],
+            'older_than_hours' => ['<', now()->subHours((int)$val), 'where'],
+            'within_hours' => ['>=', now()->subHours((int)$val), 'where'],
+            'older_than_days' => ['<', now()->subDays((int)$val), 'where'],
+            'within_days' => ['>=', now()->subDays((int)$val), 'where'],
             default => ['=', $val, 'where'],
         };
     }

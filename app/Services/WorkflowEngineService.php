@@ -27,7 +27,6 @@ class WorkflowEngineService
         AIGenerationService $ai,
     ) {
 
-        Log::info(json_encode($this, JSON_PRETTY_PRINT));
         // Register default handlers
         $this->handlers = [
             'AI_PROMPT' => new AiPromptStepHandler($ai),
@@ -85,6 +84,10 @@ class WorkflowEngineService
      */
     public function execute(Workflow $workflow, array $context = [], ?ExecutionLog $parentLog = null): array
     {
+
+        Log::info('WorkflowEngineService.execute', [
+            'context'   =>  $context
+        ]);
         // Track if the incoming context was empty (useful for schedule-run guard)
         $initiallyEmpty = empty($context);
         // Seed a trigger namespace if not present for variable paths like {{ trigger.* }}
