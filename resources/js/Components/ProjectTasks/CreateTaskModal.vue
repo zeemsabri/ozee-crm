@@ -32,7 +32,8 @@ const taskForm = reactive({
     milestone_id: null,
     project_id: props.projectId, // Initialize with prop
     priority: 'medium', // Default priority
-    needs_approval: false, // New: whether this task needs approval
+    needs_approval: false, // Whether this task needs approval
+    requires_qa: false, // Whether this task requires QA verification after completion
     tags: [], // For tag IDs
     tags_data: [], // For tag objects with id and name
 });
@@ -64,6 +65,7 @@ const showTagsInput = ref(false);
 const showAttachmentsInput = ref(false);
 const showScheduleInput = ref(false);
 const showApprovalInput = ref(false);
+const showQaInput = ref(false);
 
 // Computed properties for BaseFormModal
 const modalTitle = 'Create New Task';
@@ -127,6 +129,7 @@ watch(() => props.show, async (newValue) => {
             project_id: props.projectId, // Re-set project_id from prop
             priority: 'medium', // Reset to default priority
             needs_approval: false,
+            requires_qa: false,
             tags: [], // Reset tags
             tags_data: [], // Reset tags data
         });
@@ -136,6 +139,7 @@ watch(() => props.show, async (newValue) => {
         showAttachmentsInput.value = false;
         showScheduleInput.value = false;
         showApprovalInput.value = false;
+        showQaInput.value = false;
 
         // If no projectId passed, fetch projects for selection
         if (!props.projectId) {
@@ -403,6 +407,10 @@ const milestoneOptions = computed(() => milestones.value);
                             <input id="needs-approval" type="checkbox" v-model="taskForm.needs_approval" class="h-4 w-4 text-indigo-600 border-gray-300 rounded" />
                             <label for="needs-approval" class="ml-2 block text-sm text-gray-700">This task needs approval</label>
                         </div>
+                        <div v-if="showQaInput" class="flex items-center">
+                            <input id="requires-qa" type="checkbox" v-model="taskForm.requires_qa" class="h-4 w-4 text-indigo-600 border-gray-300 rounded" />
+                            <label for="requires-qa" class="ml-2 block text-sm text-gray-700">Required QA Task</label>
+                        </div>
                         <div v-if="showScheduleInput" class="flex items-center justify-between">
                             <div>
                                 <InputLabel value="Schedule" />
@@ -420,6 +428,7 @@ const milestoneOptions = computed(() => milestones.value);
                         <button type="button" @click="showTagsInput = !showTagsInput" class="flex items-center gap-1 text-sm text-gray-600 hover:text-black bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md transition-colors" :class="{'bg-gray-300': showTagsInput}"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a2 2 0 012 2v5a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2zm0 0v11a2 2 0 002 2h5a2 2 0 002-2v-5a2 2 0 00-2-2H7z" /></svg>Tag</button>
                         <button type="button" @click="showAttachmentsInput = !showAttachmentsInput" class="flex items-center gap-1 text-sm text-gray-600 hover:text-black bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md transition-colors" :class="{'bg-gray-300': showAttachmentsInput}"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>Attachment</button>
                         <button type="button" @click="showApprovalInput = !showApprovalInput" class="flex items-center gap-1 text-sm text-gray-600 hover:text-black bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md transition-colors" :class="{'bg-gray-300': showApprovalInput}"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>Approval</button>
+                        <button type="button" @click="showQaInput = !showQaInput" class="flex items-center gap-1 text-sm text-gray-600 hover:text-black bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md transition-colors" :class="{'bg-gray-300': showQaInput}"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6l7 3v4c0 4.418-2.239 8-7 9-4.761-1-7-4.582-7-9V9l7-3z"/></svg>QA</button>
                         <button type="button" @click="showScheduleInput = !showScheduleInput" class="flex items-center gap-1 text-sm text-gray-600 hover:text-black bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md transition-colors" :class="{'bg-gray-300': showScheduleInput}"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>Schedule</button>
                     </div>
                 </div>
