@@ -2,42 +2,46 @@
 
 namespace App\Models;
 
+use App\Enums\TaskStatus;
 use App\Events\TaskCompletedEvent;
 use App\Listeners\GlobalModelEventSubscriber;
 use App\Models\Traits\HasUserTimezone;
 use App\Models\Traits\Taggable;
 use App\Notifications\TaskAssigned;
+use App\Services\GoogleChatService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Services\GoogleChatService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
-use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Models\Activity;
-use App\Enums\TaskStatus;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Task extends Model implements \App\Contracts\CreatableViaWorkflow
 {
-    use HasFactory, Taggable, SoftDeletes, LogsActivity, HasUserTimezone;
+    use HasFactory, HasUserTimezone, LogsActivity, SoftDeletes, Taggable;
 
     protected $appends = ['creator_name'];
 
     // Task status constants (aliases maintained for backward compatibility)
     /** @deprecated use App\Enums\TaskStatus::ToDo */
     public const STATUS_TO_DO = \App\Enums\TaskStatus::ToDo->value;
+
     /** @deprecated use App\Enums\TaskStatus::InProgress */
     public const STATUS_IN_PROGRESS = \App\Enums\TaskStatus::InProgress->value;
+
     /** @deprecated use App\Enums\TaskStatus::Paused */
     public const STATUS_PAUSED = \App\Enums\TaskStatus::Paused->value;
+
     /** @deprecated use App\Enums\TaskStatus::Done */
     public const STATUS_DONE = \App\Enums\TaskStatus::Done->value;
+
     /** @deprecated use App\Enums\TaskStatus::Blocked */
     public const STATUS_BLOCKED = \App\Enums\TaskStatus::Blocked->value;
+
     /** @deprecated use App\Enums\TaskStatus::Archived */
     public const STATUS_ARCHIVED = \App\Enums\TaskStatus::Archived->value;
 
@@ -67,8 +71,8 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
             ->logOnly(['name', 'description', 'status', 'assigned_to_user_id', 'due_date', 'priority', 'block_reason'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
-            ->setDescriptionForEvent(function(string $eventName) {
-                return match($eventName) {
+            ->setDescriptionForEvent(function (string $eventName) {
+                return match ($eventName) {
                     'created' => 'Task was created',
                     'updated' => $this->getActivityDescriptionForUpdate(),
                     'deleted' => 'Task was deleted',
@@ -89,8 +93,8 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
             $newStatus = $changes['status'];
 
             // Normalize possible enum instances to string values
-            $old = is_object($oldStatus) && ISSET($oldStatus->value) ? $oldStatus->value : $oldStatus;
-            $new = is_object($newStatus) && ISSET($newStatus->value) ? $newStatus->value : $newStatus;
+            $old = is_object($oldStatus) && isset($oldStatus->value) ? $oldStatus->value : $oldStatus;
+            $new = is_object($newStatus) && isset($newStatus->value) ? $newStatus->value : $newStatus;
 
             if ($old === TaskStatus::ToDo->value && $new === TaskStatus::InProgress->value) {
                 return 'Task was started';
@@ -100,6 +104,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                 return 'Task was resumed';
             } elseif ($new === TaskStatus::Blocked->value) {
                 $blockReason = $this->block_reason ? ": {$this->block_reason}" : '';
+
                 return "Task was blocked{$blockReason}";
             } elseif ($old === TaskStatus::Blocked->value && ($new === TaskStatus::ToDo->value || $new === TaskStatus::InProgress->value)) {
                 return 'Task was unblocked';
@@ -115,13 +120,21 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
         if (isset($changes['assigned_to_user_id'])) {
             $user = User::find($changes['assigned_to_user_id']);
             $userName = $user ? $user->name : 'someone';
+
             return "Task was assigned to {$userName}";
         }
 
         if (isset($changes['priority'])) {
             $oldPriority = $this->getOriginal('priority');
             $newPriority = $changes['priority'];
+
             return "Task priority changed from '{$oldPriority}' to '{$newPriority}'";
+        }
+
+        if (isset($changes['requires_qa'])) {
+            $enabled = (bool) $changes['requires_qa'];
+
+            return $enabled ? 'QA requirement enabled for this task' : 'QA requirement disabled for this task';
         }
 
         if (isset($changes['due_date'])) {
@@ -129,10 +142,11 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
             $newDueDate = $changes['due_date'];
             $oldFormatted = $oldDueDate ? date('Y-m-d', strtotime($oldDueDate)) : 'none';
             $newFormatted = $newDueDate ? date('Y-m-d', strtotime($newDueDate)) : 'none';
+
             return "Task due date changed from '{$oldFormatted}' to '{$newFormatted}'";
         }
 
-        if (isset($changes['block_reason']) && !isset($changes['status'])) {
+        if (isset($changes['block_reason']) && ! isset($changes['status'])) {
             return "Task blocking reason was updated: {$this->block_reason}";
         }
 
@@ -180,6 +194,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
         'needs_approval',
         'details',
         'parent_id',
+        'requires_qa',
     ];
 
     /**
@@ -192,7 +207,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
         'actual_completion_date' => 'date',
         'details' => 'array',
         'needs_approval' => 'boolean',
-        'status' => \App\Casts\MilestoneStatusCast::class . ':' . \App\Enums\TaskStatus::class,
+        'status' => \App\Casts\MilestoneStatusCast::class.':'.\App\Enums\TaskStatus::class,
     ];
 
     /**
@@ -206,15 +221,17 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
             // Send a message to the project's Google Chat space when a new task is created
             try {
                 // Load the milestone and project relationships
-                if (!$task->milestone) {
+                if (! $task->milestone) {
                     Log::error('Cannot add task to Google Chat: Task has no milestone', ['task_id' => $task->id]);
+
                     return;
                 }
 
                 $task->load('milestone.project');
 
-                if (!$task->milestone->project) {
+                if (! $task->milestone->project) {
                     Log::error('Cannot add task to Google Chat: Milestone has no project', ['task_id' => $task->id, 'milestone_id' => $task->milestone_id]);
+
                     return;
                 }
 
@@ -222,14 +239,15 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
 
                 $project->supportMilestone();
 
-                if (!$project->google_chat_id) {
+                if (! $project->google_chat_id) {
                     Log::error('Cannot add task to Google Chat: Project has no Google Chat space', ['task_id' => $task->id, 'project_id' => $project->id]);
+
                     return;
                 }
 
-                $chatService = new GoogleChatService();
+                $chatService = new GoogleChatService;
                 $messageText = "🆕 *New Task Created*: {$task->name}\n\n";
-                $messageText .= "📋 *Description*: " . ($task->description ?: 'No description provided') . "\n";
+                $messageText .= '📋 *Description*: '.($task->description ?: 'No description provided')."\n";
                 $messageText .= "🏁 *Milestone*: {$task->milestone->name}\n";
 
                 if ($task->assigned_to_user_id) {
@@ -243,18 +261,15 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                     $messageText .= "📅 *Due Date*: {$task->due_date->format('Y-m-d')}\n";
                 }
 
-                if(env('PUSH_TO_CHAT', true)) {
+                if (env('PUSH_TO_CHAT', true)) {
                     // Send the message to the project's Google Chat space
                     $messageResult = $chatService->sendMessage(
                         $project->google_chat_id,
                         $messageText
                     );
-                }
-                else {
+                } else {
                     return;
                 }
-
-
 
                 // Save the Google Chat space ID to the task
                 $task->google_chat_space_id = $project->google_chat_id;
@@ -278,7 +293,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                             $threadKey = end($threadKeyParts); // Get the last part after the dot
                         }
 
-                        $threadId = 'spaces/' . $spaceId . '/threads/' . $threadKey;
+                        $threadId = 'spaces/'.$spaceId.'/threads/'.$threadKey;
                         $task->google_chat_thread_id = $threadId;
                     }
                 }
@@ -293,22 +308,22 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                             $task->assignedTo->notify(new TaskAssigned($task));
                             Log::info('Task assignment notification sent to user', [
                                 'task_id' => $task->id,
-                                'user_id' => $task->assigned_to_user_id
+                                'user_id' => $task->assigned_to_user_id,
                             ]);
                         } catch (\Exception $notifyException) {
-                            Log::error('Failed to send task assignment notification: ' . $notifyException->getMessage(), [
+                            Log::error('Failed to send task assignment notification: '.$notifyException->getMessage(), [
                                 'task_id' => $task->id,
                                 'user_id' => $task->assigned_to_user_id,
-                                'exception' => $notifyException
+                                'exception' => $notifyException,
                             ]);
                         }
                     }
                 }
 
             } catch (\Exception $e) {
-                Log::error('Failed to send task message to Google Chat: ' . $e->getMessage(), [
+                Log::error('Failed to send task message to Google Chat: '.$e->getMessage(), [
                     'task_id' => $task->id,
-                    'exception' => $e
+                    'exception' => $e,
                 ]);
             }
         });
@@ -341,12 +356,12 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
             // For now, if no creator, it remains unset, allowing database to handle nullability.
         });
 
-//        static::updated(function (Task $task) {
-//            Log::info('Task updated', [
-//                'task_id'   =>  $task->id
-//            ]);
-//           GlobalModelEventSubscriber::dispatch(model: $task, from: 'task model');
-//        });
+        //        static::updated(function (Task $task) {
+        //            Log::info('Task updated', [
+        //                'task_id'   =>  $task->id
+        //            ]);
+        //           GlobalModelEventSubscriber::dispatch(model: $task, from: 'task model');
+        //        });
 
     }
 
@@ -417,7 +432,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
     public function spawnChildFromTemplate(array $overrides = []): Task
     {
         $defaults = [
-            'name' => $this->name . ' — ' . ' (scheduled)',
+            'name' => $this->name.' — '.' (scheduled)',
             'description' => $this->description,
             'assigned_to_user_id' => $this->assigned_to_user_id,
             'task_type_id' => $this->task_type_id,
@@ -427,6 +442,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
         ];
 
         $data = array_merge($defaults, $overrides);
+
         return static::create($data);
     }
 
@@ -439,7 +455,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
      */
     public function isCompleted()
     {
-        return ($this->status instanceof TaskStatus ? $this->status->value : (string)$this->status) === TaskStatus::Done->value;
+        return ($this->status instanceof TaskStatus ? $this->status->value : (string) $this->status) === TaskStatus::Done->value;
     }
 
     /**
@@ -449,16 +465,16 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
      */
     public function isOverdue()
     {
-        return $this->due_date && $this->due_date->isPast() && !$this->isCompleted();
+        return $this->due_date && $this->due_date->isPast() && ! $this->isCompleted();
     }
 
     /**
      * Mark the task as completed and send a notification to Google Chat.
      *
-     * @param User|null $user The user who completed the task (defaults to null)
+     * @param  User|null  $user  The user who completed the task (defaults to null)
      * @return void
      */
-    public function markAsCompleted(User $user = null)
+    public function markAsCompleted(?User $user = null)
     {
         // Keep a reference to the user who completed the task
         $completedBy = $user;
@@ -469,25 +485,25 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
         $this->save();
 
         // Only send notification if status actually changed
-        $old = $oldStatus instanceof TaskStatus ? $oldStatus->value : (string)$oldStatus;
+        $old = $oldStatus instanceof TaskStatus ? $oldStatus->value : (string) $oldStatus;
         if ($old !== TaskStatus::Done->value) {
 
-            if($this->milestone) {
+            if ($this->milestone) {
                 TaskCompletedEvent::dispatch($this, $this->milestone);
             }
 
-
             try {
                 // Make sure we have the Google Chat space ID
-                if (!$this->google_chat_space_id) {
+                if (! $this->google_chat_space_id) {
                     // Try to get it from the project
                     $this->load('milestone.project');
 
-                    if (!$this->milestone || !$this->milestone->project || !$this->milestone->project->google_chat_id) {
+                    if (! $this->milestone || ! $this->milestone->project || ! $this->milestone->project->google_chat_id) {
                         Log::error('Cannot send task completed notification: Google Chat space ID is missing', [
                             'task_id' => $this->id,
-                            'milestone_id' => $this->milestone_id ?? 'null'
+                            'milestone_id' => $this->milestone_id ?? 'null',
                         ]);
+
                         return;
                     }
 
@@ -496,7 +512,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                     $this->save();
                 }
 
-                $chatService = new GoogleChatService();
+                $chatService = new GoogleChatService;
 
                 // Prepare the message
                 $messageText = "✅ *Task Completed*: {$this->name}\n\n";
@@ -517,7 +533,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                         $this->google_chat_thread_id,
                         $messageText
                     );
-                } else if ($this->chat_message_id) {
+                } elseif ($this->chat_message_id) {
                     // If we have a chat_message_id but no thread ID, try to construct the thread ID
                     $parts = explode('/', $this->chat_message_id);
                     if (count($parts) >= 4 && $parts[0] === 'spaces' && $parts[2] === 'messages') {
@@ -531,7 +547,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                             $threadKey = end($threadKeyParts);
                         }
 
-                        $threadId = 'spaces/' . $spaceId . '/threads/' . $threadKey;
+                        $threadId = 'spaces/'.$spaceId.'/threads/'.$threadKey;
                         $this->google_chat_thread_id = $threadId;
                         $this->save();
 
@@ -550,9 +566,9 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                     $chatService->sendMessage($this->google_chat_space_id, $messageText);
                 }
             } catch (\Exception $e) {
-                Log::error('Failed to send task completed notification: ' . $e->getMessage(), [
+                Log::error('Failed to send task completed notification: '.$e->getMessage(), [
                     'task_id' => $this->id,
-                    'exception' => $e
+                    'exception' => $e,
                 ]);
             }
 
@@ -561,9 +577,9 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                 if ($this->needs_approval && $this->creator) {
                     // Only notify if creator is a User model and not the same as the completer
                     if ($this->creator instanceof \App\Models\User) {
-//                        if (!$completedBy || $this->creator->id !== $completedBy->id) {
-                            $this->creator->notify(new \App\Notifications\TaskApprovalCompleted($this));
-//                        }
+                        //                        if (!$completedBy || $this->creator->id !== $completedBy->id) {
+                        $this->creator->notify(new \App\Notifications\TaskApprovalCompleted($this));
+                        //                        }
                     } else {
                         // For non-User creators (e.g., Client), skip for now but log for future implementation
                         Log::info('Task approval notification skipped for non-User creator', [
@@ -574,9 +590,9 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                     }
                 }
             } catch (\Exception $e) {
-                Log::error('Failed to notify task creator about completion for approval: ' . $e->getMessage(), [
+                Log::error('Failed to notify task creator about completion for approval: '.$e->getMessage(), [
                     'task_id' => $this->id,
-                    'exception' => $e
+                    'exception' => $e,
                 ]);
             }
         }
@@ -585,29 +601,30 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
     /**
      * Start the task (change status to In Progress) and send a notification to Google Chat.
      *
-     * @param User|null $user The user who started the task (defaults to null)
+     * @param  User|null  $user  The user who started the task (defaults to null)
      * @return void
      */
-    public function start(User $user = null)
+    public function start(?User $user = null)
     {
         $oldStatus = $this->status;
         $this->status = TaskStatus::InProgress;
         $this->save();
 
         // Only send notification if status actually changed
-        $old = $oldStatus instanceof TaskStatus ? $oldStatus->value : (string)$oldStatus;
+        $old = $oldStatus instanceof TaskStatus ? $oldStatus->value : (string) $oldStatus;
         if ($old !== TaskStatus::InProgress->value) {
             try {
                 // Make sure we have the Google Chat space ID
-                if (!$this->google_chat_space_id) {
+                if (! $this->google_chat_space_id) {
                     // Try to get it from the project
                     $this->load('milestone.project');
 
-                    if (!$this->milestone || !$this->milestone->project || !$this->milestone->project->google_chat_id) {
+                    if (! $this->milestone || ! $this->milestone->project || ! $this->milestone->project->google_chat_id) {
                         Log::error('Cannot send task started notification: Google Chat space ID is missing', [
                             'task_id' => $this->id,
-                            'milestone_id' => $this->milestone_id ?? 'null'
+                            'milestone_id' => $this->milestone_id ?? 'null',
                         ]);
+
                         return;
                     }
 
@@ -616,7 +633,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                     $this->save();
                 }
 
-                $chatService = new GoogleChatService();
+                $chatService = new GoogleChatService;
 
                 // Prepare the message
                 $messageText = "🚀 *Task Started*: {$this->name}\n\n";
@@ -632,7 +649,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                         $this->google_chat_thread_id,
                         $messageText
                     );
-                } else if ($this->chat_message_id) {
+                } elseif ($this->chat_message_id) {
                     // If we have a chat_message_id but no thread ID, try to construct the thread ID
                     $parts = explode('/', $this->chat_message_id);
                     if (count($parts) >= 4 && $parts[0] === 'spaces' && $parts[2] === 'messages') {
@@ -646,7 +663,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                             $threadKey = end($threadKeyParts);
                         }
 
-                        $threadId = 'spaces/' . $spaceId . '/threads/' . $threadKey;
+                        $threadId = 'spaces/'.$spaceId.'/threads/'.$threadKey;
                         $this->google_chat_thread_id = $threadId;
                         $this->save();
 
@@ -665,9 +682,9 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                     $chatService->sendMessage($this->google_chat_space_id, $messageText);
                 }
             } catch (\Exception $e) {
-                Log::error('Failed to send task started notification: ' . $e->getMessage(), [
+                Log::error('Failed to send task started notification: '.$e->getMessage(), [
                     'task_id' => $this->id,
-                    'exception' => $e
+                    'exception' => $e,
                 ]);
             }
         }
@@ -698,14 +715,12 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
     /**
      * Add a note to the task's thread in the project's Google Chat space.
      *
-     * @param string $note
-     * @param User|Client $user
      * @return ProjectNote $projectNote
      */
     public function addNote(string $note, User|Client $user)
     {
         // Load milestone and project if not already loaded
-        if (!$this->relationLoaded('milestone') || ($this->milestone && !$this->milestone->relationLoaded('project'))) {
+        if (! $this->relationLoaded('milestone') || ($this->milestone && ! $this->milestone->relationLoaded('project'))) {
             $this->load('milestone.project');
         }
 
@@ -724,7 +739,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
         // Try to send to Google Chat if possible
         try {
             // Make sure we have the Google Chat space ID
-            if (!$this->google_chat_space_id) {
+            if (! $this->google_chat_space_id) {
                 // Try to get it from the project
                 if ($this->milestone && $this->milestone->project && $this->milestone->project->google_chat_id) {
                     // Set the Google Chat space ID from the project
@@ -734,15 +749,16 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                     // Log that we can't send to Google Chat but continue with note creation
                     Log::info('Note created but not sent to Google Chat: Google Chat space ID is missing', [
                         'task_id' => $this->id,
-                        'milestone_id' => $this->milestone_id ?? 'null'
+                        'milestone_id' => $this->milestone_id ?? 'null',
                     ]);
+
                     return $projectNote; // Return the note even though we couldn't send to Google Chat
                 }
             }
 
             // Create Google Chat service and prepare message
-            $chatService = new GoogleChatService();
-            $messageText = "💬 *{$user->name}*: " . $note;
+            $chatService = new GoogleChatService;
+            $messageText = "💬 *{$user->name}*: ".$note;
 
             // If we have a thread ID, use threaded messages
             if ($this->google_chat_thread_id) {
@@ -772,7 +788,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                             $threadKey = end($threadKeyParts);
                         }
 
-                        $threadId = 'spaces/' . $spaceId . '/threads/' . $threadKey;
+                        $threadId = 'spaces/'.$spaceId.'/threads/'.$threadKey;
                         $this->google_chat_thread_id = $threadId;
                         $this->save();
 
@@ -788,8 +804,6 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                             $projectNote->chat_message_id = $result['name'];
                             $projectNote->save();
                         }
-
-
 
                     } else {
                         // Fall back to regular message if we can't construct a thread ID
@@ -833,7 +847,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                                 $threadKey = end($threadKeyParts);
                             }
 
-                            $threadId = 'spaces/' . $spaceId . '/threads/' . $threadKey;
+                            $threadId = 'spaces/'.$spaceId.'/threads/'.$threadKey;
                             $this->google_chat_thread_id = $threadId;
                             $this->save();
                         }
@@ -844,10 +858,11 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
             return $projectNote;
 
         } catch (\Exception $e) {
-            Log::error('Failed to add note to task: ' . $e->getMessage(), [
+            Log::error('Failed to add note to task: '.$e->getMessage(), [
                 'task_id' => $this->id,
-                'exception' => $e
+                'exception' => $e,
             ]);
+
             return null;
         }
     }
@@ -871,8 +886,6 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
     {
         return $this->morphTo();
     }
-
-
 
     /**
      * Get the creator name of the task.
@@ -933,7 +946,8 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
         // Fallbacks from config/enums
         $defaults['task_type_id'] = $defaults['task_type_id'] ?? config('automation.defaults.task.task_type_id');
         $defaults['status'] = $defaults['status'] ?? (\App\Enums\TaskStatus::ToDo->value ?? null);
+
         // Remove null/empty values
-        return array_filter($defaults, fn($v) => $v !== null && $v !== '');
+        return array_filter($defaults, fn ($v) => $v !== null && $v !== '');
     }
 }
