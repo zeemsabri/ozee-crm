@@ -234,6 +234,12 @@ watch(() => actionConfig.value.fields, async (newFields) => {
 }, { deep: true, immediate: true });
 
 onMounted(async () => {
+    // Initialize delay visibility
+    if ((props.step.delay_minutes ?? 0) > 0) {
+        showDelay.value = true;
+    }
+    
+    // Prefetch dictionaries
     const model = actionConfig.value.target_model;
     const fields = Array.isArray(actionConfig.value.fields) ? actionConfig.value.fields : [];
     if (model) {
@@ -241,6 +247,13 @@ onMounted(async () => {
             const name = f?.column || f?.field || f?.name;
             if (name) await fetchDictionary(model, name);
         }
+    }
+});
+
+// Watch for changes to delay_minutes to keep showDelay in sync
+watch(() => props.step.delay_minutes, (newVal) => {
+    if ((newVal ?? 0) > 0 && !showDelay.value) {
+        showDelay.value = true;
     }
 });
 
@@ -315,6 +328,7 @@ function canRemove(index) {
 }
 // Delay UI state and updater
 const showDelay = ref(false);
+
 function updateDelayMinutes(val) {
     const minutes = Math.max(0, parseInt(val ?? 0, 10) || 0);
     emit('update:step', { ...props.step, delay_minutes: minutes });
