@@ -17,7 +17,7 @@ import ChecklistComponent from '@/Components/ChecklistComponent.vue';
 import ChecklistCreator from '@/Components/ChecklistCreator.vue';
 import BlockReasonModal from '@/Components/BlockReasonModal.vue';
 import { SaveIcon } from "lucide-vue-next";
-import { usePermissions } from '@/Directives/permissions.js';
+import { usePermissions, useProjectRole, useProjectPermissions } from '@/Directives/permissions.js';
 
 const props = defineProps({
     taskId: {
@@ -44,8 +44,19 @@ const taskError = ref('');
 const projectIdFromTask = computed(() => task.value?.milestone?.project_id || null);
 
 // Permissions (for gating due date edit, etc.)
-const { canDo } = usePermissions(projectIdFromTask);
-const canChangeDueDate = computed(() => canDo('change_due_date').value === true);
+// Ensure project permissions are loaded
+useProjectPermissions(projectIdFromTask);
+
+// Build a minimal project ref for role resolution
+const projectForRole = computed(() => {
+    const pid = projectIdFromTask.value;
+    if (!pid) return null;
+    return { id: pid };
+});
+const userProjectRole = useProjectRole(projectForRole);
+const { canDo, canManage } = usePermissions(projectIdFromTask);
+const canManageProjects = canManage('projects', userProjectRole);
+const canChangeDueDate = computed(() => canDo('change_due_date', userProjectRole).value === true || canManageProjects.value === true);
 
 // State for inline editing
 const editingAssignedTo = ref(false);
