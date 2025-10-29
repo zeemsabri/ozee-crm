@@ -87,6 +87,10 @@ const flattenSteps = (steps, parentId = null, branch = null) => {
         delete stepData.children;
 
         stepData.step_order = index + 1;
+        // Ensure delay_minutes is explicitly preserved (defaults to 0 if not set)
+        if (stepData.delay_minutes === undefined || stepData.delay_minutes === null) {
+            stepData.delay_minutes = 0;
+        }
         if (parentId) {
             stepData.step_config = stepData.step_config || {};
             stepData.step_config._parent_id = parentId;

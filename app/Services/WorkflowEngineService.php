@@ -231,7 +231,8 @@ class WorkflowEngineService
     }
 
     /**
-     * Resume execution from a specific top-level step id (used for delayed steps)
+     * Resume execution from a specific step id (used for delayed steps)
+     * Handles both top-level and nested steps.
      */
     public function executeFromStepId(Workflow $workflow, array $context, int $startStepId, ?ExecutionLog $parentLog = null): array
     {
@@ -245,15 +246,43 @@ class WorkflowEngineService
         ];
 
         $steps = $workflow->steps()->orderBy('step_order')->orderBy('id')->get();
+        
+        // Check if the start step is nested
+        $startStep = $steps->firstWhere('id', $startStepId);
+        if (!$startStep) {
+            Log::error('WorkflowEngineService.executeFromStepId: step not found', ['step_id' => $startStepId]);
+            return $results;
+        }
+        
+        $startStepConfig = $startStep->step_config ?? [];
+        $isNested = !empty($startStepConfig['_parent_id']);
+        
+        if ($isNested) {
+            // For nested steps, we need to re-execute the parent with resume info
+            // Pass the resume step ID in context so the parent handler can resume from there
+            Log::info('WorkflowEngineService.executeFromStepId: resuming nested step via parent', [
+                'nested_step_id' => $startStepId,
+                'parent_id' => $startStepConfig['_parent_id'],
+            ]);
+            // Preserve the original resume step ID if it's not already set (for deeply nested steps)
+            if (!isset($context['_resume_from_nested_step_id'])) {
+                $context['_resume_from_nested_step_id'] = $startStepId;
+            }
+            $parentId = $startStepConfig['_parent_id'];
+            return $this->executeFromStepId($workflow, $context, $parentId, $parentLog);
+        }
+        
         $topLevel = $steps->filter(function ($s) {
             $cfg = $s->step_config ?? [];
             return empty($cfg['_parent_id']);
         })->values();
         $startProcessing = false;
+        $isFirstStepAfterResume = false;
         foreach ($steps as $step) {
             if (!$startProcessing) {
                 if ((int) $step->id === (int) $startStepId) {
                     $startProcessing = true;
+                    $isFirstStepAfterResume = true; // Mark that this is the resume point
                 } else {
                     continue;
                 }
@@ -265,8 +294,8 @@ class WorkflowEngineService
                 continue;
             }
 
-            // If we encounter another delay, schedule and stop again
-            if (($step->delay_minutes ?? 0) > 0) {
+            // If we encounter another delay, schedule and stop again (but not for the step we're resuming from)
+            if (!$isFirstStepAfterResume && ($step->delay_minutes ?? 0) > 0) {
                 ExecutionLog::create([
                     'workflow_id' => $workflow->id,
                     'step_id' => $step->id,
@@ -282,6 +311,9 @@ class WorkflowEngineService
                 ];
                 break;
             }
+            
+            // Clear the flag after the first step
+            $isFirstStepAfterResume = false;
 
             $start = microtime(true);
             $execLog = ExecutionLog::create([
@@ -431,8 +463,65 @@ class WorkflowEngineService
 
         // Normalize iterable to an indexed list so we can compute remaining siblings deterministically
         $list = is_array($steps) ? array_values($steps) : collect($steps)->values()->all();
+        
+        // Check if we're resuming from a specific nested step
+        $resumeFromStepId = $context['_resume_from_nested_step_id'] ?? null;
+        $shouldSkip = (bool) $resumeFromStepId;
+        // Clear it from context after reading to prevent it affecting child executions
+        if ($resumeFromStepId) {
+            unset($context['_resume_from_nested_step_id']);
+        }
 
         foreach ($list as $idx => $step) {
+            // Track if we just resumed to this step (to skip delay check)
+            $justResumedToThisStep = false;
+            
+            // If resuming, skip steps until we reach the resume point
+            if ($shouldSkip) {
+                if ((int) $step->id === (int) $resumeFromStepId) {
+                    Log::info('WorkflowEngineService.executeSteps: reached resume point', [
+                        'step_id' => $step->id,
+                        'workflow_id' => $workflow->id,
+                    ]);
+                    $shouldSkip = false; // Start executing from this step
+                    $justResumedToThisStep = true; // Mark that we just resumed here
+                } else {
+                    Log::debug('WorkflowEngineService.executeSteps: skipping step during resume', [
+                        'step_id' => $step->id,
+                        'looking_for' => $resumeFromStepId,
+                    ]);
+                    continue; // Skip this step
+                }
+            }
+            
+            // Honor delay_minutes for nested steps too (but not if we just resumed to this step)
+            if (!$justResumedToThisStep && ($step->delay_minutes ?? 0) > 0) {
+                Log::info('WorkflowEngineService.executeSteps: scheduling delayed nested step', [
+                    'workflow_id' => $workflow->id,
+                    'step_id' => $step->id,
+                    'delay_minutes' => $step->delay_minutes,
+                ]);
+                $execLog = ExecutionLog::create([
+                    'workflow_id' => $workflow->id,
+                    'step_id' => $step->id,
+                    'parent_execution_log_id' => $parentLog?->id,
+                    'status' => 'scheduled',
+                    'input_context' => $context,
+                ]);
+                // Dispatch a delayed job to resume from this step
+                RunWorkflowJob::dispatch($workflow->id, $context, $step->id)->delay(now()->addMinutes((int) $step->delay_minutes));
+                Log::info('WorkflowEngineService.executeSteps: delayed job dispatched', [
+                    'workflow_id' => $workflow->id,
+                    'step_id' => $step->id,
+                ]);
+                $results[] = [
+                    'step_id' => $step->id,
+                    'status' => 'scheduled',
+                    'delay_minutes' => (int) $step->delay_minutes,
+                ];
+                break; // stop current execution; it will resume later
+            }
+            
             $start = microtime(true);
             $execLog = ExecutionLog::create([
                 'workflow_id' => $workflow->id,

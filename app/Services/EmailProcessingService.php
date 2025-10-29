@@ -29,6 +29,17 @@ class EmailProcessingService
     public function processDraftEmail(Email $email): void
     {
         try {
+            // Refresh the email model to get the latest status
+            $email->refresh();
+            
+            // Only process if status is auto_send or draft
+            if (!in_array($email->status, [EmailStatus::AutoSend, EmailStatus::Draft])) {
+                Log::info('Email already processed, skipping', [
+                    'email_id' => $email->id,
+                    'current_status' => $email->status->value ?? $email->status,
+                ]);
+                return;
+            }
 
             $body = json_decode($email->body);
             $isAiGenerated = is_null($email->template_id) && $body && ($body->greeting && isset($body->paragraphs));
