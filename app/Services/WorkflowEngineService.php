@@ -136,8 +136,10 @@ class WorkflowEngineService
                     'status' => 'scheduled',
                     'input_context' => $context,
                 ]);
-                // Dispatch a delayed job to resume from this step
-                RunWorkflowJob::dispatch($workflow->id, $context, $step->id)->delay(now()->addMinutes((int) $step->delay_minutes));
+                // Dispatch a delayed job to resume from this step with a unique key distinct from the original trigger job
+                $uniqueKey = 'workflow:'.$workflow->id.'|resume_step:'.$step->id;
+                RunWorkflowJob::dispatch($workflow->id, $context, $step->id, $uniqueKey)
+                    ->delay(now()->addMinutes((int) $step->delay_minutes));
                 $results['steps'][] = [
                     'step_id' => $step->id,
                     'status' => 'scheduled',
@@ -303,7 +305,9 @@ class WorkflowEngineService
                     'status' => 'scheduled',
                     'input_context' => $context,
                 ]);
-                RunWorkflowJob::dispatch($workflow->id, $context, $step->id)->delay(now()->addMinutes((int) $step->delay_minutes));
+                $uniqueKey = 'workflow:'.$workflow->id.'|resume_step:'.$step->id;
+                RunWorkflowJob::dispatch($workflow->id, $context, $step->id, $uniqueKey)
+                    ->delay(now()->addMinutes((int) $step->delay_minutes));
                 $results['steps'][] = [
                     'step_id' => $step->id,
                     'status' => 'scheduled',
@@ -467,10 +471,7 @@ class WorkflowEngineService
         // Check if we're resuming from a specific nested step
         $resumeFromStepId = $context['_resume_from_nested_step_id'] ?? null;
         $shouldSkip = (bool) $resumeFromStepId;
-        // Clear it from context after reading to prevent it affecting child executions
-        if ($resumeFromStepId) {
-            unset($context['_resume_from_nested_step_id']);
-        }
+        // Do NOT clear the marker here; we may need to propagate it down to deeper nested children.
 
         foreach ($list as $idx => $step) {
             // Track if we just resumed to this step (to skip delay check)
@@ -483,8 +484,19 @@ class WorkflowEngineService
                         'step_id' => $step->id,
                         'workflow_id' => $workflow->id,
                     ]);
+                    // We reached the exact target step; clear the marker so child scopes don't keep skipping
+                    unset($context['_resume_from_nested_step_id']);
                     $shouldSkip = false; // Start executing from this step
                     $justResumedToThisStep = true; // Mark that we just resumed here
+                } elseif ($resumeFromStepId && $this->isAncestorOf($workflow, (int) $step->id, (int) $resumeFromStepId)) {
+                    Log::info('WorkflowEngineService.executeSteps: reached resume ancestor', [
+                        'ancestor_step_id' => $step->id,
+                        'target_step_id' => $resumeFromStepId,
+                        'workflow_id' => $workflow->id,
+                    ]);
+                    // Do NOT clear the marker; we want the child scope to continue skipping until the exact target
+                    $shouldSkip = false;
+                    $justResumedToThisStep = true;
                 } else {
                     Log::debug('WorkflowEngineService.executeSteps: skipping step during resume', [
                         'step_id' => $step->id,
@@ -509,7 +521,9 @@ class WorkflowEngineService
                     'input_context' => $context,
                 ]);
                 // Dispatch a delayed job to resume from this step
-                RunWorkflowJob::dispatch($workflow->id, $context, $step->id)->delay(now()->addMinutes((int) $step->delay_minutes));
+                $uniqueKey = 'workflow:'.$workflow->id.'|resume_step:'.$step->id;
+                RunWorkflowJob::dispatch($workflow->id, $context, $step->id, $uniqueKey)
+                    ->delay(now()->addMinutes((int) $step->delay_minutes));
                 Log::info('WorkflowEngineService.executeSteps: delayed job dispatched', [
                     'workflow_id' => $workflow->id,
                     'step_id' => $step->id,
@@ -667,5 +681,24 @@ class WorkflowEngineService
 
         // If neither the original nor the fallback path worked, return null.
         return null;
+    }
+
+    /**
+     * Returns true if $candidateAncestorId is an ancestor (at any depth) of $targetStepId
+     * according to step_config._parent_id chain.
+     */
+    protected function isAncestorOf(Workflow $workflow, int $candidateAncestorId, int $targetStepId): bool
+    {
+        $guard = 0;
+        $current = $workflow->steps()->where('id', $targetStepId)->first();
+        while ($current && $guard < 100) {
+            $cfg = $current->step_config ?? [];
+            $parentId = (int) ($cfg['_parent_id'] ?? 0);
+            if ($parentId === 0) return false;
+            if ($parentId === $candidateAncestorId) return true;
+            $current = $workflow->steps()->where('id', $parentId)->first();
+            $guard++;
+        }
+        return false;
     }
 }
