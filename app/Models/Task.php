@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Activity;
 use App\Enums\TaskStatus;
 
 class Task extends Model implements \App\Contracts\CreatableViaWorkflow
@@ -136,6 +137,21 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
         }
 
         return 'Task was updated';
+    }
+
+    /**
+     * Ensure activity logs record the authenticated user as the causer.
+     */
+    public function tapActivity(Activity $activity, string $eventName): void
+    {
+        try {
+            if (Auth::check()) {
+                $activity->causer_id = Auth::id();
+                $activity->causer_type = get_class(Auth::user());
+            }
+        } catch (\Throwable $e) {
+            // In jobs/console, auth may be unavailable; ignore.
+        }
     }
 
     /**

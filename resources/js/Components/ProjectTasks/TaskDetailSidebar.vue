@@ -17,6 +17,7 @@ import ChecklistComponent from '@/Components/ChecklistComponent.vue';
 import ChecklistCreator from '@/Components/ChecklistCreator.vue';
 import BlockReasonModal from '@/Components/BlockReasonModal.vue';
 import { SaveIcon } from "lucide-vue-next";
+import { usePermissions } from '@/Directives/permissions.js';
 
 const props = defineProps({
     taskId: {
@@ -38,6 +39,13 @@ const emit = defineEmits(['close', 'task-updated', 'task-deleted']);
 const task = ref(null);
 const loadingTask = ref(true);
 const taskError = ref('');
+
+// Derived project id from task's milestone
+const projectIdFromTask = computed(() => task.value?.milestone?.project_id || null);
+
+// Permissions (for gating due date edit, etc.)
+const { canDo } = usePermissions(projectIdFromTask);
+const canChangeDueDate = computed(() => canDo('change_due_date').value === true);
 
 // State for inline editing
 const editingAssignedTo = ref(false);
@@ -219,12 +227,34 @@ watch(() => props.taskId, (newTaskId) => {
 }, { immediate: true });
 
 // --- Inline Editing Functions ---
+// Local cache of project users loaded on-demand
+const projectUsersLocal = ref([]);
+const loadingProjectUsers = ref(false);
+
 const assignedToOptions = computed(() => {
-    return props.projectUsers.map(user => ({
+    const source = (projectUsersLocal.value && projectUsersLocal.value.length)
+        ? projectUsersLocal.value
+        : props.projectUsers;
+    return (source || []).map(user => ({
         value: user.id,
         label: user.name
     }));
 });
+
+const fetchProjectUsersForTask = async () => {
+    const pid = projectIdFromTask.value;
+    if (!pid) return;
+    loadingProjectUsers.value = true;
+    try {
+        const res = await window.axios.get(`/api/projects/${pid}/users`);
+        projectUsersLocal.value = res.data || [];
+    } catch (e) {
+        console.error('Failed to fetch project users', e);
+        notification.error('Could not load project users');
+    } finally {
+        loadingProjectUsers.value = false;
+    }
+};
 
 const saveAssignedTo = async () => {
     if (!task.value || newAssignedToId.value === task.value.assigned_to_id) {
@@ -237,6 +267,7 @@ const saveAssignedTo = async () => {
         });
         task.value = response.data; // Update local task data with response
         emit('task-updated', task.value); // Notify parent of update
+        fetchTaskActivities();
     } catch (error) {
         console.error('Error updating assigned user:', error);
         // Revert on error
@@ -258,6 +289,7 @@ const saveDueDate = async () => {
         });
         task.value = response.data; // Update local task data with response
         emit('task-updated', task.value); // Notify parent of update
+        fetchTaskActivities();
     } catch (error) {
         console.error('Error updating due date:', error);
         // Revert on error
@@ -665,8 +697,8 @@ const latestBlockActivity = computed(() => {
                 <div class="flex items-center justify-between py-2 border-b border-gray-100">
                     <InputLabel class="min-w-[100px] text-gray-600">Assigned To:</InputLabel>
                     <div class="flex-1 text-right">
-                        <div v-if="!editingAssignedTo"
-                             @click="task.status !== 'Done' ? editingAssignedTo = true : notification.warning('Cannot change assignment for a completed task. Use the Revise button to change the task status first.')"
+<div v-if="!editingAssignedTo"
+                             @click="task.status !== 'Done' ? (fetchProjectUsersForTask(), editingAssignedTo = true) : notification.warning('Cannot change assignment for a completed task. Use the Revise button to change the task status first.')"
                              class="cursor-pointer"
                              :class="{'text-indigo-600 hover:text-indigo-800': task.status !== 'Done', 'text-gray-500': task.status === 'Done'}">
                             {{ task.assigned_to?.name || 'Unassigned' }}
@@ -692,9 +724,13 @@ const latestBlockActivity = computed(() => {
                 <!-- Due Date -->
                 <div class="flex items-center justify-between py-2 border-b border-gray-100">
                     <InputLabel class="min-w-[100px] text-gray-600">Due Date:</InputLabel>
-                    <div class="flex-1 text-right">
-                        <div v-if="!editingDueDate" @click="editingDueDate = true" class="cursor-pointer text-indigo-600 hover:text-indigo-800">
-                            {{ task.due_date ? moment(task.due_date).format('MMM D, YYYY') : 'No Due Date' }} <span class="text-xs text-gray-400 ml-1">(Click to edit)</span>
+<div class="flex-1 text-right">
+                        <div v-if="!editingDueDate"
+                             @click="canChangeDueDate ? editingDueDate = true : null"
+                             class="cursor-pointer"
+                             :class="canChangeDueDate ? 'text-indigo-600 hover:text-indigo-800' : 'text-gray-700 cursor-default'">
+                            {{ task.due_date ? moment(task.due_date).format('MMM D, YYYY') : 'No Due Date' }}
+                            <span v-if="canChangeDueDate" class="text-xs text-gray-400 ml-1">(Click to edit)</span>
                         </div>
                         <div v-else class="flex items-center space-x-2">
                             <TextInput
