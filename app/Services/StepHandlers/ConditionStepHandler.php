@@ -18,7 +18,7 @@ class ConditionStepHandler implements StepHandlerContract
         protected WorkflowEngineService $engine,
     ) {}
 
-    public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
+    public function handle(array $context, WorkflowStep $step, ?ExecutionLog $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
         $logic = strtoupper($cfg['logic'] ?? 'AND');
@@ -28,14 +28,14 @@ class ConditionStepHandler implements StepHandlerContract
         $branch = $result ? 'yes_steps' : 'no_steps';
         $children = $step->$branch ?? [];
 
-        if (!is_array($children) || count($children) === 0) {
+        if (! is_array($children) || count($children) === 0) {
             $all = $step->workflow->steps()->orderBy('step_order')->get();
             $children = [];
             foreach ($all as $cand) {
                 $cfgCand = $cand->step_config ?? [];
                 if (($cfgCand['_parent_id'] ?? null) == $step->id) {
-                    $b = strtolower((string)($cfgCand['_branch'] ?? 'yes'));
-                    if (($result && $b === 'yes') || (!$result && $b === 'no')) {
+                    $b = strtolower((string) ($cfgCand['_branch'] ?? 'yes'));
+                    if (($result && $b === 'yes') || (! $result && $b === 'no')) {
                         $children[] = $cand;
                     }
                 }
@@ -68,10 +68,10 @@ class ConditionStepHandler implements StepHandlerContract
         $results = [];
 
         foreach ($rules as $rule) {
-            if (!isset($rule['left']) && isset($rule['field'])) {
+            if (! isset($rule['left']) && isset($rule['field'])) {
                 $rule['left'] = ['type' => 'var', 'path' => $rule['field']];
             }
-            if (!isset($rule['right']) && array_key_exists('value', $rule)) {
+            if (! isset($rule['right']) && array_key_exists('value', $rule)) {
                 $rule['right'] = ['type' => 'literal', 'value' => $rule['value']];
             }
 
@@ -88,20 +88,22 @@ class ConditionStepHandler implements StepHandlerContract
             $results[] = $this->compareAny($leftVal, $op, $rightVal);
         }
 
-        return $logic === 'OR' ? in_array(true, $results, true) : !in_array(false, $results, true);
+        return $logic === 'OR' ? in_array(true, $results, true) : ! in_array(false, $results, true);
     }
 
     protected function resolveSide(array $side, array $ctx)
     {
-        $type = strtolower((string)($side['type'] ?? 'literal'));
+        $type = strtolower((string) ($side['type'] ?? 'literal'));
         if ($type === 'var') {
-            $path = (string)($side['path'] ?? '');
+            $path = (string) ($side['path'] ?? '');
             if (preg_match('/^{{\s*([^}]+)\s*}}$/', $path, $matches)) {
                 $path = trim($matches[1]);
             }
+
             return $this->getFromContextPath($ctx, $path);
         }
         $val = $side['value'] ?? null;
+
         return $this->applyTemplate($val, $ctx);
     }
 
@@ -115,7 +117,7 @@ class ConditionStepHandler implements StepHandlerContract
         if (str_starts_with($path, 'step_')) {
             $parts = explode('.', $path, 2);
             if (count($parts) > 1) {
-                $fallbackPath = $parts[0] . '.parsed.' . $parts[1];
+                $fallbackPath = $parts[0].'.parsed.'.$parts[1];
                 $value = Arr::get($context, $fallbackPath);
                 if ($value !== null) {
                     return $value;
@@ -129,18 +131,21 @@ class ConditionStepHandler implements StepHandlerContract
     protected function applyTemplate($value, array $ctx)
     {
         if (is_array($value)) {
-            return array_map(fn($v) => $this->applyTemplate($v, $ctx), $value);
+            return array_map(fn ($v) => $this->applyTemplate($v, $ctx), $value);
         }
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return $value;
         }
         if (preg_match('/^{{\s*([^}]+)\s*}}$/', $value, $matches)) {
             $path = trim($matches[1]);
+
             return $this->getFromContextPath($ctx, $path);
         }
+
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($ctx) {
             $path = trim($m[1]);
             $val = $this->getFromContextPath($ctx, $path);
+
             return is_scalar($val) ? (string) $val : json_encode($val);
         }, $value);
     }
@@ -150,17 +155,22 @@ class ConditionStepHandler implements StepHandlerContract
      */
     protected function normalizeMorphType(string $value): string
     {
-        if (class_exists($value)) return $value;
+        if (class_exists($value)) {
+            return $value;
+        }
 
         $mapped = Relation::getMorphedModel($value) ?: Relation::getMorphedModel(strtolower($value));
-        if ($mapped && class_exists($mapped)) return $mapped;
+        if ($mapped && class_exists($mapped)) {
+            return $mapped;
+        }
 
-        $candidate = 'App\\Models\\' . Str::studly($value);
-        if (class_exists($candidate)) return $candidate;
+        $candidate = 'App\\Models\\'.Str::studly($value);
+        if (class_exists($candidate)) {
+            return $candidate;
+        }
 
         return $value;
     }
-
 
     protected function compareAny($left, string $operator, $right): bool
     {
@@ -173,9 +183,15 @@ class ConditionStepHandler implements StepHandlerContract
         }
 
         $asCarbon = function ($value) {
-            if ($value instanceof CarbonInterface) return $value;
-            if ($value instanceof DateTimeInterface) return Carbon::instance($value);
-            if (is_numeric($value)) return Carbon::createFromTimestamp((int)$value);
+            if ($value instanceof CarbonInterface) {
+                return $value;
+            }
+            if ($value instanceof DateTimeInterface) {
+                return Carbon::instance($value);
+            }
+            if (is_numeric($value)) {
+                return Carbon::createFromTimestamp((int) $value);
+            }
             if (is_string($value) && trim($value) !== '') {
                 try {
                     return Carbon::parse($value);
@@ -183,36 +199,46 @@ class ConditionStepHandler implements StepHandlerContract
                     return null;
                 }
             }
+
             return null;
         };
 
         return match ($op) {
             '==', '=' => $this->looseEq($left, $right),
-            '!=', '<>' => !$this->looseEq($left, $right),
+            '!=', '<>' => ! $this->looseEq($left, $right),
             '>' => $left > $right,
             '>=' => $left >= $right,
             '<' => $left < $right,
             '<=' => $left <= $right,
             'in' => $this->inArray($left, $right),
-            'not in', 'not_in' => !$this->inArray($left, $right),
+            'not in', 'not_in' => ! $this->inArray($left, $right),
             'contains' => $this->contains($left, $right),
             'empty' => empty($left),
-            'not_empty' => !empty($left),
-            'truthy' => (bool)$left || (is_string($left) && $left !== '') || (is_numeric($left) && $left != 0),
+            'not_empty' => ! empty($left),
+            'truthy' => (bool) $left || (is_string($left) && $left !== '') || (is_numeric($left) && $left != 0),
             'today' => (function () use ($asCarbon, $left) {
                 $dt = $asCarbon($left);
-                if (!$dt) return false;
+                if (! $dt) {
+                    return false;
+                }
                 $now = Carbon::now($dt->getTimezone());
+
                 return $dt->isSameDay($now);
             })(),
             'in_past' => (function () use ($asCarbon, $left) {
                 $dt = $asCarbon($left);
-                if (!$dt) return false;
+                if (! $dt) {
+                    return false;
+                }
+
                 return $dt->lt(Carbon::now($dt->getTimezone()));
             })(),
             'in_future' => (function () use ($asCarbon, $left) {
                 $dt = $asCarbon($left);
-                if (!$dt) return false;
+                if (! $dt) {
+                    return false;
+                }
+
                 return $dt->gt(Carbon::now($dt->getTimezone()));
             })(),
             default => false,
@@ -222,28 +248,58 @@ class ConditionStepHandler implements StepHandlerContract
     protected function looseEq($a, $b): bool
     {
         if (is_array($a) || is_array($b)) {
-            return json_encode($a) === json_encode($b);
+            return json_encode($this->normalizeForCompare($a)) === json_encode($this->normalizeForCompare($b));
         }
 
-        if (is_bool($a)) {
-            $b_str = strtolower(trim((string)$b));
-            if ($b_str === 'true') return $a === true;
-            if ($b_str === 'false') return $a === false;
+        // Normalize enums and other special objects first
+        $aNorm = $this->normalizeForCompare($a);
+        $bNorm = $this->normalizeForCompare($b);
+
+        if (is_bool($aNorm)) {
+            $b_str = strtolower(trim((string) $bNorm));
+            if ($b_str === 'true') {
+                return $aNorm === true;
+            }
+            if ($b_str === 'false') {
+                return $aNorm === false;
+            }
         }
 
-        return (string)$a === (string)$b;
+        return (string) $aNorm === (string) $bNorm;
+    }
+
+    /**
+     * Normalize values for comparison:
+     * - UnitEnum -> backing value (string) or name
+     * - Arrays -> map recursively
+     * - Objects (non-enum) -> leave as-is for json_encode path
+     */
+    protected function normalizeForCompare($value)
+    {
+        if (is_array($value)) {
+            return array_map(fn ($v) => $this->normalizeForCompare($v), $value);
+        }
+        if ($value instanceof \UnitEnum) {
+            // Prefer backed value if available; otherwise use case name
+            return property_exists($value, 'value') ? (string) $value->value : (string) $value->name;
+        }
+
+        return $value;
     }
 
     protected function inArray($needle, $haystack): bool
     {
-        if (!is_array($haystack)) {
+        if (! is_array($haystack)) {
             if (is_string($haystack)) {
-                $haystack = array_values(array_filter(array_map('trim', explode(',', $haystack)), fn($x) => $x !== ''));
+                $haystack = array_values(array_filter(array_map('trim', explode(',', $haystack)), fn ($x) => $x !== ''));
             } else {
                 return false;
             }
         }
-        return in_array($needle, $haystack, true);
+        $needleNorm = $this->normalizeForCompare($needle);
+        $haystackNorm = array_map(fn ($v) => $this->normalizeForCompare($v), $haystack);
+
+        return in_array($needleNorm, $haystackNorm, true);
     }
 
     protected function contains($container, $item): bool
@@ -252,9 +308,18 @@ class ConditionStepHandler implements StepHandlerContract
             return is_string($item) ? Str::contains($container, $item) : false;
         }
         if (is_array($container)) {
-            return in_array($item, $container, true);
+            $containerNorm = array_map(fn ($v) => $this->normalizeForCompare($v), $container);
+            $itemNorm = $this->normalizeForCompare($item);
+
+            return in_array($itemNorm, $containerNorm, true);
         }
+        // Allow enum vs string contains by normalizing to string when container is enum
+        if ($container instanceof \UnitEnum && is_string($item)) {
+            $cont = $this->normalizeForCompare($container);
+
+            return Str::contains($cont, $item);
+        }
+
         return false;
     }
 }
-
