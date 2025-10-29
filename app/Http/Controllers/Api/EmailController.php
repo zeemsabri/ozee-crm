@@ -176,7 +176,7 @@ class EmailController extends Controller
     {
         $user = Auth::user();
 
-//        try {
+        try {
             $validated = $request->validate([
                 'project_id' => 'required|exists:projects,id',
                 'client_ids' => 'required|array|min:1',
@@ -197,59 +197,64 @@ class EmailController extends Controller
                     ]);
                 }
             }
+            if ($user->projects->contains($project->id) ||
+                $project->admin?->id === $user->id ||
+                $project->manager?->id === $user->id
+            ) {
 
-            if (!$user->projects->contains($project->id)) {
-                return response()->json(['message' => 'Unauthorized: You are not assigned to this project.'], 403);
-            }
 
-            $conversation = Conversation::firstOrCreate(
-                [
-                    'project_id' => $validated['project_id'],
+                $conversation = Conversation::firstOrCreate(
+                    [
+                        'project_id' => $validated['project_id'],
+                        'subject' => $validated['subject'],
+                    ],
+                    [
+                        'contractor_id' => $user->id,
+                        'conversable_type' => Client::class,
+                        'conversable_id' => $clientIds[0],
+                        'last_activity_at' => now(),
+                    ]
+                );
+
+                if ($conversation->wasRecentlyCreated && empty($conversation->subject)) {
+                    $conversation->subject = $validated['subject'];
+                    $conversation->save();
+                }
+
+                $clientEmails = Client::whereIn('id', $clientIds)
+                    ->pluck('email')
+                    ->toArray();
+
+                $email = Email::create([
+                    'conversation_id' => $conversation->id,
+                    'sender_id' => $user->id,
+                    'to' => $clientEmails,
                     'subject' => $validated['subject'],
-                ],
-                [
-                    'contractor_id' => $user->id,
-                    'conversable_type' => Client::class,
-                    'conversable_id' => $clientIds[0],
-                    'last_activity_at' => now(),
-                ]
-            );
-
-            if ($conversation->wasRecentlyCreated && empty($conversation->subject)) {
-                $conversation->subject = $validated['subject'];
-                $conversation->save();
-            }
-
-            $clientEmails = Client::whereIn('id', $clientIds)
-                ->pluck('email')
-                ->toArray();
-
-            $email = Email::create([
-                'conversation_id' => $conversation->id,
-                'sender_id' => $user->id,
-                'to' => $clientEmails,
-                'subject' => $validated['subject'],
-                'template_id' => $validated['template_id'],
-                'template_data' => json_encode($validated['template_data'] ?? []),
-                'status' => Email::STATUS_DRAFT,
-                'type' => \App\Enums\EmailType::Sent, // Set type to sent for outgoing emails
-            ]);
+                    'template_id' => $validated['template_id'],
+                    'template_data' => json_encode($validated['template_data'] ?? []),
+                    'status' => Email::STATUS_DRAFT,
+                    'type' => \App\Enums\EmailType::Sent, // Set type to sent for outgoing emails
+                ]);
 
 //            ProcessDraftEmailJob::dispatch($email);
 
-            $conversation->update(['last_activity_at' => now()]);
+                $conversation->update(['last_activity_at' => now()]);
 
-            Log::info('Templated email created/submitted for approval', ['email_id' => $email->id, 'status' => $email->status, 'user_id' => $user->id]);
-            return response()->json($email->load('conversation'), 201);
-//        } catch (ValidationException $e) {
-//            return response()->json([
-//                'message' => 'Validation failed',
-//                'errors' => $e->errors(),
-//            ], 422);
-//        } catch (\Exception $e) {
-//            Log::error('Error creating/submitting templated email: ' . $e->getMessage(), ['request' => $request->all(), 'error' => $e->getTraceAsString()]);
-//            return response()->json(['message' => 'Failed to process email', 'error' => $e->getMessage()], 500);
-//        }
+                Log::info('Templated email created/submitted for approval', ['email_id' => $email->id, 'status' => $email->status, 'user_id' => $user->id]);
+                return response()->json($email->load('conversation'), 201);
+
+            } else {
+                return response()->json(['message' => 'Unauthorized: You are not assigned to this project.'], 403);
+            }
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Error creating/submitting templated email: ' . $e->getMessage(), ['request' => $request->all(), 'error' => $e->getTraceAsString()]);
+            return response()->json(['message' => 'Failed to process email', 'error' => $e->getMessage()], 500);
+        }
     }
 
 
