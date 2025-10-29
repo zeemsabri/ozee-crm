@@ -641,8 +641,20 @@ const latestBlockActivity = computed(() => {
                     <div class="ml-3">
                         <h3 class="text-sm font-semibold text-amber-800">Approval required</h3>
                         <p class="mt-1 text-sm text-amber-700">
-                            Once completed, this task needs approval<span v-if="task.creator_name"> from <span class="font-medium">{{ task.creator_name }}</span></span>.
+                            This task needs approval<span v-if="task.creator_name"> from <span class="font-medium">{{ task.creator_name }}</span></span>.
                         </p>
+                        <p class="text-red-500">Do Not, complete the task and make sure you report it to {{ task.creator_name }} or Project Manager</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- QA Required Note -->
+            <div v-if="task.requires_qa" class="bg-blue-50 border-l-4 border-blue-400 p-3 rounded-lg shadow-sm">
+                <div class="flex items-start gap-2">
+                    <!-- Heroicon: Shield Check -->
+                    <svg class="h-5 w-5 text-blue-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.375c-1.148 0-2.285-.22-3.351-.651l-2.262-.906a1.125 1.125 0 00-1.537 1.04V11.25c0 5.157 3.33 9.8 8.25 11.25 4.92-1.45 8.25-6.093 8.25-11.25V5.858a1.125 1.125 0 00-1.537-1.04l-2.262.906A9.568 9.568 0 0112 6.375z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75l2.25 2.25L15 11.25"/></svg>
+                    <div class="text-sm text-blue-800">
+                        This task requires QA verification once completed.
                     </div>
                 </div>
             </div>
