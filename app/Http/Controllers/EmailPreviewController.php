@@ -2,21 +2,20 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\EmailTemplate;
 use App\Models\Client;
-use App\Models\Project;
+use App\Models\EmailTemplate;
 use App\Models\PlaceholderDefinition;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\View;
+use App\Models\Project;
 use Illuminate\Support\Facades\Blade;
-use Illuminate\Support\Facades\Log; // Added for error logging
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\View; // Added for error logging
 
 class EmailPreviewController extends Controller
 {
     /**
      * Renders a specific email template with sample data for preview.
      *
-     * @param string $slug The slug of the email template to preview.
+     * @param  string  $slug  The slug of the email template to preview.
      * @return \Illuminate\Contracts\View\View|\Illuminate\Http\Response
      */
     public function preview($slug = 'deliverables-for-approval')
@@ -24,7 +23,7 @@ class EmailPreviewController extends Controller
         // Fetch the template by slug
         $template = EmailTemplate::where('slug', $slug)->first();
 
-        if (!$template) {
+        if (! $template) {
             return response('Email template not found.', 404);
         }
 
@@ -35,11 +34,11 @@ class EmailPreviewController extends Controller
         $project = Project::first();
 
         // Check if sample data exists, otherwise provide defaults
-        if (!$client) {
-            $client = (object)['name' => 'John Doe'];
+        if (! $client) {
+            $client = (object) ['name' => 'John Doe'];
         }
-        if (!$project) {
-            $project = (object)['name' => 'Sample Project'];
+        if (! $project) {
+            $project = (object) ['name' => 'Sample Project'];
         }
 
         // --- Load reusable branding information from the config file ---
@@ -47,6 +46,7 @@ class EmailPreviewController extends Controller
         if (is_null($brandingConfig)) {
             // Log an error if the branding config file is missing
             Log::error('Branding config file not found.');
+
             return response('Branding configuration missing.', 500);
         }
 
@@ -56,7 +56,6 @@ class EmailPreviewController extends Controller
         $senderRole = 'Project Manager';
         $actionButtonUrl = 'https://example.com/action';
         $actionButtonText = 'View Deliverables';
-
 
         // --- Dynamic Placeholder Replacement Logic ---
         $bodyContent = $template->body_html;
@@ -124,7 +123,7 @@ class EmailPreviewController extends Controller
                         }
                     } catch (\Exception $e) {
                         // Log the error but don't break the preview
-                        Log::error("Failed to get data for placeholder '{$placeholderName}': " . $e->getMessage());
+                        Log::error("Failed to get data for placeholder '{$placeholderName}': ".$e->getMessage());
                     }
                 }
             } else {

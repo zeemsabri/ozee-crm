@@ -11,11 +11,12 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
 
-class TaskApprovalCompleted extends Notification implements ShouldQueue, ShouldBroadcast
+class TaskApprovalCompleted extends Notification implements ShouldBroadcast, ShouldQueue
 {
     use Queueable;
 
     protected Task $task;
+
     private array $payload;
 
     public function __construct(Task $task)
@@ -27,6 +28,7 @@ class TaskApprovalCompleted extends Notification implements ShouldQueue, ShouldB
     private function setPayload(): self
     {
         $this->payload = $this->getPayload();
+
         return $this;
     }
 
@@ -37,15 +39,15 @@ class TaskApprovalCompleted extends Notification implements ShouldQueue, ShouldB
 
     public function toMail($notifiable)
     {
-        $url = url('/project/' . ($this->task->milestone?->project?->id) . '/task/' . $this->task->id);
+        $url = url('/project/'.($this->task->milestone?->project?->id).'/task/'.$this->task->id);
 
         return (new MailMessage)
-            ->subject('Task Completed (Approval Needed): ' . $this->task->name)
-            ->greeting('Hello ' . ($notifiable->name ?? 'there') . '!')
+            ->subject('Task Completed (Approval Needed): '.$this->task->name)
+            ->greeting('Hello '.($notifiable->name ?? 'there').'!')
             ->line('A task that you requested approval for has been marked complete and is awaiting your review.')
-            ->line('Task: ' . $this->task->name)
-            ->when($this->task->description, fn($m) => $m->line('Description: ' . $this->task->description))
-            ->when($this->task->milestone, fn($m) => $m->line('Milestone: ' . $this->task->milestone->name))
+            ->line('Task: '.$this->task->name)
+            ->when($this->task->description, fn ($m) => $m->line('Description: '.$this->task->description))
+            ->when($this->task->milestone, fn ($m) => $m->line('Milestone: '.$this->task->milestone->name))
             ->action('View Task', $url)
             ->line('Thank you!');
     }
@@ -53,11 +55,12 @@ class TaskApprovalCompleted extends Notification implements ShouldQueue, ShouldB
     public function getPayload(): array
     {
         $project = $this->task->milestone?->project;
+
         return [
             'title' => $this->task->name,
             'view_id' => Str::random(7),
             'project_name' => $project?->name,
-            'message' => 'Task marked complete and awaiting your approval: ' . $this->task->name,
+            'message' => 'Task marked complete and awaiting your approval: '.$this->task->name,
             'project_id' => $project?->id,
             'description' => $this->task->description,
             'task_type' => $this->task->type,
@@ -66,7 +69,7 @@ class TaskApprovalCompleted extends Notification implements ShouldQueue, ShouldB
             'task_name' => $this->task->name,
             'button_label' => 'View Task',
             'due_date' => $this->task->due_date ? $this->task->due_date->format('Y-m-d') : null,
-            'url' => url('/project/' . ($project?->id) . '/task/' . $this->task->id)
+            'url' => url('/project/'.($project?->id).'/task/'.$this->task->id),
         ];
     }
 

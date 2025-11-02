@@ -24,13 +24,12 @@ return new class extends Migration
         });
 
         $notes = \Illuminate\Support\Facades\DB::table('project_notes')->get();
-        foreach($notes as $note) {
+        foreach ($notes as $note) {
             \Illuminate\Support\Facades\DB::table('project_notes')->where('id', $note->id)->update([
                 'creator_id' => $note->user_id,
-                'creator_type' =>   \App\Models\User::class
+                'creator_type' => \App\Models\User::class,
             ]);
         }
-
 
     }
 
@@ -54,7 +53,7 @@ return new class extends Migration
 
         // Restore data from creator_id to user_id if possible
         $notes = \Illuminate\Support\Facades\DB::table('project_notes')->get();
-        foreach($notes as $note) {
+        foreach ($notes as $note) {
             if ($note->creator_type === \App\Models\User::class) {
                 \Illuminate\Support\Facades\DB::table('project_notes')
                     ->where('id', $note->id)

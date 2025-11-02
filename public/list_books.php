@@ -6,7 +6,7 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept');
 header('Content-Type: application/json');
 
-$booksDirectory = __DIR__ . '/books/';
+$booksDirectory = __DIR__.'/books/';
 
 $epubFiles = [];
 
@@ -23,5 +23,3 @@ if (is_dir($booksDirectory) && $handle = opendir($booksDirectory)) {
 
 // Return the list of files as a JSON array
 echo json_encode($epubFiles);
-
-?>

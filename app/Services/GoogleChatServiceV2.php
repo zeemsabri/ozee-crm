@@ -3,24 +3,23 @@
 namespace App\Services;
 
 // Import classes from the new google/apps-chat library
+use Exception;
 use Google\Apps\Chat\V1\Client\ChatServiceClient;
 use Google\Apps\Chat\V1\Message;
-use Google\Apps\Chat\V1\Thread;
-
 // Import classes from the generic Google API client for authentication
+use Google\Apps\Chat\V1\Thread;
 use Google\Client as GoogleClient;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
-use Exception;
-
-// Import HttpClientCache for explicit credential handling
 use GuzzleHttp\Client as GuzzleHttpClient;
-
+use Illuminate\Support\Facades\Log;
+// Import HttpClientCache for explicit credential handling
+use Illuminate\Support\Facades\Storage;
 
 class GoogleChatServiceV2
 {
     protected GoogleClient $client; // Used for token management (same as before)
+
     protected ChatServiceClient $chatServiceClient; // The new Chat-specific client
+
     protected string $userEmail;
 
     /**
@@ -28,7 +27,7 @@ class GoogleChatServiceV2
      */
     public function __construct()
     {
-        $this->client = new GoogleClient();
+        $this->client = new GoogleClient;
         $this->client->setClientId(env('GOOGLE_CLIENT_ID'));
         $this->client->setClientSecret(env('GOOGLE_CLIENT_SECRET'));
         $this->client->setRedirectUri(env('GOOGLE_REDIRECT_URI'));
@@ -44,7 +43,7 @@ class GoogleChatServiceV2
         // 2. Create a Guzzle HTTP client with the access token in the Authorization header
         $guzzleClient = new GuzzleHttpClient([
             'headers' => [
-                'Authorization' => 'Bearer ' . $accessToken,
+                'Authorization' => 'Bearer '.$accessToken,
                 'Content-Type' => 'application/json', // Ensure content type is set
             ],
             // You might need to set 'http_errors' to false if you want to handle 4xx/5xx responses manually
@@ -69,7 +68,7 @@ class GoogleChatServiceV2
      */
     protected function loadAndSetAccessToken(): void
     {
-        if (!Storage::disk('local')->exists('google_tokens.json')) {
+        if (! Storage::disk('local')->exists('google_tokens.json')) {
             throw new Exception('Google tokens not found. Please run the OAuth authorization flow first via /google/redirect.');
         }
 
@@ -104,7 +103,7 @@ class GoogleChatServiceV2
                 Log::info('Google access token refreshed successfully for Chat Service V2.');
 
             } catch (Exception $e) {
-                Log::error('Failed to refresh Google access token for Chat Service V2: ' . $e->getMessage(), ['exception' => $e]);
+                Log::error('Failed to refresh Google access token for Chat Service V2: '.$e->getMessage(), ['exception' => $e]);
                 throw new Exception('Failed to refresh Google access token for Google Chat V2. Please re-authorize.');
             }
         }
@@ -119,18 +118,19 @@ class GoogleChatServiceV2
     /**
      * Sends a message as a reply within an existing thread in a Google Chat space.
      *
-     * @param string $spaceName The resource name of the space (e.g., "spaces/AAAAAAAAAAA").
-     * @param string $threadName The resource name of the thread (e.g., "spaces/AAAAKysu4M8/threads/t8d2dmkX-1M").
-     * @param string $messageText The plain text content of the reply message.
+     * @param  string  $spaceName  The resource name of the space (e.g., "spaces/AAAAAAAAAAA").
+     * @param  string  $threadName  The resource name of the thread (e.g., "spaces/AAAAKysu4M8/threads/t8d2dmkX-1M").
+     * @param  string  $messageText  The plain text content of the reply message.
      * @return array The sent message details.
+     *
      * @throws Exception If message sending fails.
      */
     public function sendThreadedMessage(string $spaceName, string $threadName, string $messageText): array
     {
-        $message = new Message();
+        $message = new Message;
         $message->setText($messageText);
 
-        $thread = new Thread();
+        $thread = new Thread;
         $thread->setName($threadName); // Set the full thread resource name
 
         $message->setThread($thread); // Associate the message with the thread
@@ -144,8 +144,9 @@ class GoogleChatServiceV2
             Log::info('Threaded message sent to Google Chat space (V2)', [
                 'space_name' => $spaceName,
                 'thread_name' => $threadName,
-                'message_id' => $sentMessage->getName()
+                'message_id' => $sentMessage->getName(),
             ]);
+
             return [
                 'name' => $sentMessage->getName(),
                 'text' => $sentMessage->getText(),
@@ -153,16 +154,15 @@ class GoogleChatServiceV2
                 'thread' => $sentMessage->getThread() ? $sentMessage->getThread()->toArray() : null,
             ];
         } catch (\Google\ApiCore\ApiException $e) {
-            Log::error('Failed to send threaded message to Google Chat (V2): ' . $e->getMessage(), [
+            Log::error('Failed to send threaded message to Google Chat (V2): '.$e->getMessage(), [
                 'space_name' => $spaceName,
                 'thread_name' => $threadName,
-                'exception' => $e
+                'exception' => $e,
             ]);
-            throw new Exception('Failed to send threaded message (V2): ' . $e->getMessage());
+            throw new Exception('Failed to send threaded message (V2): '.$e->getMessage());
         } catch (Exception $e) {
-            Log::error('An unexpected error occurred during threaded message sending (V2): ' . $e->getMessage(), ['space_name' => $spaceName, 'exception' => $e]);
-            throw new Exception('An unexpected error occurred during threaded message sending (V2): ' . $e->getMessage());
+            Log::error('An unexpected error occurred during threaded message sending (V2): '.$e->getMessage(), ['space_name' => $spaceName, 'exception' => $e]);
+            throw new Exception('An unexpected error occurred during threaded message sending (V2): '.$e->getMessage());
         }
     }
-
 }

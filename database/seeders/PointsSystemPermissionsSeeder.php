@@ -48,7 +48,7 @@ class PointsSystemPermissionsSeeder extends Seeder
 
                 // Check if permission already exists
                 $existingPermission = Permission::where('slug', $slug)->first();
-                if (!$existingPermission) {
+                if (! $existingPermission) {
                     $permission = Permission::create([
                         'name' => $name,
                         'slug' => $slug,
@@ -68,8 +68,9 @@ class PointsSystemPermissionsSeeder extends Seeder
         $employeeRole = Role::where('slug', 'employee')->first();
         $contractorRole = Role::where('slug', 'contractor')->first();
 
-        if (!$superAdminRole || !$managerRole || !$employeeRole || !$contractorRole) {
+        if (! $superAdminRole || ! $managerRole || ! $employeeRole || ! $contractorRole) {
             $this->command->error('Required roles not found. Please run RolePermissionSeeder first.');
+
             return;
         }
 

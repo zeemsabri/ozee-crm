@@ -2,10 +2,9 @@
 
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\Project;
 use App\Models\Role;
-use Illuminate\Auth\Access\Response;
+use App\Models\User;
 
 class ProjectPolicy
 {
@@ -26,13 +25,12 @@ class ProjectPolicy
     public function view(User $user, Project $project): bool
     {
 
-
-        if($user->hasPermission('view_all_projects')) {
+        if ($user->hasPermission('view_all_projects')) {
             return true;
         }
 
         // Check if user has permission to view projects
-        if($this->userHasProjectPermission($user, 'view_projects', $project->id)) {
+        if ($this->userHasProjectPermission($user, 'view_projects', $project->id)) {
             return true;
         }
 
@@ -41,6 +39,7 @@ class ProjectPolicy
             if ($user->isContractor()) {
                 return $project->users->contains($user->id);
             }
+
             return true; // Managers, Employees, and Super Admins can view all projects
         }
 
@@ -49,12 +48,12 @@ class ProjectPolicy
 
     public function viewDocuments(User $user, Project $project): bool
     {
-        if($user->hasPermission('view_project_documents') || $user->hasPermission('view_all_projects')) {
+        if ($user->hasPermission('view_project_documents') || $user->hasPermission('view_all_projects')) {
             return true;
         }
 
         // Check if user has permission to view projects
-        if($this->userHasProjectPermission($user, 'view_project_documents', $project->id)) {
+        if ($this->userHasProjectPermission($user, 'view_project_documents', $project->id)) {
             return true;
         }
 
@@ -63,12 +62,12 @@ class ProjectPolicy
 
     public function uploadDocuments(User $user, Project $project): bool
     {
-        if($user->hasPermission('upload_project_documents') || $user->hasPermission('view_all_projects')) {
+        if ($user->hasPermission('upload_project_documents') || $user->hasPermission('view_all_projects')) {
             return true;
         }
 
         // Check if user has permission to view projects
-        if($this->userHasProjectPermission($user, 'upload_project_documents', $project->id)) {
+        if ($this->userHasProjectPermission($user, 'upload_project_documents', $project->id)) {
             return true;
         }
 
@@ -84,7 +83,6 @@ class ProjectPolicy
         return $user->hasPermission('create_projects');
     }
 
-
     public function getClientsAndUsers(User $user, Project $project)
     {
         // The user must be able to add expendables OR view the project.
@@ -98,11 +96,11 @@ class ProjectPolicy
     public function update(User $user, Project $project): bool
     {
 
-        if($user->hasPermission('edit_projects')) {
+        if ($user->hasPermission('edit_projects')) {
             return true;
         }
 
-        if($user->hasProjectPermission($project, 'edit_projects')) {
+        if ($user->hasProjectPermission($project, 'edit_projects')) {
             return true;
         }
 
@@ -168,20 +166,20 @@ class ProjectPolicy
             $query->where('users.id', $user->id)->withPivot('role_id');
         }])->find($projectId);
 
-        if (!$project) {
+        if (! $project) {
             return false;
         }
 
         $userInProject = $project->users->first();
 
-        if (!$userInProject || !isset($userInProject->pivot->role_id)) {
+        if (! $userInProject || ! isset($userInProject->pivot->role_id)) {
             return false;
         }
 
         // Load the project-specific role with permissions
         $projectRole = Role::with('permissions')->find($userInProject->pivot->role_id);
 
-        if (!$projectRole) {
+        if (! $projectRole) {
             return false;
         }
 
@@ -191,7 +189,7 @@ class ProjectPolicy
 
     public function viewProject($user, $project)
     {
-        if($this->userHasProjectPermission($user, 'view_projects', $project->id)) {
+        if ($this->userHasProjectPermission($user, 'view_projects', $project->id)) {
             return true;
         }
 
@@ -229,18 +227,21 @@ class ProjectPolicy
     {
         return $user->hasPermission('restore_project');
     }
-    public function forceDelete(User $user, Project $project): bool { return false; }
+
+    public function forceDelete(User $user, Project $project): bool
+    {
+        return false;
+    }
 
     public function addExpendables(User $user, Project $project)
     {
 
-        if($this->userHasProjectPermission($user, 'add_expendables', $project->id)) {
+        if ($this->userHasProjectPermission($user, 'add_expendables', $project->id)) {
             return true;
         }
 
         return $user->hasPermission('add_expendables');
     }
-
 
     public function manageTransactions(User $user, Project $project)
     {
@@ -252,7 +253,4 @@ class ProjectPolicy
         // Check project-specific permission
         return $this->userHasProjectPermission($user, 'manage_project_financial', $project->id);
     }
-
-
-
 }

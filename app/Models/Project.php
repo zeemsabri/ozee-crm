@@ -2,25 +2,25 @@
 
 namespace App\Models;
 
+use App\Models\Traits\Taggable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
-use App\Models\Traits\Taggable;
 use Illuminate\Support\Facades\Cache;
-use App\Models\CurrencyRate;
-use App\Models\FileAttachment;
+use Illuminate\Support\Facades\Storage;
 
 class Project extends Model
 {
-    use HasFactory, Taggable, SoftDeletes;
+    use HasFactory, SoftDeletes, Taggable;
 
     protected $appends = [
         'logo_url',
     ];
 
     const LEADS = 'Leads';
+
     const MANAGEMENT = 'Management';
+
     const DEVELOPMENT = 'Development';
 
     protected $fillable = [
@@ -85,10 +85,13 @@ class Project extends Model
     {
         try {
             $file = $this->files()
-                ->whereIn('mime_type', ['image/jpeg','image/png','image/gif','image/webp','image/svg+xml'])
+                ->whereIn('mime_type', ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'])
                 ->latest()
                 ->first();
-            if (!$file) return null;
+            if (! $file) {
+                return null;
+            }
+
             return $file->thumbnail_url ?: $file->path_url;
         } catch (\Throwable $e) {
             return null;
@@ -147,14 +150,14 @@ class Project extends Model
     {
         $supportMilestone = $this->milestones()->where('name', self::SUPPORT);
 
-        if($supportMilestone->exists()) {
+        if ($supportMilestone->exists()) {
             return $supportMilestone->first();
         }
 
         return $this->milestones()->create([
-            'name'  =>  self::SUPPORT,
-            'description'   =>  'Support milestone for tickets created by clients',
-            'status'    =>  \App\Enums\MilestoneStatus::InProgress
+            'name' => self::SUPPORT,
+            'description' => 'Support milestone for tickets created by clients',
+            'status' => \App\Enums\MilestoneStatus::InProgress,
         ]);
     }
 
@@ -203,7 +206,6 @@ class Project extends Model
         return $this->morphMany(ProjectExpendable::class, 'expendable');
     }
 
-
     public function budget()
     {
         return $this->expendable()->whereNull('user_id');
@@ -243,7 +245,7 @@ class Project extends Model
     /**
      * Get all active bonus configurations for a specific source type.
      *
-     * @param string $sourceType The source type (standup, task, milestone, etc.)
+     * @param  string  $sourceType  The source type (standup, task, milestone, etc.)
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getBonusConfigurationsForSourceType($sourceType)
@@ -267,7 +269,7 @@ class Project extends Model
     /**
      * Get all active bonus configurations of a specific type.
      *
-     * @param string $type The configuration type (bonus/penalty)
+     * @param  string  $type  The configuration type (bonus/penalty)
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getBonusConfigurationsByType($type)
@@ -301,8 +303,8 @@ class Project extends Model
     /**
      * Get a summary of bonus/penalty transactions for this project.
      *
-     * @param \DateTime|null $startDate Optional start date for filtering
-     * @param \DateTime|null $endDate Optional end date for filtering
+     * @param  \DateTime|null  $startDate  Optional start date for filtering
+     * @param  \DateTime|null  $endDate  Optional end date for filtering
      * @return array The summary data
      */
     public function getBonusSummary(?\DateTime $startDate = null, ?\DateTime $endDate = null)
@@ -331,7 +333,7 @@ class Project extends Model
         $userSummaries = [];
         foreach ($transactions as $transaction) {
             $userId = $transaction->user_id;
-            if (!isset($userSummaries[$userId])) {
+            if (! isset($userSummaries[$userId])) {
                 $userSummaries[$userId] = [
                     'user_id' => $userId,
                     'user_name' => $transaction->user->name,
@@ -364,25 +366,24 @@ class Project extends Model
             'transactions' => $transactions,
         ];
     }
+
     /**
      * Upload documents to the project.
      *
-     * @param array $files Array of uploaded files
-     * @param \App\Services\GoogleDriveService $googleDriveService
+     * @param  array  $files  Array of uploaded files
+     * @param  \App\Services\GoogleDriveService  $googleDriveService
      * @return array Array of created Document models
      */
     public function uploadDocuments(
         array $files,
-        $googleDriveService, null|string
-        $field = 'webContentLink',
+        $googleDriveService, ?string $field = 'webContentLink',
         $subFolder = null,
         $createRecord = true
-    )
-    {
+    ) {
         $uploadedDocuments = [];
 
         foreach ($files as $file) {
-//            $localPath = $file->store('documents', 'public');
+            //            $localPath = $file->store('documents', 'public');
             $localPath = Storage::disk('public')->putFile('documents', $file);
             $fullLocalPath = Storage::disk('public')->path($localPath);
             $originalFilename = $file->getClientOriginalName();
@@ -394,13 +395,13 @@ class Project extends Model
                 'path' => $localPath,
                 'filename' => $originalFilename,
                 'mime_type' => $mimeType,
-                'file_size' => $fileSize
+                'file_size' => $fileSize,
             ];
 
             try {
                 if ($folder = $this->google_drive_folder_id) {
 
-                    if($subFolder) {
+                    if ($subFolder) {
                         $folder = $subFolder;
                     }
 
@@ -413,15 +414,14 @@ class Project extends Model
                 Storage::disk('public')->delete($localPath);
 
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Failed to upload file to Google Drive: ' . $e->getMessage(), ['project_id' => $this->id, 'file_name' => $originalFilename]);
+                \Illuminate\Support\Facades\Log::error('Failed to upload file to Google Drive: '.$e->getMessage(), ['project_id' => $this->id, 'file_name' => $originalFilename]);
                 $documentData['upload_error'] = 'Failed to upload to Google Drive';
             }
 
-            if($createRecord) {
+            if ($createRecord) {
                 $document = \App\Models\Document::create($documentData);
                 $uploadedDocuments[] = $document;
-            }
-            else {
+            } else {
                 $uploadedDocuments[] = $documentData;
             }
 
@@ -482,18 +482,20 @@ class Project extends Model
         }
         $rates = Cache::remember('currency_rates_to_usd', 60 * 24, function () {
             $dbRates = CurrencyRate::all()->pluck('rate_to_usd', 'currency_code')->toArray();
-            if (!isset($dbRates['USD'])) {
+            if (! isset($dbRates['USD'])) {
                 $dbRates['USD'] = 1.0;
             }
+
             return $dbRates;
         });
         $fromRate = $rates[$from] ?? null;
         $toRate = $rates[$to] ?? null;
-        if (!$fromRate || !$toRate) {
+        if (! $fromRate || ! $toRate) {
             return round($amount, 2);
         }
         $amountInUSD = $amount * (float) $fromRate;
         $converted = $amountInUSD / (float) $toRate;
+
         return round($converted, 2);
     }
 
@@ -504,21 +506,21 @@ class Project extends Model
         foreach ($this->budget()->get() as $item) {
             $total += $this->convertCurrency((float) $item->amount, (string) $item->currency, $convertTo);
         }
+
         return round($total, 2);
     }
 
-
     public function getTotalAssignedMilestoneAmountAttribute()
     {
-        //Calculate total amount which is assigned to each milestone
+        // Calculate total amount which is assigned to each milestone
 
         $convertTo = 'AUD';
         $milestones = $this->milestones()->with('budget')->get();
 
         $total = 0.0;
-        foreach($milestones as $milestone) {
+        foreach ($milestones as $milestone) {
 
-            if($budget = $milestone->budget) {
+            if ($budget = $milestone->budget) {
                 $total += $this->convertCurrency((float) $budget->amount, (string) $budget->currency, $convertTo);
             }
 
@@ -530,24 +532,25 @@ class Project extends Model
 
     public function milestoneContracts()
     {
-        //Return all contracts within each milestones
+        // Return all contracts within each milestones
         $milestones = $this->milestones()->with('expendable')->get();
         $expendables = collect();
         foreach ($milestones as $milestone) {
             $expendables = $expendables->merge($milestone->expendable);
         }
+
         return $expendables;
     }
 
     public function getPendingContractsAmountAttribute()
     {
 
-        //From all contracts calculate all pending contract amounts
+        // From all contracts calculate all pending contract amounts
         $convertTo = 'AUD';
         $allContracts = $this->milestoneContracts()->where('status', ProjectExpendable::STATUS_PENDING);
 
         $total = 0.0;
-        foreach($allContracts as $contract) {
+        foreach ($allContracts as $contract) {
             $total += $this->convertCurrency((float) $contract->amount, (string) $contract->currency, $convertTo);
         }
 
@@ -557,12 +560,12 @@ class Project extends Model
     public function getApprovedContractsAmountAttribute()
     {
 
-        //From all contracts calculate all approved contract amounts
+        // From all contracts calculate all approved contract amounts
         $convertTo = 'AUD';
         $allContracts = $this->milestoneContracts()->where('status', ProjectExpendable::STATUS_ACCEPTED);
 
         $total = 0.0;
-        foreach($allContracts as $contract) {
+        foreach ($allContracts as $contract) {
             $total += $this->convertCurrency((float) $contract->amount, (string) $contract->currency, $convertTo);
         }
 
@@ -590,5 +593,4 @@ class Project extends Model
     {
         return round(($this->total_budget - $this->approved_contracts_amount), 2);
     }
-
 }

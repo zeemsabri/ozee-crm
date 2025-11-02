@@ -25,7 +25,6 @@ class MonthlyBudgetController extends Controller
     /**
      * Store a newly created monthly budget in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request)
@@ -67,7 +66,7 @@ class MonthlyBudgetController extends Controller
         if ($existingBudget) {
             return response()->json([
                 'message' => 'A budget already exists for this month and year.',
-                'errors' => ['year' => ['A budget already exists for this month and year.']]
+                'errors' => ['year' => ['A budget already exists for this month and year.']],
             ], 422);
         }
 
@@ -83,14 +82,13 @@ class MonthlyBudgetController extends Controller
 
         return response()->json([
             'message' => 'Monthly budget created successfully!',
-            'monthlyBudget' => $monthlyBudget
+            'monthlyBudget' => $monthlyBudget,
         ], 201);
     }
 
     /**
      * Display the specified monthly budget.
      *
-     * @param  \App\Models\MonthlyBudget  $monthlyBudget
      * @return \Illuminate\Http\JsonResponse
      */
     public function show(MonthlyBudget $monthlyBudget)
@@ -103,8 +101,6 @@ class MonthlyBudgetController extends Controller
     /**
      * Update the specified monthly budget in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\MonthlyBudget  $monthlyBudget
      * @return \Illuminate\Http\JsonResponse
      */
     public function update(Request $request, MonthlyBudget $monthlyBudget)
@@ -148,14 +144,13 @@ class MonthlyBudgetController extends Controller
 
         return response()->json([
             'message' => 'Monthly budget updated successfully!',
-            'monthlyBudget' => $monthlyBudget
+            'monthlyBudget' => $monthlyBudget,
         ]);
     }
 
     /**
      * Remove the specified monthly budget from storage.
      *
-     * @param  \App\Models\MonthlyBudget  $monthlyBudget
      * @return \Illuminate\Http\JsonResponse
      */
     public function destroy(MonthlyBudget $monthlyBudget)
@@ -165,7 +160,7 @@ class MonthlyBudgetController extends Controller
         $monthlyBudget->delete();
 
         return response()->json([
-            'message' => 'Monthly budget deleted successfully!'
+            'message' => 'Monthly budget deleted successfully!',
         ]);
     }
 
@@ -201,9 +196,9 @@ class MonthlyBudgetController extends Controller
             ->where('month', $currentMonth)
             ->first();
 
-        if (!$budget) {
+        if (! $budget) {
             return response()->json([
-                'message' => 'No budget found for the current month.'
+                'message' => 'No budget found for the current month.',
             ], 404);
         }
 

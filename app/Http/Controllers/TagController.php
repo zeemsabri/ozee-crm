@@ -10,7 +10,6 @@ class TagController extends Controller
     /**
      * Search for tags based on a query string.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function search(Request $request)

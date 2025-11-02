@@ -9,8 +9,10 @@ echo "----------------------------------------------------\n\n";
 echo "Note: This is a simulation script that demonstrates the controller logic without requiring a database connection.\n\n";
 
 // Simulate the RoleController class
-class RoleController {
-    public function store($request) {
+class RoleController
+{
+    public function store($request)
+    {
         // Simulate validation passing
         echo "Validating request data...\n";
 
@@ -32,10 +34,11 @@ class RoleController {
                 echo "Request has X-Inertia header, returning redirect response:\n";
                 echo "- Redirecting to: admin.roles.index\n";
                 echo "- Flash message: 'Role created successfully.'\n";
+
                 return [
                     'type' => 'redirect',
                     'destination' => 'admin.roles.index',
-                    'message' => 'Role created successfully.'
+                    'message' => 'Role created successfully.',
                 ];
             }
 
@@ -43,14 +46,15 @@ class RoleController {
             echo "Request is a regular API request, returning JSON response:\n";
             echo "- Status code: 201\n";
             echo "- JSON body: { success: true, message: 'Role created successfully.', role: {...} }\n";
+
             return [
                 'type' => 'json',
                 'status' => 201,
                 'body' => [
                     'success' => true,
                     'message' => 'Role created successfully.',
-                    'role' => ['id' => 1, 'name' => 'Test Role']
-                ]
+                    'role' => ['id' => 1, 'name' => 'Test Role'],
+                ],
             ];
         } catch (Exception $e) {
             // Simulate transaction rollback
@@ -59,24 +63,26 @@ class RoleController {
             // Check if this is an Inertia request
             if ($request['isInertia']) {
                 echo "Request has X-Inertia header, returning back with errors:\n";
-                echo "- Error: 'Error creating role: " . $e->getMessage() . "'\n";
+                echo "- Error: 'Error creating role: ".$e->getMessage()."'\n";
+
                 return [
                     'type' => 'back',
-                    'errors' => ['error' => 'Error creating role: ' . $e->getMessage()]
+                    'errors' => ['error' => 'Error creating role: '.$e->getMessage()],
                 ];
             }
 
             // Return JSON response for API requests
             echo "Request is a regular API request, returning JSON error response:\n";
             echo "- Status code: 500\n";
-            echo "- JSON body: { success: false, message: 'Error creating role: " . $e->getMessage() . "' }\n";
+            echo "- JSON body: { success: false, message: 'Error creating role: ".$e->getMessage()."' }\n";
+
             return [
                 'type' => 'json',
                 'status' => 500,
                 'body' => [
                     'success' => false,
-                    'message' => 'Error creating role: ' . $e->getMessage()
-                ]
+                    'message' => 'Error creating role: '.$e->getMessage(),
+                ],
             ];
         }
     }
@@ -85,19 +91,19 @@ class RoleController {
 // Test with Inertia request
 echo "\nTEST 1: Inertia Request\n";
 echo "------------------------\n";
-$controller = new RoleController();
+$controller = new RoleController;
 $inertiaRequest = [
     'isInertia' => true,
     'name' => 'Test Role',
     'description' => 'This is a test role',
     'type' => 'application',
-    'permissions' => [1, 2, 3]
+    'permissions' => [1, 2, 3],
 ];
 
 $response = $controller->store($inertiaRequest);
-echo "\nResponse type: " . $response['type'] . "\n";
-echo "Destination: " . $response['destination'] . "\n";
-echo "Message: " . $response['message'] . "\n\n";
+echo "\nResponse type: ".$response['type']."\n";
+echo 'Destination: '.$response['destination']."\n";
+echo 'Message: '.$response['message']."\n\n";
 
 // Test with API request
 echo "TEST 2: API Request\n";
@@ -107,14 +113,14 @@ $apiRequest = [
     'name' => 'Test Role',
     'description' => 'This is a test role',
     'type' => 'application',
-    'permissions' => [1, 2, 3]
+    'permissions' => [1, 2, 3],
 ];
 
 $response = $controller->store($apiRequest);
-echo "\nResponse type: " . $response['type'] . "\n";
-echo "Status code: " . $response['status'] . "\n";
-echo "Success: " . ($response['body']['success'] ? 'true' : 'false') . "\n";
-echo "Message: " . $response['body']['message'] . "\n\n";
+echo "\nResponse type: ".$response['type']."\n";
+echo 'Status code: '.$response['status']."\n";
+echo 'Success: '.($response['body']['success'] ? 'true' : 'false')."\n";
+echo 'Message: '.$response['body']['message']."\n\n";
 
 echo "VERIFICATION SUMMARY:\n";
 echo "--------------------\n";

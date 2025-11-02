@@ -2,27 +2,26 @@
 
 // Test script to simulate the request from NotesModal component
 
-require_once __DIR__ . '/vendor/autoload.php';
-$app = require_once __DIR__ . '/bootstrap/app.php';
+require_once __DIR__.'/vendor/autoload.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Request;
-use App\Models\User;
 use App\Models\Project;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 echo "=== Testing NotesModal Request Format ===\n\n";
 
 // Find a user and project to use for testing
 $user = User::first();
-if (!$user) {
+if (! $user) {
     echo "Error: No users found in the database.\n";
     exit(1);
 }
 
 $project = Project::first();
-if (!$project) {
+if (! $project) {
     echo "Error: No projects found in the database.\n";
     exit(1);
 }
@@ -38,12 +37,12 @@ echo "Logged in as: {$user->name}\n\n";
 $requestData = [
     'notes' => [
         [
-            'content' => 'Test note from simulation script - ' . date('Y-m-d H:i:s')
-        ]
-    ]
+            'content' => 'Test note from simulation script - '.date('Y-m-d H:i:s'),
+        ],
+    ],
 ];
 
-echo "Request data: " . json_encode($requestData, JSON_PRETTY_PRINT) . "\n\n";
+echo 'Request data: '.json_encode($requestData, JSON_PRETTY_PRINT)."\n\n";
 
 // Get the controller instance
 $controller = app()->make(\App\Http\Controllers\Api\ProjectController::class);
@@ -68,7 +67,7 @@ try {
 
     // Check if the note was created with encryption
     $data = json_decode($content, true);
-    if (is_array($data) && !empty($data)) {
+    if (is_array($data) && ! empty($data)) {
         $noteId = $data[0]['id'] ?? null;
 
         if ($noteId) {
@@ -78,7 +77,7 @@ try {
             $note = \App\Models\ProjectNote::find($noteId);
 
             if ($note) {
-                echo "Note content in database: " . substr($note->content, 0, 50) . (strlen($note->content) > 50 ? "..." : "") . "\n";
+                echo 'Note content in database: '.substr($note->content, 0, 50).(strlen($note->content) > 50 ? '...' : '')."\n";
 
                 // Check if content appears to be encrypted
                 $appearsEncrypted = (
@@ -87,13 +86,13 @@ try {
                     strlen($note->content) > 100 // Encrypted content is usually long
                 );
 
-                echo "Appears encrypted: " . ($appearsEncrypted ? "Yes" : "No") . "\n";
+                echo 'Appears encrypted: '.($appearsEncrypted ? 'Yes' : 'No')."\n";
 
                 // Try to decrypt
                 try {
                     $decrypted = \Illuminate\Support\Facades\Crypt::decryptString($note->content);
                     echo "Decryption: SUCCESS\n";
-                    echo "Decrypted content: " . $decrypted . "\n";
+                    echo 'Decrypted content: '.$decrypted."\n";
                 } catch (\Exception $e) {
                     echo "Decryption: FAILED\n";
                     echo "Error: {$e->getMessage()}\n";

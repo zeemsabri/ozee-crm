@@ -2,9 +2,8 @@
 
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\Client;
-use Illuminate\Auth\Access\Response;
+use App\Models\User;
 
 class ClientPolicy
 {
@@ -30,6 +29,7 @@ class ClientPolicy
             if ($user->isContractor()) {
                 return $user->projects()->where('client_id', $client->id)->exists();
             }
+
             return true; // Managers, Employees, and Super Admins can view all clients
         }
 
@@ -64,6 +64,13 @@ class ClientPolicy
     }
 
     // Restore and forceDelete methods are less common for MVP, can be left as false/not implemented
-    public function restore(User $user, Client $client): bool { return false; }
-    public function forceDelete(User $user, Client $client): bool { return false; }
+    public function restore(User $user, Client $client): bool
+    {
+        return false;
+    }
+
+    public function forceDelete(User $user, Client $client): bool
+    {
+        return false;
+    }
 }

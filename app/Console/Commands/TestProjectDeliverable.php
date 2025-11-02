@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectDeliverable;
 use App\Models\Task;
-use App\Models\Milestone;
 use Illuminate\Console\Command;
 
 class TestProjectDeliverable extends Command
@@ -34,8 +34,9 @@ class TestProjectDeliverable extends Command
         // Get a project to work with
         $project = Project::first();
 
-        if (!$project) {
+        if (! $project) {
             $this->error('No projects found. Please create a project first.');
+
             return 1;
         }
 
@@ -44,12 +45,12 @@ class TestProjectDeliverable extends Command
         // Get a milestone to work with
         $milestone = $project->milestones()->first();
 
-        if (!$milestone) {
-            $this->info("No milestones found for this project. Creating one...");
+        if (! $milestone) {
+            $this->info('No milestones found for this project. Creating one...');
             $milestone = $project->milestones()->create([
                 'name' => 'Test Milestone',
                 'description' => 'Created for testing project deliverables',
-                'status' => 'In Progress'
+                'status' => 'In Progress',
             ]);
             $this->info("Created milestone: {$milestone->name} (ID: {$milestone->id})");
         } else {
@@ -57,17 +58,17 @@ class TestProjectDeliverable extends Command
         }
 
         // Create a project deliverable
-        $this->info("Creating a project deliverable...");
+        $this->info('Creating a project deliverable...');
         $deliverable = new ProjectDeliverable([
-            'name' => 'Test Deliverable ' . now()->format('Y-m-d H:i:s'),
+            'name' => 'Test Deliverable '.now()->format('Y-m-d H:i:s'),
             'description' => 'This is a test deliverable created by the test command',
             'status' => 'pending',
             'due_date' => now()->addDays(7),
             'details' => [
                 'priority' => 'high',
                 'estimated_hours' => 10,
-                'notes' => 'These are some test notes in the JSON details field'
-            ]
+                'notes' => 'These are some test notes in the JSON details field',
+            ],
         ]);
 
         $deliverable->project_id = $project->id;
@@ -77,9 +78,9 @@ class TestProjectDeliverable extends Command
         $this->info("Created project deliverable: {$deliverable->name} (ID: {$deliverable->id})");
 
         // Create a task associated with the deliverable
-        $this->info("Creating a task associated with the deliverable...");
+        $this->info('Creating a task associated with the deliverable...');
         $task = new Task([
-            'name' => 'Test Task for Deliverable ' . now()->format('Y-m-d H:i:s'),
+            'name' => 'Test Task for Deliverable '.now()->format('Y-m-d H:i:s'),
             'description' => 'This is a test task associated with the deliverable',
             'status' => \App\Enums\TaskStatus::ToDo->value,
             'due_date' => now()->addDays(5),
@@ -96,22 +97,22 @@ class TestProjectDeliverable extends Command
 
         // Test Project -> ProjectDeliverables relationship
         $projectDeliverables = $project->projectDeliverables;
-        $this->info("Project has " . count($projectDeliverables) . " deliverables");
+        $this->info('Project has '.count($projectDeliverables).' deliverables');
 
         // Test Milestone -> ProjectDeliverables relationship
         $milestoneDeliverables = $milestone->projectDeliverables;
-        $this->info("Milestone has " . count($milestoneDeliverables) . " deliverables");
+        $this->info('Milestone has '.count($milestoneDeliverables).' deliverables');
 
         // Test ProjectDeliverable -> Tasks relationship
         $deliverableTasks = $deliverable->tasks;
-        $this->info("Deliverable has " . count($deliverableTasks) . " tasks");
+        $this->info('Deliverable has '.count($deliverableTasks).' tasks');
 
         // Test Task -> ProjectDeliverable relationship
         $taskDeliverable = $task->projectDeliverable;
         if ($taskDeliverable) {
             $this->info("Task is associated with deliverable: {$taskDeliverable->name} (ID: {$taskDeliverable->id})");
         } else {
-            $this->error("Task is not associated with any deliverable");
+            $this->error('Task is not associated with any deliverable');
         }
 
         $this->info("\nTest completed successfully!");

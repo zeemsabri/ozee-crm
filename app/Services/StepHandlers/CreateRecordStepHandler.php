@@ -7,30 +7,31 @@ use App\Models\WorkflowStep;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class CreateRecordStepHandler implements StepHandlerContract
 {
-    public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
+    public function handle(array $context, WorkflowStep $step, ?ExecutionLog $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
         $modelName = $cfg['target_model'] ?? null;
         $fields = $cfg['fields'] ?? [];
-        if (!$modelName) {
+        if (! $modelName) {
             throw new \InvalidArgumentException('target_model is required for CREATE_RECORD');
         }
         $class = $this->resolveModelClass($modelName);
-        if (!$class) {
+        if (! $class) {
             throw new \RuntimeException("Model {$modelName} not found");
         }
         /** @var Model $instance */
-        $instance = new $class();
+        $instance = new $class;
         $data = [];
         foreach ($fields as $f) {
             $key = $f['column'] ?? ($f['field'] ?? ($f['name'] ?? null));
             $val = $f['value'] ?? null;
-            if (!$key) continue;
+            if (! $key) {
+                continue;
+            }
 
             $resolved = $this->applyTemplate($val, $context);
 
@@ -55,7 +56,7 @@ class CreateRecordStepHandler implements StepHandlerContract
             try {
                 $modelDefaults = $class::defaultsOnCreate($context) ?? [];
                 foreach ($modelDefaults as $k => $v) {
-                    $needsDefault = !array_key_exists($k, $data) || $data[$k] === null || $data[$k] === '';
+                    $needsDefault = ! array_key_exists($k, $data) || $data[$k] === null || $data[$k] === '';
                     if ($needsDefault) {
                         app(\App\Services\ValueSetValidator::class)->validate($modelName, $k, $v);
                         $data[$k] = $v;
@@ -97,7 +98,7 @@ class CreateRecordStepHandler implements StepHandlerContract
     protected function resolveModelClass(string $name): ?string
     {
         $base = class_basename($name);
-        $candidates = ['App\\Models\\' . $base];
+        $candidates = ['App\\Models\\'.$base];
         if (str_contains($name, '\\')) {
             $candidates[] = $name;
         }
@@ -108,20 +109,22 @@ class CreateRecordStepHandler implements StepHandlerContract
                 return $c;
             }
         }
+
         return null;
     }
 
     protected function applyTemplate($value, array $ctx)
     {
         if (is_array($value)) {
-            return array_map(fn($v) => $this->applyTemplate($v, $ctx), $value);
+            return array_map(fn ($v) => $this->applyTemplate($v, $ctx), $value);
         }
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return $value;
         }
 
         if (preg_match('/^\s*{{\s*([^}]+)\s*}}\s*$/', $value, $m)) {
             $path = trim($m[1]);
+
             return $this->getFromContextPath($ctx, $path);
         }
 
@@ -132,6 +135,7 @@ class CreateRecordStepHandler implements StepHandlerContract
             if (is_scalar($val) || $val === null) {
                 return (string) $val;
             }
+
             return json_encode($val);
         }, $value);
     }
@@ -153,7 +157,7 @@ class CreateRecordStepHandler implements StepHandlerContract
         if (str_starts_with($path, 'step_')) {
             $parts = explode('.', $path, 2);
             if (count($parts) > 1) {
-                $fallbackPath = $parts[0] . '.parsed.' . $parts[1];
+                $fallbackPath = $parts[0].'.parsed.'.$parts[1];
                 $value = Arr::get($context, $fallbackPath);
                 if ($value !== null) {
                     return $value;
@@ -170,13 +174,17 @@ class CreateRecordStepHandler implements StepHandlerContract
             if ($currentValue instanceof Model) {
                 try {
                     $currentValue = $currentValue->{$part};
+
                     continue;
-                } catch (\Throwable $e) { return null; }
+                } catch (\Throwable $e) {
+                    return null;
+                }
             }
 
             if (is_array($currentValue) && array_key_exists($part, $currentValue)) {
                 $currentValue = $currentValue[$part];
                 $modelKey = $part;
+
                 continue;
             }
 
@@ -190,8 +198,11 @@ class CreateRecordStepHandler implements StepHandlerContract
                             foreach (array_slice($parts, $index) as $subPart) {
                                 $subValue = $subValue->{$subPart};
                             }
+
                             return $subValue;
-                        } catch (\Throwable $e) { return null; }
+                        } catch (\Throwable $e) {
+                            return null;
+                        }
                     }
                 }
             }
@@ -202,16 +213,26 @@ class CreateRecordStepHandler implements StepHandlerContract
         return $currentValue;
     }
 
-
     protected function normalizeMorphType(string $key, $value)
     {
-        if (!is_string($value)) return $value;
-        if (!str_ends_with($key, '_type')) return $value;
-        if (class_exists($value)) return $value;
+        if (! is_string($value)) {
+            return $value;
+        }
+        if (! str_ends_with($key, '_type')) {
+            return $value;
+        }
+        if (class_exists($value)) {
+            return $value;
+        }
         $mapped = Relation::getMorphedModel($value) ?: Relation::getMorphedModel(strtolower($value));
-        if ($mapped && class_exists($mapped)) return $mapped;
-        $candidate = 'App\\Models\\' . Str::studly($value);
-        if (class_exists($candidate)) return $candidate;
+        if ($mapped && class_exists($mapped)) {
+            return $mapped;
+        }
+        $candidate = 'App\\Models\\'.Str::studly($value);
+        if (class_exists($candidate)) {
+            return $candidate;
+        }
+
         return $value;
     }
 
@@ -221,7 +242,7 @@ class CreateRecordStepHandler implements StepHandlerContract
      */
     protected function processFunctions($value)
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return $value;
         }
 
@@ -246,4 +267,3 @@ class CreateRecordStepHandler implements StepHandlerContract
         return $value;
     }
 }
-

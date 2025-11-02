@@ -26,7 +26,7 @@ return new class extends Migration
             $table->dropForeign(['project_tier_id']);
             $table->dropColumn([
                 'project_tier_id',
-                'profit_margin_percentage'
+                'profit_margin_percentage',
             ]);
         });
     }

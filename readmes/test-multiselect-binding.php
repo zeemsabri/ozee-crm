@@ -3,23 +3,21 @@
 // This is a simple test script to verify the MultiSelectWithRoles component's v-model binding
 // Run this script with: php test-multiselect-binding.php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap the Laravel application
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use App\Models\Project;
 use App\Models\Role;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use App\Models\User;
 
 echo "Testing MultiSelectWithRoles component v-model binding...\n\n";
 
 // Get a project
 $project = Project::first();
-if (!$project) {
+if (! $project) {
     echo "No projects found in the database. Please create a project first.\n";
     exit;
 }
@@ -41,7 +39,7 @@ if ($roles->isEmpty()) {
 }
 
 $employeeRole = $roles->where('slug', 'employee')->first();
-if (!$employeeRole) {
+if (! $employeeRole) {
     $employeeRole = $roles->first();
 }
 
@@ -84,12 +82,12 @@ $user_ids = [];
 foreach ($project->users as $user) {
     $user_ids[] = [
         'id' => $user->id,
-        'role_id' => $user->pivot->role_id
+        'role_id' => $user->pivot->role_id,
     ];
 }
 
 echo "Generated user_ids array:\n";
-echo json_encode($user_ids, JSON_PRETTY_PRINT) . "\n";
+echo json_encode($user_ids, JSON_PRETTY_PRINT)."\n";
 
 // Test 3: Verify the format matches what the API expects
 echo "\nTEST 3: Verify format matches API expectations\n";
@@ -97,7 +95,7 @@ echo "\nTEST 3: Verify format matches API expectations\n";
 // Check if each user_id entry has the required fields
 $valid = true;
 foreach ($user_ids as $index => $entry) {
-    if (!isset($entry['id']) || !isset($entry['role_id'])) {
+    if (! isset($entry['id']) || ! isset($entry['role_id'])) {
         echo "INVALID: Entry {$index} is missing required fields\n";
         $valid = false;
     }
@@ -118,7 +116,7 @@ $syncData = collect($user_ids)->mapWithKeys(function ($user) {
 });
 
 echo "Converted to sync format:\n";
-echo json_encode($syncData->toArray(), JSON_PRETTY_PRINT) . "\n";
+echo json_encode($syncData->toArray(), JSON_PRETTY_PRINT)."\n";
 
 // Clean up - remove all users from the project
 $project->users()->detach();

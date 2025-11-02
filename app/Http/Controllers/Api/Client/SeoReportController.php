@@ -26,7 +26,7 @@ class SeoReportController extends Controller
         }
 
         // Parse the report date to a Carbon date object and set day to 01
-        $reportDate = Carbon::parse($request->report_date . '-01');
+        $reportDate = Carbon::parse($request->report_date.'-01');
 
         // Decode JSON data
         $data = json_decode($request->data, true);
@@ -62,7 +62,7 @@ class SeoReportController extends Controller
     public function show(Request $request, Project $project, string $yearMonth)
     {
         // Validate year-month format
-        if (!preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
+        if (! preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
             return response()->json(['error' => 'Invalid date format. Use YYYY-MM format.'], 400);
         }
 
@@ -74,7 +74,7 @@ class SeoReportController extends Controller
             ->where('report_date', $reportDate)
             ->first();
 
-        if (!$report) {
+        if (! $report) {
             return response()->json(['error' => 'Report not found'], 404);
         }
 

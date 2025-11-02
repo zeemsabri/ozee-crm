@@ -12,17 +12,17 @@ class ForEachStepHandler implements StepHandlerContract
         protected WorkflowEngineService $engine,
     ) {}
 
-    public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
+    public function handle(array $context, WorkflowStep $step, ?ExecutionLog $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
         $source = $cfg['sourceArray'] ?? null;
-        if (!$source) {
+        if (! $source) {
             throw new \InvalidArgumentException('FOR_EACH step requires step_config.sourceArray');
         }
 
         // Resolve the array from context (supports tokens like {{step_2.records}})
         $resolved = $this->engine->getTemplatedValue($source, $context);
-        if (!is_array($resolved)) {
+        if (! is_array($resolved)) {
             // If it resolves to a JSON-string array, try decoding
             if (is_string($resolved)) {
                 $decoded = json_decode($resolved, true);
@@ -31,10 +31,10 @@ class ForEachStepHandler implements StepHandlerContract
                 }
             }
         }
-        if (!is_array($resolved)) {
+        if (! is_array($resolved)) {
             // Not an array; skip gracefully
             return [
-                'parsed' => [ 'iterations' => 0 ],
+                'parsed' => ['iterations' => 0],
                 'context' => [],
             ];
         }
@@ -67,7 +67,7 @@ class ForEachStepHandler implements StepHandlerContract
         }
 
         return [
-            'parsed' => [ 'iterations' => $total ],
+            'parsed' => ['iterations' => $total],
         ];
     }
 }

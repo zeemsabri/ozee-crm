@@ -8,23 +8,18 @@ use Illuminate\Http\JsonResponse;
 class PermissionDeniedException extends Exception
 {
     protected $permission;
+
     protected $projectId;
 
     /**
      * Create a new permission denied exception.
-     *
-     * @param string $permission
-     * @param int|null $projectId
-     * @param string $message
-     * @param int $code
-     * @param \Throwable|null $previous
      */
     public function __construct(
         string $permission,
         ?int $projectId = null,
         string $message = 'You do not have the required permission to perform this action.',
         int $code = 403,
-        \Throwable $previous = null
+        ?\Throwable $previous = null
     ) {
         $this->permission = $permission;
         $this->projectId = $projectId;
@@ -34,8 +29,6 @@ class PermissionDeniedException extends Exception
 
     /**
      * Get the permission that was denied.
-     *
-     * @return string
      */
     public function getPermission(): string
     {
@@ -44,8 +37,6 @@ class PermissionDeniedException extends Exception
 
     /**
      * Get the project ID if this was a project-specific permission.
-     *
-     * @return int|null
      */
     public function getProjectId(): ?int
     {
@@ -54,15 +45,13 @@ class PermissionDeniedException extends Exception
 
     /**
      * Render the exception as an HTTP response.
-     *
-     * @return \Illuminate\Http\JsonResponse
      */
     public function render(): JsonResponse
     {
         $response = [
             'message' => $this->getMessage(),
             'error' => 'permission_denied',
-            'permission' => $this->permission
+            'permission' => $this->permission,
         ];
 
         if ($this->projectId) {

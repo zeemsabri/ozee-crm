@@ -14,7 +14,9 @@ use Throwable;
 class LeadReplyHandlerService
 {
     protected string $apiKey;
+
     protected string $model;
+
     protected string $apiUrl;
 
     /**
@@ -22,12 +24,11 @@ class LeadReplyHandlerService
      */
     protected string $systemPrompt;
 
-
     public function __construct()
     {
         // IMPROVEMENT: Added error handling for when the prompt file is missing.
         $promptPath = public_path('prompts/reply_handling.txt');
-        if (!file_exists($promptPath)) {
+        if (! file_exists($promptPath)) {
             Log::critical('CRITICAL: Reply handling prompt file is missing.', ['path' => $promptPath]);
             // Throwing an exception is better here to halt execution if the core prompt is missing.
             throw new \Exception("Reply handling prompt file not found at: {$promptPath}");
@@ -42,9 +43,8 @@ class LeadReplyHandlerService
     /**
      * Handles an incoming email reply from a lead.
      *
-     * @param Lead $lead The lead who replied.
-     * @param Email $email The incoming email model, already created by the controller.
-     * @return void
+     * @param  Lead  $lead  The lead who replied.
+     * @param  Email  $email  The incoming email model, already created by the controller.
      */
     public function handleIncomingReply(Lead $lead, Email $email): void
     {
@@ -53,15 +53,17 @@ class LeadReplyHandlerService
         if (empty($this->apiKey)) {
             Log::error('Gemini API key is not configured. Cannot handle lead reply.');
             $this->createManualReviewTask($lead, $emailContent, 'Failsafe: AI system is not configured.');
+
             return;
         }
 
         // The incoming email is now created in the controller, so we proceed directly to analysis.
         $aiAnalysis = $this->analyzeReply($lead, $emailContent);
 
-        if (!$aiAnalysis) {
+        if (! $aiAnalysis) {
             Log::error('Failed to get AI analysis for lead reply.', ['lead_id' => $lead->id]);
             $this->createManualReviewTask($lead, $emailContent, 'Failsafe: AI analysis returned an error.');
+
             return;
         }
 
@@ -97,10 +99,6 @@ class LeadReplyHandlerService
 
     /**
      * Analyzes the reply content using the Gemini AI, enriched with lead and campaign context.
-     *
-     * @param Lead $lead
-     * @param string $incomingEmailContent
-     * @return array|null
      */
     private function analyzeReply(Lead $lead, string $incomingEmailContent): ?array
     {
@@ -112,8 +110,9 @@ class LeadReplyHandlerService
                 ->get()
                 ->map(function ($context) {
                     $email = $context->referencable;
+
                     return [
-                        'type'    => $email?->type, // 'sent' or 'received'
+                        'type' => $email?->type, // 'sent' or 'received'
                         'subject' => $email?->subject,
                         'summary' => $context->summary,
                         'sent_at' => $context->created_at->toIso8601String(),
@@ -131,7 +130,7 @@ class LeadReplyHandlerService
                 'contents' => [['parts' => [['text' => json_encode($promptInput)]]]],
                 // BUG FIX: Changed self::SYSTEM_PROMPT to $this->systemPrompt to use the property loaded in the constructor.
                 'systemInstruction' => ['parts' => [['text' => $this->systemPrompt]]],
-                'generationConfig' => ['responseMimeType' => "application/json"],
+                'generationConfig' => ['responseMimeType' => 'application/json'],
             ];
 
             $response = Http::post($this->apiUrl, $payload);
@@ -139,16 +138,18 @@ class LeadReplyHandlerService
             if ($response->failed()) {
                 Log::error('Failed to communicate with the Gemini AI service for reply analysis.', [
                     'status' => $response->status(),
-                    'response' => $response->body()
+                    'response' => $response->body(),
                 ]);
+
                 return null;
             }
 
             $generatedJsonString = $response->json('candidates.0.content.parts.0.text', '');
             if (empty($generatedJsonString)) {
                 Log::warning('Gemini AI returned an empty response for reply analysis.', [
-                    'response' => $response->json()
+                    'response' => $response->json(),
                 ]);
+
                 return null;
             }
 
@@ -159,16 +160,13 @@ class LeadReplyHandlerService
                 'error' => $e->getMessage(),
                 'lead_id' => $lead->id,
             ]);
+
             return null;
         }
     }
 
     /**
      * Creates and queues an automated email reply based on the AI's response.
-     *
-     * @param Lead $lead
-     * @param array $aiResponse
-     * @return void
      */
     private function queueReply(Lead $lead, array $aiResponse, $status = null): void
     {
@@ -213,22 +211,17 @@ class LeadReplyHandlerService
     /**
      * Creates a task for a human to manually review the email.
      *
-     * @param Lead $lead
-     * @param string $emailContent
-     * @param string $reason
-     * @param array|null $aiResponse The full response from the AI, to be used as a template.
-     * @return void
+     * @param  array|null  $aiResponse  The full response from the AI, to be used as a template.
      */
     private function createManualReviewTask(Lead $lead, string $emailContent, string $reason, ?array $aiResponse = null): void
     {
         // FIX: Re-enabled the failsafe task creation. This is critical for error handling.
-//        ManualReviewTask::create([
-//            'lead_id' => $lead->id,
-//            'original_email_content' => $emailContent,
-//            'reason_for_review' => $reason,
-//            'status' => 'pending',
-//            // 'suggested_reply' => $aiResponse, // Keep this commented until migration is ready.
-//        ]);
+        //        ManualReviewTask::create([
+        //            'lead_id' => $lead->id,
+        //            'original_email_content' => $emailContent,
+        //            'reason_for_review' => $reason,
+        //            'status' => 'pending',
+        //            // 'suggested_reply' => $aiResponse, // Keep this commented until migration is ready.
+        //        ]);
     }
 }
-

@@ -6,7 +6,6 @@ use App\Models\User;
 use App\Services\GoogleUserService;
 use Google\Service\Chat;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class GoogleChatUserController extends Controller
@@ -21,7 +20,6 @@ class GoogleChatUserController extends Controller
     /**
      * Create a new controller instance.
      *
-     * @param \App\Services\GoogleUserService $googleUserService
      * @return void
      */
     public function __construct(GoogleUserService $googleUserService)
@@ -33,12 +31,12 @@ class GoogleChatUserController extends Controller
     /**
      * Check if the user has Google credentials.
      *
-     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function checkGoogleCredentials(Request $request)
     {
         $user = $request->user();
+
         return response()->json([
             'has_credentials' => $user->hasGoogleCredentials(),
         ]);
@@ -47,7 +45,6 @@ class GoogleChatUserController extends Controller
     /**
      * Create a new Google Chat space.
      *
-     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function createSpace(Request $request)
@@ -61,7 +58,7 @@ class GoogleChatUserController extends Controller
 
             $user = $request->user();
 
-            if (!$user->hasGoogleCredentials()) {
+            if (! $user->hasGoogleCredentials()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You need to connect your Google account first.',
@@ -72,7 +69,7 @@ class GoogleChatUserController extends Controller
             $client = $this->googleUserService->getClientForUser($user);
             $chatService = new Chat($client);
 
-            $space = new Chat\Space();
+            $space = new Chat\Space;
             $space->setDisplayName($request->display_name);
             $space->setSpaceType($request->is_direct_message ? 'DIRECT_MESSAGE' : 'SPACE');
             $space->setExternalUserAllowed($request->allow_external_users ?? true);
@@ -90,14 +87,14 @@ class GoogleChatUserController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to create Google Chat space: ' . $e->getMessage(), [
+            Log::error('Failed to create Google Chat space: '.$e->getMessage(), [
                 'user_id' => $request->user()->id,
                 'exception' => $e,
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create Google Chat space: ' . $e->getMessage(),
+                'message' => 'Failed to create Google Chat space: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -105,7 +102,6 @@ class GoogleChatUserController extends Controller
     /**
      * Add members to a Google Chat space.
      *
-     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function addMembers(Request $request)
@@ -119,7 +115,7 @@ class GoogleChatUserController extends Controller
 
             $user = $request->user();
 
-            if (!$user->hasGoogleCredentials()) {
+            if (! $user->hasGoogleCredentials()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You need to connect your Google account first.',
@@ -133,11 +129,11 @@ class GoogleChatUserController extends Controller
             $responseArray = [];
             foreach ($request->member_emails as $email) {
                 try {
-                    $chatUser = new Chat\User();
-                    $chatUser->setName('users/' . $email);
+                    $chatUser = new Chat\User;
+                    $chatUser->setName('users/'.$email);
                     $chatUser->setType('HUMAN');
 
-                    $membership = new Chat\Membership();
+                    $membership = new Chat\Membership;
                     $membership->setMember($chatUser);
 
                     $response = $chatService->spaces_members->create($request->space_name, $membership);
@@ -153,7 +149,7 @@ class GoogleChatUserController extends Controller
                         'chat_name' => $chatName,
                     ];
                 } catch (\Exception $e) {
-                    Log::error('Failed to add member ' . $email . ' to Google Chat space: ' . $e->getMessage(), [
+                    Log::error('Failed to add member '.$email.' to Google Chat space: '.$e->getMessage(), [
                         'user_id' => $user->id,
                         'space_name' => $request->space_name,
                         'exception' => $e,
@@ -166,14 +162,14 @@ class GoogleChatUserController extends Controller
                 'members_added' => $responseArray,
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to add members to Google Chat space: ' . $e->getMessage(), [
+            Log::error('Failed to add members to Google Chat space: '.$e->getMessage(), [
                 'user_id' => $request->user()->id,
                 'exception' => $e,
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to add members to Google Chat space: ' . $e->getMessage(),
+                'message' => 'Failed to add members to Google Chat space: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -181,7 +177,6 @@ class GoogleChatUserController extends Controller
     /**
      * Send a message to a Google Chat space.
      *
-     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function sendMessage(Request $request)
@@ -195,7 +190,7 @@ class GoogleChatUserController extends Controller
 
             $user = $request->user();
 
-            if (!$user->hasGoogleCredentials()) {
+            if (! $user->hasGoogleCredentials()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You need to connect your Google account first.',
@@ -206,12 +201,12 @@ class GoogleChatUserController extends Controller
             $client = $this->googleUserService->getClientForUser($user);
             $chatService = new Chat($client);
 
-            $message = new Chat\Message();
+            $message = new Chat\Message;
             $message->setText($request->message_text);
 
             // If thread_name is provided, send as a threaded message
             if ($request->has('thread_name') && $request->thread_name) {
-                $thread = new Chat\Thread();
+                $thread = new Chat\Thread;
                 $thread->setName($request->thread_name);
                 $message->setThread($thread);
 
@@ -235,14 +230,14 @@ class GoogleChatUserController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to send message to Google Chat space: ' . $e->getMessage(), [
+            Log::error('Failed to send message to Google Chat space: '.$e->getMessage(), [
                 'user_id' => $request->user()->id,
                 'exception' => $e,
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to send message to Google Chat space: ' . $e->getMessage(),
+                'message' => 'Failed to send message to Google Chat space: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -250,7 +245,6 @@ class GoogleChatUserController extends Controller
     /**
      * Send a standup message to a Google Chat space.
      *
-     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function sendStandup(Request $request)
@@ -265,7 +259,7 @@ class GoogleChatUserController extends Controller
 
             $user = $request->user();
 
-            if (!$user->hasGoogleCredentials()) {
+            if (! $user->hasGoogleCredentials()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You need to connect your Google account first.',
@@ -274,12 +268,12 @@ class GoogleChatUserController extends Controller
             }
 
             // Format the standup message
-            $messageText = "*Daily Standup - " . now()->format('F j, Y') . "*\n\n";
-            $messageText .= "*Yesterday:*\n" . $request->yesterday . "\n\n";
-            $messageText .= "*Today:*\n" . $request->today . "\n\n";
+            $messageText = '*Daily Standup - '.now()->format('F j, Y')."*\n\n";
+            $messageText .= "*Yesterday:*\n".$request->yesterday."\n\n";
+            $messageText .= "*Today:*\n".$request->today."\n\n";
 
             if ($request->blockers) {
-                $messageText .= "*Blockers:*\n" . $request->blockers;
+                $messageText .= "*Blockers:*\n".$request->blockers;
             }
 
             // Reuse the sendMessage method
@@ -290,14 +284,14 @@ class GoogleChatUserController extends Controller
 
             return $this->sendMessage($messageRequest);
         } catch (\Exception $e) {
-            Log::error('Failed to send standup to Google Chat space: ' . $e->getMessage(), [
+            Log::error('Failed to send standup to Google Chat space: '.$e->getMessage(), [
                 'user_id' => $request->user()->id,
                 'exception' => $e,
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to send standup to Google Chat space: ' . $e->getMessage(),
+                'message' => 'Failed to send standup to Google Chat space: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -305,7 +299,6 @@ class GoogleChatUserController extends Controller
     /**
      * Send a note to a Google Chat space.
      *
-     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function sendNote(Request $request)
@@ -319,7 +312,7 @@ class GoogleChatUserController extends Controller
 
             $user = $request->user();
 
-            if (!$user->hasGoogleCredentials()) {
+            if (! $user->hasGoogleCredentials()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You need to connect your Google account first.',
@@ -328,7 +321,7 @@ class GoogleChatUserController extends Controller
             }
 
             // Format the note message
-            $messageText = "*Note - " . now()->format('F j, Y g:i A') . "*\n\n";
+            $messageText = '*Note - '.now()->format('F j, Y g:i A')."*\n\n";
             $messageText .= $request->note_text;
 
             // Reuse the sendMessage method
@@ -340,14 +333,14 @@ class GoogleChatUserController extends Controller
 
             return $this->sendMessage($messageRequest);
         } catch (\Exception $e) {
-            Log::error('Failed to send note to Google Chat space: ' . $e->getMessage(), [
+            Log::error('Failed to send note to Google Chat space: '.$e->getMessage(), [
                 'user_id' => $request->user()->id,
                 'exception' => $e,
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to send note to Google Chat space: ' . $e->getMessage(),
+                'message' => 'Failed to send note to Google Chat space: '.$e->getMessage(),
             ], 500);
         }
     }

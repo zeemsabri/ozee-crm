@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Http\Resources\Notifications;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Response;
-use App\Http\Resources\Notifications;
+
 class NotificationController extends Controller
 {
     /**
@@ -25,7 +25,7 @@ class NotificationController extends Controller
     /**
      * Mark a specific notification as read.
      *
-     * @param string $notificationId
+     * @param  string  $notificationId
      * @return \Illuminate\Http\JsonResponse
      */
     public function markAsRead($notificationId)
@@ -35,6 +35,7 @@ class NotificationController extends Controller
 
         if ($notification) {
             $notification->markAsRead();
+
             return Response::json(['message' => 'Notification marked as read.']);
         }
 
@@ -44,7 +45,7 @@ class NotificationController extends Controller
     /**
      * Delete a specific notification.
      *
-     * @param string $notificationId
+     * @param  string  $notificationId
      * @return \Illuminate\Http\JsonResponse
      */
     public function destroy($notificationId)
@@ -54,6 +55,7 @@ class NotificationController extends Controller
 
         if ($notification) {
             $notification->delete();
+
             return Response::json(['message' => 'Notification deleted successfully.']);
         }
 
@@ -63,7 +65,7 @@ class NotificationController extends Controller
     /**
      * Mark a specific notification as read by its view_id.
      *
-     * @param string $viewId
+     * @param  string  $viewId
      * @return \Illuminate\Http\JsonResponse
      */
     public function markAsReadByViewId($viewId)
@@ -75,10 +77,10 @@ class NotificationController extends Controller
 
         if ($notification) {
             $notification->markAsRead();
+
             return Response::json(['message' => 'Notification marked as read.']);
         }
 
         return Response::json(['error' => 'Notification not found or already read.'], 404);
     }
 }
-

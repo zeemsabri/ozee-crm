@@ -24,7 +24,7 @@ trait Taggable
      * The processing of new tags from names to IDs should be handled
      * by a middleware (e.g., ProcessTags) before this method is called.
      *
-     * @param array $tagIds - An array of integer tag IDs to sync.
+     * @param  array  $tagIds  - An array of integer tag IDs to sync.
      * @return void
      */
     public function syncTags(array $tagIds)

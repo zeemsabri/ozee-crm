@@ -5,8 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Component extends Model
 {
@@ -54,21 +54,18 @@ class Component extends Model
 
     /**
      * Validate the component definition.
-     *
-     * @param array $definition
-     * @return bool
      */
     public static function validateDefinition(array $definition): bool
     {
         // Basic validation - ensure the definition has the required structure
-        if (!isset($definition['default']) || !is_array($definition['default'])) {
+        if (! isset($definition['default']) || ! is_array($definition['default'])) {
             return false;
         }
 
         // Check for required default properties
-        if (!isset($definition['default']['size']) ||
-            !isset($definition['default']['size']['width']) ||
-            !isset($definition['default']['size']['height'])) {
+        if (! isset($definition['default']['size']) ||
+            ! isset($definition['default']['size']['width']) ||
+            ! isset($definition['default']['size']['height'])) {
             return false;
         }
 

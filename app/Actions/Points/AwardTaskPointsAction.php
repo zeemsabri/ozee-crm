@@ -14,7 +14,9 @@ class AwardTaskPointsAction
 {
     // Constants for points and penalties
     const BASE_POINTS_TASK_ON_TIME = 50;
+
     const BASE_POINTS_TASK_EARLY = 100;
+
     const LATE_STANDUP_REDUCTION_PERCENTAGE = 0.25;
 
     /**
@@ -29,9 +31,6 @@ class AwardTaskPointsAction
 
     /**
      * AwardTaskPointsAction constructor.
-     *
-     * @param LedgerService $ledgerService
-     * @param TaskService $taskService
      */
     public function __construct(LedgerService $ledgerService, TaskService $taskService)
     {
@@ -42,7 +41,7 @@ class AwardTaskPointsAction
     /**
      * Executes the business logic for awarding points for a completed task.
      *
-     * @param Task $task The Task model object.
+     * @param  Task  $task  The Task model object.
      * @return PointsLedger|null The newly created PointsLedger model instance, or null if points were not awarded.
      */
     public function execute(Task $task): ?PointsLedger
@@ -53,6 +52,7 @@ class AwardTaskPointsAction
         // 1. Defensive Checks
         if (is_null($task->assignee)) {
             Log::warning("AwardTaskPointsAction was called for task with ID {$task->id} but no assignee was found. Points not awarded.");
+
             return null;
         }
 
@@ -61,7 +61,7 @@ class AwardTaskPointsAction
             return $this->ledgerService->record(
                 $task->assignee,
                 0,
-                'Denied: Task is not linked to a project via a milestone.' . ' Task: ' . $task->name,
+                'Denied: Task is not linked to a project via a milestone.'.' Task: '.$task->name,
                 'denied',
                 $task,
                 $task->milestone?->project
@@ -78,7 +78,7 @@ class AwardTaskPointsAction
             return $this->ledgerService->record(
                 $task->assignee,
                 0,
-                'Denied: Points already awarded for this task.' . ': ' . $task->name . ' Existing Point ID: ' . $existingEntry->id,
+                'Denied: Points already awarded for this task.'.': '.$task->name.' Existing Point ID: '.$existingEntry->id,
                 'denied',
                 $task,
                 $task->milestone?->project
@@ -95,11 +95,11 @@ class AwardTaskPointsAction
             ->whereBetween('created_at', [$startOfDay, $endOfDay])
             ->first();
 
-        if (!$standupForDay) {
+        if (! $standupForDay) {
             return $this->ledgerService->record(
                 $task->assignee,
                 0,
-                'Denied: No standup found on the day of task completion.' . ': ' . $date,
+                'Denied: No standup found on the day of task completion.'.': '.$date,
                 'denied',
                 $task,
                 $task->milestone?->project,
@@ -113,10 +113,10 @@ class AwardTaskPointsAction
 
         if ($this->taskService->isTaskEarly($task)) {
             $pointsToAward = self::BASE_POINTS_TASK_EARLY;
-            $description = 'Early Task Completion: ' . $task->title;
+            $description = 'Early Task Completion: '.$task->title;
         } elseif ($this->taskService->isTaskOnTime($task)) {
             $pointsToAward = self::BASE_POINTS_TASK_ON_TIME;
-            $description = 'On-Time Task Completion: ' . $task->title;
+            $description = 'On-Time Task Completion: '.$task->title;
         } else {
             // If the task was not on time, record a denied transaction and stop.
             return $this->ledgerService->record(
@@ -131,7 +131,7 @@ class AwardTaskPointsAction
         }
 
         // 5. Point Reduction for Late Standup:
-        if (!$standupForDay->isBeforeUserTime('11:00:00')) {
+        if (! $standupForDay->isBeforeUserTime('11:00:00')) {
             $deduction = $pointsToAward * self::LATE_STANDUP_REDUCTION_PERCENTAGE;
             $pointsToAward -= $deduction;
             $description .= ' (Reduced due to late standup)';

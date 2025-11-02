@@ -3,27 +3,26 @@
 // This is a simple test script to verify that the role API changes work correctly
 // Run this script with: php test-role-fix.php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap the Laravel application
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
-use App\Models\Role;
 use App\Models\Permission;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 echo "Testing role API fixes...\n\n";
 
 // Get a super admin user
-$superAdmin = User::whereHas('role', function($query) {
+$superAdmin = User::whereHas('role', function ($query) {
     $query->where('slug', 'super-admin');
 })->first();
 
-if (!$superAdmin) {
+if (! $superAdmin) {
     echo "Super Admin user not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
@@ -36,17 +35,18 @@ echo "TEST 1: Fetch roles API endpoint\n";
 
 try {
     // Call the API endpoint directly
-    $response = app()->call(function(Request $request) {
+    $response = app()->call(function (Request $request) {
         $query = \App\Models\Role::query();
+
         return response()->json($query->get());
     }, [
-        'request' => new \Illuminate\Http\Request()
+        'request' => new \Illuminate\Http\Request,
     ]);
 
     $responseData = json_decode($response->getContent(), true);
 
     if ($response->getStatusCode() === 200 && is_array($responseData)) {
-        echo "SUCCESS: Roles API endpoint returned " . count($responseData) . " roles\n";
+        echo 'SUCCESS: Roles API endpoint returned '.count($responseData)." roles\n";
 
         // Print the first few roles
         $count = min(3, count($responseData));
@@ -57,22 +57,22 @@ try {
     } else {
         echo "FAILURE: Roles API endpoint did not return expected data\n";
         if (isset($responseData['message'])) {
-            echo "Error message: " . $responseData['message'] . "\n";
+            echo 'Error message: '.$responseData['message']."\n";
         }
     }
 } catch (\Exception $e) {
-    echo "FAILURE: Exception occurred: " . $e->getMessage() . "\n";
+    echo 'FAILURE: Exception occurred: '.$e->getMessage()."\n";
 }
 
 // Test 2: Create a new role
 echo "\nTEST 2: Create a new role\n";
 
-$roleName = "Test Role " . time();
+$roleName = 'Test Role '.time();
 $roleData = [
     'name' => $roleName,
     'description' => 'This is a test role created by the test script',
     'type' => 'application',
-    'permissions' => []
+    'permissions' => [],
 ];
 
 try {
@@ -84,7 +84,7 @@ try {
 
     // Call the API endpoint directly
     $response = app()->call('\App\Http\Controllers\Admin\RoleController@store', [
-        'request' => new \Illuminate\Http\Request($roleData)
+        'request' => new \Illuminate\Http\Request($roleData),
     ]);
 
     // Since the controller returns a redirect, we can't easily check the response
@@ -97,7 +97,7 @@ try {
         // Check if the permission was assigned
         if ($permission && $role->permissions->contains($permission->id)) {
             echo "SUCCESS: Permission was assigned to the role\n";
-        } else if ($permission) {
+        } elseif ($permission) {
             echo "FAILURE: Permission was not assigned to the role\n";
         }
 
@@ -108,7 +108,7 @@ try {
         exit;
     }
 } catch (\Exception $e) {
-    echo "FAILURE: Exception occurred: " . $e->getMessage() . "\n";
+    echo 'FAILURE: Exception occurred: '.$e->getMessage()."\n";
     exit;
 }
 
@@ -118,7 +118,7 @@ echo "\nTEST 3: Assign the role to a user\n";
 try {
     // Find a user to assign the role to
     $user = User::where('id', '!=', $superAdmin->id)->first();
-    if (!$user) {
+    if (! $user) {
         echo "No other users found. Please create another user first.\n";
         exit;
     }
@@ -146,7 +146,7 @@ try {
         echo "Restored user's original role\n";
     }
 } catch (\Exception $e) {
-    echo "FAILURE: Exception occurred: " . $e->getMessage() . "\n";
+    echo 'FAILURE: Exception occurred: '.$e->getMessage()."\n";
 }
 
 // Test 4: Delete the role
@@ -155,19 +155,19 @@ echo "\nTEST 4: Delete the role\n";
 try {
     // Call the API endpoint directly
     $response = app()->call('\App\Http\Controllers\Admin\RoleController@destroy', [
-        'role' => $role
+        'role' => $role,
     ]);
 
     // Check if the role was deleted
     $roleExists = Role::where('id', $roleId)->exists();
 
-    if (!$roleExists) {
+    if (! $roleExists) {
         echo "SUCCESS: Role was deleted successfully\n";
     } else {
         echo "FAILURE: Role was not deleted\n";
     }
 } catch (\Exception $e) {
-    echo "FAILURE: Exception occurred: " . $e->getMessage() . "\n";
+    echo 'FAILURE: Exception occurred: '.$e->getMessage()."\n";
 }
 
 echo "\nTest completed.\n";

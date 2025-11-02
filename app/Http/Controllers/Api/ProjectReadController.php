@@ -2,18 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\ProjectNote;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
-use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
-use Illuminate\Support\Facades\Storage;
 
 // Import the trait
 
@@ -24,7 +22,6 @@ class ProjectReadController extends Controller
     /**
      * Display a listing of the projects.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request)
@@ -56,16 +53,16 @@ class ProjectReadController extends Controller
             }, 'transactions', 'notes'])->get();
         }
 
-//        $projects->each(function ($project) {
-//            $project->notes->each(function ($note) {
-//                try {
-//                    $note->content = $note->content;
-//                } catch (\Exception $e) {
-//                    Log::error('Failed to decrypt note content in index method', ['note_id' => $note->id, 'error' => $e->getMessage()]);
-//                    $note->content = '[Encrypted content could not be decrypted]';
-//                }
-//            });
-//        });
+        //        $projects->each(function ($project) {
+        //            $project->notes->each(function ($note) {
+        //                try {
+        //                    $note->content = $note->content;
+        //                } catch (\Exception $e) {
+        //                    Log::error('Failed to decrypt note content in index method', ['note_id' => $note->id, 'error' => $e->getMessage()]);
+        //                    $note->content = '[Encrypted content could not be decrypted]';
+        //                }
+        //            });
+        //        });
 
         return response()->json($projects);
     }
@@ -73,7 +70,6 @@ class ProjectReadController extends Controller
     /**
      * Display the specified project.
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function show(Project $project)
@@ -121,14 +117,14 @@ class ProjectReadController extends Controller
                                 'id' => $permission->id,
                                 'name' => $permission->name,
                                 'slug' => $permission->slug,
-                                'category' => $permission->category
+                                'category' => $permission->category,
                             ];
                         }
                         $user->pivot->role_data = [
                             'id' => $projectRole->id,
                             'name' => $projectRole->name,
                             'slug' => $projectRole->slug,
-                            'permissions' => $permissions
+                            'permissions' => $permissions,
                         ];
                         $user->setRelation('pivot', $user->pivot->makeVisible(['role_data']));
                         $user->pivot->role = $projectRole->name;
@@ -141,7 +137,7 @@ class ProjectReadController extends Controller
                             'id' => $permission->id,
                             'name' => $permission->name,
                             'slug' => $permission->slug,
-                            'category' => $permission->category
+                            'category' => $permission->category,
                         ];
                     }
                     $user->global_permissions = $globalPermissions;
@@ -160,10 +156,10 @@ class ProjectReadController extends Controller
 
         if ($this->canViewProjectTransactions($user, $project)) {
             $project->load('transactions');
-            if ($this->canManageProjectExpenses($user, $project) && !$this->canManageProjectIncome($user, $project)) {
+            if ($this->canManageProjectExpenses($user, $project) && ! $this->canManageProjectIncome($user, $project)) {
                 $filteredTransactions = $project->transactions->filter(fn ($transaction) => $transaction->type === 'expense');
                 $filteredProject['transactions'] = $filteredTransactions;
-            } elseif (!$this->canManageProjectExpenses($user, $project) && $this->canManageProjectIncome($user, $project)) {
+            } elseif (! $this->canManageProjectExpenses($user, $project) && $this->canManageProjectIncome($user, $project)) {
                 $filteredTransactions = $project->transactions->filter(fn ($transaction) => $transaction->type === 'income');
                 $filteredProject['transactions'] = $filteredTransactions;
             } else {
@@ -185,7 +181,7 @@ class ProjectReadController extends Controller
             $filteredProject['notes'] = $project->notes;
         }
 
-        if($this->canViewProjectDeliverables($user, $project)) {
+        if ($this->canViewProjectDeliverables($user, $project)) {
             $project->load('projectDeliverables');
             $filteredProject['deliverables'] = $project->deliverables;
         }
@@ -200,14 +196,13 @@ class ProjectReadController extends Controller
     /**
      * Get basic project information.
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getBasicInfo(Project $project)
     {
 
         $user = Auth::user();
-        if (!$this->canCreateProjects($user)) {
+        if (! $this->canCreateProjects($user)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
@@ -224,41 +219,40 @@ class ProjectReadController extends Controller
             'project_type' => $project->project_type,
             'source' => $project->source,
             'google_drive_link' => $project->google_drive_link,
-            'logo'  => $project->logo,
+            'logo' => $project->logo,
             'project_manager_id' => $project->project_manager_id,
             'project_admin_id' => $project->project_admin_id,
-            'tags_data'  =>  $project->tags->map(function($tag) {
+            'tags_data' => $project->tags->map(function ($tag) {
                 return ['id' => $tag->id, 'name' => $tag->name];
             })->values()->all(),
-            'timezone'  =>  $project->timezone,
-            'project_tier_id'   =>  $project->project_tier_id
+            'timezone' => $project->timezone,
+            'project_tier_id' => $project->project_tier_id,
         ]);
     }
 
     /**
      * Get project clients
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getProjectClients(Project $project)
     {
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
-        if (!$this->canViewClientContacts($user, $project)) {
+        if (! $this->canViewClientContacts($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to view client contacts.'], 403);
         }
 
         $project->load('clients');
+
         return response()->json($project->clients);
     }
 
     /**
      * Get project users (team members)
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getProjectUsers(Project $project)
@@ -275,7 +269,7 @@ class ProjectReadController extends Controller
         $userIds = $users->pluck('id')->toArray();
 
         // Add project manager if exists and not already included
-        if ($project->project_manager_id && !in_array($project->project_manager_id, $userIds)) {
+        if ($project->project_manager_id && ! in_array($project->project_manager_id, $userIds)) {
             $manager = User::with(['role.permissions'])->find($project->project_manager_id);
             if ($manager) {
                 // Create a fake pivot object for consistency with other users
@@ -286,7 +280,7 @@ class ProjectReadController extends Controller
         }
 
         // Add project admin if exists and not already included
-        if ($project->project_admin_id && !in_array($project->project_admin_id, $userIds)) {
+        if ($project->project_admin_id && ! in_array($project->project_admin_id, $userIds)) {
             $admin = User::with(['role.permissions'])->find($project->project_admin_id);
             if ($admin) {
                 // Create a fake pivot object for consistency with other users
@@ -301,19 +295,19 @@ class ProjectReadController extends Controller
             if (isset($user->pivot->role_id)) {
                 $projectRole = \App\Models\Role::with('permissions')->find($user->pivot->role_id);
                 if ($projectRole) {
-                    $permissions = $projectRole->permissions->map(fn($p) => ['id' => $p->id, 'name' => $p->name, 'slug' => $p->slug, 'category' => $p->category]);
+                    $permissions = $projectRole->permissions->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'slug' => $p->slug, 'category' => $p->category]);
                     $user->pivot->role_data = [
                         'id' => $projectRole->id,
                         'name' => $projectRole->name,
                         'slug' => $projectRole->slug,
-                        'permissions' => $permissions
+                        'permissions' => $permissions,
                     ];
                     $user->setRelation('pivot', $user->pivot->makeVisible(['role_data']));
                     $user->pivot->role = $projectRole->name;
                 }
             }
             if ($user->role) {
-                $globalPermissions = $user->role->permissions->map(fn($p) => ['id' => $p->id, 'name' => $p->name, 'slug' => $p->slug, 'category' => $p->category]);
+                $globalPermissions = $user->role->permissions->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'slug' => $p->slug, 'category' => $p->category]);
                 $user->global_permissions = $globalPermissions;
                 $user->makeVisible(['global_permissions']);
             }
@@ -325,16 +319,15 @@ class ProjectReadController extends Controller
     /**
      * Get project services and payment information
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getServicesAndPayment(Project $project)
     {
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
-        if (!$this->canViewProjectServicesAndPayments($user, $project)) {
+        if (! $this->canViewProjectServicesAndPayments($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to view financial information.'], 403);
         }
 
@@ -359,13 +352,13 @@ class ProjectReadController extends Controller
         $this->authorize('addExpendables', $project);
 
         return response()->json([
-            'total_budget'                      =>  $project->total_budget,
-            'total_assigned_milestone_amount'   =>  $project->total_assigned_milestone_amount,
-            'total_pending_contract_amount'     =>  $project->pending_contracts_amount,
-            'total_approved_contract_amount'    =>  $project->approved_contracts_amount,
-            'total_expendable_amount'           =>  $project->remaining_spendables,
-            'available_for_new_milestones'      =>  $project->available_for_new_milestones,
-            'currency'                          =>  'AUD',
+            'total_budget' => $project->total_budget,
+            'total_assigned_milestone_amount' => $project->total_assigned_milestone_amount,
+            'total_pending_contract_amount' => $project->pending_contracts_amount,
+            'total_approved_contract_amount' => $project->approved_contracts_amount,
+            'total_expendable_amount' => $project->remaining_spendables,
+            'available_for_new_milestones' => $project->available_for_new_milestones,
+            'currency' => 'AUD',
         ]);
 
     }
@@ -373,7 +366,6 @@ class ProjectReadController extends Controller
     /**
      * Get project transactions
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getTransactions(Project $project, Request $request)
@@ -391,9 +383,8 @@ class ProjectReadController extends Controller
         // Apply user_id filter if present in the request
         if ($userId) {
             $transactionsQuery->where('user_id', $userId) // Filter by the requested user
-            ->whereIn('type', ['expense', 'bonus']); // Only include 'expense' or 'bonus' for a specific user's financials
+                ->whereIn('type', ['expense', 'bonus']); // Only include 'expense' or 'bonus' for a specific user's financials
         }
-
 
         $transactions = $transactionsQuery->get();
 
@@ -411,11 +402,11 @@ class ProjectReadController extends Controller
 
             // General project-wide permission filtering:
             // If user can only manage expenses and transaction is income, filter out
-            if (!$userId && $transaction->type === 'income' && !$canManageIncome && $canManageExpenses) {
+            if (! $userId && $transaction->type === 'income' && ! $canManageIncome && $canManageExpenses) {
                 return false;
             }
             // If user can only manage income and transaction is expense, filter out
-            if (!$userId && $transaction->type === 'expense' && !$canManageExpenses && $canManageIncome) {
+            if (! $userId && $transaction->type === 'expense' && ! $canManageExpenses && $canManageIncome) {
                 return false;
             }
 
@@ -425,16 +416,16 @@ class ProjectReadController extends Controller
         // Return raw, filtered transactions. Frontend will handle conversion and stats.
         return response()->json($filteredTransactions->values()); // Use values() to re-index array
     }
+
     /**
      * Get project contract details.
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getContractDetails(Project $project)
     {
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project) || !$this->canViewClientFinancial($user, $project)) {
+        if (! $this->canAccessProject($user, $project) || ! $this->canViewClientFinancial($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to view contract details.'], 403);
         }
 
@@ -444,7 +435,6 @@ class ProjectReadController extends Controller
     /**
      * Get project clients and users.
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getClientsAndUsers(Project $project)
@@ -456,21 +446,21 @@ class ProjectReadController extends Controller
 
         $type = request()->type;
 
-        if (!$type || $type === 'clients') {
+        if (! $type || $type === 'clients') {
             $project->load('clients');
             $result['clients'] = $project->clients;
         }
 
-        if (!$type || $type === 'users') {
+        if (! $type || $type === 'users') {
 
             $project->load(['users' => function ($query) {
                 $query->withPivot('role_id');
             },
-            'users.availabilities' => function($query) {
-                $query->where('date', '=', Today());
-            }
+                'users.availabilities' => function ($query) {
+                    $query->where('date', '=', Today());
+                },
 
-        ]);
+            ]);
 
             $project->users->each(function ($user) {
 
@@ -499,7 +489,7 @@ class ProjectReadController extends Controller
             $result['users'] = $project->users;
         }
 
-        if($type && isset($result[$type])) {
+        if ($type && isset($result[$type])) {
             return response()->json($result[$type]);
         }
 
@@ -509,20 +499,18 @@ class ProjectReadController extends Controller
     /**
      * Get project documents.
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getDocuments(Project $project)
     {
         $this->authorize('view', $project);
+
         return response()->json($project->documents()->get());
     }
 
     /**
      * Get project notes, with optional filters.
      *
-     * @param Project $project
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function getNotes(Project $project, Request $request)
@@ -532,19 +520,19 @@ class ProjectReadController extends Controller
 
         $notesQuery = $project->notes()->with('user')->whereNull('parent_id');
 
-        if ($request->has('type') && !empty($request->type)) {
+        if ($request->has('type') && ! empty($request->type)) {
             $notesQuery->where('type', $request->type);
         }
 
-        if ($request->has('user_id') && !empty($request->user_id)) {
+        if ($request->has('user_id') && ! empty($request->user_id)) {
             $notesQuery->where('user_id', $request->user_id);
         }
 
-        if ($request->has('start_date') && !empty($request->start_date)) {
+        if ($request->has('start_date') && ! empty($request->start_date)) {
             $notesQuery->whereDate('created_at', '>=', $request->start_date);
         }
 
-        if ($request->has('end_date') && !empty($request->end_date)) {
+        if ($request->has('end_date') && ! empty($request->end_date)) {
             $notesQuery->whereDate('created_at', '<=', $request->end_date);
         }
 
@@ -561,12 +549,13 @@ class ProjectReadController extends Controller
             $note->reply_count = $note->replyCount();
         });
 
-        if ($request->has('search') && !empty($request->search)) {
+        if ($request->has('search') && ! empty($request->search)) {
             $searchTerm = strtolower($request->search);
             $notes = $notes->filter(function ($note) use ($searchTerm) {
                 if ($note->content === '[Encrypted content could not be decrypted]') {
                     return false;
                 }
+
                 return str_contains(strtolower($note->content), $searchTerm);
             })->values();
         }
@@ -577,7 +566,6 @@ class ProjectReadController extends Controller
     /**
      * Get tasks for a project.
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getTasks(Project $project)
@@ -600,8 +588,6 @@ class ProjectReadController extends Controller
     /**
      * Get replies for a specific note.
      *
-     * @param Project $project
-     * @param ProjectNote $note
      * @return \Illuminate\Http\JsonResponse
      */
     public function getNoteReplies(Project $project, ProjectNote $note)
@@ -613,24 +599,24 @@ class ProjectReadController extends Controller
         if ($note->project_id !== $project->id) {
             return response()->json([
                 'message' => 'The note does not belong to this project.',
-                'success' => false
+                'success' => false,
             ], 400);
         }
 
         $replies = $note->replies()->with('user')->orderBy('created_at', 'asc')->get();
 
-//        $replies->each(function ($reply) {
-//            try {
-//                $reply->content = Crypt::decryptString($reply->content);
-//            } catch (\Exception $e) {
-//                Log::error('Failed to decrypt reply content', ['reply_id' => $reply->id, 'error' => $e->getMessage()]);
-//                $reply->content = '[Encrypted content could not be decrypted]';
-//            }
-//        });
+        //        $replies->each(function ($reply) {
+        //            try {
+        //                $reply->content = Crypt::decryptString($reply->content);
+        //            } catch (\Exception $e) {
+        //                Log::error('Failed to decrypt reply content', ['reply_id' => $reply->id, 'error' => $e->getMessage()]);
+        //                $reply->content = '[Encrypted content could not be decrypted]';
+        //            }
+        //        });
 
         return response()->json([
             'replies' => $replies,
-            'success' => true
+            'success' => true,
         ]);
     }
 
@@ -698,9 +684,9 @@ class ProjectReadController extends Controller
 
             // For super admins and managers, get all projects
             $projects = Project::select('projects.id', 'projects.name', 'projects.status', 'projects.departments', 'projects.project_type')
-                ->leftJoin('project_user', function($join) use ($user) {
+                ->leftJoin('project_user', function ($join) use ($user) {
                     $join->on('projects.id', '=', 'project_user.project_id')
-                         ->where('project_user.user_id', '=', $user->id);
+                        ->where('project_user.user_id', '=', $user->id);
                 })
                 ->addSelect('project_user.role_id')
                 ->orderBy('projects.name')
@@ -720,14 +706,13 @@ class ProjectReadController extends Controller
                 $roleName = $roles[$project->role_id];
             }
 
-
             return [
                 'id' => $project->id,
                 'name' => $project->name,
                 'status' => $project->status,
                 'user_role' => $roleName,
-                'tags'   =>  $project->tags->pluck('name'),
-                'project_type'  =>  $project->project_type
+                'tags' => $project->tags->pluck('name'),
+                'project_type' => $project->project_type,
             ];
         });
 
@@ -751,7 +736,7 @@ class ProjectReadController extends Controller
             // For super admins and managers, get all projects
             $projects = Project::with('wireframes')->select('projects.id', 'projects.name', 'projects.status')
                 ->orderBy('projects.name', 'asc')
-                ->leftJoin('project_user', function($join) use ($user) {
+                ->leftJoin('project_user', function ($join) use ($user) {
                     $join->on('projects.id', '=', 'project_user.project_id')
                         ->where('project_user.user_id', '=', $user->id);
                 })
@@ -772,19 +757,17 @@ class ProjectReadController extends Controller
                 $roleName = $roles[$project->role_id];
             }
 
-
             return [
                 'id' => $project->id,
                 'name' => $project->name,
                 'status' => $project->status,
                 'user_role' => $roleName,
-                'wireframes'    =>  $project->wireframes
+                'wireframes' => $project->wireframes,
             ];
         });
 
         return response()->json($transformedProjects);
     }
-
 
     /**
      * Get wireframe comments (comment and resolved_comment) with replies for internal users.
@@ -793,33 +776,33 @@ class ProjectReadController extends Controller
     {
         $user = Auth::user();
         $project = Project::findOrFail($projectId);
-        if (!$this->canAccessProject($user, $project) || !$this->canViewProjectNotes($user, $project)) {
+        if (! $this->canAccessProject($user, $project) || ! $this->canViewProjectNotes($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to view notes.'], 403);
         }
 
         // Ensure wireframe belongs to project
         $wireframe = $project->wireframes()->where('id', $id)->first();
-        if (!$wireframe) {
+        if (! $wireframe) {
             return response()->json(['message' => 'Wireframe not found.'], 404);
         }
 
         $types = ['comment'];
 
         $comments = ProjectNote::with([
-                'creator',
-                'replies' => function($q) use ($types) {
-                    $q->whereIn('type', $types)
-                      ->with('creator')
-                      ->orderBy('created_at', 'asc');
-                }
-            ])
+            'creator',
+            'replies' => function ($q) use ($types) {
+                $q->whereIn('type', $types)
+                    ->with('creator')
+                    ->orderBy('created_at', 'asc');
+            },
+        ])
             ->whereIn('type', $types)
             ->whereNull('parent_id')
             ->where('noteable_type', get_class($wireframe))
             ->where('noteable_id', $wireframe->id)
             ->orderBy('created_at', 'asc')
             ->get()
-            ->map(function($note) {
+            ->map(function ($note) {
                 return [
                     'id' => $note->id,
                     'project_id' => $note->project_id,
@@ -834,7 +817,7 @@ class ProjectReadController extends Controller
                     'creator_id' => $note->creator_id,
                     'created_at' => $note->created_at,
                     'updated_at' => $note->updated_at,
-                    'replies' => $note->replies->map(function($reply) {
+                    'replies' => $note->replies->map(function ($reply) {
                         return [
                             'id' => $reply->id,
                             'project_id' => $reply->project_id,
@@ -857,11 +840,9 @@ class ProjectReadController extends Controller
         return response()->json($comments);
     }
 
-
     /**
      * Get meetings for a project.
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getProjectMeetings(Project $project)
@@ -921,7 +902,6 @@ class ProjectReadController extends Controller
     /**
      * Get Google Chat members for a project.
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getGoogleChatMembers(Project $project)
@@ -929,6 +909,7 @@ class ProjectReadController extends Controller
         $this->authorize('view', $project);
 
         $project->load('googleChatMembers');
+
         return response()->json($project->googleChatMembers);
     }
 }

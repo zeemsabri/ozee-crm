@@ -68,5 +68,4 @@ class Kernel extends HttpKernel
         'process.tags' => \App\Http\Middleware\ProcessTags::class,
         'process.basic' => \App\Http\Middleware\ProcessBasicProperty::class,
     ];
-
 }

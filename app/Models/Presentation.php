@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,13 +13,19 @@ class Presentation extends Model
     use HasFactory, SoftDeletes;
 
     const PROPOSAL = 'proposal';
+
     const PRESENTATION = 'presentation';
+
     const AUDIT_REPORT = 'audit_report';
 
     const QUALIFIED = 'qualified';
+
     const NEW = 'new';
+
     const CONTACTED = 'contacted';
+
     const CONVERTED = 'converted';
+
     const LOST = 'lost';
 
     protected $fillable = [

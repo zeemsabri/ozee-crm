@@ -7,14 +7,12 @@ echo "Testing Email Composer access control\n";
 echo "-----------------------------------\n\n";
 
 // Import necessary classes
-require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__.'/vendor/autoload.php';
 
-use App\Models\User;
-use App\Models\Role;
 use App\Models\Permission;
-use Illuminate\Support\Facades\Auth;
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Inertia\Testing\AssertableInertia as Assert;
 
 // Find or create a test permission for composing emails
 echo "Setting up test permission...\n";
@@ -23,10 +21,10 @@ $permission = Permission::firstOrCreate(
     [
         'name' => 'Compose emails',
         'description' => 'Permission to compose emails',
-        'category' => 'emails'
+        'category' => 'emails',
     ]
 );
-echo "- Permission 'compose_emails' " . ($permission->wasRecentlyCreated ? 'created' : 'already exists') . "\n\n";
+echo "- Permission 'compose_emails' ".($permission->wasRecentlyCreated ? 'created' : 'already exists')."\n\n";
 
 // Find or create test roles with and without the permission
 echo "Setting up test roles...\n";
@@ -37,10 +35,10 @@ $roleWithPermission = Role::firstOrCreate(
     [
         'name' => 'Email Composer',
         'description' => 'Role with permission to compose emails',
-        'type' => 'application'
+        'type' => 'application',
     ]
 );
-echo "- Role 'email_composer' " . ($roleWithPermission->wasRecentlyCreated ? 'created' : 'already exists') . "\n";
+echo "- Role 'email_composer' ".($roleWithPermission->wasRecentlyCreated ? 'created' : 'already exists')."\n";
 
 // Assign the permission to the role
 DB::table('role_permission')->updateOrInsert(
@@ -55,10 +53,10 @@ $roleWithoutPermission = Role::firstOrCreate(
     [
         'name' => 'No Email Access',
         'description' => 'Role without permission to compose emails',
-        'type' => 'application'
+        'type' => 'application',
     ]
 );
-echo "- Role 'no_email_access' " . ($roleWithoutPermission->wasRecentlyCreated ? 'created' : 'already exists') . "\n";
+echo "- Role 'no_email_access' ".($roleWithoutPermission->wasRecentlyCreated ? 'created' : 'already exists')."\n";
 
 // Make sure the role doesn't have the permission
 DB::table('role_permission')
@@ -76,14 +74,14 @@ $userWithPermission = User::firstOrCreate(
     [
         'name' => 'Email Composer User',
         'password' => bcrypt('password'),
-        'role_id' => $roleWithPermission->id
+        'role_id' => $roleWithPermission->id,
     ]
 );
 if ($userWithPermission->role_id != $roleWithPermission->id) {
     $userWithPermission->role_id = $roleWithPermission->id;
     $userWithPermission->save();
 }
-echo "- User 'email_composer@example.com' " . ($userWithPermission->wasRecentlyCreated ? 'created' : 'already exists') . " with 'email_composer' role\n";
+echo "- User 'email_composer@example.com' ".($userWithPermission->wasRecentlyCreated ? 'created' : 'already exists')." with 'email_composer' role\n";
 
 // User without permission
 $userWithoutPermission = User::firstOrCreate(
@@ -91,14 +89,14 @@ $userWithoutPermission = User::firstOrCreate(
     [
         'name' => 'No Email Access User',
         'password' => bcrypt('password'),
-        'role_id' => $roleWithoutPermission->id
+        'role_id' => $roleWithoutPermission->id,
     ]
 );
 if ($userWithoutPermission->role_id != $roleWithoutPermission->id) {
     $userWithoutPermission->role_id = $roleWithoutPermission->id;
     $userWithoutPermission->save();
 }
-echo "- User 'no_email_access@example.com' " . ($userWithoutPermission->wasRecentlyCreated ? 'created' : 'already exists') . " with 'no_email_access' role\n\n";
+echo "- User 'no_email_access@example.com' ".($userWithoutPermission->wasRecentlyCreated ? 'created' : 'already exists')." with 'no_email_access' role\n\n";
 
 echo "Test setup completed.\n\n";
 echo "To test the Email Composer access control:\n";

@@ -2,21 +2,18 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\SubtaskStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Subtask;
-use App\Models\Task;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
-use App\Enums\SubtaskStatus;
 
 class SubtaskController extends Controller
 {
     /**
      * Display a listing of the resource.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request)
@@ -39,7 +36,7 @@ class SubtaskController extends Controller
             $raw = (string) $status;
             $normalized = strtolower(str_replace(['_', '-'], ' ', $raw));
             $enum = SubtaskStatus::tryFrom($raw);
-            if (!$enum) {
+            if (! $enum) {
                 foreach (SubtaskStatus::cases() as $case) {
                     if ($normalized === strtolower($case->value)) {
                         $enum = $case;
@@ -66,7 +63,6 @@ class SubtaskController extends Controller
     /**
      * Store a newly created resource in storage.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request)
@@ -83,12 +79,12 @@ class SubtaskController extends Controller
 
         // Coerce and soft-validate status via value dictionary
         if (array_key_exists('status', $validated)) {
-            $raw = (string)$validated['status'];
+            $raw = (string) $validated['status'];
             $enum = SubtaskStatus::tryFrom($raw) ?? SubtaskStatus::tryFrom(ucwords(strtolower($raw)));
             if ($enum) {
                 $validated['status'] = $enum->value;
             }
-            app(\App\Services\ValueSetValidator::class)->validate('Subtask','status', $validated['status']);
+            app(\App\Services\ValueSetValidator::class)->validate('Subtask', 'status', $validated['status']);
         }
 
         // Create the subtask
@@ -103,7 +99,6 @@ class SubtaskController extends Controller
     /**
      * Display the specified resource.
      *
-     * @param Subtask $subtask
      * @return \Illuminate\Http\JsonResponse
      */
     public function show(Subtask $subtask)
@@ -117,8 +112,6 @@ class SubtaskController extends Controller
     /**
      * Update the specified resource in storage.
      *
-     * @param Request $request
-     * @param Subtask $subtask
      * @return \Illuminate\Http\JsonResponse
      */
     public function update(Request $request, Subtask $subtask)
@@ -145,7 +138,6 @@ class SubtaskController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param Subtask $subtask
      * @return \Illuminate\Http\JsonResponse
      */
     public function destroy(Subtask $subtask)
@@ -159,8 +151,6 @@ class SubtaskController extends Controller
     /**
      * Add a note to a subtask.
      *
-     * @param Request $request
-     * @param Subtask $subtask
      * @return \Illuminate\Http\JsonResponse
      */
     public function addNote(Request $request, Subtask $subtask)
@@ -186,7 +176,6 @@ class SubtaskController extends Controller
     /**
      * Mark a subtask as completed.
      *
-     * @param Subtask $subtask
      * @return \Illuminate\Http\JsonResponse
      */
     public function markAsCompleted(Subtask $subtask)
@@ -202,7 +191,6 @@ class SubtaskController extends Controller
     /**
      * Start a subtask (change status to In Progress).
      *
-     * @param Subtask $subtask
      * @return \Illuminate\Http\JsonResponse
      */
     public function start(Subtask $subtask)
@@ -218,7 +206,6 @@ class SubtaskController extends Controller
     /**
      * Block a subtask (change status to Blocked).
      *
-     * @param Subtask $subtask
      * @return \Illuminate\Http\JsonResponse
      */
     public function block(Subtask $subtask)

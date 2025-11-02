@@ -8,9 +8,9 @@ use App\Models\Client;
 use App\Models\Conversation;
 use App\Models\Lead;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth; // For Auth::user()
+use Illuminate\Validation\ValidationException; // For Auth::user()
 
 class ClientController extends Controller
 {
@@ -50,7 +50,7 @@ class ClientController extends Controller
         $user = Auth::user();
 
         // Only users with create_clients permission can create clients
-        if (!$user->hasPermission('create_clients')) {
+        if (! $user->hasPermission('create_clients')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -65,6 +65,7 @@ class ClientController extends Controller
 
             $client = Client::create($validated);
             Log::info('Client created', ['client_id' => $client->id, 'client_name' => $client->name, 'user_id' => Auth::id()]);
+
             return (new ClientResource($client))->response()->setStatusCode(201);
         } catch (ValidationException $e) {
             return response()->json([
@@ -72,7 +73,8 @@ class ClientController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
-            Log::error('Error creating client: ' . $e->getMessage(), ['request' => $request->all(), 'error' => $e->getTraceAsString()]);
+            Log::error('Error creating client: '.$e->getMessage(), ['request' => $request->all(), 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to create client', 'error' => $e->getMessage()], 500);
         }
     }
@@ -105,14 +107,14 @@ class ClientController extends Controller
         $user = Auth::user();
 
         // Only users with edit_clients permission can update clients
-        if (!$user->hasPermission('edit_clients')) {
+        if (! $user->hasPermission('edit_clients')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         try {
             $validated = $request->validate([
                 'name' => 'sometimes|required|string|max:255',
-                'email' => 'sometimes|required|string|email|max:255|unique:clients,email,' . $client->id,
+                'email' => 'sometimes|required|string|email|max:255|unique:clients,email,'.$client->id,
                 'phone' => 'nullable|string|max:50',
                 'address' => 'nullable|string',
                 'notes' => 'nullable|string',
@@ -120,6 +122,7 @@ class ClientController extends Controller
 
             $client->update($validated);
             Log::info('Client updated', ['client_id' => $client->id, 'client_name' => $client->name, 'user_id' => Auth::id()]);
+
             return new ClientResource($client);
         } catch (ValidationException $e) {
             return response()->json([
@@ -127,7 +130,8 @@ class ClientController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
-            Log::error('Error updating client: ' . $e->getMessage(), ['client_id' => $client->id, 'request' => $request->all(), 'error' => $e->getTraceAsString()]);
+            Log::error('Error updating client: '.$e->getMessage(), ['client_id' => $client->id, 'request' => $request->all(), 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to update client', 'error' => $e->getMessage()], 500);
         }
     }
@@ -140,16 +144,18 @@ class ClientController extends Controller
         $user = Auth::user();
 
         // Only users with delete_clients permission can delete clients
-        if (!$user->hasPermission('delete_clients')) {
+        if (! $user->hasPermission('delete_clients')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         try {
             $client->delete();
             Log::info('Client deleted', ['client_id' => $client->id, 'client_name' => $client->name, 'user_id' => Auth::id()]);
+
             return response()->json(null, 204);
         } catch (\Exception $e) {
-            Log::error('Error deleting client: ' . $e->getMessage(), ['client_id' => $client->id, 'error' => $e->getTraceAsString()]);
+            Log::error('Error deleting client: '.$e->getMessage(), ['client_id' => $client->id, 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to delete client', 'error' => $e->getMessage()], 500);
         }
     }
@@ -167,7 +173,7 @@ class ClientController extends Controller
             // Allow access for users with view_clients permission
         } elseif ($user->isContractor()) {
             // Contractors can only access emails of clients associated with their projects
-            if (!$user->clients->contains('id', $client->id)) {
+            if (! $user->clients->contains('id', $client->id)) {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
         } else {
@@ -177,7 +183,8 @@ class ClientController extends Controller
         try {
             return response()->json(['email' => $client->email]);
         } catch (\Exception $e) {
-            Log::error('Error getting client email: ' . $e->getMessage(), ['client_id' => $client->id, 'error' => $e->getTraceAsString()]);
+            Log::error('Error getting client email: '.$e->getMessage(), ['client_id' => $client->id, 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to get client email', 'error' => $e->getMessage()], 500);
         }
     }
@@ -192,20 +199,20 @@ class ClientController extends Controller
         if ($user->hasPermission('view_clients')) {
             // ok
         } elseif ($user->isContractor()) {
-            if (!$user->clients->contains('id', $client->id)) {
+            if (! $user->clients->contains('id', $client->id)) {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
         } else {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $perPage = (int)($request->input('per_page', 15));
-        $page = (int)($request->input('page', 1));
+        $perPage = (int) ($request->input('per_page', 15));
+        $page = (int) ($request->input('page', 1));
 
         $query = \App\Models\Email::with(['sender', 'approver', 'conversation.project'])
             ->whereHas('conversation', function ($q) use ($client) {
                 $q->where('conversable_type', \App\Models\Client::class)
-                  ->where('conversable_id', $client->id);
+                    ->where('conversable_id', $client->id);
             })
             ->orderByDesc('created_at');
 
@@ -219,7 +226,7 @@ class ClientController extends Controller
         if ($search = $request->input('search')) {
             $query->where(function ($qq) use ($search) {
                 $qq->where('subject', 'like', "%{$search}%")
-                   ->orWhere('body', 'like', "%{$search}%");
+                    ->orWhere('body', 'like', "%{$search}%");
             });
         }
 
@@ -239,7 +246,7 @@ class ClientController extends Controller
         if ($user->hasPermission('view_clients')) {
             // ok
         } elseif ($user->isContractor()) {
-            if (!$user->clients->contains('id', $client->id)) {
+            if (! $user->clients->contains('id', $client->id)) {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
         } else {
@@ -256,7 +263,7 @@ class ClientController extends Controller
                 'id' => $p->id,
                 'title' => $p->title,
                 'type' => $p->type,
-                'is_template' => (bool)$p->is_template,
+                'is_template' => (bool) $p->is_template,
                 'slides_count' => $p->slides_count,
                 'share_token' => $p->share_token,
                 'source' => 'client',
@@ -268,7 +275,7 @@ class ClientController extends Controller
                     'id' => $p->id,
                     'title' => $p->title,
                     'type' => $p->type,
-                    'is_template' => (bool)$p->is_template,
+                    'is_template' => (bool) $p->is_template,
                     'slides_count' => $p->slides_count,
                     'share_token' => $p->share_token,
                     'source' => 'lead',
@@ -281,11 +288,11 @@ class ClientController extends Controller
             $q->orderByDesc('created_at');
         }])->where(function ($q) use ($client, $lead) {
             $q->where('conversable_type', Client::class)
-              ->where('conversable_id', $client->id);
+                ->where('conversable_id', $client->id);
             if ($lead) {
                 $q->orWhere(function ($qq) use ($lead) {
                     $qq->where('conversable_type', Lead::class)
-                       ->where('conversable_id', $lead->id);
+                        ->where('conversable_id', $lead->id);
                 });
             }
         });

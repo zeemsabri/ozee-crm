@@ -56,13 +56,13 @@ foreach ($testCases as $testCase) {
     echo "Running test: {$testCase['name']}\n";
 
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $baseUrl . $testCase['endpoint']);
+    curl_setopt($ch, CURLOPT_URL, $baseUrl.$testCase['endpoint']);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $testCase['method']);
 
     $headers = [
         'Accept: application/json',
-        'Authorization: Bearer ' . $testCase['token'],
+        'Authorization: Bearer '.$testCase['token'],
     ];
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
@@ -81,7 +81,7 @@ foreach ($testCases as $testCase) {
             echo "  Data Key '{$key}': {$keyResult}\n";
 
             if ($hasKey && is_array($data[$key])) {
-                echo "  {$key} count: " . count($data[$key]) . "\n";
+                echo "  {$key} count: ".count($data[$key])."\n";
             }
         }
     } else {

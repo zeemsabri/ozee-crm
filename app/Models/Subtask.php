@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\SubtaskStatus;
+use App\Services\GoogleChatService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Services\GoogleChatService;
 use Illuminate\Support\Facades\Log;
-use App\Enums\SubtaskStatus;
 
 class Subtask extends Model
 {
@@ -15,10 +15,13 @@ class Subtask extends Model
     // Subtask status constants (aliases maintained for backward compatibility)
     /** @deprecated use App\Enums\SubtaskStatus::ToDo */
     public const STATUS_TO_DO = \App\Enums\SubtaskStatus::ToDo->value;
+
     /** @deprecated use App\Enums\SubtaskStatus::InProgress */
     public const STATUS_IN_PROGRESS = \App\Enums\SubtaskStatus::InProgress->value;
+
     /** @deprecated use App\Enums\SubtaskStatus::Done */
     public const STATUS_DONE = \App\Enums\SubtaskStatus::Done->value;
+
     /** @deprecated use App\Enums\SubtaskStatus::Blocked */
     public const STATUS_BLOCKED = \App\Enums\SubtaskStatus::Blocked->value;
 
@@ -45,7 +48,7 @@ class Subtask extends Model
     protected $casts = [
         'due_date' => 'date',
         'actual_completion_date' => 'date',
-        'status' => \App\Casts\MilestoneStatusCast::class . ':' . \App\Enums\SubtaskStatus::class,
+        'status' => \App\Casts\MilestoneStatusCast::class.':'.\App\Enums\SubtaskStatus::class,
     ];
 
     /**
@@ -71,7 +74,8 @@ class Subtask extends Model
      */
     public function isCompleted()
     {
-        $status = $this->status instanceof SubtaskStatus ? $this->status->value : (string)$this->status;
+        $status = $this->status instanceof SubtaskStatus ? $this->status->value : (string) $this->status;
+
         return $status === SubtaskStatus::Done->value;
     }
 
@@ -82,7 +86,7 @@ class Subtask extends Model
      */
     public function isOverdue()
     {
-        return $this->due_date && $this->due_date->isPast() && !$this->isCompleted();
+        return $this->due_date && $this->due_date->isPast() && ! $this->isCompleted();
     }
 
     /**
@@ -122,27 +126,26 @@ class Subtask extends Model
     /**
      * Add a note to the parent task's Google Chat space, indicating it's for this subtask.
      *
-     * @param string $note
-     * @param User $user
      * @return array|null
      */
     public function addNote(string $note, User $user)
     {
         // Load the parent task if not already loaded
-        if (!$this->relationLoaded('parentTask')) {
+        if (! $this->relationLoaded('parentTask')) {
             $this->load('parentTask');
         }
 
-        if (!$this->parentTask || !$this->parentTask->google_chat_space_id) {
+        if (! $this->parentTask || ! $this->parentTask->google_chat_space_id) {
             Log::error('Cannot add note to subtask: Parent task or Google Chat space ID is missing', [
                 'subtask_id' => $this->id,
-                'parent_task_id' => $this->parent_task_id
+                'parent_task_id' => $this->parent_task_id,
             ]);
+
             return null;
         }
 
         try {
-            $chatService = new GoogleChatService();
+            $chatService = new GoogleChatService;
 
             // Format the message to clearly indicate it's for a subtask
             $message = "📌 *Subtask: {$this->name}*\n{$user->name}: {$note}";
@@ -163,11 +166,12 @@ class Subtask extends Model
 
             return $result;
         } catch (\Exception $e) {
-            Log::error('Failed to add note to subtask: ' . $e->getMessage(), [
+            Log::error('Failed to add note to subtask: '.$e->getMessage(), [
                 'subtask_id' => $this->id,
                 'parent_task_id' => $this->parent_task_id,
-                'exception' => $e
+                'exception' => $e,
             ]);
+
             return null;
         }
     }

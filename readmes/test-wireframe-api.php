@@ -7,7 +7,8 @@ $baseUrl = 'http://localhost:8000/api';
 $projectId = 1; // Replace with an actual project ID from your database
 
 // Function to make API requests
-function makeRequest($method, $url, $data = null) {
+function makeRequest($method, $url, $data = null)
+{
     $curl = curl_init();
 
     $headers = [
@@ -43,7 +44,8 @@ function makeRequest($method, $url, $data = null) {
     curl_close($curl);
 
     if ($error) {
-        echo "cURL Error: " . $error . "\n";
+        echo 'cURL Error: '.$error."\n";
+
         return null;
     }
 
@@ -54,11 +56,12 @@ function makeRequest($method, $url, $data = null) {
 }
 
 // Test creating a wireframe
-function testCreateWireframe($baseUrl, $projectId) {
+function testCreateWireframe($baseUrl, $projectId)
+{
     echo "Testing wireframe creation...\n";
 
     $data = [
-        'name' => 'Test Wireframe ' . time(),
+        'name' => 'Test Wireframe '.time(),
         'data' => json_encode([
             'components' => [],
             'canvasSize' => ['width' => 1280, 'height' => 720],
@@ -69,11 +72,12 @@ function testCreateWireframe($baseUrl, $projectId) {
     $response = makeRequest('POST', "$baseUrl/projects/$projectId/wireframes", $data);
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 201) {
             echo "Wireframe created successfully!\n";
-            echo "Wireframe ID: " . $response['body']['wireframe']['id'] . "\n";
-            echo "Version: " . $response['body']['version']['version_number'] . "\n";
+            echo 'Wireframe ID: '.$response['body']['wireframe']['id']."\n";
+            echo 'Version: '.$response['body']['version']['version_number']."\n";
+
             return $response['body']['wireframe']['id'];
         } else {
             echo "Failed to create wireframe.\n";
@@ -85,18 +89,19 @@ function testCreateWireframe($baseUrl, $projectId) {
 }
 
 // Test getting wireframes for a project
-function testGetWireframes($baseUrl, $projectId) {
+function testGetWireframes($baseUrl, $projectId)
+{
     echo "\nTesting getting wireframes for project...\n";
 
     $response = makeRequest('GET', "$baseUrl/projects/$projectId/wireframes");
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 200) {
             echo "Wireframes retrieved successfully!\n";
-            echo "Count: " . count($response['body']) . "\n";
+            echo 'Count: '.count($response['body'])."\n";
             if (count($response['body']) > 0) {
-                echo "First wireframe: " . $response['body'][0]['name'] . "\n";
+                echo 'First wireframe: '.$response['body'][0]['name']."\n";
             }
         } else {
             echo "Failed to retrieve wireframes.\n";
@@ -106,17 +111,18 @@ function testGetWireframes($baseUrl, $projectId) {
 }
 
 // Test getting a specific wireframe
-function testGetWireframe($baseUrl, $projectId, $wireframeId) {
+function testGetWireframe($baseUrl, $projectId, $wireframeId)
+{
     echo "\nTesting getting specific wireframe...\n";
 
     $response = makeRequest('GET', "$baseUrl/projects/$projectId/wireframes/$wireframeId");
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 200) {
             echo "Wireframe retrieved successfully!\n";
-            echo "Name: " . $response['body']['wireframe']['name'] . "\n";
-            echo "Version: " . $response['body']['version']['version_number'] . "\n";
+            echo 'Name: '.$response['body']['wireframe']['name']."\n";
+            echo 'Version: '.$response['body']['version']['version_number']."\n";
         } else {
             echo "Failed to retrieve wireframe.\n";
             print_r($response['body']);
@@ -125,14 +131,15 @@ function testGetWireframe($baseUrl, $projectId, $wireframeId) {
 }
 
 // Test updating a wireframe
-function testUpdateWireframe($baseUrl, $projectId, $wireframeId) {
+function testUpdateWireframe($baseUrl, $projectId, $wireframeId)
+{
     echo "\nTesting updating wireframe...\n";
 
     $data = [
         'data' => json_encode([
             'components' => [
                 [
-                    'id' => 'test-component-' . time(),
+                    'id' => 'test-component-'.time(),
                     'type' => 'Container',
                     'position' => ['x' => 100, 'y' => 100],
                     'size' => ['width' => 200, 'height' => 200],
@@ -147,10 +154,10 @@ function testUpdateWireframe($baseUrl, $projectId, $wireframeId) {
     $response = makeRequest('PUT', "$baseUrl/projects/$projectId/wireframes/$wireframeId", $data);
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 200) {
             echo "Wireframe updated successfully!\n";
-            echo "Action: " . $response['body']['action'] . "\n";
+            echo 'Action: '.$response['body']['action']."\n";
         } else {
             echo "Failed to update wireframe.\n";
             print_r($response['body']);
@@ -159,16 +166,17 @@ function testUpdateWireframe($baseUrl, $projectId, $wireframeId) {
 }
 
 // Test publishing a wireframe
-function testPublishWireframe($baseUrl, $projectId, $wireframeId) {
+function testPublishWireframe($baseUrl, $projectId, $wireframeId)
+{
     echo "\nTesting publishing wireframe...\n";
 
     $response = makeRequest('POST', "$baseUrl/projects/$projectId/wireframes/$wireframeId/publish");
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 200) {
             echo "Wireframe published successfully!\n";
-            echo "Status: " . $response['body']['version']['status'] . "\n";
+            echo 'Status: '.$response['body']['version']['status']."\n";
         } else {
             echo "Failed to publish wireframe.\n";
             print_r($response['body']);
@@ -177,14 +185,15 @@ function testPublishWireframe($baseUrl, $projectId, $wireframeId) {
 }
 
 // Test creating a new version
-function testCreateNewVersion($baseUrl, $projectId, $wireframeId) {
+function testCreateNewVersion($baseUrl, $projectId, $wireframeId)
+{
     echo "\nTesting creating new version...\n";
 
     $data = [
         'data' => json_encode([
             'components' => [
                 [
-                    'id' => 'test-component-' . time(),
+                    'id' => 'test-component-'.time(),
                     'type' => 'Container',
                     'position' => ['x' => 200, 'y' => 200],
                     'size' => ['width' => 300, 'height' => 300],
@@ -199,10 +208,10 @@ function testCreateNewVersion($baseUrl, $projectId, $wireframeId) {
     $response = makeRequest('POST', "$baseUrl/projects/$projectId/wireframes/$wireframeId/versions", $data);
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 201) {
             echo "New version created successfully!\n";
-            echo "Version: " . $response['body']['version']['version_number'] . "\n";
+            echo 'Version: '.$response['body']['version']['version_number']."\n";
         } else {
             echo "Failed to create new version.\n";
             print_r($response['body']);
@@ -211,18 +220,19 @@ function testCreateNewVersion($baseUrl, $projectId, $wireframeId) {
 }
 
 // Test getting wireframe logs
-function testGetWireframeLogs($baseUrl, $projectId, $wireframeId) {
+function testGetWireframeLogs($baseUrl, $projectId, $wireframeId)
+{
     echo "\nTesting getting wireframe logs...\n";
 
     $response = makeRequest('GET', "$baseUrl/projects/$projectId/wireframes/$wireframeId/logs");
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 200) {
             echo "Wireframe logs retrieved successfully!\n";
-            echo "Log count: " . count($response['body']) . "\n";
+            echo 'Log count: '.count($response['body'])."\n";
             if (count($response['body']) > 0) {
-                echo "Latest log: " . $response['body'][0]['description'] . "\n";
+                echo 'Latest log: '.$response['body'][0]['description']."\n";
             }
         } else {
             echo "Failed to retrieve wireframe logs.\n";
@@ -232,13 +242,14 @@ function testGetWireframeLogs($baseUrl, $projectId, $wireframeId) {
 }
 
 // Test deleting a wireframe
-function testDeleteWireframe($baseUrl, $projectId, $wireframeId) {
+function testDeleteWireframe($baseUrl, $projectId, $wireframeId)
+{
     echo "\nTesting deleting wireframe...\n";
 
     $response = makeRequest('DELETE', "$baseUrl/projects/$projectId/wireframes/$wireframeId");
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 204) {
             echo "Wireframe deleted successfully!\n";
         } else {

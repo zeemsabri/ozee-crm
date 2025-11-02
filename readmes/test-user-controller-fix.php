@@ -1,19 +1,18 @@
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use App\Models\Role;
-use Illuminate\Support\Facades\Hash;
+use App\Models\User;
 
 echo "Testing UserController relationship loading fixes...\n";
 
 // Get a user
 $user = User::first();
-if (!$user) {
+if (! $user) {
     echo "No users found in the database\n";
     exit;
 }
@@ -42,13 +41,13 @@ if ($roles && $roles->count() > 0) {
 // Test app_role attribute
 echo "Testing app_role attribute...\n";
 $appRole = $user->app_role;
-echo "app_role value: " . $appRole . "\n";
+echo 'app_role value: '.$appRole."\n";
 
 // Test role_data attribute
 echo "Testing role_data attribute...\n";
 $roleData = $user->role_data;
 if (is_array($roleData)) {
-    echo "role_data is an array with keys: " . implode(", ", array_keys($roleData)) . "\n";
+    echo 'role_data is an array with keys: '.implode(', ', array_keys($roleData))."\n";
     echo "role_data values: id={$roleData['id']}, name={$roleData['name']}, slug={$roleData['slug']}\n";
 } else {
     echo "role_data is not an array or is null\n";
@@ -78,7 +77,7 @@ try {
         echo "FAIL: 'roles' relationship not loaded\n";
     }
 } catch (\Exception $e) {
-    echo "ERROR: Could not load 'roles' relationship: " . $e->getMessage() . "\n";
+    echo "ERROR: Could not load 'roles' relationship: ".$e->getMessage()."\n";
 }
 
 // Test loading both 'projects' and 'role'
@@ -91,7 +90,7 @@ try {
         echo "FAIL: Not all relationships loaded\n";
     }
 } catch (\Exception $e) {
-    echo "ERROR: Could not load relationships: " . $e->getMessage() . "\n";
+    echo 'ERROR: Could not load relationships: '.$e->getMessage()."\n";
 }
 
 echo "\nTest completed.\n";

@@ -18,13 +18,13 @@ class VerifyMagicLinkToken
     {
         $token = $request->bearerToken(); // Assuming token is in Authorization: Bearer header
 
-        if (!$token) {
+        if (! $token) {
             return response()->json(['message' => 'Magic link token not provided.'], 401);
         }
 
         $magicLink = MagicLink::where('token', $token)->first();
 
-        if (!$magicLink) {
+        if (! $magicLink) {
             return response()->json(['message' => 'Invalid magic link token.'], 403);
         }
 
@@ -44,8 +44,6 @@ class VerifyMagicLinkToken
         // You might also want to pass the email or a client identifier from the magic link
         $request->attributes->set('magic_link_email', $magicLink->email);
 
-
         return $next($request);
     }
 }
-

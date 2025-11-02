@@ -5,9 +5,8 @@ namespace Database\Seeders;
 use App\Models\Deliverable;
 use App\Models\Project;
 use App\Models\User; // Assuming 'User' is your team member model
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use Faker\Factory as Faker;
+use Illuminate\Database\Seeder;
 
 class DeliverableSeeder extends Seeder
 {
@@ -82,7 +81,7 @@ class DeliverableSeeder extends Seeder
             'content_url' => null,
             'content_text' => json_encode([
                 'main_keywords' => ['digital marketing agency', 'seo services perth', 'content marketing strategies'],
-                'long_tail' => ['best digital marketing agency perth', 'how to improve google rankings quickly']
+                'long_tail' => ['best digital marketing agency perth', 'how to improve google rankings quickly'],
             ]),
             'attachment_path' => null,
             'version' => 1,
@@ -140,7 +139,6 @@ class DeliverableSeeder extends Seeder
             'updated_at' => now()->subHours(12),
         ];
 
-
         foreach ($deliverablesData as $data) {
             Deliverable::create($data);
         }
@@ -157,4 +155,3 @@ class DeliverableSeeder extends Seeder
         $this->command->info('Deliverables seeded successfully!');
     }
 }
-

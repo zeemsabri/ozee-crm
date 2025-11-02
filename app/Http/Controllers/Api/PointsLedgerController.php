@@ -55,7 +55,7 @@ class PointsLedgerController extends Controller
         if ($request->filled('pointable_type')) {
             $short = trim($request->query('pointable_type'));
             // Convert short model name to FQN if it exists in our Models namespace
-            $fqn = "App\\Models\\" . ltrim($short, '\\');
+            $fqn = 'App\\Models\\'.ltrim($short, '\\');
             // Also accept already-FQN strings
             $query->where(function ($q) use ($fqn, $short) {
                 $q->where('pointable_type', $fqn)
@@ -63,7 +63,7 @@ class PointsLedgerController extends Controller
             });
         }
 
-        if($request->filled('status')){
+        if ($request->filled('status')) {
             $query->where('status', $request->query('status'));
         }
 

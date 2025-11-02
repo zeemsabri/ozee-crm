@@ -2,24 +2,21 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Api\Concerns\HandlesImageUploads;
+use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Controller;
 use App\Models\FileAttachment;
 use App\Models\Project;
 use App\Models\Task;
-use App\Services\GoogleDriveService;
-use Google\Cloud\Storage\StorageClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class FileAttachmentController extends Controller
 {
-    use HasProjectPermissions, HandlesImageUploads;
+    use HandlesImageUploads, HasProjectPermissions;
 
     public function index(Request $request)
     {
@@ -32,12 +29,12 @@ class FileAttachmentController extends Controller
         $modelId = (int) $request->input('model_id');
 
         [$instance, $project] = $this->resolveModelAndProject($modelType, $modelId);
-        if (!$instance) {
+        if (! $instance) {
             return response()->json(['message' => 'Model not found.'], 404);
         }
 
         $user = Auth::user();
-        if ($project && !$this->canManageProjects($user, $project)) {
+        if ($project && ! $this->canManageProjects($user, $project)) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
@@ -65,16 +62,16 @@ class FileAttachmentController extends Controller
         $modelId = (int) $request->input('model_id');
 
         [$instance, $project] = $this->resolveModelAndProject($modelType, $modelId);
-        if (!$instance) {
+        if (! $instance) {
             return response()->json(['message' => 'Model not found.'], 404);
         }
 
         $user = Auth::user();
-        if ($project && !$this->canManageProjects($user, $project)) {
+        if ($project && ! $this->canManageProjects($user, $project)) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        if (!$project || !$project->google_drive_folder_id) {
+        if (! $project || ! $project->google_drive_folder_id) {
             return response()->json(['message' => 'Project Google Drive folder is not configured.'], 400);
         }
 
@@ -86,22 +83,22 @@ class FileAttachmentController extends Controller
         try {
             $paths = $this->uploadFilesToGcsWithThumbnails($request->file('files'));
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Error uploading file: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Error uploading file: '.$e->getMessage()], 500);
         }
 
         foreach ($paths as $uploadedFile) {
 
-            $record = $instance->files()->create($uploadedFile);;
+            $record = $instance->files()->create($uploadedFile);
 
             activity()
-                    ->performedOn($record)
-                    ->causedBy($user)
-                    ->withProperties([
-                        'model_type' => get_class($instance),
-                        'model_id' => $instance->id,
-                        'project_id' => $project?->id
-                    ])
-                    ->log('file_uploaded');
+                ->performedOn($record)
+                ->causedBy($user)
+                ->withProperties([
+                    'model_type' => get_class($instance),
+                    'model_id' => $instance->id,
+                    'project_id' => $project?->id,
+                ])
+                ->log('file_uploaded');
         }
 
         return response()->json([
@@ -117,21 +114,21 @@ class FileAttachmentController extends Controller
 
         // Resolve project via file->project or via related model
         $project = $file->project;
-        if (!$project && $file->fileable_type === Task::class) {
+        if (! $project && $file->fileable_type === Task::class) {
             $task = Task::find($file->fileable_id);
             $project = $task?->milestone?->project;
         }
 
-        if ($project && !$this->canManageProjects($user, $project)) {
+        if ($project && ! $this->canManageProjects($user, $project)) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
         // Attempt to delete files from GCS (original and thumbnail)
         try {
-            if (!empty($file->path)) {
+            if (! empty($file->path)) {
                 Storage::disk('gcs')->delete($file->path);
             }
-            if (!empty($file->thumbnail)) {
+            if (! empty($file->thumbnail)) {
                 Storage::disk('gcs')->delete($file->thumbnail);
             }
         } catch (\Throwable $e) {
@@ -161,14 +158,15 @@ class FileAttachmentController extends Controller
 
     /**
      * Resolve the model instance and its parent project depending on model type.
+     *
      * @return array{0: mixed|null, 1: Project|null}
      */
     protected function resolveModelAndProject(string $modelType, int $modelId): array
     {
         // Allow short model names like "Task" or fully qualified classes
         $fqcn = $modelType;
-        if (!class_exists($fqcn)) {
-            $maybe = 'App\\Models\\' . ltrim($modelType, '\\');
+        if (! class_exists($fqcn)) {
+            $maybe = 'App\\Models\\'.ltrim($modelType, '\\');
             if (class_exists($maybe)) {
                 $fqcn = $maybe;
             }
@@ -188,5 +186,4 @@ class FileAttachmentController extends Controller
 
         return [$instance, $project];
     }
-
 }

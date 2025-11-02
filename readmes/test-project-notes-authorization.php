@@ -4,30 +4,31 @@
 // This script should be run in the Laravel application environment
 
 // Load Laravel application
-require __DIR__ . '/vendor/autoload.php';
-$app = require_once __DIR__ . '/bootstrap/app.php';
+require __DIR__.'/vendor/autoload.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
+use App\Models\Permission;
 use App\Models\Project;
 use App\Models\Role;
-use App\Models\Permission;
-use Illuminate\Support\Facades\Gate;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 echo "=== Testing Project Notes Authorization in Real Application ===\n\n";
 
 // Function to test authorization for a user
-function testUserAuthorization($user, $project, $expectedResult) {
+function testUserAuthorization($user, $project, $expectedResult)
+{
     echo "Testing user: {$user->name} (ID: {$user->id})\n";
     echo "Project: {$project->name} (ID: {$project->id})\n";
 
     // Check if user can add notes to the project
     $result = Gate::forUser($user)->allows('addNotes', $project);
 
-    echo "Expected: " . ($expectedResult ? 'true' : 'false') . "\n";
-    echo "Actual: " . ($result ? 'true' : 'false') . "\n";
-    echo "Result: " . ($result === $expectedResult ? "PASS" : "FAIL") . "\n\n";
+    echo 'Expected: '.($expectedResult ? 'true' : 'false')."\n";
+    echo 'Actual: '.($result ? 'true' : 'false')."\n";
+    echo 'Result: '.($result === $expectedResult ? 'PASS' : 'FAIL')."\n\n";
 
     return $result === $expectedResult;
 }
@@ -35,7 +36,7 @@ function testUserAuthorization($user, $project, $expectedResult) {
 try {
     // Get a project to test with
     $project = Project::first();
-    if (!$project) {
+    if (! $project) {
         echo "Error: No projects found in the database.\n";
         exit(1);
     }
@@ -45,7 +46,7 @@ try {
     // Test cases
 
     // 1. Super admin user (should have permission)
-    $superAdmin = User::whereHas('role', function($query) {
+    $superAdmin = User::whereHas('role', function ($query) {
         $query->where('slug', 'super-admin');
     })->first();
 
@@ -59,7 +60,7 @@ try {
     $permissionId = Permission::where('slug', 'add_project_notes')->value('id');
     if ($permissionId) {
         // Find a role with this permission
-        $roleWithPermission = Role::whereHas('permissions', function($query) use ($permissionId) {
+        $roleWithPermission = Role::whereHas('permissions', function ($query) use ($permissionId) {
             $query->where('permissions.id', $permissionId);
         })->first();
 
@@ -80,7 +81,7 @@ try {
     }
 
     // 3. User without add_project_notes permission
-    $userWithoutPermission = User::whereDoesntHave('role.permissions', function($query) {
+    $userWithoutPermission = User::whereDoesntHave('role.permissions', function ($query) {
         $query->where('permissions.slug', 'add_project_notes');
     })->first();
 
@@ -91,7 +92,7 @@ try {
             ->where('project_id', $project->id)
             ->exists();
 
-        if (!$hasProjectPermission) {
+        if (! $hasProjectPermission) {
             $testsPassed = testUserAuthorization($userWithoutPermission, $project, false) && $testsPassed;
         } else {
             echo "Warning: User has project-specific role, skipping this test.\n\n";
@@ -114,6 +115,6 @@ try {
     }
 
 } catch (Exception $e) {
-    echo "Error: " . $e->getMessage() . "\n";
-    echo "Stack trace: " . $e->getTraceAsString() . "\n";
+    echo 'Error: '.$e->getMessage()."\n";
+    echo 'Stack trace: '.$e->getTraceAsString()."\n";
 }

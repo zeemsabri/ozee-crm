@@ -12,7 +12,7 @@ class ForEachStepHandler implements StepHandlerContract
     public function execute(Workflow $workflow, WorkflowStep $step, array &$context): array
     {
         $sourceArrayPath = $step->step_config['sourceArray'] ?? null;
-        if (!$sourceArrayPath) {
+        if (! $sourceArrayPath) {
             return ['status' => 'failed', 'message' => 'Source array not configured.'];
         }
 
@@ -20,7 +20,7 @@ class ForEachStepHandler implements StepHandlerContract
         $engine = app(WorkflowEngineService::class);
         $resolvedArray = $engine->getTemplatedValue($sourceArrayPath, $context);
 
-        if (!is_array($resolvedArray)) {
+        if (! is_array($resolvedArray)) {
             return ['status' => 'skipped', 'message' => 'Source path did not resolve to an array.'];
         }
 
@@ -49,8 +49,8 @@ class ForEachStepHandler implements StepHandlerContract
         return [
             'status' => 'completed',
             'output' => [
-                'iterations' => count($resolvedArray)
-            ]
+                'iterations' => count($resolvedArray),
+            ],
         ];
     }
 }

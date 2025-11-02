@@ -5,13 +5,14 @@ namespace App\Actions\Points;
 use App\Models\Milestone;
 use App\Models\PointsLedger;
 use App\Services\LedgerService;
-use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class AwardMilestonePointsAction
 {
     // Constants for points
     const ON_TIME_POINTS = 500;
+
     const LATE_POINTS = 100;
 
     /**
@@ -21,8 +22,6 @@ class AwardMilestonePointsAction
 
     /**
      * AwardMilestonePointsAction constructor.
-     *
-     * @param LedgerService $ledgerService
      */
     public function __construct(LedgerService $ledgerService)
     {
@@ -32,8 +31,7 @@ class AwardMilestonePointsAction
     /**
      * Executes the business logic for awarding points for a completed milestone.
      *
-     * @param Milestone $milestone The Milestone model object.
-     * @return void
+     * @param  Milestone  $milestone  The Milestone model object.
      */
     public function execute(Milestone $milestone): void
     {
@@ -41,6 +39,7 @@ class AwardMilestonePointsAction
         // The user relationship on the milestone model will be null here, so we must not check for it.
         if (is_null($milestone->due_date) || is_null($milestone->submitted_at)) {
             Log::warning("AwardMilestonePointsAction called for milestone with ID {$milestone->id} but is missing a due date, or submitted timestamp. Points not awarded.");
+
             return;
         }
 
@@ -53,6 +52,7 @@ class AwardMilestonePointsAction
         if ($existingEntry) {
             // We can log this but we don't need to return anything here.
             Log::info("Points already awarded for milestone with ID {$milestone->id}. Points not re-awarded.");
+
             return;
         }
 
@@ -69,10 +69,10 @@ class AwardMilestonePointsAction
 
         if ($submittedAt->lte($dueDate)) {
             $pointsToAward = self::ON_TIME_POINTS;
-            $description = 'On-Time Milestone Completion (Approved): ' . $milestone->title;
+            $description = 'On-Time Milestone Completion (Approved): '.$milestone->title;
         } else {
             $pointsToAward = self::LATE_POINTS;
-            $description = 'Late Milestone Completion (Approved): ' . $milestone->title;
+            $description = 'Late Milestone Completion (Approved): '.$milestone->title;
         }
 
         // Get all unique users who worked on this milestone's tasks

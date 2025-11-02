@@ -3,34 +3,33 @@
 // This is a simple test script to verify that the tab refresh functionality works correctly
 // Run this script with: php test-tab-refresh.php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap the Laravel application
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 echo "Testing tab refresh functionality...\n\n";
 
 // Get a manager user
-$manager = User::whereHas('role', function($query) {
+$manager = User::whereHas('role', function ($query) {
     $query->where('slug', 'manager');
 })->first();
 
-if (!$manager) {
+if (! $manager) {
     echo "Manager user not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
 
 // Get a project
 $project = Project::first();
-if (!$project) {
+if (! $project) {
     echo "No projects found in the database. Please create a project first.\n";
     exit;
 }
@@ -56,7 +55,7 @@ try {
     $response = $client->get(url("/api/projects/{$project->id}"), [
         'cookies' => true,
         'headers' => [
-            'Authorization' => 'Bearer ' . $manager->createToken('test-token')->plainTextToken,
+            'Authorization' => 'Bearer '.$manager->createToken('test-token')->plainTextToken,
         ],
     ]);
 
@@ -67,14 +66,14 @@ try {
 
         // Check if clients are included in the response
         if (isset($responseData['clients']) && is_array($responseData['clients'])) {
-            echo "SUCCESS: Project API endpoint returned " . count($responseData['clients']) . " clients\n";
+            echo 'SUCCESS: Project API endpoint returned '.count($responseData['clients'])." clients\n";
         } else {
             echo "FAILURE: Project API endpoint did not return clients data\n";
         }
 
         // Check if users are included in the response
         if (isset($responseData['users']) && is_array($responseData['users'])) {
-            echo "SUCCESS: Project API endpoint returned " . count($responseData['users']) . " users\n";
+            echo 'SUCCESS: Project API endpoint returned '.count($responseData['users'])." users\n";
         } else {
             echo "FAILURE: Project API endpoint did not return users data\n";
         }
@@ -82,23 +81,23 @@ try {
         echo "FAILURE: Project API endpoint did not return the correct project\n";
     }
 } catch (Exception $e) {
-    echo "FAILURE: Error accessing project API endpoint: " . $e->getMessage() . "\n";
+    echo 'FAILURE: Error accessing project API endpoint: '.$e->getMessage()."\n";
 }
 
 // Test 2: Verify the project data includes pivot information for clients and users
 echo "\nTEST 2: Verify the project data includes pivot information for clients and users\n";
 
 // Check if the project has clients with pivot data
-$project->load(['clients' => function($query) {
+$project->load(['clients' => function ($query) {
     $query->withPivot('role_id');
 }]);
 
 if ($project->clients->isNotEmpty()) {
-    echo "Project has " . $project->clients->count() . " clients\n";
+    echo 'Project has '.$project->clients->count()." clients\n";
 
     $hasRoleId = true;
     foreach ($project->clients as $client) {
-        if (!isset($client->pivot) || !isset($client->pivot->role_id)) {
+        if (! isset($client->pivot) || ! isset($client->pivot->role_id)) {
             $hasRoleId = false;
             break;
         }
@@ -124,16 +123,16 @@ if ($project->clients->isNotEmpty()) {
 }
 
 // Check if the project has users with pivot data
-$project->load(['users' => function($query) {
+$project->load(['users' => function ($query) {
     $query->withPivot('role_id');
 }]);
 
 if ($project->users->isNotEmpty()) {
-    echo "Project has " . $project->users->count() . " users\n";
+    echo 'Project has '.$project->users->count()." users\n";
 
     $hasRoleId = true;
     foreach ($project->users as $user) {
-        if (!isset($user->pivot) || !isset($user->pivot->role_id)) {
+        if (! isset($user->pivot) || ! isset($user->pivot->role_id)) {
             $hasRoleId = false;
             break;
         }

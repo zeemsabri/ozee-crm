@@ -6,13 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\CategorySet;
 use App\Models\CategorySetBinding;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class CategorySetController extends Controller
 {
     public function index()
     {
         $sets = CategorySet::withCount('categories')->with('bindings')->orderBy('name')->get();
+
         return response()->json($sets);
     }
 
@@ -72,6 +72,7 @@ class CategorySetController extends Controller
     public function destroy(CategorySet $categorySet)
     {
         $categorySet->delete();
+
         return response()->json(['message' => 'Deleted']);
     }
 }

@@ -12,10 +12,15 @@ class PointsLedger extends Model
 
     // Status constants
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_REFUNDED = 'refunded';
+
     public const STATUS_CANCELLED = 'cancelled';
+
     public const STATUS_PAID = 'paid';
+
     public const STATUS_CONSUMED = 'consumed';
+
     public const STATUS_REJECTED = 'rejected';
 
     /**
@@ -39,7 +44,7 @@ class PointsLedger extends Model
         'pointable_type',
         'status',
         'meta',
-        'created_at'
+        'created_at',
     ];
 
     /**

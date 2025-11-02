@@ -9,18 +9,17 @@ echo "Testing polymorphic relationship for sender in Email model\n";
 echo "------------------------------------------------------\n\n";
 
 // Import necessary classes
-require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__.'/vendor/autoload.php';
 
-use App\Models\User;
 use App\Models\Client;
-use App\Models\Email;
 use App\Models\Conversation;
+use App\Models\Email;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 // Find a user to authenticate
 $user = User::first();
-if (!$user) {
+if (! $user) {
     echo "No users found in the database. Please create a user first.\n";
     exit(1);
 }
@@ -31,7 +30,7 @@ echo "Authenticated as user: {$user->name} (ID: {$user->id})\n\n";
 
 // Find a conversation to use for the test
 $conversation = Conversation::first();
-if (!$conversation) {
+if (! $conversation) {
     echo "No conversations found in the database. Please create a conversation first.\n";
     exit(1);
 }
@@ -57,7 +56,7 @@ echo "Email created with ID: {$email1->id}\n";
 echo "Sender ID: {$email1->sender_id}\n";
 echo "Sender Type: {$email1->sender_type}\n";
 echo "Expected Sender Type: App\\Models\\User\n";
-echo "Result: " . ($email1->sender_type === 'App\\Models\\User' ? "PASS" : "FAIL") . "\n\n";
+echo 'Result: '.($email1->sender_type === 'App\\Models\\User' ? 'PASS' : 'FAIL')."\n\n";
 
 // Test 2: Create an email with a client as sender (simulating receiving an email)
 echo "Test 2: Create an email with a client as sender (simulating receiving an email)\n";
@@ -65,7 +64,7 @@ echo "-----------------------------------------------------------------------\n"
 
 // Find a client to use as sender
 $client = Client::first();
-if (!$client) {
+if (! $client) {
     echo "No clients found in the database. Please create a client first.\n";
     exit(1);
 }
@@ -86,7 +85,7 @@ echo "Email created with ID: {$email2->id}\n";
 echo "Sender ID: {$email2->sender_id}\n";
 echo "Sender Type: {$email2->sender_type}\n";
 echo "Expected Sender Type: App\\Models\\Client\n";
-echo "Result: " . ($email2->sender_type === 'App\\Models\\Client' ? "PASS" : "FAIL") . "\n\n";
+echo 'Result: '.($email2->sender_type === 'App\\Models\\Client' ? 'PASS' : 'FAIL')."\n\n";
 
 // Test 3: Verify that the sender relationship works correctly
 echo "Test 3: Verify that the sender relationship works correctly\n";
@@ -99,18 +98,18 @@ $email2 = Email::find($email2->id);
 // Check sender for email1 (should be a User)
 $sender1 = $email1->sender;
 echo "Email 1 Sender:\n";
-echo "- Type: " . get_class($sender1) . "\n";
+echo '- Type: '.get_class($sender1)."\n";
 echo "- ID: {$sender1->id}\n";
 echo "- Name: {$sender1->name}\n";
-echo "Result: " . ($sender1 instanceof User ? "PASS" : "FAIL") . "\n\n";
+echo 'Result: '.($sender1 instanceof User ? 'PASS' : 'FAIL')."\n\n";
 
 // Check sender for email2 (should be a Client)
 $sender2 = $email2->sender;
 echo "Email 2 Sender:\n";
-echo "- Type: " . get_class($sender2) . "\n";
+echo '- Type: '.get_class($sender2)."\n";
 echo "- ID: {$sender2->id}\n";
 echo "- Name: {$sender2->name}\n";
-echo "Result: " . ($sender2 instanceof Client ? "PASS" : "FAIL") . "\n\n";
+echo 'Result: '.($sender2 instanceof Client ? 'PASS' : 'FAIL')."\n\n";
 
 // Test 4: Verify that a conversation can have a null contractor_id
 echo "Test 4: Verify that a conversation can have a null contractor_id\n";
@@ -128,9 +127,9 @@ $conversation2 = new Conversation([
 $conversation2->save();
 
 echo "Conversation created with ID: {$conversation2->id}\n";
-echo "Contractor ID: " . ($conversation2->contractor_id === null ? "NULL" : $conversation2->contractor_id) . "\n";
+echo 'Contractor ID: '.($conversation2->contractor_id === null ? 'NULL' : $conversation2->contractor_id)."\n";
 echo "Expected Contractor ID: NULL\n";
-echo "Result: " . ($conversation2->contractor_id === null ? "PASS" : "FAIL") . "\n\n";
+echo 'Result: '.($conversation2->contractor_id === null ? 'PASS' : 'FAIL')."\n\n";
 
 // Clean up test data
 echo "Cleaning up test data...\n";

@@ -4,8 +4,8 @@ namespace App\Services;
 
 use App\Models\Project;
 use App\Models\Transaction;
-use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class TransactionBonusService
 {
@@ -19,8 +19,6 @@ class TransactionBonusService
     /**
      * Generates and stores transaction records for all monthly bonuses.
      *
-     * @param int $year
-     * @param int $month
      * @return array An array of created transactions or an error message.
      */
     public function createBonusTransactions(int $year, int $month): array
@@ -29,13 +27,14 @@ class TransactionBonusService
         $bonusData = $this->bonusCalculationService->calculateMonthlyBonuses($year, $month);
 
         if (isset($bonusData['error'])) {
-            return ['error' => 'Could not retrieve bonus data: ' . $bonusData['error']];
+            return ['error' => 'Could not retrieve bonus data: '.$bonusData['error']];
         }
 
         // 2. Find the "Team Performance" project to use for non-project-specific awards.
         $teamPerformanceProject = Project::where('name', 'Team Performance')->first();
-        if (!$teamPerformanceProject) {
-            Log::error("Team Performance project not found. Cannot create bonus transactions for non-project awards.");
+        if (! $teamPerformanceProject) {
+            Log::error('Team Performance project not found. Cannot create bonus transactions for non-project awards.');
+
             return ['error' => 'Team Performance project not found.'];
         }
 
@@ -67,6 +66,7 @@ class TransactionBonusService
                         // Check for duplicates before creating
                         if ($this->isDuplicateTransaction($userId, $amountPkr, $description, $startOfMonth, $endOfMonth)) {
                             Log::info("Skipping duplicate transaction for user {$userId} and project {$projectName}.");
+
                             continue;
                         }
 
@@ -92,6 +92,7 @@ class TransactionBonusService
                             'currency' => 'PKR',
                         ]);
                         Log::info("Skipping duplicate transaction for user {$userId} and award {$awardTitle}.");
+
                         continue;
                     }
 
@@ -105,34 +106,22 @@ class TransactionBonusService
 
     /**
      * Checks if a transaction with the same details already exists.
-     *
-     * @param int $userId
-     * @param float $amount
-     * @param string $description
-     * @param Carbon $startOfMonth
-     * @param Carbon $endOfMonth
      */
     private function isDuplicateTransaction(int $userId, float $amount, string $description, Carbon $startOfMonth, Carbon $endOfMonth)
     {
         return Transaction::where('user_id', $userId)
             ->where('amount', $amount)
             ->where('type', 'bonus')
-            ->where('description', 'like', $description . '%')
+            ->where('description', 'like', $description.'%')
             ->whereBetween('created_at', [$startOfMonth, $endOfMonth]);
     }
 
     /**
      * Creates a new transaction record and adds it to the transactions array.
-     *
-     * @param int $userId
-     * @param int $projectId
-     * @param float $amount
-     * @param string $description
-     * @param array $transactions
      */
     private function createTransaction(int $userId, int $projectId, float $amount, string $description, array &$transactions): void
     {
-        $transaction = new Transaction();
+        $transaction = new Transaction;
         $transaction->project_id = $projectId;
         $transaction->description = $description;
         $transaction->currency = 'PKR';

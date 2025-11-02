@@ -22,7 +22,6 @@ class ResourceController extends Controller
     /**
      * Get all resources for a project.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $projectId
      * @return \Illuminate\Http\JsonResponse
      */
@@ -39,17 +38,17 @@ class ResourceController extends Controller
 
             return response()->json([
                 'success' => true,
-                'resources' => $resources
+                'resources' => $resources,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching resources: ' . $e->getMessage(), [
+            Log::error('Error fetching resources: '.$e->getMessage(), [
                 'project_id' => $projectId,
                 'error' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch resources: ' . $e->getMessage()
+                'message' => 'Failed to fetch resources: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -57,7 +56,6 @@ class ResourceController extends Controller
     /**
      * Store a new resource.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $projectId
      * @return \Illuminate\Http\JsonResponse
      */
@@ -84,7 +82,7 @@ class ResourceController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation failed',
-                    'errors' => $validator->errors()
+                    'errors' => $validator->errors(),
                 ], 422);
             }
 
@@ -98,7 +96,6 @@ class ResourceController extends Controller
                 'requires_approval' => $validated['requires_approval'] ?? false,
                 'visible_to_client' => $validated['visible_to_client'] ?? false,
             ]);
-
 
             if ($validated['type'] === 'link') {
                 $resource->url = $validated['url'];
@@ -115,7 +112,7 @@ class ResourceController extends Controller
                     $project->google_drive_folder_id
                 );
 
-                if(!ISSET($googleResponse['id'])) {
+                if (! isset($googleResponse['id'])) {
                     throw new \Exception('Failed to upload file to Google Drive');
                 }
                 $resource->url = "https://drive.google.com/file/d/{$googleResponse['id']}/view";
@@ -124,21 +121,20 @@ class ResourceController extends Controller
             // Save the resource
             $project->resources()->save($resource);
 
-
             return response()->json([
                 'success' => true,
                 'message' => 'Resource created successfully',
-                'resource' => $resource
+                'resource' => $resource,
             ], 201);
         } catch (\Exception $e) {
-            Log::error('Error creating resource: ' . $e->getMessage(), [
+            Log::error('Error creating resource: '.$e->getMessage(), [
                 'project_id' => $projectId,
                 'error' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create resource: ' . $e->getMessage()
+                'message' => 'Failed to create resource: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -146,7 +142,6 @@ class ResourceController extends Controller
     /**
      * Get a specific resource.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $projectId
      * @param  int  $resourceId
      * @return \Illuminate\Http\Response
@@ -163,10 +158,10 @@ class ResourceController extends Controller
 
             return response()->json([
                 'success' => true,
-                'resource' => $resource
+                'resource' => $resource,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching resource: ' . $e->getMessage(), [
+            Log::error('Error fetching resource: '.$e->getMessage(), [
                 'project_id' => $projectId,
                 'resource_id' => $resourceId,
                 'error' => $e->getTraceAsString(),
@@ -174,7 +169,7 @@ class ResourceController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch resource: ' . $e->getMessage()
+                'message' => 'Failed to fetch resource: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -182,7 +177,6 @@ class ResourceController extends Controller
     /**
      * Update a resource.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $projectId
      * @param  int  $resourceId
      * @return \Illuminate\Http\Response
@@ -210,7 +204,7 @@ class ResourceController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation failed',
-                    'errors' => $validator->errors()
+                    'errors' => $validator->errors(),
                 ], 422);
             }
 
@@ -243,10 +237,10 @@ class ResourceController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Resource updated successfully',
-                'resource' => $resource
+                'resource' => $resource,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error updating resource: ' . $e->getMessage(), [
+            Log::error('Error updating resource: '.$e->getMessage(), [
                 'project_id' => $projectId,
                 'resource_id' => $resourceId,
                 'error' => $e->getTraceAsString(),
@@ -254,7 +248,7 @@ class ResourceController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update resource: ' . $e->getMessage()
+                'message' => 'Failed to update resource: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -262,7 +256,6 @@ class ResourceController extends Controller
     /**
      * Delete a resource.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $projectId
      * @param  int  $resourceId
      * @return \Illuminate\Http\Response
@@ -287,10 +280,10 @@ class ResourceController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Resource deleted successfully'
+                'message' => 'Resource deleted successfully',
             ]);
         } catch (\Exception $e) {
-            Log::error('Error deleting resource: ' . $e->getMessage(), [
+            Log::error('Error deleting resource: '.$e->getMessage(), [
                 'project_id' => $projectId,
                 'resource_id' => $resourceId,
                 'error' => $e->getTraceAsString(),
@@ -298,7 +291,7 @@ class ResourceController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete resource: ' . $e->getMessage()
+                'message' => 'Failed to delete resource: '.$e->getMessage(),
             ], 500);
         }
     }

@@ -1,7 +1,7 @@
 <?php
 
 // Path to the ProjectController file
-$filePath = __DIR__ . '/app/Http/Controllers/Api/ProjectController.php';
+$filePath = __DIR__.'/app/Http/Controllers/Api/ProjectController.php';
 
 // Read the file content
 $content = file_get_contents($filePath);

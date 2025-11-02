@@ -6,7 +6,6 @@ use App\Events\KudoApprovedEvent;
 use App\Services\PointsService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Support\Facades\Log;
 
 class AwardKudoPointsListener implements ShouldQueue
 {
@@ -22,7 +21,6 @@ class AwardKudoPointsListener implements ShouldQueue
     /**
      * Create the event listener.
      *
-     * @param PointsService $pointsService
      * @return void
      */
     public function __construct(PointsService $pointsService)
@@ -33,7 +31,6 @@ class AwardKudoPointsListener implements ShouldQueue
     /**
      * Handle the event.
      *
-     * @param KudoApprovedEvent $event
      * @return void
      */
     public function handle(KudoApprovedEvent $event)

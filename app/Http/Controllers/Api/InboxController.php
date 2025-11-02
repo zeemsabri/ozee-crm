@@ -3,24 +3,22 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Email;
-use App\Models\Lead;
-use App\Models\Project;
-use App\Models\UserInteraction;
 use App\Models\Category;
+use App\Models\Email;
+use App\Models\Permission;
+use App\Models\Project;
+use App\Models\Role;
+use App\Models\UserInteraction;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use App\Models\Role;
-use App\Models\Permission;
-use Carbon\Carbon;
 
 class InboxController extends Controller
 {
     /**
      * Get all new (unread) emails for the authenticated user.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function newEmails(Request $request)
@@ -62,7 +60,6 @@ class InboxController extends Controller
     /**
      * Get all emails for the authenticated user.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function allEmails(Request $request)
@@ -79,8 +76,8 @@ class InboxController extends Controller
                     'current_page' => 1,
                     'last_page' => 1,
                     'per_page' => 15,
-                    'total' => 0
-                ]
+                    'total' => 0,
+                ],
             ]);
         }
 
@@ -89,17 +86,17 @@ class InboxController extends Controller
         $page = $request->input('page', 1);
 
         // Normalize filters to accept both camelCase and snake_case from frontend
-        $type      = $request->input('type');
-        $status    = $request->input('status');
-        $statuses  = $request->input('statuses'); // optional array
+        $type = $request->input('type');
+        $status = $request->input('status');
+        $statuses = $request->input('statuses'); // optional array
         $projectId = $request->input('project_id') ?? $request->input('projectId');
-        $senderId  = $request->input('sender_id') ?? $request->input('senderId');
+        $senderId = $request->input('sender_id') ?? $request->input('senderId');
         $startDate = $request->input('start_date') ?? $request->input('startDate');
-        $endDate   = $request->input('end_date') ?? $request->input('endDate');
-        $search    = $request->input('search');
+        $endDate = $request->input('end_date') ?? $request->input('endDate');
+        $search = $request->input('search');
         $categoryIds = $request->input('category_ids', []);
         // is_read is optional; when provided, we filter based on user interactions
-        $isRead    = $request->has('is_read') ? filter_var($request->input('is_read'), FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) : null;
+        $isRead = $request->has('is_read') ? filter_var($request->input('is_read'), FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) : null;
 
         // Apply base visibility filter and accessible projects/leads
         $query = Email::visibleTo($user)->whereHas('conversation', function ($query) use ($projectIds, $user) {
@@ -111,7 +108,7 @@ class InboxController extends Controller
         });
 
         // Apply filters based on normalized parameters
-        if (!empty($type)) {
+        if (! empty($type)) {
             if ($type === 'new') {
                 // Limit to statuses considered as "inbox new" and unread for the user
                 $query->whereIn('status', ['pending_approval', 'pending_approval_received', 'received', 'sent', 'draft'])
@@ -131,29 +128,29 @@ class InboxController extends Controller
         }
 
         // If explicit statuses array provided, it takes precedence
-        if (is_array($statuses) && !empty($statuses)) {
+        if (is_array($statuses) && ! empty($statuses)) {
             $query->whereIn('status', $statuses);
         }
 
         // Apply single status (overrides type-driven implications for status)
-        if (!empty($status)) {
+        if (! empty($status)) {
             $query->where('status', $status);
         }
 
-        if (!empty($projectId)) {
+        if (! empty($projectId)) {
             $query->whereHas('conversation', function ($q) use ($projectId) {
                 $q->where('project_id', $projectId);
             });
         }
 
-        if (!empty($senderId)) {
+        if (! empty($senderId)) {
             $query->where('sender_id', $senderId);
         }
 
         // Date range filtering with inclusive end-of-day handling
-        if (!empty($startDate) || !empty($endDate)) {
+        if (! empty($startDate) || ! empty($endDate)) {
             $start = $startDate ? Carbon::parse($startDate)->startOfDay() : Carbon::minValue();
-            $end   = $endDate   ? Carbon::parse($endDate)->endOfDay()   : Carbon::maxValue();
+            $end = $endDate ? Carbon::parse($endDate)->endOfDay() : Carbon::maxValue();
             $query->whereBetween('created_at', [$start, $end]);
         }
 
@@ -180,15 +177,15 @@ class InboxController extends Controller
             }
         }
 
-        if (!empty($search)) {
+        if (! empty($search)) {
             $query->where(function ($q) use ($search) {
                 $q->where('subject', 'like', "%{$search}%")
-                  ->orWhere('body', 'like', "%{$search}%");
+                    ->orWhere('body', 'like', "%{$search}%");
             });
         }
 
         // Category filtering
-        if (!empty($categoryIds) && is_array($categoryIds)) {
+        if (! empty($categoryIds) && is_array($categoryIds)) {
             if (count($categoryIds) === 1) {
                 // Single category - simple filter
                 $query->whereHas('categories', function ($q) use ($categoryIds) {
@@ -220,7 +217,6 @@ class InboxController extends Controller
     /**
      * Get email counts for the authenticated user's inbox.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function counts(Request $request)
@@ -260,7 +256,6 @@ class InboxController extends Controller
     /**
      * Get category statistics for the authenticated user's inbox.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function categoryStats(Request $request)
@@ -268,7 +263,7 @@ class InboxController extends Controller
         $user = Auth::user();
 
         // Check if user has view_all_emails permission
-        if (!$user->hasPermission('view_all_emails')) {
+        if (! $user->hasPermission('view_all_emails')) {
             return response()->json([
                 'categories' => [],
             ]);
@@ -342,12 +337,13 @@ class InboxController extends Controller
 
         // Sort categories: those with unread emails first, then alphabetically
         usort($categoryStats, function ($a, $b) {
-            if ($a['has_unread'] && !$b['has_unread']) {
+            if ($a['has_unread'] && ! $b['has_unread']) {
                 return -1;
             }
-            if (!$a['has_unread'] && $b['has_unread']) {
+            if (! $a['has_unread'] && $b['has_unread']) {
                 return 1;
             }
+
             return strcmp($a['name'], $b['name']);
         });
 
@@ -362,7 +358,7 @@ class InboxController extends Controller
     private function applyFilters($query, $user, $type, $status, $startDate, $endDate, $search, $projectId, $senderId)
     {
         // Apply type filter
-        if (!empty($type)) {
+        if (! empty($type)) {
             if ($type === 'new') {
                 $query->whereIn('status', ['pending_approval', 'pending_approval_received', 'received', 'sent', 'draft'])
                     ->whereNotExists(function ($subQuery) use ($user) {
@@ -381,34 +377,34 @@ class InboxController extends Controller
         }
 
         // Apply status filter
-        if (!empty($status)) {
+        if (! empty($status)) {
             $query->where('status', $status);
         }
 
         // Apply project filter
-        if (!empty($projectId)) {
+        if (! empty($projectId)) {
             $query->whereHas('conversation', function ($q) use ($projectId) {
                 $q->where('project_id', $projectId);
             });
         }
 
         // Apply sender filter
-        if (!empty($senderId)) {
+        if (! empty($senderId)) {
             $query->where('sender_id', $senderId);
         }
 
         // Apply date range filter
-        if (!empty($startDate) || !empty($endDate)) {
+        if (! empty($startDate) || ! empty($endDate)) {
             $start = $startDate ? Carbon::parse($startDate)->startOfDay() : Carbon::minValue();
             $end = $endDate ? Carbon::parse($endDate)->endOfDay() : Carbon::maxValue();
             $query->whereBetween('created_at', [$start, $end]);
         }
 
         // Apply search filter
-        if (!empty($search)) {
+        if (! empty($search)) {
             $query->where(function ($q) use ($search) {
                 $q->where('subject', 'like', "%{$search}%")
-                  ->orWhere('body', 'like', "%{$search}%");
+                    ->orWhere('body', 'like', "%{$search}%");
             });
         }
     }
@@ -416,7 +412,6 @@ class InboxController extends Controller
     /**
      * Get all emails waiting for approval.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function waitingApproval(Request $request)
@@ -430,7 +425,7 @@ class InboxController extends Controller
         // Fetch outgoing emails (sent by the user) that need approval
         $outgoingEmails = Email::visibleTo($user)->where('sender_type', 'App\\Models\\User')
             ->where('status', 'pending_approval')
-            ->with(['sender', 'conversation' => function ($q) use($accessibleProjectIds) {
+            ->with(['sender', 'conversation' => function ($q) use ($accessibleProjectIds) {
                 $q->whereIn('project_id', $accessibleProjectIds);
             }, 'conversation.project'])
             ->select('emails.*') // Ensure all columns including read_at are selected
@@ -438,9 +433,9 @@ class InboxController extends Controller
             ->get();
 
         // Fetch incoming emails (in accessible projects) that need approval
-        $incomingEmails = Email::visibleTo($user)->whereHas('conversation', function ($query) use ($accessibleProjectIds) {
+        $incomingEmails = Email::visibleTo($user)->whereHas('conversation', function ($query) {
             // It's disabled until we need it
-//            $query->whereIn('project_id', $accessibleProjectIds);
+            //            $query->whereIn('project_id', $accessibleProjectIds);
         })
             ->where('status', 'pending_approval_received')
             ->with(['sender', 'conversation', 'conversation.project'])
@@ -455,13 +450,13 @@ class InboxController extends Controller
             $isAuthorized = false;
             // Check if the user has permission to approve received emails in appplicaiton role
 
-            if ($email->conversation && $user->hasProjectPermission( $email->conversation->project_id, 'approve_emails')) {
+            if ($email->conversation && $user->hasProjectPermission($email->conversation->project_id, 'approve_emails')) {
                 $email->can_approve = true;
                 $isAuthorized = true;
             }
 
             // If not authorized, redact the email content
-            if (!$isAuthorized) {
+            if (! $isAuthorized) {
                 $email->can_approve = false;
             }
 
@@ -477,13 +472,13 @@ class InboxController extends Controller
 
             // Check if the user has permission to approve received emails in appplicaiton role
 
-            if ($user->hasPermission( 'approve_received_emails')) {
+            if ($user->hasPermission('approve_received_emails')) {
                 $email->can_approve = true;
                 $isAuthorized = true;
             }
 
             // If not authorized, redact the email content
-            if (!$isAuthorized) {
+            if (! $isAuthorized) {
                 $email->can_approve = false;
                 $email->body = 'This email is waiting for approval. Please contact the project administrator or manager for assistance.';
             }
@@ -500,8 +495,6 @@ class InboxController extends Controller
     /**
      * Mark an email as read.
      *
-     * @param Request $request
-     * @param Email $email
      * @return \Illuminate\Http\JsonResponse
      */
     public function markAsRead(Request $request, Email $email)
@@ -509,7 +502,7 @@ class InboxController extends Controller
         $user = Auth::user();
 
         // Check if the user has permission to view this email
-        if (!$email->isViewableByNonManagers() && !$user->can('view', $email)) {
+        if (! $email->isViewableByNonManagers() && ! $user->can('view', $email)) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -518,7 +511,7 @@ class InboxController extends Controller
             'user_id' => $user->id,
             'interactable_id' => $email->id,
             'interactable_type' => 'App\\Models\\Email',
-            'interaction_type' => 'read'
+            'interaction_type' => 'read',
         ]);
 
         return response()->json(['success' => true]);
@@ -527,13 +520,13 @@ class InboxController extends Controller
     /**
      * Get all project IDs that the user has access to and has permission to view emails.
      *
-     * @param \App\Models\User $user
+     * @param  \App\Models\User  $user
      * @return array
      */
     private function getAccessibleProjectIds($user)
     {
 
-        if($user->hasPermission('view_all_emails')) {
+        if ($user->hasPermission('view_all_emails')) {
             return Project::select('id')->get()->pluck('id')->toArray();
         }
 

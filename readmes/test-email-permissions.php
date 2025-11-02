@@ -2,11 +2,10 @@
 
 use App\Models\Email;
 use App\Models\User;
-use Illuminate\Support\Facades\Auth;
 
 // Get a sent email for testing
 $sentEmail = Email::where('type', 'sent')->first();
-if (!$sentEmail) {
+if (! $sentEmail) {
     echo "No sent emails found in the database for testing.\n";
 } else {
     echo "Found sent email with ID: {$sentEmail->id}\n";
@@ -16,7 +15,7 @@ if (!$sentEmail) {
 
 // Get a received email for testing
 $receivedEmail = Email::where('type', 'received')->first();
-if (!$receivedEmail) {
+if (! $receivedEmail) {
     echo "No received emails found in the database for testing.\n";
 } else {
     echo "Found received email with ID: {$receivedEmail->id}\n";
@@ -24,22 +23,22 @@ if (!$receivedEmail) {
 }
 
 // Get users with different roles for testing
-$superAdmin = User::whereHas('role', function($query) {
+$superAdmin = User::whereHas('role', function ($query) {
     $query->where('name', 'Super Admin');
 })->first();
 
-$manager = User::whereHas('role', function($query) {
+$manager = User::whereHas('role', function ($query) {
     $query->where('name', 'Manager');
 })->first();
 
-$contractor = User::whereHas('role', function($query) {
+$contractor = User::whereHas('role', function ($query) {
     $query->where('name', 'Contractor');
 })->first();
 
 echo "\nUsers for testing:\n";
-echo "Super Admin ID: " . ($superAdmin ? $superAdmin->id : "Not found") . "\n";
-echo "Manager ID: " . ($manager ? $manager->id : "Not found") . "\n";
-echo "Contractor ID: " . ($contractor ? $contractor->id : "Not found") . "\n";
+echo 'Super Admin ID: '.($superAdmin ? $superAdmin->id : 'Not found')."\n";
+echo 'Manager ID: '.($manager ? $manager->id : 'Not found')."\n";
+echo 'Contractor ID: '.($contractor ? $contractor->id : 'Not found')."\n";
 
 // Output the URLs to test
 if ($sentEmail) {

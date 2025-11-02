@@ -1,11 +1,12 @@
 <?php
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ContentBlock;
 use App\Models\Presentation;
 use App\Models\Project;
 use App\Models\Slide;
-use App\Models\ContentBlock;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -55,6 +56,7 @@ class PresentationController extends Controller
         // If user has broad permission, return all
         if ($user && $user->hasPermission('create_presentation')) {
             $presentations = $query->orderByDesc('id')->paginate(15);
+
             return response()->json($presentations);
         }
 
@@ -74,24 +76,25 @@ class PresentationController extends Controller
         });
 
         $presentations = $query->orderByDesc('id')->paginate(15);
+
         return response()->json($presentations);
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'presentable_id' => ['required','integer'],
-            'presentable_type' => ['required','string', Rule::in(self::PRESENTABLE_WHITELIST)],
-            'title' => ['required','string','max:255'],
-            'type' => ['required','string','max:50'],
+            'presentable_id' => ['required', 'integer'],
+            'presentable_type' => ['required', 'string', Rule::in(self::PRESENTABLE_WHITELIST)],
+            'title' => ['required', 'string', 'max:255'],
+            'type' => ['required', 'string', 'max:50'],
             // New optional inputs to support creation from template or slides
-            'template_id' => ['nullable','integer','exists:presentations,id'],
-            'source_slide_ids' => ['nullable','array'],
-            'source_slide_ids.*' => ['integer','exists:slides,id'],
+            'template_id' => ['nullable', 'integer', 'exists:presentations,id'],
+            'source_slide_ids' => ['nullable', 'array'],
+            'source_slide_ids.*' => ['integer', 'exists:slides,id'],
         ]);
 
         // Enforce mutual exclusivity between template_id and source_slide_ids
-        if (!empty($data['template_id']) && !empty($data['source_slide_ids'])) {
+        if (! empty($data['template_id']) && ! empty($data['source_slide_ids'])) {
             return response()->json(['message' => 'Provide either template_id or source_slide_ids, not both.'], 422);
         }
 
@@ -105,10 +108,10 @@ class PresentationController extends Controller
         ]);
 
         // If template_id provided, clone template into the new presentation (slides + blocks)
-        if (!empty($data['template_id'])) {
+        if (! empty($data['template_id'])) {
             $template = Presentation::with('slides.contentBlocks')->findOrFail($data['template_id']);
             // Safety: ensure selected source is a template
-            if (!$template->is_template) {
+            if (! $template->is_template) {
                 return response()->json(['message' => 'Selected presentation is not a template'], 422);
             }
             // Copy slides into the newly created presentation
@@ -127,7 +130,7 @@ class PresentationController extends Controller
         }
 
         // If source_slide_ids provided, copy those slides into the new presentation
-        if (!empty($data['source_slide_ids'])) {
+        if (! empty($data['source_slide_ids'])) {
             $slides = Slide::with('contentBlocks')
                 ->whereIn('id', $data['source_slide_ids'])
                 ->orderBy('display_order')
@@ -157,7 +160,9 @@ class PresentationController extends Controller
             'users:id,name,email',
             'slides' => function ($q) {
                 $q->orderBy('display_order')
-                  ->with(['contentBlocks' => function ($qq) { $qq->orderBy('display_order'); }]);
+                    ->with(['contentBlocks' => function ($qq) {
+                        $qq->orderBy('display_order');
+                    }]);
             },
         ])->findOrFail($id);
 
@@ -168,10 +173,11 @@ class PresentationController extends Controller
     {
         $presentation = Presentation::findOrFail($id);
         $data = $request->validate([
-            'title' => ['sometimes','string','max:255'],
-            'type' => ['sometimes','string','max:50'],
+            'title' => ['sometimes', 'string', 'max:255'],
+            'type' => ['sometimes', 'string', 'max:50'],
         ]);
         $presentation->update($data);
+
         return response()->json($presentation);
     }
 
@@ -179,6 +185,7 @@ class PresentationController extends Controller
     {
         $presentation = Presentation::findOrFail($id);
         $presentation->delete();
+
         return response()->json(['message' => 'Deleted']);
     }
 
@@ -187,14 +194,15 @@ class PresentationController extends Controller
     {
         $presentation = Presentation::findOrFail($presentationId);
         $data = $request->validate([
-            'template_name' => ['required','string','max:100'],
-            'title' => ['nullable','string','max:255'],
-            'display_order' => ['nullable','integer'],
+            'template_name' => ['required', 'string', 'max:100'],
+            'title' => ['nullable', 'string', 'max:255'],
+            'display_order' => ['nullable', 'integer'],
         ]);
-        if (!isset($data['display_order'])) {
+        if (! isset($data['display_order'])) {
             $data['display_order'] = $presentation->slides()->max('display_order') + 1;
         }
         $slide = $presentation->slides()->create($data);
+
         return response()->json($slide, 201);
     }
 
@@ -202,24 +210,26 @@ class PresentationController extends Controller
     {
         $slide = Slide::findOrFail($id);
         $data = $request->validate([
-            'template_name' => ['sometimes','string','max:100'],
-            'title' => ['sometimes','nullable','string','max:255'],
+            'template_name' => ['sometimes', 'string', 'max:100'],
+            'title' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
         $slide->update($data);
+
         return response()->json($slide);
     }
 
     public function reorderSlides(Request $request)
     {
         $validated = $request->validate([
-            'orders' => ['required','array'],
-            'orders.*.id' => ['required','integer','exists:slides,id'],
-            'orders.*.display_order' => ['required','integer'],
+            'orders' => ['required', 'array'],
+            'orders.*.id' => ['required', 'integer', 'exists:slides,id'],
+            'orders.*.display_order' => ['required', 'integer'],
         ]);
 
         foreach ($validated['orders'] as $item) {
             Slide::where('id', $item['id'])->update(['display_order' => $item['display_order']]);
         }
+
         return response()->json(['message' => 'Slides reordered']);
     }
 
@@ -227,6 +237,7 @@ class PresentationController extends Controller
     {
         $slide = Slide::findOrFail($id);
         $slide->delete();
+
         return response()->json(['message' => 'Slide deleted']);
     }
 
@@ -235,14 +246,15 @@ class PresentationController extends Controller
     {
         $slide = Slide::findOrFail($slideId);
         $data = $request->validate([
-            'block_type' => ['required','string','max:100'],
-            'content_data' => ['required','array'],
-            'display_order' => ['nullable','integer'],
+            'block_type' => ['required', 'string', 'max:100'],
+            'content_data' => ['required', 'array'],
+            'display_order' => ['nullable', 'integer'],
         ]);
-        if (!isset($data['display_order'])) {
+        if (! isset($data['display_order'])) {
             $data['display_order'] = $slide->contentBlocks()->max('display_order') + 1;
         }
         $contentBlock = $slide->contentBlocks()->create($data);
+
         return response()->json($contentBlock, 201);
     }
 
@@ -250,22 +262,24 @@ class PresentationController extends Controller
     {
         $contentBlock = ContentBlock::findOrFail($id);
         $data = $request->validate([
-            'content_data' => ['required','array'],
+            'content_data' => ['required', 'array'],
         ]);
         $contentBlock->update($data);
+
         return response()->json($contentBlock);
     }
 
     public function reorderContentBlocks(Request $request)
     {
         $validated = $request->validate([
-            'orders' => ['required','array'],
-            'orders.*.id' => ['required','integer','exists:content_blocks,id'],
-            'orders.*.display_order' => ['required','integer'],
+            'orders' => ['required', 'array'],
+            'orders.*.id' => ['required', 'integer', 'exists:content_blocks,id'],
+            'orders.*.display_order' => ['required', 'integer'],
         ]);
         foreach ($validated['orders'] as $item) {
             ContentBlock::where('id', $item['id'])->update(['display_order' => $item['display_order']]);
         }
+
         return response()->json(['message' => 'Content blocks reordered']);
     }
 
@@ -273,6 +287,7 @@ class PresentationController extends Controller
     {
         $contentBlock = ContentBlock::findOrFail($id);
         $contentBlock->delete();
+
         return response()->json(['message' => 'Content block deleted']);
     }
 
@@ -288,10 +303,11 @@ class PresentationController extends Controller
                 return [
                     'id' => $p->id,
                     'title' => $p->title,
-                    'is_template' => (bool)$p->is_template,
+                    'is_template' => (bool) $p->is_template,
                     'slide_count' => $p->slides_count,
                 ];
             });
+
         return response()->json(['data' => $items]);
     }
 
@@ -302,7 +318,7 @@ class PresentationController extends Controller
         $new = $this->deepClonePresentation($source, [
             'is_template' => false,
             // keep presentable as is
-            'title' => rtrim($source->title) . ' (Copy)',
+            'title' => rtrim($source->title).' (Copy)',
         ]);
 
         return response()->json($new, 201);
@@ -316,7 +332,7 @@ class PresentationController extends Controller
             'is_template' => true,
             'presentable_id' => 1,
             'presentable_type' => Project::class,
-            'title' => rtrim($source->title) . ' (Template)',
+            'title' => rtrim($source->title).' (Template)',
         ]);
 
         return response()->json($new, 201);
@@ -326,8 +342,8 @@ class PresentationController extends Controller
     {
         $target = Presentation::findOrFail($targetId);
         $validated = $request->validate([
-            'source_slide_ids' => ['required','array'],
-            'source_slide_ids.*' => ['integer','exists:slides,id'],
+            'source_slide_ids' => ['required', 'array'],
+            'source_slide_ids.*' => ['integer', 'exists:slides,id'],
         ]);
 
         $slides = Slide::with('contentBlocks')
@@ -362,21 +378,21 @@ class PresentationController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         $data = $request->validate([
             'user_id' => ['required', 'integer', 'exists:users,id'],
-            'role' => ['nullable', 'string', Rule::in(['editor','viewer'])],
+            'role' => ['nullable', 'string', Rule::in(['editor', 'viewer'])],
         ]);
 
         $presentation = Presentation::findOrFail($id);
 
         // Allow if current user is invited editor/viewer or has general permission
-        if (!$user->hasPermission('create_presentation')) {
+        if (! $user->hasPermission('create_presentation')) {
             $isCollaborator = $presentation->users()->where('users.id', $user->id)->exists();
-            if (!$isCollaborator) {
+            if (! $isCollaborator) {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
         }
@@ -387,7 +403,8 @@ class PresentationController extends Controller
         ]);
 
         // Return minimal list of collaborators
-        $collaborators = $presentation->users()->select('users.id','users.name','users.email')->get();
+        $collaborators = $presentation->users()->select('users.id', 'users.name', 'users.email')->get();
+
         return response()->json(['message' => 'Invitation sent', 'collaborators' => $collaborators]);
     }
 
@@ -399,22 +416,22 @@ class PresentationController extends Controller
     public function syncCollaborators(Request $request, $id)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         $data = $request->validate([
             'user_ids' => ['array'],
-            'user_ids.*' => ['integer','exists:users,id'],
-            'role' => ['nullable','string', Rule::in(['editor','viewer'])],
+            'user_ids.*' => ['integer', 'exists:users,id'],
+            'role' => ['nullable', 'string', Rule::in(['editor', 'viewer'])],
         ]);
 
         $presentation = Presentation::findOrFail($id);
 
         // Authorization: same as invite — either has global permission or is already a collaborator
-        if (!$user->hasPermission('create_presentation')) {
+        if (! $user->hasPermission('create_presentation')) {
             $isCollaborator = $presentation->users()->where('users.id', $user->id)->exists();
-            if (!$isCollaborator) {
+            if (! $isCollaborator) {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
         }
@@ -429,8 +446,8 @@ class PresentationController extends Controller
         // This will fully replace the pivot rows, allowing an empty set
         $presentation->users()->sync($syncData);
 
-        $collaborators = $presentation->users()->select('users.id','users.name','users.email')->get();
+        $collaborators = $presentation->users()->select('users.id', 'users.name', 'users.email')->get();
+
         return response()->json(['message' => 'Collaborators synced', 'collaborators' => $collaborators]);
     }
-
 }

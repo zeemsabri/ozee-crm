@@ -3,16 +3,16 @@
 // This is a simple test script to verify that the MultiSelectWithRoles component works correctly
 // Run this script with: php test-multi-select-component.php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap the Laravel application
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -27,23 +27,23 @@ foreach ($roles as $role) {
 echo "\n";
 
 // Get a manager user
-$manager = User::whereHas('role', function($query) {
+$manager = User::whereHas('role', function ($query) {
     $query->where('slug', 'manager');
 })->first();
 
-if (!$manager) {
+if (! $manager) {
     echo "Manager user not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
 
 // Get a project
 $project = Project::first();
-if (!$project) {
+if (! $project) {
     echo "No projects found in the database. Creating a test project...\n";
 
     // Get a client
     $client = Client::first();
-    if (!$client) {
+    if (! $client) {
         echo "No clients found in the database. Please create a client first.\n";
         exit;
     }
@@ -77,7 +77,7 @@ if ($projectClients->isEmpty()) {
 } else {
     foreach ($projectClients as $pc) {
         $client = Client::find($pc->client_id);
-        $roleName = $pc->role_id ? Role::find($pc->role_id)->name ?? "Unknown Role ({$pc->role_id})" : "No Role";
+        $roleName = $pc->role_id ? Role::find($pc->role_id)->name ?? "Unknown Role ({$pc->role_id})" : 'No Role';
         echo "- Client: {$client->name}, Role ID: {$pc->role_id}, Role Name: {$roleName}\n";
     }
 }
@@ -94,7 +94,7 @@ if ($projectUsers->isEmpty()) {
 } else {
     foreach ($projectUsers as $pu) {
         $user = User::find($pu->user_id);
-        $roleName = $pu->role_id ? Role::find($pu->role_id)->name ?? "Unknown Role ({$pu->role_id})" : "No Role";
+        $roleName = $pu->role_id ? Role::find($pu->role_id)->name ?? "Unknown Role ({$pu->role_id})" : 'No Role';
         echo "- User: {$user->name}, Role ID: {$pu->role_id}, Role Name: {$roleName}\n";
     }
 }
@@ -104,17 +104,17 @@ echo "\n";
 echo "Testing adding a client with a specific role...\n";
 
 // Find a client not already assigned to the project
-$newClient = Client::whereDoesntHave('projects', function($query) use ($project) {
+$newClient = Client::whereDoesntHave('projects', function ($query) use ($project) {
     $query->where('projects.id', $project->id);
 })->first();
 
-if (!$newClient) {
+if (! $newClient) {
     echo "No available clients to add to the project. Creating a new client...\n";
 
     // Create a new client
     $newClient = Client::create([
         'name' => 'Test Client for MultiSelectWithRoles',
-        'email' => 'test-client-' . time() . '@example.com',
+        'email' => 'test-client-'.time().'@example.com',
     ]);
 
     echo "Created test client: {$newClient->name} (ID: {$newClient->id})\n";
@@ -122,7 +122,7 @@ if (!$newClient) {
 
 // Find a role to assign
 $clientRoleToAssign = Role::where('slug', 'manager')->first();
-if (!$clientRoleToAssign) {
+if (! $clientRoleToAssign) {
     $clientRoleToAssign = $roles->first();
 }
 
@@ -154,18 +154,18 @@ if ($projectClient) {
 echo "\nTesting adding a user with a specific role...\n";
 
 // Find a user not already assigned to the project
-$newUser = User::whereDoesntHave('projects', function($query) use ($project) {
+$newUser = User::whereDoesntHave('projects', function ($query) use ($project) {
     $query->where('projects.id', $project->id);
 })->first();
 
-if (!$newUser) {
+if (! $newUser) {
     echo "No available users to add to the project. Creating a new user...\n";
 
     // Create a new user
     $employeeRole = Role::where('slug', 'employee')->first();
     $newUser = User::create([
         'name' => 'Test User for MultiSelectWithRoles',
-        'email' => 'test-user-' . time() . '@example.com',
+        'email' => 'test-user-'.time().'@example.com',
         'password' => bcrypt('password'),
         'role_id' => $employeeRole->id,
     ]);
@@ -175,7 +175,7 @@ if (!$newUser) {
 
 // Find a role to assign
 $userRoleToAssign = Role::where('slug', 'employee')->first();
-if (!$userRoleToAssign) {
+if (! $userRoleToAssign) {
     $userRoleToAssign = $roles->first();
 }
 

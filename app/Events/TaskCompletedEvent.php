@@ -19,8 +19,8 @@ class TaskCompletedEvent
     /**
      * Create a new event instance.
      *
-     * @param Task $task
-     * @param Milestone $milestone
+     * @param  Task  $task
+     * @param  Milestone  $milestone
      * @return void
      */
     public function __construct($task, $milestone)

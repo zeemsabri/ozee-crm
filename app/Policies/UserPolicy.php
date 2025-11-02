@@ -3,7 +3,8 @@
 namespace App\Policies;
 
 use App\Models\User; // Make sure to import the User model
-use Illuminate\Auth\Access\Response; // Required for explicit responses (though bool is also fine)
+
+// Required for explicit responses (though bool is also fine)
 
 class UserPolicy
 {

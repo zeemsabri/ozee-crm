@@ -19,16 +19,17 @@ $models = [
     'App\\Models\\Deliverable',
     'App\\Models\\Client',
     'App\\Models\\User',
-    'App\\Models\\Project'
+    'App\\Models\\Project',
 ];
 
 // Function to make API requests
-function makeRequest($url, $token) {
+function makeRequest($url, $token)
+{
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Accept: application/json',
-        'Authorization: Bearer ' . $token
+        'Authorization: Bearer '.$token,
     ]);
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -36,7 +37,7 @@ function makeRequest($url, $token) {
 
     return [
         'code' => $httpCode,
-        'response' => $response
+        'response' => $response,
     ];
 }
 
@@ -60,7 +61,7 @@ foreach ($models as $model) {
         $count = count($data);
         echo "Success! Received {$count} records\n";
     } else {
-        echo "Error: " . $result['response'] . "\n";
+        echo 'Error: '.$result['response']."\n";
     }
 
     echo "\n";

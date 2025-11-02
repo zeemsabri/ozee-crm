@@ -1,11 +1,12 @@
 <?php
+
 // database/seeders/ComponentSeeder.php
 
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 
 class ComponentSeeder extends Seeder
 {
@@ -19,7 +20,8 @@ class ComponentSeeder extends Seeder
         $components = Config::get('components.components', []);
 
         if (empty($components)) {
-            $this->command->error("No components found in config/components.php");
+            $this->command->error('No components found in config/components.php');
+
             return;
         }
 
@@ -32,10 +34,10 @@ class ComponentSeeder extends Seeder
             DB::table('components')->updateOrInsert(
                 ['type' => $type],
                 [
-                    'name'       => $def['name'],
-                    'category'   => $def['category'],
+                    'name' => $def['name'],
+                    'category' => $def['category'],
                     'definition' => json_encode($def['default']),
-                    'icon_id'    => $icon ? $icon->id : null,
+                    'icon_id' => $icon ? $icon->id : null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]

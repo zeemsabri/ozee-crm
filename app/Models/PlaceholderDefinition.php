@@ -20,7 +20,7 @@ class PlaceholderDefinition extends Model
         'is_dynamic',
         'is_repeatable',
         'is_link',
-        'is_selectable'
+        'is_selectable',
     ];
 
     /**

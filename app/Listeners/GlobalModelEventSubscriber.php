@@ -4,7 +4,6 @@ namespace App\Listeners;
 
 use App\Events\WorkflowTriggerEvent;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 
 class GlobalModelEventSubscriber
 {
@@ -12,7 +11,7 @@ class GlobalModelEventSubscriber
     {
 
         $enabled = (bool) config('automation.global_model_events.enabled', true);
-        if (!$enabled) {
+        if (! $enabled) {
             return;
         }
 
@@ -48,7 +47,7 @@ class GlobalModelEventSubscriber
 
     public static function dispatch($model, string $verb = 'updated', $from = 'dispatch')
     {
-        $self = new self();
+        $self = new self;
         $self->handleModelEvent($model, $verb, $from);
     }
 
@@ -61,12 +60,16 @@ class GlobalModelEventSubscriber
 
         $base = class_basename($model);
         $allow = config('automation.models.allow', []);
-        $deny  = config('automation.models.deny', ['ExecutionLog']);
+        $deny = config('automation.models.deny', ['ExecutionLog']);
 
-        if (in_array($base, $deny, true)) return;
-        if (!empty($allow) && !in_array($base, $allow, true)) return;
+        if (in_array($base, $deny, true)) {
+            return;
+        }
+        if (! empty($allow) && ! in_array($base, $allow, true)) {
+            return;
+        }
 
-        $eventName = strtolower($base) . '.' . strtolower($verb);
+        $eventName = strtolower($base).'.'.strtolower($verb);
 
         $context = [
             strtolower($base) => method_exists($model, 'toArray') ? $model->toArray() : [],

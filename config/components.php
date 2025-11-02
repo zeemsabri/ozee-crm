@@ -59,12 +59,12 @@ return [
         'blog-post-card' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line></svg>',
         'blog-list' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>',
         'loading-spinner' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4m0 16v-4m8-8h-4m-16 0h4m-2.828 9.172l2.828-2.828m-5.656-5.656l2.828-2.828m5.656 0l-2.828 2.828m5.656 5.656l-2.828-2.828"></path></svg>',
-        'empty-state' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>'
+        'empty-state' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>',
     ],
 
     'components' => [
         'Section' => [
-            'category' => 'Layout', 'name' => "Section", 'icon' => 'section',
+            'category' => 'Layout', 'name' => 'Section', 'icon' => 'section',
             'default' => [
                 'size' => ['width' => 800, 'height' => 300],
                 'content' => ['title' => 'Section Title', 'description' => 'A brief description of this section.'],
@@ -73,104 +73,104 @@ return [
                     'props' => ['className' => 'w-full h-full p-8 bg-gray-50 border border-gray-200 rounded-lg flex flex-col items-center justify-center text-center space-y-4'],
                     'children' => [
                         ['tag' => 'h2', 'props' => ['className' => 'text-3xl font-bold text-gray-800'], 'contentKey' => 'title'],
-                        ['tag' => 'p', 'props' => ['className' => 'text-gray-600'], 'contentKey' => 'description']
-                    ]
-                ]
-            ]
+                        ['tag' => 'p', 'props' => ['className' => 'text-gray-600'], 'contentKey' => 'description'],
+                    ],
+                ],
+            ],
         ],
         'Column' => [
-            'category' => 'Layout', 'name' => "Column", 'icon' => 'column',
+            'category' => 'Layout', 'name' => 'Column', 'icon' => 'column',
             'default' => [
                 'size' => ['width' => 200, 'height' => 300],
                 'content' => ['text' => 'Column Content'],
                 'renderSchema' => [
                     'tag' => 'div',
                     'props' => ['className' => 'w-full h-full p-4 bg-white border border-gray-300 rounded-md flex items-center justify-center text-gray-700'],
-                    'contentKey' => 'text'
-                ]
-            ]
+                    'contentKey' => 'text',
+                ],
+            ],
         ],
         'Spacer' => [
-            'category' => 'Layout', 'name' => "Spacer", 'icon' => 'spacer',
+            'category' => 'Layout', 'name' => 'Spacer', 'icon' => 'spacer',
             'default' => [
                 'size' => ['width' => 100, 'height' => 50],
-                'content' => new \stdClass(),
+                'content' => new \stdClass,
                 'renderSchema' => [
                     'tag' => 'div',
                     'props' => ['className' => 'w-full h-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs'],
-                    'text' => 'Spacer'
-                ]
-            ]
+                    'text' => 'Spacer',
+                ],
+            ],
         ],
         'Divider' => [
-            'category' => 'Layout', 'name' => "Divider", 'icon' => 'divider',
+            'category' => 'Layout', 'name' => 'Divider', 'icon' => 'divider',
             'default' => [
                 'size' => ['width' => 400, 'height' => 20],
-                'content' => new \stdClass(),
+                'content' => new \stdClass,
                 'renderSchema' => [
                     'tag' => 'hr',
-                    'props' => ['className' => 'border-t-2 border-gray-300 w-full h-full']
-                ]
-            ]
+                    'props' => ['className' => 'border-t-2 border-gray-300 w-full h-full'],
+                ],
+            ],
         ],
         'Subheading' => [
-            'category' => 'Typography', 'name' => "Subheading", 'icon' => 'subheading',
+            'category' => 'Typography', 'name' => 'Subheading', 'icon' => 'subheading',
             'default' => [
                 'size' => ['width' => 300, 'height' => 40],
-                'content' => ['text' => "A compelling subtitle"],
+                'content' => ['text' => 'A compelling subtitle'],
                 'renderSchema' => [
                     'tag' => 'h3',
                     'props' => ['className' => 'text-lg font-medium text-center p-2 w-full h-full flex items-center justify-center text-gray-700'],
-                    'contentKey' => 'text'
-                ]
-            ]
+                    'contentKey' => 'text',
+                ],
+            ],
         ],
         'Quote' => [
-            'category' => 'Typography', 'name' => "Quote", 'icon' => 'quote',
+            'category' => 'Typography', 'name' => 'Quote', 'icon' => 'quote',
             'default' => [
                 'size' => ['width' => 350, 'height' => 120],
-                'content' => ['quoteText' => "The only way to do great work is to love what you do.", 'author' => 'Steve Jobs'],
+                'content' => ['quoteText' => 'The only way to do great work is to love what you do.', 'author' => 'Steve Jobs'],
                 'renderSchema' => [
                     'tag' => 'blockquote',
                     'props' => ['className' => 'p-4 border-l-4 border-blue-500 bg-blue-50 text-blue-800 italic w-full h-full flex flex-col justify-center'],
                     'children' => [
                         ['tag' => 'p', 'props' => ['className' => 'mb-2'], 'contentKey' => 'quoteText'],
-                        ['tag' => 'footer', 'props' => ['className' => 'text-sm font-semibold text-blue-600'], 'contentKey' => 'author']
-                    ]
-                ]
-            ]
+                        ['tag' => 'footer', 'props' => ['className' => 'text-sm font-semibold text-blue-600'], 'contentKey' => 'author'],
+                    ],
+                ],
+            ],
         ],
         'Radio' => [
-            'category' => 'Forms', 'name' => "Radio", 'icon' => 'radio',
+            'category' => 'Forms', 'name' => 'Radio', 'icon' => 'radio',
             'default' => [
                 'size' => ['width' => 120, 'height' => 24],
-                'content' => ['label' => "Choice"],
+                'content' => ['label' => 'Choice'],
                 'renderSchema' => [
                     'tag' => 'div',
                     'props' => ['className' => 'flex items-center space-x-2 w-full h-full'],
                     'children' => [
                         ['tag' => 'input', 'props' => ['type' => 'radio', 'className' => 'form-radio h-4 w-4 text-blue-600']],
-                        ['tag' => 'label', 'props' => ['className' => 'text-sm text-gray-700'], 'contentKey' => 'label']
-                    ]
-                ]
-            ]
+                        ['tag' => 'label', 'props' => ['className' => 'text-sm text-gray-700'], 'contentKey' => 'label'],
+                    ],
+                ],
+            ],
         ],
         'Select' => [
-            'category' => 'Forms', 'name' => "Select", 'icon' => 'select',
+            'category' => 'Forms', 'name' => 'Select', 'icon' => 'select',
             'default' => [
                 'size' => ['width' => 180, 'height' => 40],
-                'content' => ['placeholder' => "Choose an option", 'options' => 'Option 1,Option 2,Option 3'],
+                'content' => ['placeholder' => 'Choose an option', 'options' => 'Option 1,Option 2,Option 3'],
                 'renderSchema' => [
                     'tag' => 'select',
                     'props' => ['className' => 'border border-gray-300 rounded-md p-2 w-full h-full text-sm'],
                     'children' => [
-                        ['tag' => 'option', 'props' => ['value' => ''], 'contentKey' => 'placeholder']
-                    ]
-                ]
-            ]
+                        ['tag' => 'option', 'props' => ['value' => ''], 'contentKey' => 'placeholder'],
+                    ],
+                ],
+            ],
         ],
         'FileUpload' => [
-            'category' => 'Forms', 'name' => "File Upload", 'icon' => 'file-upload',
+            'category' => 'Forms', 'name' => 'File Upload', 'icon' => 'file-upload',
             'default' => [
                 'size' => ['width' => 240, 'height' => 60],
                 'content' => ['labelText' => 'Upload File'],
@@ -179,16 +179,16 @@ return [
                     'props' => ['className' => 'flex items-center space-x-2 w-full h-full'],
                     'children' => [
                         ['tag' => 'input', 'props' => ['type' => 'file', 'className' => 'hidden', 'id' => 'file-upload-input']],
-                        ['tag' => 'label', 'props' => ['htmlFor' => 'file-upload-input', 'className' => 'cursor-pointer bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600'], 'contentKey' => 'labelText']
-                    ]
-                ]
-            ]
+                        ['tag' => 'label', 'props' => ['htmlFor' => 'file-upload-input', 'className' => 'cursor-pointer bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600'], 'contentKey' => 'labelText'],
+                    ],
+                ],
+            ],
         ],
         'SearchInput' => [
-            'category' => 'Forms', 'name' => "Search Input", 'icon' => 'search-input',
+            'category' => 'Forms', 'name' => 'Search Input', 'icon' => 'search-input',
             'default' => [
                 'size' => ['width' => 280, 'height' => 40],
-                'content' => ['placeholder' => "Search..."],
+                'content' => ['placeholder' => 'Search...'],
                 'renderSchema' => [
                     'tag' => 'div',
                     'props' => ['className' => 'relative w-full h-full'],
@@ -196,17 +196,17 @@ return [
                         ['tag' => 'input', 'props' => ['type' => 'search', 'className' => 'border border-gray-300 rounded-full pl-10 pr-4 py-2 w-full h-full text-sm', 'placeholder' => 'Search...'], 'contentKey' => 'placeholder'],
                         ['tag' => 'svg', 'props' => ['xmlns' => 'http://www.w3.org/2000/svg', 'width' => '20', 'height' => '20', 'viewBox' => '0 0 24 24', 'fill' => 'none', 'stroke' => 'currentColor', 'stroke-width' => '2', 'stroke-linecap' => 'round', 'stroke-linejoin' => 'round', 'className' => 'absolute left-3 top-1/2 -translate-y-1/2 text-gray-400'], 'children' => [
                             ['tag' => 'circle', 'props' => ['cx' => '11', 'cy' => '11', 'r' => '8']],
-                            ['tag' => 'line', 'props' => ['x1' => '21', 'y1' => '21', 'x2' => '16.65', 'y2' => '16.65']]
-                        ]]
-                    ]
-                ]
-            ]
+                            ['tag' => 'line', 'props' => ['x1' => '21', 'y1' => '21', 'x2' => '16.65', 'y2' => '16.65']],
+                        ]],
+                    ],
+                ],
+            ],
         ],
         'Navbar' => [
-            'category' => 'Navigation', 'name' => "Navbar", 'icon' => 'navbar',
+            'category' => 'Navigation', 'name' => 'Navbar', 'icon' => 'navbar',
             'default' => [
                 'size' => ['width' => 600, 'height' => 60],
-                'content' => ['logo' => "Logo", 'links' => "Home,About,Contact"],
+                'content' => ['logo' => 'Logo', 'links' => 'Home,About,Contact'],
                 'renderSchema' => [
                     'tag' => 'nav',
                     'props' => ['className' => 'bg-gray-800 text-white p-4 flex items-center justify-between w-full h-full'],
@@ -215,33 +215,33 @@ return [
                         ['tag' => 'div', 'props' => ['className' => 'space-x-4'], 'children' => [
                             ['tag' => 'a', 'props' => ['href' => '#', 'className' => 'hover:text-blue-300'], 'text' => 'Home'],
                             ['tag' => 'a', 'props' => ['href' => '#', 'className' => 'hover:text-blue-300'], 'text' => 'About'],
-                            ['tag' => 'a', 'props' => ['href' => '#', 'className' => 'hover:text-blue-300'], 'text' => 'Contact']
-                        ]]
-                    ]
-                ]
-            ]
+                            ['tag' => 'a', 'props' => ['href' => '#', 'className' => 'hover:text-blue-300'], 'text' => 'Contact'],
+                        ]],
+                    ],
+                ],
+            ],
         ],
         'HeroSection' => [
-            'category' => 'Content', 'name' => "Hero Section", 'icon' => 'hero',
+            'category' => 'Content', 'name' => 'Hero Section', 'icon' => 'hero',
             'default' => [
                 'size' => ['width' => 500, 'height' => 220],
-                'content' => ['heading' => "Welcome", 'subheading' => "Subtitle here", 'buttonText' => "Learn More"],
+                'content' => ['heading' => 'Welcome', 'subheading' => 'Subtitle here', 'buttonText' => 'Learn More'],
                 'renderSchema' => [
                     'tag' => 'div',
                     'props' => ['className' => 'bg-blue-700 text-white p-8 flex flex-col items-center justify-center text-center w-full h-full rounded-md'],
                     'children' => [
                         ['tag' => 'h1', 'props' => ['className' => 'text-3xl font-bold mb-2'], 'contentKey' => 'heading'],
                         ['tag' => 'p', 'props' => ['className' => 'text-lg mb-4'], 'contentKey' => 'subheading'],
-                        ['tag' => 'button', 'props' => ['className' => 'bg-white text-blue-700 px-6 py-2 rounded-full font-semibold hover:bg-blue-100'], 'contentKey' => 'buttonText']
-                    ]
-                ]
-            ]
+                        ['tag' => 'button', 'props' => ['className' => 'bg-white text-blue-700 px-6 py-2 rounded-full font-semibold hover:bg-blue-100'], 'contentKey' => 'buttonText'],
+                    ],
+                ],
+            ],
         ],
         'Card' => [
-            'category' => 'Content', 'name' => "Card", 'icon' => 'card',
+            'category' => 'Content', 'name' => 'Card', 'icon' => 'card',
             'default' => [
                 'size' => ['width' => 250, 'height' => 300],
-                'content' => ['title' => "Card Title", 'text' => "Some quick example text...", 'imageUrl' => 'https://placehold.co/250x150/e2e8f0/64748b?text=Card+Image'],
+                'content' => ['title' => 'Card Title', 'text' => 'Some quick example text...', 'imageUrl' => 'https://placehold.co/250x150/e2e8f0/64748b?text=Card+Image'],
                 'renderSchema' => [
                     'tag' => 'div',
                     'props' => ['className' => 'bg-white rounded-lg shadow-md flex flex-col w-full h-full'],
@@ -249,38 +249,38 @@ return [
                         ['tag' => 'img', 'props' => ['src' => 'https://placehold.co/250x150/e2e8f0/64748b?text=Card+Image', 'alt' => 'Card Image', 'className' => 'w-full h-1/2 object-cover rounded-t-lg']],
                         ['tag' => 'div', 'props' => ['className' => 'p-4 flex flex-col flex-grow'], 'children' => [
                             ['tag' => 'h3', 'props' => ['className' => 'text-lg font-semibold mb-2'], 'contentKey' => 'title'],
-                            ['tag' => 'p', 'props' => ['className' => 'text-sm text-gray-600'], 'contentKey' => 'text']
-                        ]]
-                    ]
-                ]
-            ]
+                            ['tag' => 'p', 'props' => ['className' => 'text-sm text-gray-600'], 'contentKey' => 'text'],
+                        ]],
+                    ],
+                ],
+            ],
         ],
         'Modal' => [
-            'category' => 'Content', 'name' => "Modal", 'icon' => 'modal',
+            'category' => 'Content', 'name' => 'Modal', 'icon' => 'modal',
             'default' => [
                 'size' => ['width' => 400, 'height' => 250],
-                'content' => ['title' => "Modal Title", 'text' => "This is the modal body text."],
+                'content' => ['title' => 'Modal Title', 'text' => 'This is the modal body text.'],
                 'renderSchema' => [
                     'tag' => 'div',
                     'props' => ['className' => 'bg-white rounded-lg shadow-xl p-6 flex flex-col w-full h-full'],
                     'children' => [
                         ['tag' => 'h3', 'props' => ['className' => 'text-lg font-bold mb-2'], 'contentKey' => 'title'],
-                        ['tag' => 'p', 'props' => ['className' => 'text-sm text-gray-700'], 'contentKey' => 'text']
-                    ]
-                ]
-            ]
+                        ['tag' => 'p', 'props' => ['className' => 'text-sm text-gray-700'], 'contentKey' => 'text'],
+                    ],
+                ],
+            ],
         ],
         'FeatureListComponent' => [
-            'category' => 'Content', 'name' => "Feature List", 'icon' => 'feature-list',
+            'category' => 'Content', 'name' => 'Feature List', 'icon' => 'feature-list',
             'default' => [
                 'size' => ['width' => 400, 'height' => 250],
                 'content' => [
-                    'listTitle' => "Key Features",
+                    'listTitle' => 'Key Features',
                     'features' => [
-                        "Feature One: Describe it here.",
-                        "Feature Two: Another great point.",
-                        "Feature Three: And a final benefit."
-                    ]
+                        'Feature One: Describe it here.',
+                        'Feature Two: Another great point.',
+                        'Feature Three: And a final benefit.',
+                    ],
                 ],
                 'renderSchema' => [
                     'tag' => 'div',
@@ -291,27 +291,27 @@ return [
                             'tag' => 'ul',
                             'props' => ['className' => 'list-disc list-inside space-y-2 pl-5', 'data-item-template-container' => true],
                             'children' => [
-                                ['tag' => 'li', 'props' => ['className' => 'text-gray-700 text-sm', 'data-item-template' => true], 'contentKey' => 'feature']
-                            ]
-                        ]
-                    ]
-                ]
-            ]
+                                ['tag' => 'li', 'props' => ['className' => 'text-gray-700 text-sm', 'data-item-template' => true], 'contentKey' => 'feature'],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
         ],
         'PricingCardComponent' => [
-            'category' => 'Content', 'name' => "Pricing Card", 'icon' => 'pricing-card',
+            'category' => 'Content', 'name' => 'Pricing Card', 'icon' => 'pricing-card',
             'default' => [
                 'size' => ['width' => 280, 'height' => 400],
                 'content' => [
-                    'planName' => "Basic Plan",
-                    'price' => "$19",
-                    'frequency' => "/month",
+                    'planName' => 'Basic Plan',
+                    'price' => '$19',
+                    'frequency' => '/month',
                     'features' => [
-                        "5 Users",
-                        "10GB Storage",
-                        "Email Support"
+                        '5 Users',
+                        '10GB Storage',
+                        'Email Support',
                     ],
-                    'buttonText' => "Choose Plan"
+                    'buttonText' => 'Choose Plan',
                 ],
                 'renderSchema' => [
                     'tag' => 'div',
@@ -320,7 +320,7 @@ return [
                         ['tag' => 'h3', 'props' => ['className' => 'text-xl font-bold text-gray-800'], 'contentKey' => 'planName'],
                         ['tag' => 'div', 'props' => ['className' => 'flex items-baseline my-2'], 'children' => [
                             ['tag' => 'span', 'props' => ['className' => 'text-4xl font-extrabold text-blue-600'], 'contentKey' => 'price'],
-                            ['tag' => 'span', 'props' => ['className' => 'text-gray-500 ml-1'], 'contentKey' => 'frequency']
+                            ['tag' => 'span', 'props' => ['className' => 'text-gray-500 ml-1'], 'contentKey' => 'frequency'],
                         ]],
                         [
                             'tag' => 'ul',
@@ -328,37 +328,37 @@ return [
                             'children' => [
                                 ['tag' => 'li', 'props' => ['className' => 'text-sm flex items-center', 'data-item-template' => true], 'children' => [
                                     ['tag' => 'svg', 'props' => ['xmlns' => 'http://www.w3.org/2000/svg', 'width' => '16', 'height' => '16', 'viewBox' => '0 0 24 24', 'fill' => 'none', 'stroke' => 'currentColor', 'stroke-width' => '2', 'stroke-linecap' => 'round', 'stroke-linejoin' => 'round', 'className' => 'text-green-500 mr-2'], 'children' => [
-                                        ['tag' => 'polyline', 'props' => ['points' => '20 6 9 17 4 12']]
+                                        ['tag' => 'polyline', 'props' => ['points' => '20 6 9 17 4 12']],
                                     ]],
-                                    ['tag' => 'span', 'contentKey' => 'feature']
-                                ]]
-                            ]
+                                    ['tag' => 'span', 'contentKey' => 'feature'],
+                                ]],
+                            ],
                         ],
-                        ['tag' => 'button', 'props' => ['className' => 'mt-6 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 w-full'], 'contentKey' => 'buttonText']
-                    ]
-                ]
-            ]
+                        ['tag' => 'button', 'props' => ['className' => 'mt-6 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 w-full'], 'contentKey' => 'buttonText'],
+                    ],
+                ],
+            ],
         ],
         'PricingPlansSection' => [
-            'category' => 'Content', 'name' => "Pricing Plans Section", 'icon' => 'pricing-card',
+            'category' => 'Content', 'name' => 'Pricing Plans Section', 'icon' => 'pricing-card',
             'default' => [
                 'size' => ['width' => 900, 'height' => 550],
                 'content' => [
-                    'sectionTitle' => "Choose Your Plan",
+                    'sectionTitle' => 'Choose Your Plan',
                     'plans' => [
                         [
-                            'planName' => "Starter", 'price' => "$9", 'frequency' => "/month",
-                            'features' => ["3 Users", "5GB Storage", "Basic Support"], 'buttonText' => "Start Free Trial"
+                            'planName' => 'Starter', 'price' => '$9', 'frequency' => '/month',
+                            'features' => ['3 Users', '5GB Storage', 'Basic Support'], 'buttonText' => 'Start Free Trial',
                         ],
                         [
-                            'planName' => "Pro", 'price' => "$29", 'frequency' => "/month",
-                            'features' => ["10 Users", "50GB Storage", "Priority Support"], 'buttonText' => "Go Pro"
+                            'planName' => 'Pro', 'price' => '$29', 'frequency' => '/month',
+                            'features' => ['10 Users', '50GB Storage', 'Priority Support'], 'buttonText' => 'Go Pro',
                         ],
                         [
-                            'planName' => "Enterprise", 'price' => "$99", 'frequency' => "/month",
-                            'features' => ["Unlimited Users", "Unlimited Storage", "Dedicated Support"], 'buttonText' => "Contact Sales"
-                        ]
-                    ]
+                            'planName' => 'Enterprise', 'price' => '$99', 'frequency' => '/month',
+                            'features' => ['Unlimited Users', 'Unlimited Storage', 'Dedicated Support'], 'buttonText' => 'Contact Sales',
+                        ],
+                    ],
                 ],
                 'renderSchema' => [
                     'tag' => 'section',
@@ -376,7 +376,7 @@ return [
                                         ['tag' => 'h3', 'props' => ['className' => 'text-xl font-bold text-gray-800'], 'contentKey' => 'planName'],
                                         ['tag' => 'div', 'props' => ['className' => 'flex items-baseline my-2'], 'children' => [
                                             ['tag' => 'span', 'props' => ['className' => 'text-4xl font-extrabold text-blue-600'], 'contentKey' => 'price'],
-                                            ['tag' => 'span', 'props' => ['className' => 'text-gray-500 ml-1'], 'contentKey' => 'frequency']
+                                            ['tag' => 'span', 'props' => ['className' => 'text-gray-500 ml-1'], 'contentKey' => 'frequency'],
                                         ]],
                                         [
                                             'tag' => 'ul',
@@ -384,29 +384,29 @@ return [
                                             'children' => [
                                                 ['tag' => 'li', 'props' => ['className' => 'text-sm flex items-center'], 'children' => [
                                                     ['tag' => 'svg', 'props' => ['xmlns' => 'http://www.w3.org/2000/svg', 'width' => '16', 'height' => '16', 'viewBox' => '0 0 24 24', 'fill' => 'none', 'stroke' => 'currentColor', 'stroke-width' => '2', 'stroke-linecap' => 'round', 'stroke-linejoin' => 'round', 'className' => 'text-green-500 mr-2'], 'children' => [
-                                                        ['tag' => 'polyline', 'props' => ['points' => '20 6 9 17 4 12']]
+                                                        ['tag' => 'polyline', 'props' => ['points' => '20 6 9 17 4 12']],
                                                     ]],
-                                                    ['tag' => 'span', 'contentKey' => 'feature']
-                                                ]]
-                                            ]
+                                                    ['tag' => 'span', 'contentKey' => 'feature'],
+                                                ]],
+                                            ],
                                         ],
-                                        ['tag' => 'button', 'props' => ['className' => 'mt-6 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 w-full'], 'contentKey' => 'buttonText']
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ]
+                                        ['tag' => 'button', 'props' => ['className' => 'mt-6 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 w-full'], 'contentKey' => 'buttonText'],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
         ],
         'CallToActionComponent' => [
-            'category' => 'CallToAction', 'name' => "Call to Action", 'icon' => 'call-to-action',
+            'category' => 'CallToAction', 'name' => 'Call to Action', 'icon' => 'call-to-action',
             'default' => [
                 'size' => ['width' => 500, 'height' => 150],
                 'content' => [
-                    'heading' => "Ready to Get Started?",
-                    'subheading' => "Join over 10,000 satisfied customers today!",
-                    'buttonText' => "Sign Up Now"
+                    'heading' => 'Ready to Get Started?',
+                    'subheading' => 'Join over 10,000 satisfied customers today!',
+                    'buttonText' => 'Sign Up Now',
                 ],
                 'renderSchema' => [
                     'tag' => 'div',
@@ -414,18 +414,18 @@ return [
                     'children' => [
                         ['tag' => 'h2', 'props' => ['className' => 'text-2xl font-bold'], 'contentKey' => 'heading'],
                         ['tag' => 'p', 'props' => ['className' => 'text-indigo-200'], 'contentKey' => 'subheading'],
-                        ['tag' => 'button', 'props' => ['className' => 'mt-4 bg-white text-indigo-700 py-2 px-6 rounded-full font-semibold hover:bg-indigo-100'], 'contentKey' => 'buttonText']
-                    ]
-                ]
-            ]
+                        ['tag' => 'button', 'props' => ['className' => 'mt-4 bg-white text-indigo-700 py-2 px-6 rounded-full font-semibold hover:bg-indigo-100'], 'contentKey' => 'buttonText'],
+                    ],
+                ],
+            ],
         ],
         'FooterComponent' => [
-            'category' => 'Footer', 'name' => "Website Footer", 'icon' => 'footer',
+            'category' => 'Footer', 'name' => 'Website Footer', 'icon' => 'footer',
             'default' => [
                 'size' => ['width' => 800, 'height' => 150],
                 'content' => [
-                    'copyrightText' => "© 2024 Your Company. All rights reserved.",
-                    'links' => "Privacy Policy, Terms of Service"
+                    'copyrightText' => '© 2024 Your Company. All rights reserved.',
+                    'links' => 'Privacy Policy, Terms of Service',
                 ],
                 'renderSchema' => [
                     'tag' => 'footer',
@@ -434,19 +434,19 @@ return [
                         ['tag' => 'p', 'props' => ['className' => 'text-sm'], 'contentKey' => 'copyrightText'],
                         ['tag' => 'div', 'props' => ['className' => 'space-x-4 text-sm'], 'children' => [
                             ['tag' => 'a', 'props' => ['href' => '#', 'className' => 'hover:text-white'], 'text' => 'Privacy Policy'],
-                            ['tag' => 'a', 'props' => ['href' => '#', 'className' => 'hover:text-white'], 'text' => 'Terms of Service']
-                        ]]
-                    ]
-                ]
-            ]
+                            ['tag' => 'a', 'props' => ['href' => '#', 'className' => 'hover:text-white'], 'text' => 'Terms of Service'],
+                        ]],
+                    ],
+                ],
+            ],
         ],
         'AccordionComponent' => [
-            'category' => 'Content', 'name' => "Accordion", 'icon' => 'accordion',
+            'category' => 'Content', 'name' => 'Accordion', 'icon' => 'accordion',
             'default' => [
                 'size' => ['width' => 350, 'height' => 150],
                 'content' => [
-                    'accordionTitle' => "Click to Expand",
-                    'accordionContent' => "This is the hidden content inside the accordion. It can be a paragraph, list, or any other text."
+                    'accordionTitle' => 'Click to Expand',
+                    'accordionContent' => 'This is the hidden content inside the accordion. It can be a paragraph, list, or any other text.',
                 ],
                 'renderSchema' => [
                     'tag' => 'div',
@@ -455,25 +455,25 @@ return [
                         ['tag' => 'div', 'props' => ['className' => 'bg-gray-100 p-3 cursor-pointer flex justify-between items-center hover:bg-gray-200'], 'children' => [
                             ['tag' => 'span', 'props' => ['className' => 'font-semibold text-gray-800'], 'contentKey' => 'accordionTitle'],
                             ['tag' => 'svg', 'props' => ['xmlns' => 'http://www.w3.org/2000/svg', 'width' => '20', 'height' => '20', 'viewBox' => '0 0 24 24', 'fill' => 'none', 'stroke' => 'currentColor', 'stroke-width' => '2', 'stroke-linecap' => 'round', 'stroke-linejoin' => 'round', 'className' => 'text-gray-600'], 'children' => [
-                                ['tag' => 'polyline', 'props' => ['points' => '6 9 12 15 18 9']]
-                            ]]
+                                ['tag' => 'polyline', 'props' => ['points' => '6 9 12 15 18 9']],
+                            ]],
                         ]],
-                        ['tag' => 'div', 'props' => ['className' => 'p-3 bg-white text-gray-700 text-sm'], 'contentKey' => 'accordionContent']
-                    ]
-                ]
-            ]
+                        ['tag' => 'div', 'props' => ['className' => 'p-3 bg-white text-gray-700 text-sm'], 'contentKey' => 'accordionContent'],
+                    ],
+                ],
+            ],
         ],
         'TabsComponent' => [
             'category' => 'Navigation',
-            'name' => "Tabs",
+            'name' => 'Tabs',
             'icon' => 'tabs',
             'default' => [
                 'size' => ['width' => 400, 'height' => 200],
                 'content' => [
-                    'tabTitles' => "Tab 1,Tab 2,Tab 3",
-                    'tabContent1' => "Content for Tab 1.",
-                    'tabContent2' => "Content for Tab 2.",
-                    'tabContent3' => "Content for Tab 3"
+                    'tabTitles' => 'Tab 1,Tab 2,Tab 3',
+                    'tabContent1' => 'Content for Tab 1.',
+                    'tabContent2' => 'Content for Tab 2.',
+                    'tabContent3' => 'Content for Tab 3',
                 ],
                 'renderSchema' => [
                     'tag' => 'div',
@@ -485,8 +485,8 @@ return [
                             'children' => [
                                 ['tag' => 'button', 'props' => ['className' => 'px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600'], 'contentKey' => 'tabTitles', 'text' => 'Tab 1'],
                                 ['tag' => 'button', 'props' => ['className' => 'px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800'], 'contentKey' => 'tabTitles', 'text' => 'Tab 2'],
-                                ['tag' => 'button', 'props' => ['className' => 'px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800'], 'contentKey' => 'tabTitles', 'text' => 'Tab 3']
-                            ]
+                                ['tag' => 'button', 'props' => ['className' => 'px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800'], 'contentKey' => 'tabTitles', 'text' => 'Tab 3'],
+                            ],
                         ],
                         [
                             'tag' => 'div',
@@ -494,20 +494,20 @@ return [
                             'children' => [
                                 ['tag' => 'div', 'props' => ['className' => 'tab-content'], 'contentKey' => 'tabContent1'],
                                 ['tag' => 'div', 'props' => ['className' => 'tab-content hidden'], 'contentKey' => 'tabContent2'],
-                                ['tag' => 'div', 'props' => ['className' => 'tab-content hidden'], 'contentKey' => 'tabContent3']
-                            ]
-                        ]
-                    ]
-                ]
-            ]
+                                ['tag' => 'div', 'props' => ['className' => 'tab-content hidden'], 'contentKey' => 'tabContent3'],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
         ],
         'ProgressBarComponent' => [
             'category' => 'Content',
-            'name' => "Progress Bar",
+            'name' => 'Progress Bar',
             'icon' => 'progress-bar',
             'default' => [
                 'size' => ['width' => 300, 'height' => 20],
-                'content' => ['progress' => 50, 'label' => "Progress"],
+                'content' => ['progress' => 50, 'label' => 'Progress'],
                 'renderSchema' => [
                     'tag' => 'div',
                     'props' => ['className' => 'w-full h-full bg-gray-200 rounded-full overflow-hidden'],
@@ -516,13 +516,13 @@ return [
                             'tag' => 'div',
                             'props' => [
                                 'className' => 'bg-blue-600 h-full text-xs font-medium text-white text-center leading-none rounded-full',
-                                'style' => ['width' => '50%']
+                                'style' => ['width' => '50%'],
                             ],
-                            'contentKey' => 'label'
-                        ]
-                    ]
-                ]
-            ]
+                            'contentKey' => 'label',
+                        ],
+                    ],
+                ],
+            ],
         ],
         'Container' => [
             'category' => 'Layout',
@@ -530,12 +530,12 @@ return [
             'icon' => 'square',
             'default' => [
                 'size' => ['width' => 400, 'height' => 200],
-                'content' => []
+                'content' => [],
             ],
             'renderSchema' => [
                 'tag' => 'div',
-                'props' => ['className' => 'bg-blue-100 border border-blue-400 rounded-md']
-            ]
+                'props' => ['className' => 'bg-blue-100 border border-blue-400 rounded-md'],
+            ],
         ],
         'Columns' => [
             'category' => 'Layout',
@@ -543,12 +543,12 @@ return [
             'icon' => 'columns',
             'default' => [
                 'size' => ['width' => 400, 'height' => 200],
-                'content' => ['columnCount' => 2]
+                'content' => ['columnCount' => 2],
             ],
             'renderSchema' => [
                 'tag' => 'div',
-                'props' => ['className' => 'flex w-full h-full']
-            ]
+                'props' => ['className' => 'flex w-full h-full'],
+            ],
         ],
         'Grid' => [
             'category' => 'Layout',
@@ -556,12 +556,12 @@ return [
             'icon' => 'grid',
             'default' => [
                 'size' => ['width' => 400, 'height' => 200],
-                'content' => ['columns' => 2, 'rows' => 2]
+                'content' => ['columns' => 2, 'rows' => 2],
             ],
             'renderSchema' => [
                 'tag' => 'div',
-                'props' => ['className' => 'w-full h-full']
-            ]
+                'props' => ['className' => 'w-full h-full'],
+            ],
         ],
         'List' => [
             'category' => 'Content',
@@ -569,14 +569,14 @@ return [
             'icon' => 'list',
             'default' => [
                 'size' => ['width' => 300, 'height' => 200],
-                'content' => ['items' => ['Item 1', 'Item 2', 'Item 3']]
+                'content' => ['items' => ['Item 1', 'Item 2', 'Item 3']],
             ],
             'renderSchema' => [
                 'tag' => 'ul',
                 'props' => ['className' => 'list-disc pl-5 text-gray-700'],
                 'contentKey' => 'items',
-                'itemTemplate' => ['tag' => 'li', 'props' => ['className' => 'text-sm']]
-            ]
+                'itemTemplate' => ['tag' => 'li', 'props' => ['className' => 'text-sm']],
+            ],
         ],
         'Image' => [
             'category' => 'Content',
@@ -584,13 +584,13 @@ return [
             'icon' => 'image',
             'default' => [
                 'size' => ['width' => 100, 'height' => 100],
-                'content' => ['src' => 'https://via.placeholder.com/100', 'alt' => 'Placeholder']
+                'content' => ['src' => 'https://via.placeholder.com/100', 'alt' => 'Placeholder'],
             ],
             'renderSchema' => [
                 'tag' => 'img',
                 'props' => ['className' => 'w-full h-full object-cover'],
-                'propMappings' => ['src' => 'src', 'alt' => 'alt']
-            ]
+                'propMappings' => ['src' => 'src', 'alt' => 'alt'],
+            ],
         ],
         'Table' => [
             'category' => 'Content',
@@ -600,13 +600,13 @@ return [
                 'size' => ['width' => 400, 'height' => 200],
                 'content' => [
                     'headers' => ['Column 1', 'Column 2'],
-                    'rows' => [['Cell 1', 'Cell 2'], ['Cell 3', 'Cell 4']]
-                ]
+                    'rows' => [['Cell 1', 'Cell 2'], ['Cell 3', 'Cell 4']],
+                ],
             ],
             'renderSchema' => [
                 'tag' => 'table',
-                'props' => ['className' => 'w-full border-collapse']
-            ]
+                'props' => ['className' => 'w-full border-collapse'],
+            ],
         ],
         'Features' => [
             'category' => 'Content',
@@ -616,8 +616,8 @@ return [
                 'size' => ['width' => 400, 'height' => 200],
                 'content' => [
                     'heading' => 'Our Features',
-                    'features' => ['Feature 1', 'Feature 2', 'Feature 3']
-                ]
+                    'features' => ['Feature 1', 'Feature 2', 'Feature 3'],
+                ],
             ],
             'renderSchema' => [
                 'tag' => 'div',
@@ -625,12 +625,12 @@ return [
                 'children' => [
                     ['tag' => 'h2', 'props' => ['className' => 'text-xl font-bold'], 'contentKey' => 'heading'],
                     ['tag' => 'div', 'props' => ['className' => 'mt-2'], 'data-item-template-container' => true, 'children' => [
-                        ['tag' => 'p', 'props' => ['className' => 'text-gray-700']]
-                    ]]
+                        ['tag' => 'p', 'props' => ['className' => 'text-gray-700']],
+                    ]],
                 ],
                 'contentKey' => 'features',
-                'itemTemplate' => ['tag' => 'p', 'props' => ['className' => 'text-gray-700']]
-            ]
+                'itemTemplate' => ['tag' => 'p', 'props' => ['className' => 'text-gray-700']],
+            ],
         ],
         'PricingPlan' => [
             'category' => 'Content',
@@ -640,8 +640,8 @@ return [
                 'size' => ['width' => 400, 'height' => 200],
                 'content' => [
                     'heading' => 'Pricing Plans',
-                    'plans' => ['Basic Plan', 'Pro Plan']
-                ]
+                    'plans' => ['Basic Plan', 'Pro Plan'],
+                ],
             ],
             'renderSchema' => [
                 'tag' => 'div',
@@ -649,12 +649,12 @@ return [
                 'children' => [
                     ['tag' => 'h2', 'props' => ['className' => 'text-xl font-bold'], 'contentKey' => 'heading'],
                     ['tag' => 'div', 'props' => ['className' => 'mt-2'], 'data-item-template-container' => true, 'children' => [
-                        ['tag' => 'p', 'props' => ['className' => 'text-gray-700']]
-                    ]]
+                        ['tag' => 'p', 'props' => ['className' => 'text-gray-700']],
+                    ]],
                 ],
                 'contentKey' => 'plans',
-                'itemTemplate' => ['tag' => 'p', 'props' => ['className' => 'text-gray-700']]
-            ]
+                'itemTemplate' => ['tag' => 'p', 'props' => ['className' => 'text-gray-700']],
+            ],
         ],
         'Avatar' => [
             'category' => 'Content',
@@ -662,8 +662,8 @@ return [
             'icon' => 'user',
             'default' => [
                 'size' => ['width' => 50, 'height' => 50],
-                'content' => ['src' => 'https://via.placeholder.com/50', 'alt' => 'Avatar']
-            ]
+                'content' => ['src' => 'https://via.placeholder.com/50', 'alt' => 'Avatar'],
+            ],
         ],
         'Heading' => [
             'category' => 'Content',
@@ -671,8 +671,8 @@ return [
             'icon' => 'heading',
             'default' => [
                 'size' => ['width' => 300, 'height' => 50],
-                'content' => ['text' => 'Heading']
-            ]
+                'content' => ['text' => 'Heading'],
+            ],
         ],
         'Text' => [
             'category' => 'Content',
@@ -680,8 +680,8 @@ return [
             'icon' => 'text',
             'default' => [
                 'size' => ['width' => 300, 'height' => 100],
-                'content' => ['text' => 'Sample text']
-            ]
+                'content' => ['text' => 'Sample text'],
+            ],
         ],
         'Input' => [
             'category' => 'Form',
@@ -689,8 +689,8 @@ return [
             'icon' => 'input',
             'default' => [
                 'size' => ['width' => 200, 'height' => 40],
-                'content' => ['placeholder' => 'Enter text']
-            ]
+                'content' => ['placeholder' => 'Enter text'],
+            ],
         ],
         'Textarea' => [
             'category' => 'Form',
@@ -698,8 +698,8 @@ return [
             'icon' => 'textarea',
             'default' => [
                 'size' => ['width' => 300, 'height' => 100],
-                'content' => ['placeholder' => 'Enter text']
-            ]
+                'content' => ['placeholder' => 'Enter text'],
+            ],
         ],
         'Button' => [
             'category' => 'Form',
@@ -707,8 +707,8 @@ return [
             'icon' => 'button',
             'default' => [
                 'size' => ['width' => 100, 'height' => 40],
-                'content' => ['text' => 'Click me']
-            ]
+                'content' => ['text' => 'Click me'],
+            ],
         ],
         'Checkbox' => [
             'category' => 'Form',
@@ -716,8 +716,8 @@ return [
             'icon' => 'checkbox',
             'default' => [
                 'size' => ['width' => 200, 'height' => 40],
-                'content' => ['label' => 'Check me', 'checked' => false]
-            ]
+                'content' => ['label' => 'Check me', 'checked' => false],
+            ],
         ],
         'Hr' => [
             'category' => 'Layout',
@@ -725,8 +725,8 @@ return [
             'icon' => 'hr',
             'default' => [
                 'size' => ['width' => 400, 'height' => 2],
-                'content' => []
-            ]
+                'content' => [],
+            ],
         ],
         'GallerySectionComponent' => [
             'category' => 'Content',
@@ -738,9 +738,9 @@ return [
                     'sectionTitle' => 'Gallery',
                     'galleryItems' => [
                         ['imageUrl' => 'https://via.placeholder.com/150', 'caption' => 'Image 1'],
-                        ['imageUrl' => 'https://via.placeholder.com/150', 'caption' => 'Image 2']
-                    ]
-                ]
+                        ['imageUrl' => 'https://via.placeholder.com/150', 'caption' => 'Image 2'],
+                    ],
+                ],
             ],
             'renderSchema' => [
                 'tag' => 'div',
@@ -750,11 +750,11 @@ return [
                     ['tag' => 'div', 'props' => ['className' => 'flex flex-wrap gap-4'], 'data-item-template-container' => true, 'children' => [
                         ['tag' => 'div', 'props' => ['className' => 'w-48'], 'children' => [
                             ['tag' => 'img', 'props' => ['className' => 'w-full h-32 object-cover']],
-                            ['tag' => 'p', 'props' => ['className' => 'text-sm text-gray-600'], 'text' => 'Image Caption Placeholder']
-                        ]]
-                    ]]
-                ]
-            ]
-        ]
-    ]
+                            ['tag' => 'p', 'props' => ['className' => 'text-sm text-gray-600'], 'text' => 'Image Caption Placeholder'],
+                        ]],
+                    ]],
+                ],
+            ],
+        ],
+    ],
 ];

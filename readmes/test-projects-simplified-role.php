@@ -21,12 +21,12 @@ $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $error = curl_error($ch);
 curl_close($ch);
 
-echo "HTTP Status Code: " . $httpCode . "\n";
+echo 'HTTP Status Code: '.$httpCode."\n";
 if ($error) {
-    echo "cURL Error: " . $error . "\n";
+    echo 'cURL Error: '.$error."\n";
 }
 
-echo "Raw Response:\n" . $response . "\n\n";
+echo "Raw Response:\n".$response."\n\n";
 
 // Decode the JSON response
 $data = json_decode($response, true);
@@ -37,7 +37,7 @@ print_r($data);
 
 // Check if the response includes the role field
 $hasRoleField = false;
-if (!empty($data) && is_array($data)) {
+if (! empty($data) && is_array($data)) {
     foreach ($data as $project) {
         if (isset($project['role'])) {
             $hasRoleField = true;
@@ -46,4 +46,4 @@ if (!empty($data) && is_array($data)) {
     }
 }
 
-echo "\nDoes the response include the role field? " . ($hasRoleField ? "Yes" : "No") . "\n";
+echo "\nDoes the response include the role field? ".($hasRoleField ? 'Yes' : 'No')."\n";

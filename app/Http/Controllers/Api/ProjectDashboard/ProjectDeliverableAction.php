@@ -8,9 +8,9 @@ use App\Models\Project;
 use App\Models\ProjectNote;
 use App\Services\GoogleDriveService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Auth; // Import Auth facade
+use Illuminate\Validation\ValidationException; // Import Auth facade
 
 class ProjectDeliverableAction extends Controller
 {
@@ -29,8 +29,6 @@ class ProjectDeliverableAction extends Controller
     /**
      * Display a listing of deliverables for a specific project.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request, Project $project)
@@ -52,6 +50,7 @@ class ProjectDeliverableAction extends Controller
                 'user_id' => Auth::id(),
                 'error_trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to fetch deliverables.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -59,8 +58,6 @@ class ProjectDeliverableAction extends Controller
     /**
      * Store a newly created deliverable in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Project  $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request, Project $project)
@@ -79,14 +76,14 @@ class ProjectDeliverableAction extends Controller
             ]);
 
             // Ensure only one of content_url or attachment_file is provided
-            if (!empty($validated['content_url']) && $request->hasFile('attachment_file')) {
+            if (! empty($validated['content_url']) && $request->hasFile('attachment_file')) {
                 throw ValidationException::withMessages([
                     'content_url' => 'Cannot provide both a content URL and an attachment file.',
                     'attachment_file' => 'Cannot provide both a content URL and an attachment file.',
                 ]);
             }
 
-            if (empty($validated['content_url']) && !$request->hasFile('attachment_file')) {
+            if (empty($validated['content_url']) && ! $request->hasFile('attachment_file')) {
                 throw ValidationException::withMessages([
                     'content_url' => 'Either a content URL or an attachment file is required.',
                     'attachment_file' => 'Either a content URL or an attachment file is required.',
@@ -108,22 +105,23 @@ class ProjectDeliverableAction extends Controller
 
                 $explodedType = explode('/', $contentUrlType);
 
-                if(ISSET($explodedType[1])) {
+                if (isset($explodedType[1])) {
                     $contentUrlType = $explodedType[1];
                 }
 
                 // Get the project's Google Drive folder ID (assuming it's stored on the Project model)
                 $projectFolderId = $project->google_drive_folder_id;
 
-                if (!$projectFolderId) {
+                if (! $projectFolderId) {
                     Log::error("Google Drive folder ID not found for project: {$project->id}");
+
                     return response()->json(['message' => 'Google Drive folder not configured for this project.'], 500);
                 }
 
                 // Upload the file
                 $uploadedFile = $project->uploadDocuments([$file], $this->googleDriveService, 'webViewLink');
 
-                if (ISSET($uploadedFile[0]) && isset($uploadedFile[0]['path'])) {
+                if (isset($uploadedFile[0]) && isset($uploadedFile[0]['path'])) {
                     $attachmentPath = $uploadedFile[0]['path']; // Store the web view link
                     $contentUrl = $uploadedFile[0]['path'];
                 } else {
@@ -159,6 +157,7 @@ class ProjectDeliverableAction extends Controller
                 'user_id' => Auth::id(),
                 'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to create deliverable.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -166,8 +165,6 @@ class ProjectDeliverableAction extends Controller
     /**
      * Display the specified deliverable with its relations for CRM backend.
      *
-     * @param Project $project
-     * @param Deliverable $deliverable
      * @return \Illuminate\Http\JsonResponse
      */
     public function show(Project $project, Deliverable $deliverable)
@@ -175,7 +172,7 @@ class ProjectDeliverableAction extends Controller
 
         // Ensure the deliverable belongs to the project (Route Model Binding usually handles this,
         // but an explicit check adds robustness if the route isn't fully scoped or for custom middleware).
-        if ((int)$deliverable->project_id !== (int)$project->id) {
+        if ((int) $deliverable->project_id !== (int) $project->id) {
             abort(404, 'Deliverable not found in this project.');
         }
 
@@ -183,7 +180,7 @@ class ProjectDeliverableAction extends Controller
             $deliverable->load([
                 'teamMember',
                 'clientInteractions.client', // Load client details for each interaction
-                'comments' => function($q) {
+                'comments' => function ($q) {
                     $q->orderBy('created_at', 'desc');
                 },
                 'comments.creator', // Load creator details for comments (could be client or team member)
@@ -197,6 +194,7 @@ class ProjectDeliverableAction extends Controller
                 'user_id' => Auth::id(),
                 'error_trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to fetch deliverable details.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -204,15 +202,12 @@ class ProjectDeliverableAction extends Controller
     /**
      * Add a comment to a specific deliverable by a team member.
      *
-     * @param Request $request
-     * @param Project $project
-     * @param Deliverable $deliverable
      * @return \Illuminate\Http\JsonResponse
      */
     public function addComment(Request $request, Project $project, Deliverable $deliverable)
     {
         // Ensure the deliverable belongs to the project
-        if ((int)$deliverable->project_id !== (int)$project->id) {
+        if ((int) $deliverable->project_id !== (int) $project->id) {
             abort(404, 'Deliverable not found in this project.');
         }
 
@@ -250,6 +245,7 @@ class ProjectDeliverableAction extends Controller
                 'user_id' => Auth::id(),
                 'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to add comment.', 'error' => $e->getMessage()], 500);
         }
     }

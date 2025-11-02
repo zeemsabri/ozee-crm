@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,6 +12,7 @@ class Lead extends Model
 
     /** @deprecated use App\Enums\LeadStatus::Contacted */
     public const STATUS_OUTREACH_SENT = \App\Enums\LeadStatus::Contacted->value;
+
     /** @deprecated use App\Enums\LeadStatus::GenerationFailed */
     public const STATUS_GENERATION_FAILED = \App\Enums\LeadStatus::GenerationFailed->value;
 
@@ -65,7 +67,7 @@ class Lead extends Model
     ];
 
     protected $appends = [
-        'full_name', 'name'
+        'full_name', 'name',
     ];
 
     // Relationships
@@ -97,21 +99,22 @@ class Lead extends Model
     // Accessors
     public function getFullNameAttribute(): string
     {
-        return trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+        return trim(($this->first_name ?? '').' '.($this->last_name ?? ''));
     }
 
     public function getNameAttribute(): string
     {
-        return trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+        return trim(($this->first_name ?? '').' '.($this->last_name ?? ''));
     }
 
     // Scopes
     public function scopeStatus($query, ?string $status)
     {
         if ($status !== null && $status !== '') {
-            $enum = \App\Enums\LeadStatus::tryFrom($status) ?? \App\Enums\LeadStatus::tryFrom(strtolower((string)$status));
+            $enum = \App\Enums\LeadStatus::tryFrom($status) ?? \App\Enums\LeadStatus::tryFrom(strtolower((string) $status));
             $query->where('status', $enum ? $enum->value : $status);
         }
+
         return $query;
     }
 
@@ -120,14 +123,16 @@ class Lead extends Model
         if ($source !== null && $source !== '') {
             $query->where('source', $source);
         }
+
         return $query;
     }
 
     public function scopeAssignedTo($query, $userId)
     {
-        if (!empty($userId)) {
+        if (! empty($userId)) {
             $query->where('assigned_to_id', $userId);
         }
+
         return $query;
     }
 
@@ -143,6 +148,7 @@ class Lead extends Model
                     ->orWhere('company', 'like', "%{$q}%");
             });
         }
+
         return $query;
     }
 
@@ -170,7 +176,8 @@ class Lead extends Model
         if (empty($ids)) {
             return $query;
         }
-        $ids = is_array($ids) ? array_values(array_unique(array_map('intval', $ids))) : [(int)$ids];
+        $ids = is_array($ids) ? array_values(array_unique(array_map('intval', $ids))) : [(int) $ids];
+
         return $query->where(function ($q) use ($ids) {
             $q->whereIn('campaign_id', $ids);
             foreach ($ids as $cid) {

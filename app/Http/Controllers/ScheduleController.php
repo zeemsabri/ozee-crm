@@ -125,7 +125,7 @@ class ScheduleController extends Controller
             $nowUser = now($userTz);
             if ($startAtUser->lt($nowUser)) {
                 return back()->withErrors([
-                    'start_at' => 'Start at must be in the future based on your timezone (' . $userTz . ').',
+                    'start_at' => 'Start at must be in the future based on your timezone ('.$userTz.').',
                 ])->withInput();
             }
         } catch (\Throwable $e) {
@@ -135,7 +135,7 @@ class ScheduleController extends Controller
         $fqcn = $this->normalizeType($data['scheduled_item_type']);
         // Convert input datetimes from user tz to app tz for storage
         $startAtApp = $this->toAppCarbon($data['start_at'], $userTz);
-        $endAtApp = !empty($data['end_at']) ? $this->toAppCarbon($data['end_at'], $userTz) : null;
+        $endAtApp = ! empty($data['end_at']) ? $this->toAppCarbon($data['end_at'], $userTz) : null;
 
         $recurrence = $this->buildCronFromData($data, $userTz, $startAtApp);
         $isOnetime = ($data['mode'] === 'once');
@@ -186,7 +186,7 @@ class ScheduleController extends Controller
             $nowUser = now($userTz);
             if ($startAtUser->lt($nowUser)) {
                 return back()->withErrors([
-                    'start_at' => 'Start at must be in the future based on your timezone (' . $userTz . ').',
+                    'start_at' => 'Start at must be in the future based on your timezone ('.$userTz.').',
                 ])->withInput();
             }
         } catch (\Throwable $e) {
@@ -195,7 +195,7 @@ class ScheduleController extends Controller
 
         $fqcn = $this->normalizeType($data['scheduled_item_type']);
         $startAtApp = $this->toAppCarbon($data['start_at'], $userTz);
-        $endAtApp = !empty($data['end_at']) ? $this->toAppCarbon($data['end_at'], $userTz) : null;
+        $endAtApp = ! empty($data['end_at']) ? $this->toAppCarbon($data['end_at'], $userTz) : null;
 
         $recurrence = $this->buildCronFromData($data, $userTz, $startAtApp);
         $isOnetime = ($data['mode'] === 'once');
@@ -221,19 +221,22 @@ class ScheduleController extends Controller
     public function destroy(Schedule $schedule): RedirectResponse
     {
         $schedule->delete();
+
         return redirect()->route('schedules.index')->with('success', 'Schedule deleted');
     }
 
     public function toggle(Schedule $schedule): RedirectResponse
     {
-        $schedule->is_active = !$schedule->is_active;
+        $schedule->is_active = ! $schedule->is_active;
         $schedule->save();
-        return redirect()->back()->with('success', 'Schedule ' . ($schedule->is_active ? 'activated' : 'deactivated'));
+
+        return redirect()->back()->with('success', 'Schedule '.($schedule->is_active ? 'activated' : 'deactivated'));
     }
 
     private function normalizeType(string $type): string
     {
         $t = strtolower($type);
+
         return match ($t) {
             'task', 'app\\models\\task' => Task::class,
             'workflow', 'app\\models\\workflow' => Workflow::class,
@@ -249,7 +252,8 @@ class ScheduleController extends Controller
         if ($model instanceof Workflow) {
             return (string) ($model->name ?? ("Workflow #{$model->id}"));
         }
-        return method_exists($model, 'getName') ? (string) $model->getName() : class_basename($model) . ' #' . $model->id;
+
+        return method_exists($model, 'getName') ? (string) $model->getName() : class_basename($model).' #'.$model->id;
     }
 
     private function buildCronFromData(array $data, string $userTz, ?Carbon $startAtApp = null): string
@@ -266,7 +270,7 @@ class ScheduleController extends Controller
         } else {
             // Build a datetime in user's tz and convert to app tz to extract H/M
             [$h, $m] = array_map('intval', explode(':', $time) + [0, 0]);
-            $userDt = Carbon::parse($refDate . ' ' . sprintf('%02d:%02d', $h, $m), $userTz);
+            $userDt = Carbon::parse($refDate.' '.sprintf('%02d:%02d', $h, $m), $userTz);
             $appDt = $userDt->clone()->setTimezone($appTz);
             $hour = (int) $appDt->format('H');
             $minute = (int) $appDt->format('i');
@@ -284,17 +288,21 @@ class ScheduleController extends Controller
                 }
                 sort($dows);
                 $dowStr = implode(',', $dows);
+
                 return sprintf('%d %d * * %s', $minute, $hour, $dowStr);
             case 'monthly':
-                if (!empty($data['day_of_month'])) {
+                if (! empty($data['day_of_month'])) {
                     $dom = (int) $data['day_of_month'];
+
                     return sprintf('%d %d %d * *', $minute, $hour, $dom);
                 }
                 $dow = (int) ($data['dow_for_monthly'] ?? 1);
+
                 return sprintf('%d %d * * %d', $minute, $hour, $dow);
             case 'yearly':
                 $month = (int) ($data['month'] ?? 1);
                 $dom = (int) ($data['day_of_month'] ?? 1);
+
                 return sprintf('%d %d %d %d *', $minute, $hour, $dom, $month);
             case 'cron':
                 return trim($data['cron'] ?? '* * * * *');
@@ -306,26 +314,34 @@ class ScheduleController extends Controller
     private function getUserTimezone(): string
     {
         $user = Auth::user();
-        return $user && !empty($user->timezone) ? $user->timezone : config('app.timezone');
+
+        return $user && ! empty($user->timezone) ? $user->timezone : config('app.timezone');
     }
 
     private function toAppCarbon(string $dateTimeInput, string $userTz): Carbon
     {
         // datetime-local input has no timezone; treat as user timezone then convert to app timezone
         $dt = Carbon::parse($dateTimeInput, $userTz);
+
         return $dt->clone()->setTimezone(config('app.timezone'));
     }
 
     private function toUserString($carbonOrNull, string $userTz): ?string
     {
-        if (!$carbonOrNull) return null;
+        if (! $carbonOrNull) {
+            return null;
+        }
+
         return Carbon::parse($carbonOrNull)->setTimezone($userTz)->toDateTimeString();
     }
 
     private function toUserInputValue($carbonOrNull, string $userTz): ?string
     {
         // Format for datetime-local input: YYYY-MM-DDTHH:MM
-        if (!$carbonOrNull) return null;
+        if (! $carbonOrNull) {
+            return null;
+        }
+
         return Carbon::parse($carbonOrNull)->setTimezone($userTz)->format('Y-m-d\TH:i');
     }
 
@@ -334,12 +350,13 @@ class ScheduleController extends Controller
         // For one-time schedules, prefer the actual start_at in user's timezone
         if ($s->is_onetime) {
             $at = $this->toUserString($s->start_at, $userTz);
-            return $at ? ('Once at ' . $at) : 'Once';
+
+            return $at ? ('Once at '.$at) : 'Once';
         }
 
         $expr = trim((string) $s->recurrence_pattern);
         $parts = preg_split('/\s+/', $expr);
-        if (!$parts || count($parts) < 5) {
+        if (! $parts || count($parts) < 5) {
             return 'Custom schedule';
         }
         [$min, $hour, $dom, $mon, $dow] = array_pad($parts, 5, '*');
@@ -349,37 +366,39 @@ class ScheduleController extends Controller
         if (ctype_digit($hour) && ctype_digit($min)) {
             $appTz = config('app.timezone');
             $refDate = $s->start_at ? Carbon::parse($s->start_at)->setTimezone($userTz)->toDateString() : now($userTz)->toDateString();
-            $appDt = Carbon::parse($refDate . ' ' . sprintf('%02d:%02d:00', (int)$hour, (int)$min), $appTz);
+            $appDt = Carbon::parse($refDate.' '.sprintf('%02d:%02d:00', (int) $hour, (int) $min), $appTz);
             $userDt = $appDt->copy()->setTimezone($userTz);
             $time = $userDt->format('H:i');
         }
 
         // Yearly: m h DOM MON *
         if (ctype_digit($dom) && ctype_digit($mon) && ($dow === '*' || $dow === '?')) {
-            $monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            $monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             $monthIdx = max(1, min(12, (int) $mon));
-            return sprintf('Yearly on %s %d%s', $monthNames[$monthIdx-1], (int) $dom, $time ? ' at ' . $time : '');
+
+            return sprintf('Yearly on %s %d%s', $monthNames[$monthIdx - 1], (int) $dom, $time ? ' at '.$time : '');
         }
 
         // Monthly: m h DOM * *
         if (ctype_digit($dom) && ($mon === '*')) {
-            return sprintf('Monthly on day %d%s', (int) $dom, $time ? ' at ' . $time : '');
+            return sprintf('Monthly on day %d%s', (int) $dom, $time ? ' at '.$time : '');
         }
 
         // Weekly: m h * * DOW[,DOW]
         if ($dow !== '*' && $dom === '*' && $mon === '*') {
-            $names = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            $names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             $days = array_map('intval', explode(',', $dow));
-            $days = array_values(array_filter($days, fn($d) => $d >= 0 && $d <= 6));
-            $label = $days ? implode(', ', array_map(fn($d) => $names[$d], $days)) : '—';
-            return sprintf('Weekly on %s%s', $label, $time ? ' at ' . $time : '');
+            $days = array_values(array_filter($days, fn ($d) => $d >= 0 && $d <= 6));
+            $label = $days ? implode(', ', array_map(fn ($d) => $names[$d], $days)) : '—';
+
+            return sprintf('Weekly on %s%s', $label, $time ? ' at '.$time : '');
         }
 
         // Daily: m h * * *
         if ($dom === '*' && $mon === '*' && $dow === '*') {
-            return $time ? ('Daily at ' . $time) : 'Daily';
+            return $time ? ('Daily at '.$time) : 'Daily';
         }
 
-        return 'Custom cron: ' . $expr;
+        return 'Custom cron: '.$expr;
     }
 }

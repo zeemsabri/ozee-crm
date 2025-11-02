@@ -17,9 +17,13 @@ class BonusProcessorTest extends TestCase
     use RefreshDatabase;
 
     protected $bonusProcessor;
+
     protected $user;
+
     protected $project;
+
     protected $bonusConfig;
+
     protected $penaltyConfig;
 
     /**
@@ -30,7 +34,7 @@ class BonusProcessorTest extends TestCase
         parent::setUp();
 
         // Create the BonusProcessor instance
-        $this->bonusProcessor = new BonusProcessor();
+        $this->bonusProcessor = new BonusProcessor;
 
         // Create a test user
         $this->user = User::factory()->create();

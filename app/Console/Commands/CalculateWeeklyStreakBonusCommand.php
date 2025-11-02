@@ -9,7 +9,6 @@ use App\Models\WeeklyStreak;
 use App\Services\LedgerService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 class CalculateWeeklyStreakBonusCommand extends Command
 {
@@ -27,8 +26,6 @@ class CalculateWeeklyStreakBonusCommand extends Command
      */
     protected $description = 'Calculates and awards the weekly standup streak bonus.';
 
-
-
     /**
      * @var LedgerService
      */
@@ -36,8 +33,6 @@ class CalculateWeeklyStreakBonusCommand extends Command
 
     /**
      * CalculateWeeklyStreakBonusCommand constructor.
-     *
-     * @param LedgerService $ledgerService
      */
     public function __construct(LedgerService $ledgerService)
     {
@@ -53,7 +48,7 @@ class CalculateWeeklyStreakBonusCommand extends Command
         // Get all users who are eligible for points.
         $eligibleUsers = User::all();
 
-        $this->info("Calculating weekly standup streaks for " . count($eligibleUsers) . " users...");
+        $this->info('Calculating weekly standup streaks for '.count($eligibleUsers).' users...');
 
         foreach ($eligibleUsers as $user) {
             $userTimezone = $user->timezone ?? 'Asia/Karachi';
@@ -68,6 +63,7 @@ class CalculateWeeklyStreakBonusCommand extends Command
 
             if ($existingBonus) {
                 $this->info("User ID {$user->id} already received a streak bonus this week. Skipping.");
+
                 continue;
             }
 
@@ -100,6 +96,6 @@ class CalculateWeeklyStreakBonusCommand extends Command
             }
         }
 
-        $this->info("Weekly streak bonus calculation complete.");
+        $this->info('Weekly streak bonus calculation complete.');
     }
 }

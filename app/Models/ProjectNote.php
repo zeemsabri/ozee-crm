@@ -4,27 +4,25 @@ namespace App\Models;
 
 use App\Events\StandupSubmittedEvent;
 use App\Models\Traits\HasUserTimezone;
+use App\Models\Traits\Taggable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
-use App\Models\Traits\Taggable;
 
 class ProjectNote extends Model
 {
-
     protected $casts = [
         'context' => 'array',
     ];
 
     use HasUserTimezone;
+
     /**
      * Create a project note (optionally attached to a noteable) and send to Google Chat automatically.
      *
-     * @param \App\Models\Project $project
-     * @param string $content
-     * @param array $options ['type' => string, 'noteable' => Model|null]
+     * @param  array  $options  ['type' => string, 'noteable' => Model|null]
      * @return static
      */
     public static function createAndNotify(Project $project, string $content, array $options = [])
@@ -52,9 +50,13 @@ class ProjectNote extends Model
             try {
                 $user = Auth::user();
                 $prefix = '📝';
-                if ($type === 'standup') $prefix = '🏃‍♂️';
-                if ($type === 'milestone') $prefix = '📌';
-                $messageText = "$prefix *{$user?->name}*: " . $content;
+                if ($type === 'standup') {
+                    $prefix = '🏃‍♂️';
+                }
+                if ($type === 'milestone') {
+                    $prefix = '📌';
+                }
+                $messageText = "$prefix *{$user?->name}*: ".$content;
                 $chatService = app(\App\Services\GoogleChatService::class);
                 $response = $chatService->sendMessage($project->google_chat_id, $messageText);
                 $createdNote->chat_message_id = $response['name'] ?? null;
@@ -69,13 +71,17 @@ class ProjectNote extends Model
 
         return $createdNote;
     }
+
     use HasFactory, Taggable;
 
     const STANDUP = 'standup';
+
     const KUDOS = 'kudos';
+
     const GENERAL = 'general';
 
     const COMMENT = 'comment';
+
     const TYPES = [
         self::STANDUP,
         self::KUDOS,
@@ -146,10 +152,10 @@ class ProjectNote extends Model
 
     }
 
-        public function project()
-        {
-            return $this->belongsTo(Project::class);
-        }
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
+    }
 
     /**
      * Get the user associated with this note (legacy relationship).
@@ -201,8 +207,7 @@ class ProjectNote extends Model
     {
         try {
             return Crypt::decryptString($value);
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
             return 'UNABLE TO READ';
         }
 

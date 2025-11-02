@@ -3,10 +3,11 @@
 namespace App\Models;
 
 use App\Events\MilestoneApprovedEvent;
+use App\Models\Traits\Taggable;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Traits\Taggable;
+
 /*
 * @property \Illuminate\Support\Carbon|null $approved_at
 * @property \Illuminate\Support\Carbon|null $mark_completed_at
@@ -23,22 +24,31 @@ class Milestone extends Model
 
     /** @deprecated use App\Enums\MilestoneStatus::Pending */
     public const PENDING = \App\Enums\MilestoneStatus::Pending->value;
+
     /** @deprecated use App\Enums\MilestoneStatus::Approved */
     public const APPROVED = \App\Enums\MilestoneStatus::Approved->value;
+
     /** @deprecated use App\Enums\MilestoneStatus::Rejected */
     public const REJECTED = \App\Enums\MilestoneStatus::Rejected->value;
+
     /** @deprecated use App\Enums\MilestoneStatus::Completed */
     public const COMPLETED = \App\Enums\MilestoneStatus::Completed->value;
+
     /** @deprecated use App\Enums\MilestoneStatus::InProgress */
     public const IN_PROGRESS = \App\Enums\MilestoneStatus::InProgress->value;
+
     /** @deprecated use App\Enums\MilestoneStatus::Overdue */
     public const OVERDUE = \App\Enums\MilestoneStatus::Overdue->value;
+
     /** @deprecated use App\Enums\MilestoneStatus::Canceled */
     public const CANCELED = \App\Enums\MilestoneStatus::Canceled->value;
+
     /** @deprecated use App\Enums\MilestoneStatus::Expired */
     public const EXPIRED = \App\Enums\MilestoneStatus::Expired->value;
+
     /** @deprecated use App\Enums\MilestoneStatus::PendingApproval */
     public const PENDING_APPROVAL = \App\Enums\MilestoneStatus::PendingApproval->value;
+
     /** @deprecated use App\Enums\MilestoneStatus::PendingReview */
     public const PENDING_REVIEW = \App\Enums\MilestoneStatus::PendingReview->value;
 
@@ -76,25 +86,21 @@ class Milestone extends Model
         // Dispatch the standup event after the note has been created so it has a persisted ID
         static::updated(function (Milestone $milestone) {
             if ($milestone->status === \App\Enums\MilestoneStatus::Approved) {
-                MilestoneApprovedEvent::dispatch($milestone); //This will reward points to each user in milestone
+                MilestoneApprovedEvent::dispatch($milestone); // This will reward points to each user in milestone
             }
         });
     }
 
     /**
      * Get the due date for the milestone.
-     *
-     * @return Null|Carbon
      */
-    public function getDueDateAttribute(): Null|Carbon
+    public function getDueDateAttribute(): ?Carbon
     {
         return $this->completion_date;
     }
 
     /**
      * Get the submitted at timestamp for the milestone.
-     *
-     * @return Carbon|null
      */
     public function getSubmittedAtAttribute(): ?Carbon
     {
@@ -103,8 +109,6 @@ class Milestone extends Model
 
     /**
      * Get the finalized at timestamp for the milestone.
-     *
-     * @return Carbon|null
      */
     public function getFinalizedAtAttribute(): ?Carbon
     {
@@ -145,7 +149,7 @@ class Milestone extends Model
     public function isOverdue()
     {
         return $this->status === \App\Enums\MilestoneStatus::Overdue ||
-               ($this->completion_date && $this->completion_date->isPast() && !$this->isCompleted());
+               ($this->completion_date && $this->completion_date->isPast() && ! $this->isCompleted());
     }
 
     /**

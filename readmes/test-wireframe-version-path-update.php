@@ -12,7 +12,7 @@ $endpoint = "{$baseUrl}/projects/{$projectId}/wireframes/{$wireframeId}/versions
 
 // Prepare the payload
 $payload = [
-    'name' => 'Draft'
+    'name' => 'Draft',
 ];
 
 // Make the PUT request
@@ -22,7 +22,7 @@ curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($payload));
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'Content-Type: application/x-www-form-urlencoded',
-    'Accept: application/json'
+    'Accept: application/json',
 ]);
 
 // Add authentication if needed
@@ -33,9 +33,9 @@ $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
 // Output the results
-echo "HTTP Status Code: " . $httpCode . "\n";
+echo 'HTTP Status Code: '.$httpCode."\n";
 echo "Response:\n";
-echo json_encode(json_decode($response), JSON_PRETTY_PRINT) . "\n";
+echo json_encode(json_decode($response), JSON_PRETTY_PRINT)."\n";
 
 // Verify the response
 $responseData = json_decode($response, true);

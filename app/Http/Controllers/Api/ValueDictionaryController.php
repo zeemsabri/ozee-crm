@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\ValueDictionaryRegistry;
-use Illuminate\Http\Request;
 
 class ValueDictionaryController extends Controller
 {
@@ -16,9 +15,10 @@ class ValueDictionaryController extends Controller
     public function show(string $model, string $field, ValueDictionaryRegistry $registry)
     {
         $data = $registry->for($model, $field);
-        if (!$data) {
+        if (! $data) {
             return response()->json([], 404);
         }
+
         return response()->json($data);
     }
 }

@@ -35,7 +35,7 @@ class PublicLeadIntakeController extends Controller
 
         // Map incoming payload to Lead columns
         $email = $validated['email'];
-        $fullName = trim((string)($validated['name'] ?? ''));
+        $fullName = trim((string) ($validated['name'] ?? ''));
         $firstName = '';
         $lastName = '';
         if ($fullName !== '') {
@@ -54,20 +54,20 @@ class PublicLeadIntakeController extends Controller
 
         $knownUpdates = array_filter([
             'first_name' => $firstName ?: ($lead->first_name ?? null),
-            'last_name'  => $lastName ?: ($lead->last_name ?? null),
-            'email'      => $email,
-            'phone'      => $validated['phone'] ?? ($lead->phone ?? null),
-            'company'    => $validated['company_name'] ?? ($lead->company ?? null),
-            'address'    => $validated['address'] ?? ($lead->address ?? null),
-            'notes'      => $validated['message'] ?? ($lead->notes ?? null),
-            'source'     => 'public_presenter',
-            'status'     => Presentation::QUALIFIED
-        ], fn($v) => $v !== null && $v !== '');
+            'last_name' => $lastName ?: ($lead->last_name ?? null),
+            'email' => $email,
+            'phone' => $validated['phone'] ?? ($lead->phone ?? null),
+            'company' => $validated['company_name'] ?? ($lead->company ?? null),
+            'address' => $validated['address'] ?? ($lead->address ?? null),
+            'notes' => $validated['message'] ?? ($lead->notes ?? null),
+            'source' => 'public_presenter',
+            'status' => Presentation::QUALIFIED,
+        ], fn ($v) => $v !== null && $v !== '');
 
         // Build metadata from extra keys not mapped
-        $reserved = ['name','email','phone','company_name','address','message'];
+        $reserved = ['name', 'email', 'phone', 'company_name', 'address', 'message'];
         $extras = collect($data)
-            ->filter(fn($v, $k) => !in_array($k, $reserved, true))
+            ->filter(fn ($v, $k) => ! in_array($k, $reserved, true))
             ->all();
 
         if ($lead) {

@@ -35,7 +35,7 @@ class Role extends Model
     /**
      * Check if the role has a specific permission.
      *
-     * @param string $permissionSlug
+     * @param  string  $permissionSlug
      * @return bool
      */
     public function hasPermission($permissionSlug)
@@ -46,7 +46,7 @@ class Role extends Model
     /**
      * Assign a permission to the role.
      *
-     * @param Permission|int $permission
+     * @param  Permission|int  $permission
      * @return void
      */
     public function assignPermission($permission)
@@ -61,7 +61,7 @@ class Role extends Model
     /**
      * Remove a permission from the role.
      *
-     * @param Permission|int $permission
+     * @param  Permission|int  $permission
      * @return void
      */
     public function removePermission($permission)

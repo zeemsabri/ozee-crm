@@ -1,18 +1,18 @@
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use App\Models\Role;
+use App\Models\User;
 
 echo "Testing User Index Vue fix...\n";
 
 // Get a user
 $user = User::first();
-if (!$user) {
+if (! $user) {
     echo "No users found in the database\n";
     exit;
 }
@@ -23,24 +23,24 @@ echo "User found: {$user->name}\n";
 echo "Testing role attributes...\n";
 
 // Check if role is accessible
-echo "role attribute: " . (isset($user->role) ? "exists" : "does not exist") . "\n";
+echo 'role attribute: '.(isset($user->role) ? 'exists' : 'does not exist')."\n";
 if (isset($user->role)) {
-    echo "role value: " . (is_string($user->role) ? $user->role : "not a string") . "\n";
+    echo 'role value: '.(is_string($user->role) ? $user->role : 'not a string')."\n";
 }
 
 // Check role_data attribute
-echo "role_data attribute: " . (isset($user->role_data) ? "exists" : "does not exist") . "\n";
+echo 'role_data attribute: '.(isset($user->role_data) ? 'exists' : 'does not exist')."\n";
 if (isset($user->role_data)) {
-    echo "role_data is " . (is_array($user->role_data) ? "an array" : "not an array") . "\n";
+    echo 'role_data is '.(is_array($user->role_data) ? 'an array' : 'not an array')."\n";
     if (is_array($user->role_data)) {
         echo "role_data values: id={$user->role_data['id']}, name={$user->role_data['name']}, slug={$user->role_data['slug']}\n";
     }
 }
 
 // Check appRole attribute
-echo "appRole attribute: " . (isset($user->appRole) ? "exists" : "does not exist") . "\n";
+echo 'appRole attribute: '.(isset($user->appRole) ? 'exists' : 'does not exist')."\n";
 if (isset($user->appRole)) {
-    echo "appRole value: " . $user->appRole . "\n";
+    echo 'appRole value: '.$user->appRole."\n";
 }
 
 // Test role relationship
@@ -78,8 +78,8 @@ $isEmployee = isset($user->role) && is_string($user->role) &&
     (str_replace('-', '_', $user->role) === 'employee');
 $isContractor = isset($user->role) && is_string($user->role) &&
     (str_replace('-', '_', $user->role) === 'contractor');
-echo "Is employee (from role string): " . ($isEmployee ? "true" : "false") . "\n";
-echo "Is contractor (from role string): " . ($isContractor ? "true" : "false") . "\n";
+echo 'Is employee (from role string): '.($isEmployee ? 'true' : 'false')."\n";
+echo 'Is contractor (from role string): '.($isContractor ? 'true' : 'false')."\n";
 
 // Test the fix for userToDelete.role in the delete confirmation
 echo "Testing fix for userToDelete.role in the delete confirmation...\n";

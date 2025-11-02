@@ -45,14 +45,14 @@ class StoreProjectRequest extends FormRequest
             'project_type' => 'nullable|string|max:255',
             'source' => 'nullable|string|max:255',
             'google_drive_link' => 'nullable|url',
-//            'payment_type' => 'required|in:one_off,monthly',
+            //            'payment_type' => 'required|in:one_off,monthly',
             'user_ids' => 'nullable|array',
             'user_ids.*.id' => 'nullable|exists:users,id',
             'user_ids.*.role_id' => 'nullable|exists:roles,id',
         ];
 
         // Add file validation rules only for non-JSON requests
-        if (!$isJsonRequest) {
+        if (! $isJsonRequest) {
             $rules['logo'] = 'nullable|image|max:2048';
             $rules['documents.*'] = 'nullable|file|mimes:pdf,doc,docx,jpg,png|max:10240';
         }
@@ -66,7 +66,7 @@ class StoreProjectRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         // Handle FormData with JSON strings for arrays and objects
-        if (!$this->isJson() && ($this->header('Content-Type') === 'multipart/form-data' || $this->hasFile('logo') || $this->hasFile('documents'))) {
+        if (! $this->isJson() && ($this->header('Content-Type') === 'multipart/form-data' || $this->hasFile('logo') || $this->hasFile('documents'))) {
             // Parse JSON strings in FormData for array/object fields
             $fields = ['services', 'service_details', 'transactions', 'notes'];
             foreach ($fields as $field) {

@@ -18,7 +18,7 @@ enum LeadStatus: string
     case SequenceCompleted = 'sequence_completed';
     case Converted = 'converted';
 
-    case Lost   = 'lost';
+    case Lost = 'lost';
 
     case QUALIFIED = 'qualified';
 

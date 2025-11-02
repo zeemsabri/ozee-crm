@@ -24,6 +24,7 @@ class AIGenerationService
                     return '';
                 }
             }
+
             return is_scalar($val) ? (string) $val : json_encode($val);
         }, $text);
     }
@@ -34,18 +35,18 @@ class AIGenerationService
     public function generate(Prompt $prompt, array $variables): array
     {
         $apiKey = config('services.gemini.key');
-        if (!$apiKey) {
+        if (! $apiKey) {
             throw new \RuntimeException('Gemini API key is not configured.');
         }
 
         $model = $prompt->model_name ?: config('services.gemini.model', 'gemini-2.5-flash-preview-05-20');
         $system = $this->renderTemplate($prompt->system_prompt_text ?? '', $variables);
 
-        $system = $system . ' ' . json_encode($prompt->response_json_template);
+        $system = $system.' '.json_encode($prompt->response_json_template);
 
         // Build payload
         $generationConfig = is_array($prompt->generation_config) ? $prompt->generation_config : [];
-        if (!isset($generationConfig['responseMimeType'])) {
+        if (! isset($generationConfig['responseMimeType'])) {
             // Favor JSON so downstream parsing works in workflows
             $generationConfig['responseMimeType'] = 'application/json';
         }
@@ -65,14 +66,14 @@ class AIGenerationService
             'generationConfig' => $generationConfig,
         ];
 
-//        Log::info(json_encode($payload));
+        //        Log::info(json_encode($payload));
 
         $url = sprintf('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s', $model, $apiKey);
 
         $response = Http::post($url, $payload);
 
         if ($response->failed()) {
-            throw new \RuntimeException('Failed to communicate with Gemini API. Status: ' . $response->status() . ' Body: ' . $response->body());
+            throw new \RuntimeException('Failed to communicate with Gemini API. Status: '.$response->status().' Body: '.$response->body());
         }
 
         $text = $response->json('candidates.0.content.parts.0.text', '');
@@ -85,7 +86,7 @@ class AIGenerationService
         }
 
         $usage = $response->json('usageMetadata');
-        if (!is_array($usage)) {
+        if (! is_array($usage)) {
             $usage = [
                 'promptTokenCount' => null,
                 'candidatesTokenCount' => null,

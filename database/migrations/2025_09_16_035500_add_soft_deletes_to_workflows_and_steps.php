@@ -9,13 +9,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('workflows', function (Blueprint $table) {
-            if (!Schema::hasColumn('workflows', 'deleted_at')) {
+            if (! Schema::hasColumn('workflows', 'deleted_at')) {
                 $table->softDeletes();
             }
         });
 
         Schema::table('workflow_steps', function (Blueprint $table) {
-            if (!Schema::hasColumn('workflow_steps', 'deleted_at')) {
+            if (! Schema::hasColumn('workflow_steps', 'deleted_at')) {
                 $table->softDeletes();
             }
         });

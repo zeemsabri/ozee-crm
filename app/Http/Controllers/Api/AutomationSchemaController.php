@@ -7,10 +7,10 @@ use App\Models\Campaign;
 use App\Models\Client;
 use App\Models\Lead;
 use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema; // Ensure this is imported
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Http\Request; // Ensure this is imported
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AutomationSchemaController extends Controller
 {
@@ -29,7 +29,7 @@ class AutomationSchemaController extends Controller
             \App\Models\CategorySet::class,
             Campaign::class,
             Lead::class,
-//            User::class
+            //            User::class
         ];
 
         $allModelEvents = $this->getModelEvents();
@@ -37,9 +37,11 @@ class AutomationSchemaController extends Controller
         // Helper to build one model schema array
         $buildModel = function (string $modelClass) use ($allModelEvents, $request) {
 
-            if (!class_exists($modelClass)) return null;
+            if (! class_exists($modelClass)) {
+                return null;
+            }
             try {
-                $instance = new $modelClass();
+                $instance = new $modelClass;
                 $modelName = class_basename($instance);
                 $columns = Schema::getColumnListing($instance->getTable());
                 $relationships = $this->discoverRelationships($instance);
@@ -48,8 +50,14 @@ class AutomationSchemaController extends Controller
 
                 if (is_subclass_of($modelClass, \App\Contracts\CreatableViaWorkflow::class)) {
                     $ctx = $request->input('context', []);
-                    try { $required = $modelClass::requiredOnCreate(); } catch (\Throwable $e) {}
-                    try { $defaults = $modelClass::defaultsOnCreate($ctx); } catch (\Throwable $e) {}
+                    try {
+                        $required = $modelClass::requiredOnCreate();
+                    } catch (\Throwable $e) {
+                    }
+                    try {
+                        $defaults = $modelClass::defaultsOnCreate($ctx);
+                    } catch (\Throwable $e) {
+                    }
                 }
                 // Optional, model-provided field metadata for friendly labels/descriptions/UI hints
                 $fieldMeta = [];
@@ -57,12 +65,13 @@ class AutomationSchemaController extends Controller
                     if (method_exists($modelClass, 'fieldMetaForWorkflow')) {
                         $fieldMeta = $modelClass::fieldMetaForWorkflow();
                     }
-                } catch (\Throwable $e) { /* no-op */ }
+                } catch (\Throwable $e) { /* no-op */
+                }
 
                 // Build quick lookup of MorphTo relations to enable *_type dropdowns
                 $morphRelations = [];
                 foreach (($relationships ?? []) as $rel) {
-                    if (($rel['type'] ?? null) === 'MorphTo' && !empty($rel['name'])) {
+                    if (($rel['type'] ?? null) === 'MorphTo' && ! empty($rel['name'])) {
                         $morphRelations[$rel['name']] = true;
                     }
                 }
@@ -75,7 +84,7 @@ class AutomationSchemaController extends Controller
                     $label = $this->prettifyLabel($col);
                     $description = null;
                     $ui = null;
-                    if (!empty($fieldMeta[$col])) {
+                    if (! empty($fieldMeta[$col])) {
                         $label = $fieldMeta[$col]['label'] ?? $label;
                         $description = $fieldMeta[$col]['description'] ?? null;
                         $ui = $fieldMeta[$col]['ui'] ?? null;
@@ -87,24 +96,24 @@ class AutomationSchemaController extends Controller
                         if (isset($morphRelations[$base])) {
                             $morphMap = Relation::morphMap() ?: [];
                             $options = [];
-                            if (!empty($morphMap)) {
+                            if (! empty($morphMap)) {
                                 foreach ($morphMap as $alias => $class) {
-                                    $options[] = [ 'value' => $alias, 'label' => class_basename($class) ];
+                                    $options[] = ['value' => $alias, 'label' => class_basename($class)];
                                 }
                             } else {
                                 // Fallback to seed models exposed in schema
                                 $known = [\App\Models\Task::class, \App\Models\Project::class, \App\Models\Email::class, Client::class, Lead::class, User::class, User::class];
                                 foreach ($known as $class) {
                                     if (class_exists($class)) {
-                                        $options[] = [ 'value' => $class, 'label' => class_basename($class) ];
+                                        $options[] = ['value' => $class, 'label' => class_basename($class)];
                                     }
                                 }
                             }
-                            if (!empty($options)) {
+                            if (! empty($options)) {
                                 $allowed = $options;
                                 $type = 'enum';
                                 $ui = $ui ?: 'morph_type';
-                                if (!$description) {
+                                if (! $description) {
                                     $description = 'Select the type of item (e.g., Task, Project, Email).';
                                 }
                             }
@@ -121,6 +130,7 @@ class AutomationSchemaController extends Controller
                         'ui' => $ui,
                     ];
                 }, $columns);
+
                 return [
                     'name' => $modelName,
                     'full_class' => $modelClass,
@@ -138,19 +148,27 @@ class AutomationSchemaController extends Controller
         // BFS over relationships to include related models
         $queue = [];
         $seenClasses = [];
-        foreach ($seedModels as $m) { if (class_exists($m)) { $queue[] = $m; $seenClasses[$m] = true; } }
+        foreach ($seedModels as $m) {
+            if (class_exists($m)) {
+                $queue[] = $m;
+                $seenClasses[$m] = true;
+            }
+        }
         $modelsByName = [];
-        $iterations = 0; $max = 99; // safety guard
-        while (!empty($queue) && $iterations < $max) {
+        $iterations = 0;
+        $max = 99; // safety guard
+        while (! empty($queue) && $iterations < $max) {
             $iterations++;
             $class = array_shift($queue);
             $schema = $buildModel($class);
-            if (!$schema) continue;
+            if (! $schema) {
+                continue;
+            }
             $modelsByName[$schema['name']] = $schema;
             // Enqueue related model classes for discovery
             foreach (($schema['relationships'] ?? []) as $rel) {
                 $relatedClass = $rel['full_class'] ?? null;
-                if (is_string($relatedClass) && class_exists($relatedClass) && !isset($seenClasses[$relatedClass])) {
+                if (is_string($relatedClass) && class_exists($relatedClass) && ! isset($seenClasses[$relatedClass])) {
                     $seenClasses[$relatedClass] = true;
                     $queue[] = $relatedClass;
                 }
@@ -159,7 +177,7 @@ class AutomationSchemaController extends Controller
 
         // Sort models alphabetically by name for UI consistency
         $modelsData = array_values($modelsByName);
-        usort($modelsData, fn($a, $b) => strcmp($a['name'], $b['name']));
+        usort($modelsData, fn ($a, $b) => strcmp($a['name'], $b['name']));
 
         // Also expose campaigns (id/name) for AI context selector, when present on the frontend
         $campaigns = [];
@@ -202,11 +220,11 @@ class AutomationSchemaController extends Controller
                 ['value' => 'created', 'label' => 'is created'],
                 ['value' => 'updated', 'label' => 'is updated'],
             ],
-            'User'  =>  [
+            'User' => [
                 ['value' => 'received', 'label' => 'is received'],
                 ['value' => 'created', 'label' => 'is created'],
                 ['value' => 'updated', 'label' => 'is updated'],
-            ]
+            ],
         ];
     }
 
@@ -219,17 +237,35 @@ class AutomationSchemaController extends Controller
         $casts = method_exists($modelInstance, 'getCasts') ? $modelInstance->getCasts() : [];
         $cast = $casts[$column] ?? null;
         $castStr = is_string($cast) ? strtolower($cast) : '';
-        if (str_contains($castStr, 'bool')) return 'True/False';
-        if (str_contains($castStr, 'int') || str_contains($castStr, 'decimal') || str_contains($castStr, 'float')) return 'Number';
-        if ($castStr === 'array' || $castStr === 'json' || $castStr === 'collection') return 'Array';
-        if (str_contains($castStr, 'datetime')) return 'DateTime';
-        if ($castStr === 'date') return 'Date';
+        if (str_contains($castStr, 'bool')) {
+            return 'True/False';
+        }
+        if (str_contains($castStr, 'int') || str_contains($castStr, 'decimal') || str_contains($castStr, 'float')) {
+            return 'Number';
+        }
+        if ($castStr === 'array' || $castStr === 'json' || $castStr === 'collection') {
+            return 'Array';
+        }
+        if (str_contains($castStr, 'datetime')) {
+            return 'DateTime';
+        }
+        if ($castStr === 'date') {
+            return 'Date';
+        }
 
         // Heuristics by column name
-        if ($column === 'id' || str_ends_with($column, '_id')) return 'Number';
-        if (str_starts_with($column, 'is_')) return 'True/False';
-        if (str_ends_with($column, '_at')) return 'DateTime';
-        if (str_ends_with($column, '_date')) return 'Date';
+        if ($column === 'id' || str_ends_with($column, '_id')) {
+            return 'Number';
+        }
+        if (str_starts_with($column, 'is_')) {
+            return 'True/False';
+        }
+        if (str_ends_with($column, '_at')) {
+            return 'DateTime';
+        }
+        if (str_ends_with($column, '_date')) {
+            return 'Date';
+        }
 
         return 'Text';
     }
@@ -243,7 +279,9 @@ class AutomationSchemaController extends Controller
     {
 
         $def = config("value_sets.models.$modelName.$field");
-        if (!$def || !is_array($def)) return null;
+        if (! $def || ! is_array($def)) {
+            return null;
+        }
 
         $source = $def['source'] ?? null;
 
@@ -257,6 +295,7 @@ class AutomationSchemaController extends Controller
                     $label = ucwords(str_replace(['_', '-'], ' ', (string) $case->name));
                     $options[] = ['value' => $value, 'label' => $label];
                 }
+
                 return $options;
             }
         }
@@ -273,7 +312,8 @@ class AutomationSchemaController extends Controller
                     $query->where($activeCol, true);
                 }
                 $rows = $query->orderBy($labelCol)->get();
-                return $rows->map(fn($r) => [
+
+                return $rows->map(fn ($r) => [
                     'value' => (string) $r->{$valueCol},
                     'label' => (string) $r->{$labelCol},
                 ])->all();
@@ -294,7 +334,8 @@ class AutomationSchemaController extends Controller
                     $query->where($activeCol, true);
                 }
                 $rows = $query->orderBy($labelCol)->get();
-                return $rows->map(fn($r) => [
+
+                return $rows->map(fn ($r) => [
                     'value' => (string) $r->{$valueCol},
                     'label' => (string) $r->{$labelCol},
                 ])->all();
@@ -314,10 +355,18 @@ class AutomationSchemaController extends Controller
     {
         $lower = strtolower($column);
         // Common special cases
-        if ($lower === 'id') return 'ID';
-        if ($lower === 'created_at') return 'Created At';
-        if ($lower === 'updated_at') return 'Updated At';
-        if ($lower === 'deleted_at') return 'Deleted At';
+        if ($lower === 'id') {
+            return 'ID';
+        }
+        if ($lower === 'created_at') {
+            return 'Created At';
+        }
+        if ($lower === 'updated_at') {
+            return 'Updated At';
+        }
+        if ($lower === 'deleted_at') {
+            return 'Deleted At';
+        }
 
         // Strip trailing _id to show the related entity name
         if (str_ends_with($lower, '_id')) {
@@ -328,7 +377,7 @@ class AutomationSchemaController extends Controller
         $spaced = str_replace(['_', '-'], ' ', $lower);
         // Handle boolean style prefixes like is_*, has_*
         $spaced = preg_replace_callback('/\b(is|has|was|can)\b\s+/i', function ($m) {
-            return ucfirst(strtolower($m[1])) . ' ';
+            return ucfirst(strtolower($m[1])).' ';
         }, $spaced);
 
         // Title case
@@ -352,13 +401,23 @@ class AutomationSchemaController extends Controller
             $className = get_class($modelInstance);
             foreach ($ref->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
                 // Only consider methods declared on the concrete model class, with no parameters
-                if ($method->class !== $className) continue;
-                if ($method->isStatic()) continue;
-                if ($method->getNumberOfParameters() > 0) continue;
+                if ($method->class !== $className) {
+                    continue;
+                }
+                if ($method->isStatic()) {
+                    continue;
+                }
+                if ($method->getNumberOfParameters() > 0) {
+                    continue;
+                }
                 $name = $method->getName();
                 // Skip common non-relationship accessors/mutators/scopes
-                if (str_starts_with($name, 'get') || str_starts_with($name, 'set') || str_starts_with($name, 'scope')) continue;
-                if (in_array($name, ['newQuery', 'newModelQuery', 'newEloquentBuilder', 'newCollection', 'getTable'], true)) continue;
+                if (str_starts_with($name, 'get') || str_starts_with($name, 'set') || str_starts_with($name, 'scope')) {
+                    continue;
+                }
+                if (in_array($name, ['newQuery', 'newModelQuery', 'newEloquentBuilder', 'newCollection', 'getTable'], true)) {
+                    continue;
+                }
                 try {
                     $result = $modelInstance->{$name}();
                     if ($result instanceof Relation) {
@@ -379,14 +438,16 @@ class AutomationSchemaController extends Controller
             // If reflection fails, just return empty
         }
         // Sort by name for consistency
-        usort($relationships, fn($a, $b) => strcmp($a['name'], $b['name']));
+        usort($relationships, fn ($a, $b) => strcmp($a['name'], $b['name']));
+
         return $relationships;
     }
+
     private function getTransformOptions(): array
     {
         return [
-            [ 'value' => 'remove_after_marker', 'label' => 'Remove content after a marker' ],
-            [ 'value' => 'find_and_replace', 'label' => 'Find and replace text' ],
+            ['value' => 'remove_after_marker', 'label' => 'Remove content after a marker'],
+            ['value' => 'find_and_replace', 'label' => 'Find and replace text'],
         ];
     }
 
@@ -394,7 +455,7 @@ class AutomationSchemaController extends Controller
     {
         $map = Relation::morphMap() ?: [];
         $out = [];
-        if (!empty($map)) {
+        if (! empty($map)) {
             foreach ($map as $alias => $class) {
                 $out[] = [
                     'alias' => $alias,
@@ -402,6 +463,7 @@ class AutomationSchemaController extends Controller
                     'label' => class_basename($class),
                 ];
             }
+
             return $out;
         }
         // Fallback when no global morph map is configured: suggest common models present in the app
@@ -423,6 +485,7 @@ class AutomationSchemaController extends Controller
                 ];
             }
         }
+
         return $out;
     }
 }

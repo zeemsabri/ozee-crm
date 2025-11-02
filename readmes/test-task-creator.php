@@ -1,8 +1,8 @@
 <?php
 
+use App\Models\Client;
 use App\Models\Task;
 use App\Models\User;
-use App\Models\Client;
 
 // Test script to verify the polymorphic creator relationship for Task model
 
@@ -28,10 +28,10 @@ if ($user) {
 
     // Verify the creator was set correctly
     echo "Task created by User:\n";
-    echo "Task ID: " . $task->id . "\n";
-    echo "Creator ID: " . $task->creator_id . "\n";
-    echo "Creator Type: " . $task->creator_type . "\n";
-    echo "Creator Name: " . $task->getCreatorName() . "\n\n";
+    echo 'Task ID: '.$task->id."\n";
+    echo 'Creator ID: '.$task->creator_id."\n";
+    echo 'Creator Type: '.$task->creator_type."\n";
+    echo 'Creator Name: '.$task->getCreatorName()."\n\n";
 
     // Logout
     auth()->logout();
@@ -63,13 +63,13 @@ if ($client) {
 
     // Verify the creator was set correctly
     echo "Task created by Client:\n";
-    echo "Task ID: " . $task->id . "\n";
-    echo "Creator ID: " . $task->creator_id . "\n";
-    echo "Creator Type: " . $task->creator_type . "\n";
+    echo 'Task ID: '.$task->id."\n";
+    echo 'Creator ID: '.$task->creator_id."\n";
+    echo 'Creator Type: '.$task->creator_type."\n";
 
     // Load the creator relationship
     $task->load('creator');
-    echo "Creator Name: " . $task->getCreatorName() . "\n\n";
+    echo 'Creator Name: '.$task->getCreatorName()."\n\n";
 } else {
     echo "No clients found in the database.\n\n";
 }
@@ -78,14 +78,14 @@ if ($client) {
 echo "Tasks created by Users:\n";
 $userTasks = Task::where('creator_type', User::class)->get();
 foreach ($userTasks as $task) {
-    echo "- Task ID: " . $task->id . ", Name: " . $task->name . ", Creator: " . $task->getCreatorName() . "\n";
+    echo '- Task ID: '.$task->id.', Name: '.$task->name.', Creator: '.$task->getCreatorName()."\n";
 }
 echo "\n";
 
 echo "Tasks created by Clients:\n";
 $clientTasks = Task::where('creator_type', Client::class)->get();
 foreach ($clientTasks as $task) {
-    echo "- Task ID: " . $task->id . ", Name: " . $task->name . ", Creator: " . $task->getCreatorName() . "\n";
+    echo '- Task ID: '.$task->id.', Name: '.$task->name.', Creator: '.$task->getCreatorName()."\n";
 }
 echo "\n";
 

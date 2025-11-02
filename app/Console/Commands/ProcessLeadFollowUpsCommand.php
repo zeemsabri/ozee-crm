@@ -44,6 +44,7 @@ class ProcessLeadFollowUpsCommand extends Command
 
         if ($leadsToFollowUp->isEmpty()) {
             $this->info('No leads are due for a follow-up today.');
+
             return;
         }
 

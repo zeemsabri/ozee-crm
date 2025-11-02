@@ -5,18 +5,20 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class ProjectExpendable extends Model
 {
-    use HasFactory, SoftDeletes, LogsActivity;
+    use HasFactory, LogsActivity, SoftDeletes;
 
     // Approval status constants (kept as aliases for backward compatibility)
     /** @deprecated use App\Enums\ProjectExpendableStatus::PendingApproval */
     public const STATUS_PENDING = \App\Enums\ProjectExpendableStatus::PendingApproval->value;
+
     /** @deprecated use App\Enums\ProjectExpendableStatus::Accepted */
     public const STATUS_ACCEPTED = \App\Enums\ProjectExpendableStatus::Accepted->value;
+
     /** @deprecated use App\Enums\ProjectExpendableStatus::Rejected */
     public const STATUS_REJECTED = \App\Enums\ProjectExpendableStatus::Rejected->value;
 
@@ -73,7 +75,7 @@ class ProjectExpendable extends Model
     }
 
     // Actions
-    public function accept(string $reason, User $causer = null): void
+    public function accept(string $reason, ?User $causer = null): void
     {
         $this->status = \App\Enums\ProjectExpendableStatus::Accepted;
         $this->save();
@@ -86,7 +88,7 @@ class ProjectExpendable extends Model
             ->log("Expendable '{$this->name}' accepted");
     }
 
-    public function reject(string $reason, User $causer = null): void
+    public function reject(string $reason, ?User $causer = null): void
     {
         $this->status = \App\Enums\ProjectExpendableStatus::Rejected;
         $this->save();
@@ -98,6 +100,4 @@ class ProjectExpendable extends Model
             ->event('expendable.rejected')
             ->log("Expendable '{$this->name}' rejected");
     }
-
-
 }

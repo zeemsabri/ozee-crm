@@ -2,22 +2,23 @@
 
 use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\EmailController;
+use App\Http\Controllers\Api\MagicLinkController;
 use App\Http\Controllers\Api\ShareableResourceCopyController;
 use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\EmailPreviewController;
 use App\Http\Controllers\EmailReceiveController;
 use App\Http\Controllers\EmailTrackingController;
+use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\GoogleUserAuthController;
+use App\Http\Controllers\NoticeBoardController;
 use App\Http\Controllers\ProfileController;
-use App\Models\Project;
-use Illuminate\Foundation\Application;
+use App\Http\Controllers\ScheduleController;
+use App\Models\Project; // Import our Google Auth controller (for web routes)
+use Illuminate\Foundation\Application; // Import for magic link functionality
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use App\Http\Controllers\GoogleAuthController; // Import our Google Auth controller (for web routes)
-use App\Http\Controllers\Api\MagicLinkController; // Import for magic link functionality
-use App\Http\Controllers\GoogleUserAuthController;
-use App\Http\Controllers\NoticeBoardController;
-use App\Http\Controllers\ScheduleController;
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -30,58 +31,58 @@ use App\Http\Controllers\ScheduleController;
 */
 $sourceOptions = [
     [
-        'label'  =>  'UpWork',
-        'value' =>  'UpWork'
+        'label' => 'UpWork',
+        'value' => 'UpWork',
     ],
     [
-        'label'  =>  'AirTasker',
-        'value' =>  'AirTasker'
+        'label' => 'AirTasker',
+        'value' => 'AirTasker',
     ],
     [
-        'label'  =>  'Direct',
-        'value' =>  'Direct'
+        'label' => 'Direct',
+        'value' => 'Direct',
     ],
     [
-        'label'  =>  'Agency',
-        'value' =>  'Agency'
+        'label' => 'Agency',
+        'value' => 'Agency',
     ],
     [
-        'label'  =>  'Reference',
-        'value' =>  'Reference'
+        'label' => 'Reference',
+        'value' => 'Reference',
     ],
     [
-        'label'  =>  'Wix Marketplace',
-        'value' =>  'Wix Marketplace'
+        'label' => 'Wix Marketplace',
+        'value' => 'Wix Marketplace',
     ],
     [
-        'label'  =>  'Fiver',
-        'value' =>  'Fiver'
+        'label' => 'Fiver',
+        'value' => 'Fiver',
     ],
     [
-        'label'  =>  'Social Media',
-        'value' =>  'Social Media'
+        'label' => 'Social Media',
+        'value' => 'Social Media',
     ],
     [
-        'label'  =>  'Advertising',
-        'value' =>  'Advertising'
+        'label' => 'Advertising',
+        'value' => 'Advertising',
     ],
     [
-        'label'  =>  'Website',
-        'value' =>  'Website'
+        'label' => 'Website',
+        'value' => 'Website',
     ],
     [
-        'label'  =>  'Other',
-        'value' =>  'Other'
-    ]
+        'label' => 'Other',
+        'value' => 'Other',
+    ],
 ];
 // Default welcome page or client dashboard if token is present
 Route::get('/', function (Request $request) {
-//    // Check if token parameter is present in the URL
-//    $token = $request->query('token');
-//    if ($token) {
-//        // If token is present, serve the client dashboard view with the token
-//        return view('client_dashboard', ['token' => $token]);
-//    }
+    //    // Check if token parameter is present in the URL
+    //    $token = $request->query('token');
+    //    if ($token) {
+    //        // If token is present, serve the client dashboard view with the token
+    //        return view('client_dashboard', ['token' => $token]);
+    //    }
 
     // Otherwise, serve the default welcome page
     return Inertia::render('Welcome', [
@@ -92,11 +93,11 @@ Route::get('/', function (Request $request) {
     ]);
 });
 
-//Route::get('/wireframe', function () {
+// Route::get('/wireframe', function () {
 //    return Inertia::render('Wireframe', [
 //        'message' => 'An unexpected error occurred.'
 //    ]);
-//})->name('wireframe');
+// })->name('wireframe');
 
 // Public route for handling the magic link (this is the new client dashboard route)
 // This route will render the ClientDashboard.vue component
@@ -107,7 +108,7 @@ Route::get('/client/dashboard/{token}', [MagicLinkController::class, 'handleMagi
 // You might also want a dedicated error page for magic links
 Route::get('/magic-link-error', function () {
     return Inertia::render('Errors/MagicLinkError', [
-        'message' => 'An unexpected error occurred.'
+        'message' => 'An unexpected error occurred.',
     ]);
 })->name('magic-link.error');
 
@@ -118,8 +119,13 @@ Route::get('/email-preview/{slug?}', [EmailPreviewController::class, 'preview'])
 
 // Public Presentation viewer by share token
 Route::get('/view/{share_token}', function ($share_token) {
-    $presentation = \App\Models\Presentation::with(['slides' => function($q){ $q->orderBy('display_order')->with(['contentBlocks' => function($qq){ $qq->orderBy('display_order'); }]); }])->where('share_token', $share_token)->firstOrFail();
-    return Inertia::render('Presentations/PublicPresenter', [ 'presentation' => $presentation ]);
+    $presentation = \App\Models\Presentation::with(['slides' => function ($q) {
+        $q->orderBy('display_order')->with(['contentBlocks' => function ($qq) {
+            $qq->orderBy('display_order');
+        }]);
+    }])->where('share_token', $share_token)->firstOrFail();
+
+    return Inertia::render('Presentations/PublicPresenter', ['presentation' => $presentation]);
 });
 Route::get('/privacy-policy', function () {
     return view('privacy-policy');
@@ -174,7 +180,7 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
     })->name('presentations.index');
 
     Route::get('/presentations/{id}/edit', function ($id) {
-        return Inertia::render('Presentations/EditorView', [ 'presentationId' => (int) $id ]);
+        return Inertia::render('Presentations/EditorView', ['presentationId' => (int) $id]);
     })->name('presentations.edit');
 
     // Test route for BaseFormModal demonstration
@@ -247,7 +253,7 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         Route::get('/pm-payout-calculator', function () {
             return Inertia::render('Admin/PMPayoutCalculator/Index');
         })
-          ->name('pm-payout-calculator.index');
+            ->name('pm-payout-calculator.index');
 
         // Categories CRUD Page
         Route::get('/categories', function () {
@@ -264,176 +270,177 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
 
         // Role management routes - requires manage_roles permission
         Route::middleware(['permission:manage_roles'])->group(function () {
-        // Role management routes
-        Route::get('/roles', function () {
-            return Inertia::render('Admin/Roles/Index', [
-                'roles' => \App\Models\Role::with('permissions')->get()
-            ]);
-        })->name('roles.index');
+            // Role management routes
+            Route::get('/roles', function () {
+                return Inertia::render('Admin/Roles/Index', [
+                    'roles' => \App\Models\Role::with('permissions')->get(),
+                ]);
+            })->name('roles.index');
 
-        // Roles Compare page: select up to 3 roles and toggle permissions in a grid
-        Route::get('/roles/compare', function () {
-            return Inertia::render('Admin/Roles/Compare', [
-                'roles' => \App\Models\Role::with('permissions')->get(),
-                'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category'),
-            ]);
-        })->name('roles.compare');
+            // Roles Compare page: select up to 3 roles and toggle permissions in a grid
+            Route::get('/roles/compare', function () {
+                return Inertia::render('Admin/Roles/Compare', [
+                    'roles' => \App\Models\Role::with('permissions')->get(),
+                    'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category'),
+                ]);
+            })->name('roles.compare');
 
-        Route::get('/roles/create', function () {
-            return Inertia::render('Admin/Roles/Create', [
-                'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category')
-            ]);
-        })->name('roles.create');
+            Route::get('/roles/create', function () {
+                return Inertia::render('Admin/Roles/Create', [
+                    'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category'),
+                ]);
+            })->name('roles.create');
 
-        // Duplicate role route - opens Create page with prefilled values
-        Route::get('/roles/{role}/duplicate', function (\App\Models\Role $role) {
-            $role->load('permissions');
-            return Inertia::render('Admin/Roles/Create', [
-                'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category'),
-                'prefillName' => 'Copy of ' . $role->name,
-                'prefillDescription' => $role->description,
-                'prefillType' => $role->type,
-                'preselectedPermissions' => $role->permissions->pluck('id')->toArray(),
-            ]);
-        })->name('roles.duplicate');
+            // Duplicate role route - opens Create page with prefilled values
+            Route::get('/roles/{role}/duplicate', function (\App\Models\Role $role) {
+                $role->load('permissions');
 
-        Route::post('/roles', [\App\Http\Controllers\Api\RoleController::class, 'store'])->name('roles.store');
+                return Inertia::render('Admin/Roles/Create', [
+                    'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category'),
+                    'prefillName' => 'Copy of '.$role->name,
+                    'prefillDescription' => $role->description,
+                    'prefillType' => $role->type,
+                    'preselectedPermissions' => $role->permissions->pluck('id')->toArray(),
+                ]);
+            })->name('roles.duplicate');
 
-        Route::get('/roles/{role}', function (\App\Models\Role $role) {
-            $role->load('permissions');
+            Route::post('/roles', [\App\Http\Controllers\Api\RoleController::class, 'store'])->name('roles.store');
 
-            // Get users with this role as their application role
-            $applicationUsers = \App\Models\User::where('role_id', $role->id)->get();
+            Route::get('/roles/{role}', function (\App\Models\Role $role) {
+                $role->load('permissions');
 
-            // Get users with this role as their project role
-            $projectUsers = [];
-            if ($role->type === 'project') {
-                $projectUsers = \Illuminate\Support\Facades\DB::table('users')
-                    ->join('project_user', 'users.id', '=', 'project_user.user_id')
-                    ->join('projects', 'project_user.project_id', '=', 'projects.id')
-                    ->where('project_user.role_id', $role->id)
-                    ->select('users.*', 'projects.name as project_name', 'projects.id as project_id')
-                    ->get();
-            }
+                // Get users with this role as their application role
+                $applicationUsers = \App\Models\User::where('role_id', $role->id)->get();
 
-            return Inertia::render('Admin/Roles/Show', [
-                'role' => $role,
-                'applicationUsers' => $applicationUsers,
-                'projectUsers' => $projectUsers
-            ]);
-        })->name('roles.show');
+                // Get users with this role as their project role
+                $projectUsers = [];
+                if ($role->type === 'project') {
+                    $projectUsers = \Illuminate\Support\Facades\DB::table('users')
+                        ->join('project_user', 'users.id', '=', 'project_user.user_id')
+                        ->join('projects', 'project_user.project_id', '=', 'projects.id')
+                        ->where('project_user.role_id', $role->id)
+                        ->select('users.*', 'projects.name as project_name', 'projects.id as project_id')
+                        ->get();
+                }
 
-        Route::get('/roles/{role}/edit', function (\App\Models\Role $role) {
-            $role->load('permissions');
+                return Inertia::render('Admin/Roles/Show', [
+                    'role' => $role,
+                    'applicationUsers' => $applicationUsers,
+                    'projectUsers' => $projectUsers,
+                ]);
+            })->name('roles.show');
 
-            // Get users with this role as their application role
-            $applicationUsers = \App\Models\User::where('role_id', $role->id)->get();
+            Route::get('/roles/{role}/edit', function (\App\Models\Role $role) {
+                $role->load('permissions');
 
-            // Get users with this role as their project role
-            $projectUsers = [];
-            if ($role->type === 'project') {
-                $projectUsers = \Illuminate\Support\Facades\DB::table('users')
-                    ->join('project_user', 'users.id', '=', 'project_user.user_id')
-                    ->join('projects', 'project_user.project_id', '=', 'projects.id')
-                    ->where('project_user.role_id', $role->id)
-                    ->select('users.*', 'projects.name as project_name', 'projects.id as project_id')
-                    ->get();
-            }
+                // Get users with this role as their application role
+                $applicationUsers = \App\Models\User::where('role_id', $role->id)->get();
 
-            return Inertia::render('Admin/Roles/Edit', [
-                'role' => $role,
-                'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category'),
-                'rolePermissions' => $role->permissions->pluck('id')->toArray(),
-                'applicationUsers' => $applicationUsers,
-                'projectUsers' => $projectUsers
-            ]);
-        })->name('roles.edit');
+                // Get users with this role as their project role
+                $projectUsers = [];
+                if ($role->type === 'project') {
+                    $projectUsers = \Illuminate\Support\Facades\DB::table('users')
+                        ->join('project_user', 'users.id', '=', 'project_user.user_id')
+                        ->join('projects', 'project_user.project_id', '=', 'projects.id')
+                        ->where('project_user.role_id', $role->id)
+                        ->select('users.*', 'projects.name as project_name', 'projects.id as project_id')
+                        ->get();
+                }
 
-        Route::put('/roles/{role}', [\App\Http\Controllers\Api\RoleController::class, 'update'])->name('roles.update');
-        Route::delete('/roles/{role}', [\App\Http\Controllers\Api\RoleController::class, 'destroy'])->name('roles.destroy');
+                return Inertia::render('Admin/Roles/Edit', [
+                    'role' => $role,
+                    'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category'),
+                    'rolePermissions' => $role->permissions->pluck('id')->toArray(),
+                    'applicationUsers' => $applicationUsers,
+                    'projectUsers' => $projectUsers,
+                ]);
+            })->name('roles.edit');
 
-        Route::get('/roles/{role}/permissions', function (\App\Models\Role $role) {
-            return Inertia::render('Admin/Roles/Permissions', [
-                'role' => $role,
-                'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category'),
-                'rolePermissions' => $role->permissions->pluck('id')->toArray()
-            ]);
-        })->name('roles.permissions');
+            Route::put('/roles/{role}', [\App\Http\Controllers\Api\RoleController::class, 'update'])->name('roles.update');
+            Route::delete('/roles/{role}', [\App\Http\Controllers\Api\RoleController::class, 'destroy'])->name('roles.destroy');
 
-        Route::post('/roles/{role}/permissions', [\App\Http\Controllers\Api\RoleController::class, 'updatePermissions'])->name('roles.updatePermissions');
+            Route::get('/roles/{role}/permissions', function (\App\Models\Role $role) {
+                return Inertia::render('Admin/Roles/Permissions', [
+                    'role' => $role,
+                    'permissions' => \App\Models\Permission::orderBy('category')->get()->groupBy('category'),
+                    'rolePermissions' => $role->permissions->pluck('id')->toArray(),
+                ]);
+            })->name('roles.permissions');
 
-        // Route for revoking a role from a user
-        Route::post('/roles/revoke-user', [\App\Http\Controllers\Admin\RoleController::class, 'revokeUser'])->name('roles.revoke-user');
+            Route::post('/roles/{role}/permissions', [\App\Http\Controllers\Api\RoleController::class, 'updatePermissions'])->name('roles.updatePermissions');
 
-        // Route for revoking a permission from a user
-        Route::post('/permissions/revoke-user', [\App\Http\Controllers\Admin\PermissionController::class, 'revokeUser'])->name('permissions.revoke-user');
+            // Route for revoking a role from a user
+            Route::post('/roles/revoke-user', [\App\Http\Controllers\Admin\RoleController::class, 'revokeUser'])->name('roles.revoke-user');
 
-        // Permission management routes
-        Route::get('/permissions', function () {
-            return Inertia::render('Admin/Permissions/Index', [
-                'permissions' => \App\Models\Permission::with('roles')->orderBy('category')->get()->groupBy('category')
-            ]);
-        })->name('permissions.index');
+            // Route for revoking a permission from a user
+            Route::post('/permissions/revoke-user', [\App\Http\Controllers\Admin\PermissionController::class, 'revokeUser'])->name('permissions.revoke-user');
 
-        Route::get('/permissions/create', function () {
-            return Inertia::render('Admin/Permissions/Create', [
-                'categories' => \App\Models\Permission::select('category')->distinct()->pluck('category'),
-                'roles' => \App\Models\Role::all()
-            ]);
-        })->name('permissions.create');
+            // Permission management routes
+            Route::get('/permissions', function () {
+                return Inertia::render('Admin/Permissions/Index', [
+                    'permissions' => \App\Models\Permission::with('roles')->orderBy('category')->get()->groupBy('category'),
+                ]);
+            })->name('permissions.index');
 
-        Route::post('/permissions', [\App\Http\Controllers\Admin\PermissionController::class, 'store'])->name('permissions.store');
+            Route::get('/permissions/create', function () {
+                return Inertia::render('Admin/Permissions/Create', [
+                    'categories' => \App\Models\Permission::select('category')->distinct()->pluck('category'),
+                    'roles' => \App\Models\Role::all(),
+                ]);
+            })->name('permissions.create');
 
-        Route::get('/permissions/bulk-create', function () {
-            return Inertia::render('Admin/Permissions/BulkCreate', [
-                'categories' => \App\Models\Permission::select('category')->distinct()->pluck('category'),
-                'roles' => \App\Models\Role::all()
-            ]);
-        })->name('permissions.bulk-create');
+            Route::post('/permissions', [\App\Http\Controllers\Admin\PermissionController::class, 'store'])->name('permissions.store');
 
-        Route::post('/permissions/bulk', [\App\Http\Controllers\Admin\PermissionController::class, 'bulkStore'])->name('permissions.bulk-store');
+            Route::get('/permissions/bulk-create', function () {
+                return Inertia::render('Admin/Permissions/BulkCreate', [
+                    'categories' => \App\Models\Permission::select('category')->distinct()->pluck('category'),
+                    'roles' => \App\Models\Role::all(),
+                ]);
+            })->name('permissions.bulk-create');
 
-        Route::get('/permissions/{permission}/edit', function (\App\Models\Permission $permission) {
-            $permission->load('roles');
+            Route::post('/permissions/bulk', [\App\Http\Controllers\Admin\PermissionController::class, 'bulkStore'])->name('permissions.bulk-store');
 
-            // Get all roles for selection
-            $roles = \App\Models\Role::all();
-            $permissionRoles = $permission->roles->pluck('id')->toArray();
+            Route::get('/permissions/{permission}/edit', function (\App\Models\Permission $permission) {
+                $permission->load('roles');
 
-            // Get all roles that have this permission
-            $rolesWithPermission = $permission->roles;
+                // Get all roles for selection
+                $roles = \App\Models\Role::all();
+                $permissionRoles = $permission->roles->pluck('id')->toArray();
 
-            // Get users with application roles that have this permission
-            $applicationUsers = \App\Models\User::whereIn('role_id', $rolesWithPermission->where('type', 'application')->pluck('id'))->get();
+                // Get all roles that have this permission
+                $rolesWithPermission = $permission->roles;
 
-            // Get users with project roles that have this permission
-            $projectUsers = [];
-            $projectRoleIds = $rolesWithPermission->where('type', 'project')->pluck('id')->toArray();
+                // Get users with application roles that have this permission
+                $applicationUsers = \App\Models\User::whereIn('role_id', $rolesWithPermission->where('type', 'application')->pluck('id'))->get();
 
-            if (!empty($projectRoleIds)) {
-                $projectUsers = \Illuminate\Support\Facades\DB::table('users')
-                    ->join('project_user', 'users.id', '=', 'project_user.user_id')
-                    ->join('projects', 'project_user.project_id', '=', 'projects.id')
-                    ->whereIn('project_user.role_id', $projectRoleIds)
-                    ->select('users.*', 'projects.name as project_name', 'projects.id as project_id')
-                    ->get();
-            }
+                // Get users with project roles that have this permission
+                $projectUsers = [];
+                $projectRoleIds = $rolesWithPermission->where('type', 'project')->pluck('id')->toArray();
 
-            return Inertia::render('Admin/Permissions/Edit', [
-                'permission' => $permission,
-                'categories' => \App\Models\Permission::select('category')->distinct()->pluck('category'),
-                'roles' => $roles,
-                'permissionRoles' => $permissionRoles,
-                'applicationUsers' => $applicationUsers,
-                'projectUsers' => $projectUsers
-            ]);
-        })->name('permissions.edit');
+                if (! empty($projectRoleIds)) {
+                    $projectUsers = \Illuminate\Support\Facades\DB::table('users')
+                        ->join('project_user', 'users.id', '=', 'project_user.user_id')
+                        ->join('projects', 'project_user.project_id', '=', 'projects.id')
+                        ->whereIn('project_user.role_id', $projectRoleIds)
+                        ->select('users.*', 'projects.name as project_name', 'projects.id as project_id')
+                        ->get();
+                }
 
-        Route::put('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'update'])->name('permissions.update');
-        Route::delete('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'destroy'])->name('permissions.destroy');
+                return Inertia::render('Admin/Permissions/Edit', [
+                    'permission' => $permission,
+                    'categories' => \App\Models\Permission::select('category')->distinct()->pluck('category'),
+                    'roles' => $roles,
+                    'permissionRoles' => $permissionRoles,
+                    'applicationUsers' => $applicationUsers,
+                    'projectUsers' => $projectUsers,
+                ]);
+            })->name('permissions.edit');
+
+            Route::put('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'update'])->name('permissions.update');
+            Route::delete('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'destroy'])->name('permissions.destroy');
+        });
+
     });
-
-});
 
     Route::get('/bonus_system', function () {
         return Inertia::render('BonusSystem/Index');
@@ -581,7 +588,7 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('Admin/Campaigns/Index');
     })->name('campaigns.page')->middleware('permission:manage_projects');
 
-//    Route::get('/campaigns', [CampaignController::class, 'index'])->name('campaigns.all');
+    //    Route::get('/campaigns', [CampaignController::class, 'index'])->name('campaigns.all');
     Route::get('/campaigns/create', function () {
         return Inertia::render('Admin/Campaigns/CreateEdit', [
             'mode' => 'create',
@@ -604,9 +611,9 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
     })->name('availability.index')->middleware('permission:create_users');
 
     // Bonus Configuration Page
-//    Route::get('/bonus-configuration', function () {
-//        return Inertia::render('BonusConfiguration/Index');
-//    })->name('bonus-configuration.index')->middleware('permission:manage_bonus_configuration');
+    //    Route::get('/bonus-configuration', function () {
+    //        return Inertia::render('BonusConfiguration/Index');
+    //    })->name('bonus-configuration.index')->middleware('permission:manage_bonus_configuration');
 
     // Bonus System Page
     Route::get('/bonus-system', function () {
@@ -666,12 +673,12 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
 // Prompts Management Page (explicit middleware, outside grouped declarations)
 Route::get('/prompt', function () {
     return Inertia::render('Automation/Prompts/Index');
-})->name('prompts.page')->middleware(['auth','verified']);
+})->name('prompts.page')->middleware(['auth', 'verified']);
 
 // Alternate path for environments where `/prompts` is intercepted by the dev router
 Route::get('/admin/prompts', function () {
     return Inertia::render('Automation/Prompts/Index');
-})->name('admin.prompts.page')->middleware(['auth','verified']);
+})->name('admin.prompts.page')->middleware(['auth', 'verified']);
 
 // Require your existing authentication routes (login, register, logout, etc.)
 require __DIR__.'/auth.php';
@@ -689,7 +696,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/schedules/{schedule}/toggle', [ScheduleController::class, 'toggle'])->name('schedules.toggle');
     Route::delete('/schedules/{schedule}', [ScheduleController::class, 'destroy'])->name('schedules.destroy');
 });
-
 
 // Notice redirect route to log interactions and redirect to destination
 Route::get('/notices/{notice}/redirect', [NoticeBoardController::class, 'redirect'])

@@ -125,7 +125,6 @@ return [
         ],
     ],
 
-
     /**
      * ============================================================================
      * GENERATOR POOL
@@ -140,7 +139,6 @@ return [
         'why_us',
         'project_details',
     ],
-
 
     /**
      * ============================================================================
@@ -233,7 +231,7 @@ return [
                             ['block_type' => 'feature_card', 'content_data' => ['icon' => 'fa-eye-slash', 'title' => 'Low User Engagement', 'description' => 'High bounce rates and low time-on-page metrics.']],
                             ['block_type' => 'feature_card', 'content_data' => ['icon' => 'fa-paint-brush', 'title' => 'Dated Visual Design', 'description' => 'The current design does not reflect your modern brand identity.']],
                         ],
-                    ]
+                    ],
                 ],
                 [
                     'blueprint' => 'service_detail',
@@ -244,8 +242,8 @@ return [
                             ['block_type' => 'paragraph', 'content_data' => ['text' => 'We will create a visually stunning and intuitive website experience.']],
                             ['block_type' => 'list_with_icons', 'content_data' => ['items' => ['Mobile-first responsive design.', 'User-centric navigation and layout.', 'High-quality graphics and branding.']]],
                             ['block_type' => 'image', 'content_data' => ['url' => 'https://placehold.co/600x400/F7A823/FFFFFF?text=UI%2FUX+Design', 'alt' => 'UI/UX Design Process']],
-                        ]
-                    ]
+                        ],
+                    ],
                 ],
                 ['blueprint' => 'process', 'overrides' => ['title' => 'Our Redesign Process']],
                 [
@@ -256,7 +254,7 @@ return [
                             ['block_type' => 'pricing_table', 'content_data' => ['price' => 'AUD 8,000 (+GST)', 'title' => 'Investment', 'payment_schedule' => ['50% upfront', '50% on completion']]],
                             ['block_type' => 'timeline_table', 'content_data' => ['title' => 'Estimated Timeline', 'timeline' => [['phase' => 'Design', 'duration' => '2-3 Weeks'], ['phase' => 'Development', 'duration' => '4-6 Weeks'], ['phase' => 'Launch', 'duration' => '1 Week']]]],
                         ],
-                    ]
+                    ],
                 ],
                 ['blueprint' => 'call_to_action'],
             ],
@@ -349,4 +347,3 @@ return [
         ],
     ],
 ];
-

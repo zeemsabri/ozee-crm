@@ -2,7 +2,6 @@
 
 namespace App\Events;
 
-use App\Models\ProjectNote;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -15,7 +14,7 @@ class StandupSubmittedEvent
 
     /**
      * Create a new event instance.
-     * @param  $standUp
+     *
      * @return void
      */
     public function __construct($standUp)

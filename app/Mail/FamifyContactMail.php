@@ -5,9 +5,9 @@ namespace App\Mail;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Mail\Mailables\Address;
 use Illuminate\Queue\SerializesModels;
 
 class FamifyContactMail extends Mailable implements ShouldQueue
@@ -23,13 +23,18 @@ class FamifyContactMail extends Mailable implements ShouldQueue
      * Primary known fields (may be absent if not provided).
      */
     public ?string $name;
+
     public ?string $email;
+
     public ?string $phone;
+
     public ?string $company;
+
     public ?string $messageBody;
 
     /**
      * All submitted fields (key => value string), already sanitized.
+     *
      * @var array<int, array{key:string,value:string}>
      */
     public array $allFields;
@@ -37,9 +42,8 @@ class FamifyContactMail extends Mailable implements ShouldQueue
     /**
      * Create a new message instance.
      *
-     * @param string $subjectText
-     * @param array<string,mixed> $data  Validated/known data from request
-     * @param array<int, array{key:string,value:string}> $allFields  All fields to display
+     * @param  array<string,mixed>  $data  Validated/known data from request
+     * @param  array<int, array{key:string,value:string}>  $allFields  All fields to display
      */
     public function __construct(string $subjectText, array $data, array $allFields)
     {

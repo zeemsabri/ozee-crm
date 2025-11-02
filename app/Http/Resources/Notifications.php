@@ -32,21 +32,22 @@ class Notifications extends JsonResource
          * }
          */
         $data = $this->data ?? [];
+
         return [
-            "title" => $data['title'] ?? null,
-             "project_name" => $data['project_name'] ?? null,
-             "message" => $data['message'] ?? null,
-             "project_id" => $data['project_id'] ?? null,
-             "description" => $data['description'] ?? null,
-             "task_type" => $data['task_type'] ?? null,
-             "priority" => $data['priority'] ?? null,
-             "task_id" => $data['task_id'] ?? null,
-             "task_name" => $data['task_name'] ?? null,
-             "due_date" => $data['due_date'] ?? null,
-             "url" => $data['url'] ?? null,
-             "view_id" => $data['view_id'] ?? null,
-             "type" => $this->type,
-            'isRead'    =>  (Bool) $this->read_at
+            'title' => $data['title'] ?? null,
+            'project_name' => $data['project_name'] ?? null,
+            'message' => $data['message'] ?? null,
+            'project_id' => $data['project_id'] ?? null,
+            'description' => $data['description'] ?? null,
+            'task_type' => $data['task_type'] ?? null,
+            'priority' => $data['priority'] ?? null,
+            'task_id' => $data['task_id'] ?? null,
+            'task_name' => $data['task_name'] ?? null,
+            'due_date' => $data['due_date'] ?? null,
+            'url' => $data['url'] ?? null,
+            'view_id' => $data['view_id'] ?? null,
+            'type' => $this->type,
+            'isRead' => (bool) $this->read_at,
         ];
     }
 }

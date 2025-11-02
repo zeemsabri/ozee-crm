@@ -33,13 +33,13 @@ class BugReportController extends Controller
             ->with(['files' => fn ($q) => $q->select('id', 'fileable_id', 'fileable_type', 'path', 'thumbnail', 'filename')])
             ->where('details->source', 'bug_report');
 
-        if (!empty($pageUrl)) {
+        if (! empty($pageUrl)) {
             $base = $this->normalizeUrlBase($pageUrl);
             $baseAlt = rtrim($base, '/');
             $query->where(function ($q) use ($base, $baseAlt) {
-                $q->where('details->page_url', 'like', $base . '%');
+                $q->where('details->page_url', 'like', $base.'%');
                 if ($baseAlt !== $base) {
-                    $q->orWhere('details->page_url', 'like', $baseAlt . '%');
+                    $q->orWhere('details->page_url', 'like', $baseAlt.'%');
                 }
             });
         }
@@ -48,15 +48,16 @@ class BugReportController extends Controller
 
         $result = $tasks->map(function (Task $task) {
             $details = $task->details ?? [];
+
             return [
                 'id' => $details['bug_id'] ?? $task->id,
                 'description' => $task->description,
-                'status'    =>  $task->status,
+                'status' => $task->status,
                 'screenshot' => $task->files,
                 'pageUrl' => $details['page_url'] ?? null,
                 'rect' => $details['rect'] ?? null,
-                'created'   =>  $task->created_at,
-                'updated'   =>  $task->updated_at
+                'created' => $task->created_at,
+                'updated' => $task->updated_at,
             ];
         })->values();
 
@@ -87,24 +88,27 @@ class BugReportController extends Controller
         $host = preg_replace('/^www\./', '', $host);
         $path = $parts['path'] ?? '';
         $scheme = strtolower($parts['scheme'] ?? '');
-        $baseNoQuery = $host ? ($scheme ? ($scheme . '://' . $host . $path) : ($host . $path)) : $pageUrl;
+        $baseNoQuery = $host ? ($scheme ? ($scheme.'://'.$host.$path) : ($host.$path)) : $pageUrl;
 
         $patterns = [];
-        if (!empty($host)) { $patterns[] = $host; }
-        if (!empty($baseNoQuery)) { $patterns[] = rtrim($baseNoQuery, '/'); }
+        if (! empty($host)) {
+            $patterns[] = $host;
+        }
+        if (! empty($baseNoQuery)) {
+            $patterns[] = rtrim($baseNoQuery, '/');
+        }
 
         return $patterns;
     }
 
-
     public function checkExists($patterns = [])
     {
-        return  $exists = Project::query()
+        return $exists = Project::query()
             ->whereNotNull('reporting_sites')
             ->where('reporting_sites', '!=', '')
             ->where(function ($q) use ($patterns) {
                 foreach ($patterns as $p) {
-                    $q->orWhere('reporting_sites', 'like', '%' . $p . '%');
+                    $q->orWhere('reporting_sites', 'like', '%'.$p.'%');
                 }
             });
     }
@@ -117,30 +121,29 @@ class BugReportController extends Controller
     {
         $data = $request->validate([
             'description' => 'nullable|string',
-            'screenshot'  => 'nullable|string',
-            'pageUrl'     => 'nullable|url',
-            'rect'        => 'nullable|array',
-            'rect.x'      => 'nullable|integer',
-            'rect.y'      => 'nullable|integer',
-            'rect.width'  => 'nullable|integer',
+            'screenshot' => 'nullable|string',
+            'pageUrl' => 'nullable|url',
+            'rect' => 'nullable|array',
+            'rect.x' => 'nullable|integer',
+            'rect.y' => 'nullable|integer',
+            'rect.width' => 'nullable|integer',
             'rect.height' => 'nullable|integer',
         ]);
 
-
-        $bugId =  Str::random(3);
+        $bugId = Str::random(3);
         $project = $this->checkExists($this->getPattern($request))->with('clients')->first();
-        $client = $project->clients?->first() ?? User::first() ;
+        $client = $project->clients?->first() ?? User::first();
         $screenshotUrl = null;
         $uploadMeta = null;
         $paths = [];
 
         // 1. Handle Screenshot Upload
-        if (!empty($data['screenshot'])) {
+        if (! empty($data['screenshot'])) {
             try {
                 $uploadedFile = $this->prepareUploadedFileFromBase64($data['screenshot'], $bugId);
                 $paths = $this->uploadFilesToGcsWithThumbnails([$uploadedFile], 'bug-reports', 'gcs');
 
-                if (!empty($paths)) {
+                if (! empty($paths)) {
                     $uploadMeta = $paths[0];
                     $screenshotUrl = Storage::disk('gcs')->url($uploadMeta['path']);
                 }
@@ -172,17 +175,17 @@ class BugReportController extends Controller
      */
     private function prepareUploadedFileFromBase64(string $base64String, string $id): UploadedFile
     {
-        @list($typePart, $base64Part) = explode(';', $base64String);
-        @list(, $base64Data) = explode(',', $base64Part);
+        @[$typePart, $base64Part] = explode(';', $base64String);
+        @[, $base64Data] = explode(',', $base64Part);
         $decoded = base64_decode($base64Data);
 
         $mimeType = str_starts_with($typePart ?? '', 'data:') ? substr($typePart, 5) : 'image/png';
         $extension = explode('/', $mimeType)[1] ?? 'png';
 
-        $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'bugreport-' . $id . '.' . $extension;
+        $tmpPath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'bugreport-'.$id.'.'.$extension;
         file_put_contents($tmpPath, $decoded);
 
-        return new UploadedFile($tmpPath, 'bug-' . $id . '.' . $extension, $mimeType, null, true);
+        return new UploadedFile($tmpPath, 'bug-'.$id.'.'.$extension, $mimeType, null, true);
     }
 
     /**
@@ -214,9 +217,9 @@ class BugReportController extends Controller
         ];
 
         return $milestone->tasks()->create([
-            'name' => 'Bug# ' . $bugId,
-            'creator_id'    =>  $user?->id ?? null,
-            'creator_type'  =>  get_class($user) ?? null,
+            'name' => 'Bug# '.$bugId,
+            'creator_id' => $user?->id ?? null,
+            'creator_type' => get_class($user) ?? null,
             'task_type_id' => $defaultTaskType->id,
             'description' => $data['description'] ?? null,
             'details' => $details,
@@ -246,18 +249,25 @@ class BugReportController extends Controller
      */
     protected function normalizeUrlBase(?string $url): string
     {
-        if (empty($url)) return '';
+        if (empty($url)) {
+            return '';
+        }
         $parts = parse_url($url);
-        if (!$parts || empty($parts['host'])) return trim((string)$url);
+        if (! $parts || empty($parts['host'])) {
+            return trim((string) $url);
+        }
 
         $scheme = $parts['scheme'] ?? 'http';
         $host = strtolower($parts['host']);
-        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
+        $port = isset($parts['port']) ? ':'.$parts['port'] : '';
         $path = $parts['path'] ?? '/';
-        if ($path === '') { $path = '/'; }
+        if ($path === '') {
+            $path = '/';
+        }
         if ($path !== '/' && str_ends_with($path, '/')) {
             $path = rtrim($path, '/');
         }
+
         return sprintf('%s://%s%s%s', $scheme, $host, $port, $path);
     }
 }

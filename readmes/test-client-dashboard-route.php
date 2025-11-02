@@ -9,8 +9,8 @@
  */
 
 // Bootstrap the Laravel application
-require __DIR__ . '/vendor/autoload.php';
-$app = require_once __DIR__ . '/bootstrap/app.php';
+require __DIR__.'/vendor/autoload.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
@@ -23,7 +23,7 @@ Log::info('Starting Client Dashboard Route test');
 
 try {
     // Create a test token
-    $token = 'test_token_' . time();
+    $token = 'test_token_'.time();
 
     echo "Testing client dashboard route with token: {$token}\n";
 
@@ -31,10 +31,10 @@ try {
     $request = Request::create('/client/dashboard', 'GET', ['token' => $token]);
 
     // Debug the request
-    echo "Request URL: " . $request->url() . "\n";
-    echo "Request query parameters: " . json_encode($request->query()) . "\n";
-    echo "Request has token: " . ($request->has('token') ? 'Yes' : 'No') . "\n";
-    echo "Request token value: " . $request->query('token') . "\n";
+    echo 'Request URL: '.$request->url()."\n";
+    echo 'Request query parameters: '.json_encode($request->query())."\n";
+    echo 'Request has token: '.($request->has('token') ? 'Yes' : 'No')."\n";
+    echo 'Request token value: '.$request->query('token')."\n";
 
     // Get the route collection
     $routes = Route::getRoutes();
@@ -43,14 +43,14 @@ try {
     $route = $routes->match($request);
 
     // Debug the route
-    echo "Route name: " . ($route->getName() ?? 'unnamed') . "\n";
-    echo "Route action: " . ($route->getActionName() ?? 'unknown') . "\n";
+    echo 'Route name: '.($route->getName() ?? 'unnamed')."\n";
+    echo 'Route action: '.($route->getActionName() ?? 'unknown')."\n";
 
     // Execute the route
     $response = $route->run($request);
 
     // Debug the response
-    echo "Response class: " . get_class($response) . "\n";
+    echo 'Response class: '.get_class($response)."\n";
 
     // Check if the response is a view or a redirect
     if (method_exists($response, 'getName')) {
@@ -72,7 +72,7 @@ try {
             echo "Error: The client dashboard route does not serve the client dashboard view when a token is present.\n";
         }
     } elseif ($response instanceof \Illuminate\Http\RedirectResponse) {
-        echo "Response is a redirect to: " . $response->getTargetUrl() . "\n";
+        echo 'Response is a redirect to: '.$response->getTargetUrl()."\n";
 
         // If we're testing with a token, we shouldn't get a redirect
         if ($token) {
@@ -80,22 +80,22 @@ try {
             echo "This suggests that the controller is not correctly detecting the token.\n";
 
             // Let's try to debug by directly calling the controller method
-            $controller = new \App\Http\Controllers\ClientDashboardController();
+            $controller = new \App\Http\Controllers\ClientDashboardController;
             $directResponse = $controller->index($request);
 
-            echo "Direct controller call response class: " . get_class($directResponse) . "\n";
+            echo 'Direct controller call response class: '.get_class($directResponse)."\n";
 
             if (method_exists($directResponse, 'getName')) {
-                echo "Direct controller call response is a view: " . $directResponse->getName() . "\n";
+                echo 'Direct controller call response is a view: '.$directResponse->getName()."\n";
             } elseif ($directResponse instanceof \Illuminate\Http\RedirectResponse) {
-                echo "Direct controller call response is a redirect to: " . $directResponse->getTargetUrl() . "\n";
+                echo 'Direct controller call response is a redirect to: '.$directResponse->getTargetUrl()."\n";
             }
         } else {
             echo "Success! The client dashboard route correctly redirects to the home page when no token is present.\n";
         }
     } else {
         echo "Error: The response is neither a view nor a redirect.\n";
-        echo "Response type: " . get_class($response) . "\n";
+        echo 'Response type: '.get_class($response)."\n";
     }
 
     echo "\nTesting root route without token\n";
@@ -114,15 +114,15 @@ try {
         echo "Success! The root route correctly serves the Welcome page when no token is present.\n";
     } else {
         echo "Error: The root route does not serve the Welcome page when no token is present.\n";
-        echo "Response type: " . get_class($response) . "\n";
+        echo 'Response type: '.get_class($response)."\n";
     }
 
     echo "\nTest completed successfully!\n";
 
 } catch (\Exception $e) {
-    echo "Error: " . $e->getMessage() . "\n";
-    Log::error('Error in Client Dashboard Route test: ' . $e->getMessage(), [
-        'error' => $e->getTraceAsString()
+    echo 'Error: '.$e->getMessage()."\n";
+    Log::error('Error in Client Dashboard Route test: '.$e->getMessage(), [
+        'error' => $e->getTraceAsString(),
     ]);
 }
 

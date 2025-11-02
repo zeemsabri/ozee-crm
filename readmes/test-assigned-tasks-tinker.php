@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Test script for the assigned tasks API endpoint using Laravel's Tinker
  *
@@ -9,8 +10,9 @@
 
 // Get a user to test with
 $user = \App\Models\User::first();
-if (!$user) {
+if (! $user) {
     echo "No users found in the database.\n";
+
     return;
 }
 
@@ -21,7 +23,7 @@ auth()->login($user);
 echo "Authenticated as user: {$user->name}\n";
 
 // Create an instance of the TaskController
-$controller = new \App\Http\Controllers\Api\TaskController();
+$controller = new \App\Http\Controllers\Api\TaskController;
 
 // Call the getAssignedTasks method
 echo "Calling TaskController@getAssignedTasks method...\n";
@@ -32,7 +34,7 @@ $data = $response->getData(true);
 
 // Display the results
 echo "Response received.\n";
-echo "Number of assigned tasks: " . count($data) . "\n";
+echo 'Number of assigned tasks: '.count($data)."\n";
 
 // Display the first few tasks if any exist
 if (count($data) > 0) {
@@ -42,9 +44,9 @@ if (count($data) > 0) {
     for ($i = 0; $i < $sampleSize; $i++) {
         $task = $data[$i];
         echo "- Task: {$task['name']}\n";
-        echo "  Project: " . ($task['project'] ? $task['project']['name'] : 'N/A') . "\n";
-        echo "  Milestone: " . ($task['milestone'] ? $task['milestone']['name'] : 'N/A') . "\n";
-        echo "  Due Date: " . ($task['due_date'] ?? 'No due date') . "\n";
+        echo '  Project: '.($task['project'] ? $task['project']['name'] : 'N/A')."\n";
+        echo '  Milestone: '.($task['milestone'] ? $task['milestone']['name'] : 'N/A')."\n";
+        echo '  Due Date: '.($task['due_date'] ?? 'No due date')."\n";
         echo "\n";
     }
 } else {

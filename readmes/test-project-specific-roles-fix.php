@@ -11,8 +11,8 @@ $mockUser = [
     'role' => 'employee', // Global role is employee
     'role_data' => [
         'slug' => 'employee',
-        'name' => 'Employee'
-    ]
+        'name' => 'Employee',
+    ],
 ];
 
 // Mock a project with the user assigned as a Manager
@@ -25,10 +25,10 @@ $mockProject = [
             'name' => 'Test User',
             'email' => 'test@example.com',
             'pivot' => [
-                'role' => 'Manager' // Project-specific role is Manager
-            ]
-        ]
-    ]
+                'role' => 'Manager', // Project-specific role is Manager
+            ],
+        ],
+    ],
 ];
 
 echo "Testing project-specific role override functionality\n";
@@ -49,7 +49,7 @@ foreach ($mockProject['users'] as $user) {
     }
 }
 
-$hasProjectRole = !is_null($userProjectRole);
+$hasProjectRole = ! is_null($userProjectRole);
 $isProjectManager = $userProjectRole === 'Manager' || $userProjectRole === 'Project Manager';
 
 // Global role checks
@@ -66,15 +66,15 @@ $canViewUsers = $isProjectManager || $isSuperAdmin || $hasManagerRole;
 
 echo "Permission check results:\n";
 echo "------------------------\n";
-echo "Has project-specific role: " . ($hasProjectRole ? "Yes" : "No") . "\n";
-echo "Is project manager: " . ($isProjectManager ? "Yes" : "No") . "\n";
-echo "Is super admin (global): " . ($isSuperAdmin ? "Yes" : "No") . "\n";
-echo "Has manager role (global): " . ($hasManagerRole ? "Yes" : "No") . "\n";
-echo "Is manager (combined): " . ($isManager ? "Yes" : "No") . "\n";
+echo 'Has project-specific role: '.($hasProjectRole ? 'Yes' : 'No')."\n";
+echo 'Is project manager: '.($isProjectManager ? 'Yes' : 'No')."\n";
+echo 'Is super admin (global): '.($isSuperAdmin ? 'Yes' : 'No')."\n";
+echo 'Has manager role (global): '.($hasManagerRole ? 'Yes' : 'No')."\n";
+echo 'Is manager (combined): '.($isManager ? 'Yes' : 'No')."\n";
 echo "\n";
-echo "Can view project financial: " . ($canViewProjectFinancial ? "Yes" : "No") . "\n";
-echo "Can view client contacts: " . ($canViewClientContacts ? "Yes" : "No") . "\n";
-echo "Can view users: " . ($canViewUsers ? "Yes" : "No") . "\n";
+echo 'Can view project financial: '.($canViewProjectFinancial ? 'Yes' : 'No')."\n";
+echo 'Can view client contacts: '.($canViewClientContacts ? 'Yes' : 'No')."\n";
+echo 'Can view users: '.($canViewUsers ? 'Yes' : 'No')."\n";
 echo "\n";
 
 // Expected results:
@@ -82,8 +82,8 @@ echo "\n";
 // - But user has Manager project-specific role, so should have these permissions
 echo "Expected results:\n";
 echo "----------------\n";
-echo "User should have financial, client, and user viewing permissions: " .
-     (($canViewProjectFinancial && $canViewClientContacts && $canViewUsers) ? "PASS" : "FAIL") . "\n";
+echo 'User should have financial, client, and user viewing permissions: '.
+     (($canViewProjectFinancial && $canViewClientContacts && $canViewUsers) ? 'PASS' : 'FAIL')."\n";
 
 // Now test the reverse case - user with manager global role but non-manager project role
 echo "\n\nTesting with manager global role but non-manager project role\n";
@@ -100,7 +100,7 @@ echo "\n";
 
 // Recalculate
 $userProjectRole = $mockProject['users'][0]['pivot']['role'];
-$hasProjectRole = !is_null($userProjectRole);
+$hasProjectRole = ! is_null($userProjectRole);
 $isProjectManager = $userProjectRole === 'Manager' || $userProjectRole === 'Project Manager';
 
 $isSuperAdmin = $mockUser['role'] === 'super_admin' || $mockUser['role'] === 'super-admin' ||
@@ -115,19 +115,19 @@ $canViewUsers = $isProjectManager || $isSuperAdmin || $hasManagerRole;
 
 echo "Permission check results:\n";
 echo "------------------------\n";
-echo "Has project-specific role: " . ($hasProjectRole ? "Yes" : "No") . "\n";
-echo "Is project manager: " . ($isProjectManager ? "Yes" : "No") . "\n";
-echo "Is super admin (global): " . ($isSuperAdmin ? "Yes" : "No") . "\n";
-echo "Has manager role (global): " . ($hasManagerRole ? "Yes" : "No") . "\n";
-echo "Is manager (combined): " . ($isManager ? "Yes" : "No") . "\n";
+echo 'Has project-specific role: '.($hasProjectRole ? 'Yes' : 'No')."\n";
+echo 'Is project manager: '.($isProjectManager ? 'Yes' : 'No')."\n";
+echo 'Is super admin (global): '.($isSuperAdmin ? 'Yes' : 'No')."\n";
+echo 'Has manager role (global): '.($hasManagerRole ? 'Yes' : 'No')."\n";
+echo 'Is manager (combined): '.($isManager ? 'Yes' : 'No')."\n";
 echo "\n";
-echo "Can view project financial: " . ($canViewProjectFinancial ? "Yes" : "No") . "\n";
-echo "Can view client contacts: " . ($canViewClientContacts ? "Yes" : "No") . "\n";
-echo "Can view users: " . ($canViewUsers ? "Yes" : "No") . "\n";
+echo 'Can view project financial: '.($canViewProjectFinancial ? 'Yes' : 'No')."\n";
+echo 'Can view client contacts: '.($canViewClientContacts ? 'Yes' : 'No')."\n";
+echo 'Can view users: '.($canViewUsers ? 'Yes' : 'No')."\n";
 echo "\n";
 
 // In this case, the user should still have permissions due to global manager role
 echo "Expected results:\n";
 echo "----------------\n";
-echo "User should still have permissions due to global manager role: " .
-     (($canViewProjectFinancial && $canViewClientContacts && $canViewUsers) ? "PASS" : "FAIL") . "\n";
+echo 'User should still have permissions due to global manager role: '.
+     (($canViewProjectFinancial && $canViewClientContacts && $canViewUsers) ? 'PASS' : 'FAIL')."\n";

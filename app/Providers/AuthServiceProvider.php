@@ -3,8 +3,8 @@
 namespace App\Providers;
 
 use App\Models\Client;
-use App\Policies\ClientPolicy;
 use App\Models\Project;
+use App\Policies\ClientPolicy;
 use App\Policies\ProjectPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Gate;

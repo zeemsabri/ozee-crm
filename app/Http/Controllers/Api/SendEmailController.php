@@ -2,24 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\HandlesTemplatedEmails;
 use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Controller;
-use App\Models\EmailTemplate;
-use App\Models\PlaceholderDefinition;
 use App\Models\Client;
-use App\Models\Task;
-use App\Models\User;
+use App\Models\EmailTemplate;
 use App\Models\Project;
-use App\Notifications\TaskAssigned;
 use App\Services\MagicLinkService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\View;
-use Illuminate\Support\Str;
-use App\Http\Controllers\Api\Concerns\HandlesTemplatedEmails;
 
 class SendEmailController extends Controller
 {
@@ -35,8 +27,6 @@ class SendEmailController extends Controller
     /**
      * Preview an email based on a template and dynamic data.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function preview(Request $request, Project $project)
@@ -46,53 +36,53 @@ class SendEmailController extends Controller
             'client_id' => 'required|exists:clients,id',
             'template_data' => 'nullable|array',
         ]);
-//
-//        try {
-            $template = EmailTemplate::with('placeholders')->findOrFail($validatedData['template_id']);
-            $recipientClient = Client::findOrFail($validatedData['client_id']);
-            $templateData = $validatedData['template_data'] ?? [];
-            // Populate placeholders for the subject and body
-            $subject = $this->populateAllPlaceholders(
-                $template->subject,
-                $template,
-                $templateData,
-                $recipientClient,
-                $project,
-                false // Not a final send, so generate preview links
-            );
+        //
+        //        try {
+        $template = EmailTemplate::with('placeholders')->findOrFail($validatedData['template_id']);
+        $recipientClient = Client::findOrFail($validatedData['client_id']);
+        $templateData = $validatedData['template_data'] ?? [];
+        // Populate placeholders for the subject and body
+        $subject = $this->populateAllPlaceholders(
+            $template->subject,
+            $template,
+            $templateData,
+            $recipientClient,
+            $project,
+            false // Not a final send, so generate preview links
+        );
 
-            $bodyHtml = $this->populateAllPlaceholders(
-                $template->body_html,
-                $template,
-                $templateData,
-                $recipientClient,
-                $project,
-                false // Not a final send
-            );
+        $bodyHtml = $this->populateAllPlaceholders(
+            $template->body_html,
+            $template,
+            $templateData,
+            $recipientClient,
+            $project,
+            false // Not a final send
+        );
 
-            $bodyHtml = nl2br($bodyHtml);
+        $bodyHtml = nl2br($bodyHtml);
 
-            $sender = Auth::user();
-            $senderDetails = [
-                'name' => $sender?->name ?? 'Staff',
-                'role' => $this->getProjectRoleName($sender, $project) ?? 'Staff',
-            ];
+        $sender = Auth::user();
+        $senderDetails = [
+            'name' => $sender?->name ?? 'Staff',
+            'role' => $this->getProjectRoleName($sender, $project) ?? 'Staff',
+        ];
 
-            $data = $this->getData($subject, $bodyHtml, $senderDetails);
+        $data = $this->getData($subject, $bodyHtml, $senderDetails);
 
-            $fullHtml = $this->renderHtmlTemplate($data);
+        $fullHtml = $this->renderHtmlTemplate($data);
 
-            return response()->json([
-                'subject' => $subject,
-                'body_html' => $fullHtml,
-            ]);
+        return response()->json([
+            'subject' => $subject,
+            'body_html' => $fullHtml,
+        ]);
 
-//        } catch (\Exception $e) {
-//            Log::error('Error generating email preview: ' . $e->getMessage(), [
-//                'template_id' => $validatedData['template_id'],
-//                'error' => $e->getTraceAsString(),
-//            ]);
-//            return response()->json(['message' => 'Error generating email preview: ' . $e->getMessage()], 500);
-//        }
+        //        } catch (\Exception $e) {
+        //            Log::error('Error generating email preview: ' . $e->getMessage(), [
+        //                'template_id' => $validatedData['template_id'],
+        //                'error' => $e->getTraceAsString(),
+        //            ]);
+        //            return response()->json(['message' => 'Error generating email preview: ' . $e->getMessage()], 500);
+        //        }
     }
 }

@@ -19,8 +19,7 @@ class EmailProcessingService
         protected EmailAiAnalysisService $aiAnalysisService,
         protected GmailService $gmailService,
         protected MagicLinkService $magicLinkService
-    ) {
-    }
+    ) {}
 
     /**
      * Process a draft email: analyze it, create context, and decide whether to
@@ -31,13 +30,14 @@ class EmailProcessingService
         try {
             // Refresh the email model to get the latest status
             $email->refresh();
-            
+
             // Only process if status is auto_send or draft
-            if (!in_array($email->status, [EmailStatus::AutoSend, EmailStatus::Draft])) {
+            if (! in_array($email->status, [EmailStatus::AutoSend, EmailStatus::Draft])) {
                 Log::info('Email already processed, skipping', [
                     'email_id' => $email->id,
                     'current_status' => $email->status->value ?? $email->status,
                 ]);
+
                 return;
             }
 
@@ -45,8 +45,9 @@ class EmailProcessingService
             $isAiGenerated = is_null($email->template_id) && $body && ($body->greeting && isset($body->paragraphs));
 
             if ($isAiGenerated) {
-                Log::info('this is ai generated email');;
+                Log::info('this is ai generated email');
                 $this->processEmailOutReach($email);
+
                 return;
             }
             Log::info('this is not ai generated email');
@@ -58,29 +59,29 @@ class EmailProcessingService
 
             // 2. Prepare plain text version for the AI
             // This is crucial for cost-effectiveness and accuracy.
-//            $plainTextForAI = $this->prepareTextForAI($subject, $bodyHtml);
+            //            $plainTextForAI = $this->prepareTextForAI($subject, $bodyHtml);
 
             // 3. Get AI analysis and context
-//            $aiResponse = $this->aiAnalysisService->analyzeAndSummarize($plainTextForAI);
-//
-//            if (!$aiResponse) {
-//                // If AI fails, move to pending approval for safety
-//                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
-//                return;
-//            }
+            //            $aiResponse = $this->aiAnalysisService->analyzeAndSummarize($plainTextForAI);
+            //
+            //            if (!$aiResponse) {
+            //                // If AI fails, move to pending approval for safety
+            //                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
+            //                return;
+            //            }
 
             // 4. Create the context from the AI's response
-//            $this->createContextForEmail($email, $aiResponse);
+            //            $this->createContextForEmail($email, $aiResponse);
 
             // 5. Decide the next step based on AI feedback
-//            if ($aiResponse['approval_required']) {
-//                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
-//                Log::info('Email moved to pending approval by AI.', ['email_id' => $email->id, 'reason' => $aiResponse['reason']]);
-//            } else {
-                // Auto-approved! Send the email.
-                $this->sendApprovedEmail($email, $subject, $bodyHtml);
-//                Log::info('Email auto-approved and sent by AI.', ['email_id' => $email->id]);
-//            }
+            //            if ($aiResponse['approval_required']) {
+            //                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
+            //                Log::info('Email moved to pending approval by AI.', ['email_id' => $email->id, 'reason' => $aiResponse['reason']]);
+            //            } else {
+            // Auto-approved! Send the email.
+            $this->sendApprovedEmail($email, $subject, $bodyHtml);
+            //                Log::info('Email auto-approved and sent by AI.', ['email_id' => $email->id]);
+            //            }
         } catch (Throwable $e) {
             // If any part of the process fails, ensure it goes to manual approval.
             $email->update(['status' => EmailStatus::PendingApproval]);
@@ -113,8 +114,8 @@ class EmailProcessingService
         $recipient = $email->conversation?->conversable ?? null;
 
         Log::info('recipient', ['recipient' => $recipient]);
-        if ($recipient && !empty($recipient->email)) {
-            Log::info('sending email', ['recipient' => $recipient->email]);;
+        if ($recipient && ! empty($recipient->email)) {
+            Log::info('sending email', ['recipient' => $recipient->email]);
             $this->gmailService->sendEmail(
                 $recipient->email,
                 $subject,
@@ -126,7 +127,7 @@ class EmailProcessingService
                 'status' => EmailStatus::Sent,
                 // We can use a dedicated system user ID or null for 'approved_by'
                 'approved_by' => User::where('email', 'info@ozeeweb.com.au')->first()->id ?? null,
-                'sent_at' => now()
+                'sent_at' => now(),
             ]);
         } else {
             // If no recipient, mark as failed instead of sending
@@ -141,18 +142,18 @@ class EmailProcessingService
     public function createContextForEmail(Email $email, array $aiResponse): void
     {
 
-        if(isset($aiResponse['approval_required']) && $aiResponse['approval_required'] === false){
+        if (isset($aiResponse['approval_required']) && $aiResponse['approval_required'] === false) {
             $email->update(['status' => EmailStatus::Sent]);
         }
 
         $context = new \App\Models\Context([
-            'summary'   => $aiResponse['context_summary'],
-            'project_id'    => $email->conversation?->project_id ?? null,
-            'user_id'   => $email->sender_id, // The user who created the draft
+            'summary' => $aiResponse['context_summary'],
+            'project_id' => $email->conversation?->project_id ?? null,
+            'user_id' => $email->sender_id, // The user who created the draft
             'meta_data' => [
                 'approval_required' => $aiResponse['approval_required'],
-                'reason'            => $aiResponse['reason'],
-                'source'            => 'ai_analysis_v1'
+                'reason' => $aiResponse['reason'],
+                'source' => 'ai_analysis_v1',
             ],
         ]);
 
@@ -177,6 +178,6 @@ class EmailProcessingService
         // Remove extra whitespace
         $plainBody = preg_replace('/\s+/', ' ', $plainBody);
 
-        return "Subject: " . $subject . "\n\n" . trim($plainBody);
+        return 'Subject: '.$subject."\n\n".trim($plainBody);
     }
 }

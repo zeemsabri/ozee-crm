@@ -2,17 +2,15 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Lead;
 use App\Models\Presentation;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Arr;
 
 class PresentationSeeder extends Seeder
 {
     /**
      * Run the database seeds.
-     *
-     * @return void
      */
     public function run(): void
     {
@@ -27,6 +25,7 @@ class PresentationSeeder extends Seeder
 
         if (empty($templates)) {
             $this->command->warn('No presentation templates found in config/presentation_templates.php. Seeder will exit.');
+
             return;
         }
 
@@ -39,23 +38,19 @@ class PresentationSeeder extends Seeder
 
     /**
      * Create a presentation template with slides and content blocks from config data.
-     *
-     * @param Lead $lead
-     * @param array $data
-     * @return void
      */
     private function createTemplate(Lead $lead, array $data): void
     {
         $template = $lead->presentations()->updateOrCreate(
             ['title' => $data['title'], 'is_template' => true],
-            ['type'  => Presentation::PROPOSAL]
+            ['type' => Presentation::PROPOSAL]
         );
 
-        if (!$template->wasRecentlyCreated) {
+        if (! $template->wasRecentlyCreated) {
             $template->slides()->delete();
         }
 
-        $this->command->info('Creating/Updating Template: ' . $data['title'] . '...');
+        $this->command->info('Creating/Updating Template: '.$data['title'].'...');
 
         $allBlueprints = config('presentation_templates.slide_blueprints');
 
@@ -63,8 +58,9 @@ class PresentationSeeder extends Seeder
             $blueprintKey = $slideData['blueprint'];
             $baseSlide = $allBlueprints[$blueprintKey] ?? null;
 
-            if (!$baseSlide) {
+            if (! $baseSlide) {
                 $this->command->error("Blueprint '{$blueprintKey}' not found for template '{$data['title']}'. Skipping slide.");
+
                 continue;
             }
 
@@ -79,7 +75,7 @@ class PresentationSeeder extends Seeder
             ]);
 
             // Create content blocks with sequential display order.
-            if (!empty($finalSlideData['content_blocks'])) {
+            if (! empty($finalSlideData['content_blocks'])) {
                 collect($finalSlideData['content_blocks'])->each(function ($blockData, $blockIndex) use ($slide) {
                     $slide->contentBlocks()->create([
                         'block_type' => $blockData['block_type'],

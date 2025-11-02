@@ -3,14 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Mail\MagicLinkMail;
 use App\Models\Client;
 use App\Models\MagicLink;
 use App\Models\Project;
 use App\Services\GmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\View;
@@ -23,17 +21,15 @@ class MagicLinkController extends Controller
 
     /**
      * Create a new controller instance.
-     *
-     * @param GmailService $gmailService
      */
     public function __construct(GmailService $gmailService)
     {
         $this->gmailService = $gmailService;
     }
+
     /**
      * Generate and send a magic link to the client.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $projectId
      * @return \Illuminate\Http\JsonResponse
      */
@@ -49,7 +45,7 @@ class MagicLinkController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation failed',
-                    'errors' => $validator->errors()
+                    'errors' => $validator->errors(),
                 ], 422);
             }
 
@@ -57,30 +53,30 @@ class MagicLinkController extends Controller
             $project = Project::findOrFail($projectId);
 
             // Check if the project has clients
-            if (!$project->clients || !count($project->clients)) {
+            if (! $project->clients || ! count($project->clients)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'This project has no clients associated with it.'
+                    'message' => 'This project has no clients associated with it.',
                 ], 400);
             }
 
             // Find the client by ID and check if it belongs to the project
             $client = collect($project->clients)->firstWhere('id', $request->client_id);
 
-            if (!$client) {
+            if (! $client) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'The provided client ID does not belong to any client associated with this project.'
+                    'message' => 'The provided client ID does not belong to any client associated with this project.',
                 ], 400);
             }
 
             // Get the client's email
             $clientEmail = $client->email;
 
-            if (!$clientEmail) {
+            if (! $clientEmail) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'The selected client does not have a valid email address.'
+                    'message' => 'The selected client does not have a valid email address.',
                 ], 400);
             }
 
@@ -111,7 +107,7 @@ class MagicLinkController extends Controller
             $emailContent = View::make('emails.magic-link', [
                 'magicLink' => $magicLink,
                 'project' => $project,
-                'url' => $url
+                'url' => $url,
             ])->render();
 
             // Send the magic link email using GmailService
@@ -120,10 +116,10 @@ class MagicLinkController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Magic link sent successfully to ' . $client->name
+                'message' => 'Magic link sent successfully to '.$client->name,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error sending magic link: ' . $e->getMessage(), [
+            Log::error('Error sending magic link: '.$e->getMessage(), [
                 'project_id' => $projectId,
                 'client_id' => $request->client_id ?? 'not provided',
                 'email' => isset($clientEmail) ? $clientEmail : 'not found',
@@ -132,7 +128,7 @@ class MagicLinkController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to send magic link: ' . $e->getMessage()
+                'message' => 'Failed to send magic link: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -141,7 +137,6 @@ class MagicLinkController extends Controller
      * Send a magic link to a client email without requiring a specific project.
      * This is used for the client login on the welcome page.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function sendClientMagicLink(Request $request)
@@ -157,7 +152,7 @@ class MagicLinkController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Please provide a valid email address',
-                    'errors' => $validator->errors()
+                    'errors' => $validator->errors(),
                 ], 422);
             }
 
@@ -166,22 +161,22 @@ class MagicLinkController extends Controller
             // Find projects associated with this client email
             $client = Client::where('email', $clientEmail)->first();
 
-            if (!$client) {
+            if (! $client) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No client found with this email address.'
+                    'message' => 'No client found with this email address.',
                 ], 404);
             }
 
             // Get projects through the many-to-many relationship
-            $projects = Project::whereHas('clients', function($query) use ($client) {
+            $projects = Project::whereHas('clients', function ($query) use ($client) {
                 $query->where('clients.id', $client->id);
             })->get();
 
             if ($projects->isEmpty()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No projects found associated with this email address.'
+                    'message' => 'No projects found associated with this email address.',
                 ], 404);
             }
 
@@ -217,7 +212,7 @@ class MagicLinkController extends Controller
                 // Extract the signed parameters and append them to the provided URL
                 $signedParameters = parse_url($url, PHP_URL_QUERY);
                 $baseUrl = $request->input('url');
-                $finalUrl = $baseUrl . $token . '&' . $signedParameters;
+                $finalUrl = $baseUrl.$token.'&'.$signedParameters;
 
             } else {
                 // Fallback to the default, named route
@@ -232,7 +227,7 @@ class MagicLinkController extends Controller
             $emailContent = View::make('emails.magic-link', [
                 'magicLink' => $magicLink,
                 'project' => $project,
-                'url' => $finalUrl
+                'url' => $finalUrl,
             ])->render();
 
             // Send the magic link email using GmailService
@@ -241,17 +236,17 @@ class MagicLinkController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Magic link sent successfully to your email address. Please check your inbox.'
+                'message' => 'Magic link sent successfully to your email address. Please check your inbox.',
             ]);
         } catch (\Exception $e) {
-            Log::error('Error sending client magic link: ' . $e->getMessage(), [
+            Log::error('Error sending client magic link: '.$e->getMessage(), [
                 'email' => $request->email ?? 'not provided',
                 'error' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to send magic link: ' . $e->getMessage()
+                'message' => 'Failed to send magic link: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -260,32 +255,32 @@ class MagicLinkController extends Controller
     {
         try {
             // Check if the URL signature is valid
-            if (!$request->hasValidSignature()) {
+            if (! $request->hasValidSignature()) {
                 return Inertia::render('Errors/MagicLinkError', [ // Use Inertia for error page
-                    'message' => 'Invalid or expired magic link.'
+                    'message' => 'Invalid or expired magic link.',
                 ])->toResponse($request)->setStatusCode(403);
             }
 
             // Find the magic link by token
             $magicLink = MagicLink::where('token', $request->token)->first();
 
-            if (!$magicLink) {
+            if (! $magicLink) {
                 return Inertia::render('Errors/MagicLinkError', [ // Use Inertia for error page
-                    'message' => 'Magic link not found.'
+                    'message' => 'Magic link not found.',
                 ])->toResponse($request)->setStatusCode(404);
             }
 
             // Check if the magic link has expired
             if ($magicLink->hasExpired()) {
                 return Inertia::render('Errors/MagicLinkError', [ // Use Inertia for error page
-                    'message' => 'This magic link has expired.'
+                    'message' => 'This magic link has expired.',
                 ])->toResponse($request)->setStatusCode(403);
             }
 
             // Check if the magic link has been used
             if ($magicLink->hasBeenUsed()) {
                 return Inertia::render('Errors/MagicLinkError', [ // Use Inertia for error page
-                    'message' => 'This magic link has already been used.'
+                    'message' => 'This magic link has already been used.',
                 ])->toResponse($request)->setStatusCode(403);
             }
 
@@ -302,13 +297,13 @@ class MagicLinkController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error handling magic link: ' . $e->getMessage(), [
+            Log::error('Error handling magic link: '.$e->getMessage(), [
                 'token' => $request->token ?? 'not provided',
                 'error' => $e->getTraceAsString(),
             ]);
 
             return Inertia::render('Errors/MagicLinkError', [ // Use Inertia for error page
-                'message' => 'An error occurred while processing your magic link.'
+                'message' => 'An error occurred while processing your magic link.',
             ])->toResponse($request)->setStatusCode(500);
         }
     }
@@ -335,7 +330,7 @@ class MagicLinkController extends Controller
             $tokenOnly = explode('?', $rawToken)[0];
 
             $magicLink = MagicLink::where('token', $tokenOnly)->first();
-            if (!$magicLink) {
+            if (! $magicLink) {
                 return response()->json(['message' => 'Invalid magic link token.'], 404);
             }
 
@@ -352,10 +347,11 @@ class MagicLinkController extends Controller
                 'project_id' => $magicLink->project_id,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error verifying magic link: ' . $e->getMessage(), [
+            Log::error('Error verifying magic link: '.$e->getMessage(), [
                 'token' => $request->input('token') ?? 'not provided',
                 'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to verify magic link.'], 500);
         }
     }

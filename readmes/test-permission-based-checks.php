@@ -7,18 +7,18 @@ echo "Testing permission-based checks functionality\n";
 echo "-------------------------------------------\n\n";
 
 // Import necessary classes
-require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__.'/vendor/autoload.php';
 
-use App\Models\User;
+use App\Models\Permission;
 use App\Models\Project;
 use App\Models\Role;
-use App\Models\Permission;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 // Find a test project
 $project = Project::first();
-if (!$project) {
+if (! $project) {
     echo "No projects found. Please create a project first.\n";
     exit(1);
 }
@@ -34,7 +34,7 @@ $permissions = [
     'view_users' => 'View users',
     'manage_projects' => 'Manage projects',
     'view_emails' => 'View emails',
-    'compose_emails' => 'Compose emails'
+    'compose_emails' => 'Compose emails',
 ];
 
 echo "Setting up test permissions...\n";
@@ -44,10 +44,10 @@ foreach ($permissions as $slug => $name) {
         [
             'name' => $name,
             'description' => "Permission to {$name}",
-            'category' => 'projects'
+            'category' => 'projects',
         ]
     );
-    echo "- Permission '{$slug}' " . ($permission->wasRecentlyCreated ? 'created' : 'already exists') . "\n";
+    echo "- Permission '{$slug}' ".($permission->wasRecentlyCreated ? 'created' : 'already exists')."\n";
 }
 
 // Find or create test roles with different permission combinations
@@ -59,10 +59,10 @@ $managerRole = Role::firstOrCreate(
     [
         'name' => 'Manager',
         'description' => 'Manager with access to most features',
-        'type' => 'application'
+        'type' => 'application',
     ]
 );
-echo "- Role 'manager' " . ($managerRole->wasRecentlyCreated ? 'created' : 'already exists') . "\n";
+echo "- Role 'manager' ".($managerRole->wasRecentlyCreated ? 'created' : 'already exists')."\n";
 
 // Assign all permissions to manager role
 foreach ($permissions as $slug => $name) {
@@ -82,10 +82,10 @@ $employeeRole = Role::firstOrCreate(
     [
         'name' => 'Employee',
         'description' => 'Regular employee with limited access',
-        'type' => 'application'
+        'type' => 'application',
     ]
 );
-echo "- Role 'employee' " . ($employeeRole->wasRecentlyCreated ? 'created' : 'already exists') . "\n";
+echo "- Role 'employee' ".($employeeRole->wasRecentlyCreated ? 'created' : 'already exists')."\n";
 
 // Assign limited permissions to employee role
 $employeePermissions = ['view_emails', 'compose_emails'];
@@ -106,10 +106,10 @@ $projectManagerRole = Role::firstOrCreate(
     [
         'name' => 'Project Manager',
         'description' => 'Manager for specific projects',
-        'type' => 'project'
+        'type' => 'project',
     ]
 );
-echo "- Role 'project-manager' " . ($projectManagerRole->wasRecentlyCreated ? 'created' : 'already exists') . "\n";
+echo "- Role 'project-manager' ".($projectManagerRole->wasRecentlyCreated ? 'created' : 'already exists')."\n";
 
 // Assign project-specific permissions to project manager role
 $projectManagerPermissions = [
@@ -117,7 +117,7 @@ $projectManagerPermissions = [
     'view_project_transactions',
     'view_client_contacts',
     'view_users',
-    'manage_projects'
+    'manage_projects',
 ];
 foreach ($projectManagerPermissions as $slug) {
     $permission = Permission::where('slug', $slug)->first();
@@ -139,14 +139,14 @@ $managerUser = User::firstOrCreate(
     [
         'name' => 'Manager User',
         'password' => bcrypt('password'),
-        'role_id' => $managerRole->id
+        'role_id' => $managerRole->id,
     ]
 );
 if ($managerUser->role_id != $managerRole->id) {
     $managerUser->role_id = $managerRole->id;
     $managerUser->save();
 }
-echo "- User 'manager@example.com' " . ($managerUser->wasRecentlyCreated ? 'created' : 'already exists') . " with manager role\n";
+echo "- User 'manager@example.com' ".($managerUser->wasRecentlyCreated ? 'created' : 'already exists')." with manager role\n";
 
 // Employee user
 $employeeUser = User::firstOrCreate(
@@ -154,14 +154,14 @@ $employeeUser = User::firstOrCreate(
     [
         'name' => 'Employee User',
         'password' => bcrypt('password'),
-        'role_id' => $employeeRole->id
+        'role_id' => $employeeRole->id,
     ]
 );
 if ($employeeUser->role_id != $employeeRole->id) {
     $employeeUser->role_id = $employeeRole->id;
     $employeeUser->save();
 }
-echo "- User 'employee@example.com' " . ($employeeUser->wasRecentlyCreated ? 'created' : 'already exists') . " with employee role\n";
+echo "- User 'employee@example.com' ".($employeeUser->wasRecentlyCreated ? 'created' : 'already exists')." with employee role\n";
 
 // Assign project-specific role to employee user
 echo "\nAssigning project-specific role to employee user...\n";
@@ -175,16 +175,16 @@ echo "- Assigned project manager role to employee user for project {$project->id
 echo "\nTesting API response for manager user...\n";
 Auth::login($managerUser);
 $response = app()->call('\App\Http\Controllers\Api\ProjectController@show', [
-    'project' => $project
+    'project' => $project,
 ]);
 $responseData = $response->getData(true);
 
 // Check if the response contains global permissions
-if (!isset($managerUser->global_permissions)) {
+if (! isset($managerUser->global_permissions)) {
     echo "ERROR: Manager user does not have global_permissions property.\n";
 } else {
     echo "SUCCESS: Manager user has global_permissions property.\n";
-    echo "Number of global permissions: " . count($managerUser->global_permissions) . "\n";
+    echo 'Number of global permissions: '.count($managerUser->global_permissions)."\n";
 
     // Check if all expected permissions are present
     $missingPermissions = [];
@@ -196,13 +196,13 @@ if (!isset($managerUser->global_permissions)) {
                 break;
             }
         }
-        if (!$found) {
+        if (! $found) {
             $missingPermissions[] = $slug;
         }
     }
 
     if (count($missingPermissions) > 0) {
-        echo "WARNING: Some expected permissions are missing: " . implode(', ', $missingPermissions) . "\n";
+        echo 'WARNING: Some expected permissions are missing: '.implode(', ', $missingPermissions)."\n";
     } else {
         echo "SUCCESS: All expected permissions are present in global_permissions.\n";
     }
@@ -212,7 +212,7 @@ if (!isset($managerUser->global_permissions)) {
 echo "\nTesting API response for employee user with project-specific role...\n";
 Auth::login($employeeUser);
 $response = app()->call('\App\Http\Controllers\Api\ProjectController@show', [
-    'project' => $project
+    'project' => $project,
 ]);
 $responseData = $response->getData(true);
 
@@ -225,17 +225,17 @@ foreach ($responseData['users'] as $user) {
     }
 }
 
-if (!$employeeUserInResponse) {
+if (! $employeeUserInResponse) {
     echo "ERROR: Employee user not found in response.\n";
     exit(1);
 }
 
 // Check if the employee user has global permissions
-if (!isset($employeeUser->global_permissions)) {
+if (! isset($employeeUser->global_permissions)) {
     echo "ERROR: Employee user does not have global_permissions property.\n";
 } else {
     echo "SUCCESS: Employee user has global_permissions property.\n";
-    echo "Number of global permissions: " . count($employeeUser->global_permissions) . "\n";
+    echo 'Number of global permissions: '.count($employeeUser->global_permissions)."\n";
 
     // Check if expected global permissions are present
     $missingPermissions = [];
@@ -247,26 +247,26 @@ if (!isset($employeeUser->global_permissions)) {
                 break;
             }
         }
-        if (!$found) {
+        if (! $found) {
             $missingPermissions[] = $slug;
         }
     }
 
     if (count($missingPermissions) > 0) {
-        echo "WARNING: Some expected global permissions are missing: " . implode(', ', $missingPermissions) . "\n";
+        echo 'WARNING: Some expected global permissions are missing: '.implode(', ', $missingPermissions)."\n";
     } else {
         echo "SUCCESS: All expected global permissions are present.\n";
     }
 }
 
 // Check if the employee user has project-specific permissions
-if (!isset($employeeUserInResponse['pivot']['role_data']['permissions'])) {
+if (! isset($employeeUserInResponse['pivot']['role_data']['permissions'])) {
     echo "ERROR: Employee user does not have project-specific permissions in the response.\n";
     exit(1);
 }
 
 echo "SUCCESS: Employee user has project-specific permissions in the response.\n";
-echo "Number of project-specific permissions: " . count($employeeUserInResponse['pivot']['role_data']['permissions']) . "\n";
+echo 'Number of project-specific permissions: '.count($employeeUserInResponse['pivot']['role_data']['permissions'])."\n";
 
 // Check if expected project-specific permissions are present
 $missingPermissions = [];
@@ -278,13 +278,13 @@ foreach ($projectManagerPermissions as $slug) {
             break;
         }
     }
-    if (!$found) {
+    if (! $found) {
         $missingPermissions[] = $slug;
     }
 }
 
 if (count($missingPermissions) > 0) {
-    echo "WARNING: Some expected project-specific permissions are missing: " . implode(', ', $missingPermissions) . "\n";
+    echo 'WARNING: Some expected project-specific permissions are missing: '.implode(', ', $missingPermissions)."\n";
 } else {
     echo "SUCCESS: All expected project-specific permissions are present.\n";
 }

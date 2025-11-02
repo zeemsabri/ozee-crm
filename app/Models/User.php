@@ -2,15 +2,14 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Services\GoogleUserService;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes; // Import Collection for getClientsAttribute
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Illuminate\Database\Eloquent\Collection; // Import Collection for getClientsAttribute
-use App\Services\GoogleUserService;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Builder;
 
 class User extends Authenticatable
 {
@@ -23,7 +22,7 @@ class User extends Authenticatable
     {
         static::addGlobalScope('orderByName', function (Builder $query) {
             $table = (new static)->getTable();
-            $query->orderBy($table . '.name');
+            $query->orderBy($table.'.name');
         });
     }
 
@@ -56,8 +55,8 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
-//    protected $guarded = [
-//    ];
+    //    protected $guarded = [
+    //    ];
 
     protected $hidden = [
         'password',
@@ -124,6 +123,7 @@ class User extends Authenticatable
     /**
      * Get the app role string attribute
      * This returns the role name as a string for use in places where we need to reference the role as a string
+     *
      * @return string
      */
     public function getAppRoleAttribute()
@@ -134,7 +134,7 @@ class User extends Authenticatable
     /**
      * Assign a role to the user.
      *
-     * @param Role|int $role
+     * @param  Role|int  $role
      * @return void
      */
     public function assignRole($role)
@@ -150,7 +150,7 @@ class User extends Authenticatable
     /**
      * Remove a role from the user.
      *
-     * @param Role|int $role
+     * @param  Role|int  $role
      * @return void
      */
     public function removeRole($role)
@@ -168,7 +168,7 @@ class User extends Authenticatable
     /**
      * Check if the user has a specific permission through their primary role.
      *
-     * @param string $permissionSlug
+     * @param  string  $permissionSlug
      * @return bool
      */
     public function hasPermission($permissionSlug)
@@ -184,7 +184,6 @@ class User extends Authenticatable
     /**
      * Check if the user has any of the given permissions through their primary role.
      *
-     * @param array $permissionSlugs
      * @return bool
      */
     public function hasAnyPermission(array $permissionSlugs)
@@ -232,6 +231,7 @@ class User extends Authenticatable
         // For other roles (Manager, Super Admin), it might include all clients
         // based on policy/query, but this method reflects assigned projects' clients.
         $clientIds = $this->projects->load('client')->pluck('client.id')->unique()->toArray();
+
         return Client::whereIn('id', $clientIds)->get();
     }
 
@@ -288,15 +288,15 @@ class User extends Authenticatable
     /**
      * Scope to get user's role for a specific project
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     * @param int $projectId
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  int  $projectId
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function scopeWithProjectRole($query, $projectId)
     {
-        return $query->with(['projects' => function($query) use ($projectId) {
+        return $query->with(['projects' => function ($query) use ($projectId) {
             $query->where('projects.id', $projectId);
-        }])->whereHas('projects', function($query) use ($projectId) {
+        }])->whereHas('projects', function ($query) use ($projectId) {
             $query->where('projects.id', $projectId);
         });
     }
@@ -304,12 +304,13 @@ class User extends Authenticatable
     /**
      * Get the user's role for a specific project
      *
-     * @param int $projectId
+     * @param  int  $projectId
      * @return int|null
      */
     public function getRoleForProject($projectId)
     {
         $project = $this->projects()->where('projects.id', $projectId)->first();
+
         return $project ? $project->pivot->role_id : null;
     }
 
@@ -366,7 +367,7 @@ class User extends Authenticatable
     /**
      * Get all bonus transactions of a specific type.
      *
-     * @param string $type The transaction type (bonus/penalty)
+     * @param  string  $type  The transaction type (bonus/penalty)
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getBonusTransactionsByType($type)
@@ -377,9 +378,9 @@ class User extends Authenticatable
     /**
      * Calculate the total bonus amount for the user.
      *
-     * @param \DateTime|null $startDate Optional start date for filtering
-     * @param \DateTime|null $endDate Optional end date for filtering
-     * @param int|null $projectId Optional project ID for filtering
+     * @param  \DateTime|null  $startDate  Optional start date for filtering
+     * @param  \DateTime|null  $endDate  Optional end date for filtering
+     * @param  int|null  $projectId  Optional project ID for filtering
      * @return float The total bonus amount
      */
     public function calculateTotalBonus(?\DateTime $startDate = null, ?\DateTime $endDate = null, ?int $projectId = null)
@@ -406,9 +407,9 @@ class User extends Authenticatable
     /**
      * Calculate the total penalty amount for the user.
      *
-     * @param \DateTime|null $startDate Optional start date for filtering
-     * @param \DateTime|null $endDate Optional end date for filtering
-     * @param int|null $projectId Optional project ID for filtering
+     * @param  \DateTime|null  $startDate  Optional start date for filtering
+     * @param  \DateTime|null  $endDate  Optional end date for filtering
+     * @param  int|null  $projectId  Optional project ID for filtering
      * @return float The total penalty amount
      */
     public function calculateTotalPenalty(?\DateTime $startDate = null, ?\DateTime $endDate = null, ?int $projectId = null)
@@ -435,9 +436,9 @@ class User extends Authenticatable
     /**
      * Calculate the net bonus amount (bonuses minus penalties) for the user.
      *
-     * @param \DateTime|null $startDate Optional start date for filtering
-     * @param \DateTime|null $endDate Optional end date for filtering
-     * @param int|null $projectId Optional project ID for filtering
+     * @param  \DateTime|null  $startDate  Optional start date for filtering
+     * @param  \DateTime|null  $endDate  Optional end date for filtering
+     * @param  int|null  $projectId  Optional project ID for filtering
      * @return float The net bonus amount
      */
     public function calculateNetBonus(?\DateTime $startDate = null, ?\DateTime $endDate = null, ?int $projectId = null)
@@ -451,8 +452,8 @@ class User extends Authenticatable
     /**
      * Get a summary of bonus/penalty transactions for the user.
      *
-     * @param \DateTime|null $startDate Optional start date for filtering
-     * @param \DateTime|null $endDate Optional end date for filtering
+     * @param  \DateTime|null  $startDate  Optional start date for filtering
+     * @param  \DateTime|null  $endDate  Optional end date for filtering
      * @return array The summary data
      */
     public function getBonusSummary(?\DateTime $startDate = null, ?\DateTime $endDate = null)
@@ -481,7 +482,7 @@ class User extends Authenticatable
         $projectSummaries = [];
         foreach ($transactions as $transaction) {
             $projectId = $transaction->project_id;
-            if (!isset($projectSummaries[$projectId])) {
+            if (! isset($projectSummaries[$projectId])) {
                 $projectSummaries[$projectId] = [
                     'project_id' => $projectId,
                     'project_name' => $transaction->project->name,
@@ -518,7 +519,7 @@ class User extends Authenticatable
     public function getProjectRoleName($project)
     {
         $roleId = $this->getRoleForProject($project->id);
-        if(!$roleId) {
+        if (! $roleId) {
             return 'Staff';
         }
 
@@ -528,18 +529,20 @@ class User extends Authenticatable
 
     public function hasProjectPermissionOnAnyRole(array $projectIds, $permissionSlug)
     {
-        foreach($projectIds as $projectId) {
-            if($this->hasProjectPermission($projectId, $permissionSlug)) {
+        foreach ($projectIds as $projectId) {
+            if ($this->hasProjectPermission($projectId, $permissionSlug)) {
                 $permission = Permission::where('slug', $permissionSlug)->first();
+
                 return [
                     'id' => $permission->id,
                     'name' => $permission->name,
                     'slug' => $permission->slug,
                     'category' => $permission->category,
-                    'source' => 'application'
+                    'source' => 'application',
                 ];
             }
         }
+
         return false;
     }
 
@@ -549,13 +552,13 @@ class User extends Authenticatable
 
         $projectRole = $this->getRoleForProject($projectId);
 
-        if (!$projectRole) {
+        if (! $projectRole) {
             return false;
         }
 
         $role = Role::find($projectRole); // Assuming getRoleForProject returns the role ID
 
-        if (!$role) {
+        if (! $role) {
             return false;
         }
 
@@ -600,12 +603,12 @@ class User extends Authenticatable
         $googleAccount = $this->googleAccount()->first();
 
         // If no credentials exist, return false
-        if (!$googleAccount) {
+        if (! $googleAccount) {
             return false;
         }
 
         // If credentials are not expired, they're valid
-        if (!$googleAccount->isExpired()) {
+        if (! $googleAccount->isExpired()) {
             return true;
         }
 
@@ -613,10 +616,11 @@ class User extends Authenticatable
         try {
             $googleUserService = app(GoogleUserService::class);
             $googleUserService->refreshToken($googleAccount);
+
             return true;
         } catch (\Exception $e) {
             // Log the error for debugging
-            \Illuminate\Support\Facades\Log::error('Failed to refresh Google token: ' . $e->getMessage(), [
+            \Illuminate\Support\Facades\Log::error('Failed to refresh Google token: '.$e->getMessage(), [
                 'user_id' => $this->id,
                 'google_account_id' => $googleAccount->id,
                 'exception' => $e,

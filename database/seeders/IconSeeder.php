@@ -1,11 +1,12 @@
 <?php
+
 // database/seeders/IconSeeder.php
 
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 
 class IconSeeder extends Seeder
 {
@@ -19,7 +20,8 @@ class IconSeeder extends Seeder
         $icons = Config::get('components.icons', []);
 
         if (empty($icons)) {
-            $this->command->error("No icons found in config/components.php");
+            $this->command->error('No icons found in config/components.php');
+
             return;
         }
 

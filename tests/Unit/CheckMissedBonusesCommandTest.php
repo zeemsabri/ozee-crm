@@ -19,9 +19,13 @@ class CheckMissedBonusesCommandTest extends TestCase
     use RefreshDatabase;
 
     protected $user;
+
     protected $project;
+
     protected $bonusConfig;
+
     protected $penaltyConfig;
+
     protected $command;
 
     /**
@@ -108,7 +112,7 @@ class CheckMissedBonusesCommandTest extends TestCase
         $this->project->bonusConfigurationGroups()->attach($group->id);
 
         // Create the command instance
-        $this->command = new CheckMissedBonusesCommand();
+        $this->command = new CheckMissedBonusesCommand;
     }
 
     /**
@@ -118,7 +122,7 @@ class CheckMissedBonusesCommandTest extends TestCase
     {
         // Arrange
         // Create a standup table if it doesn't exist (for testing purposes)
-        if (!DB::getSchemaBuilder()->hasTable('standups')) {
+        if (! DB::getSchemaBuilder()->hasTable('standups')) {
             DB::statement('CREATE TABLE standups (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
@@ -164,7 +168,7 @@ class CheckMissedBonusesCommandTest extends TestCase
     {
         // Arrange
         // Create a standup table if it doesn't exist (for testing purposes)
-        if (!DB::getSchemaBuilder()->hasTable('standups')) {
+        if (! DB::getSchemaBuilder()->hasTable('standups')) {
             DB::statement('CREATE TABLE standups (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
@@ -201,7 +205,7 @@ class CheckMissedBonusesCommandTest extends TestCase
     {
         // Arrange
         // Create a tasks table if it doesn't exist (for testing purposes)
-        if (!DB::getSchemaBuilder()->hasTable('tasks')) {
+        if (! DB::getSchemaBuilder()->hasTable('tasks')) {
             DB::statement('CREATE TABLE tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
@@ -278,7 +282,7 @@ class CheckMissedBonusesCommandTest extends TestCase
     {
         // Arrange
         // Create a standup table if it doesn't exist (for testing purposes)
-        if (!DB::getSchemaBuilder()->hasTable('standups')) {
+        if (! DB::getSchemaBuilder()->hasTable('standups')) {
             DB::statement('CREATE TABLE standups (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
@@ -306,7 +310,7 @@ class CheckMissedBonusesCommandTest extends TestCase
             'bonus_configuration_id' => $this->bonusConfig->id,
             'type' => 'bonus',
             'amount' => 10.00,
-            'description' => "Daily standup bonus for " . $yesterday->format('Y-m-d'),
+            'description' => 'Daily standup bonus for '.$yesterday->format('Y-m-d'),
             'status' => 'pending',
             'source_type' => 'standup',
             'source_id' => $standupId,
@@ -336,7 +340,7 @@ class CheckMissedBonusesCommandTest extends TestCase
     {
         // Arrange
         // Create a standup table if it doesn't exist (for testing purposes)
-        if (!DB::getSchemaBuilder()->hasTable('standups')) {
+        if (! DB::getSchemaBuilder()->hasTable('standups')) {
             DB::statement('CREATE TABLE standups (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,

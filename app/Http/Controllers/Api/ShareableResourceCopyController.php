@@ -22,25 +22,26 @@ class ShareableResourceCopyController extends Controller
         $project = Project::findOrFail($data['project_id']);
         $sourceUrl = $data['source_url'] ?? $resource->url;
 
-        if (!$sourceUrl) {
+        if (! $sourceUrl) {
             return response()->json(['message' => 'No source URL found for this resource.'], 422);
         }
 
         $docId = $this->extractGoogleDocId($sourceUrl);
-        if (!$docId) {
+        if (! $docId) {
             return response()->json(['message' => 'Could not extract Google Document ID from the provided URL.'], 422);
         }
 
         // Handle correct field and potential legacy typo
         $destinationFolderId = $project->google_drive_folder_id ?? $project->google_drive_foler_id ?? null;
-        if (!$destinationFolderId) {
+        if (! $destinationFolderId) {
             return response()->json(['message' => 'Project does not have a Google Drive folder configured.'], 422);
         }
 
-        $newName = $data['new_name'] ?? ($resource->title ? ($resource->title . ' (Copy)') : 'Copied Document');
+        $newName = $data['new_name'] ?? ($resource->title ? ($resource->title.' (Copy)') : 'Copied Document');
 
         try {
             $result = $drive->copyFile($docId, $destinationFolderId, $newName);
+
             return response()->json([
                 'id' => $result['id'] ?? null,
                 'link' => $result['link'] ?? null,
@@ -50,6 +51,7 @@ class ShareableResourceCopyController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to copy file.'], 500);
         }
     }
@@ -61,9 +63,10 @@ class ShareableResourceCopyController extends Controller
     {
         try {
             $files = $drive->listRootFilesAndFolders();
+
             return response()->json($files);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to list files: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to list files: '.$e->getMessage()], 500);
         }
     }
 

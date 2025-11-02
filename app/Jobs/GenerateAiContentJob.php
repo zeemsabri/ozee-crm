@@ -19,7 +19,9 @@ class GenerateAiContentJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $timeout = 180; // Give this job a longer timeout
+
     public $backoff = [60, 300, 900];
 
     public function __construct(
@@ -37,7 +39,7 @@ class GenerateAiContentJob implements ShouldQueue
         $workflow = Workflow::find($this->workflowId);
         $prompt = Prompt::find($this->promptId);
 
-        if (!$workflow || !$prompt) {
+        if (! $workflow || ! $prompt) {
             return;
         }
 
@@ -48,7 +50,7 @@ class GenerateAiContentJob implements ShouldQueue
             // 1. Execute the AI generation
             $result = $aiService->generate($prompt, $this->promptData);
             $parsed = $result['parsed'] ?? null;
-            if (!$parsed && is_string($result['raw'])) {
+            if (! $parsed && is_string($result['raw'])) {
                 $decoded = json_decode($result['raw'], true);
                 if (json_last_error() === JSON_ERROR_NONE) {
                     $parsed = $decoded;
@@ -58,17 +60,16 @@ class GenerateAiContentJob implements ShouldQueue
             // 2. Merge the AI output back into the context
             $this->context['ai']['last_output'] = $parsed ?? $result['raw'];
             // Also place the output in the context for the specific step that triggered it
-            $result = $this->context['step_' . $this->currentStepId] = [
+            $result = $this->context['step_'.$this->currentStepId] = [
                 'raw' => $result['raw'],
                 'parsed' => $parsed,
                 'token_usage' => $result['token_usage'] ?? null,
                 'cost' => $result['cost'] ?? null,
             ];
-            $this->context['steps'][$this->currentStepId] = $this->context['step_' . $this->currentStepId];
-
+            $this->context['steps'][$this->currentStepId] = $this->context['step_'.$this->currentStepId];
 
             // Execute any remaining sibling steps within the same container scope before resuming top-level
-            if (!empty($this->resumeNextSiblingIds)) {
+            if (! empty($this->resumeNextSiblingIds)) {
                 $siblingSteps = $workflow->steps()
                     ->whereIn('id', $this->resumeNextSiblingIds)
                     ->orderBy('step_order', 'asc')
@@ -83,7 +84,7 @@ class GenerateAiContentJob implements ShouldQueue
 
             $raw = $result['raw'] ?? null;
             $parsed = $result['parsed'] ?? null;
-            if (!$parsed && is_string($raw)) {
+            if (! $parsed && is_string($raw)) {
                 $decoded = json_decode($raw, true);
                 if (json_last_error() === JSON_ERROR_NONE) {
                     $parsed = $decoded;
@@ -101,14 +102,14 @@ class GenerateAiContentJob implements ShouldQueue
             ];
 
             // 4. If there is a next step, dispatch a new job to continue the workflow
-//            if ($nextStepId) {
-//                RunWorkflowJob::dispatch(
-//                    $this->workflowId,
-//                    $this->context,
-//                    $nextStepId,
-//                    'wf:'.$this->workflowId.'|start:'.$nextStepId
-//                );
-//            }
+            //            if ($nextStepId) {
+            //                RunWorkflowJob::dispatch(
+            //                    $this->workflowId,
+            //                    $this->context,
+            //                    $nextStepId,
+            //                    'wf:'.$this->workflowId.'|start:'.$nextStepId
+            //                );
+            //            }
 
             $duration = (int) ((microtime(true) - $start) * 1000);
             $this->execLog->update([
@@ -119,8 +120,7 @@ class GenerateAiContentJob implements ShouldQueue
                 'token_usage' => $out['token_usage'] ?? null,
                 'cost' => $out['cost'] ?? null,
             ]);
-        }
-        catch (\Throwable $e) {
+        } catch (\Throwable $e) {
             $this->execLog->update([
                 'status' => 'error',
                 'error' => $e->getMessage(),

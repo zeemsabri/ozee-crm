@@ -9,10 +9,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            if (!Schema::hasColumn('users', 'checklist')) {
+            if (! Schema::hasColumn('users', 'checklist')) {
                 $table->json('checklist')->nullable()->after('timezone');
             }
-            if (!Schema::hasColumn('users', 'notes')) {
+            if (! Schema::hasColumn('users', 'notes')) {
                 $table->json('notes')->nullable()->after('checklist');
             }
         });

@@ -22,11 +22,12 @@ class CheckPermissionInAnyProject
     {
         $user = Auth::user();
 
-        if (!$user) {
+        if (! $user) {
             Log::warning('Unauthenticated user attempted to access route requiring permission in any project', [
                 'permission' => $permission,
                 'route' => $request->path(),
             ]);
+
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
@@ -44,7 +45,7 @@ class CheckPermissionInAnyProject
         $projectIds = $user->projects()->pluck('projects.id')->toArray();
 
         // If user has the permission on any project role, allow
-        if (!empty($projectIds) && method_exists($user, 'hasProjectPermissionOnAnyRole')) {
+        if (! empty($projectIds) && method_exists($user, 'hasProjectPermissionOnAnyRole')) {
             if ($user->hasProjectPermissionOnAnyRole($projectIds, $permission)) {
                 return $next($request);
             }
@@ -59,14 +60,14 @@ class CheckPermissionInAnyProject
         throw new PermissionDeniedException(
             $permission,
             null,
-            'Forbidden. You do not have the required permission in any project: ' . $permission
+            'Forbidden. You do not have the required permission in any project: '.$permission
         );
     }
 
     private function userHasGlobalPermission($user, string $permission): bool
     {
         // Load the user's role with permissions if not already loaded
-        if (!$user->relationLoaded('role') || ($user->role && !$user->role->relationLoaded('permissions'))) {
+        if (! $user->relationLoaded('role') || ($user->role && ! $user->role->relationLoaded('permissions'))) {
             $user->load('role.permissions');
         }
 

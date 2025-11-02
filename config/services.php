@@ -1,7 +1,5 @@
 <?php
 
-use Illuminate\Support\Facades\Storage;
-
 return [
 
     /*
@@ -41,8 +39,8 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('GOOGLE_REDIRECT_URI'),
-        'user_redirect' =>  env('APP_URL').'/google/usercallback',
-        'primary_email' =>  'info@ozeeweb.com.au',
+        'user_redirect' => env('APP_URL').'/google/usercallback',
+        'primary_email' => 'info@ozeeweb.com.au',
     ],
 
     'exchange_rates' => [

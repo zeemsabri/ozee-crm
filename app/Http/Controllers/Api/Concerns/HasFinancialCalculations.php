@@ -2,25 +2,21 @@
 
 namespace App\Http\Controllers\Api\Concerns;
 
-use Illuminate\Support\Collection;
-use App\Models\CurrencyRate; // Import the CurrencyRate model
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache; // For caching database rates
+use App\Models\CurrencyRate;
+use Illuminate\Support\Collection; // Import the CurrencyRate model
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log; // For caching database rates
 
 trait HasFinancialCalculations
 {
     /**
      * Cached currency conversion rates from the database.
-     *
-     * @var array|null
      */
     protected ?array $cachedConversionRates = null;
 
     /**
      * Fetches and caches currency rates from the database.
      * Rates are stored as 'currency_code' => 'rate_to_usd'.
-     *
-     * @return array
      */
     protected function getConversionRatesFromDatabase(): array
     {
@@ -30,23 +26,20 @@ trait HasFinancialCalculations
             $rates = Cache::remember('currency_rates_to_usd', 60 * 24, function () {
                 $dbRates = CurrencyRate::all()->pluck('rate_to_usd', 'currency_code')->toArray();
                 // Ensure USD is always 1.0 as a base, even if not explicitly in DB
-                if (!isset($dbRates['USD'])) {
+                if (! isset($dbRates['USD'])) {
                     $dbRates['USD'] = 1.0;
                 }
+
                 return $dbRates;
             });
             $this->cachedConversionRates = $rates;
         }
+
         return $this->cachedConversionRates;
     }
 
     /**
      * Converts an amount from one currency to another using USD as a base.
-     *
-     * @param float|string $amount
-     * @param string $fromCurrency
-     * @param string $toCurrency
-     * @return float
      */
     protected function convertCurrency(float|string $amount, string $fromCurrency, string $toCurrency): float
     {
@@ -63,8 +56,9 @@ trait HasFinancialCalculations
         $fromRate = $rates[$fromCurrency] ?? null;
         $toRate = $rates[$toCurrency] ?? null;
 
-        if (!$fromRate || !$toRate) {
+        if (! $fromRate || ! $toRate) {
             Log::warning("Missing currency conversion rates for: {$fromCurrency} or {$toCurrency}. Returning original amount. Please ensure rates are fetched and stored.");
+
             return $amount; // Fallback to original amount if rates are missing
         }
 
@@ -85,13 +79,12 @@ trait HasFinancialCalculations
     /**
      * Static helper to process transactions for display.
      *
-     * @param Collection|array $transactions
-     * @param string $desiredCurrency
      * @return array Contains 'transactions' (converted) and 'stats'
      */
     public static function processTransactions(Collection|array $transactions, string $desiredCurrency): array
     {
-        $instance = new self(); // Create an instance to access non-static properties/methods
+        $instance = new self; // Create an instance to access non-static properties/methods
+
         return $instance->processTransactionsForDisplay($transactions, $desiredCurrency);
     }
 
@@ -99,8 +92,6 @@ trait HasFinancialCalculations
      * Processes a collection of transactions, converting amounts to a desired currency
      * and calculating various financial statistics.
      *
-     * @param Collection|array $transactions
-     * @param string $desiredCurrency
      * @return array Contains 'transactions' (converted) and 'stats'
      */
     public function processTransactionsForDisplay(Collection|array $transactions, string $desiredCurrency): array

@@ -18,7 +18,6 @@ class ProjectCalendarController extends Controller
     /**
      * Create a new controller instance.
      *
-     * @param GoogleCalendarService $googleCalendarService
      * @return void
      */
     public function __construct(GoogleCalendarService $googleCalendarService)
@@ -29,8 +28,6 @@ class ProjectCalendarController extends Controller
     /**
      * Create a new Google Calendar meeting for a project.
      *
-     * @param Request $request
-     * @param Project $project
      * @return JsonResponse
      */
     public function createProjectMeeting(Request $request, Project $project)
@@ -59,10 +56,10 @@ class ProjectCalendarController extends Controller
             }
 
             // Get emails of specified attendees from your User model
-            if (!empty($validated['attendee_user_ids'])) {
+            if (! empty($validated['attendee_user_ids'])) {
                 $users = User::whereIn('id', $validated['attendee_user_ids'])->get();
                 foreach ($users as $user) {
-                    if (!in_array($user->email, $attendeeEmails)) { // Avoid duplicates
+                    if (! in_array($user->email, $attendeeEmails)) { // Avoid duplicates
                         $attendeeEmails[] = $user->email;
                     }
                 }
@@ -119,8 +116,9 @@ class ProjectCalendarController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json([
-                'message' => 'Failed to create meeting: ' . $e->getMessage(),
+                'message' => 'Failed to create meeting: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -128,9 +126,7 @@ class ProjectCalendarController extends Controller
     /**
      * Delete a Google Calendar meeting associated with a project.
      *
-     * @param Request $request
-     * @param Project $project
-     * @param string $googleEventId The Google Calendar Event ID to delete.
+     * @param  string  $googleEventId  The Google Calendar Event ID to delete.
      * @return JsonResponse
      */
     public function deleteProjectMeeting(Request $request, Project $project, string $googleEventId)
@@ -165,8 +161,9 @@ class ProjectCalendarController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json([
-                'message' => 'Failed to delete meeting: ' . $e->getMessage(),
+                'message' => 'Failed to delete meeting: '.$e->getMessage(),
             ], 500);
         }
     }

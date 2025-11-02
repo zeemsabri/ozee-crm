@@ -3,16 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\UserAvailability;
-use App\Models\User;
 use App\Models\Project;
+use App\Models\User;
+use App\Models\UserAvailability;
 use App\Services\GoogleChatService;
 use Carbon\Carbon;
-use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class AvailabilityController extends Controller
 {
@@ -22,10 +21,10 @@ class AvailabilityController extends Controller
     {
         $this->googleChatService = $googleChatService;
     }
+
     /**
      * Display a listing of the resource.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request)
@@ -37,10 +36,10 @@ class AvailabilityController extends Controller
         $endDate = $request->input('end_date');
 
         // If no dates provided, default to current week
-        if (!$startDate) {
+        if (! $startDate) {
             $startDate = Carbon::now()->startOfWeek()->format('Y-m-d');
             $endDate = Carbon::now()->endOfWeek()->format('Y-m-d');
-        } elseif (!$endDate) {
+        } elseif (! $endDate) {
             // If only start date is provided, set end date to 7 days later
             $endDate = Carbon::parse($startDate)->addDays(6)->format('Y-m-d');
         }
@@ -53,7 +52,7 @@ class AvailabilityController extends Controller
             $query->where('user_id', $request->input('user_id'));
         } else {
             // Regular users can only see their own availabilities
-            if (!$user->isSuperAdmin() && !$user->isManager()) {
+            if (! $user->isSuperAdmin() && ! $user->isManager()) {
                 $query->where('user_id', $user->id);
             }
         }
@@ -63,23 +62,22 @@ class AvailabilityController extends Controller
         return response()->json([
             'availabilities' => $availabilities,
             'start_date' => $startDate,
-            'end_date' => $endDate
+            'end_date' => $endDate,
         ]);
     }
 
     /**
      * Store a newly created resource in storage.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request)
     {
         $user = Auth::user();
 
-        if ($request->user_id !== $user->id && !$user->isSuperAdmin() && !$user->isManager()) {
+        if ($request->user_id !== $user->id && ! $user->isSuperAdmin() && ! $user->isManager()) {
             return response()->json(['message' => 'Unauthorized'], 403);
-        } else if($request->user_id) {
+        } elseif ($request->user_id) {
             $user = User::find($request->user_id);
         }
 
@@ -105,12 +103,12 @@ class AvailabilityController extends Controller
         if ($existingAvailability) {
             return response()->json([
                 'message' => 'Availability already exists for this date. Please update the existing record.',
-                'availability' => $existingAvailability
+                'availability' => $existingAvailability,
             ], 409);
         }
 
         // Create new availability
-        $availability = new UserAvailability();
+        $availability = new UserAvailability;
         $availability->user_id = $user->id;
         $availability->date = $request->date;
         $availability->is_available = $request->is_available;
@@ -120,14 +118,13 @@ class AvailabilityController extends Controller
 
         return response()->json([
             'message' => 'Availability saved successfully',
-            'availability' => $availability
+            'availability' => $availability,
         ], 201);
     }
 
     /**
      * Display the specified resource.
      *
-     * @param string $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function show(string $id)
@@ -136,7 +133,7 @@ class AvailabilityController extends Controller
         $availability = UserAvailability::findOrFail($id);
 
         // Check if user is authorized to view this availability
-        if ($availability->user_id !== $user->id && !$user->isSuperAdmin() && !$user->isManager()) {
+        if ($availability->user_id !== $user->id && ! $user->isSuperAdmin() && ! $user->isManager()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -146,8 +143,6 @@ class AvailabilityController extends Controller
     /**
      * Update the specified resource in storage.
      *
-     * @param Request $request
-     * @param string $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function update(Request $request, string $id)
@@ -156,7 +151,7 @@ class AvailabilityController extends Controller
         $availability = UserAvailability::findOrFail($id);
 
         // Check if user is authorized to update this availability
-        if ($availability->user_id !== $user->id && !$user->isSuperAdmin() && !$user->isManager()) {
+        if ($availability->user_id !== $user->id && ! $user->isSuperAdmin() && ! $user->isManager()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -168,7 +163,7 @@ class AvailabilityController extends Controller
             'time_slots' => 'required_if:is_available,true|nullable|array',
             'time_slots.*.start_time' => 'required_with:time_slots|string|date_format:H:i',
             'time_slots.*.end_time' => 'required_with:time_slots|string|date_format:H:i',
-            'user_id'   =>  'sometimes|integer|exists:users,id'
+            'user_id' => 'sometimes|integer|exists:users,id',
         ]);
 
         if ($validator->fails()) {
@@ -188,7 +183,7 @@ class AvailabilityController extends Controller
             // If is_available is not provided but other fields are
             if ($availability->is_available && $request->has('time_slots')) {
                 $availability->time_slots = $request->time_slots;
-            } elseif (!$availability->is_available && $request->has('reason')) {
+            } elseif (! $availability->is_available && $request->has('reason')) {
                 $availability->reason = $request->reason;
             }
         }
@@ -197,14 +192,13 @@ class AvailabilityController extends Controller
 
         return response()->json([
             'message' => 'Availability updated successfully',
-            'availability' => $availability
+            'availability' => $availability,
         ]);
     }
 
     /**
      * Remove the specified resource from storage.
      *
-     * @param string $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function destroy(string $id)
@@ -213,7 +207,7 @@ class AvailabilityController extends Controller
         $availability = UserAvailability::findOrFail($id);
 
         // Check if user is authorized to delete this availability
-        if ($availability->user_id !== $user->id && !$user->isSuperAdmin() && !$user->isManager()) {
+        if ($availability->user_id !== $user->id && ! $user->isSuperAdmin() && ! $user->isManager()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -225,7 +219,6 @@ class AvailabilityController extends Controller
     /**
      * Get weekly availabilities for all users or a specific user.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function getWeeklyAvailabilities(Request $request)
@@ -233,7 +226,7 @@ class AvailabilityController extends Controller
         $user = Auth::user();
 
         // Only admin/manager can see all users' availabilities
-        if (!$user->isSuperAdmin() && !$user->isManager()) {
+        if (! $user->isSuperAdmin() && ! $user->isManager()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -263,25 +256,22 @@ class AvailabilityController extends Controller
             $userAvailabilities = $availabilities->where('user_id', $user->id);
             $groupedAvailabilities[] = [
                 'user' => $user,
-                'availabilities' => $userAvailabilities
+                'availabilities' => $userAvailabilities,
             ];
         }
 
         return response()->json([
             'weekly_availabilities' => $groupedAvailabilities,
             'start_date' => $startDate,
-            'end_date' => $endDate
+            'end_date' => $endDate,
         ]);
     }
 
     /**
      * Check if the current day is Thursday to show the availability prompt.
-     *
-     * @return \Illuminate\Http\JsonResponse
      */
     public function shouldShowPrompt(): \Illuminate\Http\JsonResponse
     {
-
 
         $user = Auth::user();
         $today = Carbon::now();
@@ -329,7 +319,7 @@ class AvailabilityController extends Controller
         $isThursdayToSaturday = $today->dayOfWeek >= Carbon::THURSDAY && $today->dayOfWeek <= Carbon::SATURDAY;
 
         if ($isThursdayToSaturday) {
-            $shouldShowPrompt = !$allNextWeekdaysCovered;
+            $shouldShowPrompt = ! $allNextWeekdaysCovered;
         }
 
         // --- User Blocking Logic ---
@@ -348,7 +338,7 @@ class AvailabilityController extends Controller
             }
 
             // Get weekdays for which the user has provided availability
-            $providedAvailabilityDays = collect($currentWeekAvailabilities)->map(function($availability) {
+            $providedAvailabilityDays = collect($currentWeekAvailabilities)->map(function ($availability) {
                 return Carbon::parse($availability->date)->dayOfWeek;
             });
 
@@ -362,13 +352,13 @@ class AvailabilityController extends Controller
 
         // Existing blocking logic for Friday onwards (for next week's availability) - this is a hard deadline
         $isFridayOnwards = $today->dayOfWeek >= Carbon::FRIDAY;
-        if ($isFridayOnwards && !$isNewUser) {
-            if (!$allNextWeekdaysCovered) {
+        if ($isFridayOnwards && ! $isNewUser) {
+            if (! $allNextWeekdaysCovered) {
                 $shouldBlockUser = true;
             }
         }
 
-        if(!env('CHECK_AVAILABILITY', true)){
+        if (! env('CHECK_AVAILABILITY', true)) {
             $shouldShowPrompt = false;
             $shouldBlockUser = false;
         }
@@ -392,7 +382,6 @@ class AvailabilityController extends Controller
     /**
      * Store multiple availability records in a batch.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function batch(Request $request)
@@ -436,7 +425,7 @@ class AvailabilityController extends Controller
                     $savedAvailabilities[] = $existingAvailability;
                 } else {
                     // Create new availability
-                    $availability = new UserAvailability();
+                    $availability = new UserAvailability;
                     $availability->user_id = $user->id;
                     $availability->date = $availabilityData['date'];
                     $availability->is_available = $availabilityData['is_available'];
@@ -450,7 +439,7 @@ class AvailabilityController extends Controller
                 $errors[] = [
                     'index' => $index,
                     'date' => $availabilityData['date'],
-                    'message' => $e->getMessage()
+                    'message' => $e->getMessage(),
                 ];
             }
         }
@@ -478,9 +467,9 @@ class AvailabilityController extends Controller
         }
 
         return response()->json([
-            'message' => count($savedAvailabilities) . ' availability records processed successfully',
+            'message' => count($savedAvailabilities).' availability records processed successfully',
             'availabilities' => $savedAvailabilities,
-            'errors' => $errors
+            'errors' => $errors,
         ], 201);
     }
 }

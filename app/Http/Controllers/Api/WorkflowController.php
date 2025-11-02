@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Concerns\HandlesSchedules;
-
 use App\Http\Controllers\Controller;
 use App\Models\Workflow;
 use App\Models\WorkflowStep;
@@ -32,7 +31,7 @@ class WorkflowController extends Controller
 
             // First pass: create/update rows and map ids
             foreach ($steps as $s) {
-                $providedId = (string)($s['id'] ?? '');
+                $providedId = (string) ($s['id'] ?? '');
                 $data = [
                     'workflow_id' => $workflow->id,
                     'step_order' => $s['step_order'] ?? null,
@@ -48,11 +47,12 @@ class WorkflowController extends Controller
                 if ($providedId !== '' && ctype_digit($providedId) && isset($existingSet[$providedId])) {
                     // Update existing
                     /** @var WorkflowStep $row */
-                    $row = WorkflowStep::where('workflow_id', $workflow->id)->where('id', (int)$providedId)->first();
+                    $row = WorkflowStep::where('workflow_id', $workflow->id)->where('id', (int) $providedId)->first();
                     if ($row) {
                         $row->fill($data)->save();
                         $idMap[$providedId] = $row->id;
                         $seenActualIds[] = $row->id;
+
                         continue;
                     }
                 }
@@ -65,15 +65,19 @@ class WorkflowController extends Controller
 
             // Second pass: update parent references using the map
             foreach ($steps as $s) {
-                $providedId = (string)($s['id'] ?? '');
+                $providedId = (string) ($s['id'] ?? '');
                 $actualId = $idMap[$providedId] ?? null;
-                if (!$actualId) continue;
+                if (! $actualId) {
+                    continue;
+                }
                 /** @var WorkflowStep $row */
                 $row = WorkflowStep::where('workflow_id', $workflow->id)->where('id', $actualId)->first();
-                if (!$row) continue;
+                if (! $row) {
+                    continue;
+                }
                 $cfg = is_array($s['step_config'] ?? null) ? $s['step_config'] : [];
                 if (array_key_exists('_parent_id', $cfg)) {
-                    $oldParent = (string)($cfg['_parent_id'] ?? '');
+                    $oldParent = (string) ($cfg['_parent_id'] ?? '');
                     $newParent = $oldParent !== '' ? ($idMap[$oldParent] ?? null) : null;
                     $cfg['_parent_id'] = $newParent;
                     $row->step_config = $cfg;
@@ -84,22 +88,24 @@ class WorkflowController extends Controller
             // Third pass: remap any string tokens that reference temp ids (e.g., {{step_temp_123.records}})
             $replacements = [];
             foreach ($idMap as $provided => $actual) {
-                if ($provided !== '' && $provided !== (string)$actual) {
-                    $replacements['step_' . $provided] = 'step_' . $actual;
+                if ($provided !== '' && $provided !== (string) $actual) {
+                    $replacements['step_'.$provided] = 'step_'.$actual;
                 }
             }
-            if (!empty($replacements)) {
+            if (! empty($replacements)) {
                 $applyReplacements = function ($value) use (&$applyReplacements, $replacements) {
                     if (is_array($value)) {
                         $out = [];
                         foreach ($value as $k => $v) {
                             $out[$k] = $applyReplacements($v);
                         }
+
                         return $out;
                     }
                     if (is_string($value)) {
                         return str_replace(array_keys($replacements), array_values($replacements), $value);
                     }
+
                     return $value;
                 };
 
@@ -117,8 +123,8 @@ class WorkflowController extends Controller
 
             // Delete removed steps (present in DB but not in payload)
             $keepIds = array_fill_keys(array_map('intval', $seenActualIds), true);
-            $toDelete = array_values(array_filter($existing, fn($id) => !isset($keepIds[(int)$id])));
-            if (!empty($toDelete)) {
+            $toDelete = array_values(array_filter($existing, fn ($id) => ! isset($keepIds[(int) $id])));
+            if (! empty($toDelete)) {
                 WorkflowStep::where('workflow_id', $workflow->id)->whereIn('id', $toDelete)->delete();
             }
         });
@@ -152,7 +158,7 @@ class WorkflowController extends Controller
         // Optionally create a schedule when provided as nested payload
         $attachedScheduleId = null;
         $schedulePayload = $request->input('schedule');
-        if (is_array($schedulePayload) && !empty($schedulePayload)) {
+        if (is_array($schedulePayload) && ! empty($schedulePayload)) {
             $rules = [
                 'name' => ['required', 'string', 'max:255'],
                 'description' => ['nullable', 'string'],
@@ -180,6 +186,7 @@ class WorkflowController extends Controller
         if ($attachedScheduleId) {
             $arr['attached_schedule_id'] = $attachedScheduleId;
         }
+
         return response()->json($arr, 201);
     }
 
@@ -211,7 +218,7 @@ class WorkflowController extends Controller
         // Optionally create a schedule when provided as nested payload during update
         $attachedScheduleId = null;
         $schedulePayload = $request->input('schedule');
-        if (is_array($schedulePayload) && !empty($schedulePayload)) {
+        if (is_array($schedulePayload) && ! empty($schedulePayload)) {
             $rules = [
                 'name' => ['required', 'string', 'max:255'],
                 'description' => ['nullable', 'string'],
@@ -239,12 +246,14 @@ class WorkflowController extends Controller
         if ($attachedScheduleId) {
             $arr['attached_schedule_id'] = $attachedScheduleId;
         }
+
         return response()->json($arr);
     }
 
     public function destroy(Workflow $workflow)
     {
         $workflow->delete();
+
         return response()->noContent();
     }
 
@@ -255,6 +264,7 @@ class WorkflowController extends Controller
         ]);
         $context = $data['context'] ?? [];
         $result = $engine->execute($workflow->load('steps'), $context);
+
         return response()->json($result);
     }
 }

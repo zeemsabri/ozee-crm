@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Arr;
 use InvalidArgumentException;
 
 /**
@@ -13,6 +12,7 @@ class PresentationService
     /**
      * A map to translate minified keys to their full, human-readable versions.
      * This includes keys for all possible content_data structures.
+     *
      * @var array
      */
     private const KEY_MAP = [
@@ -38,6 +38,7 @@ class PresentationService
 
     /**
      * A map to translate numeric block type codes to their string representations.
+     *
      * @var array
      */
     private const BLOCK_TYPE_MAP = [
@@ -58,7 +59,7 @@ class PresentationService
     /**
      * Translates a minified JSON string or array from the API into a human-readable format.
      *
-     * @param string|array $minifiedData The minified JSON string or a decoded array.
+     * @param  string|array  $minifiedData  The minified JSON string or a decoded array.
      * @return array The expanded, human-readable array.
      */
     public function translate(string|array $minifiedData): array
@@ -67,7 +68,7 @@ class PresentationService
             $minifiedData = json_decode($minifiedData, true);
         }
 
-        if (!is_array($minifiedData)) {
+        if (! is_array($minifiedData)) {
             throw new InvalidArgumentException('Input data must be a valid JSON string or an array.');
         }
 
@@ -77,7 +78,7 @@ class PresentationService
     /**
      * Recursively expands an array by replacing minified keys and values.
      *
-     * @param array $array The array to expand.
+     * @param  array  $array  The array to expand.
      * @return array The expanded array.
      */
     private function expandArray(array $array): array
@@ -103,4 +104,3 @@ class PresentationService
         return $expandedArray;
     }
 }
-

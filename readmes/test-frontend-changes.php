@@ -1,14 +1,13 @@
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use App\Models\Project;
-use App\Models\Client;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Facades\Schema;
 
 echo "Testing frontend compatibility with role_id changes...\n";
@@ -69,7 +68,7 @@ if ($user) {
     $projects = $user->projects;
 
     if (count($projects) > 0) {
-        echo "Projects found: " . count($projects) . "\n";
+        echo 'Projects found: '.count($projects)."\n";
 
         // Check first project pivot
         $firstProject = $projects->first();
@@ -102,7 +101,7 @@ if ($project) {
     $users = $project->users;
 
     if (count($users) > 0) {
-        echo "Users found: " . count($users) . "\n";
+        echo 'Users found: '.count($users)."\n";
 
         // Check first user pivot
         $firstUser = $users->first();

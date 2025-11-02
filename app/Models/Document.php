@@ -2,10 +2,8 @@
 
 namespace App\Models;
 
-use App\Services\GoogleChatService;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Log;
 use App\Models\Traits\Taggable;
+use Illuminate\Database\Eloquent\Model;
 
 class Document extends Model
 {
@@ -42,7 +40,7 @@ class Document extends Model
      */
     public function getUrlAttribute()
     {
-        return asset('storage/' . $this->path);
+        return asset('storage/'.$this->path);
     }
 
     public function notes()
@@ -53,8 +51,6 @@ class Document extends Model
     /**
      * Add a note to the task's thread in the project's Google Chat space.
      *
-     * @param string $note
-     * @param User|Client $user
      * @return ProjectNote $projectNote
      */
     public function addNote(string $note, User|Client $user)

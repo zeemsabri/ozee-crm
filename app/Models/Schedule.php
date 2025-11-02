@@ -55,6 +55,7 @@ class Schedule extends Model
     public function scopeWithinWindow(Builder $query, ?Carbon $asOf = null): Builder
     {
         $asOf = $asOf ?: now();
+
         return $query
             ->where('start_at', '<=', $asOf)
             ->where(function ($q) use ($asOf) {
@@ -64,12 +65,18 @@ class Schedule extends Model
 
     public function isDueAt(?Carbon $asOf = null): bool
     {
-//        Log::info($asOf);
-//        Log::info($this->start_at);
+        //        Log::info($asOf);
+        //        Log::info($this->start_at);
         $asOf = ($asOf ?: now())->copy()->startOfMinute();
-        if (!$this->is_active) return false;
-        if ($this->start_at && $this->start_at->gt($asOf)) return false;
-        if ($this->end_at && $this->end_at->lt($asOf)) return false;
+        if (! $this->is_active) {
+            return false;
+        }
+        if ($this->start_at && $this->start_at->gt($asOf)) {
+            return false;
+        }
+        if ($this->end_at && $this->end_at->lt($asOf)) {
+            return false;
+        }
 
         // One-time schedules are due exactly at start_at (minute precision)
         if ($this->is_onetime) {
@@ -78,6 +85,7 @@ class Schedule extends Model
 
         try {
             $cron = new CronExpression($this->recurrence_pattern);
+
             // CronExpression::isDue supports DateTimeInterface|string
             return $cron->isDue($asOf->toDateTimeString());
         } catch (\Throwable $e) {
@@ -90,9 +98,16 @@ class Schedule extends Model
         try {
             // Handle one-time schedules more explicitly for clarity
             if ($this->is_onetime) {
-                if (!$this->is_active) return null;
-                if ($this->last_run_at) return null; // already executed
-                if (!$this->start_at) return null;
+                if (! $this->is_active) {
+                    return null;
+                }
+                if ($this->last_run_at) {
+                    return null;
+                } // already executed
+                if (! $this->start_at) {
+                    return null;
+                }
+
                 return $this->start_at->isFuture() ? $this->start_at->copy() : null;
             }
 
@@ -113,6 +128,7 @@ class Schedule extends Model
             if ($this->end_at && $carbon->gt($this->end_at)) {
                 return null;
             }
+
             return $carbon;
         } catch (\Throwable $e) {
             return null;
@@ -124,12 +140,13 @@ class Schedule extends Model
         // One-time schedule: the most user-friendly
         if ($this->is_onetime) {
             $at = $this->start_at ? $this->start_at->toDateTimeString() : '';
-            return $at ? ('Once at ' . $at) : 'Once';
+
+            return $at ? ('Once at '.$at) : 'Once';
         }
 
         $expr = trim((string) $this->recurrence_pattern);
         $parts = preg_split('/\s+/', $expr);
-        if (!$parts || count($parts) < 5) {
+        if (! $parts || count($parts) < 5) {
             return 'Custom schedule';
         }
         [$min, $hour, $dom, $mon, $dow] = array_pad($parts, 5, '*');
@@ -141,30 +158,32 @@ class Schedule extends Model
 
         // Yearly: m h DOM MON *
         if (ctype_digit($dom) && ctype_digit($mon) && ($dow === '*' || $dow === '?')) {
-            $monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            $monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             $monthIdx = max(1, min(12, (int) $mon));
-            return sprintf('Yearly on %s %d%s', $monthNames[$monthIdx-1], (int) $dom, $time ? ' at ' . $time : '');
+
+            return sprintf('Yearly on %s %d%s', $monthNames[$monthIdx - 1], (int) $dom, $time ? ' at '.$time : '');
         }
 
         // Monthly: m h DOM * *
         if (ctype_digit($dom) && ($mon === '*')) {
-            return sprintf('Monthly on day %d%s', (int) $dom, $time ? ' at ' . $time : '');
+            return sprintf('Monthly on day %d%s', (int) $dom, $time ? ' at '.$time : '');
         }
 
         // Weekly: m h * * DOW[,DOW]
         if ($dow !== '*' && $dom === '*' && $mon === '*') {
-            $names = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            $names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             $days = array_map('intval', explode(',', $dow));
-            $days = array_values(array_filter($days, fn($d) => $d >= 0 && $d <= 6));
-            $label = $days ? implode(', ', array_map(fn($d) => $names[$d], $days)) : '—';
-            return sprintf('Weekly on %s%s', $label, $time ? ' at ' . $time : '');
+            $days = array_values(array_filter($days, fn ($d) => $d >= 0 && $d <= 6));
+            $label = $days ? implode(', ', array_map(fn ($d) => $names[$d], $days)) : '—';
+
+            return sprintf('Weekly on %s%s', $label, $time ? ' at '.$time : '');
         }
 
         // Daily: m h * * *
         if ($dom === '*' && $mon === '*' && $dow === '*') {
-            return $time ? ('Daily at ' . $time) : 'Daily';
+            return $time ? ('Daily at '.$time) : 'Daily';
         }
 
-        return 'Custom cron: ' . $expr;
+        return 'Custom cron: '.$expr;
     }
 }

@@ -14,26 +14,26 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 // Bootstrap Laravel
-require __DIR__ . '/vendor/autoload.php';
-$app = require_once __DIR__ . '/bootstrap/app.php';
+require __DIR__.'/vendor/autoload.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 // Find a test project and deliverable
 $project = Project::first();
-if (!$project) {
+if (! $project) {
     echo "No projects found. Please create a project first.\n";
     exit(1);
 }
 
 $deliverable = Deliverable::where('project_id', $project->id)->first();
-if (!$deliverable) {
+if (! $deliverable) {
     echo "No deliverables found for project {$project->id}. Please create a deliverable first.\n";
     exit(1);
 }
 
 // Find a test user
 $user = User::first();
-if (!$user) {
+if (! $user) {
     echo "No users found. Please create a user first.\n";
     exit(1);
 }
@@ -52,7 +52,7 @@ $request = Request::create(
 );
 
 // Create an instance of the controller
-$controller = new ProjectDeliverableAction(new GoogleDriveService());
+$controller = new ProjectDeliverableAction(new GoogleDriveService);
 
 // Call the addComment method
 $response = $controller->addComment($request, $project, $deliverable);
@@ -79,7 +79,7 @@ if ($response->getStatusCode() === 201 && isset($responseData['message']) && $re
             echo "\nNote #{$noteNumber}:\n";
             $noteNumber++;
             echo "ID: {$note->id}\n";
-            echo "Content: " . ($note->content ?? 'NULL') . "\n";
+            echo 'Content: '.($note->content ?? 'NULL')."\n";
             echo "Creator ID: {$note->creator_id}\n";
             echo "Creator Type: {$note->creator_type}\n";
             echo "Created at: {$note->created_at}\n";

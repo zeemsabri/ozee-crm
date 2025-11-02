@@ -59,9 +59,9 @@ return [
                 'source' => 'php_enum',
                 'enum' => \App\Enums\EmailStatus::class,
             ],
-            'sender_type'   =>  [
-                'source'    =>  'model',
-                'class'     =>  \App\Models\Client::class,
+            'sender_type' => [
+                'source' => 'model',
+                'class' => \App\Models\Client::class,
             ],
             'type' => [
                 'source' => 'php_enum',
@@ -69,23 +69,23 @@ return [
             ],
         ],
         'ProjectExpendable' => [
-                'status' => [
-                    'source' => 'php_enum',
-                    'enum' => \App\Enums\ProjectExpendableStatus::class,
-                ],
+            'status' => [
+                'source' => 'php_enum',
+                'enum' => \App\Enums\ProjectExpendableStatus::class,
             ],
-            'BonusTransaction' => [
-                'status' => [
-                    'source' => 'php_enum',
-                    'enum' => \App\Enums\BonusTransactionStatus::class,
-                ],
+        ],
+        'BonusTransaction' => [
+            'status' => [
+                'source' => 'php_enum',
+                'enum' => \App\Enums\BonusTransactionStatus::class,
             ],
-            'Lead' => [
-                'status' => [
-                    'source' => 'php_enum',
-                    'enum' => \App\Enums\LeadStatus::class,
-                ],
+        ],
+        'Lead' => [
+            'status' => [
+                'source' => 'php_enum',
+                'enum' => \App\Enums\LeadStatus::class,
             ],
+        ],
     ],
 
     // Cache TTL in seconds for the aggregated dictionary

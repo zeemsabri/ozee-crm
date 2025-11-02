@@ -16,9 +16,7 @@ class ProcessDraftEmailJob implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct(public Email $email)
-    {
-    }
+    public function __construct(public Email $email) {}
 
     /**
      * Execute the job.

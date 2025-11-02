@@ -11,7 +11,6 @@ class ActivityController extends Controller
     /**
      * Get activities for a specific subject
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request)
@@ -32,7 +31,7 @@ class ActivityController extends Controller
             $subjectId = $request->input('subject_id');
 
             $query->where('subject_type', $subjectType)
-                  ->where('subject_id', $subjectId);
+                ->where('subject_id', $subjectId);
         }
 
         // Apply limit if provided, otherwise default to 50
@@ -40,8 +39,8 @@ class ActivityController extends Controller
 
         // Get the activities ordered by most recent first
         $activities = $query->orderBy('created_at', 'desc')
-                           ->limit($limit)
-                           ->get();
+            ->limit($limit)
+            ->get();
 
         return response()->json($activities);
     }

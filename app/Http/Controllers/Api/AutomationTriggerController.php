@@ -19,6 +19,7 @@ class AutomationTriggerController extends Controller
             'triggering_object_id' => ['nullable', 'string'],
         ]);
         event(new WorkflowTriggerEvent($event, $data['context'] ?? [], $data['triggering_object_id'] ?? null));
+
         return response()->json(['status' => 'queued', 'event' => $event]);
     }
 }

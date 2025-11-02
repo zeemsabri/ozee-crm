@@ -5,13 +5,12 @@ namespace App\Notifications;
 use App\Mail\NoticeMail;
 use App\Models\NoticeBoard;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
-use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
+use Illuminate\Notifications\Notification;
 
-class NoticeCreated extends Notification implements ShouldQueue, ShouldBroadcast
+class NoticeCreated extends Notification implements ShouldBroadcast, ShouldQueue
 {
     use Queueable;
 
@@ -51,7 +50,7 @@ class NoticeCreated extends Notification implements ShouldQueue, ShouldBroadcast
             'title' => $this->notice->title,
             'description' => $this->notice->description,
             'type' => $this->notice->type,
-            'full_modal'    =>  true,
+            'full_modal' => true,
             'url' => $this->notice->url,
             'created_at' => $this->notice->created_at,
         ];

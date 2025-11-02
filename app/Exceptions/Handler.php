@@ -2,9 +2,9 @@
 
 namespace App\Exceptions;
 
-use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
-use Illuminate\Auth\AuthenticationException;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
+use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -46,7 +46,7 @@ class Handler extends ExceptionHandler
 
             return response()->json([
                 'message' => 'You are not authorized to perform this action.',
-                'error' => 'authorization_denied'
+                'error' => 'authorization_denied',
             ], 403);
         });
 
@@ -60,7 +60,7 @@ class Handler extends ExceptionHandler
 
             return response()->json([
                 'message' => 'Unauthenticated. Please log in to continue.',
-                'error' => 'unauthenticated'
+                'error' => 'unauthenticated',
             ], 401);
         });
     }

@@ -40,7 +40,7 @@ class Context extends Model implements CreatableViaWorkflow
         return $this->belongsTo(User::class);
     }
 
-    public static function requiredOnCreate() : array
+    public static function requiredOnCreate(): array
     {
         return [
             'summary',
@@ -49,7 +49,7 @@ class Context extends Model implements CreatableViaWorkflow
         ];
     }
 
-    public static function defaultsOnCreate(array $context) : array
+    public static function defaultsOnCreate(array $context): array
     {
         $out = [];
         // If this context is being created in response to an Email trigger,
@@ -66,7 +66,9 @@ class Context extends Model implements CreatableViaWorkflow
                     }
                 }
             }
-        } catch (\Throwable $e) { /* no-op */ }
+        } catch (\Throwable $e) { /* no-op */
+        }
+
         return $out;
     }
 
@@ -100,5 +102,4 @@ class Context extends Model implements CreatableViaWorkflow
             ],
         ];
     }
-
 }

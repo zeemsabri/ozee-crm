@@ -1,15 +1,15 @@
 <?php
+
 namespace App\Models;
 
 use App\Models\Traits\HasCategories;
+use App\Models\Traits\Taggable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Traits\Taggable;
-use App\Models\ProjectNote;
 
 class Client extends Model
 {
-    use HasFactory, Taggable, HasCategories;
+    use HasCategories, HasFactory, Taggable;
 
     protected $fillable = [
         'name',
@@ -22,7 +22,7 @@ class Client extends Model
     ];
 
     protected $hidden = [
-        'email', 'phone', 'address'
+        'email', 'phone', 'address',
     ];
 
     // Add a boot method to handle dynamic hiding
@@ -43,6 +43,7 @@ class Client extends Model
         if (auth()->check() && ! auth()->user()->hasPermission('edit_clients')) {
             $this->setHidden(array_merge($this->getHidden(), ['email']));
         }
+
         return $this;
     }
 

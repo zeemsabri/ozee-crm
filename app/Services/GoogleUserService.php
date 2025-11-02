@@ -23,7 +23,7 @@ class GoogleUserService
      */
     public function __construct()
     {
-        $this->client = new GoogleClient();
+        $this->client = new GoogleClient;
         $this->client->setClientId(config('services.google.client_id'));
         $this->client->setClientSecret(config('services.google.client_secret'));
         $this->client->setRedirectUri(env('USER_REDIRECT_URL'));
@@ -48,16 +48,15 @@ class GoogleUserService
             ->scopes($scopes)
             ->with(['access_type' => 'offline', 'prompt' => 'consent'])
             ->redirect(env('USER_REDIRECT_URL'));
-//
-//            ->redirect()
-//            ->getTargetUrl();
+        //
+        //            ->redirect()
+        //            ->getTargetUrl();
     }
 
     /**
      * Handle the Google OAuth callback and store user credentials.
      *
-     * @param string $authCode
-     * @param \App\Models\User $user
+     * @param  string  $authCode
      * @return \App\Models\GoogleAccounts
      */
     public function handleCallback($authCode, User $user)
@@ -80,7 +79,7 @@ class GoogleUserService
 
             return $googleAccount;
         } catch (\Exception $e) {
-            Log::error('Google OAuth Callback Error: ' . $e->getMessage(), [
+            Log::error('Google OAuth Callback Error: '.$e->getMessage(), [
                 'exception' => $e,
                 'trace' => $e->getTraceAsString(),
                 'user_id' => $user->id,
@@ -93,14 +92,13 @@ class GoogleUserService
     /**
      * Get a Google client with user credentials.
      *
-     * @param \App\Models\User $user
      * @return \Google\Client|null
      */
     public function getClientForUser(User $user)
     {
         $googleAccount = $user->googleAccount;
 
-        if (!$googleAccount) {
+        if (! $googleAccount) {
             return null;
         }
 
@@ -123,8 +121,8 @@ class GoogleUserService
     /**
      * Refresh the access token.
      *
-     * @param \App\Models\GoogleAccounts $googleAccount
      * @return \App\Models\GoogleAccounts
+     *
      * @throws \Exception If token refresh fails
      */
     public function refreshToken(GoogleAccounts $googleAccount)
@@ -155,7 +153,7 @@ class GoogleUserService
             $client->fetchAccessTokenWithRefreshToken($googleAccount->refresh_token);
 
             // Check if we got a valid response
-            if (!isset($client->getAccessToken()['access_token'])) {
+            if (! isset($client->getAccessToken()['access_token'])) {
                 throw new \Exception('Failed to get new access token');
             }
 
@@ -170,7 +168,7 @@ class GoogleUserService
 
             return $googleAccount->fresh();
         } catch (\Exception $e) {
-            Log::error('Token Refresh Error: ' . $e->getMessage(), [
+            Log::error('Token Refresh Error: '.$e->getMessage(), [
                 'exception' => $e,
                 'trace' => $e->getTraceAsString(),
                 'google_account_id' => $googleAccount->id,
@@ -183,14 +181,13 @@ class GoogleUserService
     /**
      * Get a Google Chat service instance for a user.
      *
-     * @param \App\Models\User $user
      * @return \Google\Service\Chat|null
      */
     public function getChatServiceForUser(User $user)
     {
         $client = $this->getClientForUser($user);
 
-        if (!$client) {
+        if (! $client) {
             return null;
         }
 

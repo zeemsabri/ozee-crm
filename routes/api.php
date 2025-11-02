@@ -2,65 +2,63 @@
 
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AutomationSchemaController;
+use App\Http\Controllers\Api\AvailabilityController;
+use App\Http\Controllers\Api\BonusConfigurationController;
 use App\Http\Controllers\Api\BonusConfigurationGroupController;
+use App\Http\Controllers\Api\BugReportController;
+use App\Http\Controllers\Api\CampaignController;
+use App\Http\Controllers\Api\CategoryController as AdminCategoryController;
+use App\Http\Controllers\Api\CategorySetController;
+use App\Http\Controllers\Api\Client\SeoReportController;
+use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientAction;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientReader;
-use App\Http\Controllers\Api\Client\SeoReportController;
+use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\ComponentController;
+use App\Http\Controllers\Api\EmailController;
 use App\Http\Controllers\Api\EmailTemplateController;
+use App\Http\Controllers\Api\FamifyHub\MailController as FamifyMailController;
+use App\Http\Controllers\Api\FileAttachmentController;
 use App\Http\Controllers\Api\ImageUploadController;
-use App\Http\Controllers\Api\PlaceholderDefinitionController;
-use App\Http\Controllers\Api\ValueDictionaryController;
+use App\Http\Controllers\Api\InboxController;
+use App\Http\Controllers\Api\LeadController;
+use App\Http\Controllers\Api\MagicLinkController;
+use App\Http\Controllers\Api\MilestoneController;
+use App\Http\Controllers\Api\ModelDataController;
+use App\Http\Controllers\Api\OptionsController;
+use App\Http\Controllers\Api\PermissionController;
+use App\Http\Controllers\Api\PlaceholderDefinitionController; // New Import
+use App\Http\Controllers\Api\PresentationAIController; // New Import
+use App\Http\Controllers\Api\PresentationGeneratorController;
+use App\Http\Controllers\Api\ProjectActionController;
 use App\Http\Controllers\Api\ProjectDashboard\ProjectDeliverableAction;
+use App\Http\Controllers\Api\ProjectNoteController;
+use App\Http\Controllers\Api\ProjectReadController;
+use App\Http\Controllers\Api\PublicLeadIntakeController;
+use App\Http\Controllers\Api\ResourceController;
+use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\ScheduleApiController;
 use App\Http\Controllers\Api\SendEmailController;
 use App\Http\Controllers\Api\ShareableResourceController;
+use App\Http\Controllers\Api\SubtaskController;
+use App\Http\Controllers\Api\TaskController;
+use App\Http\Controllers\Api\TaskTypeController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\UserWorkspaceController;
+use App\Http\Controllers\Api\ValueDictionaryController;
 use App\Http\Controllers\Api\WireframeController;
+use App\Http\Controllers\Api\WorkflowLogController;
+use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
-use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\GoogleAuthController;
-use App\Http\Controllers\Api\ClientController;
-use App\Http\Controllers\Api\CommentController;
-use App\Http\Controllers\Api\EmailController;
-use App\Http\Controllers\Api\InboxController;
-use App\Http\Controllers\Api\ProjectReadController; // New Import
-use App\Http\Controllers\Api\ProjectActionController; // New Import
-use App\Http\Controllers\Api\WorkspaceController;
-use App\Http\Controllers\Api\RoleController;
-use App\Http\Controllers\Api\PermissionController;
-use App\Http\Controllers\Api\TaskController;
-use App\Http\Controllers\Api\SubtaskController;
-use App\Http\Controllers\Api\MilestoneController;
-use App\Http\Controllers\Api\TaskTypeController;
-use App\Http\Controllers\Api\FileAttachmentController;
-use App\Http\Controllers\Api\AvailabilityController;
-use App\Http\Controllers\Api\BonusConfigurationController;
-use App\Http\Controllers\Api\ResourceController;
-use App\Http\Controllers\Api\UserProfileController;
-use App\Http\Controllers\Api\MagicLinkController;
-use App\Http\Controllers\Api\ModelDataController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\Api\FamifyHub\MailController as FamifyMailController;
-use App\Http\Controllers\Api\BugReportController;
-use App\Http\Controllers\Api\PresentationAIController;
-use App\Http\Controllers\Api\PresentationGeneratorController;
-use App\Http\Controllers\Api\PublicLeadIntakeController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\LeadController;
-use App\Http\Controllers\Api\ProjectNoteController;
-use App\Http\Controllers\Api\CampaignController;
-use App\Http\Controllers\Api\ScheduleApiController;
-use App\Http\Controllers\Api\WorkflowLogController;
-use App\Http\Controllers\Api\OptionsController;
-use App\Http\Controllers\Api\CategorySetController;
-use App\Http\Controllers\Api\CategoryController as AdminCategoryController;
-
 
 Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
 // Public Authentication Routes (NO auth:sanctum middleware)
@@ -102,6 +100,8 @@ Route::post('/famifyhub/contactform', [FamifyMailController::class, 'contactForm
 
 // Public Lead Intake (from PublicPresenter)
 Route::post('/public/lead-intake', [PublicLeadIntakeController::class, 'store']);
+// New Public Lead API (API-key protected)
+Route::post('/public/lead/{firefly}', [\App\Http\Controllers\Api\PublicLeadApiController::class, 'store']);
 
 // Authenticated API Routes (behind auth:sanctum middleware for internal users)
 Route::middleware('auth:sanctum')->group(function () {
@@ -282,7 +282,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('files', [FileAttachmentController::class, 'store']);
     Route::delete('files/{file}', [FileAttachmentController::class, 'destroy']);
 
-
     // Email Management & Approval Routes
     Route::get('emails/pending-approval', [EmailController::class, 'pendingApproval']);
     Route::get('emails/pending-approval-simplified', [EmailController::class, 'pendingApprovalSimplified']);
@@ -314,6 +313,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/google/status', function () {
         try {
             $gmailService = app(\App\Services\GmailService::class);
+
             return response()->json([
                 'status' => 'authorized',
                 'authorized_email' => $gmailService->getAuthorizedEmail(),
@@ -354,7 +354,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user/permissions', [PermissionController::class, 'getUserPermissions']);
     Route::get('/projects/{project}/permissions', [PermissionController::class, 'getUserProjectPermissions'])->name('projects.permissions');
 
-
     // Role Management Routes (CRUD)
     Route::apiResource('roles', RoleController::class)->middleware('permission:manage_roles');
     Route::post('roles/{role}/permissions', [RoleController::class, 'updatePermissions'])
@@ -365,8 +364,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('project-tiers', \App\Http\Controllers\Api\ProjectTierController::class);
 
     // Task Management Routes
-        // Polymorphic schedule creation for existing items
-        Route::post('schedules', [ScheduleApiController::class, 'store'])->name('api.schedules.store');
+    // Polymorphic schedule creation for existing items
+    Route::post('schedules', [ScheduleApiController::class, 'store'])->name('api.schedules.store');
     Route::get('task-statistics', [TaskController::class, 'getTaskStatistics']);
     Route::get('assigned-tasks', [TaskController::class, 'getAssignedTasks']);
     Route::get('projects/{projectId}/due-and-overdue-tasks', [TaskController::class, 'getProjectDueAndOverdueTasks']);
@@ -451,7 +450,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/projects/{project}/deliverables/{deliverable}', [ProjectDeliverableAction::class, 'show'])->name('projects.deliverables.show');
     Route::post('/projects/{project}/deliverables/{deliverable}/comments', [ProjectDeliverableAction::class, 'addComment'])->name('projects.deliverables.addComment');
 
-    //SEO Report
+    // SEO Report
     Route::post('/projects/{project}/seo-reports', [SeoReportController::class, 'store']);
     Route::get('/projects/{project}/seo-reports/available-months', [SeoReportController::class, 'getAvailableMonths']);
     Route::get('/projects/{project}/seo-reports/{yearMonth}', [SeoReportController::class, 'show']);
@@ -462,7 +461,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- NEW: Email Templates API Routes ---
     // Protect these routes with a new permission: 'manage_email_templates'
-//    Route::get('email-templates', [EmailTemplateController::class, 'index']);
+    //    Route::get('email-templates', [EmailTemplateController::class, 'index']);
     Route::apiResource('email-templates', EmailTemplateController::class);
     Route::post('email-templates/{emailTemplate}/placeholders', [EmailTemplateController::class, 'syncPlaceholders']);
     // We can also add a route to get a preview of the rendered template.
@@ -478,7 +477,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('value-dictionaries', [ValueDictionaryController::class, 'index'])->middleware('permission:manage_placeholder_definitions');
     Route::get('value-dictionaries/{model}/{field}', [ValueDictionaryController::class, 'show'])->middleware('permission:manage_placeholder_definitions');
 
-
     Route::post('projects/{project}/email-preview', [SendEmailController::class, 'preview']);
     Route::post('emails/templated', [EmailController::class, 'storeTemplatedEmail']);
     Route::get('projects/{project}/model-data/{shortModelName}', [\App\Http\Controllers\Api\ModelDataController::class, 'index']);
@@ -493,7 +491,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('project-deliverables/{id}', [\App\Http\Controllers\Api\ProjectDeliverableController::class, 'update']);
     Route::delete('project-deliverables/{id}', [\App\Http\Controllers\Api\ProjectDeliverableController::class, 'destroy']);
     Route::get('project-deliverable-types', function () {
-       return config('project_deliverable_types');
+        return config('project_deliverable_types');
     });
 
     // Wireframe Routes
@@ -581,8 +579,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('workflow-steps', \App\Http\Controllers\Api\WorkflowStepController::class);
 
 });
-
-
 
 // === Client-Specific API Routes (Protected by Magic Link Token) ===
 // These routes will be used by the Vue client dashboard, authenticated via magic link.

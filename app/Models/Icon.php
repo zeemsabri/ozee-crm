@@ -5,8 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Icon extends Model
 {
@@ -43,14 +43,11 @@ class Icon extends Model
 
     /**
      * Validate SVG content.
-     *
-     * @param string $svgContent
-     * @return bool
      */
     public static function validateSvgContent(string $svgContent): bool
     {
         // Basic validation - check if it starts with SVG tag
-        if (!preg_match('/<svg[^>]*>/', $svgContent)) {
+        if (! preg_match('/<svg[^>]*>/', $svgContent)) {
             return false;
         }
 
@@ -73,9 +70,6 @@ class Icon extends Model
 
     /**
      * Sanitize SVG content.
-     *
-     * @param string $svgContent
-     * @return string
      */
     public static function sanitizeSvgContent(string $svgContent): string
     {

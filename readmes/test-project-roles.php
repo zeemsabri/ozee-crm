@@ -3,15 +3,15 @@
 // This is a simple test script to verify that project roles are working correctly
 // Run this script with: php test-project-roles.php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap the Laravel application
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use App\Models\Project;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -26,18 +26,18 @@ foreach ($roles as $role) {
 echo "\n";
 
 // Get a manager user
-$manager = User::whereHas('role', function($query) {
+$manager = User::whereHas('role', function ($query) {
     $query->where('slug', 'manager');
 })->first();
 
-if (!$manager) {
+if (! $manager) {
     echo "Manager user not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
 
 // Get a project
 $project = Project::first();
-if (!$project) {
+if (! $project) {
     echo "No projects found in the database. Please create a project first.\n";
     exit;
 }
@@ -59,7 +59,7 @@ if ($projectUsers->isEmpty()) {
 } else {
     foreach ($projectUsers as $pu) {
         $user = User::find($pu->user_id);
-        $roleName = $pu->role_id ? Role::find($pu->role_id)->name ?? "Unknown Role ({$pu->role_id})" : "No Role";
+        $roleName = $pu->role_id ? Role::find($pu->role_id)->name ?? "Unknown Role ({$pu->role_id})" : 'No Role';
         echo "- User: {$user->name}, Role ID: {$pu->role_id}, Role Name: {$roleName}\n";
     }
 }
@@ -69,18 +69,18 @@ echo "\n";
 echo "Testing adding a user with a specific role...\n";
 
 // Find a user not already assigned to the project
-$newUser = User::whereDoesntHave('projects', function($query) use ($project) {
+$newUser = User::whereDoesntHave('projects', function ($query) use ($project) {
     $query->where('projects.id', $project->id);
 })->first();
 
-if (!$newUser) {
+if (! $newUser) {
     echo "No available users to add to the project. Please create more users.\n";
     exit;
 }
 
 // Find a role to assign
 $roleToAssign = Role::where('slug', 'employee')->first();
-if (!$roleToAssign) {
+if (! $roleToAssign) {
     $roleToAssign = $roles->first();
 }
 

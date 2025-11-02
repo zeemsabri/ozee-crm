@@ -7,7 +7,6 @@ use App\Enums\EmailType;
 use App\Models\Email;
 use App\Models\Project;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class EmailPolicy
 {
@@ -31,8 +30,10 @@ class EmailPolicy
             if ($user->isContractor()) {
                 return $user->id === $email->sender_id;
             }
+
             return true; // Managers, Employees, and Super Admins can view all emails
         }
+
         return false;
     }
 
@@ -40,14 +41,14 @@ class EmailPolicy
      * Determine whether the user can create emails.
      * All authenticated users can create emails (for submission).
      */
-    public function create(User $user, Project|null $project = null): bool
+    public function create(User $user, ?Project $project = null): bool
     {
 
-        if($user->hasPermission('view_all_emails') || $user->hasPermission('compose_emails')) {
+        if ($user->hasPermission('view_all_emails') || $user->hasPermission('compose_emails')) {
             return true;
         }
 
-        if ($project && !$user->projects->contains($project->id)) {
+        if ($project && ! $user->projects->contains($project->id)) {
             return false;
         }
 
@@ -103,7 +104,7 @@ class EmailPolicy
     public function editAndApprove(User $user, Email $email): bool
     {
 
-        if($user->hasPermission('approve_received_emails')) {
+        if ($user->hasPermission('approve_received_emails')) {
             return true;
         }
 
@@ -116,11 +117,11 @@ class EmailPolicy
      */
     public function reject(User $user, Email $email): bool
     {
-         if($user->hasPermission('approve_emails')) {
-             return true;
-         }
+        if ($user->hasPermission('approve_emails')) {
+            return true;
+        }
 
-         return $this->userHasProjectPermission($user, 'approve_emails', $email->conversation?->project_id);
+        return $this->userHasProjectPermission($user, 'approve_emails', $email->conversation?->project_id);
     }
 
     /**
@@ -152,7 +153,7 @@ class EmailPolicy
     public function approveOrView(User $user, Email $email): bool
     {
 
-        if($user->hasPermission('approve_all_emails')) {
+        if ($user->hasPermission('approve_all_emails')) {
             return true;
         }
 
@@ -166,10 +167,10 @@ class EmailPolicy
 
             // Super Admin and Manager can approve/view any sent email.
             // This is handled by the `approve` policy which checks for `approve_emails` permission.
-            if($email->status === EmailStatus::PendingApproval) {
+            if ($email->status === EmailStatus::PendingApproval) {
                 return $this->approve($user, $email) || $this->userHasProjectPermission($user, 'approve_emails', $email->conversation->project_id);
             }
-            if($email->status === EmailStatus::Sent) {
+            if ($email->status === EmailStatus::Sent) {
                 return $this->approve($user, $email) || $this->userHasProjectPermission($user, 'view_emails', $email->conversation->project_id);
             }
 
@@ -178,11 +179,11 @@ class EmailPolicy
         // Logic for received emails
         if ($email->type === EmailType::Received) {
 
-            if($email->status === EmailStatus::PendingApprovalReceived) {
+            if ($email->status === EmailStatus::PendingApprovalReceived) {
                 return $user->hasPermission('approve_received_emails') || $this->userHasProjectPermission($user, 'approve_received_emails', $email->conversation->project_id);
             }
 
-            if($email->status === EmailStatus::Received) {
+            if ($email->status === EmailStatus::Received) {
                 return $user->hasPermission('view_emails') || $this->userHasProjectPermission($user, 'view_emails', $email->conversation->project_id);
             }
 
@@ -192,29 +193,28 @@ class EmailPolicy
         return false;
     }
 
-
     /**
      * Helper method to check project-specific permission.
      * This should probably be a reusable trait or method on the User model.
      */
-    private function userHasProjectPermission(User $user, String|Array $permission, $projectId): bool
+    private function userHasProjectPermission(User $user, string|array $permission, $projectId): bool
     {
         // This logic is adapted from your ProjectPolicy's helper method.
         $project = \App\Models\Project::with(['users' => function ($query) use ($user) {
             $query->where('users.id', $user->id)->withPivot('role_id');
         }])->find($projectId);
 
-        if (!$project || !$userInProject = $project->users->first()) {
+        if (! $project || ! $userInProject = $project->users->first()) {
             return false;
         }
 
         $projectRole = \App\Models\Role::with('permissions')->find($userInProject->pivot->role_id);
 
-        if (!$projectRole) {
+        if (! $projectRole) {
             return false;
         }
 
-        if(is_array($permission)) {
+        if (is_array($permission)) {
             return (bool) $projectRole->permissions->whereIn('slug', $permission)->count();
         }
 

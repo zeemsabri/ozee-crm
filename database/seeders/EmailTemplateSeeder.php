@@ -96,21 +96,19 @@ class EmailTemplateSeeder extends Seeder
                 );
 
                 // Extract placeholders from the subject and body
-                $placeholders = $this->extractPlaceholders($template->subject . ' ' . $template->body_html);
+                $placeholders = $this->extractPlaceholders($template->subject.' '.$template->body_html);
                 $this->syncPlaceholders($template, $placeholders);
             }
 
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
-            $this->command->error('Error seeding email templates: ' . $e->getMessage());
+            $this->command->error('Error seeding email templates: '.$e->getMessage());
         }
     }
 
     /**
      * Helper function to extract placeholders from a string.
-     * @param string $content
-     * @return array
      */
     private function extractPlaceholders(string $content): array
     {
@@ -121,13 +119,12 @@ class EmailTemplateSeeder extends Seeder
                 $placeholders[] = trim($match);
             }
         }
+
         return array_unique($placeholders);
     }
 
     /**
      * Sync placeholders for a given template.
-     * @param EmailTemplate $template
-     * @param array $placeholders
      */
     private function syncPlaceholders(EmailTemplate $template, array $placeholders)
     {

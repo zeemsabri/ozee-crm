@@ -3,14 +3,13 @@
 namespace App\Traits;
 
 use App\Models\User;
+use Exception;
 use Google\Client;
 use Google\Service\Calendar;
 use Google\Service\Drive;
 use Google\Service\Gmail;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
-use Exception;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Trait for managing Google API authentication and services.
@@ -19,7 +18,6 @@ use Exception;
  */
 trait GoogleApiAuthTrait
 {
-
     const APP_AS_USER = 'app';
 
     /** @var Client The Google client instance. */
@@ -54,15 +52,15 @@ trait GoogleApiAuthTrait
     /**
      * Initializes the Google Client with an authenticated user or a default account.
      *
-     * @param User|null $user The authenticated user model.
+     * @param  User|null  $user  The authenticated user model.
      * @return $this
      */
-    protected function initializeGoogleClient(User|null $user = null): self
+    protected function initializeGoogleClient(?User $user = null): self
     {
 
         try {
             // Set up the client instance with credentials
-            $this->client = new Client();
+            $this->client = new Client;
             $this->client->setClientId(config('services.google.client_id'));
             $this->client->setClientSecret(config('services.google.client_secret'));
             $this->client->setAccessType('offline'); // Ensures we get a refresh token
@@ -74,10 +72,9 @@ trait GoogleApiAuthTrait
             if ($this->client->isAccessTokenExpired()) {
                 $this->refreshAccessToken($user);
             }
-        }
-        catch (Exception $e) {
+        } catch (Exception $e) {
 
-            if($user) {
+            if ($user) {
                 $user->googleAccount()?->delete();
             }
             $this->loadTokens();
@@ -86,18 +83,17 @@ trait GoogleApiAuthTrait
             }
         }
 
-
         return $this;
     }
 
     /**
      * Loads the access tokens from the user's account or a local file.
      *
-     * @param User|null $user The authenticated user model.
-     * @return void
+     * @param  User|null  $user  The authenticated user model.
+     *
      * @throws Exception If tokens cannot be retrieved.
      */
-    private function loadTokens(User|null $user =null): void
+    private function loadTokens(?User $user = null): void
     {
         $tokens = null;
         if ($user && $googleAccount = $user->googleAccount) {
@@ -118,22 +114,22 @@ trait GoogleApiAuthTrait
     /**
      * Refreshes the Google access token and saves the new tokens.
      *
-     * @param User|null $user The authenticated user model.
-     * @return void
+     * @param  User|null  $user  The authenticated user model.
+     *
      * @throws Exception On failure to refresh the token.
      */
-    private function refreshAccessToken(User|null $user = null): void
+    private function refreshAccessToken(?User $user = null): void
     {
         try {
             $accessToken = $this->client->getAccessToken();
 
-            if(!$this->client->getClientId()) {
+            if (! $this->client->getClientId()) {
                 return;
             }
             // We use the existing refresh token to get a new access token
             $newTokens = $this->client->fetchAccessTokenWithRefreshToken($accessToken['refresh_token']);
 
-            if(!ISSET($newTokens['access_token'])) {
+            if (! isset($newTokens['access_token'])) {
                 throw new Exception('Failed to refresh Google access token.');
             }
 
@@ -162,7 +158,7 @@ trait GoogleApiAuthTrait
 
             Log::info('Google access token refreshed successfully.', ['email' => $this->authorizedEmail]);
         } catch (Exception $e) {
-            Log::error('Failed to refresh Google access token: ' . $e->getMessage(), [
+            Log::error('Failed to refresh Google access token: '.$e->getMessage(), [
                 'email' => $this->authorizedEmail,
                 'error' => $e->getTraceAsString(),
             ]);
@@ -173,10 +169,10 @@ trait GoogleApiAuthTrait
     /**
      * Sets the Gmail service scope and instantiates the service.
      *
-     * @param User|null $user The authenticated user model.
+     * @param  User|null  $user  The authenticated user model.
      * @return $this
      */
-    protected function setGmailScope(User|null $user = null): self
+    protected function setGmailScope(?User $user = null): self
     {
         $this->initializeGoogleClient($user);
 
@@ -189,68 +185,70 @@ trait GoogleApiAuthTrait
             'profile',
             'https://www.googleapis.com/auth/chat.spaces',
             'https://www.googleapis.com/auth/chat.messages',
-            'https://www.googleapis.com/auth/chat.memberships'
+            'https://www.googleapis.com/auth/chat.memberships',
         ]);
         $this->gmailService = new Gmail($this->client);
+
         return $this;
     }
 
-    protected function setGoogleChatScope(User|null $user = null): self
+    protected function setGoogleChatScope(?User $user = null): self
     {
         $this->initializeGoogleClient($user);
         $this->client->addScope([
             'profile',
             'https://www.googleapis.com/auth/chat.spaces',
             'https://www.googleapis.com/auth/chat.messages',
-            'https://www.googleapis.com/auth/chat.memberships'
+            'https://www.googleapis.com/auth/chat.memberships',
         ]);
+
         return $this;
     }
 
     /**
      * Sets the Drive service scope and instantiates the service.
      *
-     * @param User|null $user The authenticated user model.
+     * @param  User|null  $user  The authenticated user model.
      * @return $this
      */
-    protected function setDriveScope(User|null $user = null): self
+    protected function setDriveScope(?User $user = null): self
     {
         $this->initializeGoogleClient($user);
         $this->client->addScope(Drive::DRIVE_METADATA_READONLY);
         $this->driveService = new Drive($this->client);
+
         return $this;
     }
 
     /**
      * Sets the Calendar service scope and instantiates the service.
      *
-     * @param User|null $user The authenticated user model.
+     * @param  User|null  $user  The authenticated user model.
      * @return $this
      */
-    protected function setCalendarScope(User|null $user = null): self
+    protected function setCalendarScope(?User $user = null): self
     {
         $this->initializeGoogleClient($user);
         $this->client->addScope(Calendar::CALENDAR);
         $this->calendarService = new Calendar($this->client);
+
         return $this;
     }
 
     /**
      * Sets the calendar ID to use for operations.
      *
-     * @param string $calendarId
      * @return $this
      */
     public function setCalendarId(string $calendarId): self
     {
         $this->calendarId = $calendarId;
+
         return $this;
     }
 
     /**
      * Get the Google Client instance.
-     *
-     * @return Client
      */
     public function getGoogleClient(): Client
     {
@@ -259,8 +257,6 @@ trait GoogleApiAuthTrait
 
     /**
      * Get the authorized email address.
-     *
-     * @return string
      */
     public function getAuthorizedEmail(): string
     {

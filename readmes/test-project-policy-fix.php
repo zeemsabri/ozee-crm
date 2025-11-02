@@ -9,8 +9,10 @@ echo "----------------------------------------------------\n\n";
 echo "Note: This is a simulation script that demonstrates the policy logic without requiring a database connection.\n\n";
 
 // Simulate the ProjectPolicy class with our fixed implementation
-class SimulatedProjectPolicy {
-    public function attachAnyUser($user, $project) {
+class SimulatedProjectPolicy
+{
+    public function attachAnyUser($user, $project)
+    {
         // Check if user has global permission
         if ($this->userHasGlobalPermission($user, 'manage_project_users')) {
             return true;
@@ -20,7 +22,8 @@ class SimulatedProjectPolicy {
         return $this->userHasProjectPermission($user, 'manage_project_users', $project['id']);
     }
 
-    private function userHasGlobalPermission($user, $permission) {
+    private function userHasGlobalPermission($user, $permission)
+    {
         // Check if the user's role has the permission
         if (isset($user['global_permissions']) && in_array($permission, $user['global_permissions'])) {
             return true;
@@ -29,7 +32,8 @@ class SimulatedProjectPolicy {
         return false;
     }
 
-    private function userHasProjectPermission($user, $permission, $projectId) {
+    private function userHasProjectPermission($user, $permission, $projectId)
+    {
         // Check if user has project-specific permission
         if (isset($user['project_permissions'][$projectId]) &&
             in_array($permission, $user['project_permissions'][$projectId])) {
@@ -47,7 +51,7 @@ $userWithGlobalPermission = [
     'name' => 'Global Manager',
     'email' => 'global_manager@example.com',
     'global_permissions' => ['manage_projects', 'manage_project_users', 'view_projects'],
-    'project_permissions' => []
+    'project_permissions' => [],
 ];
 echo "- User 'global_manager@example.com' created with global 'manage_project_users' permission\n\n";
 
@@ -59,8 +63,8 @@ $userWithProjectPermission = [
     'email' => 'project_manager@example.com',
     'global_permissions' => ['view_projects'],
     'project_permissions' => [
-        1 => ['manage_project_users', 'view_project_details']
-    ]
+        1 => ['manage_project_users', 'view_project_details'],
+    ],
 ];
 echo "- User 'project_manager@example.com' created with project-specific 'manage_project_users' permission for project ID 1\n\n";
 
@@ -72,8 +76,8 @@ $userWithoutPermission = [
     'email' => 'regular_user@example.com',
     'global_permissions' => ['view_projects'],
     'project_permissions' => [
-        1 => ['view_project_details']
-    ]
+        1 => ['view_project_details'],
+    ],
 ];
 echo "- User 'regular_user@example.com' created with no 'manage_project_users' permission\n\n";
 
@@ -81,17 +85,17 @@ echo "- User 'regular_user@example.com' created with no 'manage_project_users' p
 echo "Setting up simulated projects...\n";
 $project1 = [
     'id' => 1,
-    'name' => 'Test Project 1'
+    'name' => 'Test Project 1',
 ];
 $project2 = [
     'id' => 2,
-    'name' => 'Test Project 2'
+    'name' => 'Test Project 2',
 ];
 echo "- Project 'Test Project 1' created with ID 1\n";
 echo "- Project 'Test Project 2' created with ID 2\n\n";
 
 // Create a simulated ProjectPolicy instance
-$policy = new SimulatedProjectPolicy();
+$policy = new SimulatedProjectPolicy;
 
 // Test cases
 echo "Running test cases...\n\n";
@@ -102,10 +106,10 @@ echo "-----------------------------------------------\n";
 $canAttachProject1 = $policy->attachAnyUser($userWithGlobalPermission, $project1);
 $canAttachProject2 = $policy->attachAnyUser($userWithGlobalPermission, $project2);
 
-echo "- Can attach users to Project 1? " . ($canAttachProject1 ? "Yes" : "No") . "\n";
-echo "- Can attach users to Project 2? " . ($canAttachProject2 ? "Yes" : "No") . "\n";
+echo '- Can attach users to Project 1? '.($canAttachProject1 ? 'Yes' : 'No')."\n";
+echo '- Can attach users to Project 2? '.($canAttachProject2 ? 'Yes' : 'No')."\n";
 
-if (!$canAttachProject1 || !$canAttachProject2) {
+if (! $canAttachProject1 || ! $canAttachProject2) {
     echo "ERROR: User with global permission should be able to attach users to any project.\n";
     exit(1);
 }
@@ -117,10 +121,10 @@ echo "-------------------------------------------\n";
 $canAttachProject1 = $policy->attachAnyUser($userWithProjectPermission, $project1);
 $canAttachProject2 = $policy->attachAnyUser($userWithProjectPermission, $project2);
 
-echo "- Can attach users to Project 1? " . ($canAttachProject1 ? "Yes" : "No") . "\n";
-echo "- Can attach users to Project 2? " . ($canAttachProject2 ? "Yes" : "No") . "\n";
+echo '- Can attach users to Project 1? '.($canAttachProject1 ? 'Yes' : 'No')."\n";
+echo '- Can attach users to Project 2? '.($canAttachProject2 ? 'Yes' : 'No')."\n";
 
-if (!$canAttachProject1) {
+if (! $canAttachProject1) {
     echo "ERROR: User with project-specific permission should be able to attach users to that project.\n";
     exit(1);
 }
@@ -136,8 +140,8 @@ echo "-----------------------------\n";
 $canAttachProject1 = $policy->attachAnyUser($userWithoutPermission, $project1);
 $canAttachProject2 = $policy->attachAnyUser($userWithoutPermission, $project2);
 
-echo "- Can attach users to Project 1? " . ($canAttachProject1 ? "Yes" : "No") . "\n";
-echo "- Can attach users to Project 2? " . ($canAttachProject2 ? "Yes" : "No") . "\n";
+echo '- Can attach users to Project 1? '.($canAttachProject1 ? 'Yes' : 'No')."\n";
+echo '- Can attach users to Project 2? '.($canAttachProject2 ? 'Yes' : 'No')."\n";
 
 if ($canAttachProject1 || $canAttachProject2) {
     echo "ERROR: User with no permission should NOT be able to attach users to any project.\n";

@@ -21,7 +21,7 @@ class RunScheduler extends Command
         $now = $nowOption ? Carbon::parse($nowOption) : now();
         $startOfMinute = $now->copy()->startOfMinute();
 
-        $this->info('Running scheduler at ' . $now->toDateTimeString());
+        $this->info('Running scheduler at '.$now->toDateTimeString());
 
         $limit = (int) $this->option('limit');
         $count = 0;
@@ -40,16 +40,17 @@ class RunScheduler extends Command
                         continue;
                     }
 
-                    if (!$schedule->isDueAt($now)) {
+                    if (! $schedule->isDueAt($now)) {
                         Log::info('not due yet');
+
                         // Not due yet; skip quietly to avoid noisy logs
                         continue;
                     }
 
                     // Simple distributed lock per minute
-                    $lockKey = 'schedule:' . $schedule->id . ':' . $startOfMinute->format('YmdHi');
+                    $lockKey = 'schedule:'.$schedule->id.':'.$startOfMinute->format('YmdHi');
                     $lock = Cache::lock($lockKey, 55);
-                    if (!$lock->get()) {
+                    if (! $lock->get()) {
                         continue; // someone else is dispatching it
                     }
 

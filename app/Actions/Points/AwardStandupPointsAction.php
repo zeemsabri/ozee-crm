@@ -5,13 +5,13 @@ namespace App\Actions\Points;
 use App\Models\PointsLedger;
 use App\Models\ProjectNote as Standup;
 use App\Services\LedgerService;
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class AwardStandupPointsAction
 {
     // Constants for points
     const ON_TIME_POINTS = 25;
+
     const LATE_POINTS = 10;
 
     /**
@@ -21,8 +21,6 @@ class AwardStandupPointsAction
 
     /**
      * AwardStandupPointsAction constructor.
-     *
-     * @param LedgerService $ledgerService
      */
     public function __construct(LedgerService $ledgerService)
     {
@@ -32,8 +30,8 @@ class AwardStandupPointsAction
     /**
      * Executes the business logic for awarding points for a daily standup.
      *
-     * @param Standup $standup The Standup model object.
-     * @return PointsLedger|Void The newly created PointsLedger model instance.
+     * @param  Standup  $standup  The Standup model object.
+     * @return PointsLedger|void The newly created PointsLedger model instance.
      */
     public function execute(Standup $standup): PointsLedger
     {
@@ -43,8 +41,8 @@ class AwardStandupPointsAction
         // Note: For optimal performance, the calling code should eager-load the 'user' and 'project' relationships.
         // E.g., Standup::with('user', 'project')->find(...)
 
-        if(!$standup->user) {
-            return new PointsLedger();
+        if (! $standup->user) {
+            return new PointsLedger;
         }
         $userTimezone = $standup->user->timezone;
         $startOfDay = Carbon::now($userTimezone)->startOfDay()->setTimezone('UTC');
@@ -61,7 +59,7 @@ class AwardStandupPointsAction
             return $this->ledgerService->record(
                 $standup->user,
                 0,
-                'Denied: Points already awarded for a daily standup today: ' . $startOfDay->toDateString(),
+                'Denied: Points already awarded for a daily standup today: '.$startOfDay->toDateString(),
                 'denied',
                 $standup,
                 $standup->project,
@@ -73,10 +71,10 @@ class AwardStandupPointsAction
         // Assuming the Standup model has the HasUserTimezone trait.
         if ($standup->isBeforeUserTime('11:00:00')) {
             $pointsToAward = self::ON_TIME_POINTS;
-            $description = 'On-Time Daily Standup on ' . $standup->created_at->format('M j, Y');
+            $description = 'On-Time Daily Standup on '.$standup->created_at->format('M j, Y');
         } else {
             $pointsToAward = self::LATE_POINTS;
-            $description = 'Late Daily Standup on ' . $standup->created_at->format('M j, Y');
+            $description = 'Late Daily Standup on '.$standup->created_at->format('M j, Y');
         }
 
         // 3. Record the Transaction: Call the LedgerService to save the transaction.

@@ -82,7 +82,7 @@ class BonusConfigurationGroup extends Model
     /**
      * Duplicate this group with all its configurations.
      *
-     * @param string $newName The name for the duplicated group
+     * @param  string  $newName  The name for the duplicated group
      * @return BonusConfigurationGroup
      */
     public function duplicate($newName = null)
@@ -91,13 +91,13 @@ class BonusConfigurationGroup extends Model
         $newGroup = $this->replicate(['id']);
 
         // Set a new name if provided, otherwise append "(Copy)" to the original name
-        $newGroup->name = $newName ?: $this->name . ' (Copy)';
+        $newGroup->name = $newName ?: $this->name.' (Copy)';
         $newGroup->save();
 
         // Copy all configurations to the new group
         foreach ($this->bonusConfigurations as $configuration) {
             $newGroup->bonusConfigurations()->attach($configuration->id, [
-                'sort_order' => $configuration->pivot->sort_order
+                'sort_order' => $configuration->pivot->sort_order,
             ]);
         }
 

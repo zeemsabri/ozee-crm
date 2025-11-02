@@ -4,25 +4,22 @@ namespace App\Providers;
 
 use App\Events\KudoApprovedEvent;
 use App\Events\MilestoneApprovedEvent;
+use App\Events\StandupSubmittedEvent;
+use App\Events\TaskCompletedEvent;
 use App\Events\WorkflowTriggerEvent;
 use App\Listeners\AwardKudoPointsListener;
 use App\Listeners\AwardMilestonePointsListener;
-use App\Listeners\WorkflowTriggerListener;
-use Illuminate\Auth\Events\Registered;
-use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
-use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
-use Illuminate\Support\Facades\Event;
-
-// Bonus system events
-use App\Events\StandupSubmittedEvent;
-use App\Events\TaskCompletedEvent;
-
-// Bonus system listeners
+use App\Listeners\GlobalModelEventSubscriber;
 use App\Listeners\StandupSubmittedListener;
 use App\Listeners\TaskCompletedListener;
-
+// Bonus system events
+use App\Listeners\WorkflowTriggerListener;
+use Illuminate\Auth\Events\Registered;
+// Bonus system listeners
+use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
+use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 // Automation global model subscriber
-use App\Listeners\GlobalModelEventSubscriber;
+use Illuminate\Support\Facades\Event;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -42,15 +39,15 @@ class EventServiceProvider extends ServiceProvider
         ],
 
         KudoApprovedEvent::class => [
-            AwardKudoPointsListener::class
+            AwardKudoPointsListener::class,
         ],
 
         TaskCompletedEvent::class => [
             TaskCompletedListener::class,
         ],
 
-        MilestoneApprovedEvent::class   => [
-            AwardMilestonePointsListener::class
+        MilestoneApprovedEvent::class => [
+            AwardMilestonePointsListener::class,
         ],
 
         // Automation engine trigger mapping

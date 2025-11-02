@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Admin\ProjectTierController;
 use App\Http\Controllers\Admin\MonthlyBudgetController;
+use App\Http\Controllers\Admin\ProjectTierController;
 use Illuminate\Support\Facades\Route;
 
 // Admin routes for Project Tier and Monthly Budget management

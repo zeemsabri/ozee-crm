@@ -13,9 +13,6 @@ class CheckPermission
     /**
      * Handle an incoming request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
-     * @param  string  $permission
      * @return mixed
      */
     public function handle(Request $request, Closure $next, string $permission)
@@ -24,11 +21,12 @@ class CheckPermission
 
         $routeName = $request->route()->getName();
 
-        if (!$user) {
+        if (! $user) {
             Log::warning('Unauthenticated user attempted to access route requiring permission', [
                 'permission' => $permission,
-                'route' => $request->path()
+                'route' => $request->path(),
             ]);
+
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
@@ -37,7 +35,7 @@ class CheckPermission
             return $next($request);
         }
 
-        if($routeName === 'roles.index' && $request->input('type')) {
+        if ($routeName === 'roles.index' && $request->input('type')) {
             return $next($request);
         }
 
@@ -60,20 +58,19 @@ class CheckPermission
             'user_id' => $user->id,
             'permission' => $permission,
             'route' => $request->path(),
-            'project_id' => $projectId
+            'project_id' => $projectId,
         ]);
 
         throw new PermissionDeniedException(
             $permission,
             $projectId,
-            'Forbidden. You do not have the required permission: ' . $permission
+            'Forbidden. You do not have the required permission: '.$permission
         );
     }
 
     /**
      * Get the project ID from the request if it exists
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return int|null
      */
     private function getProjectIdFromRequest(Request $request)
@@ -101,7 +98,7 @@ class CheckPermission
     private function userHasGlobalPermission($user, $permission)
     {
         // Load the user's role with permissions if not already loaded
-        if (!$user->relationLoaded('role') || ($user->role && !$user->role->relationLoaded('permissions'))) {
+        if (! $user->relationLoaded('role') || ($user->role && ! $user->role->relationLoaded('permissions'))) {
             $user->load('role.permissions');
         }
 
@@ -133,20 +130,20 @@ class CheckPermission
             $query->where('users.id', $user->id)->withPivot('role_id');
         }])->find($projectId);
 
-        if (!$project) {
+        if (! $project) {
             return false;
         }
 
         $userInProject = $project->users->first();
 
-        if (!$userInProject || !isset($userInProject->pivot->role_id)) {
+        if (! $userInProject || ! isset($userInProject->pivot->role_id)) {
             return false;
         }
 
         // Load the project-specific role with permissions
         $projectRole = \App\Models\Role::with('permissions')->find($userInProject->pivot->role_id);
 
-        if (!$projectRole) {
+        if (! $projectRole) {
             return false;
         }
 
