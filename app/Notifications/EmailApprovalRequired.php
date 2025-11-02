@@ -4,24 +4,23 @@ namespace App\Notifications;
 
 use App\Models\Email;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
-use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Notification;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
+use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
 
-class EmailApprovalRequired extends Notification implements ShouldQueue, ShouldBroadcast
+class EmailApprovalRequired extends Notification implements ShouldBroadcast, ShouldQueue
 {
     use Queueable;
 
     protected $email;
+
     private array $payload;
 
     /**
      * Create a new notification instance.
      *
-     * @param Email $email
      * @return void
      */
     public function __construct(Email $email)
@@ -33,6 +32,7 @@ class EmailApprovalRequired extends Notification implements ShouldQueue, ShouldB
     private function setPayload()
     {
         $this->payload = $this->getPayload();
+
         return $this;
     }
 
@@ -64,8 +64,8 @@ class EmailApprovalRequired extends Notification implements ShouldQueue, ShouldB
             : 'Email Approval Required';
 
         $message = $emailType === 'received'
-            ? 'A received email requires your approval: ' . $this->email->subject
-            : 'An email requires your approval: ' . $this->email->subject;
+            ? 'A received email requires your approval: '.$this->email->subject
+            : 'An email requires your approval: '.$this->email->subject;
 
         return [
             'title' => $title,
@@ -73,15 +73,15 @@ class EmailApprovalRequired extends Notification implements ShouldQueue, ShouldB
             'project_name' => $projectName,
             'message' => $message,
             'project_id' => $project?->id,
-            'description' => substr($this->email->body, 0, 100) . (strlen($this->email->body) > 100 ? '...' : ''),
+            'description' => substr($this->email->body, 0, 100).(strlen($this->email->body) > 100 ? '...' : ''),
             'task_type' => 'email_approval',
             'priority' => 'medium',
             'email_id' => $this->email->id,
             'email_subject' => $this->email->subject,
             'email_type' => $emailType,
-            'button_label'  =>  'View Project',
-            'correlation_id' => 'email_approval_' . $this->email->id,
-            'url' => url('/inbox')
+            'button_label' => 'View Project',
+            'correlation_id' => 'email_approval_'.$this->email->id,
+            'url' => url('/inbox'),
         ];
     }
 

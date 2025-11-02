@@ -21,7 +21,7 @@ echo "==============================\n";
 // Prepare the request data for token
 $data = [
     'email' => $email,
-    'password' => $password
+    'password' => $password,
 ];
 
 // Initialize cURL session for token request
@@ -33,7 +33,7 @@ curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'Content-Type: application/x-www-form-urlencoded',
-    'Accept: application/json'
+    'Accept: application/json',
 ]);
 
 // Execute the request
@@ -44,12 +44,12 @@ $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
 // Output the results
-echo "HTTP Status Code: " . $httpCode . "\n";
+echo 'HTTP Status Code: '.$httpCode."\n";
 
 if ($httpCode == 200) {
     $responseData = json_decode($response, true);
     echo "Authentication successful!\n";
-    echo "Token: " . $responseData['token'] . "\n\n";
+    echo 'Token: '.$responseData['token']."\n\n";
 
     $token = $responseData['token'];
 
@@ -63,8 +63,8 @@ if ($httpCode == 200) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $token,
-        'Accept: application/json'
+        'Authorization: Bearer '.$token,
+        'Accept: application/json',
     ]);
 
     // Execute the logout request
@@ -75,12 +75,12 @@ if ($httpCode == 200) {
     curl_close($ch);
 
     // Output the logout results
-    echo "HTTP Status Code: " . $logoutHttpCode . "\n";
+    echo 'HTTP Status Code: '.$logoutHttpCode."\n";
 
     if ($logoutHttpCode == 200) {
         $logoutData = json_decode($logoutResponse, true);
         echo "Logout successful!\n";
-        echo "Response: " . $logoutResponse . "\n\n";
+        echo 'Response: '.$logoutResponse."\n\n";
 
         echo "Step 3: Verifying token is invalidated\n";
         echo "=====================================\n";
@@ -89,33 +89,33 @@ if ($httpCode == 200) {
         $ch = curl_init('http://localhost:8000/api/user');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $token,
-            'Accept: application/json'
+            'Authorization: Bearer '.$token,
+            'Accept: application/json',
         ]);
 
         $verifyResponse = curl_exec($ch);
         $verifyHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        echo "HTTP Status Code: " . $verifyHttpCode . "\n";
+        echo 'HTTP Status Code: '.$verifyHttpCode."\n";
 
         if ($verifyHttpCode == 401) {
             echo "Token verification test passed! Token has been invalidated.\n";
         } else {
             echo "Token verification test failed! Token is still valid.\n";
-            echo "Response: " . $verifyResponse . "\n";
+            echo 'Response: '.$verifyResponse."\n";
         }
     } else {
         echo "Logout failed.\n";
-        echo "Response: " . $logoutResponse . "\n";
+        echo 'Response: '.$logoutResponse."\n";
     }
 } else {
     echo "Authentication failed. Cannot proceed with logout test.\n";
-    echo "Response: " . $response . "\n";
+    echo 'Response: '.$response."\n";
 }
 
 echo "\n\nUsage Instructions:\n";
-echo "1. To logout, send a POST request to " . $logoutUrl . "\n";
+echo '1. To logout, send a POST request to '.$logoutUrl."\n";
 echo "2. Include the Authorization header with the token:\n";
 echo "   'Authorization: Bearer {token}'\n";
 echo "3. On successful logout, the token will be invalidated\n";

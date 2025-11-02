@@ -21,22 +21,23 @@ class ValueSetValidator
      *  - When enforce flag is ON, throws ValidationException
      *  - When enforce flag is OFF, logs a warning and returns
      *
-     * @param string $model Model short name, e.g., "Task"
-     * @param string $field Field/column name, e.g., "status"
-     * @param mixed  $value Scalar or array value(s)
+     * @param  string  $model  Model short name, e.g., "Task"
+     * @param  string  $field  Field/column name, e.g., "status"
+     * @param  mixed  $value  Scalar or array value(s)
+     *
      * @throws ValidationException
      */
     public function validate(string $model, string $field, mixed $value): void
     {
         $def = $this->registry->for($model, $field);
-        if (!$def) {
+        if (! $def) {
             // No known value set; skip validation.
             return;
         }
 
-        $allowed = collect($def['values'] ?? [])->pluck('value')->map(fn($v) => (string)$v)->all();
-        $nullable = (bool)($def['nullable'] ?? false);
-        $multi = (bool)($def['multi'] ?? false);
+        $allowed = collect($def['values'] ?? [])->pluck('value')->map(fn ($v) => (string) $v)->all();
+        $nullable = (bool) ($def['nullable'] ?? false);
+        $multi = (bool) ($def['multi'] ?? false);
 
         // Allow null/empty if nullable
         if ($nullable && ($value === null || $value === '')) {
@@ -49,19 +50,19 @@ class ValueSetValidator
             $vals = Arr::wrap($value);
             foreach ($vals as $v) {
                 // Treat enums as strings
-                $vv = is_object($v) && ISSET($v->value) ? (string)$v->value : (string)$v;
-                if (!in_array($vv, $allowed, true)) {
+                $vv = is_object($v) && isset($v->value) ? (string) $v->value : (string) $v;
+                if (! in_array($vv, $allowed, true)) {
                     $invalid[] = $vv;
                 }
             }
         } else {
-            $vv = is_object($value) && ISSET($value->value) ? (string)$value->value : (string)$value;
-            if (!in_array($vv, $allowed, true)) {
+            $vv = is_object($value) && isset($value->value) ? (string) $value->value : (string) $value;
+            if (! in_array($vv, $allowed, true)) {
                 $invalid[] = $vv;
             }
         }
 
-        if (!empty($invalid)) {
+        if (! empty($invalid)) {
             $this->handleInvalid($model, $field, $invalid, $allowed);
         }
     }
@@ -74,7 +75,7 @@ class ValueSetValidator
             ' (Toggle value_sets.enforce_validation or values.enforce_validation to enforce)',
             $model,
             $field,
-            implode(', ', array_map(fn($v) => (string)$v, $invalid)),
+            implode(', ', array_map(fn ($v) => (string) $v, $invalid)),
             implode(', ', $allowed)
         );
 

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('project_id')->constrained()->onDelete('cascade');
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->timestamps();
-            
+
             // Ensure a user can only be added once per project
             $table->unique(['project_id', 'user_id']);
         });

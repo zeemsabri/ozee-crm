@@ -19,14 +19,15 @@ $regularEmailId = 1; // ID of a regular HTML email
 $templateEmailId = 2; // ID of a template-based email
 
 // Function to make API requests
-function makeRequest($url, $method, $token, $data = null) {
+function makeRequest($url, $method, $token, $data = null)
+{
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
 
     $headers = [
         'Accept: application/json',
-        'Authorization: Bearer ' . $token
+        'Authorization: Bearer '.$token,
     ];
 
     if ($data) {
@@ -41,7 +42,7 @@ function makeRequest($url, $method, $token, $data = null) {
 
     return [
         'code' => $httpCode,
-        'response' => $response
+        'response' => $response,
     ];
 }
 
@@ -53,20 +54,20 @@ $regularEmailUrl = "{$baseUrl}/api/emails/{$regularEmailId}/edit-and-approve";
 $regularEmailData = [
     'subject' => 'Updated Subject for Regular Email',
     'body' => '<p>This is an updated body for a regular HTML email.</p>',
-    'composition_type' => 'custom'
+    'composition_type' => 'custom',
 ];
 
 echo "URL: {$regularEmailUrl}\n";
-echo "Data: " . json_encode($regularEmailData, JSON_PRETTY_PRINT) . "\n\n";
+echo 'Data: '.json_encode($regularEmailData, JSON_PRETTY_PRINT)."\n\n";
 
 $regularResult = makeRequest($regularEmailUrl, 'POST', $apiToken, $regularEmailData);
 
 echo "HTTP Code: {$regularResult['code']}\n";
 if ($regularResult['code'] == 200) {
     $data = json_decode($regularResult['response'], true);
-    echo "Success! Response: " . json_encode($data, JSON_PRETTY_PRINT) . "\n";
+    echo 'Success! Response: '.json_encode($data, JSON_PRETTY_PRINT)."\n";
 } else {
-    echo "Error: " . $regularResult['response'] . "\n";
+    echo 'Error: '.$regularResult['response']."\n";
 }
 
 echo "\n\n";
@@ -82,21 +83,21 @@ $templateEmailData = [
     'template_id' => 1, // Replace with a valid template ID
     'template_data' => [
         'dynamic_field_1' => 'Custom value 1',
-        'dynamic_field_2' => 'Custom value 2'
-    ]
+        'dynamic_field_2' => 'Custom value 2',
+    ],
 ];
 
 echo "URL: {$templateEmailUrl}\n";
-echo "Data: " . json_encode($templateEmailData, JSON_PRETTY_PRINT) . "\n\n";
+echo 'Data: '.json_encode($templateEmailData, JSON_PRETTY_PRINT)."\n\n";
 
 $templateResult = makeRequest($templateEmailUrl, 'POST', $apiToken, $templateEmailData);
 
 echo "HTTP Code: {$templateResult['code']}\n";
 if ($templateResult['code'] == 200) {
     $data = json_decode($templateResult['response'], true);
-    echo "Success! Response: " . json_encode($data, JSON_PRETTY_PRINT) . "\n";
+    echo 'Success! Response: '.json_encode($data, JSON_PRETTY_PRINT)."\n";
 } else {
-    echo "Error: " . $templateResult['response'] . "\n";
+    echo 'Error: '.$templateResult['response']."\n";
 }
 
 echo "\n";

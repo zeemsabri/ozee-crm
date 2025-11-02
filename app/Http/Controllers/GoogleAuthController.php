@@ -4,13 +4,12 @@ namespace App\Http\Controllers;
 
 use Google\Service\Calendar;
 use Google\Service\Drive;
-use Illuminate\Http\Request;
-use Laravel\Socialite\Facades\Socialite;
-use Google\Client as GoogleClient;
 use Google\Service\Gmail;
-use Illuminate\Support\Facades\Storage; // To store tokens temporarily
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage; // To store tokens temporarily
 use Inertia\Inertia;
+use Laravel\Socialite\Facades\Socialite;
 
 class GoogleAuthController extends Controller
 {
@@ -32,7 +31,7 @@ class GoogleAuthController extends Controller
             Calendar::CALENDAR_EVENTS,
             'email',             // To get the user's email address
             'profile',           // To get basic profile info
-            Drive::DRIVE,// NEW: Scope for managing calendar events
+            Drive::DRIVE, // NEW: Scope for managing calendar events
             'https://www.googleapis.com/auth/chat.spaces',
             'https://www.googleapis.com/auth/chat.messages',
             'https://www.googleapis.com/auth/chat.memberships',
@@ -50,7 +49,6 @@ class GoogleAuthController extends Controller
      * Handles the Google OAuth callback.
      * Google redirects back to this URL after the user grants/denies permission.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Inertia\Response
      */
     public function handleGoogleCallback(Request $request)
@@ -83,16 +81,17 @@ class GoogleAuthController extends Controller
 
         } catch (\Exception $e) {
             // Log the full error for debugging purposes.
-            Log::error('Google OAuth Callback Error: ' . $e->getMessage(), [
+            Log::error('Google OAuth Callback Error: '.$e->getMessage(), [
                 'exception' => $e,
                 'trace' => $e->getTraceAsString(),
                 'request_url' => $request->fullUrl(),
             ]);
+
             return Inertia::render('GoogleAuthSuccess', [
                 'message' => 'Google authorization failed. Please check your logs for details.',
                 'authorized_email' => '',
                 'note' => $e->getMessage(),
-                'error' => true
+                'error' => true,
             ]);
         }
     }

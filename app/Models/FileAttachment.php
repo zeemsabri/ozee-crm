@@ -45,7 +45,9 @@ class FileAttachment extends Model
     public function getPathUrlAttribute(): ?string
     {
         $path = $this->attributes['path'] ?? null;
-        if (!$path) return null;
+        if (! $path) {
+            return null;
+        }
         try {
             return Storage::disk('gcs')->temporaryUrl($path, now()->addDay());
         } catch (\Throwable $e) {
@@ -59,7 +61,9 @@ class FileAttachment extends Model
     public function getThumbnailUrlAttribute(): ?string
     {
         $thumb = $this->attributes['thumbnail'] ?? null;
-        if (!$thumb) return null;
+        if (! $thumb) {
+            return null;
+        }
         try {
             return Storage::disk('gcs')->temporaryUrl($thumb, now()->addDay());
         } catch (\Throwable $e) {

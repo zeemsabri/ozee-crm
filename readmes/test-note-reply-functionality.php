@@ -5,7 +5,8 @@
 echo "=== Testing Note Reply Functionality ===\n\n";
 
 // Function to simulate the API request for replying to a note
-function simulateReplyToNote($projectId, $noteId, $content) {
+function simulateReplyToNote($projectId, $noteId, $content)
+{
     echo "Simulating reply to note...\n";
     echo "Project ID: $projectId\n";
     echo "Note ID: $noteId\n";
@@ -25,7 +26,7 @@ function simulateReplyToNote($projectId, $noteId, $content) {
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/json',
         'Accept: application/json',
-        'Authorization: Bearer YOUR_AUTH_TOKEN' // Replace with a valid token
+        'Authorization: Bearer YOUR_AUTH_TOKEN', // Replace with a valid token
     ]);
 
     // Execute the request
@@ -52,20 +53,20 @@ function simulateReplyToNote($projectId, $noteId, $content) {
 
                 // Display the new note details
                 if (isset($data['note'])) {
-                    echo "New note created with ID: " . $data['note']['id'] . "\n";
-                    echo "Content: " . $data['note']['content'] . "\n";
-                    echo "Chat message ID: " . ($data['note']['chat_message_id'] ?? 'N/A') . "\n";
+                    echo 'New note created with ID: '.$data['note']['id']."\n";
+                    echo 'Content: '.$data['note']['content']."\n";
+                    echo 'Chat message ID: '.($data['note']['chat_message_id'] ?? 'N/A')."\n";
                 }
             } else {
-                echo "Reply failed: " . ($data['message'] ?? 'Unknown error') . "\n";
+                echo 'Reply failed: '.($data['message'] ?? 'Unknown error')."\n";
             }
         } else {
-            echo "Failed to parse JSON response: " . json_last_error_msg() . "\n";
-            echo "Raw response: " . $response . "\n";
+            echo 'Failed to parse JSON response: '.json_last_error_msg()."\n";
+            echo 'Raw response: '.$response."\n";
         }
     } else {
         echo "Request failed with status code $httpCode\n";
-        echo "Response: " . $response . "\n";
+        echo 'Response: '.$response."\n";
     }
 
     echo "\n";
@@ -75,15 +76,15 @@ function simulateReplyToNote($projectId, $noteId, $content) {
 
 // Test case 1: Valid reply to a note
 echo "Test Case 1: Valid reply to a note\n";
-simulateReplyToNote(1, 1, "This is a test reply to note #1");
+simulateReplyToNote(1, 1, 'This is a test reply to note #1');
 
 // Test case 2: Reply to a note without chat_message_id
 echo "Test Case 2: Reply to a note without chat_message_id\n";
-simulateReplyToNote(1, 2, "This reply should fail because the note has no chat_message_id");
+simulateReplyToNote(1, 2, 'This reply should fail because the note has no chat_message_id');
 
 // Test case 3: Reply to a note in a project without Google Chat space
 echo "Test Case 3: Reply to a note in a project without Google Chat space\n";
-simulateReplyToNote(2, 3, "This reply should fail because the project has no Google Chat space");
+simulateReplyToNote(2, 3, 'This reply should fail because the project has no Google Chat space');
 
 echo "=== Test completed ===\n";
 echo "Note: For these tests to work properly, you need to:\n";

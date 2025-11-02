@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 
 class UserWorkspaceController extends Controller
 {
@@ -20,7 +19,7 @@ class UserWorkspaceController extends Controller
         // Normalize notes to a simple string for the frontend textarea
         $notesText = '';
         if (is_array($notes)) {
-            $notesText = (string)($notes['text'] ?? '');
+            $notesText = (string) ($notes['text'] ?? '');
         } elseif (is_string($notes)) {
             $notesText = $notes; // In case stored as string
         }
@@ -66,7 +65,7 @@ class UserWorkspaceController extends Controller
             'text' => 'nullable|string',
         ]);
 
-        $user->notes = ['text' => (string)($validated['text'] ?? '')];
+        $user->notes = ['text' => (string) ($validated['text'] ?? '')];
         $user->save();
 
         return response()->json([

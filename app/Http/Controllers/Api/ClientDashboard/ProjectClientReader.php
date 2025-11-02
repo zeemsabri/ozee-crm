@@ -17,18 +17,13 @@ use Illuminate\Support\Facades\Response;
 
 class ProjectClientReader extends Controller
 {
-
-    public function __construct(private GoogleDriveService $googleDriveService)
-    {
-
-    }
+    public function __construct(private GoogleDriveService $googleDriveService) {}
 
     /**
      * Verify that the requested project matches the authenticated project from magic link
      *
-     * @param Request $request
-     * @param int $projectId
-     * @param string $context Context for logging (e.g., 'tasks', 'deliverables')
+     * @param  int  $projectId
+     * @param  string  $context  Context for logging (e.g., 'tasks', 'deliverables')
      * @return array|null Returns null if verification passes, or an error response array if it fails
      */
     private function verifyMagicLinkProject(Request $request, $projectId, string $context)
@@ -36,16 +31,17 @@ class ProjectClientReader extends Controller
         $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
 
         // IMPORTANT SECURITY CHECK: Ensure the requested projectId matches the one from the magic link token
-        if ((int)$projectId !== (int)$authenticatedProjectId) {
+        if ((int) $projectId !== (int) $authenticatedProjectId) {
             Log::warning("Unauthorized access attempt to project $context.", [
                 'requested_project_id' => $projectId,
                 'authenticated_project_id' => $authenticatedProjectId,
                 'magic_link_email' => $request->attributes->get('magic_link_email'),
-                'ip_address' => $request->ip()
+                'ip_address' => $request->ip(),
             ]);
+
             return [
                 'status' => 403,
-                'message' => "Unauthorized access to this project's $context."
+                'message' => "Unauthorized access to this project's $context.",
             ];
         }
 
@@ -62,25 +58,23 @@ class ProjectClientReader extends Controller
             $project = Project::findOrFail($authenticatedProjectId);
 
             return [
-                'name'  =>  $project->name,
+                'name' => $project->name,
                 'google_drive_link' => $project->google_drive_link,
-                'google_chat_id'    =>  $project->google_chat_id,
-                'website'   => $project->website,
-                'status'    =>  $project->status,
-                'logo'  =>  $project->logo
+                'google_chat_id' => $project->google_chat_id,
+                'website' => $project->website,
+                'status' => $project->status,
+                'logo' => $project->logo,
             ];
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
             return response()->json(['message' => 'Failed to fetch project.', 'error' => $e->getMessage()], 500);
         }
 
     }
 
-   /**
+    /**
      * Get tasks for a specific project, accessible by magic link clients.
      *
-     * @param Request $request
-     * @param int $projectId
+     * @param  int  $projectId
      * @return \Illuminate\Http\JsonResponse
      */
     public function getProjectTasks(Request $request, Project $project)
@@ -107,11 +101,12 @@ class ProjectClientReader extends Controller
             return response()->json($tasks);
 
         } catch (\Exception $e) {
-            Log::error('Error fetching client project tasks: ' . $e->getMessage(), [
+            Log::error('Error fetching client project tasks: '.$e->getMessage(), [
                 'project_id' => $projectId,
                 'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
                 'error_trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to fetch tasks.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -120,8 +115,7 @@ class ProjectClientReader extends Controller
      * Get deliverables for a specific project, accessible by magic link clients.
      * Includes client-specific interaction status for the authenticated client.
      *
-     * @param Request $request
-     * @param int $projectId
+     * @param  int  $projectId
      * @return \Illuminate\Http\JsonResponse
      */
     public function getProjectDeliverables(Request $request, Project $project)
@@ -139,19 +133,20 @@ class ProjectClientReader extends Controller
             // Find the client based on the authenticated email
             $client = Client::where('email', $authenticatedClientEmail)->first();
 
-            if (!$client) {
-                Log::error("Client not found for authenticated email.", [
+            if (! $client) {
+                Log::error('Client not found for authenticated email.', [
                     'email' => $authenticatedClientEmail,
-                    'project_id' => $projectId
+                    'project_id' => $projectId,
                 ]);
+
                 return response()->json(['message' => 'Authenticated client not found.'], 404);
             }
 
             // Fetch deliverables for the project that are visible to clients
             $deliverables = Deliverable::where('project_id', $projectId)
                 ->where('is_visible_to_client', true)
-                ->with(['comments' => function($q) {
-                        $q->orderBy('created_at', 'desc');
+                ->with(['comments' => function ($q) {
+                    $q->orderBy('created_at', 'desc');
                 }, 'teamMember']) // Eager load the team member who submitted it
                 ->orderBy('submitted_at', 'desc')
                 ->get();
@@ -165,10 +160,10 @@ class ProjectClientReader extends Controller
                 $deliverable->client_interaction = $interaction ? $interaction->toArray() : null;
 
                 // Add flags for quick checks on frontend
-                $deliverable->has_been_read_by_client = (bool)($interaction && $interaction->read_at);
-                $deliverable->has_been_approved_by_client = (bool)($interaction && $interaction->approved_at);
-                $deliverable->has_been_rejected_by_client = (bool)($interaction && $interaction->rejected_at);
-                $deliverable->has_revisions_requested_by_client = (bool)($interaction && $interaction->revisions_requested_at);
+                $deliverable->has_been_read_by_client = (bool) ($interaction && $interaction->read_at);
+                $deliverable->has_been_approved_by_client = (bool) ($interaction && $interaction->approved_at);
+                $deliverable->has_been_rejected_by_client = (bool) ($interaction && $interaction->rejected_at);
+                $deliverable->has_revisions_requested_by_client = (bool) ($interaction && $interaction->revisions_requested_at);
 
                 return $deliverable;
             });
@@ -176,20 +171,20 @@ class ProjectClientReader extends Controller
             return response()->json($deliverablesWithInteraction);
 
         } catch (\Exception $e) {
-            Log::error('Error fetching client project deliverables: ' . $e->getMessage(), [
+            Log::error('Error fetching client project deliverables: '.$e->getMessage(), [
                 'project_id' => $projectId,
                 'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
                 'authenticated_client_email' => $request->attributes->get('magic_link_email'),
                 'error_trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to fetch deliverables.', 'error' => $e->getMessage()], 500);
         }
     }
+
     /**
      * Get documents for a specific project, accessible by magic link clients.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getProjectDocuments(Request $request, Project $project)
@@ -205,21 +200,21 @@ class ProjectClientReader extends Controller
 
             // Get documents for the project
             $documents = $project->documents()->with('notes')->latest()->get();
-            $drive = new GoogleDriveService();
+            $drive = new GoogleDriveService;
 
             return response()->json($documents);
 
         } catch (\Exception $e) {
-            Log::error('Error fetching client project documents: ' . $e->getMessage(), [
+            Log::error('Error fetching client project documents: '.$e->getMessage(), [
                 'project_id' => $projectId,
                 'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
                 'error_trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to fetch documents.', 'error' => $e->getMessage()], 500);
         }
 
     }
-
 
     /**
      * Display a listing of the resource.
@@ -258,11 +253,12 @@ class ProjectClientReader extends Controller
 
             return response()->json($resources);
         } catch (\Exception $e) {
-            Log::error('Error fetching client project shareable resources: ' . $e->getMessage(), [
+            Log::error('Error fetching client project shareable resources: '.$e->getMessage(), [
                 'project_id' => $project->id,
                 'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
                 'error_trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to fetch shareable resources.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -272,7 +268,7 @@ class ProjectClientReader extends Controller
      * For now, returns hardcoded data.
      *
      * @param  string  $projectId
-     * @param  string  $month (YYYY-MM format)
+     * @param  string  $month  (YYYY-MM format)
      * @return \Illuminate\Http\JsonResponse
      */
     public function getReportData(Request $request, $projectId, $yearMonth)
@@ -285,7 +281,7 @@ class ProjectClientReader extends Controller
             }
 
             // Validate year-month format
-            if (!preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
+            if (! preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
                 return response()->json(['error' => 'Invalid date format. Use YYYY-MM format.'], 400);
             }
 
@@ -297,19 +293,20 @@ class ProjectClientReader extends Controller
                 ->where('report_date', $reportDate)
                 ->first();
 
-            if (!$report) {
+            if (! $report) {
                 return response()->json(['error' => 'Report not found'], 404);
             }
 
             // Return just the data field which is already cast to an array
             return response()->json($report->data, 200);
         } catch (\Exception $e) {
-            Log::error('Error fetching SEO report data: ' . $e->getMessage(), [
+            Log::error('Error fetching SEO report data: '.$e->getMessage(), [
                 'project_id' => $projectId,
                 'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
                 'year_month' => $yearMonth,
                 'error_trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to fetch SEO report data.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -330,6 +327,7 @@ class ProjectClientReader extends Controller
                 $q->where('status', 'published');
             })->with('versions')->get()->map(function ($wireframe) {
                 $published = $wireframe->latestPublishedVersion();
+
                 return [
                     'id' => $wireframe->id,
                     'name' => $wireframe->name,
@@ -348,11 +346,12 @@ class ProjectClientReader extends Controller
 
             return response()->json($wireframes);
         } catch (\Exception $e) {
-            Log::error('Error fetching client wireframes: ' . $e->getMessage(), [
+            Log::error('Error fetching client wireframes: '.$e->getMessage(), [
                 'project_id' => $project->id,
                 'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
                 'error_trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to fetch wireframes.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -370,7 +369,7 @@ class ProjectClientReader extends Controller
             }
 
             $wireframe = $project->wireframes()->where('id', $wireframeId)->first();
-            if (!$wireframe) {
+            if (! $wireframe) {
                 return response()->json(['message' => 'Wireframe not found.'], 404);
             }
             $published = $wireframe->latestPublishedVersion();
@@ -392,12 +391,13 @@ class ProjectClientReader extends Controller
                 ] : null,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching client wireframe: ' . $e->getMessage(), [
+            Log::error('Error fetching client wireframe: '.$e->getMessage(), [
                 'project_id' => $project->id,
                 'wireframe_id' => $wireframeId,
                 'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
                 'error_trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to fetch wireframe.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -416,26 +416,26 @@ class ProjectClientReader extends Controller
 
             // Ensure the wireframe belongs to this project
             $wireframe = $project->wireframes()->where('id', $wireframeId)->first();
-            if (!$wireframe) {
+            if (! $wireframe) {
                 return response()->json(['message' => 'Wireframe not found.'], 404);
             }
 
             // Fetch parent comments (no parent_id) for this wireframe, type comment
             $comments = \App\Models\ProjectNote::with([
-                    'creator',
-                    'replies' => function($q) {
-                        $q->where('type', \App\Models\ProjectNote::COMMENT)
-                          ->with('creator')
-                          ->orderBy('created_at', 'asc');
-                    }
-                ])
+                'creator',
+                'replies' => function ($q) {
+                    $q->where('type', \App\Models\ProjectNote::COMMENT)
+                        ->with('creator')
+                        ->orderBy('created_at', 'asc');
+                },
+            ])
                 ->where('type', \App\Models\ProjectNote::COMMENT)
                 ->whereNull('parent_id')
                 ->where('noteable_type', get_class($wireframe))
                 ->where('noteable_id', $wireframe->id)
                 ->orderBy('created_at', 'asc')
                 ->get()
-                ->map(function($note) {
+                ->map(function ($note) {
                     return [
                         'id' => $note->id,
                         'project_id' => $note->project_id,
@@ -450,7 +450,7 @@ class ProjectClientReader extends Controller
                         'creator_id' => $note->creator_id,
                         'created_at' => $note->created_at,
                         'updated_at' => $note->updated_at,
-                        'replies' => $note->replies->map(function($reply) {
+                        'replies' => $note->replies->map(function ($reply) {
                             return [
                                 'id' => $reply->id,
                                 'project_id' => $reply->project_id,
@@ -472,14 +472,14 @@ class ProjectClientReader extends Controller
 
             return response()->json($comments);
         } catch (\Exception $e) {
-            Log::error('Error fetching wireframe comments: ' . $e->getMessage(), [
+            Log::error('Error fetching wireframe comments: '.$e->getMessage(), [
                 'project_id' => $project->id,
                 'wireframe_id' => $wireframeId,
                 'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
                 'error_trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to fetch comments.', 'error' => $e->getMessage()], 500);
         }
     }
-
 }

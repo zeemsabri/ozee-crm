@@ -14,6 +14,7 @@ class StandupSubmittedListener implements ShouldQueue
 
     /**
      * Create the event listener.
+     *
      * @return void
      */
     protected $pointsService;
@@ -25,7 +26,7 @@ class StandupSubmittedListener implements ShouldQueue
 
     public function handle(StandupSubmittedEvent $event)
     {
-        if($event->standUp?->type === ProjectNote::STANDUP) {
+        if ($event->standUp?->type === ProjectNote::STANDUP) {
             $this->pointsService->awardPointsFor($event->standUp);
         }
     }

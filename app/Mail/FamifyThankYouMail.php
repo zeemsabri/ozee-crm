@@ -5,9 +5,9 @@ namespace App\Mail;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Mail\Mailables\Address;
 use Illuminate\Queue\SerializesModels;
 
 class FamifyThankYouMail extends Mailable implements ShouldQueue
@@ -15,9 +15,13 @@ class FamifyThankYouMail extends Mailable implements ShouldQueue
     use Queueable, SerializesModels;
 
     public string $userType;
+
     public ?string $name;
+
     public ?string $parentGoal;
+
     public ?string $childAge;
+
     public ?string $creatorGoal;
 
     public function __construct(string $userType, ?string $name = null, ?string $parentGoal = null, ?string $childAge = null, ?string $creatorGoal = null)

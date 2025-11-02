@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (Schema::hasTable('emails') && !Schema::hasColumn('emails', 'email_template')) {
+        if (Schema::hasTable('emails') && ! Schema::hasColumn('emails', 'email_template')) {
             Schema::table('emails', function (Blueprint $table) {
                 $table->string('email_template')->nullable()->after('template_data');
             });

@@ -65,10 +65,10 @@ class GoogleAccounts extends Model
     public function getTokensAttribute()
     {
         return json_encode([
-            'access_token' =>  $this->access_token,
-            'refresh_token' =>  $this->refresh_token,
-            'expires_in'    =>  $this->expires_in,
-            'created'   =>  $this->created
+            'access_token' => $this->access_token,
+            'refresh_token' => $this->refresh_token,
+            'expires_in' => $this->expires_in,
+            'created' => $this->created,
         ]);
     }
 }

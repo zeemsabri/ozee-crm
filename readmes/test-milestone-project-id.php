@@ -1,20 +1,20 @@
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
-use App\Models\Project;
 use App\Models\Milestone;
+use App\Models\Project;
 use App\Models\Task;
 
 // Get a project
 $project = Project::first();
 
-if (!$project) {
+if (! $project) {
     echo "No projects found. Please create a project first.\n";
     exit;
 }
@@ -22,10 +22,10 @@ if (!$project) {
 echo "Using project: {$project->name} (ID: {$project->id})\n";
 
 // Create a milestone for the project
-$milestone = new Milestone();
-$milestone->name = "Test Milestone";
-$milestone->description = "This is a test milestone";
-$milestone->status = "Not Started";
+$milestone = new Milestone;
+$milestone->name = 'Test Milestone';
+$milestone->description = 'This is a test milestone';
+$milestone->status = 'Not Started';
 $milestone->project_id = $project->id;
 $milestone->save();
 
@@ -36,10 +36,10 @@ $savedMilestone = Milestone::find($milestone->id);
 echo "Saved milestone project_id: {$savedMilestone->project_id}\n";
 
 // Create a task for the milestone
-$task = new Task();
-$task->name = "Test Task";
-$task->description = "This is a test task";
-$task->status = "To Do";
+$task = new Task;
+$task->name = 'Test Task';
+$task->description = 'This is a test task';
+$task->status = 'To Do';
 $task->milestone_id = $milestone->id;
 $task->task_type_id = 1; // Assuming there's at least one task type
 $task->save();

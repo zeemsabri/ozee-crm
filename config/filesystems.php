@@ -62,7 +62,7 @@ return [
 
         'gcs' => [
             'driver' => 'gcs',
-            'throw' =>  true,
+            'throw' => true,
             // Use an environment variable for the key file path.
             'key_file_path' => env('GOOGLE_CLOUD_KEY_FILE_PATH'),
             // Ensure the project ID is pulled directly from the .env file.
@@ -70,7 +70,7 @@ return [
             'bucket' => env('GOOGLE_CLOUD_STORAGE_BUCKET', 'ozee-docs'),
             'path_prefix' => env('GOOGLE_CLOUD_STORAGE_PATH_PREFIX', ''),
             'storage_api_uri' => env('GOOGLE_CLOUD_STORAGE_API_URI', null),
-            'visibility' => 'private'
+            'visibility' => 'private',
         ],
 
     ],

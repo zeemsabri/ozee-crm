@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\ClientDashboard;
 
 use App\Http\Controllers\Controller;
+use App\Models\Client;
+use App\Models\ClientDeliverableInteraction;
+use App\Models\Deliverable;
 use App\Models\Document;
-use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectNote;
 use App\Models\Task;
@@ -13,12 +15,8 @@ use App\Models\Wireframe;
 use App\Services\GoogleDriveService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Models\Deliverable;
-use App\Models\Client;
-use App\Models\ClientDeliverableInteraction;
 // use App\Models\DeliverableComment; // Replaced with ProjectNote
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class ProjectClientAction extends Controller
@@ -26,8 +24,6 @@ class ProjectClientAction extends Controller
     /**
      * Mark a deliverable as read by the client.
      *
-     * @param \Illuminate\Http\Request $request
-     * @param \App\Models\Deliverable $deliverable
      * @return \Illuminate\Http\JsonResponse
      */
     public function markDeliverableAsRead(Request $request, Deliverable $deliverable)
@@ -37,14 +33,14 @@ class ProjectClientAction extends Controller
             $authenticatedClientEmail = $request->attributes->get('magic_link_email');
 
             // Verify the deliverable belongs to the authenticated project
-            if ((int)$deliverable->project_id !== (int)$authenticatedProjectId) {
+            if ((int) $deliverable->project_id !== (int) $authenticatedProjectId) {
                 return response()->json(['message' => 'Unauthorized access to deliverable.'], 403);
             }
 
             // Find the client based on the authenticated email
             $client = Client::where('email', $authenticatedClientEmail)->first();
 
-            if (!$client) {
+            if (! $client) {
                 return response()->json(['message' => 'Authenticated client not found.'], 404);
             }
 
@@ -60,7 +56,7 @@ class ProjectClientAction extends Controller
             );
 
             // If it already existed and wasn't read, update read_at
-            if (!$interaction->read_at) {
+            if (! $interaction->read_at) {
                 $interaction->read_at = now();
                 $interaction->save();
             }
@@ -73,6 +69,7 @@ class ProjectClientAction extends Controller
                 'client_email' => $request->attributes->get('magic_link_email'),
                 'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to mark deliverable as read.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -80,8 +77,6 @@ class ProjectClientAction extends Controller
     /**
      * Client approves a deliverable.
      *
-     * @param \Illuminate\Http\Request $request
-     * @param \App\Models\Deliverable $deliverable
      * @return \Illuminate\Http\JsonResponse
      */
     public function approveDeliverable(Request $request, Deliverable $deliverable)
@@ -94,12 +89,12 @@ class ProjectClientAction extends Controller
             $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
             $authenticatedClientEmail = $request->attributes->get('magic_link_email');
 
-            if ((int)$deliverable->project_id !== (int)$authenticatedProjectId) {
+            if ((int) $deliverable->project_id !== (int) $authenticatedProjectId) {
                 return response()->json(['message' => 'Unauthorized access to deliverable.'], 403);
             }
 
             $client = Client::where('email', $authenticatedClientEmail)->first();
-            if (!$client) {
+            if (! $client) {
                 return response()->json(['message' => 'Authenticated client not found.'], 404);
             }
 
@@ -133,6 +128,7 @@ class ProjectClientAction extends Controller
                 'client_email' => $request->attributes->get('magic_link_email'),
                 'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to approve deliverable.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -140,8 +136,6 @@ class ProjectClientAction extends Controller
     /**
      * Client requests revisions for a deliverable (or rejects it).
      *
-     * @param \Illuminate\Http\Request $request
-     * @param \App\Models\Deliverable $deliverable
      * @return \Illuminate\Http\JsonResponse
      */
     public function requestDeliverableRevisions(Request $request, Deliverable $deliverable)
@@ -154,12 +148,12 @@ class ProjectClientAction extends Controller
             $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
             $authenticatedClientEmail = $request->attributes->get('magic_link_email');
 
-            if ((int)$deliverable->project_id !== (int)$authenticatedProjectId) {
+            if ((int) $deliverable->project_id !== (int) $authenticatedProjectId) {
                 return response()->json(['message' => 'Unauthorized access to deliverable.'], 403);
             }
 
             $client = Client::where('email', $authenticatedClientEmail)->first();
-            if (!$client) {
+            if (! $client) {
                 return response()->json(['message' => 'Authenticated client not found.'], 404);
             }
 
@@ -193,6 +187,7 @@ class ProjectClientAction extends Controller
                 'client_email' => $request->attributes->get('magic_link_email'),
                 'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to request revisions.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -200,8 +195,6 @@ class ProjectClientAction extends Controller
     /**
      * Client adds a general comment to a deliverable.
      *
-     * @param \Illuminate\Http\Request $request
-     * @param \App\Models\Deliverable $deliverable
      * @return \Illuminate\Http\JsonResponse
      */
     public function addDeliverableComment(Request $request, Deliverable $deliverable)
@@ -215,12 +208,12 @@ class ProjectClientAction extends Controller
             $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
             $authenticatedClientEmail = $request->attributes->get('magic_link_email');
 
-            if ((int)$deliverable->project_id !== (int)$authenticatedProjectId) {
+            if ((int) $deliverable->project_id !== (int) $authenticatedProjectId) {
                 return response()->json(['message' => 'Unauthorized access to deliverable.'], 403);
             }
 
             $client = Client::where('email', $authenticatedClientEmail)->first();
-            if (!$client) {
+            if (! $client) {
                 return response()->json(['message' => 'Authenticated client not found.'], 404);
             }
 
@@ -248,7 +241,7 @@ class ProjectClientAction extends Controller
                     'client_id' => $client->id,
                 ]
             );
-            if (!$interaction->read_at) {
+            if (! $interaction->read_at) {
                 $interaction->read_at = now();
                 $interaction->save();
             }
@@ -263,6 +256,7 @@ class ProjectClientAction extends Controller
                 'client_email' => $request->attributes->get('magic_link_email'),
                 'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to add comment.', 'error' => $e->getMessage()], 500);
         }
     }
@@ -270,8 +264,6 @@ class ProjectClientAction extends Controller
     /**
      * Add a note/reply to a specific task.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Task  $task
      * @return \Illuminate\Http\JsonResponse
      */
     public function addNoteToTask(Request $request, Task $task)
@@ -279,11 +271,10 @@ class ProjectClientAction extends Controller
         $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
         $authenticatedClientEmail = $request->attributes->get('magic_link_email');
 
-
         $projectId = $task->milestone?->project?->id;
 
         // Security check: Ensure the task belongs to the authenticated project
-        if ((int)$projectId !== (int)$authenticatedProjectId) {
+        if ((int) $projectId !== (int) $authenticatedProjectId) {
             return response()->json(['message' => 'Unauthorized action on this task.'], 403);
         }
 
@@ -298,25 +289,26 @@ class ProjectClientAction extends Controller
 
         // Find the client based on the authenticated email
         $client = Client::where('email', $authenticatedClientEmail)->first();
-        if (!$client) {
+        if (! $client) {
             return response()->json(['message' => 'Client not found.'], 404);
         }
 
         try {
 
             $note = $task->addNote($request->comment_text, $client);
+
             return response()->json([
                 'message' => 'Comment added successfully.',
                 'note' => $note,
             ], 201);
 
-
         } catch (\Exception $e) {
-            Log::error('Error adding note to task: ' . $e->getMessage(), [
+            Log::error('Error adding note to task: '.$e->getMessage(), [
                 'task_id' => $task->id,
                 'client_email' => $authenticatedClientEmail,
-                'error' => $e->getTraceAsString()
+                'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to add comment to task.'], 500);
         }
     }
@@ -324,7 +316,6 @@ class ProjectClientAction extends Controller
     /**
      * Add a note/reply to a specific task.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  \App\Models\Task  $task
      * @return \Illuminate\Http\JsonResponse
      */
@@ -333,11 +324,10 @@ class ProjectClientAction extends Controller
         $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
         $authenticatedClientEmail = $request->attributes->get('magic_link_email');
 
-
         $projectId = $document->project_id;
 
         // Security check: Ensure the task belongs to the authenticated project
-        if ((int)$projectId !== (int)$authenticatedProjectId) {
+        if ((int) $projectId !== (int) $authenticatedProjectId) {
             return response()->json(['message' => 'Unauthorized action on this document.'], 403);
         }
 
@@ -352,25 +342,26 @@ class ProjectClientAction extends Controller
 
         // Find the client based on the authenticated email
         $client = Client::where('email', $authenticatedClientEmail)->first();
-        if (!$client) {
+        if (! $client) {
             return response()->json(['message' => 'Client not found.'], 404);
         }
 
         try {
 
             $note = $document->addNote($request->comment_text, $client);
+
             return response()->json([
                 'message' => 'Comment added successfully.',
                 'note' => $note,
             ], 201);
 
-
         } catch (\Exception $e) {
-            Log::error('Error adding note to task: ' . $e->getMessage(), [
+            Log::error('Error adding note to task: '.$e->getMessage(), [
                 'task_id' => $document->id,
                 'client_email' => $authenticatedClientEmail,
-                'error' => $e->getTraceAsString()
+                'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to add comment to task.'], 500);
         }
     }
@@ -378,7 +369,6 @@ class ProjectClientAction extends Controller
     /**
      * Create a new task by a client.
      *
-     * @param Request $request
      * @return JsonResponse
      */
     public function createTask(Request $request)
@@ -386,12 +376,12 @@ class ProjectClientAction extends Controller
         $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
         $authenticatedClientEmail = $request->attributes->get('magic_link_email');
 
-        if (!$authenticatedProjectId || !$authenticatedClientEmail) {
+        if (! $authenticatedProjectId || ! $authenticatedClientEmail) {
             return response()->json(['message' => 'Authentication context missing.'], 401);
         }
 
         $client = Client::where('email', $authenticatedClientEmail)->first();
-        if (!$client) {
+        if (! $client) {
             return response()->json(['message' => 'Client not found.'], 404);
         }
 
@@ -406,7 +396,7 @@ class ProjectClientAction extends Controller
             $project = Project::findOrFail($authenticatedProjectId);
             $milestone = $project->supportMilestone();
 
-            $task = new Task();
+            $task = new Task;
             $task->milestone_id = $milestone->id;
             $task->name = $request->input('title');
             $task->description = $request->input('description');
@@ -415,7 +405,7 @@ class ProjectClientAction extends Controller
             $task->status = \App\Enums\TaskStatus::ToDo; // Default status for client-created tasks
 
             // Soft-validate task status via registry (non-enforcing)
-            app(\App\Services\ValueSetValidator::class)->validate('Task','status', \App\Enums\TaskStatus::ToDo);
+            app(\App\Services\ValueSetValidator::class)->validate('Task', 'status', \App\Enums\TaskStatus::ToDo);
 
             // The 'creating' model event in Task.php will handle setting creator_id and creator_type
             $task->save();
@@ -427,11 +417,12 @@ class ProjectClientAction extends Controller
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Error creating task: ' . $e->getMessage(), [
+            Log::error('Error creating task: '.$e->getMessage(), [
                 'project_id' => $authenticatedProjectId,
                 'client_email' => $authenticatedClientEmail,
-                'error' => $e->getTraceAsString()
+                'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to create task.'], 500);
         }
     }
@@ -439,7 +430,6 @@ class ProjectClientAction extends Controller
     /**
      * Upload documents from the client dashboard.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function uploadClientDocuments(Request $request)
@@ -449,7 +439,7 @@ class ProjectClientAction extends Controller
 
         // Verify the project exists and is accessible
         $project = Project::find($authenticatedProjectId);
-        if (!$project) {
+        if (! $project) {
             return response()->json(['message' => 'Project not found or unauthorized.'], 403);
         }
 
@@ -464,31 +454,32 @@ class ProjectClientAction extends Controller
             if ($request->hasFile('documents')) {
                 // Get the client who is uploading
                 $client = Client::where('email', $authenticatedClientEmail)->first();
-                if (!$client) {
+                if (! $client) {
                     return response()->json(['message' => 'Client not found.'], 404);
                 }
 
-                $uploadedDocuments = $project->uploadDocuments($request->file('documents'), new GoogleDriveService());
+                $uploadedDocuments = $project->uploadDocuments($request->file('documents'), new GoogleDriveService);
 
                 return response()->json([
                     'message' => 'Documents uploaded successfully',
-                    'documents' => $uploadedDocuments // Return the newly uploaded documents
+                    'documents' => $uploadedDocuments, // Return the newly uploaded documents
                 ]);
             }
 
             return response()->json([
                 'message' => 'No documents were uploaded',
-                'documents' => []
+                'documents' => [],
             ]);
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Error uploading documents: ' . $e->getMessage(), [
+            Log::error('Error uploading documents: '.$e->getMessage(), [
                 'project_id' => $authenticatedProjectId,
                 'email' => $authenticatedClientEmail,
-                'error' => $e->getTraceAsString()
+                'error' => $e->getTraceAsString(),
             ]);
-            return response()->json(['message' => 'Failed to upload documents: ' . $e->getMessage()], 500);
+
+            return response()->json(['message' => 'Failed to upload documents: '.$e->getMessage()], 500);
         }
     }
 
@@ -499,69 +490,69 @@ class ProjectClientAction extends Controller
      */
     public function addWireframeComment(Request $request, Project $project, $wireframeId)
     {
-//        try {
-            $request->validate([
-                'text' => 'required|string|max:2000',
-                'context' => 'nullable|max:255',
-                'parent_id' =>  'nullable|exists:project_notes,id',
-            ]);
+        //        try {
+        $request->validate([
+            'text' => 'required|string|max:2000',
+            'context' => 'nullable|max:255',
+            'parent_id' => 'nullable|exists:project_notes,id',
+        ]);
 
-            $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
-            $authenticatedClientEmail = $request->attributes->get('magic_link_email');
+        $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
+        $authenticatedClientEmail = $request->attributes->get('magic_link_email');
 
-            // Security: ensure route project matches magic link project
-            if ((int)$project->id !== (int)$authenticatedProjectId) {
-                return response()->json(['message' => 'Unauthorized access to project.'], 403);
-            }
+        // Security: ensure route project matches magic link project
+        if ((int) $project->id !== (int) $authenticatedProjectId) {
+            return response()->json(['message' => 'Unauthorized access to project.'], 403);
+        }
 
-            // Ensure the wireframe belongs to this project
-            $wireframe = Wireframe::where('id', $wireframeId)
-                ->where('project_id', $project->id)
-                ->first();
-            if (!$wireframe) {
-                return response()->json(['message' => 'Wireframe not found.'], 404);
-            }
+        // Ensure the wireframe belongs to this project
+        $wireframe = Wireframe::where('id', $wireframeId)
+            ->where('project_id', $project->id)
+            ->first();
+        if (! $wireframe) {
+            return response()->json(['message' => 'Wireframe not found.'], 404);
+        }
 
-            // Resolve creator via magic link email
-            $client = Client::where('email', $authenticatedClientEmail)->first();
-            if (!$client) {
-                return response()->json(['message' => 'Authenticated client not found.'], 404);
-            }
+        // Resolve creator via magic link email
+        $client = Client::where('email', $authenticatedClientEmail)->first();
+        if (! $client) {
+            return response()->json(['message' => 'Authenticated client not found.'], 404);
+        }
 
-            // Create a ProjectNote attached to the wireframe (polymorphic noteable)
-            $comment = new ProjectNote([
-                'project_id' => $project->id,
-                'content' => $request->input('text'),
-                'context'   => $request->input('context'),
-                'type' => ProjectNote::COMMENT,
-                'noteable_id' => $wireframe->id,
-                'noteable_type' => get_class($wireframe),
-                'creator_id' => $client->id,
-                'creator_type' => get_class($client),
-                'parent_id' => $request->input('parent_id'),
-            ]);
+        // Create a ProjectNote attached to the wireframe (polymorphic noteable)
+        $comment = new ProjectNote([
+            'project_id' => $project->id,
+            'content' => $request->input('text'),
+            'context' => $request->input('context'),
+            'type' => ProjectNote::COMMENT,
+            'noteable_id' => $wireframe->id,
+            'noteable_type' => get_class($wireframe),
+            'creator_id' => $client->id,
+            'creator_type' => get_class($client),
+            'parent_id' => $request->input('parent_id'),
+        ]);
 
-            if ($request->has('context')) {
-                $comment->context = $request->input('context');
-            }
+        if ($request->has('context')) {
+            $comment->context = $request->input('context');
+        }
 
-            $comment->save();
+        $comment->save();
 
-            return response()->json([
-                'message' => 'Comment added successfully.',
-                'comment' => $comment,
-            ], 201);
-//        } catch (ValidationException $e) {
-//            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
-//        } catch (\Exception $e) {
-//            Log::error("Error adding comment to wireframe: {$e->getMessage()}", [
-//                'project_id' => $project->id,
-//                'wireframe_id' => $wireframeId,
-//                'client_email' => $request->attributes->get('magic_link_email'),
-//                'error' => $e->getTraceAsString(),
-//            ]);
-//            return response()->json(['message' => 'Failed to add comment.'], 500);
-//        }
+        return response()->json([
+            'message' => 'Comment added successfully.',
+            'comment' => $comment,
+        ], 201);
+        //        } catch (ValidationException $e) {
+        //            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+        //        } catch (\Exception $e) {
+        //            Log::error("Error adding comment to wireframe: {$e->getMessage()}", [
+        //                'project_id' => $project->id,
+        //                'wireframe_id' => $wireframeId,
+        //                'client_email' => $request->attributes->get('magic_link_email'),
+        //                'error' => $e->getTraceAsString(),
+        //            ]);
+        //            return response()->json(['message' => 'Failed to add comment.'], 500);
+        //        }
     }
 
     /**
@@ -574,7 +565,7 @@ class ProjectClientAction extends Controller
             $authenticatedProjectId = $request->attributes->get('magic_link_project_id');
 
             // Ensure route project matches magic link project
-            if ((int)$project->id !== (int)$authenticatedProjectId) {
+            if ((int) $project->id !== (int) $authenticatedProjectId) {
                 return response()->json(['message' => 'Unauthorized access to project.'], 403);
             }
 
@@ -582,7 +573,7 @@ class ProjectClientAction extends Controller
             $wireframe = Wireframe::where('id', $wireframeId)
                 ->where('project_id', $project->id)
                 ->first();
-            if (!$wireframe) {
+            if (! $wireframe) {
                 return response()->json(['message' => 'Wireframe not found.'], 404);
             }
 
@@ -593,7 +584,7 @@ class ProjectClientAction extends Controller
                 ->where('noteable_id', $wireframe->id)
                 ->first();
 
-            if (!$note) {
+            if (! $note) {
                 return response()->json(['message' => 'Comment not found.'], 404);
             }
 
@@ -624,8 +615,8 @@ class ProjectClientAction extends Controller
                 'authenticated_project_id' => $request->attributes->get('magic_link_project_id'),
                 'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to resolve comment.'], 500);
         }
     }
-
 }

@@ -72,9 +72,9 @@ class MonthlyBudget extends Model
     /**
      * Scope a query to only include budgets for a specific month and year.
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     * @param int $year
-     * @param int $month
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  int  $year
+     * @param  int  $month
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function scopeForPeriod($query, $year, $month)

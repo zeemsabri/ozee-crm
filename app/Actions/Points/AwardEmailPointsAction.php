@@ -5,8 +5,8 @@ namespace App\Actions\Points;
 use App\Models\Email;
 use App\Models\PointsLedger;
 use App\Services\LedgerService;
-use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class AwardEmailPointsAction
 {
@@ -20,8 +20,6 @@ class AwardEmailPointsAction
 
     /**
      * AwardEmailPointsAction constructor.
-     *
-     * @param LedgerService $ledgerService
      */
     public function __construct(LedgerService $ledgerService)
     {
@@ -31,7 +29,7 @@ class AwardEmailPointsAction
     /**
      * Executes the business logic for awarding points for a sent email.
      *
-     * @param Email $email The Email model object.
+     * @param  Email  $email  The Email model object.
      * @return PointsLedger|null The newly created PointsLedger model instance, or null if points were not awarded.
      */
     public function execute(Email $email): ?PointsLedger
@@ -39,6 +37,7 @@ class AwardEmailPointsAction
         // 1. Defensive Checks:
         if ($email->type !== 'sent' || $email->status !== 'sent') {
             Log::info("Email points not awarded for email ID {$email->id} because it is not a sent email.");
+
             return null;
         }
 
@@ -46,6 +45,7 @@ class AwardEmailPointsAction
 
         if (is_null($email->sender) || is_null($project)) {
             Log::warning("AwardEmailPointsAction called for email ID {$email->id} but it's missing a sender or project. Points not awarded.");
+
             return null;
         }
 
@@ -77,8 +77,8 @@ class AwardEmailPointsAction
             // The cached value is either null or a stale timestamp from a later email.
             // We need to find the true preceding received email.
             $precedingEmail = Email::whereHas('conversation', function ($q) use ($project) {
-                    $q->where('project_id', $project->id);
-                })
+                $q->where('project_id', $project->id);
+            })
                 ->where('type', 'received')
                 ->where('created_at', '<', $sentAt)
                 ->orderBy('sent_at', 'desc')
@@ -101,10 +101,9 @@ class AwardEmailPointsAction
             $status = 'paid';
         } else {
             $pointsToAward = 0;
-            $description = 'Denied: Email reply not within the 4-hour window. Last Email was received on ' . $windowStart?->toDateTimeString() . ' and this email was sent on ' . $email->created_at ;
+            $description = 'Denied: Email reply not within the 4-hour window. Last Email was received on '.$windowStart?->toDateTimeString().' and this email was sent on '.$email->created_at;
             $status = 'denied';
         }
-
 
         // 4. Record the Transaction:
         return $this->ledgerService->record(

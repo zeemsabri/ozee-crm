@@ -3,35 +3,33 @@
 // This is a simple test script to verify that the project API changes work correctly
 // Run this script with: php test-project-api-changes.php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap the Laravel application
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use App\Models\Client;
 use App\Models\Project;
-use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Http\Request;
 
 echo "Testing project API changes...\n\n";
 
 // Get a manager user
-$manager = User::whereHas('role', function($query) {
+$manager = User::whereHas('role', function ($query) {
     $query->where('slug', 'manager');
 })->first();
 
-if (!$manager) {
+if (! $manager) {
     echo "Manager user not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
 
 // Get a client
 $client = Client::first();
-if (!$client) {
+if (! $client) {
     echo "No clients found in the database. Please create a client first.\n";
     exit;
 }
@@ -46,7 +44,7 @@ Auth::login($manager);
 echo "TEST 1: Create a project without sending client_ids and user_ids\n";
 
 $projectData = [
-    'name' => 'Test Project API Changes ' . time(),
+    'name' => 'Test Project API Changes '.time(),
     'description' => 'This is a test project created by the test script',
     'client_id' => $client->id,
     'status' => 'active',
@@ -60,9 +58,9 @@ $projectData = [
             'payment_breakdown' => [
                 'first' => 30,
                 'second' => 30,
-                'third' => 40
-            ]
-        ]
+                'third' => 40,
+            ],
+        ],
     ],
     'source' => 'Direct',
     'total_amount' => 1000,
@@ -73,7 +71,7 @@ $projectData = [
 try {
     // Call the API endpoint directly
     $response = app()->call('\App\Http\Controllers\Api\ProjectController@store', [
-        'request' => new \Illuminate\Http\Request($projectData)
+        'request' => new \Illuminate\Http\Request($projectData),
     ]);
 
     $responseData = json_decode($response->getContent(), true);
@@ -120,17 +118,17 @@ try {
             }
         }
     } else {
-        echo "FAILURE: Project creation failed with status code " . $response->getStatusCode() . "\n";
+        echo 'FAILURE: Project creation failed with status code '.$response->getStatusCode()."\n";
         if (isset($responseData['message'])) {
-            echo "Error message: " . $responseData['message'] . "\n";
+            echo 'Error message: '.$responseData['message']."\n";
         }
         if (isset($responseData['errors'])) {
-            echo "Validation errors: " . json_encode($responseData['errors']) . "\n";
+            echo 'Validation errors: '.json_encode($responseData['errors'])."\n";
         }
         exit;
     }
 } catch (\Exception $e) {
-    echo "FAILURE: Exception occurred: " . $e->getMessage() . "\n";
+    echo 'FAILURE: Exception occurred: '.$e->getMessage()."\n";
     exit;
 }
 
@@ -138,7 +136,7 @@ try {
 echo "\nTEST 2: Update the project without sending client_ids and user_ids\n";
 
 $updateData = [
-    'name' => 'Updated Test Project API Changes ' . time(),
+    'name' => 'Updated Test Project API Changes '.time(),
     'description' => 'This is an updated test project',
     'client_id' => $client->id,
     'status' => 'on_hold',
@@ -151,7 +149,7 @@ try {
     // Call the API endpoint directly
     $response = app()->call('\App\Http\Controllers\Api\ProjectController@update', [
         'request' => new \Illuminate\Http\Request($updateData),
-        'project' => $project
+        'project' => $project,
     ]);
 
     $responseData = json_decode($response->getContent(), true);
@@ -197,16 +195,16 @@ try {
             }
         }
     } else {
-        echo "FAILURE: Project update failed with status code " . $response->getStatusCode() . "\n";
+        echo 'FAILURE: Project update failed with status code '.$response->getStatusCode()."\n";
         if (isset($responseData['message'])) {
-            echo "Error message: " . $responseData['message'] . "\n";
+            echo 'Error message: '.$responseData['message']."\n";
         }
         if (isset($responseData['errors'])) {
-            echo "Validation errors: " . json_encode($responseData['errors']) . "\n";
+            echo 'Validation errors: '.json_encode($responseData['errors'])."\n";
         }
     }
 } catch (\Exception $e) {
-    echo "FAILURE: Exception occurred: " . $e->getMessage() . "\n";
+    echo 'FAILURE: Exception occurred: '.$e->getMessage()."\n";
 }
 
 // Clean up - delete the test project
@@ -217,7 +215,7 @@ try {
         echo "\nTest project deleted.\n";
     }
 } catch (\Exception $e) {
-    echo "\nFailed to delete test project: " . $e->getMessage() . "\n";
+    echo "\nFailed to delete test project: ".$e->getMessage()."\n";
 }
 
 echo "\nTest completed.\n";

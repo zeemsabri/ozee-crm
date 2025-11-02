@@ -2,31 +2,33 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreProjectRequest;
+use App\Models\Meeting;
 use App\Models\Project;
+use App\Models\ProjectNote;
 use App\Models\ProjectTier;
 use App\Models\User;
-use App\Models\Meeting;
-use App\Models\ProjectNote;
 use App\Services\GmailService;
-use App\Services\GoogleDriveService;
 use App\Services\GoogleChatService;
+use App\Services\GoogleDriveService;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use App\Http\Controllers\Api\Concerns\HasProjectPermissions; // Import the trait
+use Illuminate\Validation\ValidationException; // Import the trait
 
 class ProjectActionController extends Controller
 {
     use HasProjectPermissions; // Use the trait
 
     protected GmailService $gmailService;
+
     protected GoogleDriveService $googleDriveService;
+
     protected GoogleChatService $googleChatService;
+
     protected ProjectCalendarController $projectCalendarController;
 
     public function __construct(
@@ -44,7 +46,6 @@ class ProjectActionController extends Controller
     /**
      * Store a newly created project in storage.
      *
-     * @param StoreProjectRequest $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function store(StoreProjectRequest $request)
@@ -52,7 +53,7 @@ class ProjectActionController extends Controller
         try {
             $validated = $request->validated();
             if (array_key_exists('status', $validated)) {
-                app(\App\Services\ValueSetValidator::class)->validate('Project','status',$validated['status']);
+                app(\App\Services\ValueSetValidator::class)->validate('Project', 'status', $validated['status']);
             }
 
             $projectData = [
@@ -86,7 +87,6 @@ class ProjectActionController extends Controller
                 Log::error('Failed to create Google Chat space for project', ['project_name' => $validated['name'], 'error' => $e->getMessage()]);
             }
 
-
             $project = Project::create($projectData);
 
             if ($request->has('user_ids') && is_array($request->user_ids)) {
@@ -97,7 +97,7 @@ class ProjectActionController extends Controller
                         $userIds[$userData['id']] = ['role_id' => $roleId];
                     }
                 }
-                if (!empty($userIds)) {
+                if (! empty($userIds)) {
                     $project->users()->attach($userIds);
                 }
             }
@@ -118,7 +118,8 @@ class ProjectActionController extends Controller
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Error creating project: ' . $e->getMessage(), ['request' => $request->all(), 'error' => $e->getTraceAsString()]);
+            Log::error('Error creating project: '.$e->getMessage(), ['request' => $request->all(), 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to create project', 'error' => $e->getMessage()], 500);
         }
     }
@@ -126,15 +127,13 @@ class ProjectActionController extends Controller
     /**
      * Update the specified project in storage.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function update(Request $request, Project $project)
     {
         try {
             $user = Auth::user();
-            if (!$this->canManageProjects($user, $project)) {
+            if (! $this->canManageProjects($user, $project)) {
                 return response()->json(['message' => 'Unauthorized. You do not have permission to update this project.'], 403);
             }
 
@@ -144,14 +143,14 @@ class ProjectActionController extends Controller
                 $isJsonRequest = false;
             }
 
-            if (!$isJsonRequest && ($request->header('Content-Type') === 'multipart/form-data' || $hasFileUploads)) {
+            if (! $isJsonRequest && ($request->header('Content-Type') === 'multipart/form-data' || $hasFileUploads)) {
                 $fields = ['services', 'service_details', 'transactions', 'notes'];
                 foreach ($fields as $field) {
                     if ($request->has($field) && is_string($request->input($field))) {
                         try {
                             $request->merge([$field => json_decode($request->input($field), true)]);
                         } catch (\Exception $e) {
-                            Log::warning("Failed to decode JSON for field {$field}: " . $e->getMessage());
+                            Log::warning("Failed to decode JSON for field {$field}: ".$e->getMessage());
                         }
                     }
                 }
@@ -211,13 +210,13 @@ class ProjectActionController extends Controller
                 ]);
             }
 
-            if (!$isJsonRequest) {
+            if (! $isJsonRequest) {
                 $validationRules['documents.*'] = 'nullable|file|mimes:pdf,doc,docx,jpg,png|max:10240';
             }
 
             $validated = $request->validate($validationRules);
             if (array_key_exists('status', $validated)) {
-                app(\App\Services\ValueSetValidator::class)->validate('Project','status',$validated['status']);
+                app(\App\Services\ValueSetValidator::class)->validate('Project', 'status', $validated['status']);
             }
 
             $projectData = [
@@ -251,11 +250,11 @@ class ProjectActionController extends Controller
                     $existingDocuments = $project->documents ?? [];
                     $newDocuments = [];
                     foreach ($request->input('documents') as $document) {
-                        if (is_array($document) && !empty($document)) {
+                        if (is_array($document) && ! empty($document)) {
                             $newDocuments[] = $document;
                         }
                     }
-                    if (!empty($newDocuments)) {
+                    if (! empty($newDocuments)) {
                         $projectData['documents'] = array_merge($existingDocuments, $newDocuments);
                     }
                 }
@@ -271,10 +270,10 @@ class ProjectActionController extends Controller
                         try {
                             $fullLocalPath = Storage::disk('public')->path($localPath);
                             $originalFilename = $request->file('logo')->getClientOriginalName();
-                            $fileId = $this->googleDriveService->uploadFile($fullLocalPath, 'logo_' . $originalFilename, $project->google_drive_folder_id);
+                            $fileId = $this->googleDriveService->uploadFile($fullLocalPath, 'logo_'.$originalFilename, $project->google_drive_folder_id);
                             $projectData['logo_google_drive_file_id'] = $fileId;
                         } catch (\Exception $e) {
-                            Log::error('Failed to upload logo to Google Drive: ' . $e->getMessage(), ['project_id' => $project->id]);
+                            Log::error('Failed to upload logo to Google Drive: '.$e->getMessage(), ['project_id' => $project->id]);
                         }
                     }
                 }
@@ -298,10 +297,10 @@ class ProjectActionController extends Controller
                 $project->transactions()->delete();
 
                 foreach ($validated['transactions'] as $transaction) {
-                    if ($transaction['type'] === 'expense' && !$this->canManageProjectExpenses($user, $project)) {
+                    if ($transaction['type'] === 'expense' && ! $this->canManageProjectExpenses($user, $project)) {
                         continue;
                     }
-                    if ($transaction['type'] === 'income' && !$this->canManageProjectIncome($user, $project)) {
+                    if ($transaction['type'] === 'income' && ! $this->canManageProjectIncome($user, $project)) {
                         continue;
                     }
                     $project->transactions()->create([
@@ -319,7 +318,8 @@ class ProjectActionController extends Controller
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Error updating project: ' . $e->getMessage(), ['project_id' => $project->id, 'request' => $request->all(), 'error' => $e->getTraceAsString()]);
+            Log::error('Error updating project: '.$e->getMessage(), ['project_id' => $project->id, 'request' => $request->all(), 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to update project', 'error' => $e->getMessage()], 500);
         }
     }
@@ -327,7 +327,6 @@ class ProjectActionController extends Controller
     /**
      * Remove the specified project from storage.
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function destroy(Project $project)
@@ -335,7 +334,7 @@ class ProjectActionController extends Controller
         try {
             // Check if user has permission to manage the project (delete falls under manage)
             $user = Auth::user();
-            if (!$this->canManageProjects($user, $project)) {
+            if (! $this->canManageProjects($user, $project)) {
                 return response()->json(['message' => 'Unauthorized. You do not have permission to delete this project.'], 403);
             }
 
@@ -349,9 +348,11 @@ class ProjectActionController extends Controller
             }
             $project->delete();
             Log::info('Project deleted', ['project_id' => $project->id, 'project_name' => $project->name, 'user_id' => Auth::id()]);
+
             return response()->json(null, 204);
         } catch (\Exception $e) {
-            Log::error('Error deleting project: ' . $e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
+            Log::error('Error deleting project: '.$e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to delete project', 'error' => $e->getMessage()], 500);
         }
     }
@@ -359,8 +360,6 @@ class ProjectActionController extends Controller
     /**
      * Attach users to a project and update Google Chat/Drive permissions.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function attachUsers(Request $request, Project $project)
@@ -395,7 +394,7 @@ class ProjectActionController extends Controller
 
         if ($project->google_chat_id) {
             try {
-                if (!empty($addedUserEmails)) {
+                if (! empty($addedUserEmails)) {
                     $responseArray = $this->googleChatService->addMembersToSpace($project->google_chat_id, $addedUserEmails);
                     foreach ($responseArray as $userInfo) {
                         if (isset($userInfo['email']) && isset($userInfo['chat_name'])) {
@@ -404,25 +403,25 @@ class ProjectActionController extends Controller
                     }
                     Log::info('Added members to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'added_emails' => $addedUserEmails, 'response' => $responseArray]);
                 }
-                if (!empty($removedUserEmails)) {
+                if (! empty($removedUserEmails)) {
                     // Only remove users who are not project leads or Google Chat members
                     $usersToActuallyRemove = [];
                     foreach ($removedUserEmails as $email) {
                         $user = User::where('email', $email)->first();
-                        if ($user && 
-                            $user->id !== $project->project_manager_id && 
+                        if ($user &&
+                            $user->id !== $project->project_manager_id &&
                             $user->id !== $project->project_admin_id &&
-                            !$project->googleChatMembers()->where('user_id', $user->id)->exists()) {
+                            ! $project->googleChatMembers()->where('user_id', $user->id)->exists()) {
                             $usersToActuallyRemove[] = $user;
                         }
                     }
-                    
-                    if (!empty($usersToActuallyRemove)) {
+
+                    if (! empty($usersToActuallyRemove)) {
                         $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToActuallyRemove);
                         Log::info('Removed members from Google Chat space', [
-                            'project_id' => $project->id, 
-                            'space_name' => $project->google_chat_id, 
-                            'removed_emails' => array_map(fn($u) => $u->email, $usersToActuallyRemove)
+                            'project_id' => $project->id,
+                            'space_name' => $project->google_chat_id,
+                            'removed_emails' => array_map(fn ($u) => $u->email, $usersToActuallyRemove),
                         ]);
                     }
                 }
@@ -437,14 +436,14 @@ class ProjectActionController extends Controller
                     try {
                         $this->googleDriveService->addPermission($project->google_drive_folder_id, $email, 'writer');
                     } catch (\Exception $e) {
-                        Log::error('Failed to add Google Drive permission for ' . $email, ['project_id' => $project->id, 'folder_id' => $project->google_drive_folder_id, 'email' => $email, 'error' => $e->getMessage()]);
+                        Log::error('Failed to add Google Drive permission for '.$email, ['project_id' => $project->id, 'folder_id' => $project->google_drive_folder_id, 'email' => $email, 'error' => $e->getMessage()]);
                     }
                 }
                 foreach ($removedUserEmails as $email) {
                     try {
                         $this->googleDriveService->removePermission($project->google_drive_folder_id, $email);
                     } catch (\Exception $e) {
-                        Log::error('Failed to remove Google Drive permission for ' . $email, ['project_id' => $project->id, 'folder_id' => $project->google_drive_folder_id, 'email' => $email, 'error' => $e->getMessage()]);
+                        Log::error('Failed to remove Google Drive permission for '.$email, ['project_id' => $project->id, 'folder_id' => $project->google_drive_folder_id, 'email' => $email, 'error' => $e->getMessage()]);
                     }
                 }
                 Log::info('Google Drive permissions updated for project', ['project_id' => $project->id, 'folder_id' => $project->google_drive_folder_id, 'added_emails' => $addedUserEmails, 'removed_emails' => $removedUserEmails]);
@@ -459,8 +458,6 @@ class ProjectActionController extends Controller
     /**
      * Detach users from a project.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function detachUsers(Request $request, Project $project)
@@ -487,14 +484,13 @@ class ProjectActionController extends Controller
         $project->load(['users' => function ($query) {
             $query->withPivot('role_id');
         }]);
+
         return response()->json($project->users);
     }
 
     /**
      * Attach clients to a project.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function attachClients(Request $request, Project $project)
@@ -513,14 +509,13 @@ class ProjectActionController extends Controller
         $project->clients()->sync($clientData);
 
         $project->load('clients');
+
         return response()->json($project->clients, 200);
     }
 
     /**
      * Detach clients from a project.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function detachClients(Request $request, Project $project)
@@ -534,14 +529,13 @@ class ProjectActionController extends Controller
 
         $project->clients()->detach($validated['client_ids']);
         $project->load('clients');
+
         return response()->json($project->clients);
     }
 
     /**
      * Add notes to a project.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function addNotes(Request $request, Project $project)
@@ -549,7 +543,7 @@ class ProjectActionController extends Controller
 
         $user = Auth::user();
 
-        if (!$this->canAddProjectNotes($user, $project)) {
+        if (! $this->canAddProjectNotes($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to add notes.'], 403);
         }
 
@@ -570,14 +564,12 @@ class ProjectActionController extends Controller
     /**
      * Convert project payment type.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function convertPaymentType(Request $request, Project $project)
     {
         $user = Auth::user();
-        if (!$this->canManageProjectServicesAndPayments($user, $project)) { // Assuming 'update' permission implies managing financial
+        if (! $this->canManageProjectServicesAndPayments($user, $project)) { // Assuming 'update' permission implies managing financial
             return response()->json(['message' => 'Unauthorized. You do not have permission to convert payment type.'], 403);
         }
 
@@ -593,29 +585,26 @@ class ProjectActionController extends Controller
     /**
      * Reply to a specific note and send to Google Chat thread.
      *
-     * @param Request $request
-     * @param Project $project
-     * @param ProjectNote $note
      * @return \Illuminate\Http\JsonResponse
      */
     public function replyToNote(Request $request, Project $project, ProjectNote $note)
     {
         $user = Auth::user();
-        if (!$this->canAddProjectNotes($user, $project)) {
+        if (! $this->canAddProjectNotes($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to add replies.'], 403);
         }
 
         $validated = $request->validate(['content' => 'required|string']);
 
-        if (!$project->google_chat_id) {
+        if (! $project->google_chat_id) {
             return response()->json(['message' => 'This project does not have a Google Chat space.', 'success' => false], 400);
         }
 
-        if (!$note->chat_message_id) {
+        if (! $note->chat_message_id) {
             return response()->json(['message' => 'This note does not have an associated Google Chat message to reply to.', 'success' => false], 400);
         }
 
-        $messageText = "💬 *{$user->name}*: " . $validated['content'];
+        $messageText = "💬 *{$user->name}*: ".$validated['content'];
 
         try {
             $messageResourceName = $note->chat_message_id;
@@ -629,11 +618,11 @@ class ProjectActionController extends Controller
             $messageIdSegment = $parts[3];
             $messageExploded = explode('.', $messageIdSegment);
             $threadKey = str_contains($messageIdSegment, '.') ? end($messageExploded) : $messageIdSegment;
-            $threadNameForReply = 'spaces/' . $spaceId . '/threads/' . $threadKey;
+            $threadNameForReply = 'spaces/'.$spaceId.'/threads/'.$threadKey;
 
             $response = $this->googleChatService->sendThreadedMessage($project->google_chat_id, $threadNameForReply, $messageText);
 
-            if (!isset($response['thread']['name']) || $response['thread']['name'] !== $threadNameForReply) {
+            if (! isset($response['thread']['name']) || $response['thread']['name'] !== $threadNameForReply) {
                 Log::warning('Message may not have been posted to the correct thread', ['expected_thread' => $threadNameForReply, 'response_thread' => $response['thread']['name'] ?? 'N/A', 'message_id' => $response['name'] ?? 'N/A']);
             }
 
@@ -651,21 +640,20 @@ class ProjectActionController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Failed to send reply to note in Google Chat thread', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'note_id' => $note->id, 'error' => $e->getMessage(), 'exception' => $e]);
-            return response()->json(['message' => 'Failed to send reply: ' . $e->getMessage(), 'success' => false], 500);
+
+            return response()->json(['message' => 'Failed to send reply: '.$e->getMessage(), 'success' => false], 500);
         }
     }
 
     /**
      * Upload documents to a project.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function uploadDocument(Request $request, Project $project)
     {
         $user = Auth::user();
-        if (!$this->canManageProjects($user, $project)) { // Assuming 'update' permission implies document upload
+        if (! $this->canManageProjects($user, $project)) { // Assuming 'update' permission implies document upload
             return response()->json(['message' => 'Unauthorized. You do not have permission to upload documents.'], 403);
         }
 
@@ -685,18 +673,19 @@ class ProjectActionController extends Controller
 
                 return response()->json([
                     'message' => 'Documents uploaded successfully',
-                    'documents' => $documents
+                    'documents' => $documents,
                 ]);
             }
 
             return response()->json([
                 'message' => 'No documents were uploaded',
-                'documents' => $project->documents()->latest()->get()
+                'documents' => $project->documents()->latest()->get(),
             ]);
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Error uploading documents: ' . $e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
+            Log::error('Error uploading documents: '.$e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to upload documents', 'error' => $e->getMessage()], 500);
         }
     }
@@ -704,15 +693,13 @@ class ProjectActionController extends Controller
     /**
      * Upload documents to a project.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function uploadDocuments(Request $request, Project $project)
     {
 
         // Assuming canManageProjects is a method on your controller or a trait
-       $this->authorize('uploadDocuments', $project);
+        $this->authorize('uploadDocuments', $project);
 
         try {
             $validationRules = [
@@ -730,28 +717,26 @@ class ProjectActionController extends Controller
 
                 return response()->json([
                     'message' => 'Documents uploaded successfully',
-                    'documents' => $documents
+                    'documents' => $documents,
                 ]);
             }
 
             return response()->json([
                 'message' => 'No documents were uploaded',
-                'documents' => $project->documents()->latest()->get()
+                'documents' => $project->documents()->latest()->get(),
             ]);
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Error uploading documents: ' . $e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
+            Log::error('Error uploading documents: '.$e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to upload documents', 'error' => $e->getMessage()], 500);
         }
     }
 
-
     /**
      * Add a daily standup note to the project and send it to Google Space.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function addStandup(Request $request, Project $project)
@@ -766,10 +751,10 @@ class ProjectActionController extends Controller
             'blockers' => 'nullable|string',
         ]);
 
-        $formattedContent = "**Daily Standup - " . date('F j, Y') . "**\n\n";
-        $formattedContent .= "**Yesterday:** " . $validated['yesterday'] . "\n\n";
-        $formattedContent .= "**Today:** " . $validated['today'] . "\n\n";
-        $formattedContent .= "**Blockers:** " . ($validated['blockers'] ?? 'None');
+        $formattedContent = '**Daily Standup - '.date('F j, Y')."**\n\n";
+        $formattedContent .= '**Yesterday:** '.$validated['yesterday']."\n\n";
+        $formattedContent .= '**Today:** '.$validated['today']."\n\n";
+        $formattedContent .= '**Blockers:** '.($validated['blockers'] ?? 'None');
 
         $note = $project->notes()->create([
             'content' => $formattedContent,
@@ -779,10 +764,10 @@ class ProjectActionController extends Controller
 
         if ($project->google_chat_id) {
             try {
-                $messageText = "🏃‍♂️ *Daily Standup from {$user->name} - " . date('F j, Y') . "*\n\n";
-                $messageText .= "💼 *Yesterday:* " . $validated['yesterday'] . "\n\n";
-                $messageText .= "📝 *Today:* " . $validated['today'] . "\n\n";
-                $messageText .= "🚧 *Blockers:* " . ($validated['blockers'] ?? 'None');
+                $messageText = "🏃‍♂️ *Daily Standup from {$user->name} - ".date('F j, Y')."*\n\n";
+                $messageText .= '💼 *Yesterday:* '.$validated['yesterday']."\n\n";
+                $messageText .= '📝 *Today:* '.$validated['today']."\n\n";
+                $messageText .= '🚧 *Blockers:* '.($validated['blockers'] ?? 'None');
 
                 $response = $this->googleChatService->sendMessage($project->google_chat_id, $messageText);
 
@@ -801,8 +786,6 @@ class ProjectActionController extends Controller
     /**
      * Update basic project information.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function updateBasicInfo(Request $request, Project $project)
@@ -823,15 +806,14 @@ class ProjectActionController extends Controller
                 'status' => 'sometimes|required|string',
                 'source' => 'nullable|string|max:255',
                 'google_drive_link' => 'nullable|url', // Keep this validation
-                'project_type'  =>  'required|string|max:30',
-                'timezone'  =>  'nullable|string|max:30',
-                'project_tier_id'   =>  'required|exists:project_tiers,id',
+                'project_type' => 'required|string|max:30',
+                'timezone' => 'nullable|string|max:30',
+                'project_tier_id' => 'required|exists:project_tiers,id',
             ];
 
             $project->syncTags($request->tags ?? []);
 
             $validated = $request->validate($validationRules);
-
 
             $projectData = [
                 'name' => $validated['name'] ?? $project->name,
@@ -844,9 +826,9 @@ class ProjectActionController extends Controller
                 'status' => $validated['status'] ?? $project->status,
                 'source' => $validated['source'] ?? $project->source,
                 'google_drive_link' => $validated['google_drive_link'] ?? $project->google_drive_link,
-                'project_type'  =>  $validated['project_type'] ?? 'Unknown',
-                'timezone'  =>  $validated['timezone'] ?? null,
-                'project_tier_id'   =>  $validated['project_tier_id'] ?? ProjectTier::first()?->id
+                'project_type' => $validated['project_type'] ?? 'Unknown',
+                'timezone' => $validated['timezone'] ?? null,
+                'project_tier_id' => $validated['project_tier_id'] ?? ProjectTier::first()?->id,
             ];
 
             // --- NEW LOGIC FOR GOOGLE DRIVE FOLDER ID ---
@@ -860,17 +842,17 @@ class ProjectActionController extends Controller
                     $projectData['google_drive_folder_id'] = $extractedFolderId;
                     Log::info('Extracted Google Drive folder ID from link', [
                         'link' => $link,
-                        'extracted_id' => $extractedFolderId
+                        'extracted_id' => $extractedFolderId,
                     ]);
                 } else {
                     // If no valid ID could be extracted, set it to null or log a warning
                     $projectData['google_drive_folder_id'] = null;
                     Log::warning('Could not extract Google Drive folder ID from provided link', [
                         'link' => $link,
-                        'project_id' => $project->id
+                        'project_id' => $project->id,
                     ]);
                 }
-            } else if (array_key_exists('google_drive_link', $validated) && $validated['google_drive_link'] === null) {
+            } elseif (array_key_exists('google_drive_link', $validated) && $validated['google_drive_link'] === null) {
                 // If google_drive_link is explicitly sent as null, clear the folder ID as well
                 $projectData['google_drive_folder_id'] = null;
                 Log::info('Google Drive link set to null, clearing folder ID.', ['project_id' => $project->id]);
@@ -879,12 +861,12 @@ class ProjectActionController extends Controller
 
             // Soft-validate status if present using registry
             if (array_key_exists('status', $projectData)) {
-                app(\App\Services\ValueSetValidator::class)->validate('Project','status',$projectData['status']);
+                app(\App\Services\ValueSetValidator::class)->validate('Project', 'status', $projectData['status']);
             }
 
             $project->update($projectData);
 
-            if($request->hasFile('logo')) {
+            if ($request->hasFile('logo')) {
                 $this->uploadLogo($request, $project);
             }
 
@@ -892,7 +874,8 @@ class ProjectActionController extends Controller
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Error updating project basic info: ' . $e->getMessage(), ['project_id' => $project->id, 'request' => $request->all(), 'error' => $e->getTraceAsString()]);
+            Log::error('Error updating project basic info: '.$e->getMessage(), ['project_id' => $project->id, 'request' => $request->all(), 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to update project basic info', 'error' => $e->getMessage()], 500);
         }
     }
@@ -900,14 +883,12 @@ class ProjectActionController extends Controller
     /**
      * Update project services and payment information.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function updateServicesAndPayment(Request $request, Project $project)
     {
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project) || !$this->canManageProjectServicesAndPayments($user, $project)) {
+        if (! $this->canAccessProject($user, $project) || ! $this->canManageProjectServicesAndPayments($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to manage financial information.'], 403);
         }
 
@@ -936,14 +917,12 @@ class ProjectActionController extends Controller
     /**
      * Update project transactions.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function assignLeads(Request $request, Project $project)
     {
         $user = \Illuminate\Support\Facades\Auth::user();
-        if (!$this->canManageProjects($user, $project)) {
+        if (! $this->canManageProjects($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to assign project leads.'], 403);
         }
 
@@ -955,7 +934,7 @@ class ProjectActionController extends Controller
         // Get current leads for comparison
         $currentManagerId = $project->project_manager_id;
         $currentAdminId = $project->project_admin_id;
-        
+
         $project->project_manager_id = $validated['project_manager_id'] ?? null;
         $project->project_admin_id = $validated['project_admin_id'] ?? null;
         $project->save();
@@ -965,43 +944,43 @@ class ProjectActionController extends Controller
             try {
                 $emailsToAdd = [];
                 $emailsToRemove = [];
-                
+
                 // Handle manager changes
                 if ($currentManagerId !== $project->project_manager_id) {
                     if ($currentManagerId) {
                         $oldManager = User::find($currentManagerId);
-                        if ($oldManager && !$this->userIsInProjectUsers($project, $oldManager->id) && 
+                        if ($oldManager && ! $this->userIsInProjectUsers($project, $oldManager->id) &&
                             $oldManager->id !== $project->project_admin_id) {
                             $emailsToRemove[] = $oldManager->email;
                         }
                     }
                     if ($project->project_manager_id) {
                         $newManager = User::find($project->project_manager_id);
-                        if ($newManager && !$this->userIsInProjectUsers($project, $newManager->id)) {
+                        if ($newManager && ! $this->userIsInProjectUsers($project, $newManager->id)) {
                             $emailsToAdd[] = $newManager->email;
                         }
                     }
                 }
-                
-                // Handle admin changes  
+
+                // Handle admin changes
                 if ($currentAdminId !== $project->project_admin_id) {
                     if ($currentAdminId) {
                         $oldAdmin = User::find($currentAdminId);
-                        if ($oldAdmin && !$this->userIsInProjectUsers($project, $oldAdmin->id) && 
+                        if ($oldAdmin && ! $this->userIsInProjectUsers($project, $oldAdmin->id) &&
                             $oldAdmin->id !== $project->project_manager_id) {
                             $emailsToRemove[] = $oldAdmin->email;
                         }
                     }
                     if ($project->project_admin_id) {
                         $newAdmin = User::find($project->project_admin_id);
-                        if ($newAdmin && !$this->userIsInProjectUsers($project, $newAdmin->id)) {
+                        if ($newAdmin && ! $this->userIsInProjectUsers($project, $newAdmin->id)) {
                             $emailsToAdd[] = $newAdmin->email;
                         }
                     }
                 }
-                
+
                 // Add new leads to Google Chat
-                if (!empty($emailsToAdd)) {
+                if (! empty($emailsToAdd)) {
                     $responseArray = $this->googleChatService->addMembersToSpace($project->google_chat_id, $emailsToAdd);
                     foreach ($responseArray as $userInfo) {
                         if (isset($userInfo['email']) && isset($userInfo['chat_name'])) {
@@ -1009,29 +988,29 @@ class ProjectActionController extends Controller
                         }
                     }
                     Log::info('Added project leads to Google Chat space', [
-                        'project_id' => $project->id, 
-                        'space_name' => $project->google_chat_id, 
-                        'added_emails' => $emailsToAdd, 
-                        'response' => $responseArray
+                        'project_id' => $project->id,
+                        'space_name' => $project->google_chat_id,
+                        'added_emails' => $emailsToAdd,
+                        'response' => $responseArray,
                     ]);
                 }
-                
+
                 // Remove old leads from Google Chat (only if they're not in project users)
-                if (!empty($emailsToRemove)) {
+                if (! empty($emailsToRemove)) {
                     $usersToDetach = User::whereIn('email', $emailsToRemove)->get();
                     $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToDetach->toArray());
                     Log::info('Removed old project leads from Google Chat space', [
-                        'project_id' => $project->id, 
-                        'space_name' => $project->google_chat_id, 
-                        'removed_emails' => $emailsToRemove
+                        'project_id' => $project->id,
+                        'space_name' => $project->google_chat_id,
+                        'removed_emails' => $emailsToRemove,
                     ]);
                 }
             } catch (\Exception $e) {
                 Log::error('Failed to update Google Chat space for project leads', [
-                    'project_id' => $project->id, 
-                    'space_name' => $project->google_chat_id, 
-                    'error' => $e->getMessage(), 
-                    'exception' => $e
+                    'project_id' => $project->id,
+                    'space_name' => $project->google_chat_id,
+                    'error' => $e->getMessage(),
+                    'exception' => $e,
                 ]);
             }
         }
@@ -1050,7 +1029,7 @@ class ProjectActionController extends Controller
     public function updateTransactions(Request $request, Project $project)
     {
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project) || (!$this->canManageProjectExpenses($user, $project) && !$this->canManageProjectIncome($user, $project))) {
+        if (! $this->canAccessProject($user, $project) || (! $this->canManageProjectExpenses($user, $project) && ! $this->canManageProjectIncome($user, $project))) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to manage transactions.'], 403);
         }
 
@@ -1066,10 +1045,10 @@ class ProjectActionController extends Controller
 
         $transactions = $validatedData['transactions'];
 
-        if (!$this->canManageProjectExpenses($user, $project)) {
+        if (! $this->canManageProjectExpenses($user, $project)) {
             $transactions = array_filter($transactions, fn ($transaction) => $transaction['type'] !== 'expense');
         }
-        if (!$this->canManageProjectIncome($user, $project)) {
+        if (! $this->canManageProjectIncome($user, $project)) {
             $transactions = array_filter($transactions, fn ($transaction) => $transaction['type'] !== 'income');
         }
 
@@ -1087,6 +1066,7 @@ class ProjectActionController extends Controller
         }
 
         $project->load('transactions');
+
         return response()->json(['message' => 'Transactions updated successfully', 'transactions' => $project->transactions]);
     }
 
@@ -1095,15 +1075,13 @@ class ProjectActionController extends Controller
      * This method in ProjectSectionController was named `updateNotes` but had no logic,
      * so it's being implemented to allow updating/managing existing notes.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function updateNotes(Request $request, Project $project)
     {
         $user = Auth::user();
         // Assuming 'manage_project_notes' permission, or 'add_project_notes' for adding/updating.
-        if (!$this->canAddProjectNotes($user, $project)) {
+        if (! $this->canAddProjectNotes($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to manage notes.'], 403);
         }
 
@@ -1150,9 +1128,9 @@ class ProjectActionController extends Controller
         }
 
         // Reload and return all notes for the project
-        $project->load(['notes' => function($query) use($noteType) {
+        $project->load(['notes' => function ($query) use ($noteType) {
             $query->whereNull('parent_id')->with('user');
-            if($noteType) {
+            if ($noteType) {
                 $query->where('type', $noteType);
             }
         }]);
@@ -1170,15 +1148,13 @@ class ProjectActionController extends Controller
     /**
      * Create a new meeting for a project.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function createProjectMeeting(Request $request, Project $project)
     {
         $user = Auth::user();
         // Assuming `canManageProjects` or a more specific `canScheduleMeetings` permission
-        if (!$this->canManageProjects($user, $project)) {
+        if (! $this->canManageProjects($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to schedule meetings.'], 403);
         }
 
@@ -1244,16 +1220,13 @@ class ProjectActionController extends Controller
     /**
      * Delete a meeting for a project.
      *
-     * @param Request $request
-     * @param Project $project
-     * @param string $googleEventId
      * @return \Illuminate\Http\JsonResponse
      */
     public function deleteProjectMeeting(Request $request, Project $project, string $googleEventId)
     {
         $user = Auth::user();
         // Assuming `canManageProjects` or a more specific `canDeleteMeetings` permission
-        if (!$this->canManageProjects($user, $project)) {
+        if (! $this->canManageProjects($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to delete meetings.'], 403);
         }
 
@@ -1270,54 +1243,51 @@ class ProjectActionController extends Controller
     /**
      * Upload a logo for a project.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function uploadLogo(Request $request, Project $project)
     {
 
-//        try {
-            $validationRules = [
-                'logo' => 'required|image|max:2048', // Max 2MB
-            ];
+        //        try {
+        $validationRules = [
+            'logo' => 'required|image|max:2048', // Max 2MB
+        ];
 
-            $validated = $request->validate($validationRules);
+        $validated = $request->validate($validationRules);
 
-            if ($request->hasFile('logo')) {
-                // Delete existing logo if it exists
-                if ($project->logo) {
-                    Storage::disk('public')->delete($project->logo);
-                }
-
-                // Store the new logo
-                $localPath = $request->file('logo')->store('logos', 'public');
-                $project->logo = $localPath;
-                $project->save();
-
-                Log::info('Generated Logo URL: ' . asset($project->logo));
-
-                return response()->json([
-                    'message' => 'Logo uploaded successfully',
-                    'logo' => $project->logo
-                ]);
+        if ($request->hasFile('logo')) {
+            // Delete existing logo if it exists
+            if ($project->logo) {
+                Storage::disk('public')->delete($project->logo);
             }
 
+            // Store the new logo
+            $localPath = $request->file('logo')->store('logos', 'public');
+            $project->logo = $localPath;
+            $project->save();
+
+            Log::info('Generated Logo URL: '.asset($project->logo));
+
             return response()->json([
-                'message' => 'No logo was uploaded',
-            ], 400);
-//        } catch (ValidationException $e) {
-//            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
-//        } catch (\Exception $e) {
-//            Log::error('Error uploading logo: ' . $e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
-//            return response()->json(['message' => 'Failed to upload logo', 'error' => $e->getMessage()], 500);
-//        }
+                'message' => 'Logo uploaded successfully',
+                'logo' => $project->logo,
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'No logo was uploaded',
+        ], 400);
+        //        } catch (ValidationException $e) {
+        //            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+        //        } catch (\Exception $e) {
+        //            Log::error('Error uploading logo: ' . $e->getMessage(), ['project_id' => $project->id, 'error' => $e->getTraceAsString()]);
+        //            return response()->json(['message' => 'Failed to upload logo', 'error' => $e->getMessage()], 500);
+        //        }
     }
 
     /**
      * Upload documents from the client dashboard.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function uploadClientDocuments(Request $request)
@@ -1327,7 +1297,7 @@ class ProjectActionController extends Controller
 
         // Verify the project exists and is accessible
         $project = Project::find($authenticatedProjectId);
-        if (!$project) {
+        if (! $project) {
             return response()->json(['message' => 'Project not found or unauthorized.'], 403);
         }
 
@@ -1342,7 +1312,7 @@ class ProjectActionController extends Controller
             if ($request->hasFile('documents')) {
                 // Get the client who is uploading
                 $client = Client::where('email', $authenticatedClientEmail)->first();
-                if (!$client) {
+                if (! $client) {
                     return response()->json(['message' => 'Client not found.'], 404);
                 }
 
@@ -1384,15 +1354,15 @@ class ProjectActionController extends Controller
                             */
                         }
                     } catch (\Exception $e) {
-                        Log::error('Failed to upload file to Google Drive: ' . $e->getMessage(), [
+                        Log::error('Failed to upload file to Google Drive: '.$e->getMessage(), [
                             'project_id' => $project->id,
                             'file_name' => $originalFilename,
-                            'error' => $e->getTraceAsString()
+                            'error' => $e->getTraceAsString(),
                         ]);
                         $documentData['upload_error'] = 'Failed to upload to Google Drive';
                         // Optionally, if Google Drive upload fails, delete the locally stored file
                         Storage::disk('public')->delete($localPath);
-                        throw new \Exception("Failed to upload '{$originalFilename}' to Google Drive: " . $e->getMessage());
+                        throw new \Exception("Failed to upload '{$originalFilename}' to Google Drive: ".$e->getMessage());
                     }
 
                     $document = \App\Models\Document::create($documentData);
@@ -1406,23 +1376,24 @@ class ProjectActionController extends Controller
 
                 return response()->json([
                     'message' => 'Documents uploaded successfully',
-                    'documents' => $uploadedDocuments // Return the newly uploaded documents
+                    'documents' => $uploadedDocuments, // Return the newly uploaded documents
                 ]);
             }
 
             return response()->json([
                 'message' => 'No documents were uploaded',
-                'documents' => []
+                'documents' => [],
             ]);
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Error uploading documents: ' . $e->getMessage(), [
+            Log::error('Error uploading documents: '.$e->getMessage(), [
                 'project_id' => $authenticatedProjectId,
                 'email' => $authenticatedClientEmail,
-                'error' => $e->getTraceAsString()
+                'error' => $e->getTraceAsString(),
             ]);
-            return response()->json(['message' => 'Failed to upload documents: ' . $e->getMessage()], 500);
+
+            return response()->json(['message' => 'Failed to upload documents: '.$e->getMessage()], 500);
         }
     }
 
@@ -1454,7 +1425,6 @@ class ProjectActionController extends Controller
     /**
      * Archive a project (soft delete).
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function archive(Project $project)
@@ -1462,10 +1432,10 @@ class ProjectActionController extends Controller
         try {
             // Check if user has permission to archive projects
             $user = Auth::user();
-            if (!$user->can('delete', $project)) {
+            if (! $user->can('delete', $project)) {
                 return response()->json([
                     'message' => 'You do not have permission to archive this project.',
-                    'success' => false
+                    'success' => false,
                 ], 403);
             }
 
@@ -1473,16 +1443,17 @@ class ProjectActionController extends Controller
 
             return response()->json([
                 'message' => 'Project archived successfully',
-                'success' => true
+                'success' => true,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error archiving project: ' . $e->getMessage(), [
+            Log::error('Error archiving project: '.$e->getMessage(), [
                 'project_id' => $project->id,
-                'error' => $e->getTraceAsString()
+                'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json([
-                'message' => 'Failed to archive project: ' . $e->getMessage(),
-                'success' => false
+                'message' => 'Failed to archive project: '.$e->getMessage(),
+                'success' => false,
             ], 500);
         }
     }
@@ -1490,7 +1461,7 @@ class ProjectActionController extends Controller
     /**
      * Restore an archived project.
      *
-     * @param int $id
+     * @param  int  $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function restore($id)
@@ -1501,10 +1472,10 @@ class ProjectActionController extends Controller
 
             // Check if user has permission to restore projects
             $user = Auth::user();
-            if (!$user->can('restore', $project)) {
+            if (! $user->can('restore', $project)) {
                 return response()->json([
                     'message' => 'You do not have permission to restore this project.',
-                    'success' => false
+                    'success' => false,
                 ], 403);
             }
 
@@ -1512,16 +1483,17 @@ class ProjectActionController extends Controller
 
             return response()->json([
                 'message' => 'Project restored successfully',
-                'success' => true
+                'success' => true,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error restoring project: ' . $e->getMessage(), [
+            Log::error('Error restoring project: '.$e->getMessage(), [
                 'project_id' => $id,
-                'error' => $e->getTraceAsString()
+                'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json([
-                'message' => 'Failed to restore project: ' . $e->getMessage(),
-                'success' => false
+                'message' => 'Failed to restore project: '.$e->getMessage(),
+                'success' => false,
             ], 500);
         }
     }
@@ -1536,7 +1508,7 @@ class ProjectActionController extends Controller
             $user = Auth::user();
             $project = Project::findOrFail($projectId);
 
-            if (!$this->canAccessProject($user, $project) || !$this->canViewProjectNotes($user, $project)) {
+            if (! $this->canAccessProject($user, $project) || ! $this->canViewProjectNotes($user, $project)) {
                 return response()->json(['message' => 'Unauthorized. You do not have permission to add comments.'], 403);
             }
 
@@ -1544,24 +1516,24 @@ class ProjectActionController extends Controller
             $validated = $request->validate([
                 'text' => 'required|string|max:2000',
                 'context' => 'nullable',
-                'parent_id' => 'nullable|integer'
+                'parent_id' => 'nullable|integer',
             ]);
 
             // Ensure wireframe belongs to project
             $wireframe = $project->wireframes()->where('id', $id)->first();
-            if (!$wireframe) {
+            if (! $wireframe) {
                 return response()->json(['message' => 'Wireframe not found.'], 404);
             }
 
             // If parent_id provided, ensure it belongs to same wireframe
             $parent = null;
-            if (!empty($validated['parent_id'])) {
+            if (! empty($validated['parent_id'])) {
                 $parent = ProjectNote::where('id', $validated['parent_id'])
                     ->where('project_id', $project->id)
                     ->where('noteable_type', get_class($wireframe))
                     ->where('noteable_id', $wireframe->id)
                     ->first();
-                if (!$parent) {
+                if (! $parent) {
                     return response()->json(['message' => 'Invalid parent comment for this wireframe.'], 422);
                 }
             }
@@ -1585,11 +1557,12 @@ class ProjectActionController extends Controller
         } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Error adding wireframe comment (internal): ' . $e->getMessage(), [
+            Log::error('Error adding wireframe comment (internal): '.$e->getMessage(), [
                 'project_id' => $projectId,
                 'wireframe_id' => $id,
-                'error' => $e->getTraceAsString()
+                'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to add comment.'], 500);
         }
     }
@@ -1605,14 +1578,12 @@ class ProjectActionController extends Controller
     /**
      * Attach Google Chat members to a project.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function attachGoogleChatMembers(Request $request, Project $project)
     {
         $user = Auth::user();
-        if (!$this->canManageProjects($user, $project)) {
+        if (! $this->canManageProjects($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to manage Google Chat members.'], 403);
         }
 
@@ -1635,7 +1606,7 @@ class ProjectActionController extends Controller
 
         if ($project->google_chat_id) {
             try {
-                if (!empty($addedChatMemberEmails)) {
+                if (! empty($addedChatMemberEmails)) {
                     $responseArray = $this->googleChatService->addMembersToSpace($project->google_chat_id, $addedChatMemberEmails);
                     foreach ($responseArray as $userInfo) {
                         if (isset($userInfo['email']) && isset($userInfo['chat_name'])) {
@@ -1643,27 +1614,27 @@ class ProjectActionController extends Controller
                         }
                     }
                     Log::info('Added Google Chat members to space', [
-                        'project_id' => $project->id, 
-                        'space_name' => $project->google_chat_id, 
-                        'added_emails' => $addedChatMemberEmails, 
-                        'response' => $responseArray
+                        'project_id' => $project->id,
+                        'space_name' => $project->google_chat_id,
+                        'added_emails' => $addedChatMemberEmails,
+                        'response' => $responseArray,
                     ]);
                 }
-                if (!empty($removedChatMemberEmails)) {
+                if (! empty($removedChatMemberEmails)) {
                     $usersToDetach = User::whereIn('email', $removedChatMemberEmails)->get();
                     $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToDetach->toArray());
                     Log::info('Removed Google Chat members from space', [
-                        'project_id' => $project->id, 
-                        'space_name' => $project->google_chat_id, 
-                        'removed_emails' => $removedChatMemberEmails
+                        'project_id' => $project->id,
+                        'space_name' => $project->google_chat_id,
+                        'removed_emails' => $removedChatMemberEmails,
                     ]);
                 }
             } catch (\Exception $e) {
                 Log::error('Failed to update Google Chat space members', [
-                    'project_id' => $project->id, 
-                    'space_name' => $project->google_chat_id, 
-                    'error' => $e->getMessage(), 
-                    'exception' => $e
+                    'project_id' => $project->id,
+                    'space_name' => $project->google_chat_id,
+                    'error' => $e->getMessage(),
+                    'exception' => $e,
                 ]);
             }
         }
@@ -1674,14 +1645,12 @@ class ProjectActionController extends Controller
     /**
      * Detach Google Chat members from a project.
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function detachGoogleChatMembers(Request $request, Project $project)
     {
         $user = Auth::user();
-        if (!$this->canManageProjects($user, $project)) {
+        if (! $this->canManageProjects($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to manage Google Chat members.'], 403);
         }
 
@@ -1696,31 +1665,32 @@ class ProjectActionController extends Controller
         if ($project->google_chat_id && $usersToDetach->count() > 0) {
             try {
                 // Only remove users who are not project leads or regular project users
-                $usersToActuallyRemove = $usersToDetach->filter(function($user) use ($project) {
-                    return $user->id !== $project->project_manager_id && 
+                $usersToActuallyRemove = $usersToDetach->filter(function ($user) use ($project) {
+                    return $user->id !== $project->project_manager_id &&
                            $user->id !== $project->project_admin_id &&
-                           !$this->userIsInProjectUsers($project, $user->id);
+                           ! $this->userIsInProjectUsers($project, $user->id);
                 });
-                
+
                 if ($usersToActuallyRemove->count() > 0) {
                     $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToActuallyRemove->toArray());
                     Log::info('Removed Google Chat members from space', [
-                        'project_id' => $project->id, 
-                        'space_name' => $project->google_chat_id, 
-                        'removed_emails' => $usersToActuallyRemove->pluck('email')->toArray()
+                        'project_id' => $project->id,
+                        'space_name' => $project->google_chat_id,
+                        'removed_emails' => $usersToActuallyRemove->pluck('email')->toArray(),
                     ]);
                 }
             } catch (\Exception $e) {
                 Log::error('Failed to remove Google Chat space members', [
-                    'project_id' => $project->id, 
-                    'space_name' => $project->google_chat_id, 
-                    'error' => $e->getMessage(), 
-                    'exception' => $e
+                    'project_id' => $project->id,
+                    'space_name' => $project->google_chat_id,
+                    'error' => $e->getMessage(),
+                    'exception' => $e,
                 ]);
             }
         }
 
         $project->load('googleChatMembers');
+
         return response()->json($project->googleChatMembers);
     }
 
@@ -1734,13 +1704,13 @@ class ProjectActionController extends Controller
             $user = Auth::user();
             $project = Project::findOrFail($projectId);
 
-            if (!$this->canAccessProject($user, $project) || !$this->canViewProjectNotes($user, $project)) {
+            if (! $this->canAccessProject($user, $project) || ! $this->canViewProjectNotes($user, $project)) {
                 return response()->json(['message' => 'Unauthorized. You do not have permission to update comments.'], 403);
             }
 
             // Ensure wireframe belongs to project
             $wireframe = $project->wireframes()->where('id', $id)->first();
-            if (!$wireframe) {
+            if (! $wireframe) {
                 return response()->json(['message' => 'Wireframe not found.'], 404);
             }
 
@@ -1751,12 +1721,12 @@ class ProjectActionController extends Controller
                 ->where('noteable_id', $wireframe->id)
                 ->first();
 
-            if (!$note) {
+            if (! $note) {
                 return response()->json(['message' => 'Comment not found.'], 404);
             }
 
             // Allow toggling between 'comment' and 'resolved_comment' only
-            if (!in_array($note->type, [ProjectNote::COMMENT, 'resolved_comment'])) {
+            if (! in_array($note->type, [ProjectNote::COMMENT, 'resolved_comment'])) {
                 return response()->json(['message' => 'Only wireframe comments can be marked as resolved.'], 422);
             }
 
@@ -1769,12 +1739,13 @@ class ProjectActionController extends Controller
                 'comment' => $note,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error resolving wireframe comment (internal): ' . $e->getMessage(), [
+            Log::error('Error resolving wireframe comment (internal): '.$e->getMessage(), [
                 'project_id' => $projectId,
                 'wireframe_id' => $id,
                 'comment_id' => $commentId,
-                'error' => $e->getTraceAsString()
+                'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['message' => 'Failed to update comment.'], 500);
         }
     }

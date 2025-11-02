@@ -9,40 +9,39 @@ echo "-----------------------------------------------\n\n";
 echo "Note: This is a simulation script that demonstrates the logic without requiring a database connection.\n\n";
 
 // Import necessary classes
-use Illuminate\Http\Request;
 
 // Simulate a permission
 echo "Setting up simulated permission...\n";
-$permission = (object)[
+$permission = (object) [
     'id' => 1,
     'slug' => 'manage_projects',
     'name' => 'Manage Projects',
     'description' => 'Permission to manage projects',
-    'category' => 'projects'
+    'category' => 'projects',
 ];
 echo "- Permission 'manage_projects' created in simulation\n\n";
 
 // Simulate a role with the permission
 echo "Setting up simulated role...\n";
-$role = (object)[
+$role = (object) [
     'id' => 1,
     'slug' => 'project_manager',
     'name' => 'Project Manager',
     'description' => 'Role with permission to manage projects',
     'type' => 'application',
-    'permissions' => [$permission]
+    'permissions' => [$permission],
 ];
 echo "- Role 'project_manager' created in simulation\n";
 echo "  - Assigned 'manage_projects' permission to 'project_manager' role\n\n";
 
 // Simulate a user with the role
 echo "Setting up simulated user...\n";
-$user = (object)[
+$user = (object) [
     'id' => 1,
     'name' => 'Test Project Manager',
     'email' => 'test_project_manager@example.com',
     'role_id' => 1,
-    'role' => $role
+    'role' => $role,
 ];
 echo "- User 'test_project_manager@example.com' created with 'project_manager' role\n\n";
 
@@ -61,7 +60,7 @@ foreach ($role->permissions as $permission) {
         'id' => $permission->id,
         'name' => $permission->name,
         'slug' => $permission->slug,
-        'category' => $permission->category
+        'category' => $permission->category,
     ];
 }
 $user->global_permissions = $globalPermissions;
@@ -71,13 +70,13 @@ echo "- Added global permissions to user object\n\n";
 // Check if the user has global_permissions after login
 echo "Checking if user has global_permissions after login...\n";
 
-if (!isset($user->global_permissions)) {
+if (! isset($user->global_permissions)) {
     echo "ERROR: global_permissions not found on user object after login.\n";
     exit(1);
 }
 
 echo "SUCCESS: global_permissions found on user object after login.\n";
-echo "Number of global permissions: " . count($user->global_permissions) . "\n\n";
+echo 'Number of global permissions: '.count($user->global_permissions)."\n\n";
 
 // Check if the manage_projects permission is included
 echo "Checking if manage_projects permission is included...\n";
@@ -89,7 +88,7 @@ foreach ($user->global_permissions as $globalPermission) {
     }
 }
 
-if (!$hasManageProjectsPermission) {
+if (! $hasManageProjectsPermission) {
     echo "ERROR: manage_projects permission not found in global_permissions.\n";
     exit(1);
 }
@@ -106,8 +105,8 @@ echo "- Creating route for testing\n";
 echo "- Creating instance of CheckPermission middleware\n";
 
 // Simulate the middleware's hasGlobalPermission method
-$userHasGlobalPermission = function($user, $permission) {
-    if (!$user->role || !$user->role->permissions) {
+$userHasGlobalPermission = function ($user, $permission) {
+    if (! $user->role || ! $user->role->permissions) {
         return false;
     }
 

@@ -6,18 +6,19 @@ use App\Jobs\RunWorkflowJob;
 use App\Models\ExecutionLog;
 use App\Models\Workflow;
 use App\Models\WorkflowStep;
-use App\Services\StepHandlers\StepHandlerContract;
 use App\Services\StepHandlers\AiPromptStepHandler;
 use App\Services\StepHandlers\ConditionStepHandler;
 use App\Services\StepHandlers\CreateRecordStepHandler;
-use App\Services\StepHandlers\SendEmailStepHandler;
-use App\Services\StepHandlers\UpdateRecordStepHandler;
+use App\Services\StepHandlers\ForEachStepHandler;
 use App\Services\StepHandlers\QueryDataStepHandler;
+use App\Services\StepHandlers\SendEmailStepHandler;
+use App\Services\StepHandlers\StepHandlerContract;
 use App\Services\StepHandlers\SyncRelationshipStepHandler;
+use App\Services\StepHandlers\TransformContentStepHandler;
+use App\Services\StepHandlers\UpdateRecordStepHandler;
 use Illuminate\Support\Facades\Log;
 use Throwable;
-use App\Services\StepHandlers\ForEachStepHandler;
-use App\Services\StepHandlers\TransformContentStepHandler;
+
 class WorkflowEngineService
 {
     /** @var array<string, StepHandlerContract> */
@@ -31,18 +32,19 @@ class WorkflowEngineService
         $this->handlers = [
             'AI_PROMPT' => new AiPromptStepHandler($ai),
             'CONDITION' => new ConditionStepHandler($this),
-            'ACTION_CREATE_RECORD' => new CreateRecordStepHandler(),
-            'ACTION_UPDATE_RECORD' => new UpdateRecordStepHandler(),
+            'ACTION_CREATE_RECORD' => new CreateRecordStepHandler,
+            'ACTION_UPDATE_RECORD' => new UpdateRecordStepHandler,
             'ACTION_SYNC_RELATIONSHIP' => new SyncRelationshipStepHandler($this),
             'ACTION_SEND_EMAIL' => new SendEmailStepHandler($this),
-            'QUERY_DATA' => new QueryDataStepHandler(),
-            'FETCH_RECORDS' => new QueryDataStepHandler(),
+            'QUERY_DATA' => new QueryDataStepHandler,
+            'FETCH_RECORDS' => new QueryDataStepHandler,
             'FOR_EACH' => new ForEachStepHandler($this),
             'TRANSFORM_CONTENT' => new TransformContentStepHandler($this),
             'ACTION_PROCESS_EMAIL' => new \App\Services\StepHandlers\ProcessEmailStepHandler($this),
             // TRIGGER steps are structural; at runtime they are a no-op
-            'TRIGGER' => new class implements StepHandlerContract {
-                public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
+            'TRIGGER' => new class implements StepHandlerContract
+            {
+                public function handle(array $context, WorkflowStep $step, ?ExecutionLog $execLog = null): array
                 {
                     return [
                         'parsed' => [
@@ -52,10 +54,12 @@ class WorkflowEngineService
                 }
             },
             // alias plain ACTION to action_type in step_config
-            'ACTION' => new class implements StepHandlerContract {
-                public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
+            'ACTION' => new class implements StepHandlerContract
+            {
+                public function handle(array $context, WorkflowStep $step, ?ExecutionLog $execLog = null): array
                 {
-                    $type = strtoupper((string)($step->step_config['action_type'] ?? ''));
+                    $type = strtoupper((string) ($step->step_config['action_type'] ?? ''));
+
                     // No-op; actual dispatch handled in engine's resolveHandler
                     return ['logs' => ['action_type' => $type]];
                 }
@@ -72,9 +76,10 @@ class WorkflowEngineService
     {
         $type = strtoupper($step->step_type);
         if ($type === 'ACTION') {
-            $actionType = strtoupper((string)($step->step_config['action_type'] ?? ''));
-            $type = 'ACTION_' . $actionType;
+            $actionType = strtoupper((string) ($step->step_config['action_type'] ?? ''));
+            $type = 'ACTION_'.$actionType;
         }
+
         return $this->handlers[$type] ?? null;
     }
 
@@ -86,12 +91,12 @@ class WorkflowEngineService
     {
 
         Log::info('WorkflowEngineService.execute', [
-            'context'   =>  $context
+            'context' => $context,
         ]);
         // Track if the incoming context was empty (useful for schedule-run guard)
         $initiallyEmpty = empty($context);
         // Seed a trigger namespace if not present for variable paths like {{ trigger.* }}
-        if (!isset($context['trigger'])) {
+        if (! isset($context['trigger'])) {
             $context['trigger'] = $context;
         }
         $results = [
@@ -102,6 +107,7 @@ class WorkflowEngineService
         $steps = $workflow->steps()->orderBy('step_order')->orderBy('id')->get();
         $topLevel = $steps->filter(function ($s) {
             $cfg = $s->step_config ?? [];
+
             return empty($cfg['_parent_id']);
         })->values();
 
@@ -117,6 +123,7 @@ class WorkflowEngineService
                     'message' => $message,
                 ]);
                 $results['error'] = $message;
+
                 return $results;
             }
         }
@@ -124,7 +131,7 @@ class WorkflowEngineService
         foreach ($steps as $step) {
             // Skip nested steps (children of containers like CONDITION). Their execution is handled by the parent handler via executeSteps().
             $cfg = $step->step_config ?? [];
-            if (!empty($cfg['_parent_id'])) {
+            if (! empty($cfg['_parent_id'])) {
                 continue;
             }
             // Honor delay_minutes at the step boundary by scheduling a resume job and stopping here
@@ -158,18 +165,18 @@ class WorkflowEngineService
             ];
 
             $execLog = ExecutionLog::create($logData);
-//
+            //
             try {
                 $handler = $this->resolveHandler($step);
 
-                if (!$handler) {
+                if (! $handler) {
                     throw new \RuntimeException("No handler for step type {$step->step_type}");
                 }
 
                 // Compute remaining top-level siblings for resume hinting
-                $idxTop = $topLevel->search(fn ($s) => (int)$s->id === (int)$step->id);
+                $idxTop = $topLevel->search(fn ($s) => (int) $s->id === (int) $step->id);
                 $remainingTop = $idxTop !== false ? $topLevel->slice($idxTop + 1) : collect();
-                $remainingIds = $remainingTop->pluck('id')->map(fn($v) => (int) $v)->values()->all();
+                $remainingIds = $remainingTop->pluck('id')->map(fn ($v) => (int) $v)->values()->all();
                 $ctxForHandler = $context;
                 $ctxForHandler['_resume_next_sibling_ids'] = $remainingIds;
 
@@ -195,12 +202,12 @@ class WorkflowEngineService
                 ]);
 
                 // Merge context if provided
-                if (!empty($out['context']) && is_array($out['context'])) {
+                if (! empty($out['context']) && is_array($out['context'])) {
                     $context = array_replace_recursive($context, $out['context']);
                 }
                 // Store parsed output under step-specific keys for downstream steps
                 if (isset($out['parsed'])) {
-                    $context['step_' . $step->id] = $out['parsed'];
+                    $context['step_'.$step->id] = $out['parsed'];
                     $context['steps'] = $context['steps'] ?? [];
                     $context['steps'][$step->id] = $out['parsed'];
                 }
@@ -238,7 +245,7 @@ class WorkflowEngineService
      */
     public function executeFromStepId(Workflow $workflow, array $context, int $startStepId, ?ExecutionLog $parentLog = null): array
     {
-        if (!isset($context['trigger'])) {
+        if (! isset($context['trigger'])) {
             $context['trigger'] = $context;
         }
         $results = [
@@ -248,17 +255,18 @@ class WorkflowEngineService
         ];
 
         $steps = $workflow->steps()->orderBy('step_order')->orderBy('id')->get();
-        
+
         // Check if the start step is nested
         $startStep = $steps->firstWhere('id', $startStepId);
-        if (!$startStep) {
+        if (! $startStep) {
             Log::error('WorkflowEngineService.executeFromStepId: step not found', ['step_id' => $startStepId]);
+
             return $results;
         }
-        
+
         $startStepConfig = $startStep->step_config ?? [];
-        $isNested = !empty($startStepConfig['_parent_id']);
-        
+        $isNested = ! empty($startStepConfig['_parent_id']);
+
         if ($isNested) {
             // For nested steps, we need to re-execute the parent with resume info
             // Pass the resume step ID in context so the parent handler can resume from there
@@ -267,21 +275,23 @@ class WorkflowEngineService
                 'parent_id' => $startStepConfig['_parent_id'],
             ]);
             // Preserve the original resume step ID if it's not already set (for deeply nested steps)
-            if (!isset($context['_resume_from_nested_step_id'])) {
+            if (! isset($context['_resume_from_nested_step_id'])) {
                 $context['_resume_from_nested_step_id'] = $startStepId;
             }
             $parentId = $startStepConfig['_parent_id'];
+
             return $this->executeFromStepId($workflow, $context, $parentId, $parentLog);
         }
-        
+
         $topLevel = $steps->filter(function ($s) {
             $cfg = $s->step_config ?? [];
+
             return empty($cfg['_parent_id']);
         })->values();
         $startProcessing = false;
         $isFirstStepAfterResume = false;
         foreach ($steps as $step) {
-            if (!$startProcessing) {
+            if (! $startProcessing) {
                 if ((int) $step->id === (int) $startStepId) {
                     $startProcessing = true;
                     $isFirstStepAfterResume = true; // Mark that this is the resume point
@@ -292,12 +302,12 @@ class WorkflowEngineService
 
             // Skip nested steps; only top-level steps are executed in this traversal.
             $cfg = $step->step_config ?? [];
-            if (!empty($cfg['_parent_id'])) {
+            if (! empty($cfg['_parent_id'])) {
                 continue;
             }
 
             // If we encounter another delay, schedule and stop again (but not for the step we're resuming from)
-            if (!$isFirstStepAfterResume && ($step->delay_minutes ?? 0) > 0) {
+            if (! $isFirstStepAfterResume && ($step->delay_minutes ?? 0) > 0) {
                 ExecutionLog::create([
                     'workflow_id' => $workflow->id,
                     'step_id' => $step->id,
@@ -315,7 +325,7 @@ class WorkflowEngineService
                 ];
                 break;
             }
-            
+
             // Clear the flag after the first step
             $isFirstStepAfterResume = false;
 
@@ -330,13 +340,13 @@ class WorkflowEngineService
 
             try {
                 $handler = $this->resolveHandler($step);
-                if (!$handler) {
+                if (! $handler) {
                     throw new \RuntimeException("No handler for step type {$step->step_type}");
                 }
                 // Compute remaining top-level siblings for resume hinting
-                $idxTop = $topLevel->search(fn ($s) => (int)$s->id === (int)$step->id);
+                $idxTop = $topLevel->search(fn ($s) => (int) $s->id === (int) $step->id);
                 $remainingTop = $idxTop !== false ? $topLevel->slice($idxTop + 1) : collect();
-                $remainingIds = $remainingTop->pluck('id')->map(fn($v) => (int) $v)->values()->all();
+                $remainingIds = $remainingTop->pluck('id')->map(fn ($v) => (int) $v)->values()->all();
                 $ctxForHandler = $context;
                 $ctxForHandler['_resume_next_sibling_ids'] = $remainingIds;
 
@@ -358,11 +368,11 @@ class WorkflowEngineService
                     'token_usage' => $out['token_usage'] ?? null,
                     'cost' => $out['cost'] ?? null,
                 ]);
-                if (!empty($out['context']) && is_array($out['context'])) {
+                if (! empty($out['context']) && is_array($out['context'])) {
                     $context = array_replace_recursive($context, $out['context']);
                 }
                 if (isset($out['parsed'])) {
-                    $context['step_' . $step->id] = $out['parsed'];
+                    $context['step_'.$step->id] = $out['parsed'];
                     $context['steps'] = $context['steps'] ?? [];
                     $context['steps'][$step->id] = $out['parsed'];
                 }
@@ -398,11 +408,12 @@ class WorkflowEngineService
             ->orderBy('id', 'asc')
             ->get();
 
-        $idx = $ordered->search(fn ($s) => (int)$s->id === (int)$currentStepId);
+        $idx = $ordered->search(fn ($s) => (int) $s->id === (int) $currentStepId);
         if ($idx === false) {
             return null;
         }
         $next = $ordered->get($idx + 1);
+
         return $next?->id;
     }
 
@@ -413,23 +424,26 @@ class WorkflowEngineService
     public function findTopLevelAncestorId(Workflow $workflow, int $stepId): ?int
     {
         $step = $workflow->steps()->where('id', $stepId)->first();
-        if (!$step) return null;
+        if (! $step) {
+            return null;
+        }
 
         $guard = 0;
         while ($guard < 50) {
             $cfg = $step->step_config ?? [];
             $parentId = $cfg['_parent_id'] ?? null;
-            if (!$parentId) {
+            if (! $parentId) {
                 return (int) $step->id;
             }
-            $parent = $workflow->steps()->where('id', (int)$parentId)->first();
-            if (!$parent) {
+            $parent = $workflow->steps()->where('id', (int) $parentId)->first();
+            if (! $parent) {
                 // Broken parent chain; treat the original as top-level to avoid null resume.
                 return (int) $stepId;
             }
             $step = $parent;
             $guard++;
         }
+
         return (int) $stepId; // Safety fallback
     }
 
@@ -445,13 +459,17 @@ class WorkflowEngineService
             ->get()
             ->filter(function ($s) {
                 $cfg = $s->step_config ?? [];
+
                 return empty($cfg['_parent_id']);
             })
             ->values();
 
-        $idx = $orderedTop->search(fn ($s) => (int)$s->id === (int)$topLevelStepId);
-        if ($idx === false) return null;
+        $idx = $orderedTop->search(fn ($s) => (int) $s->id === (int) $topLevelStepId);
+        if ($idx === false) {
+            return null;
+        }
         $next = $orderedTop->get($idx + 1);
+
         return $next?->id;
     }
 
@@ -460,14 +478,14 @@ class WorkflowEngineService
      */
     public function executeSteps(iterable $steps, Workflow $workflow, array $context = [], ?ExecutionLog $parentLog = null): array
     {
-        if (!isset($context['trigger'])) {
+        if (! isset($context['trigger'])) {
             $context['trigger'] = $context;
         }
         $results = [];
 
         // Normalize iterable to an indexed list so we can compute remaining siblings deterministically
         $list = is_array($steps) ? array_values($steps) : collect($steps)->values()->all();
-        
+
         // Check if we're resuming from a specific nested step
         $resumeFromStepId = $context['_resume_from_nested_step_id'] ?? null;
         $shouldSkip = (bool) $resumeFromStepId;
@@ -476,7 +494,7 @@ class WorkflowEngineService
         foreach ($list as $idx => $step) {
             // Track if we just resumed to this step (to skip delay check)
             $justResumedToThisStep = false;
-            
+
             // If resuming, skip steps until we reach the resume point
             if ($shouldSkip) {
                 if ((int) $step->id === (int) $resumeFromStepId) {
@@ -502,12 +520,13 @@ class WorkflowEngineService
                         'step_id' => $step->id,
                         'looking_for' => $resumeFromStepId,
                     ]);
+
                     continue; // Skip this step
                 }
             }
-            
+
             // Honor delay_minutes for nested steps too (but not if we just resumed to this step)
-            if (!$justResumedToThisStep && ($step->delay_minutes ?? 0) > 0) {
+            if (! $justResumedToThisStep && ($step->delay_minutes ?? 0) > 0) {
                 Log::info('WorkflowEngineService.executeSteps: scheduling delayed nested step', [
                     'workflow_id' => $workflow->id,
                     'step_id' => $step->id,
@@ -535,7 +554,7 @@ class WorkflowEngineService
                 ];
                 break; // stop current execution; it will resume later
             }
-            
+
             $start = microtime(true);
             $execLog = ExecutionLog::create([
                 'workflow_id' => $workflow->id,
@@ -546,13 +565,13 @@ class WorkflowEngineService
             ]);
             try {
                 $handler = $this->resolveHandler($step);
-                if (!$handler) {
+                if (! $handler) {
                     throw new \RuntimeException("No handler for step type {$step->step_type}");
                 }
 
                 // Compute remaining sibling IDs within this scope
                 $remaining = array_slice($list, $idx + 1);
-                $remainingIds = array_map(fn($s) => (int) $s->id, $remaining);
+                $remainingIds = array_map(fn ($s) => (int) $s->id, $remaining);
                 $ctxForHandler = $context;
                 $ctxForHandler['_resume_next_sibling_ids'] = $remainingIds;
 
@@ -574,11 +593,11 @@ class WorkflowEngineService
                     'token_usage' => $out['token_usage'] ?? null,
                     'cost' => $out['cost'] ?? null,
                 ]);
-                if (!empty($out['context']) && is_array($out['context'])) {
+                if (! empty($out['context']) && is_array($out['context'])) {
                     $context = array_replace_recursive($context, $out['context']);
                 }
                 if (isset($out['parsed'])) {
-                    $context['step_' . $step->id] = $out['parsed'];
+                    $context['step_'.$step->id] = $out['parsed'];
                     $context['steps'] = $context['steps'] ?? [];
                     $context['steps'][$step->id] = $out['parsed'];
                 }
@@ -599,6 +618,7 @@ class WorkflowEngineService
                 ];
             }
         }
+
         return $results;
     }
 
@@ -606,27 +626,32 @@ class WorkflowEngineService
     public function getTemplatedValue($value, array $context)
     {
         if (is_array($value)) {
-            return array_map(fn($v) => $this->getTemplatedValue($v, $context), $value);
+            return array_map(fn ($v) => $this->getTemplatedValue($v, $context), $value);
         }
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return $value;
         }
         // If the string is exactly one token, return the raw value (could be array/object)
         if (preg_match('/^\s*{{\s*([^}]+)\s*}}\s*$/', $value, $m)) {
             $path = trim($m[1]);
+
             return $this->getFromContextPath($context, $path);
         }
+
         // Otherwise, interpolate tokens into the string
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($context) {
             $path = trim($m[1]);
             $val = $this->getFromContextPath($context, $path);
-            if (is_scalar($val) || $val === null) return (string) $val;
+            if (is_scalar($val) || $val === null) {
+                return (string) $val;
+            }
+
             return json_encode($val);
         }, $value);
     }
 
     // This function should replace the existing getFromContextPath method
-// in your App\Services\WorkflowEngineService.php file.
+    // in your App\Services\WorkflowEngineService.php file.
 
     protected function getFromContextPath(array $context, string $path)
     {
@@ -694,11 +719,16 @@ class WorkflowEngineService
         while ($current && $guard < 100) {
             $cfg = $current->step_config ?? [];
             $parentId = (int) ($cfg['_parent_id'] ?? 0);
-            if ($parentId === 0) return false;
-            if ($parentId === $candidateAncestorId) return true;
+            if ($parentId === 0) {
+                return false;
+            }
+            if ($parentId === $candidateAncestorId) {
+                return true;
+            }
             $current = $workflow->steps()->where('id', $parentId)->first();
             $guard++;
         }
+
         return false;
     }
 }

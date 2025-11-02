@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\BonusConfiguration;
 use App\Models\BonusConfigurationGroup;
 use App\Models\Project;
 use Illuminate\Http\Request;
@@ -29,7 +28,7 @@ class BonusConfigurationGroupController extends Controller
 
             return response()->json($bonusConfigurationGroups);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to retrieve bonus configuration groups: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to retrieve bonus configuration groups: '.$e->getMessage()], 500);
         }
     }
 
@@ -56,7 +55,7 @@ class BonusConfigurationGroupController extends Controller
             $user = Auth::user();
 
             // Create a new bonus configuration group
-            $bonusConfigurationGroup = new BonusConfigurationGroup();
+            $bonusConfigurationGroup = new BonusConfigurationGroup;
             $bonusConfigurationGroup->name = $request->name;
             $bonusConfigurationGroup->description = $request->description;
             $bonusConfigurationGroup->is_active = $request->has('is_active') ? $request->is_active : true;
@@ -68,7 +67,7 @@ class BonusConfigurationGroupController extends Controller
                 $sortOrder = 0;
                 foreach ($request->configurations as $configId) {
                     $bonusConfigurationGroup->bonusConfigurations()->attach($configId, [
-                        'sort_order' => $sortOrder++
+                        'sort_order' => $sortOrder++,
                     ]);
                 }
             }
@@ -78,7 +77,7 @@ class BonusConfigurationGroupController extends Controller
 
             return response()->json($bonusConfigurationGroup, 201);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to create bonus configuration group: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to create bonus configuration group: '.$e->getMessage()], 500);
         }
     }
 
@@ -97,13 +96,13 @@ class BonusConfigurationGroupController extends Controller
                 ->with('bonusConfigurations')
                 ->first();
 
-            if (!$bonusConfigurationGroup) {
+            if (! $bonusConfigurationGroup) {
                 return response()->json(['error' => 'Bonus configuration group not found'], 404);
             }
 
             return response()->json($bonusConfigurationGroup);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to retrieve bonus configuration group: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to retrieve bonus configuration group: '.$e->getMessage()], 500);
         }
     }
 
@@ -134,7 +133,7 @@ class BonusConfigurationGroupController extends Controller
                 ->where('user_id', $user->id)
                 ->first();
 
-            if (!$bonusConfigurationGroup) {
+            if (! $bonusConfigurationGroup) {
                 return response()->json(['error' => 'Bonus configuration group not found'], 404);
             }
 
@@ -153,7 +152,7 @@ class BonusConfigurationGroupController extends Controller
                 $sortOrder = 0;
                 foreach ($request->configurations as $configId) {
                     $bonusConfigurationGroup->bonusConfigurations()->attach($configId, [
-                        'sort_order' => $sortOrder++
+                        'sort_order' => $sortOrder++,
                     ]);
                 }
             }
@@ -163,7 +162,7 @@ class BonusConfigurationGroupController extends Controller
 
             return response()->json($bonusConfigurationGroup);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to update bonus configuration group: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to update bonus configuration group: '.$e->getMessage()], 500);
         }
     }
 
@@ -181,7 +180,7 @@ class BonusConfigurationGroupController extends Controller
                 ->where('user_id', $user->id)
                 ->first();
 
-            if (!$bonusConfigurationGroup) {
+            if (! $bonusConfigurationGroup) {
                 return response()->json(['error' => 'Bonus configuration group not found'], 404);
             }
 
@@ -191,7 +190,7 @@ class BonusConfigurationGroupController extends Controller
 
             return response()->json(['message' => 'Bonus configuration group deleted successfully']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to delete bonus configuration group: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to delete bonus configuration group: '.$e->getMessage()], 500);
         }
     }
 
@@ -218,7 +217,7 @@ class BonusConfigurationGroupController extends Controller
 
             // Check if the user has permission to manage the project
             // This is a simplified check - in a real application, you would use a more robust authorization system
-            if (!$user->can('manage_projects')) {
+            if (! $user->can('manage_projects')) {
                 return response()->json(['error' => 'You do not have permission to manage this project'], 403);
             }
 
@@ -227,7 +226,7 @@ class BonusConfigurationGroupController extends Controller
                 ->where('user_id', $user->id)
                 ->first();
 
-            if (!$bonusConfigurationGroup) {
+            if (! $bonusConfigurationGroup) {
                 return response()->json(['error' => 'Bonus configuration group not found'], 404);
             }
 
@@ -241,7 +240,7 @@ class BonusConfigurationGroupController extends Controller
 
             return response()->json(['message' => 'Bonus configuration group attached to project successfully']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to attach bonus configuration group to project: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to attach bonus configuration group to project: '.$e->getMessage()], 500);
         }
     }
 
@@ -267,7 +266,7 @@ class BonusConfigurationGroupController extends Controller
             $project = Project::findOrFail($projectId);
 
             // Check if the user has permission to manage the project
-            if (!$user->can('manage_projects')) {
+            if (! $user->can('manage_projects')) {
                 return response()->json(['error' => 'You do not have permission to manage this project'], 403);
             }
 
@@ -276,7 +275,7 @@ class BonusConfigurationGroupController extends Controller
 
             return response()->json(['message' => 'Bonus configuration group detached from project successfully']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to detach bonus configuration group from project: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to detach bonus configuration group from project: '.$e->getMessage()], 500);
         }
     }
 
@@ -295,7 +294,7 @@ class BonusConfigurationGroupController extends Controller
                 ->with('bonusConfigurations')
                 ->first();
 
-            if (!$bonusConfigurationGroup) {
+            if (! $bonusConfigurationGroup) {
                 return response()->json(['error' => 'Bonus configuration group not found'], 404);
             }
 
@@ -307,7 +306,7 @@ class BonusConfigurationGroupController extends Controller
 
             return response()->json($newGroup);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to duplicate bonus configuration group: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to duplicate bonus configuration group: '.$e->getMessage()], 500);
         }
     }
 }

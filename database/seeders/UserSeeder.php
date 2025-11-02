@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -17,7 +17,7 @@ class UserSeeder extends Seeder
         // Check if roles exist, if not, run the RolePermissionSeeder first
         if (Role::count() === 0) {
             $this->command->info('No roles found. Running RolePermissionSeeder first...');
-//            $this->call(RolePermissionSeeder::class);
+            //            $this->call(RolePermissionSeeder::class);
         }
 
         // Get roles
@@ -27,8 +27,9 @@ class UserSeeder extends Seeder
         $contractorRole = Role::where('slug', 'contractor')->first();
 
         // Verify roles exist
-        if (!$superAdminRole || !$managerRole || !$employeeRole || !$contractorRole) {
+        if (! $superAdminRole || ! $managerRole || ! $employeeRole || ! $contractorRole) {
             $this->command->error('Required roles not found. Please ensure RolePermissionSeeder has been run.');
+
             return;
         }
 

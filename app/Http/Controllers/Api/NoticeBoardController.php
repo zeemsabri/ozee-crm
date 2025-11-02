@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Concerns\HandlesImageUploads;
+use App\Http\Controllers\Controller;
 use App\Models\NoticeBoard;
+use App\Models\Project;
 use App\Models\User;
 use App\Models\UserInteraction;
-use App\Models\Project;
 use App\Notifications\NoticeCreated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Validator;
 class NoticeBoardController extends Controller
 {
     use HandlesImageUploads;
+
     /**
      * Admin: Create a new notice and notify users.
      */
@@ -26,7 +27,7 @@ class NoticeBoardController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'url' => 'nullable|url',
-            'type' => 'required|string|in:' . implode(',', NoticeBoard::TYPES),
+            'type' => 'required|string|in:'.implode(',', NoticeBoard::TYPES),
             'visible_to_client' => 'sometimes|boolean',
             'channels' => 'required|array|min:1',
             'channels.*' => 'in:push,email,silent',
@@ -36,13 +37,12 @@ class NoticeBoardController extends Controller
             'file' => 'sometimes|file|max:25600', // up to 25MB
         ]);
 
-
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
         $validated = $validator->validated();
-        $data = collect($validated)->only(['title','description','url','type','visible_to_client'])->toArray();
+        $data = collect($validated)->only(['title', 'description', 'url', 'type', 'visible_to_client'])->toArray();
         $data['created_by'] = $request->user()->id;
         // Persist whether push channel was selected
         $data['sent_push'] = in_array('push', $validated['channels'] ?? [], true);
@@ -61,10 +61,12 @@ class NoticeBoardController extends Controller
 
         // Determine recipients
         $recipients = collect();
-        if (!empty($validated['user_ids'])) {
+        if (! empty($validated['user_ids'])) {
             $recipients = User::whereNull('deleted_at')->whereIn('id', $validated['user_ids'])->get();
-        } elseif (!empty($validated['project_id'])) {
-            $project = Project::with(['users' => function($q){ $q->whereNull('users.deleted_at'); }])->find($validated['project_id']);
+        } elseif (! empty($validated['project_id'])) {
+            $project = Project::with(['users' => function ($q) {
+                $q->whereNull('users.deleted_at');
+            }])->find($validated['project_id']);
             $recipients = $project ? $project->users : collect();
         } else {
             $recipients = User::whereNull('deleted_at')->get();
@@ -77,12 +79,11 @@ class NoticeBoardController extends Controller
             'silent' => 'database',
         ];
         $laravelChannels = collect($validated['channels'] ?? [])
-            ->map(fn($c) => $channelMap[$c] ?? null)
+            ->map(fn ($c) => $channelMap[$c] ?? null)
             ->filter()
             ->unique()
             ->values()
             ->all();
-
 
         array_push($laravelChannels, 'database');
 
@@ -110,7 +111,7 @@ class NoticeBoardController extends Controller
         // Collect notice IDs
         $noticeIds = collect($notices->items())->pluck('id')->all();
 
-        if (!empty($noticeIds)) {
+        if (! empty($noticeIds)) {
             // Load interactions for these notices with related user
             $interactions = UserInteraction::with('user')
                 ->whereIn('interactable_id', $noticeIds)
@@ -127,7 +128,9 @@ class NoticeBoardController extends Controller
                 $groups = $byNotice->get($notice->id, collect())->groupBy('user_id');
                 foreach ($groups as $userId => $rows) {
                     $user = optional($rows->first())->user;
-                    if (!$user) { continue; }
+                    if (! $user) {
+                        continue;
+                    }
                     $usersWithInteractions[] = [
                         'user' => [
                             'id' => $user->id,
@@ -145,6 +148,7 @@ class NoticeBoardController extends Controller
 
                 // Attach extra field without altering original attributes
                 $notice->setAttribute('users_with_interactions', $usersWithInteractions);
+
                 return $notice;
             });
 
@@ -164,8 +168,8 @@ class NoticeBoardController extends Controller
         $userId = $user->id;
 
         $unreadNoticeIds = $user->unreadNotifications
-                                ->where('type', NoticeCreated::class)
-                                ->pluck('data.notice_id');
+            ->where('type', NoticeCreated::class)
+            ->pluck('data.notice_id');
 
         $notices = NoticeBoard::orderByDesc('created_at')
             ->whereIn('id', $unreadNoticeIds)
@@ -181,7 +185,6 @@ class NoticeBoardController extends Controller
     /**
      * Mark notifications as read and record user interactions.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function acknowledge(Request $request)
@@ -226,7 +229,7 @@ class NoticeBoardController extends Controller
                         'user_id' => $row['user_id'],
                         'interactable_id' => $row['interactable_id'],
                         'interactable_type' => $row['interactable_type'],
-                        'interaction_type' => $row['interaction_type']
+                        'interaction_type' => $row['interaction_type'],
                     ],
                     $row
                 );
@@ -242,7 +245,7 @@ class NoticeBoardController extends Controller
     public function redirect(NoticeBoard $notice, Request $request)
     {
         $user = $request->user();
-        if (!$notice->url) {
+        if (! $notice->url) {
             return response()->json(['message' => 'No URL for this notice'], 400);
         }
 

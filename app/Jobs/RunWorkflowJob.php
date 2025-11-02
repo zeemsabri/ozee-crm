@@ -12,7 +12,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class RunWorkflowJob implements ShouldQueue, ShouldBeUniqueUntilProcessing
+class RunWorkflowJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -22,8 +22,11 @@ class RunWorkflowJob implements ShouldQueue, ShouldBeUniqueUntilProcessing
     public int $uniqueFor = 60;
 
     public int $tries = 3;
+
     public int $timeout = 120; // seconds
+
     public bool $failOnTimeout = true;
+
     public $backoff = [60, 300, 900]; // 1m, 5m, 15m
 
     public function __construct(
@@ -40,13 +43,14 @@ class RunWorkflowJob implements ShouldQueue, ShouldBeUniqueUntilProcessing
         }
         $event = $this->context['event'] ?? ($this->context['trigger']['event'] ?? '');
         $objectId = $this->context['triggering_object_id'] ?? ($this->context['trigger']['id'] ?? '');
+
         return 'workflow:'.$this->workflowId.'|event:'.$event.'|object:'.$objectId;
     }
 
     public function handle(WorkflowEngineService $engine): void
     {
         $workflow = Workflow::with('steps')->find($this->workflowId);
-        if (!$workflow) {
+        if (! $workflow) {
             return; // swallowed; could log
         }
 

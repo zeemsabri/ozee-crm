@@ -23,8 +23,11 @@ class GenerateLeadFollowUpJob implements ShouldQueue
      * Control queue behavior to reduce timeouts and add retries.
      */
     public int $tries = 3;
+
     public int $timeout = 120; // seconds
+
     public bool $failOnTimeout = true;
+
     public $backoff = [60, 300, 900]; // 1m, 5m, 15m
 
     public function __construct(public Lead $lead, public Campaign $campaign)
@@ -36,7 +39,7 @@ class GenerateLeadFollowUpJob implements ShouldQueue
     {
         try {
             $apiKey = config('services.gemini.key');
-            if (!$apiKey) {
+            if (! $apiKey) {
                 throw new \Exception('Gemini API key is not configured.');
             }
 
@@ -48,7 +51,7 @@ class GenerateLeadFollowUpJob implements ShouldQueue
                 ->orderBy('created_at', 'asc')
                 ->get()
                 ->map(fn ($context) => [
-                    'subject'   =>  $context->referencable?->subject,
+                    'subject' => $context->referencable?->subject,
                     'summary' => $context->summary,
                     'sent_at' => $context->created_at->toIso8601String(),
                 ])->toArray();
@@ -57,6 +60,7 @@ class GenerateLeadFollowUpJob implements ShouldQueue
             if (empty($emailHistory)) {
                 $this->lead->update(['status' => Lead::STATUS_NEW]); // Revert status
                 Log::warning('GenerateLeadFollowUpJob stopped: No email history found for lead.', ['lead_id' => $this->lead->id]);
+
                 return;
             }
 
@@ -76,15 +80,15 @@ class GenerateLeadFollowUpJob implements ShouldQueue
                                 'lead_details' => $leadDetails,
                                 // The prompt expects 'resources'. We'll use 'value_adds' from the campaign.
                                 'resources' => $this->campaign->shareableResources ?? [],
-                            ])
-                        ]]
-                    ]
+                            ]),
+                        ]],
+                    ],
                 ],
                 'systemInstruction' => [
-                    'parts' => [['text' => $systemPrompt]]
+                    'parts' => [['text' => $systemPrompt]],
                 ],
                 'generationConfig' => [
-                    'responseMimeType' => "application/json",
+                    'responseMimeType' => 'application/json',
                 ],
             ];
 
@@ -93,13 +97,13 @@ class GenerateLeadFollowUpJob implements ShouldQueue
                 ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={$apiKey}", $payload);
 
             if ($response->failed()) {
-                throw new \Exception('Failed to communicate with Gemini API for follow-up. Status: ' . $response->status());
+                throw new \Exception('Failed to communicate with Gemini API for follow-up. Status: '.$response->status());
             }
 
             $aiResponse = json_decode($response->json('candidates.0.content.parts.0.text', ''), true);
 
-            if (!isset($aiResponse['subject'], $aiResponse['ai_content'], $aiResponse['context_summary'])) {
-                throw new \Exception('Invalid JSON response from AI for follow-up: ' . json_encode($aiResponse));
+            if (! isset($aiResponse['subject'], $aiResponse['ai_content'], $aiResponse['context_summary'])) {
+                throw new \Exception('Invalid JSON response from AI for follow-up: '.json_encode($aiResponse));
             }
 
             // 4. Create the new email and context.
@@ -151,7 +155,7 @@ class GenerateLeadFollowUpJob implements ShouldQueue
             $this->lead->update(['status' => Lead::STATUS_OUTREACH_SENT]);
             Log::error('Failed to generate lead follow-up.', [
                 'lead_id' => $this->lead->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             $this->fail($e);
         }

@@ -17,9 +17,9 @@ class RolePermissionSeeder extends Seeder
     public function run(): void
     {
 
-//        DB::table('permissions')->truncate();
-//        DB::table('roles')->truncate();
-//        DB::table('role_permission')->truncate();
+        //        DB::table('permissions')->truncate();
+        //        DB::table('roles')->truncate();
+        //        DB::table('role_permission')->truncate();
 
         // Create application roles
         $superAdminRole = Role::create([
@@ -254,9 +254,9 @@ class RolePermissionSeeder extends Seeder
 
         // Assign Super Admin role to the first user (if exists)
         $adminUser = User::where('email', 'info@ozeeweb.com.au')->first();
-//        if (!$adminUser) {
-//            $adminUser = User::where('role', 'super_admin')->first();
-//        }
+        //        if (!$adminUser) {
+        //            $adminUser = User::where('role', 'super_admin')->first();
+        //        }
 
         if ($adminUser) {
             $adminUser->assignRole($superAdminRole);

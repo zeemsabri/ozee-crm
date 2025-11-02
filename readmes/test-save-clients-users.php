@@ -3,16 +3,16 @@
 // This is a simple test script to verify that the save clients and users functionality works correctly
 // Run this script with: php test-save-clients-users.php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap the Laravel application
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -28,23 +28,23 @@ foreach ($roles as $role) {
 echo "\n";
 
 // Get a manager user
-$manager = User::whereHas('role', function($query) {
+$manager = User::whereHas('role', function ($query) {
     $query->where('slug', 'manager');
 })->first();
 
-if (!$manager) {
+if (! $manager) {
     echo "Manager user not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
 
 // Get a project
 $project = Project::first();
-if (!$project) {
+if (! $project) {
     echo "No projects found in the database. Creating a test project...\n";
 
     // Get a client
     $client = Client::first();
-    if (!$client) {
+    if (! $client) {
         echo "No clients found in the database. Please create a client first.\n";
         exit;
     }
@@ -89,17 +89,17 @@ if ($attachUsersRoute) {
 echo "\nTEST 2: Test saving clients\n";
 
 // Find a client not already assigned to the project
-$newClient = Client::whereDoesntHave('projects', function($query) use ($project) {
+$newClient = Client::whereDoesntHave('projects', function ($query) use ($project) {
     $query->where('projects.id', $project->id);
 })->first();
 
-if (!$newClient) {
+if (! $newClient) {
     echo "No available clients to add to the project. Creating a new client...\n";
 
     // Create a new client
     $newClient = Client::create([
         'name' => 'Test Client for Save Functionality',
-        'email' => 'test-client-save-' . time() . '@example.com',
+        'email' => 'test-client-save-'.time().'@example.com',
     ]);
 
     echo "Created test client: {$newClient->name} (ID: {$newClient->id})\n";
@@ -107,7 +107,7 @@ if (!$newClient) {
 
 // Find a role to assign
 $clientRoleToAssign = Role::where('slug', 'manager')->first();
-if (!$clientRoleToAssign) {
+if (! $clientRoleToAssign) {
     $clientRoleToAssign = $roles->first();
 }
 
@@ -119,15 +119,15 @@ try {
         'client_ids' => [
             [
                 'id' => $newClient->id,
-                'role_id' => $clientRoleToAssign->id
-            ]
-        ]
+                'role_id' => $clientRoleToAssign->id,
+            ],
+        ],
     ];
 
     // Call the API endpoint directly
     $response = app()->call('\App\Http\Controllers\Api\ProjectController@attachClients', [
         'request' => new \Illuminate\Http\Request($clientData),
-        'project' => $project
+        'project' => $project,
     ]);
 
     if ($response->getStatusCode() === 200) {
@@ -152,28 +152,28 @@ try {
             echo "FAILURE: Client was not added to the project\n";
         }
     } else {
-        echo "FAILURE: API call failed with status code " . $response->getStatusCode() . "\n";
+        echo 'FAILURE: API call failed with status code '.$response->getStatusCode()."\n";
     }
 } catch (\Exception $e) {
-    echo "FAILURE: Exception occurred: " . $e->getMessage() . "\n";
+    echo 'FAILURE: Exception occurred: '.$e->getMessage()."\n";
 }
 
 // Test 3: Test saving users
 echo "\nTEST 3: Test saving users\n";
 
 // Find a user not already assigned to the project
-$newUser = User::whereDoesntHave('projects', function($query) use ($project) {
+$newUser = User::whereDoesntHave('projects', function ($query) use ($project) {
     $query->where('projects.id', $project->id);
 })->first();
 
-if (!$newUser) {
+if (! $newUser) {
     echo "No available users to add to the project. Creating a new user...\n";
 
     // Create a new user
     $employeeRole = Role::where('slug', 'employee')->first();
     $newUser = User::create([
         'name' => 'Test User for Save Functionality',
-        'email' => 'test-user-save-' . time() . '@example.com',
+        'email' => 'test-user-save-'.time().'@example.com',
         'password' => bcrypt('password'),
         'role_id' => $employeeRole->id,
     ]);
@@ -183,7 +183,7 @@ if (!$newUser) {
 
 // Find a role to assign
 $userRoleToAssign = Role::where('slug', 'employee')->first();
-if (!$userRoleToAssign) {
+if (! $userRoleToAssign) {
     $userRoleToAssign = $roles->first();
 }
 
@@ -195,15 +195,15 @@ try {
         'user_ids' => [
             [
                 'id' => $newUser->id,
-                'role_id' => $userRoleToAssign->id
-            ]
-        ]
+                'role_id' => $userRoleToAssign->id,
+            ],
+        ],
     ];
 
     // Call the API endpoint directly
     $response = app()->call('\App\Http\Controllers\Api\ProjectController@attachUsers', [
         'request' => new \Illuminate\Http\Request($userData),
-        'project' => $project
+        'project' => $project,
     ]);
 
     if ($response->getStatusCode() === 200) {
@@ -228,10 +228,10 @@ try {
             echo "FAILURE: User was not added to the project\n";
         }
     } else {
-        echo "FAILURE: API call failed with status code " . $response->getStatusCode() . "\n";
+        echo 'FAILURE: API call failed with status code '.$response->getStatusCode()."\n";
     }
 } catch (\Exception $e) {
-    echo "FAILURE: Exception occurred: " . $e->getMessage() . "\n";
+    echo 'FAILURE: Exception occurred: '.$e->getMessage()."\n";
 }
 
 // Clean up - remove the test client and user from the project

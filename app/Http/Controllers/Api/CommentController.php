@@ -16,7 +16,6 @@ class CommentController extends Controller
     /**
      * Get all comments for a resource.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $resourceId
      * @return \Illuminate\Http\Response
      */
@@ -30,10 +29,10 @@ class CommentController extends Controller
             // $this->authorize('view', $resource);
 
             // Check if the resource is visible to the client if the user is a client
-            if (Auth::user()->hasRole('client') && !$resource->visible_to_client) {
+            if (Auth::user()->hasRole('client') && ! $resource->visible_to_client) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'You do not have permission to view this resource'
+                    'message' => 'You do not have permission to view this resource',
                 ], 403);
             }
 
@@ -41,17 +40,17 @@ class CommentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'comments' => $comments
+                'comments' => $comments,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching comments: ' . $e->getMessage(), [
+            Log::error('Error fetching comments: '.$e->getMessage(), [
                 'resource_id' => $resourceId,
                 'error' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch comments: ' . $e->getMessage()
+                'message' => 'Failed to fetch comments: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -59,7 +58,6 @@ class CommentController extends Controller
     /**
      * Store a new comment.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $resourceId
      * @return \Illuminate\Http\Response
      */
@@ -69,10 +67,10 @@ class CommentController extends Controller
             $resource = Resource::findOrFail($resourceId);
 
             // Check if the resource is visible to the client if the user is a client
-            if (Auth::user()->hasRole('client') && !$resource->visible_to_client) {
+            if (Auth::user()->hasRole('client') && ! $resource->visible_to_client) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'You do not have permission to comment on this resource'
+                    'message' => 'You do not have permission to comment on this resource',
                 ], 403);
             }
 
@@ -85,7 +83,7 @@ class CommentController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation failed',
-                    'errors' => $validator->errors()
+                    'errors' => $validator->errors(),
                 ], 422);
             }
 
@@ -103,17 +101,17 @@ class CommentController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Comment created successfully',
-                'comment' => $comment->load('user')
+                'comment' => $comment->load('user'),
             ], 201);
         } catch (\Exception $e) {
-            Log::error('Error creating comment: ' . $e->getMessage(), [
+            Log::error('Error creating comment: '.$e->getMessage(), [
                 'resource_id' => $resourceId,
                 'error' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create comment: ' . $e->getMessage()
+                'message' => 'Failed to create comment: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -121,7 +119,6 @@ class CommentController extends Controller
     /**
      * Update a comment.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $commentId
      * @return \Illuminate\Http\Response
      */
@@ -134,7 +131,7 @@ class CommentController extends Controller
             if (Auth::id() !== $comment->user_id) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'You do not have permission to update this comment'
+                    'message' => 'You do not have permission to update this comment',
                 ], 403);
             }
 
@@ -147,7 +144,7 @@ class CommentController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation failed',
-                    'errors' => $validator->errors()
+                    'errors' => $validator->errors(),
                 ], 422);
             }
 
@@ -160,17 +157,17 @@ class CommentController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Comment updated successfully',
-                'comment' => $comment->load('user')
+                'comment' => $comment->load('user'),
             ]);
         } catch (\Exception $e) {
-            Log::error('Error updating comment: ' . $e->getMessage(), [
+            Log::error('Error updating comment: '.$e->getMessage(), [
                 'comment_id' => $commentId,
                 'error' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update comment: ' . $e->getMessage()
+                'message' => 'Failed to update comment: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -178,7 +175,6 @@ class CommentController extends Controller
     /**
      * Delete a comment.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $commentId
      * @return \Illuminate\Http\Response
      */
@@ -188,10 +184,10 @@ class CommentController extends Controller
             $comment = Comment::findOrFail($commentId);
 
             // Check if user has permission to delete the comment
-            if (Auth::id() !== $comment->user_id && !Auth::user()->hasRole('admin')) {
+            if (Auth::id() !== $comment->user_id && ! Auth::user()->hasRole('admin')) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'You do not have permission to delete this comment'
+                    'message' => 'You do not have permission to delete this comment',
                 ], 403);
             }
 
@@ -200,17 +196,17 @@ class CommentController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Comment deleted successfully'
+                'message' => 'Comment deleted successfully',
             ]);
         } catch (\Exception $e) {
-            Log::error('Error deleting comment: ' . $e->getMessage(), [
+            Log::error('Error deleting comment: '.$e->getMessage(), [
                 'comment_id' => $commentId,
                 'error' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete comment: ' . $e->getMessage()
+                'message' => 'Failed to delete comment: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -218,7 +214,6 @@ class CommentController extends Controller
     /**
      * Approve a resource.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $resourceId
      * @return \Illuminate\Http\Response
      */
@@ -228,10 +223,10 @@ class CommentController extends Controller
             $resource = Resource::findOrFail($resourceId);
 
             // Check if user has permission to approve the resource
-            if (!Auth::user()->hasRole('admin') && !Auth::user()->hasRole('manager')) {
+            if (! Auth::user()->hasRole('admin') && ! Auth::user()->hasRole('manager')) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'You do not have permission to approve this resource'
+                    'message' => 'You do not have permission to approve this resource',
                 ], 403);
             }
 
@@ -242,17 +237,17 @@ class CommentController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Resource approved successfully',
-                'resource' => $resource
+                'resource' => $resource,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error approving resource: ' . $e->getMessage(), [
+            Log::error('Error approving resource: '.$e->getMessage(), [
                 'resource_id' => $resourceId,
                 'error' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to approve resource: ' . $e->getMessage()
+                'message' => 'Failed to approve resource: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -260,7 +255,6 @@ class CommentController extends Controller
     /**
      * Toggle client visibility for a resource.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $resourceId
      * @return \Illuminate\Http\Response
      */
@@ -270,31 +264,31 @@ class CommentController extends Controller
             $resource = Resource::findOrFail($resourceId);
 
             // Check if user has permission to toggle visibility
-            if (!Auth::user()->hasRole('admin') && !Auth::user()->hasRole('manager')) {
+            if (! Auth::user()->hasRole('admin') && ! Auth::user()->hasRole('manager')) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'You do not have permission to toggle visibility for this resource'
+                    'message' => 'You do not have permission to toggle visibility for this resource',
                 ], 403);
             }
 
             // Toggle visibility
-            $resource->visible_to_client = !$resource->visible_to_client;
+            $resource->visible_to_client = ! $resource->visible_to_client;
             $resource->save();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Resource visibility toggled successfully',
-                'resource' => $resource
+                'resource' => $resource,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error toggling resource visibility: ' . $e->getMessage(), [
+            Log::error('Error toggling resource visibility: '.$e->getMessage(), [
                 'resource_id' => $resourceId,
                 'error' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to toggle resource visibility: ' . $e->getMessage()
+                'message' => 'Failed to toggle resource visibility: '.$e->getMessage(),
             ], 500);
         }
     }

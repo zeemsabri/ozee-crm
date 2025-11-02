@@ -5,11 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash; // For hashing passwords
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth; // For Auth::user()
-
+use Illuminate\Validation\ValidationException; // For Auth::user()
 
 class UserController extends Controller
 {
@@ -17,7 +16,7 @@ class UserController extends Controller
     {
         // Policy authorization for User management
         // This links to App\Policies\UserPolicy that we defined
-//        $this->authorizeResource(User::class, 'user');
+        //        $this->authorizeResource(User::class, 'user');
     }
 
     /**
@@ -27,20 +26,20 @@ class UserController extends Controller
     {
         $authUser = Auth::user();
         // Reuse the same permission gate used for Users pages routing (manage users area)
-        if (!$authUser || !$authUser->hasPermission('create_users')) {
+        if (! $authUser || ! $authUser->hasPermission('create_users')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $perPage = (int)($request->input('per_page', 15));
-        $page = (int)($request->input('page', 1));
+        $perPage = (int) ($request->input('per_page', 15));
+        $page = (int) ($request->input('page', 1));
 
         $query = \App\Models\Email::with(['sender', 'approver', 'conversation.project'])
-            ->where(function($q) use ($user) {
-                $q->where(function($qq) use ($user) {
+            ->where(function ($q) use ($user) {
+                $q->where(function ($qq) use ($user) {
                     $qq->where('sender_type', \App\Models\User::class)
-                       ->where('sender_id', $user->id);
+                        ->where('sender_id', $user->id);
                 })
-                ->orWhere('approved_by', $user->id);
+                    ->orWhere('approved_by', $user->id);
             })
             ->orderByDesc('created_at');
 
@@ -54,7 +53,7 @@ class UserController extends Controller
         if ($search = $request->input('search')) {
             $query->where(function ($qq) use ($search) {
                 $qq->where('subject', 'like', "%{$search}%")
-                   ->orWhere('body', 'like', "%{$search}%");
+                    ->orWhere('body', 'like', "%{$search}%");
             });
         }
 
@@ -115,13 +114,13 @@ class UserController extends Controller
                 'password' => 'required|string|min:8|confirmed', // 'confirmed' means password_confirmation must match
                 'role' => 'required|exists:roles,slug',
                 'timezone' => 'nullable|string|max:255',
-                'user_type' =>  'required|string|in:employee,contractor,admin',
+                'user_type' => 'required|string|in:employee,contractor,admin',
             ]);
 
             // Enforce additional role restrictions based on the current user's role.
             // This is a safety check beyond the policy.
             $currentUser = Auth::user();
-            if (!$currentUser->isSuperAdmin()) {
+            if (! $currentUser->isSuperAdmin()) {
                 // If the current user is not a Super Admin, they cannot create Super Admin or Manager accounts.
                 if ($validated['role'] === 'super-admin' || $validated['role'] === 'manager') {
                     throw ValidationException::withMessages(['role' => 'Only Super Admins can create Super Admin or Manager accounts.']);
@@ -130,7 +129,7 @@ class UserController extends Controller
 
             // Find the role by slug
             $role = \App\Models\Role::where('slug', $validated['role'])->first();
-            if (!$role) {
+            if (! $role) {
                 throw ValidationException::withMessages(['role' => 'Invalid role specified.']);
             }
 
@@ -144,6 +143,7 @@ class UserController extends Controller
             ]);
 
             Log::info('User created', ['user_id' => $user->id, 'user_email' => $user->email, 'created_by' => Auth::id()]);
+
             return response()->json($user->load('role'), 201); // 201 Created status with role
         } catch (ValidationException $e) {
             // Return validation errors
@@ -153,7 +153,8 @@ class UserController extends Controller
             ], 422); // 422 Unprocessable Entity
         } catch (\Exception $e) {
             // Catch any other unexpected errors
-            Log::error('Error creating user: ' . $e->getMessage(), ['request' => $request->all(), 'error' => $e->getTraceAsString()]);
+            Log::error('Error creating user: '.$e->getMessage(), ['request' => $request->all(), 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to create user', 'error' => $e->getMessage()], 500); // 500 Internal Server Error
         }
     }
@@ -166,6 +167,7 @@ class UserController extends Controller
     {
         // Authorization is handled by the UserPolicy's `view` method.
         $this->authorize('view', $user);
+
         return response()->json($user->load(['projects', 'role'])); // Load projects and role when showing a single user
     }
 
@@ -187,11 +189,11 @@ class UserController extends Controller
 
             $validated = $request->validate([
                 'name' => 'sometimes|required|string|max:255',
-                'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $user->id, // Unique check, excluding current user's email
+                'email' => 'sometimes|required|string|email|max:255|unique:users,email,'.$user->id, // Unique check, excluding current user's email
                 'password' => 'nullable|string|min:8|confirmed', // Password is optional; 'confirmed' requires password_confirmation field
                 'role' => 'sometimes|required|exists:roles,slug', // Role can be updated
                 'timezone' => 'nullable|string|max:255',
-                'user_type' =>  'required|string|in:employee,contractor,admin',
+                'user_type' => 'required|string|in:employee,contractor,admin',
             ]);
 
             $currentUser = Auth::user();
@@ -200,13 +202,13 @@ class UserController extends Controller
             if ($request->has('role')) {
                 // Find the role by slug
                 $newRole = \App\Models\Role::where('slug', $validated['role'])->first();
-                if (!$newRole) {
+                if (! $newRole) {
                     throw ValidationException::withMessages(['role' => 'Invalid role specified.']);
                 }
 
                 // Check if the role is actually changing
                 if ($newRole->id !== $user->role_id) {
-                    if (!$currentUser->isSuperAdmin()) {
+                    if (! $currentUser->isSuperAdmin()) {
                         // Non-Super Admins cannot elevate any user's role to Super Admin or Manager.
                         if ($validated['role'] === 'super-admin' || $validated['role'] === 'manager') {
                             throw ValidationException::withMessages(['role' => 'Only Super Admins can assign Super Admin or Manager roles.']);
@@ -220,7 +222,7 @@ class UserController extends Controller
             }
 
             // Prevent a user from elevating their OWN role if they are not a Super Admin.
-            if ($currentUser->id === $user->id && $request->has('role') && !$currentUser->isSuperAdmin() && ($validated['role'] === 'super-admin' || $validated['role'] === 'manager')) {
+            if ($currentUser->id === $user->id && $request->has('role') && ! $currentUser->isSuperAdmin() && ($validated['role'] === 'super-admin' || $validated['role'] === 'manager')) {
                 throw ValidationException::withMessages(['role' => 'You cannot elevate your own role to Super Admin or Manager.']);
             }
 
@@ -239,6 +241,7 @@ class UserController extends Controller
             }
 
             $user->update($userData);
+
             return response()->json($user->load('role'));
 
         } catch (ValidationException $e) {
@@ -247,7 +250,8 @@ class UserController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
-            Log::error('Error updating user: ' . $e->getMessage(), ['user_id' => $user->id, 'request' => $request->all(), 'error' => $e->getTraceAsString()]);
+            Log::error('Error updating user: '.$e->getMessage(), ['user_id' => $user->id, 'request' => $request->all(), 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to update user', 'error' => $e->getMessage()], 500);
         }
     }
@@ -269,9 +273,11 @@ class UserController extends Controller
         try {
             $user->delete();
             Log::info('User deleted', ['user_id' => $user->id, 'deleted_by' => Auth::id()]);
+
             return response()->json(null, 204); // 204 No Content
         } catch (\Exception $e) {
-            Log::error('Error deleting user: ' . $e->getMessage(), ['user_id' => $user->id, 'error' => $e->getTraceAsString()]);
+            Log::error('Error deleting user: '.$e->getMessage(), ['user_id' => $user->id, 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to delete user', 'error' => $e->getMessage()], 500);
         }
     }
@@ -292,11 +298,12 @@ class UserController extends Controller
                 $user->restore();
                 Log::info('User restored', ['user_id' => $user->id, 'restored_by' => Auth::id()]);
             }
+
             return response()->json($user->fresh('role'));
         } catch (\Exception $e) {
-            Log::error('Error restoring user: ' . $e->getMessage(), ['user_id' => $user->id, 'error' => $e->getTraceAsString()]);
+            Log::error('Error restoring user: '.$e->getMessage(), ['user_id' => $user->id, 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to restore user', 'error' => $e->getMessage()], 500);
         }
     }
-
 }

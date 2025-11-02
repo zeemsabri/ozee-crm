@@ -1,16 +1,15 @@
 <?php
 
-use App\Models\Task;
-use App\Models\User;
 use App\Models\Milestone;
+use App\Models\Task;
 use App\Models\TaskType;
+use App\Models\User;
 use App\Notifications\TaskAssigned;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
-require __DIR__ . '/vendor/autoload.php';
-$app = require_once __DIR__ . '/bootstrap/app.php';
+require __DIR__.'/vendor/autoload.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 echo "Testing Task Assignment Notification\n";
@@ -22,7 +21,7 @@ Notification::fake();
 // Get a user to assign the task to
 $user = User::first();
 
-if (!$user) {
+if (! $user) {
     echo "Error: No users found in the database.\n";
     exit(1);
 }
@@ -32,7 +31,7 @@ echo "Selected user: {$user->name} (ID: {$user->id})\n";
 // Get a milestone for the task
 $milestone = Milestone::first();
 
-if (!$milestone) {
+if (! $milestone) {
     echo "Error: No milestones found in the database.\n";
     exit(1);
 }
@@ -42,7 +41,7 @@ echo "Selected milestone: {$milestone->name} (ID: {$milestone->id})\n";
 // Get a task type
 $taskType = TaskType::first();
 
-if (!$taskType) {
+if (! $taskType) {
     echo "Error: No task types found in the database.\n";
     exit(1);
 }
@@ -53,9 +52,9 @@ echo "Selected task type: {$taskType->name} (ID: {$taskType->id})\n";
 try {
     DB::beginTransaction();
 
-    $task = new Task();
-    $task->name = "Test Task for Notification";
-    $task->description = "This is a test task to verify the notification system";
+    $task = new Task;
+    $task->name = 'Test Task for Notification';
+    $task->description = 'This is a test task to verify the notification system';
     $task->assigned_to_user_id = $user->id;
     $task->due_date = now()->addDays(7);
     $task->status = 'To Do';
@@ -72,8 +71,9 @@ try {
     Notification::assertSentTo(
         $user,
         TaskAssigned::class,
-        function ($notification, $channels) use ($task) {
-            echo "Notification sent via channels: " . implode(', ', $channels) . "\n";
+        function ($notification, $channels) {
+            echo 'Notification sent via channels: '.implode(', ', $channels)."\n";
+
             // We can't directly access protected properties, so just verify the notification was sent
             return true;
         }
@@ -88,8 +88,8 @@ try {
     DB::commit();
 } catch (\Exception $e) {
     DB::rollBack();
-    echo "Error: " . $e->getMessage() . "\n";
-    echo "Stack trace: " . $e->getTraceAsString() . "\n";
+    echo 'Error: '.$e->getMessage()."\n";
+    echo 'Stack trace: '.$e->getTraceAsString()."\n";
 }
 
 // Test with real notification (not faked)
@@ -99,9 +99,9 @@ Notification::fake(false);
 try {
     DB::beginTransaction();
 
-    $task = new Task();
-    $task->name = "Real Notification Test Task";
-    $task->description = "This is a test task to verify the real notification system";
+    $task = new Task;
+    $task->name = 'Real Notification Test Task';
+    $task->description = 'This is a test task to verify the real notification system';
     $task->assigned_to_user_id = $user->id;
     $task->due_date = now()->addDays(7);
     $task->status = 'To Do';
@@ -155,6 +155,6 @@ try {
     echo "\nTest completed successfully!\n";
 } catch (\Exception $e) {
     DB::rollBack();
-    echo "Error: " . $e->getMessage() . "\n";
-    echo "Stack trace: " . $e->getTraceAsString() . "\n";
+    echo 'Error: '.$e->getMessage()."\n";
+    echo 'Stack trace: '.$e->getTraceAsString()."\n";
 }

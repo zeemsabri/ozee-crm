@@ -1,11 +1,10 @@
 <?php
 
-use App\Models\Email;
 use App\Models\Conversation;
+use App\Models\Email;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 // This script tests the email observer notification system
 // It creates test emails with different statuses and types
@@ -27,21 +26,21 @@ echo "\nCreating test users...\n";
 // Create a user with global approve_emails permission
 $globalApproverUser = User::create([
     'name' => 'Global Email Approver (Observer Test)',
-    'email' => 'global_approver_observer_' . time() . '@example.com',
+    'email' => 'global_approver_observer_'.time().'@example.com',
     'password' => bcrypt('password'),
 ]);
 
 // Create a user with project-specific approve_emails permission
 $projectApproverUser = User::create([
     'name' => 'Project Email Approver (Observer Test)',
-    'email' => 'project_approver_observer_' . time() . '@example.com',
+    'email' => 'project_approver_observer_'.time().'@example.com',
     'password' => bcrypt('password'),
 ]);
 
 // Create a user with approve_received_emails permission
 $receivedApproverUser = User::create([
     'name' => 'Received Email Approver (Observer Test)',
-    'email' => 'received_approver_observer_' . time() . '@example.com',
+    'email' => 'received_approver_observer_'.time().'@example.com',
     'password' => bcrypt('password'),
 ]);
 
@@ -101,10 +100,10 @@ echo "Created sent email with ID: {$sentEmail->id}\n";
 
 // Check if notifications were created
 $sentNotifications = DB::table('notifications')
-    ->where('data', 'like', '%"email_id":' . $sentEmail->id . '%')
+    ->where('data', 'like', '%"email_id":'.$sentEmail->id.'%')
     ->get();
 
-echo "Found " . $sentNotifications->count() . " notifications for sent email\n";
+echo 'Found '.$sentNotifications->count()." notifications for sent email\n";
 
 // Create a pending_approval_received + received email
 echo "\nCreating received email pending approval...\n";
@@ -122,10 +121,10 @@ echo "Created received email with ID: {$receivedEmail->id}\n";
 
 // Check if notifications were created
 $receivedNotifications = DB::table('notifications')
-    ->where('data', 'like', '%"email_id":' . $receivedEmail->id . '%')
+    ->where('data', 'like', '%"email_id":'.$receivedEmail->id.'%')
     ->get();
 
-echo "Found " . $receivedNotifications->count() . " notifications for received email\n";
+echo 'Found '.$receivedNotifications->count()." notifications for received email\n";
 
 echo "\nTest completed successfully!\n";
 echo "Check the database notifications table to verify notifications were created.\n";

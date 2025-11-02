@@ -9,15 +9,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\Rule;
 
 class TransactionsController extends Controller // Assuming your controller is named TransactionController
 {
     /**
      * Add a single transaction (income or expense) to a project.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Project  $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function addTransactions(Request $request, Project $project)
@@ -32,7 +29,7 @@ class TransactionsController extends Controller // Assuming your controller is n
             'description' => 'required|string|max:255',
             'amount' => 'required|numeric|min:0',
             'user_id' => 'required_if:type,expense|exists:users,id', // User ID is required when type is expense
-            'currency' =>   'required|string',
+            'currency' => 'required|string',
             'hours_spent' => 'nullable|numeric|min:0', // Hours spent is optional
             'type' => 'required|in:income,expense,bonus', // Type must be 'income' or 'expense'
             'transaction_type_id' => 'required|exists:transaction_types,id', // Always required
@@ -47,7 +44,7 @@ class TransactionsController extends Controller // Assuming your controller is n
         $transaction = $project->transactions()->create([
             'description' => $validated['description'],
             'amount' => $validated['amount'],
-            'currency'  =>  $validated['currency'],
+            'currency' => $validated['currency'],
             'user_id' => $validated['user_id'] ?? null, // Use null if user_id is not provided
             'hours_spent' => $validated['hours_spent'] ?? null, // Use null if hours_spent is not provided
             'type' => $validated['type'],
@@ -62,9 +59,8 @@ class TransactionsController extends Controller // Assuming your controller is n
      * Handle payment processing for a specific transaction.
      * This function manages both full and partial payments.
      *
-     * @param Request $request
-     * @param Project $project The project the transaction belongs to.
-     * @param Transaction $transaction The specific transaction being paid.
+     * @param  Project  $project  The project the transaction belongs to.
+     * @param  Transaction  $transaction  The specific transaction being paid.
      * @return \Illuminate\Http\JsonResponse
      */
     public function processPayment(Request $request, Project $project, Transaction $transaction)
@@ -99,10 +95,10 @@ class TransactionsController extends Controller // Assuming your controller is n
 
         // Backend validation: If not a full payment, payment amount cannot exceed the remaining balance.
         // This check is only relevant for partial payments.
-        if (!$isActualFullPayment && $paymentAmount > $originalTransactionAmount) {
+        if (! $isActualFullPayment && $paymentAmount > $originalTransactionAmount) {
             return response()->json([
                 'errors' => ['payment_amount' => ['Payment amount cannot exceed the remaining balance of the original transaction.']],
-                'message' => 'The given data was invalid.'
+                'message' => 'The given data was invalid.',
             ], 422);
         }
 
@@ -131,7 +127,7 @@ class TransactionsController extends Controller // Assuming your controller is n
 
                 // Create a new transaction record specifically for the paid portion
                 $project->transactions()->create([
-                    'description' => $transaction->description . ' (Partial ' . ucfirst($transaction->type) . ')', // More descriptive
+                    'description' => $transaction->description.' (Partial '.ucfirst($transaction->type).')', // More descriptive
                     'amount' => $paymentAmount,
                     'currency' => $transaction->currency, // Use parent transaction's currency
                     'user_id' => $transaction->user_id, // Assign to the same user if applicable
@@ -148,10 +144,9 @@ class TransactionsController extends Controller // Assuming your controller is n
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Payment processing failed: ' . $e->getMessage(), ['exception' => $e]);
+            Log::error('Payment processing failed: '.$e->getMessage(), ['exception' => $e]);
+
             return response()->json(['message' => 'Failed to process payment.', 'error' => $e->getMessage()], 500);
         }
     }
-
-
 }

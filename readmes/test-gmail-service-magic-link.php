@@ -9,8 +9,8 @@
  */
 
 // Bootstrap the Laravel application
-require __DIR__ . '/vendor/autoload.php';
-$app = require_once __DIR__ . '/bootstrap/app.php';
+require __DIR__.'/vendor/autoload.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
@@ -26,13 +26,13 @@ Log::info('Starting GmailService Magic Link test');
 try {
     // Create a test project if needed
     $project = Project::first();
-    if (!$project) {
+    if (! $project) {
         echo "No projects found in the database. Please create a project first.\n";
         exit(1);
     }
 
     // Make sure the project has at least one client
-    if (!$project->clients || !count($project->clients)) {
+    if (! $project->clients || ! count($project->clients)) {
         echo "The project has no clients. Please add a client to the project first.\n";
         exit(1);
     }
@@ -43,8 +43,8 @@ try {
     $clientEmail = $client->email;
 
     // Create a request with the client's ID (updated to use client_id instead of email)
-    $request = Request::create('/api/projects/' . $project->id . '/magic-link', 'POST', [
-        'client_id' => $clientId
+    $request = Request::create('/api/projects/'.$project->id.'/magic-link', 'POST', [
+        'client_id' => $clientId,
     ]);
 
     // Create the controller with the GmailService
@@ -59,16 +59,16 @@ try {
 
     if ($responseData['success']) {
         echo "Success! Magic link sent to {$clientEmail} using GmailService.\n";
-        echo "Response: " . $response->getContent() . "\n";
+        echo 'Response: '.$response->getContent()."\n";
     } else {
         echo "Failed to send magic link.\n";
-        echo "Response: " . $response->getContent() . "\n";
+        echo 'Response: '.$response->getContent()."\n";
     }
 
 } catch (\Exception $e) {
-    echo "Error: " . $e->getMessage() . "\n";
-    Log::error('Error in GmailService Magic Link test: ' . $e->getMessage(), [
-        'error' => $e->getTraceAsString()
+    echo 'Error: '.$e->getMessage()."\n";
+    Log::error('Error in GmailService Magic Link test: '.$e->getMessage(), [
+        'error' => $e->getTraceAsString(),
     ]);
 }
 

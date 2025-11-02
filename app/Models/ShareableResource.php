@@ -2,16 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Traits\Taggable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Traits\Taggable;
 use Illuminate\Database\Eloquent\SoftDeletes;
-
 
 class ShareableResource extends Model
 {
-    use HasFactory, Taggable, SoftDeletes;
+    use HasFactory, SoftDeletes, Taggable;
 
     /**
      * The attributes that are mass assignable.
@@ -74,8 +73,6 @@ class ShareableResource extends Model
 
     /**
      * Determine if the resource is a YouTube video.
-     *
-     * @return bool
      */
     public function isYouTube(): bool
     {
@@ -84,8 +81,6 @@ class ShareableResource extends Model
 
     /**
      * Determine if the resource is a website.
-     *
-     * @return bool
      */
     public function isWebsite(): bool
     {

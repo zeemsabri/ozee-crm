@@ -4,12 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Role;
-use App\Models\Permission;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\DB;
 
 class RoleController extends Controller
 {
@@ -69,7 +68,7 @@ class RoleController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Role created successfully.',
-                'role' => $role->load('permissions')
+                'role' => $role->load('permissions'),
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -77,13 +76,13 @@ class RoleController extends Controller
             // Check if this is an Inertia request
             if ($request->header('X-Inertia')) {
                 // Return a redirect back with error for Inertia requests
-                return back()->withErrors(['error' => 'Error creating role: ' . $e->getMessage()]);
+                return back()->withErrors(['error' => 'Error creating role: '.$e->getMessage()]);
             }
 
             // Return JSON response for API requests
             return response()->json([
                 'success' => false,
-                'message' => 'Error creating role: ' . $e->getMessage()
+                'message' => 'Error creating role: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -131,14 +130,14 @@ class RoleController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Role updated successfully.',
-                'role' => $role->load('permissions')
+                'role' => $role->load('permissions'),
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating role: ' . $e->getMessage()
+                'message' => 'Error updating role: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -159,12 +158,12 @@ class RoleController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Role deleted successfully.'
+                'message' => 'Role deleted successfully.',
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error deleting role: ' . $e->getMessage()
+                'message' => 'Error deleting role: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -192,14 +191,14 @@ class RoleController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Role permissions updated successfully.',
-                'role' => $role->load('permissions')
+                'role' => $role->load('permissions'),
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating role permissions: ' . $e->getMessage()
+                'message' => 'Error updating role permissions: '.$e->getMessage(),
             ], 500);
         }
     }

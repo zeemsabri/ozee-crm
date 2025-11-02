@@ -13,17 +13,16 @@ use Illuminate\Support\Str;
 
 class AiPromptStepHandler implements StepHandlerContract
 {
-
     public function __construct(
         protected AIGenerationService $ai,
     ) {}
 
-    public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
+    public function handle(array $context, WorkflowStep $step, ?ExecutionLog $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
 
         $prompt = $this->resolvePrompt($step, $cfg);
-        if (!$prompt) {
+        if (! $prompt) {
             throw new \RuntimeException('Prompt not found for AI_PROMPT step');
         }
 
@@ -61,9 +60,10 @@ class AiPromptStepHandler implements StepHandlerContract
             return Prompt::find($promptId);
         }
         // Fallback for inline/hardcoded prompts in the config.
-        if (!empty($config['prompt']) && is_string($config['prompt'])) {
+        if (! empty($config['prompt']) && is_string($config['prompt'])) {
             return new Prompt(['system_prompt_text' => $config['prompt']]);
         }
+
         return null;
     }
 
@@ -78,14 +78,14 @@ class AiPromptStepHandler implements StepHandlerContract
         $triggerData = $context['trigger'] ?? [];
 
         // If user provided a free-text body (can include tokens), resolve and prioritize it under 'body'
-        $freeText = trim((string)($config['freeText'] ?? ''));
+        $freeText = trim((string) ($config['freeText'] ?? ''));
         if ($freeText !== '') {
             try {
                 /** @var \App\Services\WorkflowEngineService $engine */
                 $engine = app(\App\Services\WorkflowEngineService::class);
                 $resolved = $engine->getTemplatedValue($freeText, $context);
                 // Ensure scalar string for prompt input
-                if (!is_string($resolved)) {
+                if (! is_string($resolved)) {
                     $resolved = is_scalar($resolved) ? (string) $resolved : json_encode($resolved);
                 }
                 $promptData['context_data'] = $resolved;
@@ -116,7 +116,7 @@ class AiPromptStepHandler implements StepHandlerContract
                 $value = null;
                 // FIX: First, try to get data from within the primary model object (e.g., from 'trigger.email.subject')
                 if ($source === 'trigger' && $baseModelKey) {
-                    $value = Arr::get($dataRoot, $baseModelKey . '.' . $path);
+                    $value = Arr::get($dataRoot, $baseModelKey.'.'.$path);
                 }
 
                 // Fallback: If not found, try the path from the root of the data source (e.g., 'trigger.event')
@@ -133,8 +133,8 @@ class AiPromptStepHandler implements StepHandlerContract
         $relationsConfig = $config['relationships'] ?? null;
         if ($relationsConfig && $baseModelName && $baseModelId) {
             $relationsConfig['base_model'] = $baseModelName;
-            $relatedData = $this->gatherRelatedData($relationsConfig, (int)$baseModelId);
-            if (!empty($relatedData)) {
+            $relatedData = $this->gatherRelatedData($relationsConfig, (int) $baseModelId);
+            if (! empty($relatedData)) {
                 $promptData['with'] = $relatedData;
             }
         }
@@ -145,7 +145,7 @@ class AiPromptStepHandler implements StepHandlerContract
     protected function gatherRelatedData(array $relationsConfig, int $baseModelId): array
     {
         $baseModelClass = $this->resolveModelClass($relationsConfig['base_model']);
-        if (!$baseModelClass) {
+        if (! $baseModelClass) {
             return [];
         }
 
@@ -160,7 +160,7 @@ class AiPromptStepHandler implements StepHandlerContract
             $nestedRelations = $nested[$rootRelation] ?? [];
             $eagerLoad[$rootRelation] = function ($q) use ($rootRelation, $nestedRelations, $fields) {
                 $rootFields = $fields[$rootRelation] ?? ['*'];
-                if ($rootFields !== ['*'] && !in_array('id', $rootFields)) {
+                if ($rootFields !== ['*'] && ! in_array('id', $rootFields)) {
                     $rootFields[] = 'id';
                 }
                 $q->select($rootFields);
@@ -168,25 +168,33 @@ class AiPromptStepHandler implements StepHandlerContract
                 foreach ($nestedRelations as $nestedRelation) {
                     $nestedPath = "{$rootRelation}.{$nestedRelation}";
                     $nestedFields = $fields[$nestedPath] ?? ['*'];
-                    if ($nestedFields !== ['*'] && !in_array('id', $nestedFields)) $nestedFields[] = 'id';
-                    $q->with([$nestedRelation => fn($nq) => $nq->select($nestedFields)]);
+                    if ($nestedFields !== ['*'] && ! in_array('id', $nestedFields)) {
+                        $nestedFields[] = 'id';
+                    }
+                    $q->with([$nestedRelation => fn ($nq) => $nq->select($nestedFields)]);
                 }
             };
         }
 
-        if (empty($eagerLoad)) return [];
+        if (empty($eagerLoad)) {
+            return [];
+        }
 
         $modelInstance = $query->with($eagerLoad)->find($baseModelId);
+
         return $modelInstance ? $modelInstance->getRelations() : [];
     }
 
     protected function resolveModelClass(string $name): ?string
     {
         $baseName = Str::studly(class_basename($name));
-        $candidates = [ $name, 'App\\Models\\' . $baseName ];
+        $candidates = [$name, 'App\\Models\\'.$baseName];
         foreach ($candidates as $c) {
-            if (class_exists($c)) return $c;
+            if (class_exists($c)) {
+                return $c;
+            }
         }
+
         return null;
     }
 
@@ -206,7 +214,7 @@ class AiPromptStepHandler implements StepHandlerContract
         // Best case - Find the model whose ID matches the triggering object ID.
         if ($triggeringId) {
             foreach ($triggerContext as $key => $value) {
-                if (is_array($value) && isset($value['id']) && (string)$value['id'] === (string)$triggeringId) {
+                if (is_array($value) && isset($value['id']) && (string) $value['id'] === (string) $triggeringId) {
                     return Str::studly($key);
                 }
             }
@@ -221,4 +229,3 @@ class AiPromptStepHandler implements StepHandlerContract
         return null;
     }
 }
-

@@ -62,7 +62,7 @@ class BonusConfiguration extends Model
     /**
      * Check if this configuration is applicable to the given source type.
      *
-     * @param string $sourceType The source type (standup, task, milestone, etc.)
+     * @param  string  $sourceType  The source type (standup, task, milestone, etc.)
      * @return bool Whether the configuration is applicable
      */
     public function isApplicableTo($sourceType)
@@ -73,7 +73,7 @@ class BonusConfiguration extends Model
     /**
      * Calculate the bonus/penalty amount based on the configuration.
      *
-     * @param float|null $baseAmount The base amount to calculate from (for percentage types)
+     * @param  float|null  $baseAmount  The base amount to calculate from (for percentage types)
      * @return float The calculated amount
      */
     public function calculateAmount($baseAmount = null)
@@ -95,9 +95,9 @@ class BonusConfiguration extends Model
     /**
      * Check if this configuration should be applied to a standup submission.
      *
-     * @param User $user The user
-     * @param Project $project The project
-     * @param \DateTime $submissionDate The date the standup was submitted
+     * @param  User  $user  The user
+     * @param  Project  $project  The project
+     * @param  \DateTime  $submissionDate  The date the standup was submitted
      * @return bool Whether the configuration should be applied
      */
     public function shouldApplyToStandup(User $user, Project $project, $submissionDate)
@@ -125,10 +125,10 @@ class BonusConfiguration extends Model
     /**
      * Check if this configuration should be applied to a task completion.
      *
-     * @param User $user The user
-     * @param Project $project The project
-     * @param \DateTime $completionDate The date the task was completed
-     * @param \DateTime $dueDate The date the task was due
+     * @param  User  $user  The user
+     * @param  Project  $project  The project
+     * @param  \DateTime  $completionDate  The date the task was completed
+     * @param  \DateTime  $dueDate  The date the task was due
      * @return bool Whether the configuration should be applied
      */
     public function shouldApplyToTask(User $user, Project $project, $completionDate, $dueDate)
@@ -166,10 +166,10 @@ class BonusConfiguration extends Model
     /**
      * Check if this configuration should be applied to a milestone completion.
      *
-     * @param User $user The user
-     * @param Project $project The project
-     * @param \DateTime $completionDate The date the milestone was completed
-     * @param \DateTime $dueDate The date the milestone was due
+     * @param  User  $user  The user
+     * @param  Project  $project  The project
+     * @param  \DateTime  $completionDate  The date the milestone was completed
+     * @param  \DateTime  $dueDate  The date the milestone was due
      * @return bool Whether the configuration should be applied
      */
     public function shouldApplyToMilestone(User $user, Project $project, $completionDate, $dueDate)

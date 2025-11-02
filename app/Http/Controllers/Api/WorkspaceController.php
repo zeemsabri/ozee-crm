@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
+use App\Models\Context;
 use App\Models\Project;
 use App\Models\Task;
-use App\Models\Context;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +25,7 @@ class WorkspaceController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
@@ -57,7 +57,7 @@ class WorkspaceController extends Controller
             // Projects where current user is project manager or admin
             $query->where(function ($q) use ($user) {
                 $q->where('projects.project_manager_id', $user->id)
-                  ->orWhere('projects.project_admin_id', $user->id);
+                    ->orWhere('projects.project_admin_id', $user->id);
             });
         } elseif ($filter === 'contributor' || $filter === 'my') {
             // Projects where user is a member but not manager/admin
@@ -65,17 +65,17 @@ class WorkspaceController extends Controller
                 // Scope to user's membership explicitly for global managers
                 $query->join('project_user as pu', function ($join) use ($user) {
                     $join->on('pu.project_id', '=', 'projects.id')
-                         ->where('pu.user_id', '=', $user->id);
+                        ->where('pu.user_id', '=', $user->id);
                 });
             }
             // Exclude those where the user is manager/admin
             $query->where(function ($q) use ($user) {
                 $q->where(function ($qq) use ($user) {
                     $qq->where('projects.project_manager_id', '!=', $user->id)
-                       ->orWhereNull('projects.project_manager_id');
+                        ->orWhereNull('projects.project_manager_id');
                 })->where(function ($qq) use ($user) {
                     $qq->where('projects.project_admin_id', '!=', $user->id)
-                       ->orWhereNull('projects.project_admin_id');
+                        ->orWhereNull('projects.project_admin_id');
                 });
             });
         }
@@ -85,11 +85,11 @@ class WorkspaceController extends Controller
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $q->where('projects.name', 'LIKE', "%{$search}%")
-                  ->orWhere('projects.status', 'LIKE', "%{$search}%")
-                  ->orWhere('projects.project_type', 'LIKE', "%{$search}%")
-                  ->orWhereHas('tags', function ($t) use ($search) {
-                      $t->where('name', 'LIKE', "%{$search}%");
-                  });
+                    ->orWhere('projects.status', 'LIKE', "%{$search}%")
+                    ->orWhere('projects.project_type', 'LIKE', "%{$search}%")
+                    ->orWhereHas('tags', function ($t) use ($search) {
+                        $t->where('name', 'LIKE', "%{$search}%");
+                    });
             });
         }
 
@@ -209,6 +209,7 @@ class WorkspaceController extends Controller
                         // Return raw numbers; frontend can format
                         $amt = (float) ($e->amount ?? 0);
                         $carry += $amt; // note: mixed currencies possible; kept simple here
+
                         return $carry;
                     }, 0.0);
 
@@ -290,7 +291,7 @@ class WorkspaceController extends Controller
     public function completedTasks(Project $project, Request $request)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
@@ -299,7 +300,7 @@ class WorkspaceController extends Controller
         // Verify access: global managers ok; otherwise must be attached to project or be project lead
         $isAttached = $user->projects()->where('projects.id', $project->id)->exists();
         $isLead = $project->project_manager_id === $user->id || $project->project_admin_id === $user->id;
-        if (!($isGlobalManager || $isAttached || $isLead)) {
+        if (! ($isGlobalManager || $isAttached || $isLead)) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
@@ -312,7 +313,7 @@ class WorkspaceController extends Controller
             ->where('status', Task::STATUS_DONE);
 
         // If not global manager/lead and not attached as manager/admin, restrict to own tasks
-        if (!($isGlobalManager || $isLead)) {
+        if (! ($isGlobalManager || $isLead)) {
             $query->where('assigned_to_user_id', $user->id);
         }
 

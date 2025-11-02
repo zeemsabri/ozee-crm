@@ -2,7 +2,6 @@
 
 return [
 
-
     'company' => [
         'name' => 'OZee Web & Digital',
         'phone' => '+61 456 639 389',
@@ -24,22 +23,22 @@ return [
         [
             'name' => 'Facebook',
             'url' => 'https://www.facebook.com/ozeeweb.and.digital/',
-            'iconUrl' => '/fb.svg'
+            'iconUrl' => '/fb.svg',
         ],
         [
             'name' => 'Twitter',
             'url' => 'https://x.com/OZee_Web',
-            'iconUrl' => '/ig.svg'
+            'iconUrl' => '/ig.svg',
         ],
         [
             'name' => 'LinkedIn',
             'url' => 'https://www.linkedin.com/company/ozee-web',
-            'iconUrl' => '/in.svg'
+            'iconUrl' => '/in.svg',
         ],
         [
             'name' => 'Instagram',
             'url' => 'https://www.instagram.com/ozee_web_and_digital/',
-            'iconUrl' => '/x.svg'
+            'iconUrl' => '/x.svg',
         ],
     ],
 

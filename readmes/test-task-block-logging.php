@@ -3,22 +3,21 @@
 // Test script to verify task block reason logging
 // Run with: php test-task-block-logging.php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap Laravel
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
 use App\Models\Task;
 use Spatie\Activitylog\Models\Activity;
-use Illuminate\Support\Facades\DB;
 
 echo "Testing task block reason logging...\n\n";
 
 // Get a valid task_type_id
 $taskType = \App\Models\TaskType::first();
-if (!$taskType) {
+if (! $taskType) {
     echo "Error: No TaskType found in the database. Please create one first.\n";
     exit(1);
 }
@@ -50,13 +49,13 @@ $activities = Activity::where('subject_type', Task::class)
     ->orderBy('created_at', 'desc')
     ->get();
 
-echo "\nActivity Log Entries (" . count($activities) . " found):\n";
+echo "\nActivity Log Entries (".count($activities)." found):\n";
 foreach ($activities as $index => $activity) {
-    echo "Entry " . ($index + 1) . ":\n";
-    echo "Description: " . $activity->description . "\n";
-    echo "Event: " . $activity->event . "\n";
-    echo "Created at: " . $activity->created_at . "\n";
-    echo "Properties: " . json_encode($activity->properties, JSON_PRETTY_PRINT) . "\n\n";
+    echo 'Entry '.($index + 1).":\n";
+    echo 'Description: '.$activity->description."\n";
+    echo 'Event: '.$activity->event."\n";
+    echo 'Created at: '.$activity->created_at."\n";
+    echo 'Properties: '.json_encode($activity->properties, JSON_PRETTY_PRINT)."\n\n";
 }
 
 // Update just the block reason
@@ -73,13 +72,13 @@ $activities = Activity::where('subject_type', Task::class)
     ->orderBy('created_at', 'desc')
     ->get();
 
-echo "\nActivity Log Entries after block reason update (" . count($activities) . " found):\n";
+echo "\nActivity Log Entries after block reason update (".count($activities)." found):\n";
 foreach ($activities as $index => $activity) {
-    echo "Entry " . ($index + 1) . ":\n";
-    echo "Description: " . $activity->description . "\n";
-    echo "Event: " . $activity->event . "\n";
-    echo "Created at: " . $activity->created_at . "\n";
-    echo "Properties: " . json_encode($activity->properties, JSON_PRETTY_PRINT) . "\n\n";
+    echo 'Entry '.($index + 1).":\n";
+    echo 'Description: '.$activity->description."\n";
+    echo 'Event: '.$activity->event."\n";
+    echo 'Created at: '.$activity->created_at."\n";
+    echo 'Properties: '.json_encode($activity->properties, JSON_PRETTY_PRINT)."\n\n";
 }
 
 // Unblock the task
@@ -98,13 +97,13 @@ $activities = Activity::where('subject_type', Task::class)
     ->orderBy('created_at', 'desc')
     ->get();
 
-echo "\nActivity Log Entries after unblocking (" . count($activities) . " found):\n";
+echo "\nActivity Log Entries after unblocking (".count($activities)." found):\n";
 foreach ($activities as $index => $activity) {
-    echo "Entry " . ($index + 1) . ":\n";
-    echo "Description: " . $activity->description . "\n";
-    echo "Event: " . $activity->event . "\n";
-    echo "Created at: " . $activity->created_at . "\n";
-    echo "Properties: " . json_encode($activity->properties, JSON_PRETTY_PRINT) . "\n\n";
+    echo 'Entry '.($index + 1).":\n";
+    echo 'Description: '.$activity->description."\n";
+    echo 'Event: '.$activity->event."\n";
+    echo 'Created at: '.$activity->created_at."\n";
+    echo 'Properties: '.json_encode($activity->properties, JSON_PRETTY_PRINT)."\n\n";
 }
 
 // Clean up - delete the test task

@@ -2,8 +2,8 @@
 
 namespace App\Models\Traits;
 
-use Carbon\CarbonImmutable;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
@@ -21,7 +21,7 @@ trait HasUserTimezone
     /**
      * Converts a model's timestamp to the authenticated user's timezone.
      *
-     * @param string $column The timestamp column to convert (e.g., 'created_at', 'updated_at').
+     * @param  string  $column  The timestamp column to convert (e.g., 'created_at', 'updated_at').
      * @return CarbonImmutable|null A CarbonImmutable instance in the user's timezone, or null if the timestamp is not set.
      */
     public function convertToUserTimezone(string $column = 'created_at'): ?CarbonImmutable
@@ -29,7 +29,7 @@ trait HasUserTimezone
         // Get the timestamp from the model attribute.
         $timestamp = $this->getAttribute($column);
 
-        if (!$timestamp) {
+        if (! $timestamp) {
             return null;
         }
 
@@ -40,8 +40,8 @@ trait HasUserTimezone
     /**
      * Checks if a model's timestamp occurred before a specific time of day in the user's timezone.
      *
-     * @param string $timeOfDay A time string, e.g., '17:00:00'.
-     * @param string $column The timestamp column to check.
+     * @param  string  $timeOfDay  A time string, e.g., '17:00:00'.
+     * @param  string  $column  The timestamp column to check.
      * @return bool True if the timestamp is strictly before the specified time.
      */
     public function isBeforeUserTime(string $timeOfDay, string $column = 'created_at'): bool
@@ -49,13 +49,13 @@ trait HasUserTimezone
         // Get the model's timestamp converted to the user's timezone.
         $modelTimestamp = $this->convertToUserTimezone($column);
 
-        if (!$modelTimestamp) {
+        if (! $modelTimestamp) {
             return false;
         }
 
         // Create a target Carbon instance for the same date as the model's timestamp,
         // but with the specified time of day. Use CarbonImmutable for safety.
-        $targetTime = CarbonImmutable::parse($modelTimestamp->toDateString() . ' ' . $timeOfDay, $this->getUserTimezone());
+        $targetTime = CarbonImmutable::parse($modelTimestamp->toDateString().' '.$timeOfDay, $this->getUserTimezone());
 
         // Compare the model's timestamp with the target time.
         return $modelTimestamp->lt($targetTime);
@@ -65,8 +65,8 @@ trait HasUserTimezone
      * Checks if a model's timestamp falls on the same calendar day as a given date,
      * according to the user's timezone.
      *
-     * @param Carbon $comparisonDate The date to compare against.
-     * @param string $column The timestamp column to check.
+     * @param  Carbon  $comparisonDate  The date to compare against.
+     * @param  string  $column  The timestamp column to check.
      * @return bool True if the timestamp is on the same day.
      */
     public function isOnSameUserDateAs(Carbon $comparisonDate, string $column = 'created_at'): bool
@@ -74,7 +74,7 @@ trait HasUserTimezone
         // Get the model's timestamp converted to the user's timezone.
         $modelTimestamp = $this->convertToUserTimezone($column);
 
-        if (!$modelTimestamp) {
+        if (! $modelTimestamp) {
             return false;
         }
 
@@ -86,10 +86,9 @@ trait HasUserTimezone
      * Scope a query to retrieve records that occurred on a specific date,
      * as defined by the user's timezone.
      *
-     * @param Builder $query The Eloquent query builder instance.
-     * @param Carbon $date The date in the user's timezone.
-     * @param string $column The timestamp column to query.
-     * @return Builder
+     * @param  Builder  $query  The Eloquent query builder instance.
+     * @param  Carbon  $date  The date in the user's timezone.
+     * @param  string  $column  The timestamp column to query.
      */
     public function scopeWhereOnUserDate(Builder $query, Carbon $date, string $column = 'created_at'): Builder
     {
@@ -112,10 +111,9 @@ trait HasUserTimezone
      * Scope a query to retrieve records that occurred before a specific timestamp,
      * as defined by the user's timezone.
      *
-     * @param Builder $query The Eloquent query builder instance.
-     * @param Carbon $userTimestamp The timestamp in the user's timezone.
-     * @param string $column The timestamp column to query.
-     * @return Builder
+     * @param  Builder  $query  The Eloquent query builder instance.
+     * @param  Carbon  $userTimestamp  The timestamp in the user's timezone.
+     * @param  string  $column  The timestamp column to query.
      */
     public function scopeWhereBeforeUserTimestamp(Builder $query, Carbon $userTimestamp, string $column = 'created_at'): Builder
     {
@@ -134,7 +132,8 @@ trait HasUserTimezone
     private function getUserTimezone(): string
     {
         $user = Auth::user();
-        return $user && !empty($user->timezone)
+
+        return $user && ! empty($user->timezone)
             ? $user->timezone
             : config('app.timezone');
     }

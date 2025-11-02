@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\WorkflowStep;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class WorkflowStepController extends Controller
 {
@@ -28,6 +27,7 @@ class WorkflowStepController extends Controller
         ]);
 
         $step = WorkflowStep::create($data);
+
         return response()->json($step->load(['workflow', 'prompt']), 201);
     }
 
@@ -50,12 +50,14 @@ class WorkflowStepController extends Controller
         ]);
 
         $workflow_step->update($data);
+
         return response()->json($workflow_step->load(['workflow', 'prompt']));
     }
 
     public function destroy(WorkflowStep $workflow_step)
     {
         $workflow_step->delete();
+
         return response()->noContent();
     }
 }

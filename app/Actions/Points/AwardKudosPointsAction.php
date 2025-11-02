@@ -19,8 +19,6 @@ class AwardKudosPointsAction
 
     /**
      * AwardKudosPointsAction constructor.
-     *
-     * @param LedgerService $ledgerService
      */
     public function __construct(LedgerService $ledgerService)
     {
@@ -30,19 +28,21 @@ class AwardKudosPointsAction
     /**
      * Executes the business logic for awarding points for a received kudo.
      *
-     * @param Kudo $kudo The Kudo model object.
+     * @param  Kudo  $kudo  The Kudo model object.
      * @return PointsLedger|null The newly created PointsLedger model instance, or null if points were not awarded.
      */
     public function execute(Kudo $kudo): ?PointsLedger
     {
         // 1. Defensive Checks: Ensure the kudo is in a valid state.
-        if (!$kudo->is_approved) {
+        if (! $kudo->is_approved) {
             Log::info("Kudos points not awarded for kudo ID {$kudo->id} because it is not approved.");
+
             return null;
         }
 
         if (is_null($kudo->recipient) || is_null($kudo->project)) {
             Log::warning("AwardKudosPointsAction called for kudo ID {$kudo->id} but it's missing a recipient or project. Points not awarded.");
+
             return null;
         }
 
@@ -64,7 +64,7 @@ class AwardKudosPointsAction
 
         // 3. Determine Points and Description:
         $pointsToAward = self::KUDOS_POINTS;
-        $description = 'Peer Kudos Received: ' . $kudo->comment;
+        $description = 'Peer Kudos Received: '.$kudo->comment;
 
         // 4. Record the Transaction.
         return $this->ledgerService->record(

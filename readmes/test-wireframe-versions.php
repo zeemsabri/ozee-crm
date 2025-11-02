@@ -7,7 +7,7 @@ $baseUrl = 'http://localhost:8000';
 $projectId = 2;
 $wireframeId = 1;
 $endpoint = "/api/projects/{$projectId}/wireframes/{$wireframeId}/versions";
-$url = $baseUrl . $endpoint;
+$url = $baseUrl.$endpoint;
 
 // Make the request
 echo "Testing endpoint: {$url}\n";

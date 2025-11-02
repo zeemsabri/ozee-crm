@@ -2,8 +2,8 @@
 
 namespace App\Observers;
 
-use App\Models\Transaction;
 use App\Http\Controllers\Api\Concerns\HasFinancialCalculations;
+use App\Models\Transaction;
 use Illuminate\Support\Facades\Log;
 
 class TransactionObserver
@@ -13,7 +13,6 @@ class TransactionObserver
     /**
      * Handle the Transaction "created" event.
      *
-     * @param  \App\Models\Transaction  $transaction
      * @return void
      */
     public function created(Transaction $transaction)
@@ -24,7 +23,6 @@ class TransactionObserver
     /**
      * Handle the Transaction "updated" event.
      *
-     * @param  \App\Models\Transaction  $transaction
      * @return void
      */
     public function updated(Transaction $transaction)
@@ -35,7 +33,6 @@ class TransactionObserver
     /**
      * Handle the Transaction "deleted" event.
      *
-     * @param  \App\Models\Transaction  $transaction
      * @return void
      */
     public function deleted(Transaction $transaction)
@@ -46,7 +43,6 @@ class TransactionObserver
     /**
      * Update the project's profit margin percentage based on transactions.
      *
-     * @param  \App\Models\Transaction  $transaction
      * @return void
      */
     private function updateProjectProfitMargin(Transaction $transaction)
@@ -54,10 +50,11 @@ class TransactionObserver
         // Get the project associated with this transaction
         $project = $transaction->project;
 
-        if (!$project) {
+        if (! $project) {
             Log::warning('Transaction has no associated project', [
-                'transaction_id' => $transaction->id
+                'transaction_id' => $transaction->id,
             ]);
+
             return;
         }
 
@@ -68,6 +65,7 @@ class TransactionObserver
             // No transactions, set profit margin to null
             $project->profit_margin_percentage = null;
             $project->save();
+
             return;
         }
 
@@ -93,7 +91,7 @@ class TransactionObserver
             'project_id' => $project->id,
             'profit_margin_percentage' => $project->profit_margin_percentage,
             'total_income' => $totalIncome,
-            'total_expense' => $totalExpense
+            'total_expense' => $totalExpense,
         ]);
     }
 }

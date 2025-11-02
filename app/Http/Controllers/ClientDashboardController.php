@@ -11,7 +11,6 @@ class ClientDashboardController extends Controller
     /**
      * Display the client dashboard.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Inertia\Response|\Illuminate\Http\RedirectResponse
      */
     public function index(Request $request)
@@ -19,7 +18,7 @@ class ClientDashboardController extends Controller
         $token = $request->query('token');
 
         // 1. If no token is provided, it's an unauthorized access attempt.
-        if (!$token) {
+        if (! $token) {
             // Redirect to the home page or show an error.
             return redirect('/');
         }
@@ -31,7 +30,7 @@ class ClientDashboardController extends Controller
         // The link must exist, not be expired, and have been marked as 'used'.
         // Your `handleMagicLink` method marks it as used, so this check confirms
         // the user came from the valid, signed URL.
-        if (!$magicLink || $magicLink->hasExpired() || $magicLink->hasBeenUsed()) {
+        if (! $magicLink || $magicLink->hasExpired() || $magicLink->hasBeenUsed()) {
             // Log this attempt for security monitoring.
             \Illuminate\Support\Facades\Log::warning('Invalid client dashboard access attempt.', [
                 'token' => $token,

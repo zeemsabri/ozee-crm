@@ -3,94 +3,114 @@
 // Test script to verify the fix for GoogleChatService's sendThreadedMessage method
 
 // Mock classes to simulate the behavior
-class MockMessage {
+class MockMessage
+{
     private $text;
+
     private $thread;
 
-    public function setText($text) {
+    public function setText($text)
+    {
         $this->text = $text;
     }
 
-    public function setThread($thread) {
+    public function setThread($thread)
+    {
         $this->thread = $thread;
     }
 
-    public function getText() {
+    public function getText()
+    {
         return $this->text;
     }
 
-    public function getName() {
-        return 'spaces/ABCDEF/messages/' . rand(10000, 99999);
+    public function getName()
+    {
+        return 'spaces/ABCDEF/messages/'.rand(10000, 99999);
     }
 
-    public function getSender() {
+    public function getSender()
+    {
         return 'users/test@example.com';
     }
 
-    public function getCreateTime() {
+    public function getCreateTime()
+    {
         return date('Y-m-d\TH:i:s\Z');
     }
 
-    public function getThread() {
+    public function getThread()
+    {
         return $this->thread;
     }
 }
 
-class MockThread {
+class MockThread
+{
     private $name;
 
-    public function setName($name) {
+    public function setName($name)
+    {
         $this->name = $name;
     }
 
-    public function getName() {
+    public function getName()
+    {
         return $this->name;
     }
 }
 
-class MockSpacesMessages {
-    public function create($spaceName, $message) {
+class MockSpacesMessages
+{
+    public function create($spaceName, $message)
+    {
         echo "Creating message in space: $spaceName\n";
-        echo "Message text: " . $message->getText() . "\n";
-        echo "Thread name: " . $message->getThread()->getName() . "\n";
+        echo 'Message text: '.$message->getText()."\n";
+        echo 'Thread name: '.$message->getThread()->getName()."\n";
 
         return $message;
     }
 }
 
-class MockHangoutsChat {
+class MockHangoutsChat
+{
     public $spaces_messages;
 
-    public function __construct() {
-        $this->spaces_messages = new MockSpacesMessages();
+    public function __construct()
+    {
+        $this->spaces_messages = new MockSpacesMessages;
     }
 }
 
-class MockLog {
-    public static function info($message, $context = []) {
+class MockLog
+{
+    public static function info($message, $context = [])
+    {
         echo "LOG INFO: $message\n";
-        if (!empty($context)) {
-            echo "Context: " . json_encode($context, JSON_PRETTY_PRINT) . "\n";
+        if (! empty($context)) {
+            echo 'Context: '.json_encode($context, JSON_PRETTY_PRINT)."\n";
         }
     }
 
-    public static function error($message, $context = []) {
+    public static function error($message, $context = [])
+    {
         echo "LOG ERROR: $message\n";
-        if (!empty($context)) {
-            echo "Context: " . json_encode($context, JSON_PRETTY_PRINT) . "\n";
+        if (! empty($context)) {
+            echo 'Context: '.json_encode($context, JSON_PRETTY_PRINT)."\n";
         }
     }
 }
 
 // Function to simulate the sendThreadedMessage method
-function testSendThreadedMessage($spaceName, $threadName, $messageText) {
+function testSendThreadedMessage($spaceName, $threadName, $messageText)
+{
     echo "=== Testing sendThreadedMessage method ===\n\n";
 
-    $service = new MockHangoutsChat();
-    $message = new MockMessage();
+    $service = new MockHangoutsChat;
+    $message = new MockMessage;
     $message->setText($messageText);
 
-    $thread = new MockThread();
+    $thread = new MockThread;
     $thread->setName($threadName);
     $message->setThread($thread);
 
@@ -99,7 +119,7 @@ function testSendThreadedMessage($spaceName, $threadName, $messageText) {
         MockLog::info('Threaded message sent to Google Chat space', [
             'space_name' => $spaceName,
             'thread_name' => $threadName,
-            'message_id' => $sentMessage->getName()
+            'message_id' => $sentMessage->getName(),
         ]);
 
         // Convert Message object to array manually for consistency
@@ -108,18 +128,18 @@ function testSendThreadedMessage($spaceName, $threadName, $messageText) {
             'text' => $sentMessage->getText(),
             'sender' => $sentMessage->getSender(),
             'createTime' => $sentMessage->getCreateTime(),
-            'thread' => $threadName
+            'thread' => $threadName,
         ];
 
         echo "\nResult array:\n";
-        echo json_encode($result, JSON_PRETTY_PRINT) . "\n";
+        echo json_encode($result, JSON_PRETTY_PRINT)."\n";
 
         return $result;
     } catch (Exception $e) {
-        MockLog::error('Failed to send threaded message to Google Chat: ' . $e->getMessage(), [
+        MockLog::error('Failed to send threaded message to Google Chat: '.$e->getMessage(), [
             'space_name' => $spaceName,
             'thread_name' => $threadName,
-            'exception' => $e
+            'exception' => $e,
         ]);
         throw $e;
     }
@@ -136,5 +156,5 @@ try {
     echo "\n=== Test completed successfully ===\n";
     echo "The sendThreadedMessage method now works correctly without calling setMessageReplyOption.\n";
 } catch (Exception $e) {
-    echo "Error: " . $e->getMessage() . "\n";
+    echo 'Error: '.$e->getMessage()."\n";
 }

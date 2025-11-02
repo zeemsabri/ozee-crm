@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('shareable_resources', function (Blueprint $table) {
-            if (!Schema::hasColumn('shareable_resources', 'sent_push')) {
+            if (! Schema::hasColumn('shareable_resources', 'sent_push')) {
                 $table->boolean('sent_push')->default(false)->after('visible_to_client');
             }
         });

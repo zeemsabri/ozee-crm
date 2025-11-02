@@ -10,6 +10,7 @@ class FetchEmails extends Command
     /**
      * The name and signature of the console command.
      *Listed Gmail messages
+     *
      * @var string
      */
     protected $signature = 'emails:fetch';
@@ -31,7 +32,6 @@ class FetchEmails extends Command
     /**
      * Create a new command instance.
      *
-     * @param  \App\Http\Controllers\EmailReceiveController  $emailController
      * @return void
      */
     public function __construct(EmailReceiveController $emailController)
@@ -53,9 +53,9 @@ class FetchEmails extends Command
             $response = $this->emailController->receiveEmails();
             $data = json_decode($response->getContent(), true);
 
-            $this->info('Successfully fetched emails: ' . ($data['count_fetched'] ?? 0));
+            $this->info('Successfully fetched emails: '.($data['count_fetched'] ?? 0));
 
-            if (isset($data['summary_of_emails']) && !empty($data['summary_of_emails'])) {
+            if (isset($data['summary_of_emails']) && ! empty($data['summary_of_emails'])) {
                 $this->table(
                     ['ID', 'Gmail Message ID', 'From', 'Subject', 'Date', 'Status'],
                     array_map(function ($email) {
@@ -65,7 +65,7 @@ class FetchEmails extends Command
                             $email['from'],
                             $email['subject'],
                             $email['date'],
-                            $email['status']
+                            $email['status'],
                         ];
                     }, $data['summary_of_emails'])
                 );
@@ -73,7 +73,8 @@ class FetchEmails extends Command
 
             return 0; // Success
         } catch (\Exception $e) {
-            $this->error('Failed to fetch emails: ' . $e->getMessage());
+            $this->error('Failed to fetch emails: '.$e->getMessage());
+
             return 1; // Error
         }
     }

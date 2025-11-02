@@ -10,10 +10,6 @@ class MagicLinkService
 {
     /**
      * Generate a temporary signed magic link URL.
-     *
-     * @param string $email
-     * @param int $projectId
-     * @return string
      */
     public function generateMagicLink(string $email, int $projectId): string
     {
@@ -39,10 +35,6 @@ class MagicLinkService
 
     /**
      * Get an existing, non-expired magic link for a given email and project.
-     *
-     * @param string $email
-     * @param int $projectId
-     * @return MagicLink|null
      */
     public function getValidMagicLink(string $email, int $projectId): ?MagicLink
     {

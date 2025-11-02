@@ -26,7 +26,7 @@ return new class extends Migration
     {
         Schema::table('project_user', function (Blueprint $table) {
             // Add back the 'role' column if it doesn't exist
-            if (!Schema::hasColumn('project_user', 'role')) {
+            if (! Schema::hasColumn('project_user', 'role')) {
                 $table->string('role')->nullable();
             }
         });

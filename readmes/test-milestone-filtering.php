@@ -1,14 +1,14 @@
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
-use App\Models\Project;
 use App\Models\Milestone;
+use App\Models\Project;
 use Illuminate\Support\Facades\Route;
 
 echo "Testing milestone filtering...\n\n";
@@ -16,23 +16,23 @@ echo "Testing milestone filtering...\n\n";
 // Step 1: Find or create test projects
 echo "Step 1: Setting up test projects and milestones\n";
 $project1 = Project::first();
-if (!$project1) {
+if (! $project1) {
     echo "No projects found. Please create a project first.\n";
     exit;
 }
 
 $project2 = Project::skip(1)->first();
-if (!$project2 && $project1) {
+if (! $project2 && $project1) {
     // Create a second project if only one exists
-    $project2 = new Project();
-    $project2->name = "Test Project 2 for Milestone Filtering";
-    $project2->description = "This is a test project for milestone filtering";
-    $project2->status = "active";
-    $project2->project_type = "Test";
-    $project2->payment_type = "one_off";
+    $project2 = new Project;
+    $project2->name = 'Test Project 2 for Milestone Filtering';
+    $project2->description = 'This is a test project for milestone filtering';
+    $project2->status = 'active';
+    $project2->project_type = 'Test';
+    $project2->payment_type = 'one_off';
     $project2->save();
     echo "Created second test project: {$project2->name} (ID: {$project2->id})\n";
-} elseif (!$project2) {
+} elseif (! $project2) {
     echo "Could not find or create a second project.\n";
     exit;
 }
@@ -48,32 +48,32 @@ echo "\nStep 2: Creating test milestones\n";
 Milestone::where('name', 'like', 'Test Milestone for Filtering%')->delete();
 
 // Create milestones for project 1
-$milestone1_1 = new Milestone();
-$milestone1_1->name = "Test Milestone for Filtering 1-1";
-$milestone1_1->description = "This is test milestone 1 for project 1";
-$milestone1_1->status = "Not Started";
+$milestone1_1 = new Milestone;
+$milestone1_1->name = 'Test Milestone for Filtering 1-1';
+$milestone1_1->description = 'This is test milestone 1 for project 1';
+$milestone1_1->status = 'Not Started';
 $milestone1_1->project_id = $project1->id;
 $milestone1_1->save();
 
-$milestone1_2 = new Milestone();
-$milestone1_2->name = "Test Milestone for Filtering 1-2";
-$milestone1_2->description = "This is test milestone 2 for project 1";
-$milestone1_2->status = "In Progress";
+$milestone1_2 = new Milestone;
+$milestone1_2->name = 'Test Milestone for Filtering 1-2';
+$milestone1_2->description = 'This is test milestone 2 for project 1';
+$milestone1_2->status = 'In Progress';
 $milestone1_2->project_id = $project1->id;
 $milestone1_2->save();
 
 // Create milestones for project 2
-$milestone2_1 = new Milestone();
-$milestone2_1->name = "Test Milestone for Filtering 2-1";
-$milestone2_1->description = "This is test milestone 1 for project 2";
-$milestone2_1->status = "Not Started";
+$milestone2_1 = new Milestone;
+$milestone2_1->name = 'Test Milestone for Filtering 2-1';
+$milestone2_1->description = 'This is test milestone 1 for project 2';
+$milestone2_1->status = 'Not Started';
 $milestone2_1->project_id = $project2->id;
 $milestone2_1->save();
 
-$milestone2_2 = new Milestone();
-$milestone2_2->name = "Test Milestone for Filtering 2-2";
-$milestone2_2->description = "This is test milestone 2 for project 2";
-$milestone2_2->status = "Completed";
+$milestone2_2 = new Milestone;
+$milestone2_2->name = 'Test Milestone for Filtering 2-2';
+$milestone2_2->description = 'This is test milestone 2 for project 2';
+$milestone2_2->status = 'Completed';
 $milestone2_2->project_id = $project2->id;
 $milestone2_2->save();
 
@@ -88,7 +88,7 @@ echo "\nStep 3: Testing general route with project_id query parameter\n";
 
 // Simulate a request to /api/milestones?project_id=X
 $request = Request::create("/api/milestones?project_id={$project1->id}", 'GET');
-$controller = new App\Http\Controllers\Api\MilestoneController();
+$controller = new App\Http\Controllers\Api\MilestoneController;
 $response = $controller->index($request);
 $milestones = json_decode($response->getContent(), true);
 
@@ -124,10 +124,11 @@ $request->setRouteResolver(function () use ($request, $project2) {
     $route = new \Illuminate\Routing\Route('GET', 'test-project-milestones/{project}', []);
     $route->bind($request);
     $route->setParameter('project', $project2);
+
     return $route;
 });
 
-$controller = new App\Http\Controllers\Api\MilestoneController();
+$controller = new App\Http\Controllers\Api\MilestoneController;
 $response = $controller->index($request);
 $milestones = json_decode($response->getContent(), true);
 

@@ -17,20 +17,18 @@ class RunScheduledItem implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct(public int $scheduleId)
-    {
-    }
+    public function __construct(public int $scheduleId) {}
 
     public function handle(): void
     {
         /** @var Schedule|null $schedule */
         $schedule = Schedule::query()->with('scheduledItem')->find($this->scheduleId);
-        if (!$schedule) {
+        if (! $schedule) {
             return;
         }
 
         $target = $schedule->scheduledItem;
-        if (!$target) {
+        if (! $target) {
             return;
         }
 

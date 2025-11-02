@@ -14,13 +14,13 @@ class LedgerService
     /**
      * Records a new point transaction and updates the user's monthly total.
      *
-     * @param User $user The user receiving the points.
-     * @param float|int $points The final calculated points amount.
-     * @param string $description A description of the transaction.
-     * @param string $status The status of the transaction (e.g., 'paid', 'denied').
-     * @param Model|null $pointable The model that triggered the points (e.g., Task, Milestone).
-     * @param Project|null $project The project associated with the transaction.
-     * @param Carbon|null $transactionDate The date of the transaction. Defaults to now().
+     * @param  User  $user  The user receiving the points.
+     * @param  float|int  $points  The final calculated points amount.
+     * @param  string  $description  A description of the transaction.
+     * @param  string  $status  The status of the transaction (e.g., 'paid', 'denied').
+     * @param  Model|null  $pointable  The model that triggered the points (e.g., Task, Milestone).
+     * @param  Project|null  $project  The project associated with the transaction.
+     * @param  Carbon|null  $transactionDate  The date of the transaction. Defaults to now().
      * @return PointsLedger The newly created PointsLedger model instance.
      */
     public function record(
@@ -47,7 +47,7 @@ class LedgerService
             'pointable_id' => $pointable ? $pointable->id : null,
             'pointable_type' => $pointable ? get_class($pointable) : null,
             'project_id' => $project ? $project->id : 2,
-            'created_at'    =>  $date
+            'created_at' => $date,
         ]);
 
         // If the status is not 'denied', update the monthly points total.

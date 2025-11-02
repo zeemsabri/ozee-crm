@@ -2,11 +2,11 @@
 
 namespace App\Observers;
 
+use App\Helpers\PermissionHelper;
 use App\Models\Email;
 use App\Models\Lead;
 use App\Notifications\EmailApprovalRequired;
 use App\Notifications\EmailApproved;
-use App\Helpers\PermissionHelper;
 use Illuminate\Support\Facades\Log;
 
 class EmailObserver
@@ -18,7 +18,6 @@ class EmailObserver
      * No notifications are needed at this stage. The 'updated' event
      * will handle all notification logic when the status changes.
      *
-     * @param  \App\Models\Email  $email
      * @return void
      */
     public function created(Email $email)
@@ -36,13 +35,12 @@ class EmailObserver
      * Handle the Email "updated" event.
      * This is now the primary location for notification logic.
      *
-     * @param  \App\Models\Email  $email
      * @return void
      */
     public function updated(Email $email)
     {
         // Guard clause: Only proceed if the 'status' attribute was actually changed.
-        if (!$email->isDirty('status')) {
+        if (! $email->isDirty('status')) {
             return;
         }
 
@@ -50,7 +48,7 @@ class EmailObserver
         $originalStatus = $email->getOriginal('status');
         $projectId = optional($email->conversation)->project_id;
 
-        if (!$projectId) {
+        if (! $projectId) {
             return; // Cannot send notifications without a project context.
         }
 
@@ -151,4 +149,3 @@ class EmailObserver
         }
     }
 }
-

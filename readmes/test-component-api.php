@@ -6,7 +6,8 @@
 $baseUrl = 'http://localhost:8000/api';
 
 // Function to make API requests
-function makeRequest($method, $url, $data = null) {
+function makeRequest($method, $url, $data = null)
+{
     $curl = curl_init();
 
     $headers = [
@@ -42,7 +43,8 @@ function makeRequest($method, $url, $data = null) {
     curl_close($curl);
 
     if ($error) {
-        echo "cURL Error: " . $error . "\n";
+        echo 'cURL Error: '.$error."\n";
+
         return null;
     }
 
@@ -53,18 +55,19 @@ function makeRequest($method, $url, $data = null) {
 }
 
 // Test getting all components
-function testGetComponents($baseUrl) {
+function testGetComponents($baseUrl)
+{
     echo "Testing getting all components...\n";
 
     $response = makeRequest('GET', "$baseUrl/components");
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 200) {
             echo "Components retrieved successfully!\n";
-            echo "Count: " . count($response['body']) . "\n";
+            echo 'Count: '.count($response['body'])."\n";
             if (count($response['body']) > 0) {
-                echo "First component: " . $response['body'][0]['name'] . "\n";
+                echo 'First component: '.$response['body'][0]['name']."\n";
             }
         } else {
             echo "Failed to retrieve components.\n";
@@ -74,11 +77,12 @@ function testGetComponents($baseUrl) {
 }
 
 // Test creating a component
-function testCreateComponent($baseUrl) {
+function testCreateComponent($baseUrl)
+{
     echo "\nTesting component creation...\n";
 
     $data = [
-        'name' => 'Test Component ' . time(),
+        'name' => 'Test Component '.time(),
         'type' => 'Custom',
         'definition' => json_encode([
             'default' => [
@@ -96,10 +100,11 @@ function testCreateComponent($baseUrl) {
     $response = makeRequest('POST', "$baseUrl/components", $data);
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 201) {
             echo "Component created successfully!\n";
-            echo "Component ID: " . $response['body']['component']['id'] . "\n";
+            echo 'Component ID: '.$response['body']['component']['id']."\n";
+
             return $response['body']['component']['id'];
         } else {
             echo "Failed to create component.\n";
@@ -111,11 +116,12 @@ function testCreateComponent($baseUrl) {
 }
 
 // Test creating a component with an icon
-function testCreateComponentWithIcon($baseUrl) {
+function testCreateComponentWithIcon($baseUrl)
+{
     echo "\nTesting component creation with icon...\n";
 
     $data = [
-        'name' => 'Test Component With Icon ' . time(),
+        'name' => 'Test Component With Icon '.time(),
         'type' => 'Custom',
         'definition' => json_encode([
             'default' => [
@@ -128,18 +134,19 @@ function testCreateComponentWithIcon($baseUrl) {
                 ],
             ],
         ]),
-        'icon_name' => 'Test Icon ' . time(),
+        'icon_name' => 'Test Icon '.time(),
         'icon_svg' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>',
     ];
 
     $response = makeRequest('POST', "$baseUrl/components", $data);
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 201) {
             echo "Component with icon created successfully!\n";
-            echo "Component ID: " . $response['body']['component']['id'] . "\n";
-            echo "Icon ID: " . $response['body']['component']['icon_id'] . "\n";
+            echo 'Component ID: '.$response['body']['component']['id']."\n";
+            echo 'Icon ID: '.$response['body']['component']['icon_id']."\n";
+
             return $response['body']['component']['id'];
         } else {
             echo "Failed to create component with icon.\n";
@@ -151,17 +158,18 @@ function testCreateComponentWithIcon($baseUrl) {
 }
 
 // Test getting a specific component
-function testGetComponent($baseUrl, $componentId) {
+function testGetComponent($baseUrl, $componentId)
+{
     echo "\nTesting getting specific component...\n";
 
     $response = makeRequest('GET', "$baseUrl/components/$componentId");
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 200) {
             echo "Component retrieved successfully!\n";
-            echo "Name: " . $response['body']['name'] . "\n";
-            echo "Type: " . $response['body']['type'] . "\n";
+            echo 'Name: '.$response['body']['name']."\n";
+            echo 'Type: '.$response['body']['type']."\n";
             if ($response['body']['icon']) {
                 echo "Has icon: Yes\n";
             } else {
@@ -175,11 +183,12 @@ function testGetComponent($baseUrl, $componentId) {
 }
 
 // Test updating a component
-function testUpdateComponent($baseUrl, $componentId) {
+function testUpdateComponent($baseUrl, $componentId)
+{
     echo "\nTesting updating component...\n";
 
     $data = [
-        'name' => 'Updated Component ' . time(),
+        'name' => 'Updated Component '.time(),
         'definition' => json_encode([
             'default' => [
                 'size' => [
@@ -196,10 +205,10 @@ function testUpdateComponent($baseUrl, $componentId) {
     $response = makeRequest('PUT', "$baseUrl/components/$componentId", $data);
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 200) {
             echo "Component updated successfully!\n";
-            echo "New name: " . $response['body']['component']['name'] . "\n";
+            echo 'New name: '.$response['body']['component']['name']."\n";
         } else {
             echo "Failed to update component.\n";
             print_r($response['body']);
@@ -208,13 +217,14 @@ function testUpdateComponent($baseUrl, $componentId) {
 }
 
 // Test deleting a component
-function testDeleteComponent($baseUrl, $componentId) {
+function testDeleteComponent($baseUrl, $componentId)
+{
     echo "\nTesting deleting component...\n";
 
     $response = makeRequest('DELETE', "$baseUrl/components/$componentId");
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 204) {
             echo "Component deleted successfully!\n";
         } else {
@@ -225,7 +235,8 @@ function testDeleteComponent($baseUrl, $componentId) {
 }
 
 // Test invalid component creation (missing required fields)
-function testInvalidComponentCreation($baseUrl) {
+function testInvalidComponentCreation($baseUrl)
+{
     echo "\nTesting invalid component creation (missing required fields)...\n";
 
     $data = [
@@ -236,10 +247,10 @@ function testInvalidComponentCreation($baseUrl) {
     $response = makeRequest('POST', "$baseUrl/components", $data);
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 422) {
             echo "Validation failed as expected!\n";
-            echo "Error fields: " . implode(', ', array_keys($response['body']['errors'])) . "\n";
+            echo 'Error fields: '.implode(', ', array_keys($response['body']['errors']))."\n";
         } else {
             echo "Unexpected response.\n";
             print_r($response['body']);
@@ -248,7 +259,8 @@ function testInvalidComponentCreation($baseUrl) {
 }
 
 // Test invalid component creation (invalid definition)
-function testInvalidDefinition($baseUrl) {
+function testInvalidDefinition($baseUrl)
+{
     echo "\nTesting invalid component creation (invalid definition)...\n";
 
     $data = [
@@ -267,11 +279,11 @@ function testInvalidDefinition($baseUrl) {
     $response = makeRequest('POST', "$baseUrl/components", $data);
 
     if ($response) {
-        echo "Status: " . $response['status'] . "\n";
+        echo 'Status: '.$response['status']."\n";
         if ($response['status'] === 422) {
             echo "Validation failed as expected!\n";
             if (isset($response['body']['errors']['definition'])) {
-                echo "Definition error: " . $response['body']['errors']['definition'][0] . "\n";
+                echo 'Definition error: '.$response['body']['errors']['definition'][0]."\n";
             } else {
                 print_r($response['body']['errors']);
             }

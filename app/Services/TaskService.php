@@ -16,14 +16,14 @@ class TaskService
     /**
      * Determines if a task is overdue based on its assigned user's timezone.
      *
-     * @param Task $task The task model object.
-     * @param string $deadlineTime Optional time string, e.g., '17:00:00'. Defaults to a full day check.
+     * @param  Task  $task  The task model object.
+     * @param  string  $deadlineTime  Optional time string, e.g., '17:00:00'. Defaults to a full day check.
      * @return bool True if the task is overdue, false otherwise.
      */
     public function isTaskOverdue(Task $task, string $deadlineTime = '23:59:59'): bool
     {
         // Check for necessary data before proceeding.
-        if (!$task->assignee || !$task->assignee->timezone || !$task->due_date) {
+        if (! $task->assignee || ! $task->assignee->timezone || ! $task->due_date) {
             // Log this as a warning or return based on your application's needs.
             return false;
         }
@@ -33,7 +33,7 @@ class TaskService
 
         // Combine the due date and the deadline time in the assignee's timezone.
         $deadlineMoment = Carbon::parse(
-            $task->due_date . ' ' . $deadlineTime,
+            $task->due_date.' '.$deadlineTime,
             $assigneeTimezone
         );
 
@@ -45,9 +45,6 @@ class TaskService
      * Determines if a task was completed on or before its due date.
      *
      * The check is timezone-aware, based on the task assignee's timezone.
-     *
-     * @param Task $task
-     * @return bool
      */
     public function isTaskOnTime(Task $task): bool
     {
@@ -71,9 +68,6 @@ class TaskService
      * Determines if a task was completed at least 24 hours before its due date.
      *
      * The check is timezone-aware, based on the task assignee's timezone.
-     *
-     * @param Task $task
-     * @return bool
      */
     public function isTaskEarly(Task $task): bool
     {

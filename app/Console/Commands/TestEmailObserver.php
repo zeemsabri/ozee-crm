@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Email;
 use App\Models\Conversation;
+use App\Models\Email;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Console\Command;
@@ -33,7 +33,7 @@ class TestEmailObserver extends Command
         $this->info("Starting email observer notification test...\n");
 
         // 1. Create a test project
-        $this->info("Creating test project...");
+        $this->info('Creating test project...');
         $project = Project::create([
             'name' => 'Test Project for Email Observer',
             'status' => 'active',
@@ -46,21 +46,21 @@ class TestEmailObserver extends Command
         // Create a user with global approve_emails permission
         $globalApproverUser = User::create([
             'name' => 'Global Email Approver (Observer Test)',
-            'email' => 'global_approver_observer_' . time() . '@example.com',
+            'email' => 'global_approver_observer_'.time().'@example.com',
             'password' => bcrypt('password'),
         ]);
 
         // Create a user with project-specific approve_emails permission
         $projectApproverUser = User::create([
             'name' => 'Project Email Approver (Observer Test)',
-            'email' => 'project_approver_observer_' . time() . '@example.com',
+            'email' => 'project_approver_observer_'.time().'@example.com',
             'password' => bcrypt('password'),
         ]);
 
         // Create a user with approve_received_emails permission
         $receivedApproverUser = User::create([
             'name' => 'Received Email Approver (Observer Test)',
-            'email' => 'received_approver_observer_' . time() . '@example.com',
+            'email' => 'received_approver_observer_'.time().'@example.com',
             'password' => bcrypt('password'),
         ]);
 
@@ -90,7 +90,7 @@ class TestEmailObserver extends Command
             'permission_id' => DB::table('permissions')->where('slug', 'approve_received_emails')->first()->id,
         ]);
 
-        $this->info("Permissions assigned");
+        $this->info('Permissions assigned');
 
         // 4. Create a test conversation
         $this->info("\nCreating test conversation...");
@@ -105,7 +105,7 @@ class TestEmailObserver extends Command
         $this->info("\nCreating test emails...");
 
         // Create a pending_approval + sent email
-        $this->info("Creating sent email pending approval...");
+        $this->info('Creating sent email pending approval...');
         $sentEmail = Email::create([
             'conversation_id' => $conversation->id,
             'sender_id' => $globalApproverUser->id,
@@ -120,10 +120,10 @@ class TestEmailObserver extends Command
 
         // Check if notifications were created
         $sentNotifications = DB::table('notifications')
-            ->where('data', 'like', '%"email_id":' . $sentEmail->id . '%')
+            ->where('data', 'like', '%"email_id":'.$sentEmail->id.'%')
             ->get();
 
-        $this->info("Found " . $sentNotifications->count() . " notifications for sent email");
+        $this->info('Found '.$sentNotifications->count().' notifications for sent email');
 
         // Create a pending_approval_received + received email
         $this->info("\nCreating received email pending approval...");
@@ -141,12 +141,12 @@ class TestEmailObserver extends Command
 
         // Check if notifications were created
         $receivedNotifications = DB::table('notifications')
-            ->where('data', 'like', '%"email_id":' . $receivedEmail->id . '%')
+            ->where('data', 'like', '%"email_id":'.$receivedEmail->id.'%')
             ->get();
 
-        $this->info("Found " . $receivedNotifications->count() . " notifications for received email");
+        $this->info('Found '.$receivedNotifications->count().' notifications for received email');
 
         $this->info("\nTest completed successfully!");
-        $this->info("Check the database notifications table to verify notifications were created.");
+        $this->info('Check the database notifications table to verify notifications were created.');
     }
 }

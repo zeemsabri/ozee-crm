@@ -58,6 +58,7 @@ class ProjectDeliverableController extends Controller
     public function show(string $id)
     {
         $deliverable = ProjectDeliverable::with(['project', 'milestone', 'tasks'])->findOrFail($id);
+
         return response()->json($deliverable);
     }
 

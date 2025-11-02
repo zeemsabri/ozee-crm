@@ -26,7 +26,7 @@ class FetchConversionRate extends Command
      */
     public function handle()
     {
-        $new = new FetchCurrencyRatesJob();
+        $new = new FetchCurrencyRatesJob;
         $new->handle();
     }
 }

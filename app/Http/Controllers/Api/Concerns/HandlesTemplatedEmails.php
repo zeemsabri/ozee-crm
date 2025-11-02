@@ -4,30 +4,24 @@ namespace App\Http\Controllers\Api\Concerns;
 
 use App\Enums\EmailType;
 use App\Models\Client;
+use App\Models\Email;
 use App\Models\EmailTemplate;
 use App\Models\Lead;
 use App\Models\PlaceholderDefinition;
 use App\Models\Project;
-use App\Models\Email;
+use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
-use Exception;
 
 trait HandlesTemplatedEmails
 {
     /**
      * Helper function to replace all placeholders in a string.
      *
-     * @param string $content
-     * @param EmailTemplate $template
-     * @param array $templateData
-     * @param mixed $recipient
-     * @param Project $project
-     * @param bool $isFinalSend
-     * @return string
+     * @param  mixed  $recipient
      */
     protected function populateAllPlaceholders(string $content, EmailTemplate $template, array $templateData, $recipient, Project $project, bool $isFinalSend): string
     {
@@ -48,15 +42,18 @@ trait HandlesTemplatedEmails
 
                 // Helper: parse (Label)[URL]
                 $parseLink = function ($str) {
-                    if (!is_string($str)) return null;
+                    if (! is_string($str)) {
+                        return null;
+                    }
                     if (preg_match('/^\((.*?)\)\[(.*?)\]$/', $str, $m)) {
                         return ['label' => $m[1], 'url' => $m[2]];
                     }
+
                     return null;
                 };
                 // Helper: linkify inline (Label)[URL] occurrences within any text
-                $linkifyInline = function ($text) use ($parseLink) {
-                    if (!is_string($text) || $text === '') {
+                $linkifyInline = function ($text) {
+                    if (! is_string($text) || $text === '') {
                         return '';
                     }
                     $pattern = '/\((.*?)\)\[(.*?)\]/';
@@ -70,7 +67,7 @@ trait HandlesTemplatedEmails
                         $label = $m[1][0] ?? '';
                         $url = $m[2][0] ?? '';
                         if ($url !== '') {
-                            $result .= '<a href="' . e($url) . '">' . e($label ?: $url) . '</a>';
+                            $result .= '<a href="'.e($url).'">'.e($label ?: $url).'</a>';
                         } else {
                             // If URL empty, just render the original text escaped
                             $result .= e($m[0][0]);
@@ -78,46 +75,47 @@ trait HandlesTemplatedEmails
                         $offset = $start + $len;
                     }
                     $result .= e(substr($text, $offset));
+
                     return $result;
                 };
 
                 if ($isRepeatable && $isDynamic) {
                     // New: repeatable dynamic values (array of strings), mixed text and links
-                    if (is_array($value) && !empty($value)) {
+                    if (is_array($value) && ! empty($value)) {
                         $html = '';
                         foreach ($value as $item) {
                             $link = $parseLink($item);
-                            if ($link && !empty($link['url'])) {
+                            if ($link && ! empty($link['url'])) {
                                 $label = e($link['label'] ?: $link['url']);
                                 $url = e($link['url']);
-                                $html .= '<p><a href="' . $url . '">' . $label . '</a></p>';
+                                $html .= '<p><a href="'.$url.'">'.$label.'</a></p>';
                             } else {
-                                $html .= '<p>' . $linkifyInline((string) $item) . '</p>';
+                                $html .= '<p>'.$linkifyInline((string) $item).'</p>';
                             }
                         }
                         $replacementValue = $html;
                     }
                 } elseif ($isRepeatable) {
                     // Existing: repeatable from source model (IDs)
-                    if (is_array($value) && !empty($value) && $placeholder->source_model && $placeholder->source_attribute) {
+                    if (is_array($value) && ! empty($value) && $placeholder->source_model && $placeholder->source_attribute) {
                         $modelClass = $placeholder->source_model;
                         $attribute = $placeholder->source_attribute;
                         $items = $modelClass::whereIn('id', $value)->get();
                         $listHtml = '<ul>';
                         foreach ($items as $item) {
-                            $listHtml .= '<li>' . e($item->{$attribute} ?? 'N/A') . '</li>';
+                            $listHtml .= '<li>'.e($item->{$attribute} ?? 'N/A').'</li>';
                         }
                         $listHtml .= '</ul>';
                         $replacementValue = $listHtml;
                     }
                 } elseif ($isDynamic) {
                     // Single dynamic value (string); may be link syntax
-                    $stringValue = is_array($value) ? '' : (string)($value ?? '');
+                    $stringValue = is_array($value) ? '' : (string) ($value ?? '');
                     $link = $parseLink($stringValue);
-                    if ($link && !empty($link['url'])) {
+                    if ($link && ! empty($link['url'])) {
                         $label = e($link['label'] ?: $link['url']);
                         $url = e($link['url']);
-                        $replacementValue = '<a href="' . $url . '">' . $label . '</a>';
+                        $replacementValue = '<a href="'.$url.'">'.$label.'</a>';
                     } else {
                         // Also linkify inline patterns within the text
                         $replacementValue = $linkifyInline($stringValue);
@@ -138,7 +136,7 @@ trait HandlesTemplatedEmails
         // Process static placeholders from the template
         foreach ($placeholders as $placeholder) {
             $placeholderTag = "{{ {$placeholder->name} }}";
-            if (!isset($replacements[$placeholderTag]) || $replacements[$placeholderTag] === '') {
+            if (! isset($replacements[$placeholderTag]) || $replacements[$placeholderTag] === '') {
                 $replacements[$placeholderTag] = $this->getPlaceholderValue($placeholder, $recipient, $project, $isFinalSend);
             }
         }
@@ -146,7 +144,7 @@ trait HandlesTemplatedEmails
         // Handle magic link button as a special case
         if (Str::contains($content, '{{ Magic Link Button }}')) {
             $magicLinkUrl = $this->getMagicLinkUrl($recipient->email, $project->id, $isFinalSend);
-            $buttonHtml = '<a href="' . e($magicLinkUrl) . '" style="background-color:#5d50c6;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;font-size:16px;display:inline-block;box-shadow:0 4px 8px rgba(0,0,0,0.1);">Client Portal</a>';
+            $buttonHtml = '<a href="'.e($magicLinkUrl).'" style="background-color:#5d50c6;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;font-size:16px;display:inline-block;box-shadow:0 4px 8px rgba(0,0,0,0.1);">Client Portal</a>';
             $content = str_replace('{{ Magic Link Button }}', $buttonHtml, $content);
         }
 
@@ -158,16 +156,12 @@ trait HandlesTemplatedEmails
     /**
      * Get the value for a static placeholder from its source model.
      *
-     * @param PlaceholderDefinition $placeholder
-     * @param mixed $recipient
-     * @param Project $project
-     * @param bool $isFinalSend
-     * @return string
+     * @param  mixed  $recipient
      */
-    protected function getPlaceholderValue(PlaceholderDefinition $placeholder, $recipient, Project|null $project, bool $isFinalSend): string
+    protected function getPlaceholderValue(PlaceholderDefinition $placeholder, $recipient, ?Project $project, bool $isFinalSend): string
     {
         // Heuristic fallbacks when no source model/attribute defined
-        if (!$placeholder->source_model || !$placeholder->source_attribute) {
+        if (! $placeholder->source_model || ! $placeholder->source_attribute) {
             $name = strtolower(trim($placeholder->name));
             if ($recipient && ($name === 'client name' || $name === 'client_name' || $name === 'client')) {
                 return $recipient->name ?? 'N/A';
@@ -175,6 +169,7 @@ trait HandlesTemplatedEmails
             if ($project && ($name === 'project name' || $name === 'project_name' || $name === 'project')) {
                 return $project->name ?? 'N/A';
             }
+
             return 'N/A';
         }
 
@@ -198,7 +193,8 @@ trait HandlesTemplatedEmails
 
         if ($modelClass === 'App\\Models\\MagicLink' && $placeholder->name === 'Magic Link' && $project) {
             $magicLinkUrl = $this->getMagicLinkUrl($recipient->email, $project->id, $isFinalSend);
-            return '<a href="' . e($magicLinkUrl) . '">Client Portal</a>';
+
+            return '<a href="'.e($magicLinkUrl).'">Client Portal</a>';
         }
 
         return 'N/A';
@@ -206,16 +202,11 @@ trait HandlesTemplatedEmails
 
     /**
      * Get or generate a magic link URL based on the context.
-     *
-     * @param string $email
-     * @param int $projectId
-     * @param bool $isFinalSend
-     * @return string
      */
     protected function getMagicLinkUrl(string $email, int $projectId, bool $isFinalSend): string
     {
         // For preview, return a placeholder URL to prevent database entries
-        if (!$isFinalSend) {
+        if (! $isFinalSend) {
             return '#preview_magic_link_url';
         }
 
@@ -228,6 +219,7 @@ trait HandlesTemplatedEmails
                 ['token' => $existingLink->token]
             );
         }
+
         // If no valid link exists, generate a new one for the final send.
         return $this->magicLinkService->generateMagicLink($email, $projectId);
     }
@@ -235,17 +227,16 @@ trait HandlesTemplatedEmails
     /**
      * Renders the subject and body for an email.
      *
-     * @param Email $email
-     * @param bool $isFinalSend
      * @return array
+     *
      * @throws Exception
      */
     public function renderEmailContent(Email $email, bool $isFinalSend = false)
     {
         if ($email->template_id) {
             $recipientClient = $email->conversation->client ?? $email->conversation->conversable;
-            if (!$recipientClient) {
-                throw new Exception('Recipient client not found for email ID: ' . $email->id);
+            if (! $recipientClient) {
+                throw new Exception('Recipient client not found for email ID: '.$email->id);
             }
 
             $template = EmailTemplate::with('placeholders')->findOrFail($email->template_id);
@@ -274,11 +265,11 @@ trait HandlesTemplatedEmails
         }
 
         // Only convert newlines to <br> for plain-text bodies.
-//        $decodedJson = json_decode($body);
-//        $looksLikeHtml = is_string($body) && str_contains($body, '<');
-//        if ($decodedJson === null && !$looksLikeHtml) {
-            $body = nl2br($body);
-//        }
+        //        $decodedJson = json_decode($body);
+        //        $looksLikeHtml = is_string($body) && str_contains($body, '<');
+        //        if ($decodedJson === null && !$looksLikeHtml) {
+        $body = nl2br($body);
+        //        }
 
         return ['subject' => $subject, 'body' => $body];
     }
@@ -286,8 +277,8 @@ trait HandlesTemplatedEmails
     /**
      * Renders a full email preview with the correct template and returns a JSON response for a saved email.
      *
-     * @param Email $email
      * @return \Illuminate\Http\JsonResponse
+     *
      * @throws Exception
      */
     public function renderFullEmailPreviewResponse(Email $email)
@@ -310,19 +301,20 @@ trait HandlesTemplatedEmails
             $fullHtml = $this->renderHtmlTemplate($data, $template);
 
             return response()->json([
-                'id'    =>  $email->id,
+                'id' => $email->id,
                 'subject' => $subject,
                 'body_html' => $fullHtml,
-                'status'    =>  $email->status,
-                'contexts' => $email->contexts()->get(['id','summary','meta_data'])
+                'status' => $email->status,
+                'contexts' => $email->contexts()->get(['id', 'summary', 'meta_data']),
             ]);
 
         } catch (Exception $e) {
-            Log::error('Error rendering full email preview: ' . $e->getMessage(), [
+            Log::error('Error rendering full email preview: '.$e->getMessage(), [
                 'email_id' => $email->id,
                 'error' => $e->getTraceAsString(),
             ]);
-            return response()->json(['message' => 'Error generating email view: ' . $e->getMessage()], 500);
+
+            return response()->json(['message' => 'Error generating email view: '.$e->getMessage()], 500);
         }
     }
 
@@ -330,16 +322,14 @@ trait HandlesTemplatedEmails
     {
 
         try {
-            return  View::make('emails.' . $template, $data)->render();
-        }
-        catch (Exception $e) {
+            return View::make('emails.'.$template, $data)->render();
+        } catch (Exception $e) {
 
         }
 
         try {
             return View::make('emails.ai_lead_outreach_template', $data)->render();
-        }
-        catch (Exception $e) {
+        } catch (Exception $e) {
             return $e->getMessage();
         }
 
@@ -369,11 +359,12 @@ trait HandlesTemplatedEmails
             ]);
 
         } catch (Exception $e) {
-            Log::error('Error rendering full email preview: ' . $e->getMessage(), [
+            Log::error('Error rendering full email preview: '.$e->getMessage(), [
                 'email_id' => $email->id,
                 'error' => $e->getTraceAsString(),
             ]);
-            return response()->json(['message' => 'Error generating email view: ' . $e->getMessage()], 500);
+
+            return response()->json(['message' => 'Error generating email view: '.$e->getMessage()], 500);
         }
     }
 
@@ -382,17 +373,17 @@ trait HandlesTemplatedEmails
 
         $sender = $email->sender;
 
-        if($email->type === EmailType::Received) {
+        if ($email->type === EmailType::Received) {
             return [
-                'name'  =>  '',
-                'role'  =>  ''
+                'name' => '',
+                'role' => '',
             ];
         }
 
-        if($sender && get_class($email->conversation?->conversable) === Lead::class) {
+        if ($sender && get_class($email->conversation?->conversable) === Lead::class) {
             return [
                 'name' => $sender->name ?? 'Original Sender',
-                'role'  =>  null
+                'role' => null,
             ];
         }
 
@@ -408,32 +399,32 @@ trait HandlesTemplatedEmails
         $config = config('branding');
 
         $body = json_decode($body) ? json_decode($body) : $body;
-        $showSignatures = !((!$isFinalSend && isset($body->paragraphs)));
+        $showSignatures = ! ((! $isFinalSend && isset($body->paragraphs)));
 
-        $data =  [
-                'emailData' => [
-                    'subject' => $subject,
-                ],
-                'bodyContent' => $body,
-                'senderName' => $senderDetails['name'],
-                'senderRole' => $senderDetails['role'],
-                'senderPhone' => $config['company']['phone'],
-                'senderWebsite' => $config['company']['website'],
-                'companyLogoUrl' => asset($config['company']['logo_url']),
-                'socialIcons' => $config['social_icons'],
-                'brandPrimaryColor' => $config['branding']['brand_primary_color'],
-                'brandSecondaryColor' => $config['branding']['brand_secondary_color'],
-                'backgroundColor' => $config['branding']['background_color'],
-                'textColorPrimary' => $config['branding']['text_color_primary'],
-                'textColorSecondary' => $config['branding']['text_color_secondary'],
-                'borderColor' => $config['branding']['border_color'],
-                'reviewLink' => null,
-                'template'  =>  $email ? $email->template : Email::TEMPLATE_DEFAULT,
-                'show_signature'    =>  true,
-            ];
+        $data = [
+            'emailData' => [
+                'subject' => $subject,
+            ],
+            'bodyContent' => $body,
+            'senderName' => $senderDetails['name'],
+            'senderRole' => $senderDetails['role'],
+            'senderPhone' => $config['company']['phone'],
+            'senderWebsite' => $config['company']['website'],
+            'companyLogoUrl' => asset($config['company']['logo_url']),
+            'socialIcons' => $config['social_icons'],
+            'brandPrimaryColor' => $config['branding']['brand_primary_color'],
+            'brandSecondaryColor' => $config['branding']['brand_secondary_color'],
+            'backgroundColor' => $config['branding']['background_color'],
+            'textColorPrimary' => $config['branding']['text_color_primary'],
+            'textColorSecondary' => $config['branding']['text_color_secondary'],
+            'borderColor' => $config['branding']['border_color'],
+            'reviewLink' => null,
+            'template' => $email ? $email->template : Email::TEMPLATE_DEFAULT,
+            'show_signature' => true,
+        ];
 
-        if($email?->type === EmailType::Received) {
-            $data['show_signature'] =  false;
+        if ($email?->type === EmailType::Received) {
+            $data['show_signature'] = false;
         }
 
         // Add the tracking URL only for final sends

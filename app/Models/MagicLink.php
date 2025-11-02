@@ -65,6 +65,7 @@ class MagicLink extends Model
     public function markAsUsed()
     {
         $this->used = true;
+
         return $this->save();
     }
 }

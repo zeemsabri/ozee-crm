@@ -33,8 +33,9 @@ class TestPermissionHelperFix extends Command
         // Get a project ID to test with
         $project = Project::first();
 
-        if (!$project) {
-            $this->error("No projects found in the database. Please create a project first.");
+        if (! $project) {
+            $this->error('No projects found in the database. Please create a project first.');
+
             return 1;
         }
 
@@ -43,8 +44,9 @@ class TestPermissionHelperFix extends Command
         // Get a permission slug to test with
         $permission = DB::table('permissions')->first();
 
-        if (!$permission) {
-            $this->error("No permissions found in the database. Please create permissions first.");
+        if (! $permission) {
+            $this->error('No permissions found in the database. Please create permissions first.');
+
             return 1;
         }
 
@@ -53,9 +55,9 @@ class TestPermissionHelperFix extends Command
 
         // Test the fixed method
         try {
-            $this->info("Testing getUsersWithProjectPermission method...");
+            $this->info('Testing getUsersWithProjectPermission method...');
             $users = PermissionHelper::getUsersWithProjectPermission($permissionSlug, $project->id);
-            $this->info("Success! Found " . $users->count() . " users with project permission '{$permissionSlug}' for project {$project->id}");
+            $this->info('Success! Found '.$users->count()." users with project permission '{$permissionSlug}' for project {$project->id}");
 
             // Display the users
             if ($users->count() > 0) {
@@ -68,7 +70,7 @@ class TestPermissionHelperFix extends Command
             // Test getAllUsersWithPermission method which uses getUsersWithProjectPermission
             $this->info("\nTesting getAllUsersWithPermission method...");
             $allUsers = PermissionHelper::getAllUsersWithPermission($permissionSlug, $project->id);
-            $this->info("Success! Found " . $allUsers->count() . " users with permission '{$permissionSlug}' (global or project-specific) for project {$project->id}");
+            $this->info('Success! Found '.$allUsers->count()." users with permission '{$permissionSlug}' (global or project-specific) for project {$project->id}");
 
             // Display the users
             if ($allUsers->count() > 0) {
@@ -79,12 +81,14 @@ class TestPermissionHelperFix extends Command
             }
 
         } catch (\Exception $e) {
-            $this->error("Error: " . $e->getMessage());
-            $this->error("Stack trace: " . $e->getTraceAsString());
+            $this->error('Error: '.$e->getMessage());
+            $this->error('Stack trace: '.$e->getTraceAsString());
+
             return 1;
         }
 
         $this->info("\nTest completed successfully.");
+
         return 0;
     }
 }

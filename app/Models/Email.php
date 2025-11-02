@@ -2,39 +2,44 @@
 
 namespace App\Models;
 
-use Faker\Core\File;
-use GPBMetadata\Google\Api\Auth;
+use App\Models\Traits\HasCategories;
+use App\Models\Traits\Taggable;
+use App\Services\PointsService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\Traits\Taggable;
-use App\Models\Traits\HasCategories;
-use App\Services\PointsService;
 use Illuminate\Support\Facades\Log;
 
 class Email extends Model
 {
-    use HasFactory, Taggable, SoftDeletes, HasCategories;
+    use HasCategories, HasFactory, SoftDeletes, Taggable;
 
     /** @deprecated use App\Enums\EmailStatus::PendingApprovalReceived */
     public const STATUS_PENDING_APPROVAL = \App\Enums\EmailStatus::PendingApprovalReceived->value;
 
     /** @deprecated use App\Enums\EmailStatus::PendingApproval */
     public const STATUS_PENDING_APPROVAL_SENT = \App\Enums\EmailStatus::PendingApproval->value;
+
     /** @deprecated use App\Enums\EmailStatus::Sent */
     public const STATUS_APPROVED = \App\Enums\EmailStatus::Sent->value;
+
     /** @deprecated use App\Enums\EmailStatus::RejectedReceived */
     public const STATUS_REJECTED = \App\Enums\EmailStatus::RejectedReceived->value;
+
     /** @deprecated use App\Enums\EmailStatus::Sent */
     public const STATUS_SENT = \App\Enums\EmailStatus::Sent->value;
+
     /** @deprecated use App\Enums\EmailStatus::Draft */
     public const STATUS_DRAFT = \App\Enums\EmailStatus::Draft->value;
 
     /** @deprecated use App\Enums\EmailType::Received */
     public const TYPE_RECEIVED = \App\Enums\EmailType::Received->value;
+
     /** @deprecated use App\Enums\EmailType::Sent */
     public const TYPE_SENT = \App\Enums\EmailType::Sent->value;
+
     const APPROVE_RECEIVED_EMAILS_PERMISSION = 'approve_received_emails';
+
     const APPROVE_SENT_EMAIL_PERMISSION = 'approve_emails';
 
     /** @deprecated use App\Enums\EmailStatus::Approved */
@@ -44,6 +49,7 @@ class Email extends Model
 
     // Blade view names for rendering outgoing emails
     const TEMPLATE_DEFAULT = 'email_template';
+
     const TEMPLATE_AI_LEAD_OUTREACH = 'ai_lead_outreach_template';
 
     protected $appends = [
@@ -56,17 +62,17 @@ class Email extends Model
             // Only trigger when moving into sent state
             $typeIsSent = ($email->type instanceof \App\Enums\EmailType)
                 ? ($email->type === \App\Enums\EmailType::Sent)
-                : (strtolower((string)$email->type) === 'sent');
+                : (strtolower((string) $email->type) === 'sent');
             $statusIsSent = ($email->status instanceof \App\Enums\EmailStatus)
                 ? ($email->status === \App\Enums\EmailStatus::Sent)
-                : (strtolower((string)$email->status) === 'sent');
+                : (strtolower((string) $email->status) === 'sent');
             $changedToSent = $email->wasChanged('status');
 
             if ($changedToSent && $typeIsSent && $statusIsSent) {
                 try {
                     app(PointsService::class)->awardPointsFor($email);
                 } catch (\Throwable $e) {
-                    Log::error('Failed to award email points: ' . $e->getMessage());
+                    Log::error('Failed to award email points: '.$e->getMessage());
                 }
             }
         });
@@ -83,7 +89,7 @@ class Email extends Model
     /**
      * Check if the email has been read by a specific user.
      *
-     * @param int $userId
+     * @param  int  $userId
      * @return bool
      */
     public function isReadBy($userId)
@@ -112,7 +118,7 @@ class Email extends Model
         'email_template',
         'is_private',
         'last_communication_at',
-        'contacted_at'
+        'contacted_at',
     ];
 
     protected $casts = [
@@ -148,7 +154,7 @@ class Email extends Model
      * Set the sender_id attribute and automatically set sender_type to User
      * when the email is created from the frontend.
      *
-     * @param mixed $value
+     * @param  mixed  $value
      * @return void
      */
     public function setSenderIdAttribute($value)
@@ -156,7 +162,7 @@ class Email extends Model
         $this->attributes['sender_id'] = $value;
 
         // If sender_type is not set, default to User model
-        if (!isset($this->attributes['sender_type'])) {
+        if (! isset($this->attributes['sender_type'])) {
             $this->attributes['sender_type'] = 'App\\Models\\User';
         }
     }
@@ -174,11 +180,11 @@ class Email extends Model
     {
         $statusIsSent = ($this->status instanceof \App\Enums\EmailStatus)
             ? ($this->status === \App\Enums\EmailStatus::Sent)
-            : (strtolower((string)$this->status) === \App\Enums\EmailStatus::Sent->value);
+            : (strtolower((string) $this->status) === \App\Enums\EmailStatus::Sent->value);
 
         $typeIsReceived = ($this->type instanceof \App\Enums\EmailType)
             ? ($this->type === \App\Enums\EmailType::Received)
-            : (strtolower((string)$this->type) === \App\Enums\EmailType::Received->value);
+            : (strtolower((string) $this->type) === \App\Enums\EmailType::Received->value);
 
         return $statusIsSent || $typeIsReceived;
     }
@@ -209,17 +215,18 @@ class Email extends Model
      */
     public function scopeVisibleTo($query, $user)
     {
-        if (!$user || !$user->hasPermission('view_private_emails')) {
+        if (! $user || ! $user->hasPermission('view_private_emails')) {
             $query->where(function ($q) {
                 $q->whereNull('is_private')->orWhere('is_private', false);
             });
         }
+
         return $query;
     }
 
     public function getCanOpenAttribute()
     {
-        if($this->status === self::STATUS_DRAFT) {
+        if ($this->status === self::STATUS_DRAFT) {
             return false;
         }
 
@@ -230,14 +237,14 @@ class Email extends Model
     {
         $user = request()?->user();
 
-        if (!$user) {
+        if (! $user) {
             return false;
         }
 
         // Normalize status to enum when possible
         $statusEnum = $this->status instanceof \App\Enums\EmailStatus
             ? $this->status
-            : \App\Enums\EmailStatus::tryFrom(strtolower((string)$this->status));
+            : \App\Enums\EmailStatus::tryFrom(strtolower((string) $this->status));
 
         if ($statusEnum === \App\Enums\EmailStatus::Draft) {
             return false;
@@ -248,7 +255,7 @@ class Email extends Model
         // Check approval permission for outgoing emails
         if ($statusEnum === \App\Enums\EmailStatus::PendingApproval && $this->conversation?->project?->id) {
 
-            if($user->hasPermission('approve_all_emails')) {
+            if ($user->hasPermission('approve_all_emails')) {
                 $canApprove = true;
             }
 
@@ -262,7 +269,7 @@ class Email extends Model
             $canApprove = true;
         }
 
-        if(!$this->conversation?->conversable && $user->hasPermission('contact_leads')) {
+        if (! $this->conversation?->conversable && $user->hasPermission('contact_leads')) {
             $canApprove = true;
         }
 
@@ -288,5 +295,4 @@ class Email extends Model
             ],
         ];
     }
-
 }

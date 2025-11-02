@@ -12,5 +12,4 @@ class WeeklyStreak extends Model
     const WEEKLY_STREAK_BONUS = 500;
 
     protected $fillable = ['id'];
-
 }

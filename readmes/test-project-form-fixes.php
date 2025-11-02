@@ -3,16 +3,16 @@
 // This is a simple test script to verify that the ProjectForm fixes work correctly
 // Run this script with: php test-project-form-fixes.php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap the Laravel application
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -27,23 +27,23 @@ foreach ($roles as $role) {
 echo "\n";
 
 // Get a manager user
-$manager = User::whereHas('role', function($query) {
+$manager = User::whereHas('role', function ($query) {
     $query->where('slug', 'manager');
 })->first();
 
-if (!$manager) {
+if (! $manager) {
     echo "Manager user not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
 
 // Get a project
 $project = Project::first();
-if (!$project) {
+if (! $project) {
     echo "No projects found in the database. Creating a test project...\n";
 
     // Get a client
     $client = Client::first();
-    if (!$client) {
+    if (! $client) {
         echo "No clients found in the database. Please create a client first.\n";
         exit;
     }
@@ -70,18 +70,18 @@ Auth::login($manager);
 echo "TEST 1: Verify user saving functionality\n";
 
 // Find a user not already assigned to the project
-$newUser = User::whereDoesntHave('projects', function($query) use ($project) {
+$newUser = User::whereDoesntHave('projects', function ($query) use ($project) {
     $query->where('projects.id', $project->id);
 })->first();
 
-if (!$newUser) {
+if (! $newUser) {
     echo "No available users to add to the project. Creating a new user...\n";
 
     // Create a new user
     $employeeRole = Role::where('slug', 'employee')->first();
     $newUser = User::create([
         'name' => 'Test User for ProjectForm Fixes',
-        'email' => 'test-user-fixes-' . time() . '@example.com',
+        'email' => 'test-user-fixes-'.time().'@example.com',
         'password' => bcrypt('password'),
         'role_id' => $employeeRole->id,
     ]);
@@ -91,7 +91,7 @@ if (!$newUser) {
 
 // Find a role to assign
 $userRoleToAssign = Role::where('slug', 'employee')->first();
-if (!$userRoleToAssign) {
+if (! $userRoleToAssign) {
     $userRoleToAssign = $roles->first();
 }
 
@@ -102,9 +102,9 @@ $userData = [
     'user_ids' => [
         [
             'id' => $newUser->id,
-            'role_id' => $userRoleToAssign->id
-        ]
-    ]
+            'role_id' => $userRoleToAssign->id,
+        ],
+    ],
 ];
 
 // Instead of calling the controller method directly, we'll use the DB to simulate the action
@@ -121,7 +121,7 @@ try {
     // Create a mock response
     $response = new \Illuminate\Http\Response(json_encode($project->users), 200);
 } catch (\Exception $e) {
-    echo "ERROR: " . $e->getMessage() . "\n";
+    echo 'ERROR: '.$e->getMessage()."\n";
     $response = new \Illuminate\Http\Response(json_encode(['error' => $e->getMessage()]), 500);
 }
 
@@ -147,7 +147,7 @@ if ($response->getStatusCode() === 200) {
         echo "FAILURE: User was not added to the project\n";
     }
 } else {
-    echo "FAILURE: API call failed with status code " . $response->getStatusCode() . "\n";
+    echo 'FAILURE: API call failed with status code '.$response->getStatusCode()."\n";
 }
 
 // Test 2: Verify project data loading

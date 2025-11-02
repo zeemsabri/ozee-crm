@@ -14,7 +14,7 @@ class ProjectNoteController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
@@ -28,43 +28,44 @@ class ProjectNoteController extends Controller
         }
         $query->with('user:id,name');
         $query->orderBy('created_at', 'desc');
+
         return $query->get();
     }
 
     public function store(Request $request)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-//        try {
-            $validated = $request->validate([
-                'body' => 'required|string',
-                'noteable_id' => 'required|integer',
-                'noteable_type' => 'required|string',
-                'type' => 'nullable|string',
-                'parent_id' => 'nullable|exists:project_notes,id',
-            ]);
+        //        try {
+        $validated = $request->validate([
+            'body' => 'required|string',
+            'noteable_id' => 'required|integer',
+            'noteable_type' => 'required|string',
+            'type' => 'nullable|string',
+            'parent_id' => 'nullable|exists:project_notes,id',
+        ]);
 
-            $note = new ProjectNote();
-            $note->content = $validated['body'];
-            $note->noteable_id = $validated['noteable_id'];
-            $note->noteable_type = $validated['noteable_type'];
-            $note->type = ProjectNote::COMMENT;
-            $note->parent_id = $validated['parent_id'] ?? null;
-            $note->user_id = $user->id;
-            $note->save();
+        $note = new ProjectNote;
+        $note->content = $validated['body'];
+        $note->noteable_id = $validated['noteable_id'];
+        $note->noteable_type = $validated['noteable_type'];
+        $note->type = ProjectNote::COMMENT;
+        $note->parent_id = $validated['parent_id'] ?? null;
+        $note->user_id = $user->id;
+        $note->save();
 
-            return response()->json($note->load('user:id,name'), 201);
-//        } catch (ValidationException $e) {
-//            return response()->json([
-//                'message' => 'Validation failed',
-//                'errors' => $e->errors(),
-//            ], 422);
-//        } catch (\Throwable $e) {
-//            Log::error('Failed to create project note: '.$e->getMessage());
-//            return response()->json(['message' => 'Failed to create note'], 500);
-//        }
+        return response()->json($note->load('user:id,name'), 201);
+        //        } catch (ValidationException $e) {
+        //            return response()->json([
+        //                'message' => 'Validation failed',
+        //                'errors' => $e->errors(),
+        //            ], 422);
+        //        } catch (\Throwable $e) {
+        //            Log::error('Failed to create project note: '.$e->getMessage());
+        //            return response()->json(['message' => 'Failed to create note'], 500);
+        //        }
     }
 }

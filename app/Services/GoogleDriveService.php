@@ -13,14 +13,12 @@ class GoogleDriveService
     /**
      * Create a folder in Google Drive.
      *
-     * @param string $folderName
-     * @param string|null $parentFolderId
      * @return string Folder ID
      */
     public function createFolder(string $folderName, ?string $parentFolderId = null): string
     {
         try {
-            $folder = new Drive\DriveFile();
+            $folder = new Drive\DriveFile;
             $folder->setName($folderName);
             $folder->setMimeType('application/vnd.google-apps.folder');
             if ($parentFolderId) {
@@ -38,7 +36,7 @@ class GoogleDriveService
 
             return $createdFolder->id;
         } catch (\Exception $e) {
-            Log::error('Error creating Google Drive folder: ' . $e->getMessage(), [
+            Log::error('Error creating Google Drive folder: '.$e->getMessage(), [
                 'folder_name' => $folderName,
                 'error' => $e->getTraceAsString(),
             ]);
@@ -49,15 +47,15 @@ class GoogleDriveService
     /**
      * Upload a file to Google Drive.
      *
-     * @param string $filePath Local path to the file
-     * @param string $fileName Name of the file in Google Drive
-     * @param string $parentFolderId Folder ID to upload to
+     * @param  string  $filePath  Local path to the file
+     * @param  string  $fileName  Name of the file in Google Drive
+     * @param  string  $parentFolderId  Folder ID to upload to
      * @return string File ID
      */
     public function uploadFile(string $filePath, string $fileName, string $parentFolderId, $field = 'webContentLink'): array
     {
         try {
-            $file = new Drive\DriveFile();
+            $file = new Drive\DriveFile;
             $file->setName($fileName);
             $file->setParents([$parentFolderId]);
 
@@ -69,7 +67,7 @@ class GoogleDriveService
                 'fields' => 'id',
             ]);
 
-            $permission = new Drive\Permission();
+            $permission = new Drive\Permission;
             $permission->setType('anyone');
             $permission->setRole('reader');
 
@@ -86,13 +84,13 @@ class GoogleDriveService
             ]);
 
             return [
-                'id'    =>  $uploadedFile->id,
-                'thumbnail' =>  $this->getThumbnailLink($uploadedFile->id),
-                'path'  => $this->getWebContentLink($uploadedFile->id, $field)
+                'id' => $uploadedFile->id,
+                'thumbnail' => $this->getThumbnailLink($uploadedFile->id),
+                'path' => $this->getWebContentLink($uploadedFile->id, $field),
             ];
 
         } catch (\Exception $e) {
-            Log::error('Error uploading file to Google Drive: ' . $e->getMessage(), [
+            Log::error('Error uploading file to Google Drive: '.$e->getMessage(), [
                 'file_name' => $fileName,
                 'parent_folder_id' => $parentFolderId,
                 'error' => $e->getTraceAsString(),
@@ -104,16 +102,17 @@ class GoogleDriveService
     /**
      * Copy a file to a new destination in Google Drive.
      *
-     * @param string $sourceFileId The ID of the file to copy.
-     * @param string $destinationFolderId The ID of the folder to copy the file to.
-     * @param string $newFileName The new name for the copied file.
+     * @param  string  $sourceFileId  The ID of the file to copy.
+     * @param  string  $destinationFolderId  The ID of the folder to copy the file to.
+     * @param  string  $newFileName  The new name for the copied file.
      * @return array An array containing the new file's ID and web link.
+     *
      * @throws \Exception
      */
     public function copyFile(string $sourceFileId, string $destinationFolderId, string $newFileName): array
     {
         try {
-            $file = new Drive\DriveFile();
+            $file = new Drive\DriveFile;
             $file->setName($newFileName);
             $file->setParents([$destinationFolderId]);
 
@@ -134,7 +133,7 @@ class GoogleDriveService
                 'link' => $copiedFile->getWebViewLink(),
             ];
         } catch (\Exception $e) {
-            Log::error('Error copying file in Google Drive: ' . $e->getMessage(), [
+            Log::error('Error copying file in Google Drive: '.$e->getMessage(), [
                 'source_file_id' => $sourceFileId,
                 'destination_folder_id' => $destinationFolderId,
                 'error' => $e->getTraceAsString(),
@@ -145,14 +144,12 @@ class GoogleDriveService
 
     /**
      * [DEBUG] Lists files and folders visible to the service account in its root.
-     *
-     * @return array
      */
     public function listRootFilesAndFolders(?string $fileName = null, $mimeType = 'application/vnd.google-apps.document'): array
     {
         try {
             $foundFiles = [];
-            $queryParts = ["trashed=false"];
+            $queryParts = ['trashed=false'];
 
             // If a specific file name is provided, add it to the search query.
             if ($fileName) {
@@ -189,45 +186,37 @@ class GoogleDriveService
 
             return $foundFiles;
         } catch (\Exception $e) {
-            Log::error('Error listing/finding files: ' . $e->getMessage(), [
+            Log::error('Error listing/finding files: '.$e->getMessage(), [
                 'error' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
     }
 
-
     /**
      * Delete a file or folder in Google Drive.
-     *
-     * @param string $fileId
-     * @return void
      */
     public function deleteFile(string $fileId): void
     {
-//        try {
-            $this->driveService->files->delete($fileId);
-            Log::info('Google Drive file/folder deleted', ['file_id' => $fileId]);
-//        } catch (\Exception $e) {
-//            Log::error('Error deleting Google Drive file/folder: ' . $e->getMessage(), [
-//                'file_id' => $fileId,
-//                'error' => $e->getTraceAsString(),
-//            ]);
-//            throw $e;
-//        }
+        //        try {
+        $this->driveService->files->delete($fileId);
+        Log::info('Google Drive file/folder deleted', ['file_id' => $fileId]);
+        //        } catch (\Exception $e) {
+        //            Log::error('Error deleting Google Drive file/folder: ' . $e->getMessage(), [
+        //                'file_id' => $fileId,
+        //                'error' => $e->getTraceAsString(),
+        //            ]);
+        //            throw $e;
+        //        }
     }
 
     /**
      * Update a folder's name in Google Drive.
-     *
-     * @param string $folderId
-     * @param string $newName
-     * @return void
      */
     public function updateFolderName(string $folderId, string $newName): void
     {
         try {
-            $file = new Drive\DriveFile();
+            $file = new Drive\DriveFile;
             $file->setName($newName);
             $this->driveService->files->update($folderId, $file);
             Log::info('Google Drive folder name updated', [
@@ -235,7 +224,7 @@ class GoogleDriveService
                 'new_name' => $newName,
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to update Google Drive folder name: ' . $e->getMessage(), [
+            Log::error('Failed to update Google Drive folder name: '.$e->getMessage(), [
                 'folder_id' => $folderId,
                 'new_name' => $newName,
                 'error' => $e->getTraceAsString(),
@@ -247,17 +236,18 @@ class GoogleDriveService
     /**
      * Add a permission to a file or folder in Google Drive.
      *
-     * @param string $fileId The ID of the file or folder.
-     * @param string $emailAddress The email address of the user or group to add.
-     * @param string $role The role for the user (e.g., 'reader', 'writer', 'commenter', 'owner').
-     * @param string $type The type of the grantee (e.g., 'user', 'group', 'domain', 'anyone').
+     * @param  string  $fileId  The ID of the file or folder.
+     * @param  string  $emailAddress  The email address of the user or group to add.
+     * @param  string  $role  The role for the user (e.g., 'reader', 'writer', 'commenter', 'owner').
+     * @param  string  $type  The type of the grantee (e.g., 'user', 'group', 'domain', 'anyone').
      * @return Drive\Permission The created permission resource.
+     *
      * @throws \Exception
      */
     public function addPermission(string $fileId, string $emailAddress, string $role = 'writer', string $type = 'user'): Drive\Permission
     {
         try {
-            $permission = new Drive\Permission();
+            $permission = new Drive\Permission;
             $permission->setType($type);
             $permission->setRole($role);
             $permission->setEmailAddress($emailAddress);
@@ -277,11 +267,11 @@ class GoogleDriveService
         } catch (\Google\Service\Exception $e) {
             // Check for common errors, e.g., 'duplicate' if user already has permission
             if ($e->getCode() == 409 && str_contains($e->getMessage(), 'duplicate')) {
-                Log::warning('Permission already exists for ' . $emailAddress . ' on ' . $fileId);
+                Log::warning('Permission already exists for '.$emailAddress.' on '.$fileId);
                 // Optionally, you could try to fetch existing permission or return a specific status
                 throw new \Exception("Permission already exists for {$emailAddress} on file/folder {$fileId}.", 0, $e);
             }
-            Log::error('Error adding Google Drive permission: ' . $e->getMessage(), [
+            Log::error('Error adding Google Drive permission: '.$e->getMessage(), [
                 'file_id' => $fileId,
                 'email_address' => $emailAddress,
                 'role' => $role,
@@ -289,7 +279,7 @@ class GoogleDriveService
             ]);
             throw $e;
         } catch (\Exception $e) {
-            Log::error('Error adding Google Drive permission: ' . $e->getMessage(), [
+            Log::error('Error adding Google Drive permission: '.$e->getMessage(), [
                 'file_id' => $fileId,
                 'email_address' => $emailAddress,
                 'role' => $role,
@@ -306,9 +296,9 @@ class GoogleDriveService
      * However, it's safer to ensure you store the permissionId when you add it,
      * or query for it when needed. For simplicity, we'll try to find it first.
      *
-     * @param string $fileId The ID of the file or folder.
-     * @param string $emailAddress The email address of the user or group to remove.
-     * @return void
+     * @param  string  $fileId  The ID of the file or folder.
+     * @param  string  $emailAddress  The email address of the user or group to remove.
+     *
      * @throws \Exception
      */
     public function removePermission(string $fileId, string $emailAddress): void
@@ -339,7 +329,7 @@ class GoogleDriveService
                 ]);
             }
         } catch (\Exception $e) {
-            Log::error('Error removing Google Drive permission: ' . $e->getMessage(), [
+            Log::error('Error removing Google Drive permission: '.$e->getMessage(), [
                 'file_id' => $fileId,
                 'email_address' => $emailAddress,
                 'error' => $e->getTraceAsString(),
@@ -353,9 +343,10 @@ class GoogleDriveService
         try {
             $file = $this->driveService->files->get($fileId, ['fields' => $field]);
             Log::info('Fetched webContentLink for file', ['file_id' => $fileId]);
+
             return $file->{$field};
         } catch (\Exception $e) {
-            Log::error('Error fetching webContentLink: ' . $e->getMessage(), [
+            Log::error('Error fetching webContentLink: '.$e->getMessage(), [
                 'file_id' => $fileId,
                 'error' => $e->getTraceAsString(),
             ]);
@@ -366,7 +357,6 @@ class GoogleDriveService
     /**
      * Fetch the thumbnail link for a file.
      *
-     * @param string $fileId
      * @return string|null Thumbnail link or null if not available
      */
     public function getThumbnailLink(string $fileId): ?string
@@ -374,12 +364,14 @@ class GoogleDriveService
         try {
             $file = $this->driveService->files->get($fileId, ['fields' => 'thumbnailLink']);
             Log::info('Fetched thumbnail link for file', ['file_id' => $fileId, 'thumbnail_link' => $file->getThumbnailLink()]);
+
             return $file->getThumbnailLink();
         } catch (\Exception $e) {
-            Log::error('Error fetching thumbnail link: ' . $e->getMessage(), [
+            Log::error('Error fetching thumbnail link: '.$e->getMessage(), [
                 'file_id' => $fileId,
                 'error' => $e->getTraceAsString(),
             ]);
+
             return null;
         }
     }
@@ -391,11 +383,11 @@ class GoogleDriveService
     public function findOrCreateSubfolder(string $parentFolderId, string $folderName): string
     {
         try {
-//            $query = sprintf("name='%s' and mimeType='application/vnd.google-apps.folder' and '%s' in parents and trashed=false", addslashes($folderName), $parentFolderId);
-//            $results = $this->driveService->files->listFiles([
-//                'q' => $query,
-//                'fields' => 'files(id,name)'
-//            ]);
+            //            $query = sprintf("name='%s' and mimeType='application/vnd.google-apps.folder' and '%s' in parents and trashed=false", addslashes($folderName), $parentFolderId);
+            //            $results = $this->driveService->files->listFiles([
+            //                'q' => $query,
+            //                'fields' => 'files(id,name)'
+            //            ]);
 
             $query = "name='{$folderName}' and mimeType='application/vnd.google-apps.folder' and '{$parentFolderId}' in parents and trashed=false";
 
@@ -414,14 +406,14 @@ class GoogleDriveService
 
             }
 
-            if(!ISSET($id)) {
+            if (! isset($id)) {
                 $id = $this->createFolder($folderName, $parentFolderId);
             }
 
             return $id;
 
         } catch (\Exception $e) {
-            \Log::error('Error finding or creating subfolder: ' . $e->getMessage(), [
+            \Log::error('Error finding or creating subfolder: '.$e->getMessage(), [
                 'parent_id' => $parentFolderId,
                 'folder_name' => $folderName,
             ]);

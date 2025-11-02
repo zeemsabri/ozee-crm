@@ -6,7 +6,8 @@
 echo "=== Testing Project Show Vue Decryption Error Handling ===\n\n";
 
 // Function to check if the frontend will handle decryption errors properly
-function testFrontendDecryptionHandling() {
+function testFrontendDecryptionHandling()
+{
     echo "This test script simulates the API response that Show.vue will receive.\n";
     echo "The frontend has been updated to handle the '[Encrypted content could not be decrypted]' placeholder text.\n\n";
 
@@ -20,34 +21,34 @@ function testFrontendDecryptionHandling() {
                 'content' => 'This is a valid note that was properly decrypted',
                 'user_id' => 1,
                 'user' => ['name' => 'Test User'],
-                'created_at' => date('Y-m-d H:i:s')
+                'created_at' => date('Y-m-d H:i:s'),
             ],
             [
                 'id' => 2,
                 'content' => '[Encrypted content could not be decrypted]',
                 'user_id' => 1,
                 'user' => ['name' => 'Test User'],
-                'created_at' => date('Y-m-d H:i:s')
+                'created_at' => date('Y-m-d H:i:s'),
             ],
             [
                 'id' => 3,
                 'content' => 'Another valid note',
                 'user_id' => 2,
                 'user' => ['name' => 'Another User'],
-                'created_at' => date('Y-m-d H:i:s')
-            ]
-        ]
+                'created_at' => date('Y-m-d H:i:s'),
+            ],
+        ],
     ];
 
     echo "Mock project response contains:\n";
-    echo "- Total notes: " . count($mockProject['notes']) . "\n";
-    echo "- Valid notes: " . (count($mockProject['notes']) - 1) . "\n";
+    echo '- Total notes: '.count($mockProject['notes'])."\n";
+    echo '- Valid notes: '.(count($mockProject['notes']) - 1)."\n";
     echo "- Notes with decryption errors: 1\n\n";
 
     echo "In the frontend (Show.vue), the notes will be displayed as follows:\n\n";
 
     foreach ($mockProject['notes'] as $index => $note) {
-        echo "Note #" . ($index + 1) . " (ID: {$note['id']}):\n";
+        echo 'Note #'.($index + 1)." (ID: {$note['id']}):\n";
 
         if ($note['content'] === '[Encrypted content could not be decrypted]') {
             echo "- Content: [STYLED IN RED, ITALIC] {$note['content']}\n";
@@ -56,7 +57,7 @@ function testFrontendDecryptionHandling() {
             echo "- Content: [NORMAL STYLING] {$note['content']}\n";
         }
 
-        echo "- Added by: {$note['user']['name']} on " . date('m/d/Y', strtotime($note['created_at'])) . "\n\n";
+        echo "- Added by: {$note['user']['name']} on ".date('m/d/Y', strtotime($note['created_at']))."\n\n";
     }
 
     echo "The frontend now properly handles decryption errors by:\n";

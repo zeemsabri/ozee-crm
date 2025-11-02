@@ -2,23 +2,24 @@
 
 // Test script to verify that the note encryption/decryption fixes work properly
 
-require_once __DIR__ . '/vendor/autoload.php';
-$app = require_once __DIR__ . '/bootstrap/app.php';
+require_once __DIR__.'/vendor/autoload.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 use App\Models\Project;
 use App\Models\ProjectNote;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\Log;
 
 echo "=== Testing Project Notes Encryption/Decryption After Fix ===\n\n";
 
 // Function to test the API endpoints that use note decryption
-function testApiEndpoints() {
+function testApiEndpoints()
+{
     // Find a project to test with
     $project = Project::first();
-    if (!$project) {
+    if (! $project) {
         echo "Error: No projects found in the database.\n";
+
         return false;
     }
 
@@ -26,13 +27,13 @@ function testApiEndpoints() {
 
     // Test 1: Create a new note with chat_message_id
     echo "Test 1: Creating a new note with chat_message_id\n";
-    $noteContent = "Test note with chat_message_id after fix - " . date('Y-m-d H:i:s');
+    $noteContent = 'Test note with chat_message_id after fix - '.date('Y-m-d H:i:s');
 
-    $note = new ProjectNote();
+    $note = new ProjectNote;
     $note->project_id = $project->id;
     $note->content = Crypt::encryptString($noteContent);
     $note->user_id = 1; // Assuming user ID 1 exists
-    $note->chat_message_id = "spaces/ABCDEF/messages/" . rand(10000, 99999);
+    $note->chat_message_id = 'spaces/ABCDEF/messages/'.rand(10000, 99999);
     $note->save();
 
     echo "Note created with ID: {$note->id}\n";
@@ -51,6 +52,7 @@ function testApiEndpoints() {
     } catch (\Exception $e) {
         echo "Decryption in index method: FAILED\n";
         echo "Error: {$e->getMessage()}\n\n";
+
         return false;
     }
 
@@ -64,6 +66,7 @@ function testApiEndpoints() {
     } catch (\Exception $e) {
         echo "Decryption in show method: FAILED\n";
         echo "Error: {$e->getMessage()}\n\n";
+
         return false;
     }
 
@@ -83,6 +86,7 @@ function testApiEndpoints() {
         } catch (\Exception $e) {
             echo "Decryption: FAILED\n";
             echo "Error: {$e->getMessage()}\n";
+
             return false;
         }
 
@@ -90,6 +94,7 @@ function testApiEndpoints() {
     }
 
     echo "All tests PASSED! The encryption/decryption fixes are working correctly.\n";
+
     return true;
 }
 

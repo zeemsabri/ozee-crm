@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Prompt;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class PromptController extends Controller
 {
@@ -38,6 +37,7 @@ class PromptController extends Controller
 
         $data['version'] = $version;
         $prompt = Prompt::create($data);
+
         return response()->json($prompt, 201);
     }
 
@@ -72,12 +72,14 @@ class PromptController extends Controller
         }
 
         $prompt->update($data);
+
         return response()->json($prompt);
     }
 
     public function destroy(Prompt $prompt)
     {
         $prompt->delete();
+
         return response()->noContent();
     }
 }

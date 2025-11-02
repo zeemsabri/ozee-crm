@@ -12,6 +12,7 @@ class LeadIntakeSubmitted extends Mailable
     use Queueable, SerializesModels;
 
     public Lead $lead;
+
     public array $payload;
 
     /**

@@ -46,9 +46,9 @@ class MonthlyPoint extends Model
     /**
      * Scope a query to only include points for a specific month and year.
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     * @param int $year
-     * @param int $month
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  int  $year
+     * @param  int  $month
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function scopeForPeriod($query, $year, $month)
@@ -59,8 +59,8 @@ class MonthlyPoint extends Model
     /**
      * Scope a query to only include points for a specific user.
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     * @param int $userId
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  int  $userId
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function scopeForUser($query, $userId)

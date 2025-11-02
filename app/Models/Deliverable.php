@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\ProjectNote;
 
 class Deliverable extends Model
 {
@@ -97,7 +96,7 @@ class Deliverable extends Model
      * Get the content URL, formatted for embedding based on its type.
      * This accessor will automatically be called when you access $deliverable->content_url.
      *
-     * @param string|null $value The raw content_url from the database.
+     * @param  string|null  $value  The raw content_url from the database.
      * @return string|null The formatted content URL for embedding.
      */
     public function getContentUrlAttribute($value)
@@ -135,7 +134,7 @@ class Deliverable extends Model
             // If after replacement, it still doesn't end with /preview and is a file/doc link,
             // it means it was just the ID part, so append /preview.
             // This ensures that links like "https://drive.google.com/file/d/FILE_ID" become "https://drive.google.com/file/d/FILE_ID/preview"
-            if (!str_ends_with($url, '/preview') &&
+            if (! str_ends_with($url, '/preview') &&
                 (str_contains($url, 'drive.google.com/file/d/') ||
                     str_contains($url, 'docs.google.com/document/d/') ||
                     str_contains($url, 'docs.google.com/spreadsheets/d/') ||
@@ -155,6 +154,7 @@ class Deliverable extends Model
                 } elseif (str_contains($url, 'vimeo.com/')) {
                     return str_replace('vimeo.com/', 'player.vimeo.com/video/', $url);
                 }
+
                 return $url; // Return original if not a recognized video embed pattern
 
             case 'other':

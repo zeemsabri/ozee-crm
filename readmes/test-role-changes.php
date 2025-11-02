@@ -1,13 +1,13 @@
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
-use App\Models\Project;
 use App\Models\Client;
+use App\Models\Project;
+use App\Models\User;
 use Illuminate\Support\Facades\Schema;
 
 // Check if 'role' column exists in project_user table
@@ -47,11 +47,11 @@ if ($user) {
         try {
             // Get or create a client
             $client = Client::first();
-            if (!$client) {
+            if (! $client) {
                 echo "No clients found. Creating a test client...\n";
-                $client = new Client();
-                $client->name = "Test Client";
-                $client->email = "test@example.com";
+                $client = new Client;
+                $client->name = 'Test Client';
+                $client->email = 'test@example.com';
                 $client->save();
                 echo "Test client created with ID: {$client->id}\n";
             } else {
@@ -59,11 +59,11 @@ if ($user) {
             }
 
             // Create a test project
-            $project = new Project();
-            $project->name = "Test Project";
-            $project->description = "Test project for role_id verification";
-            $project->status = "active";
-            $project->payment_type = "one_off";
+            $project = new Project;
+            $project->name = 'Test Project';
+            $project->description = 'Test project for role_id verification';
+            $project->status = 'active';
+            $project->payment_type = 'one_off';
             $project->client_id = $client->id;
             $project->save();
 
@@ -77,14 +77,14 @@ if ($user) {
             $user = $user->fresh();
             $projects = $user->projects;
 
-            echo "Projects after creation: " . count($projects) . "\n";
+            echo 'Projects after creation: '.count($projects)."\n";
         } catch (\Exception $e) {
-            echo "Error creating test project: " . $e->getMessage() . "\n";
+            echo 'Error creating test project: '.$e->getMessage()."\n";
         }
     }
 
     if (count($projects) > 0) {
-        echo "Projects found: " . count($projects) . "\n";
+        echo 'Projects found: '.count($projects)."\n";
 
         // Check first project pivot
         $firstProject = $projects->first();
@@ -101,7 +101,7 @@ if ($user) {
         echo $pivotRoleIdExists ? "PASS: 'role_id' exists in pivot\n" : "FAIL: 'role_id' does not exist in pivot\n";
 
         // Clean up test project if it was created in this test
-        if ($firstProject->name == "Test Project" && $firstProject->description == "Test project for role_id verification") {
+        if ($firstProject->name == 'Test Project' && $firstProject->description == 'Test project for role_id verification') {
             echo "\nCleaning up test project...\n";
             $firstProject->delete();
             echo "Test project deleted\n";

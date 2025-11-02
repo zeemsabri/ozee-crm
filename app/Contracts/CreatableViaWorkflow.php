@@ -15,7 +15,6 @@ interface CreatableViaWorkflow
      * Compute default values for create, given the workflow context.
      * Only return keys that you wish to provide defaults for.
      *
-     * @param array $context
      * @return array<string, mixed>
      */
     public static function defaultsOnCreate(array $context): array;

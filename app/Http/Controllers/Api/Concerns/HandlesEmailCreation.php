@@ -7,12 +7,10 @@ use App\Jobs\ProcessDraftEmailJob;
 use App\Models\Client;
 use App\Models\Conversation;
 use App\Models\Email;
-use App\Models\EmailTemplate;
 use App\Models\Lead;
 use App\Models\Project;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Validation\ValidationException;
 
 trait HandlesEmailCreation
 {
@@ -34,7 +32,7 @@ trait HandlesEmailCreation
         // Ensure clients belong to project
         $projectClientIds = $project->clients->pluck('id')->all();
         foreach ($clientIds as $cid) {
-            if (!in_array($cid, $projectClientIds, true)) {
+            if (! in_array($cid, $projectClientIds, true)) {
                 throw ValidationException::withMessages([
                     'client_ids' => "Client ID {$cid} is not assigned to this project.",
                 ]);
@@ -61,12 +59,13 @@ trait HandlesEmailCreation
             'sender_id' => $user->id,
             'to' => $emails,
             'subject' => $validated['subject'],
-            'body' => $greeting . '<br/>' . $validated['body'],
+            'body' => $greeting.'<br/>'.$validated['body'],
             'status' => EmailStatus::Draft,
             'type' => 'sent',
         ]);
 
         $conversation->update(['last_activity_at' => now()]);
+
         return $email;
     }
 
@@ -76,13 +75,13 @@ trait HandlesEmailCreation
     protected function handleTemplatedEmail(Authenticatable $user, array $validated): Email
     {
         $project = Project::with('clients')->findOrFail($validated['project_id']);
-        if (!$user->projects->contains($project->id)) {
+        if (! $user->projects->contains($project->id)) {
             abort(403, 'Unauthorized: You are not assigned to this project.');
         }
 
         $clientIds = $validated['client_ids'] ?? [];
         // In templated case, client_ids is array of raw IDs (not objects) from ComposeEmailContent
-        if (!empty($clientIds) && is_array($clientIds) && isset($clientIds[0]['id'])) {
+        if (! empty($clientIds) && is_array($clientIds) && isset($clientIds[0]['id'])) {
             $clientIds = array_map(fn ($c) => $c['id'], $clientIds);
         }
         if (empty($clientIds)) {
@@ -91,7 +90,7 @@ trait HandlesEmailCreation
 
         $projectClientIds = $project->clients->pluck('id')->toArray();
         foreach ($clientIds as $cid) {
-            if (!in_array($cid, $projectClientIds, true)) {
+            if (! in_array($cid, $projectClientIds, true)) {
                 throw ValidationException::withMessages([
                     'client_ids' => "Client ID {$cid} is not assigned to this project.",
                 ]);
@@ -125,9 +124,10 @@ trait HandlesEmailCreation
             'type' => 'sent',
         ]);
 
-//        ProcessDraftEmailJob::dispatch($email);
+        //        ProcessDraftEmailJob::dispatch($email);
 
         $conversation->update(['last_activity_at' => now()]);
+
         return $email;
     }
 
@@ -163,14 +163,15 @@ trait HandlesEmailCreation
             'sender_id' => $user->id,
             'to' => $emails,
             'subject' => $validated['subject'],
-            'body' => $greeting . '<br/>' . $validated['body'],
+            'body' => $greeting.'<br/>'.$validated['body'],
             'status' => EmailStatus::Draft,
             'type' => 'sent',
         ]);
 
-//        ProcessDraftEmailJob::dispatch($email);
+        //        ProcessDraftEmailJob::dispatch($email);
 
         $conversation->update(['last_activity_at' => now()]);
+
         return $email;
     }
 }

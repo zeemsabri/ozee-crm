@@ -20,15 +20,15 @@ class WorkflowTriggerListener
             ->get();
 
         Log::info('WorkflowTriggerListener.handle', [
-            'count' =>  'running for ' . $workflows->count(),
-            'from'  =>  $event->from
+            'count' => 'running for '.$workflows->count(),
+            'from' => $event->from,
         ]);
 
         foreach ($workflows as $workflow) {
             // Enrich context with event metadata for downstream use and unique key derivation
             $ctx = $event->context;
             $ctx['event'] = $event->eventName;
-            if (!isset($ctx['trigger'])) {
+            if (! isset($ctx['trigger'])) {
                 $ctx['trigger'] = $ctx;
             }
             $ctx['triggering_object_id'] = $event->triggeringObjectId;

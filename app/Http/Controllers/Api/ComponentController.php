@@ -19,13 +19,13 @@ class ComponentController extends Controller
     public function index()
     {
         $components = Component::with('icon')->get();
+
         return response()->json($components);
     }
 
     /**
      * Store a newly created component with optional icon.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
     public function store(Request $request)
@@ -44,9 +44,9 @@ class ComponentController extends Controller
 
         // Validate component definition
         $definitionData = json_decode($request->definition, true);
-        if (!Component::validateDefinition($definitionData)) {
+        if (! Component::validateDefinition($definitionData)) {
             return response()->json([
-                'errors' => ['definition' => ['The component definition is invalid. It must include default size properties.']]
+                'errors' => ['definition' => ['The component definition is invalid. It must include default size properties.']],
             ], 422);
         }
 
@@ -54,9 +54,9 @@ class ComponentController extends Controller
         $iconId = null;
         if ($request->has('icon_svg') && $request->has('icon_name')) {
             // Validate and sanitize SVG content
-            if (!Icon::validateSvgContent($request->icon_svg)) {
+            if (! Icon::validateSvgContent($request->icon_svg)) {
                 return response()->json([
-                    'errors' => ['icon_svg' => ['The SVG content is invalid or contains potentially malicious code.']]
+                    'errors' => ['icon_svg' => ['The SVG content is invalid or contains potentially malicious code.']],
                 ], 422);
             }
 
@@ -101,13 +101,13 @@ class ComponentController extends Controller
     public function show($id)
     {
         $component = Component::with('icon')->findOrFail($id);
+
         return response()->json($component);
     }
 
     /**
      * Update the specified component.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
@@ -143,9 +143,9 @@ class ComponentController extends Controller
 
         if ($request->has('definition')) {
             $definitionData = json_decode($request->definition, true);
-            if (!Component::validateDefinition($definitionData)) {
+            if (! Component::validateDefinition($definitionData)) {
                 return response()->json([
-                    'errors' => ['definition' => ['The component definition is invalid. It must include default size properties.']]
+                    'errors' => ['definition' => ['The component definition is invalid. It must include default size properties.']],
                 ], 422);
             }
             $component->definition = $definitionData;
@@ -154,9 +154,9 @@ class ComponentController extends Controller
         // Handle icon if provided
         if ($request->has('icon_svg') && $request->has('icon_name')) {
             // Validate and sanitize SVG content
-            if (!Icon::validateSvgContent($request->icon_svg)) {
+            if (! Icon::validateSvgContent($request->icon_svg)) {
                 return response()->json([
-                    'errors' => ['icon_svg' => ['The SVG content is invalid or contains potentially malicious code.']]
+                    'errors' => ['icon_svg' => ['The SVG content is invalid or contains potentially malicious code.']],
                 ], 422);
             }
 

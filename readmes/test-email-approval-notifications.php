@@ -1,13 +1,12 @@
 <?php
 
-use App\Models\Email;
+use App\Helpers\PermissionHelper;
 use App\Models\Conversation;
+use App\Models\Email;
 use App\Models\Project;
 use App\Models\User;
 use App\Notifications\EmailApprovalRequired;
-use App\Helpers\PermissionHelper;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 // This script tests the email approval notification system
 // It creates test emails with different statuses and types
@@ -29,21 +28,21 @@ echo "\nCreating test users...\n";
 // Create a user with global approve_emails permission
 $globalApproverUser = User::create([
     'name' => 'Global Email Approver',
-    'email' => 'global_approver_' . time() . '@example.com',
+    'email' => 'global_approver_'.time().'@example.com',
     'password' => bcrypt('password'),
 ]);
 
 // Create a user with project-specific approve_emails permission
 $projectApproverUser = User::create([
     'name' => 'Project Email Approver',
-    'email' => 'project_approver_' . time() . '@example.com',
+    'email' => 'project_approver_'.time().'@example.com',
     'password' => bcrypt('password'),
 ]);
 
 // Create a user with approve_received_emails permission
 $receivedApproverUser = User::create([
     'name' => 'Received Email Approver',
-    'email' => 'received_approver_' . time() . '@example.com',
+    'email' => 'received_approver_'.time().'@example.com',
     'password' => bcrypt('password'),
 ]);
 
@@ -119,7 +118,7 @@ echo "\nTesting notifications...\n";
 // Test notification for sent email
 echo "Testing notification for sent email...\n";
 $usersToNotify = PermissionHelper::getAllUsersWithPermission('approve_emails', $project->id);
-echo "Found " . $usersToNotify->count() . " users with approve_emails permission\n";
+echo 'Found '.$usersToNotify->count()." users with approve_emails permission\n";
 
 foreach ($usersToNotify as $userToNotify) {
     echo "Sending notification to user {$userToNotify->name} (ID: {$userToNotify->id})\n";
@@ -129,7 +128,7 @@ foreach ($usersToNotify as $userToNotify) {
 // Test notification for received email
 echo "\nTesting notification for received email...\n";
 $usersToNotify = PermissionHelper::getAllUsersWithPermission('approve_received_emails', $project->id);
-echo "Found " . $usersToNotify->count() . " users with approve_received_emails permission\n";
+echo 'Found '.$usersToNotify->count()." users with approve_received_emails permission\n";
 
 foreach ($usersToNotify as $userToNotify) {
     echo "Sending notification to user {$userToNotify->name} (ID: {$userToNotify->id})\n";

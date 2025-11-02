@@ -16,9 +16,9 @@ trait HasTimezoneCalculations
      * Checks if a model's timestamp occurred before a specific time of day,
      * in a given timezone.
      *
-     * @param string $timeOfDay A time string, e.g., '17:00:00'.
-     * @param string $timezone The timezone to use for the comparison.
-     * @param string $column The timestamp column to check (e.g., 'created_at', 'updated_at').
+     * @param  string  $timeOfDay  A time string, e.g., '17:00:00'.
+     * @param  string  $timezone  The timezone to use for the comparison.
+     * @param  string  $column  The timestamp column to check (e.g., 'created_at', 'updated_at').
      * @return bool True if the timestamp is strictly before the specified time.
      */
     public function isTimestampBeforeTimeInTimezone(
@@ -29,7 +29,7 @@ trait HasTimezoneCalculations
         // Retrieve the UTC timestamp from the model's specified column.
         $timestamp = $this->getAttribute($column);
 
-        if (!$timestamp) {
+        if (! $timestamp) {
             return false;
         }
 

@@ -3,47 +3,46 @@
 namespace App\Services;
 
 use App\Models\MonthlyBudget;
-use App\Models\MonthlyPoint;
 use App\Models\User;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class BonusService
 {
     /**
      * Calculates the monthly leaderboard.
-     * @param int $year
-     * @param int $month
+     *
+     * @param  int  $year
+     * @param  int  $month
      * @return \Illuminate\Support\Collection
      */
     public function getMonthlyLeaderboard($year, $month)
     {
         return User::with(['monthlyPoints' => function ($query) use ($year, $month) {
-                $query->where('year', $year)
-                    ->where('month', $month)
-                    ->orderBy('total_points', 'desc');
+            $query->where('year', $year)
+                ->where('month', $month)
+                ->orderBy('total_points', 'desc');
         }])->get();
     }
 
     /**
      * Calculates and distributes the bonuses for a given month and year.
      * This method combines all the bonus logic.
-     * @param int $year
-     * @param int $month
+     *
+     * @param  int  $year
+     * @param  int  $month
      * @return array
      */
     public function distributeMonthlyBonuses($year, $month)
     {
         $leaderboard = $this->getMonthlyLeaderboard($year, $month);
         $monthlyBudget = MonthlyBudget::where('year', $year)->where('month', $month)->first();
-        if (!$monthlyBudget) {
+        if (! $monthlyBudget) {
             return ['error' => 'Monthly budget not found.'];
         }
 
         $bonuses = [
             'employees' => [],
             'contractors' => [],
-            'project_performance' => []
+            'project_performance' => [],
         ];
 
         // Process employee bonuses
@@ -69,9 +68,9 @@ class BonusService
     /**
      * Processes and calculates all employee bonuses for the month.
      *
-     * @param \Illuminate\Support\Collection $employeeLeaderboard
-     * @param MonthlyBudget $monthlyBudget
-     * @param array $bonuses
+     * @param  \Illuminate\Support\Collection  $employeeLeaderboard
+     * @param  MonthlyBudget  $monthlyBudget
+     * @param  array  $bonuses
      */
     private function processEmployeeBonuses($employeeLeaderboard, $monthlyBudget, &$bonuses)
     {
@@ -128,9 +127,9 @@ class BonusService
     /**
      * Processes and calculates all contractor bonuses for the month.
      *
-     * @param \Illuminate\Support\Collection $contractorLeaderboard
-     * @param MonthlyBudget $monthlyBudget
-     * @param array $bonuses
+     * @param  \Illuminate\Support\Collection  $contractorLeaderboard
+     * @param  MonthlyBudget  $monthlyBudget
+     * @param  array  $bonuses
      */
     private function processContractorBonuses($contractorLeaderboard, $monthlyBudget, &$bonuses)
     {

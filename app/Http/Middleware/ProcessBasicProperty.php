@@ -19,17 +19,18 @@ class ProcessBasicProperty
     public function handle(Request $request, Closure $next, string $field, string $modelFqn): Response
     {
         // If the request already has a numeric *_id, leave it as-is
-        $incoming = $request->input($field) ?? $request->input($field . '_id');
+        $incoming = $request->input($field) ?? $request->input($field.'_id');
 
         if ($incoming === null) {
             return $next($request);
         }
 
         // Normalize to *_id on the request payload
-        $targetKey = str_ends_with($field, '_id') ? $field : $field . '_id';
+        $targetKey = str_ends_with($field, '_id') ? $field : $field.'_id';
 
         if (is_numeric($incoming)) {
             $request->merge([$targetKey => (int) $incoming]);
+
             return $next($request);
         }
 

@@ -4,7 +4,6 @@ namespace App\Models\Traits;
 
 use App\Models\Category;
 use App\Models\CategorySet;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 
 trait HasCategories
@@ -52,9 +51,9 @@ trait HasCategories
         return CategorySet::query()
             ->where(function ($q) use ($modelClass) {
                 $q->whereDoesntHave('bindings')
-                  ->orWhereHas('bindings', function ($b) use ($modelClass) {
-                      $b->where('model_type', $modelClass);
-                  });
+                    ->orWhereHas('bindings', function ($b) use ($modelClass) {
+                        $b->where('model_type', $modelClass);
+                    });
             })
             ->orderBy('name')
             ->get();
@@ -73,9 +72,9 @@ trait HasCategories
                 $q->whereHas('set.bindings', function ($b) use ($modelClass) {
                     $b->where('model_type', $modelClass);
                 })
-                ->orWhereHas('set', function ($s) {
-                    $s->doesntHave('bindings');
-                });
+                    ->orWhereHas('set', function ($s) {
+                        $s->doesntHave('bindings');
+                    });
             });
 
         if ($setSlug) {
@@ -114,6 +113,7 @@ trait HasCategories
                 /** @var Category $first */
                 $first = $group->first();
                 $set = $first?->set;
+
                 return [
                     'set' => $set ? [
                         'id' => $set->id,

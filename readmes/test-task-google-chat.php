@@ -1,23 +1,22 @@
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
-use App\Models\Project;
 use App\Models\Milestone;
+use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskType;
 use App\Models\User;
-use Illuminate\Support\Facades\Log;
 
 // Get a project with a Google Chat space
 $project = Project::whereNotNull('google_chat_id')->first();
 
-if (!$project) {
+if (! $project) {
     echo "No projects found with a Google Chat space. Please create a project with a Google Chat space first.\n";
     exit;
 }
@@ -27,7 +26,7 @@ echo "Project Google Chat ID: {$project->google_chat_id}\n";
 
 // Get or create a task type
 $taskType = TaskType::first();
-if (!$taskType) {
+if (! $taskType) {
     echo "No task types found. Creating a default task type.\n";
     $taskType = TaskType::create([
         'name' => 'Default Task Type',
@@ -38,7 +37,7 @@ if (!$taskType) {
 
 // Get or create a milestone for the project
 $milestone = $project->milestones()->first();
-if (!$milestone) {
+if (! $milestone) {
     echo "No milestones found for this project. Creating a test milestone.\n";
     $milestone = $project->milestones()->create([
         'name' => 'Test Milestone',
@@ -50,10 +49,10 @@ if (!$milestone) {
 echo "Using milestone: {$milestone->name} (ID: {$milestone->id})\n";
 
 // Create a task for the milestone
-$task = new Task();
-$task->name = "Test Task for Google Chat Integration";
-$task->description = "This is a test task to verify Google Chat integration";
-$task->status = "To Do";
+$task = new Task;
+$task->name = 'Test Task for Google Chat Integration';
+$task->description = 'This is a test task to verify Google Chat integration';
+$task->status = 'To Do';
 $task->milestone_id = $milestone->id;
 $task->task_type_id = $taskType->id;
 $task->save();
@@ -62,9 +61,9 @@ echo "Created task: {$task->name} (ID: {$task->id})\n";
 
 // Reload the task to get the Google Chat space ID
 $task->refresh();
-echo "Task Google Chat space ID: " . ($task->google_chat_space_id ?: 'Not set') . "\n";
-echo "Task Google Chat thread ID: " . ($task->google_chat_thread_id ?: 'Not set') . "\n";
-echo "Task chat message ID: " . ($task->chat_message_id ?: 'Not set') . "\n";
+echo 'Task Google Chat space ID: '.($task->google_chat_space_id ?: 'Not set')."\n";
+echo 'Task Google Chat thread ID: '.($task->google_chat_thread_id ?: 'Not set')."\n";
+echo 'Task chat message ID: '.($task->chat_message_id ?: 'Not set')."\n";
 
 // Verify that the task is using the project's Google Chat space
 if ($task->google_chat_space_id === $project->google_chat_id) {
@@ -78,16 +77,16 @@ $user = User::first();
 echo "Adding a note to the task as user: {$user->name}\n";
 
 try {
-    $result = $task->addNote("This is a test note for Google Chat integration", $user);
+    $result = $task->addNote('This is a test note for Google Chat integration', $user);
     echo "Note added successfully\n";
-    echo "Result: " . json_encode($result) . "\n";
+    echo 'Result: '.json_encode($result)."\n";
 
     // Reload the task to get updated Google Chat IDs
     $task->refresh();
-    echo "Updated task Google Chat thread ID: " . ($task->google_chat_thread_id ?: 'Not set') . "\n";
-    echo "Updated task chat message ID: " . ($task->chat_message_id ?: 'Not set') . "\n";
+    echo 'Updated task Google Chat thread ID: '.($task->google_chat_thread_id ?: 'Not set')."\n";
+    echo 'Updated task chat message ID: '.($task->chat_message_id ?: 'Not set')."\n";
 } catch (\Exception $e) {
-    echo "Error adding note: " . $e->getMessage() . "\n";
+    echo 'Error adding note: '.$e->getMessage()."\n";
 }
 
 // Start the task
@@ -105,7 +104,7 @@ try {
         echo "❌ Task status is NOT set to 'In Progress', current status: {$task->status}\n";
     }
 } catch (\Exception $e) {
-    echo "Error starting task: " . $e->getMessage() . "\n";
+    echo 'Error starting task: '.$e->getMessage()."\n";
 }
 
 // Clean up

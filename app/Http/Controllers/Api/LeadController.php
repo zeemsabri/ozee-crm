@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Lead;
 use App\Models\Campaign;
 use App\Models\Context;
+use App\Models\Lead;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -19,39 +19,41 @@ class LeadController extends Controller
     public function presentations(Lead $lead)
     {
         $user = Auth::user();
-        if (!$user || !$user->hasPermission('manage_projects')) {
+        if (! $user || ! $user->hasPermission('manage_projects')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        $items = $lead->presentations()->withCount('slides')->orderByDesc('id')->get()->map(function($p){
+        $items = $lead->presentations()->withCount('slides')->orderByDesc('id')->get()->map(function ($p) {
             return [
                 'id' => $p->id,
                 'title' => $p->title,
                 'type' => $p->type,
-                'is_template' => (bool)$p->is_template,
+                'is_template' => (bool) $p->is_template,
                 'slides_count' => $p->slides_count,
                 'share_token' => $p->share_token,
                 'source' => 'lead',
             ];
         });
+
         return response()->json(['data' => $items]);
     }
+
     /**
      * Get emails related to a given lead (by conversation conversable).
      */
     public function emails(Lead $lead, Request $request)
     {
         $user = Auth::user();
-        if (!$user || !$user->hasPermission('manage_projects')) {
+        if (! $user || ! $user->hasPermission('manage_projects')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $perPage = (int)($request->input('per_page', 15));
-        $page = (int)($request->input('page', 1));
+        $perPage = (int) ($request->input('per_page', 15));
+        $page = (int) ($request->input('page', 1));
 
         $query = \App\Models\Email::with(['sender', 'approver', 'conversation.project'])
             ->whereHas('conversation', function ($q) use ($lead) {
                 $q->where('conversable_type', \App\Models\Lead::class)
-                  ->where('conversable_id', $lead->id);
+                    ->where('conversable_id', $lead->id);
             })
             ->orderByDesc('created_at');
 
@@ -65,7 +67,7 @@ class LeadController extends Controller
         if ($search = $request->input('search')) {
             $query->where(function ($qq) use ($search) {
                 $qq->where('subject', 'like', "%{$search}%")
-                   ->orWhere('body', 'like', "%{$search}%");
+                    ->orWhere('body', 'like', "%{$search}%");
             });
         }
 
@@ -73,33 +75,37 @@ class LeadController extends Controller
 
         return response()->json($emails);
     }
+
     /**
      * Convert a lead into a client and return new client id.
      */
     public function convert(Lead $lead)
     {
         $user = Auth::user();
-        if (!$user || !$user->hasPermission('manage_projects')) {
+        if (! $user || ! $user->hasPermission('manage_projects')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         // naive conversion: create client from lead minimal fields
         try {
             $clientModel = \App\Models\Client::create([
-                'name' => trim(($lead->first_name ?? '') . ' ' . ($lead->last_name ?? '')) ?: ($lead->company ?? 'Client '.$lead->id),
+                'name' => trim(($lead->first_name ?? '').' '.($lead->last_name ?? '')) ?: ($lead->company ?? 'Client '.$lead->id),
                 'email' => $lead->email,
                 'phone' => $lead->phone,
                 'address' => $lead->address,
                 'notes' => $lead->notes,
                 'lead_id' => $lead->id,
             ]);
-            app(\App\Services\ValueSetValidator::class)->validate('Lead','status', \App\Enums\LeadStatus::Converted);
+            app(\App\Services\ValueSetValidator::class)->validate('Lead', 'status', \App\Enums\LeadStatus::Converted);
             $lead->update(['status' => \App\Enums\LeadStatus::Converted, 'converted_at' => now()]);
+
             return response()->json(['client_id' => $clientModel->id], 200);
         } catch (\Throwable $e) {
             Log::error('Lead convert error: '.$e->getMessage(), ['lead_id' => $lead->id]);
+
             return response()->json(['message' => 'Conversion failed'], 500);
         }
     }
+
     /**
      * Display a listing of the resource.
      */
@@ -107,7 +113,7 @@ class LeadController extends Controller
     {
         $user = Auth::user();
         // Use existing permission used widely for admin actions to avoid adding new permission entries for now
-        if (!$user || !$user->hasPermission('manage_projects')) {
+        if (! $user || ! $user->hasPermission('manage_projects')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -116,7 +122,7 @@ class LeadController extends Controller
         $source = $request->string('source')->toString();
         $assignedTo = $request->input('assigned_to_id');
         $campaignIdsParam = $request->input('campaign_ids');
-        $perPage = (int)($request->input('per_page', 15));
+        $perPage = (int) ($request->input('per_page', 15));
         $perPage = $perPage > 0 && $perPage <= 100 ? $perPage : 15;
 
         // Parse campaign_ids as CSV or array
@@ -147,7 +153,7 @@ class LeadController extends Controller
     public function store(Request $request)
     {
         $user = Auth::user();
-        if (!$user || !$user->hasPermission('manage_projects')) {
+        if (! $user || ! $user->hasPermission('manage_projects')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -155,8 +161,8 @@ class LeadController extends Controller
             // Normalize website to include scheme if missing so 'url' rule accepts bare domains
             if ($request->filled('website')) {
                 $rawWebsite = trim((string) $request->input('website'));
-                if ($rawWebsite !== '' && !preg_match('#^[a-z][a-z0-9+.-]*://#i', $rawWebsite)) {
-                    $request->merge(['website' => 'https://' . $rawWebsite]);
+                if ($rawWebsite !== '' && ! preg_match('#^[a-z][a-z0-9+.-]*://#i', $rawWebsite)) {
+                    $request->merge(['website' => 'https://'.$rawWebsite]);
                 } else {
                     $request->merge(['website' => $rawWebsite]);
                 }
@@ -195,11 +201,11 @@ class LeadController extends Controller
 
             // Soft-validate and coerce status when provided
             if (array_key_exists('status', $validated)) {
-                $enum = \App\Enums\LeadStatus::tryFrom($validated['status']) ?? \App\Enums\LeadStatus::tryFrom(strtolower((string)$validated['status']));
+                $enum = \App\Enums\LeadStatus::tryFrom($validated['status']) ?? \App\Enums\LeadStatus::tryFrom(strtolower((string) $validated['status']));
                 if ($enum) {
                     $validated['status'] = $enum->value;
                 }
-                app(\App\Services\ValueSetValidator::class)->validate('Lead','status', $validated['status']);
+                app(\App\Services\ValueSetValidator::class)->validate('Lead', 'status', $validated['status']);
             }
 
             $validated['created_by_id'] = $user->id;
@@ -212,7 +218,8 @@ class LeadController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
-            Log::error('Error creating lead: ' . $e->getMessage(), ['request' => $request->all()]);
+            Log::error('Error creating lead: '.$e->getMessage(), ['request' => $request->all()]);
+
             return response()->json(['message' => 'Failed to create lead'], 500);
         }
     }
@@ -223,7 +230,7 @@ class LeadController extends Controller
     public function show(Lead $lead)
     {
         $user = Auth::user();
-        if (!$user || !$user->hasPermission('manage_projects')) {
+        if (! $user || ! $user->hasPermission('manage_projects')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -241,13 +248,13 @@ class LeadController extends Controller
         $additionalIds = [];
         try {
             $metadata = $lead->metadata ?? [];
-            if (is_array($metadata) && !empty($metadata['additional_campaign_ids']) && is_array($metadata['additional_campaign_ids'])) {
+            if (is_array($metadata) && ! empty($metadata['additional_campaign_ids']) && is_array($metadata['additional_campaign_ids'])) {
                 $additionalIds = array_values(array_unique(array_filter(array_map('intval', $metadata['additional_campaign_ids']))));
             }
         } catch (\Throwable $e) {
             $additionalIds = [];
         }
-        if (!empty($additionalIds)) {
+        if (! empty($additionalIds)) {
             $additional = Campaign::query()->whereIn('id', $additionalIds)->get(['id', 'name']);
         } else {
             $additional = collect();
@@ -264,7 +271,7 @@ class LeadController extends Controller
     public function update(Request $request, Lead $lead)
     {
         $user = Auth::user();
-        if (!$user || !$user->hasPermission('manage_projects')) {
+        if (! $user || ! $user->hasPermission('manage_projects')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -272,8 +279,8 @@ class LeadController extends Controller
             // Normalize website to include scheme if missing so 'url' rule accepts bare domains
             if ($request->filled('website')) {
                 $rawWebsite = trim((string) $request->input('website'));
-                if ($rawWebsite !== '' && !preg_match('#^[a-z][a-z0-9+.-]*://#i', $rawWebsite)) {
-                    $request->merge(['website' => 'https://' . $rawWebsite]);
+                if ($rawWebsite !== '' && ! preg_match('#^[a-z][a-z0-9+.-]*://#i', $rawWebsite)) {
+                    $request->merge(['website' => 'https://'.$rawWebsite]);
                 } else {
                     $request->merge(['website' => $rawWebsite]);
                 }
@@ -281,7 +288,7 @@ class LeadController extends Controller
             $validated = $request->validate([
                 'first_name' => 'nullable|string|max:255',
                 'last_name' => 'nullable|string|max:255',
-                'email' => 'nullable|email|max:255|unique:leads,email,' . $lead->id,
+                'email' => 'nullable|email|max:255|unique:leads,email,'.$lead->id,
                 'phone' => 'nullable|string|max:50',
                 'company' => 'nullable|string|max:255',
                 'title' => 'nullable|string|max:255',
@@ -308,11 +315,11 @@ class LeadController extends Controller
 
             // Soft-validate and coerce status when provided
             if (array_key_exists('status', $validated)) {
-                $enum = \App\Enums\LeadStatus::tryFrom($validated['status']) ?? \App\Enums\LeadStatus::tryFrom(strtolower((string)$validated['status']));
+                $enum = \App\Enums\LeadStatus::tryFrom($validated['status']) ?? \App\Enums\LeadStatus::tryFrom(strtolower((string) $validated['status']));
                 if ($enum) {
                     $validated['status'] = $enum->value;
                 }
-                app(\App\Services\ValueSetValidator::class)->validate('Lead','status', $validated['status']);
+                app(\App\Services\ValueSetValidator::class)->validate('Lead', 'status', $validated['status']);
             }
 
             $lead->update($validated);
@@ -324,7 +331,8 @@ class LeadController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
-            Log::error('Error updating lead: ' . $e->getMessage(), ['lead_id' => $lead->id, 'request' => $request->all()]);
+            Log::error('Error updating lead: '.$e->getMessage(), ['lead_id' => $lead->id, 'request' => $request->all()]);
+
             return response()->json(['message' => 'Failed to update lead'], 500);
         }
     }
@@ -335,15 +343,17 @@ class LeadController extends Controller
     public function destroy(Lead $lead)
     {
         $user = Auth::user();
-        if (!$user || !$user->hasPermission('manage_projects')) {
+        if (! $user || ! $user->hasPermission('manage_projects')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         try {
             $lead->delete();
+
             return response()->json(null, 204);
         } catch (\Exception $e) {
-            Log::error('Error deleting lead: ' . $e->getMessage(), ['lead_id' => $lead->id]);
+            Log::error('Error deleting lead: '.$e->getMessage(), ['lead_id' => $lead->id]);
+
             return response()->json(['message' => 'Failed to delete lead'], 500);
         }
     }
@@ -355,7 +365,7 @@ class LeadController extends Controller
     {
 
         $user = Auth::user();
-        if (!$user || !$user->hasPermission('manage_projects')) { // Or a more general "view_leads" permission
+        if (! $user || ! $user->hasPermission('manage_projects')) { // Or a more general "view_leads" permission
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -379,7 +389,7 @@ class LeadController extends Controller
     public function addContext(Request $request, Lead $lead)
     {
         $user = Auth::user();
-        if (!$user || !$user->hasPermission('manage_projects')) {
+        if (! $user || ! $user->hasPermission('manage_projects')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -408,6 +418,7 @@ class LeadController extends Controller
             ], 201);
         } catch (\Throwable $e) {
             Log::error('Failed to add lead context: '.$e->getMessage(), ['lead_id' => $lead->id]);
+
             return response()->json(['message' => 'Failed to add context'], 500);
         }
     }

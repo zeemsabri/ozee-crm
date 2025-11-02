@@ -38,7 +38,7 @@ class ProcessTags
                     // Rejoin remaining parts in case the tag name itself contained underscores
                     $tagName = implode('_', $parts);
 
-                    if (!empty($tagName)) {
+                    if (! empty($tagName)) {
                         // Find or create the tag based on its name
                         $tag = Tag::firstOrCreate(
                             ['name' => $tagName],

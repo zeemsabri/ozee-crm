@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 
 /**
  * @deprecated Use ProjectNote model with noteable and creator relationships instead.

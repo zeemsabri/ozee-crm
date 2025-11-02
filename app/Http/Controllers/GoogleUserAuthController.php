@@ -7,7 +7,6 @@ use App\Services\GoogleUserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Inertia\Inertia;
 use Laravel\Socialite\Facades\Socialite;
 
 class GoogleUserAuthController extends Controller
@@ -22,7 +21,6 @@ class GoogleUserAuthController extends Controller
     /**
      * Create a new controller instance.
      *
-     * @param \App\Services\GoogleUserService $googleUserService
      * @return void
      */
     public function __construct(GoogleUserService $googleUserService)
@@ -57,30 +55,29 @@ class GoogleUserAuthController extends Controller
     /**
      * Handle the callback from Google OAuth.
      *
-     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\RedirectResponse
      */
     public function handleCallback(Request $request)
     {
         try {
-             //Get the authenticated user
+            // Get the authenticated user
             $user = Auth::user();
 
             // If not authenticated through the web session, try to find user from state
-            if (!$user && $request->has('state')) {
+            if (! $user && $request->has('state')) {
                 $state = json_decode(base64_decode($request->state), true);
                 if (isset($state['user_id'])) {
                     $user = \App\Models\User::find($state['user_id']);
                 }
             }
 
-            if (!$user) {
+            if (! $user) {
                 return redirect()->route('login')
                     ->with('error', 'You must be logged in to connect your Google account.');
             }
 
             // Get the Google user
-           $googleUser = Socialite::driver('google')->redirectUrl(env('USER_REDIRECT_URL'))->stateless()->user();
+            $googleUser = Socialite::driver('google')->redirectUrl(env('USER_REDIRECT_URL'))->stateless()->user();
 
             // Store or update the user's Google credentials
             GoogleAccounts::updateOrCreate(
@@ -97,7 +94,7 @@ class GoogleUserAuthController extends Controller
             return redirect()->route('dashboard')
                 ->with('success', 'Google account connected successfully.');
         } catch (\Exception $e) {
-            Log::error('Google OAuth Callback Error: ' . $e->getMessage(), [
+            Log::error('Google OAuth Callback Error: '.$e->getMessage(), [
                 'exception' => $e,
                 'trace' => $e->getTraceAsString(),
                 'request_url' => $request->fullUrl(),
@@ -111,7 +108,6 @@ class GoogleUserAuthController extends Controller
     /**
      * Check if the user has connected their Google account.
      *
-     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function checkGoogleConnection(Request $request)
@@ -127,7 +123,6 @@ class GoogleUserAuthController extends Controller
     /**
      * Disconnect the user's Google account.
      *
-     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\RedirectResponse
      */
     public function disconnectGoogle(Request $request)
@@ -137,6 +132,7 @@ class GoogleUserAuthController extends Controller
 
         if ($googleAccount) {
             $googleAccount->delete();
+
             return redirect()->back()->with('success', 'Google account disconnected successfully.');
         }
 

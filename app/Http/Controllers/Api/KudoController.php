@@ -9,7 +9,6 @@ use App\Models\Role;
 use App\Models\User;
 use App\Notifications\KudoApprovalRequired;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
 
 class KudoController extends Controller
@@ -42,7 +41,7 @@ class KudoController extends Controller
     public function store(Request $request)
     {
         $user = $request->user();
-//        $this->authorize('create', Kudo::class);
+        //        $this->authorize('create', Kudo::class);
 
         $validated = $request->validate([
             'recipient_id' => 'required|exists:users,id|different:sender_id',
@@ -73,6 +72,7 @@ class KudoController extends Controller
                 ->where('is_approved', false)
                 ->orderByDesc('id')
                 ->get();
+
             return response()->json($kudos);
         }
 
@@ -94,7 +94,7 @@ class KudoController extends Controller
         $kudo->is_approved = true;
         $kudo->save();
 
-        return response()->json(['message' => 'Kudo approved successfully.', 'kudo' => $kudo->load(['sender','recipient','project'])]);
+        return response()->json(['message' => 'Kudo approved successfully.', 'kudo' => $kudo->load(['sender', 'recipient', 'project'])]);
     }
 
     public function reject(Request $request, Kudo $kudo)
@@ -102,6 +102,7 @@ class KudoController extends Controller
         $this->authorize('approve', $kudo);
         // For MVP, soft delete on reject to keep a record
         $kudo->delete();
+
         return response()->json(['message' => 'Kudo rejected.']);
     }
 
@@ -154,7 +155,9 @@ class KudoController extends Controller
         $projectIds = [];
         foreach ($projects as $project) {
             $userInProject = $project->users->first();
-            if (!$userInProject) continue;
+            if (! $userInProject) {
+                continue;
+            }
             $role = Role::with('permissions')->find($userInProject->pivot->role_id);
             if ($role && $role->permissions->contains('slug', $permissionSlug)) {
                 $projectIds[] = $project->id;

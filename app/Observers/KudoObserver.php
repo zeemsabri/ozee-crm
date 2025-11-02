@@ -20,7 +20,7 @@ class KudoObserver
             $wasApproved = (bool) $kudo->getOriginal('is_approved');
             $isApproved = (bool) $kudo->is_approved;
 
-            if (!$wasApproved && $isApproved) {
+            if (! $wasApproved && $isApproved) {
                 Log::info('Dispatching KudoApprovedEvent from KudoObserver', [
                     'kudo_id' => $kudo->id,
                 ]);

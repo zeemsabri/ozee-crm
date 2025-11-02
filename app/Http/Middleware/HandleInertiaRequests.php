@@ -48,23 +48,23 @@ class HandleInertiaRequests extends Middleware
                         'id' => $permission->id,
                         'name' => $permission->name,
                         'slug' => $permission->slug,
-                        'category' => $permission->category
+                        'category' => $permission->category,
                     ];
                 }
             }
             // For regular users, load permissions based on their role
-            else if ($user->role && $user->role->permissions) {
+            elseif ($user->role && $user->role->permissions) {
                 foreach ($user->role->permissions as $permission) {
                     $globalPermissions[] = [
                         'id' => $permission->id,
                         'name' => $permission->name,
                         'slug' => $permission->slug,
-                        'category' => $permission->category
+                        'category' => $permission->category,
                     ];
                 }
             }
 
-//            $user->global_permissions = $globalPermissions;
+            //            $user->global_permissions = $globalPermissions;
         }
 
         return [

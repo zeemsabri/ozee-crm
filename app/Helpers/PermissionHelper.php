@@ -2,16 +2,14 @@
 
 namespace App\Helpers;
 
-use App\Models\User;
 use App\Models\Project;
-use Illuminate\Support\Facades\DB;
+use App\Models\User;
 
 class PermissionHelper
 {
     /**
      * Get users with a specific global permission
      *
-     * @param string $permissionSlug
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public static function getUsersWithGlobalPermission(string $permissionSlug)
@@ -26,8 +24,6 @@ class PermissionHelper
     /**
      * Get users with a specific project permission for a given project
      *
-     * @param string $permissionSlug
-     * @param int $projectId
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public static function getUsersWithProjectPermission(string $permissionSlug, int $projectId)
@@ -41,12 +37,13 @@ class PermissionHelper
         return $projectUsers->filter(function ($user) use ($permissionSlug, $projectId) {
             // Get the user's role for this project
             $roleId = $user->getRoleForProject($projectId);
-            if (!$roleId) {
+            if (! $roleId) {
                 return false;
             }
 
             // Check if the role has the specified permission
             $role = \App\Models\Role::find($roleId);
+
             return $role && $role->permissions->contains('slug', $permissionSlug);
         });
     }
@@ -54,8 +51,6 @@ class PermissionHelper
     /**
      * Get all users with a specific permission (either global or project-specific)
      *
-     * @param string $permissionSlug
-     * @param int|null $projectId
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public static function getAllUsersWithPermission(string $permissionSlug, ?int $projectId = null)

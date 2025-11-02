@@ -21,7 +21,6 @@ class KudoApprovedEvent
     /**
      * Create a new event instance.
      *
-     * @param Kudo $kudo
      * @return void
      */
     public function __construct(Kudo $kudo)

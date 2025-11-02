@@ -4,39 +4,26 @@ namespace App\Http\Controllers;
 
 use App\Enums\EmailStatus;
 use App\Enums\EmailType;
-use App\Jobs\GenerateLeadFollowUpJob;
-use App\Jobs\ProcessDraftEmailJob;
 use App\Models\Client;
 use App\Models\Email;
-use App\Models\Lead;
-use App\Models\Task;
-use App\Models\User;
 use App\Models\Project;
-use App\Notifications\EmailApprovalRequired;
-use App\Notifications\EmailApproved;
-use App\Notifications\TaskAssigned;
+use App\Models\User;
 use App\Services\EmailAiAnalysisService;
-use App\Services\EmailProcessingService;
 use App\Services\GmailService;
 use App\Services\MagicLinkService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class TestController extends Controller
 {
     public function __construct(protected EmailAiAnalysisService $aiAnalysisService,
-                                protected GmailService $gmailService,
-                                protected MagicLinkService $magicLinkService)
-    {
-    }
+        protected GmailService $gmailService,
+        protected MagicLinkService $magicLinkService) {}
 
     /**
      * Test the User model's project role functionality
      */
     public function testUserProjectRole(Request $request)
     {
-
-
 
         $user = User::create(['name' => 'John', 'email' => 'john@example.com']);
 
@@ -49,7 +36,7 @@ class TestController extends Controller
         // Get a project ID from the request or use a default
         $projectId = $request->input('project_id');
 
-        if (!$projectId) {
+        if (! $projectId) {
             return response()->json(['error' => 'Please provide a project_id parameter'], 400);
         }
 
@@ -65,27 +52,27 @@ class TestController extends Controller
             'specific_user_role' => [
                 'user_id' => $user ? $user->id : null,
                 'project_id' => $projectId,
-                'role' => $userRole
-            ]
+                'role' => $userRole,
+            ],
         ]);
     }
 
     public function playGourd(Request $request)
     {
 
-//        return Client::availableCategoryOptions();
-//        return Email::availableCategoryOptions('emails');
+        //        return Client::availableCategoryOptions();
+        //        return Email::availableCategoryOptions('emails');
 
         $emailDetails = [
-            'name'  =>  'Test Lead',
-            'from' =>  'test@test1.com',
-            'subject'   =>  'Test Subject',
-            'to'    =>  'info@ozeeweb.com.au',
-            'body'  =>  'Test body',
+            'name' => 'Test Lead',
+            'from' => 'test@test1.com',
+            'subject' => 'Test Subject',
+            'to' => 'info@ozeeweb.com.au',
+            'body' => 'Test body',
         ];
 
-        $client =   Client::createOrFirst(
-            ['email'  =>  $emailDetails['from'] ?? null],
+        $client = Client::createOrFirst(
+            ['email' => $emailDetails['from'] ?? null],
             ['name' => $emailDetails['name'] ?? null]
         );
 
@@ -93,24 +80,24 @@ class TestController extends Controller
         $client->syncCategories(collect($options)->pluck('value')->toArray());
 
         $conversation = $client->conversations()->where('subject', $emailDetails['subject'])->first();
-        if(!$conversation) {
+        if (! $conversation) {
             $conversation = $client->conversations()->createOrFirst(
                 ['subject' => $emailDetails['subject']],
                 [
                     'project_id' => $client->projects()->first()?->id,
-                    'last_activity_at' => now()
+                    'last_activity_at' => now(),
                 ]
             );
         }
 
         $conversation->emails()->create([
-            'sender_type'   =>  get_class($client),
-            'sender_id'     =>  $client->id,
-            'to'            =>  $emailDetails['to'] ?? null,
-            'subject'       =>  $emailDetails['subject'] ?? null,
-            'body'          =>  $emailDetails['body'] ?? null,
-            'status'        =>  EmailStatus::Unknown,
-            'type'          =>  EmailType::Received,
+            'sender_type' => get_class($client),
+            'sender_id' => $client->id,
+            'to' => $emailDetails['to'] ?? null,
+            'subject' => $emailDetails['subject'] ?? null,
+            'body' => $emailDetails['body'] ?? null,
+            'status' => EmailStatus::Unknown,
+            'type' => EmailType::Received,
         ]);
 
         return $conversation;

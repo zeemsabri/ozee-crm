@@ -9,13 +9,11 @@ class CurrencyConversionService
 {
     /**
      * An array to cache currency rates to avoid multiple database calls.
-     * @var array
      */
     protected array $rates = [];
 
     /**
      * Fetches all currency rates from the database.
-     * @return void
      */
     protected function fetchRates(): void
     {
@@ -29,10 +27,12 @@ class CurrencyConversionService
 
     /**
      * Converts an amount from a source currency to a target currency.
-     * @param float $amount The amount to convert.
-     * @param string $fromCurrency The source currency code (e.g., 'PKR', 'AUD').
-     * @param string $toCurrency The target currency code (e.g., 'PKR', 'AUD').
+     *
+     * @param  float  $amount  The amount to convert.
+     * @param  string  $fromCurrency  The source currency code (e.g., 'PKR', 'AUD').
+     * @param  string  $toCurrency  The target currency code (e.g., 'PKR', 'AUD').
      * @return float The converted amount.
+     *
      * @throws Exception If a currency rate is not found.
      */
     public function convert(float $amount, string $fromCurrency, string $toCurrency): float
@@ -46,11 +46,11 @@ class CurrencyConversionService
             return $amount;
         }
 
-        if (!isset($this->rates[$fromCurrency])) {
+        if (! isset($this->rates[$fromCurrency])) {
             throw new Exception("Missing conversion rate for: {$fromCurrency}.");
         }
 
-        if (!isset($this->rates[$toCurrency])) {
+        if (! isset($this->rates[$toCurrency])) {
             throw new Exception("Missing conversion rate for: {$toCurrency}.");
         }
 

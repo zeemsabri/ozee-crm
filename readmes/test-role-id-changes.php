@@ -3,17 +3,15 @@
 // This is a simple test script to verify that the role_id changes work correctly
 // Run this script with: php test-role-id-changes.php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap the Laravel application
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
-use App\Models\Role;
 use App\Models\Project;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use App\Models\Role;
+use App\Models\User;
 
 echo "Testing role_id changes...\n\n";
 
@@ -24,22 +22,22 @@ $employee = User::where('role', 'employee')->first();
 $contractor = User::where('role', 'contractor')->first();
 
 // Check if we have users with these roles
-if (!$superAdmin) {
+if (! $superAdmin) {
     echo "Super Admin not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
 
-if (!$manager) {
+if (! $manager) {
     echo "Manager not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
 
-if (!$employee) {
+if (! $employee) {
     echo "Employee not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
 
-if (!$contractor) {
+if (! $contractor) {
     echo "Contractor not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
@@ -77,26 +75,26 @@ echo "\n";
 
 // Test hasPermission method
 echo "Testing hasPermission method:\n";
-echo "Super Admin has view_clients permission: " . ($superAdmin->hasPermission('view_clients') ? "Yes" : "No") . "\n";
-echo "Manager has view_clients permission: " . ($manager->hasPermission('view_clients') ? "Yes" : "No") . "\n";
-echo "Employee has view_clients permission: " . ($employee->hasPermission('view_clients') ? "Yes" : "No") . "\n";
-echo "Contractor has view_clients permission: " . ($contractor->hasPermission('view_clients') ? "Yes" : "No") . "\n\n";
+echo 'Super Admin has view_clients permission: '.($superAdmin->hasPermission('view_clients') ? 'Yes' : 'No')."\n";
+echo 'Manager has view_clients permission: '.($manager->hasPermission('view_clients') ? 'Yes' : 'No')."\n";
+echo 'Employee has view_clients permission: '.($employee->hasPermission('view_clients') ? 'Yes' : 'No')."\n";
+echo 'Contractor has view_clients permission: '.($contractor->hasPermission('view_clients') ? 'Yes' : 'No')."\n\n";
 
 // Test project roles
 echo "Testing project roles:\n";
 $project = Project::first();
-if (!$project) {
+if (! $project) {
     echo "No projects found in the database. Please create a project first.\n";
     exit;
 }
 
 // Make sure users are assigned to the project
-if (!$project->users->contains($superAdmin->id)) {
+if (! $project->users->contains($superAdmin->id)) {
     $project->users()->attach($superAdmin->id, ['role' => 'Admin', 'role_id' => $superAdmin->role_id]);
     echo "Assigned Super Admin to project with role 'Admin'\n";
 }
 
-if (!$project->users->contains($contractor->id)) {
+if (! $project->users->contains($contractor->id)) {
     $project->users()->attach($contractor->id, ['role' => 'Contractor', 'role_id' => $contractor->role_id]);
     echo "Assigned Contractor to project with role 'Contractor'\n";
 }

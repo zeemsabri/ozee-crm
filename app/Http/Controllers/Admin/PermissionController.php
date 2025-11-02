@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Permission;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\DB;
 
 class PermissionController extends Controller
 {
@@ -17,6 +17,7 @@ class PermissionController extends Controller
     public function index()
     {
         $permissions = Permission::orderBy('category')->get()->groupBy('category');
+
         return view('admin.permissions.index', compact('permissions'));
     }
 
@@ -29,6 +30,7 @@ class PermissionController extends Controller
         $categories = Permission::select('category')->distinct()->pluck('category');
         // Get all roles for selection
         $roles = \App\Models\Role::all();
+
         return view('admin.permissions.create', compact('categories', 'roles'));
     }
 
@@ -70,7 +72,8 @@ class PermissionController extends Controller
                 ->with('success', 'Permission created successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error creating permission: ' . $e->getMessage());
+
+            return back()->with('error', 'Error creating permission: '.$e->getMessage());
         }
     }
 
@@ -91,7 +94,7 @@ class PermissionController extends Controller
         $projectUsers = [];
         $projectRoleIds = $roles->where('type', 'project')->pluck('id')->toArray();
 
-        if (!empty($projectRoleIds)) {
+        if (! empty($projectRoleIds)) {
             $projectUsers = DB::table('users')
                 ->join('project_user', 'users.id', '=', 'project_user.user_id')
                 ->join('projects', 'project_user.project_id', '=', 'projects.id')
@@ -125,7 +128,7 @@ class PermissionController extends Controller
         $projectUsers = [];
         $projectRoleIds = $rolesWithPermission->where('type', 'project')->pluck('id')->toArray();
 
-        if (!empty($projectRoleIds)) {
+        if (! empty($projectRoleIds)) {
             $projectUsers = DB::table('users')
                 ->join('project_user', 'users.id', '=', 'project_user.user_id')
                 ->join('projects', 'project_user.project_id', '=', 'projects.id')
@@ -184,11 +187,13 @@ class PermissionController extends Controller
             }
 
             DB::commit();
+
             return redirect()->route('admin.permissions.index')
                 ->with('success', 'Permission updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error updating permission: ' . $e->getMessage());
+
+            return back()->with('error', 'Error updating permission: '.$e->getMessage());
         }
     }
 
@@ -205,7 +210,7 @@ class PermissionController extends Controller
             return redirect()->route('admin.permissions.index')
                 ->with('success', 'Permission deleted successfully.');
         } catch (\Exception $e) {
-            return back()->with('error', 'Error deleting permission: ' . $e->getMessage());
+            return back()->with('error', 'Error deleting permission: '.$e->getMessage());
         }
     }
 
@@ -216,6 +221,7 @@ class PermissionController extends Controller
     {
         $category = $request->category;
         $permissions = Permission::where('category', $category)->get();
+
         return response()->json($permissions);
     }
 
@@ -227,6 +233,7 @@ class PermissionController extends Controller
         $categories = Permission::select('category')->distinct()->pluck('category');
         // Get all roles for selection
         $roles = \App\Models\Role::all();
+
         return view('admin.permissions.bulk-create', compact('categories', 'roles'));
     }
 
@@ -242,7 +249,7 @@ class PermissionController extends Controller
             'roles.*' => 'exists:roles,id',
         ]);
 
-        $permissionNames = explode("\n", str_replace("\r", "", $request->permissions));
+        $permissionNames = explode("\n", str_replace("\r", '', $request->permissions));
         $permissionNames = array_filter($permissionNames, 'trim');
 
         DB::beginTransaction();
@@ -251,7 +258,7 @@ class PermissionController extends Controller
 
             foreach ($permissionNames as $name) {
                 $name = trim($name);
-                if (!empty($name)) {
+                if (! empty($name)) {
                     $permission = Permission::create([
                         'name' => $name,
                         'slug' => Str::slug($name, '_'),
@@ -263,7 +270,7 @@ class PermissionController extends Controller
             }
 
             // Assign permissions to selected roles
-            if ($request->has('roles') && !empty($createdPermissions)) {
+            if ($request->has('roles') && ! empty($createdPermissions)) {
                 foreach ($request->roles as $roleId) {
                     $role = \App\Models\Role::findOrFail($roleId);
                     foreach ($createdPermissions as $permission) {
@@ -273,11 +280,13 @@ class PermissionController extends Controller
             }
 
             DB::commit();
+
             return redirect()->route('admin.permissions.index')
                 ->with('success', 'Permissions created successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error creating permissions: ' . $e->getMessage());
+
+            return back()->with('error', 'Error creating permissions: '.$e->getMessage());
         }
     }
 
@@ -329,7 +338,7 @@ class PermissionController extends Controller
             if ($request->wantsJson() || $request->header('X-Inertia')) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'Permission revoked successfully.'
+                    'message' => 'Permission revoked successfully.',
                 ]);
             }
 
@@ -340,11 +349,11 @@ class PermissionController extends Controller
             if ($request->wantsJson() || $request->header('X-Inertia')) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Error revoking permission: ' . $e->getMessage()
+                    'message' => 'Error revoking permission: '.$e->getMessage(),
                 ], 500);
             }
 
-            return back()->with('error', 'Error revoking permission: ' . $e->getMessage());
+            return back()->with('error', 'Error revoking permission: '.$e->getMessage());
         }
     }
 }

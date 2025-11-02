@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('sender_type')->default('App\\Models\\User')->after('sender_id');
 
             // Update existing records to use User model as sender_type
-            //DB::statement("UPDATE emails SET sender_type = 'App\\\\Models\\\\User'");
+            // DB::statement("UPDATE emails SET sender_type = 'App\\\\Models\\\\User'");
         });
     }
 

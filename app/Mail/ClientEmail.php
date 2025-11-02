@@ -3,29 +3,41 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Auth; // To get the authenticated user's details
+
+// To get the authenticated user's details
 
 class ClientEmail extends Mailable
 {
     use Queueable, SerializesModels;
 
     public array $emailData;
+
     public string $senderName;
+
     public string $senderRole;
+
     public string $senderPhone;
+
     public string $senderWebsite;
+
     public string $companyLogoUrl;
+
     public string $brandPrimaryColor;
+
     public string $brandSecondaryColor;
+
     public string $textColorPrimary;
+
     public string $textColorSecondary;
+
     public string $borderColor;
+
     public string $backgroundColor;
+
     public string $emailTemplate;
 
     /**
@@ -68,7 +80,7 @@ class ClientEmail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'emails.' . $this->emailTemplate,
+            view: 'emails.'.$this->emailTemplate,
             with: [
                 'bodyContent' => $this->emailData['body'],
                 'greetingType' => $this->emailData['greeting_type'],
@@ -87,10 +99,10 @@ class ClientEmail extends Mailable
                 'borderColor' => $this->borderColor,
                 'backgroundColor' => $this->backgroundColor,
                 // Social media icon URLs (hardcoded as they are external and consistent)
-                'facebookIconUrl' => 'https://img.icons8.com/ios-filled/20/' . substr($this->brandPrimaryColor, 1) . '/facebook-new.png',
-                'twitterIconUrl' => 'https://img.icons8.com/ios-filled/20/' . substr($this->brandPrimaryColor, 1) . '/twitter.png',
-                'linkedinIconUrl' => 'https://img.icons8.com/ios-filled/20/' . substr($this->brandPrimaryColor, 1) . '/linkedin.png',
-                'instagramIconUrl' => 'https://img.icons8.com/ios-filled/20/' . substr($this->brandPrimaryColor, 1) . '/instagram-new.png',
+                'facebookIconUrl' => 'https://img.icons8.com/ios-filled/20/'.substr($this->brandPrimaryColor, 1).'/facebook-new.png',
+                'twitterIconUrl' => 'https://img.icons8.com/ios-filled/20/'.substr($this->brandPrimaryColor, 1).'/twitter.png',
+                'linkedinIconUrl' => 'https://img.icons8.com/ios-filled/20/'.substr($this->brandPrimaryColor, 1).'/linkedin.png',
+                'instagramIconUrl' => 'https://img.icons8.com/ios-filled/20/'.substr($this->brandPrimaryColor, 1).'/instagram-new.png',
             ]
         );
     }

@@ -5,15 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class WireframeVersion extends Model
 {
     use HasFactory, LogsActivity;
 
     const STATUS_DRAFT = 'draft';
+
     const STATUS_PUBLISHED = 'published';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -82,6 +84,7 @@ class WireframeVersion extends Model
         }
 
         $this->status = 'published';
+
         return $this->save();
     }
 }

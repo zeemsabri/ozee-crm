@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         // Email templates: add is_private
-        if (Schema::hasTable('email_templates') && !Schema::hasColumn('email_templates', 'is_private')) {
+        if (Schema::hasTable('email_templates') && ! Schema::hasColumn('email_templates', 'is_private')) {
             Schema::table('email_templates', function (Blueprint $table) {
                 $table->boolean('is_private')->default(false)->after('is_default');
             });
@@ -18,10 +18,10 @@ return new class extends Migration
         // Shareable resources: add visible_to_team and is_private
         if (Schema::hasTable('shareable_resources')) {
             Schema::table('shareable_resources', function (Blueprint $table) {
-                if (!Schema::hasColumn('shareable_resources', 'visible_to_team')) {
+                if (! Schema::hasColumn('shareable_resources', 'visible_to_team')) {
                     $table->boolean('visible_to_team')->default(false)->after('visible_to_client');
                 }
-                if (!Schema::hasColumn('shareable_resources', 'is_private')) {
+                if (! Schema::hasColumn('shareable_resources', 'is_private')) {
                     $table->boolean('is_private')->default(false)->after('visible_to_team');
                 }
             });

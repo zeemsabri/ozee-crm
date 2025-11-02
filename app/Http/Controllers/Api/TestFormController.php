@@ -11,7 +11,6 @@ class TestFormController extends Controller
     /**
      * Handle the test form submission.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
     public function store(Request $request)
@@ -26,7 +25,7 @@ class TestFormController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'message' => 'Validation failed',
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -40,7 +39,7 @@ class TestFormController extends Controller
         // Return a success response
         return response()->json([
             'message' => 'Form submitted successfully',
-            'data' => $data
+            'data' => $data,
         ], 200);
     }
 }

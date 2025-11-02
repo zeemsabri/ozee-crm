@@ -4,17 +4,18 @@ namespace App\Notifications;
 
 use App\Models\Email;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
-use Illuminate\Notifications\Notification;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
+use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
 
-class EmailApproved extends Notification implements ShouldQueue, ShouldBroadcast
+class EmailApproved extends Notification implements ShouldBroadcast, ShouldQueue
 {
     use Queueable;
 
     protected $email;
+
     private array $payload;
 
     private $clear;
@@ -22,7 +23,6 @@ class EmailApproved extends Notification implements ShouldQueue, ShouldBroadcast
     /**
      * Create a new notification instance.
      *
-     * @param Email $email
      * @return void
      */
     public function __construct(Email $email, $clear = null)
@@ -35,6 +35,7 @@ class EmailApproved extends Notification implements ShouldQueue, ShouldBroadcast
     private function setPayload()
     {
         $this->payload = $this->getPayload();
+
         return $this;
     }
 
@@ -67,8 +68,8 @@ class EmailApproved extends Notification implements ShouldQueue, ShouldBroadcast
             : 'Email Approved';
 
         $message = $emailType === 'received'
-            ? 'A received email has been approved: ' . $this->email->subject
-            : 'An email has been approved: ' . $this->email->subject;
+            ? 'A received email has been approved: '.$this->email->subject
+            : 'An email has been approved: '.$this->email->subject;
 
         $payload = [
             'title' => $title,
@@ -76,18 +77,18 @@ class EmailApproved extends Notification implements ShouldQueue, ShouldBroadcast
             'project_name' => $projectName,
             'message' => $message,
             'project_id' => $project?->id,
-            'description' => 'Approved by ' . $approverName . ': ' . substr($this->email->body, 0, 100) . (strlen($this->email->body) > 100 ? '...' : ''),
+            'description' => 'Approved by '.$approverName.': '.substr($this->email->body, 0, 100).(strlen($this->email->body) > 100 ? '...' : ''),
             'task_type' => 'email_approved',
             'priority' => 'medium',
             'email_id' => $this->email->id,
             'email_subject' => $this->email->subject,
             'email_type' => $emailType,
-            'button_label'  =>  'View Project',
-            'correlation_id' => 'email_approval_' . $this->email->id,
-            'url' => url('/inbox')
+            'button_label' => 'View Project',
+            'correlation_id' => 'email_approval_'.$this->email->id,
+            'url' => url('/inbox'),
         ];
 
-        if(ISSET($this->clear)) {
+        if (isset($this->clear)) {
             $payload['clears_notification_type'] = 'email_approval';
         }
 

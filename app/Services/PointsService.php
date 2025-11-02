@@ -20,7 +20,7 @@ class PointsService
     /**
      * Awards points for a given model based on its type.
      *
-     * @param object $pointableObject The model object to check for points.
+     * @param  object  $pointableObject  The model object to check for points.
      * @return PointsLedger|null The newly created PointsLedger entry, or null if no points were awarded.
      */
     public function awardPointsFor(object $pointableObject): ?PointsLedger
@@ -37,7 +37,8 @@ class PointsService
 
         // If no action is defined for this model, log and exit.
         if (is_null($actionClass)) {
-            Log::warning('PointsService was called with a non-pointable model: ' . get_class($pointableObject));
+            Log::warning('PointsService was called with a non-pointable model: '.get_class($pointableObject));
+
             return null;
         }
 

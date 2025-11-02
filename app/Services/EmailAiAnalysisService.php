@@ -8,9 +8,11 @@ use Throwable;
 
 class EmailAiAnalysisService
 {
-    protected string|null $apiKey;
-    protected string|null $model;
-    protected string|null $apiUrl;
+    protected ?string $apiKey;
+
+    protected ?string $model;
+
+    protected ?string $apiUrl;
 
     public function __construct()
     {
@@ -23,14 +25,15 @@ class EmailAiAnalysisService
      * Analyzes email text via Gemini AI and returns a structured array with the
      * analysis, including an approval decision and a context summary.
      *
-     * @param string $plainTextContent The plain text content of the email (subject + body).
-     * @param bool $isIncoming Flag to indicate if the email is incoming or outgoing.
+     * @param  string  $plainTextContent  The plain text content of the email (subject + body).
+     * @param  bool  $isIncoming  Flag to indicate if the email is incoming or outgoing.
      * @return array|null The analysis array or null on failure.
      */
     public function analyzeAndSummarize(string $plainTextContent, bool $isIncoming = false): ?array
     {
         if (empty($this->apiKey)) {
             Log::error('Gemini API key is not configured.');
+
             return null;
         }
 
@@ -39,13 +42,13 @@ class EmailAiAnalysisService
 
             $payload = [
                 'contents' => [
-                    ['parts' => [['text' => $plainTextContent]]]
+                    ['parts' => [['text' => $plainTextContent]]],
                 ],
                 'systemInstruction' => [
-                    'parts' => [['text' => $systemPrompt]]
+                    'parts' => [['text' => $systemPrompt]],
                 ],
                 'generationConfig' => [
-                    'responseMimeType' => "application/json",
+                    'responseMimeType' => 'application/json',
                 ],
             ];
 
@@ -56,16 +59,18 @@ class EmailAiAnalysisService
             if ($response->failed()) {
                 Log::error('Failed to communicate with the Gemini AI service.', [
                     'status' => $response->status(),
-                    'response' => $response->body()
+                    'response' => $response->body(),
                 ]);
+
                 return null;
             }
 
             $generatedJsonString = $response->json('candidates.0.content.parts.0.text', '');
             if (empty($generatedJsonString)) {
                 Log::warning('Gemini AI returned an empty or invalid response.', [
-                    'response' => $response->json()
+                    'response' => $response->json(),
                 ]);
+
                 return null;
             }
 
@@ -87,6 +92,7 @@ class EmailAiAnalysisService
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return null;
         }
     }
@@ -94,9 +100,6 @@ class EmailAiAnalysisService
     /**
      * Builds the detailed system prompt to instruct the AI.
      * This version is more objective to prevent false positives.
-     *
-     * @param bool $isIncoming
-     * @return string
      */
     private function buildSystemPrompt(bool $isIncoming): string
     {
@@ -122,7 +125,6 @@ class EmailAiAnalysisService
         $prompt .= "\n**Crucially, DO NOT FLAG standard business communications.** An email that is a clear project update, a meeting confirmation, or a simple follow-up should always be approved.\n";
         $prompt .= "5. If no violations are found, set `approval_required` to `false` and provide a positive reason.\n";
 
-
         $prompt .= "\n---\n\n";
 
         $prompt .= "**Rules for `context_summary`:**\n";
@@ -140,4 +142,3 @@ class EmailAiAnalysisService
         return $prompt;
     }
 }
-

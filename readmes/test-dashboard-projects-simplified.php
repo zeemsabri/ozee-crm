@@ -7,15 +7,15 @@ echo "Testing Simplified Projects API for Dashboard\n";
 echo "-------------------------------------------\n\n";
 
 // Import necessary classes
-require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__.'/vendor/autoload.php';
 
-use App\Models\User;
 use App\Models\Project;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 
 // Find a user to authenticate
 $user = User::first();
-if (!$user) {
+if (! $user) {
     echo "No users found in the database. Please create a user first.\n";
     exit(1);
 }
@@ -32,12 +32,12 @@ $originalResponse = app()->call('\App\Http\Controllers\Api\ProjectController@ind
 $originalProjects = $originalResponse->getData(true);
 
 // Check if the response is an array
-if (!is_array($originalProjects)) {
+if (! is_array($originalProjects)) {
     echo "Error: Original response is not an array.\n";
     exit(1);
 }
 
-echo "Received " . count($originalProjects) . " projects from original endpoint.\n";
+echo 'Received '.count($originalProjects)." projects from original endpoint.\n";
 
 // If there are no projects, we can't test further
 if (count($originalProjects) === 0) {
@@ -47,8 +47,8 @@ if (count($originalProjects) === 0) {
 
 // Get the first project to examine its structure
 $originalProject = $originalProjects[0];
-echo "Original project has " . count((array)$originalProject) . " fields.\n";
-echo "Fields: " . implode(', ', array_keys((array)$originalProject)) . "\n\n";
+echo 'Original project has '.count((array) $originalProject)." fields.\n";
+echo 'Fields: '.implode(', ', array_keys((array) $originalProject))."\n\n";
 
 // Test the simplified projects endpoint
 echo "Testing new /api/projects-simplified endpoint...\n";
@@ -58,12 +58,12 @@ $simplifiedResponse = app()->call('\App\Http\Controllers\Api\ProjectController@g
 $simplifiedProjects = $simplifiedResponse->getData(true);
 
 // Check if the response is an array
-if (!is_array($simplifiedProjects)) {
+if (! is_array($simplifiedProjects)) {
     echo "Error: Simplified response is not an array.\n";
     exit(1);
 }
 
-echo "Received " . count($simplifiedProjects) . " projects from simplified endpoint.\n";
+echo 'Received '.count($simplifiedProjects)." projects from simplified endpoint.\n";
 
 // If there are no projects, we can't test further
 if (count($simplifiedProjects) === 0) {
@@ -73,22 +73,22 @@ if (count($simplifiedProjects) === 0) {
 
 // Get the first project to examine its structure
 $simplifiedProject = $simplifiedProjects[0];
-echo "Simplified project has " . count((array)$simplifiedProject) . " fields.\n";
-echo "Fields: " . implode(', ', array_keys((array)$simplifiedProject)) . "\n\n";
+echo 'Simplified project has '.count((array) $simplifiedProject)." fields.\n";
+echo 'Fields: '.implode(', ', array_keys((array) $simplifiedProject))."\n\n";
 
 // Check that only the required fields are present
 $requiredFields = ['id', 'name', 'status'];
-$missingFields = array_diff($requiredFields, array_keys((array)$simplifiedProject));
-$extraFields = array_diff(array_keys((array)$simplifiedProject), $requiredFields);
+$missingFields = array_diff($requiredFields, array_keys((array) $simplifiedProject));
+$extraFields = array_diff(array_keys((array) $simplifiedProject), $requiredFields);
 
 if (count($missingFields) > 0) {
-    echo "Error: Missing required fields: " . implode(', ', $missingFields) . "\n";
+    echo 'Error: Missing required fields: '.implode(', ', $missingFields)."\n";
 } else {
     echo "All required fields are present.\n";
 }
 
 if (count($extraFields) > 0) {
-    echo "Warning: Extra fields found: " . implode(', ', $extraFields) . "\n";
+    echo 'Warning: Extra fields found: '.implode(', ', $extraFields)."\n";
     echo "The API should only return id, name, and status fields.\n";
 } else {
     echo "No extra fields found. The API is correctly returning only the required fields.\n";
@@ -101,8 +101,8 @@ $sizeDifference = $originalSize - $simplifiedSize;
 $percentReduction = round(($sizeDifference / $originalSize) * 100, 2);
 
 echo "\nData size comparison:\n";
-echo "Original response size: " . $originalSize . " bytes\n";
-echo "Simplified response size: " . $simplifiedSize . " bytes\n";
-echo "Size reduction: " . $sizeDifference . " bytes (" . $percentReduction . "%)\n";
+echo 'Original response size: '.$originalSize." bytes\n";
+echo 'Simplified response size: '.$simplifiedSize." bytes\n";
+echo 'Size reduction: '.$sizeDifference.' bytes ('.$percentReduction."%)\n";
 
 echo "\nTest completed.\n";

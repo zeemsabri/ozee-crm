@@ -28,7 +28,7 @@ class GenerateLeadOutreachJob implements ShouldQueue
     {
         try {
             $apiKey = config('services.gemini.key');
-            if (!$apiKey) {
+            if (! $apiKey) {
                 throw new \Exception('Gemini API key is not configured.');
             }
 
@@ -40,29 +40,29 @@ class GenerateLeadOutreachJob implements ShouldQueue
                         'parts' => [[
                             'text' => json_encode([
                                 'campaign_details' => $this->campaign->toArray(),
-                                'lead_details' => $this->lead->toArray()
-                            ])
-                        ]]
-                    ]
+                                'lead_details' => $this->lead->toArray(),
+                            ]),
+                        ]],
+                    ],
                 ],
                 'systemInstruction' => [
-                    'parts' => [['text' => $systemPrompt]]
+                    'parts' => [['text' => $systemPrompt]],
                 ],
                 'generationConfig' => [
-                    'responseMimeType' => "application/json",
+                    'responseMimeType' => 'application/json',
                 ],
             ];
 
             $response = Http::post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={$apiKey}", $payload);
 
             if ($response->failed()) {
-                throw new \Exception('Failed to communicate with Gemini API. Status: ' . $response->status());
+                throw new \Exception('Failed to communicate with Gemini API. Status: '.$response->status());
             }
 
             $aiResponse = json_decode($response->json('candidates.0.content.parts.0.text', ''), true);
 
-            if (!isset($aiResponse['subject'], $aiResponse['ai_content'], $aiResponse['context_summary'])) {
-                throw new \Exception('Invalid JSON response from AI: ' . json_encode($aiResponse));
+            if (! isset($aiResponse['subject'], $aiResponse['ai_content'], $aiResponse['context_summary'])) {
+                throw new \Exception('Invalid JSON response from AI: '.json_encode($aiResponse));
             }
 
             // 1. Create the Conversation and Email
@@ -108,11 +108,10 @@ class GenerateLeadOutreachJob implements ShouldQueue
         } catch (Throwable $e) {
             Log::error('Failed to generate lead outreach.', [
                 'lead_id' => $this->lead->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-//            $this->lead->update(['status' => Lead::STATUS_GENERATION_FAILED]);
+            //            $this->lead->update(['status' => Lead::STATUS_GENERATION_FAILED]);
             $this->fail($e);
         }
     }
 }
-

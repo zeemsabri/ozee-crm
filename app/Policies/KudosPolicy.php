@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\Kudo;
+use App\Models\User;
 
 class KudosPolicy
 {
@@ -32,12 +32,12 @@ class KudosPolicy
 
     public function update(User $user, Kudo $kudos): bool
     {
-        return $kudos->sender_id === $user->id && !$kudos->is_approved;
+        return $kudos->sender_id === $user->id && ! $kudos->is_approved;
     }
 
     public function delete(User $user, Kudo $kudos): bool
     {
-        return $kudos->sender_id === $user->id && !$kudos->is_approved;
+        return $kudos->sender_id === $user->id && ! $kudos->is_approved;
     }
 
     public function approve(User $user, Kudo $kudos): bool
@@ -52,12 +52,12 @@ class KudosPolicy
             $query->where('users.id', $user->id)->withPivot('role_id');
         }])->find($projectId);
 
-        if (!$project || !$userInProject = $project->users->first()) {
+        if (! $project || ! $userInProject = $project->users->first()) {
             return false;
         }
 
         $projectRole = \App\Models\Role::with('permissions')->find($userInProject->pivot->role_id);
-        if (!$projectRole) {
+        if (! $projectRole) {
             return false;
         }
 

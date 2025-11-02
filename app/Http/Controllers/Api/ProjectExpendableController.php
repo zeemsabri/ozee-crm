@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Api\Concerns\HasFinancialCalculations;
+use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Controller;
 use App\Models\Milestone;
 use App\Models\Project;
@@ -14,12 +14,12 @@ use Illuminate\Support\Facades\Auth;
 
 class ProjectExpendableController extends Controller
 {
-    use HasProjectPermissions, HasFinancialCalculations;
+    use HasFinancialCalculations, HasProjectPermissions;
 
     public function index(Project $project)
     {
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project) || !$this->canViewProjectExpendable($user, $project)) {
+        if (! $this->canAccessProject($user, $project) || ! $this->canViewProjectExpendable($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to view expendables.'], 403);
         }
 
@@ -38,10 +38,8 @@ class ProjectExpendableController extends Controller
 
             $this->authorize('addExpendables', $project);
 
-        }
-        catch (AuthenticationException $e)
-        {
-            if (!$this->canAccessProject($user, $project) || !$this->canManageProjectExpendable($user, $project)) {
+        } catch (AuthenticationException $e) {
+            if (! $this->canAccessProject($user, $project) || ! $this->canManageProjectExpendable($user, $project)) {
                 return response()->json(['message' => 'Unauthorized. You do not have permission to create expendables.'], 403);
             }
         }
@@ -59,7 +57,7 @@ class ProjectExpendableController extends Controller
         $status = \App\Models\ProjectExpendable::STATUS_PENDING;
         // Determine target model for morph relation
         $target = null;
-        if (!empty($validated['expendable_type']) && !empty($validated['expendable_id'])) {
+        if (! empty($validated['expendable_type']) && ! empty($validated['expendable_id'])) {
             switch ($validated['expendable_type']) {
                 case 'Milestone':
                     $target = Milestone::where('id', $validated['expendable_id'])
@@ -91,7 +89,7 @@ class ProjectExpendableController extends Controller
         ];
 
         // Soft-validate status via the value dictionary (does not throw when enforce=false)
-        app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable','status', $payload['status']);
+        app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable', 'status', $payload['status']);
 
         $expendable = $target->expendable()->create($payload);
 
@@ -101,7 +99,7 @@ class ProjectExpendableController extends Controller
     public function update(Request $request, Project $project, ProjectExpendable $expendable)
     {
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project) || !$this->canManageProjectExpendable($user, $project)) {
+        if (! $this->canAccessProject($user, $project) || ! $this->canManageProjectExpendable($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to update expendables.'], 403);
         }
 
@@ -152,16 +150,16 @@ class ProjectExpendableController extends Controller
                 $targetCurrency = strtoupper($validated['currency']);
                 $approvedTotalInTargetCurrency = 0.0;
                 foreach ($approvedItems as $item) {
-                    $approvedTotalInTargetCurrency += $this->convertCurrency((float)$item->amount, $item->currency, $targetCurrency);
+                    $approvedTotalInTargetCurrency += $this->convertCurrency((float) $item->amount, $item->currency, $targetCurrency);
                 }
 
                 // If the new budget is below already approved total, block it
-                if ($approvedTotalInTargetCurrency > ((float)$validated['amount'] + 0.00001)) {
+                if ($approvedTotalInTargetCurrency > ((float) $validated['amount'] + 0.00001)) {
                     return response()->json([
                         'message' => 'Milestone budget cannot be less than the total of approved contracts.',
                         'errors' => [
                             'amount' => [
-                                'Approved contracts total ' . number_format($approvedTotalInTargetCurrency, 2) . ' ' . $targetCurrency . ' exceeds the provided budget of ' . number_format((float)$validated['amount'], 2) . ' ' . $targetCurrency . '.',
+                                'Approved contracts total '.number_format($approvedTotalInTargetCurrency, 2).' '.$targetCurrency.' exceeds the provided budget of '.number_format((float) $validated['amount'], 2).' '.$targetCurrency.'.',
                             ],
                         ],
                     ], 422);
@@ -177,7 +175,7 @@ class ProjectExpendableController extends Controller
     public function accept(Request $request, Project $project, ProjectExpendable $expendable)
     {
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
@@ -192,21 +190,21 @@ class ProjectExpendableController extends Controller
         // Permission: approve_milestone_expendables for user-bound milestone expendables
         //             approve_expendables for budgets (user_id null) or project-level expendables
         $isMilestone = $expendable->expendable_type === 'App\\Models\\Milestone' || $expendable->expendable_type === 'Milestone';
-        $isUserBound = !is_null($expendable->user_id);
+        $isUserBound = ! is_null($expendable->user_id);
 
         if ($isMilestone && $isUserBound) {
-            if (!($user->isSuperAdmin() || $user->hasPermission('approve_milestone_expendables'))) {
+            if (! ($user->isSuperAdmin() || $user->hasPermission('approve_milestone_expendables'))) {
                 return response()->json(['message' => 'Unauthorized. You do not have permission to approve milestone expendables.'], 403);
             }
             // Enforce milestone budget: approved user-bound expendables must not exceed milestone budget
             $milestone = $expendable->expendable()->first();
-            if (!$milestone) {
+            if (! $milestone) {
                 return response()->json(['message' => 'Invalid expendable: parent milestone not found.'], 400);
             }
             // Get approved milestone budget (user_id null and status Accepted)
             $budgetItem = $milestone->budget;
 
-            if (!$budgetItem) {
+            if (! $budgetItem) {
                 return response()->json(['message' => 'No approved milestone budget found. Approve a milestone budget first.'], 422);
             }
             // Sum of already accepted user-bound expendables for this milestone
@@ -216,17 +214,17 @@ class ProjectExpendableController extends Controller
 
             $approvedTotalInBudgetCurrency = 0.0;
             foreach ($approvedItems as $item) {
-                $approvedTotalInBudgetCurrency += $this->convertCurrency((float)$item->amount, $item->currency, $budgetItem->currency);
+                $approvedTotalInBudgetCurrency += $this->convertCurrency((float) $item->amount, $item->currency, $budgetItem->currency);
             }
-            $currentAmountInBudgetCurrency = $this->convertCurrency((float)$expendable->amount, $expendable->currency, $budgetItem->currency);
+            $currentAmountInBudgetCurrency = $this->convertCurrency((float) $expendable->amount, $expendable->currency, $budgetItem->currency);
             $newTotal = round($approvedTotalInBudgetCurrency + $currentAmountInBudgetCurrency, 2);
 
-            if ($newTotal > (float)$budgetItem->amount + 0.00001) {
-                return response()->json(['message' => 'Approval would exceed the milestone budget.', 'approved_total' => $approvedTotalInBudgetCurrency, 'budget' => (float)$budgetItem->amount], 422);
+            if ($newTotal > (float) $budgetItem->amount + 0.00001) {
+                return response()->json(['message' => 'Approval would exceed the milestone budget.', 'approved_total' => $approvedTotalInBudgetCurrency, 'budget' => (float) $budgetItem->amount], 422);
             }
         } else {
             // For budgets (user_id null) and project-level expendables, require approve_expendables
-            if (!($user->isSuperAdmin() || $user->hasPermission('approve_expendables'))) {
+            if (! ($user->isSuperAdmin() || $user->hasPermission('approve_expendables'))) {
                 return response()->json(['message' => 'Unauthorized. You do not have permission to approve expendables.'], 403);
             }
 
@@ -244,9 +242,9 @@ class ProjectExpendableController extends Controller
                     ->get();
                 $acceptedBudgetsTotal = 0.0;
                 foreach ($acceptedMilestoneBudgets as $b) {
-                    $acceptedBudgetsTotal += $this->convertCurrency((float)$b->amount, $b->currency, $projectBudgetCurrency);
+                    $acceptedBudgetsTotal += $this->convertCurrency((float) $b->amount, $b->currency, $projectBudgetCurrency);
                 }
-                $pendingBudgetInProjectCurrency = $this->convertCurrency((float)$expendable->amount, $expendable->currency, $projectBudgetCurrency);
+                $pendingBudgetInProjectCurrency = $this->convertCurrency((float) $expendable->amount, $expendable->currency, $projectBudgetCurrency);
                 if ($acceptedBudgetsTotal + $pendingBudgetInProjectCurrency > $projectBudgetAmount + 0.00001) {
                     return response()->json(['message' => 'Milestone budget exceeds the total project expendable budget.', 'project_budget' => $projectBudgetAmount], 422);
                 }
@@ -254,15 +252,16 @@ class ProjectExpendableController extends Controller
         }
 
         // Soft-validate the target status transition
-        app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable','status', \App\Enums\ProjectExpendableStatus::Accepted);
+        app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable', 'status', \App\Enums\ProjectExpendableStatus::Accepted);
         $expendable->accept($data['reason'], $user);
+
         return response()->json($expendable->fresh());
     }
 
     public function reject(Request $request, Project $project, ProjectExpendable $expendable)
     {
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
@@ -275,27 +274,28 @@ class ProjectExpendableController extends Controller
         ]);
 
         $isMilestone = $expendable->expendable_type === 'App\\Models\\Milestone' || $expendable->expendable_type === 'Milestone';
-        $isUserBound = !is_null($expendable->user_id);
+        $isUserBound = ! is_null($expendable->user_id);
         if ($isMilestone && $isUserBound) {
-            if (!($user->isSuperAdmin() || $user->hasPermission('approve_milestone_expendables'))) {
+            if (! ($user->isSuperAdmin() || $user->hasPermission('approve_milestone_expendables'))) {
                 return response()->json(['message' => 'Unauthorized. You do not have permission to reject milestone expendables.'], 403);
             }
         } else {
-            if (!($user->isSuperAdmin() || $user->hasPermission('approve_expendables'))) {
+            if (! ($user->isSuperAdmin() || $user->hasPermission('approve_expendables'))) {
                 return response()->json(['message' => 'Unauthorized. You do not have permission to reject expendables.'], 403);
             }
         }
 
         // Soft-validate the target status transition
-        app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable','status', \App\Enums\ProjectExpendableStatus::Rejected);
+        app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable', 'status', \App\Enums\ProjectExpendableStatus::Rejected);
         $expendable->reject($data['reason'], $user);
+
         return response()->json($expendable->fresh());
     }
 
     public function destroy(Request $request, Project $project, ProjectExpendable $expendable)
     {
         $user = Auth::user();
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
@@ -319,6 +319,7 @@ class ProjectExpendableController extends Controller
         }
 
         $expendable->delete();
+
         return response()->json(['success' => true]);
     }
 }

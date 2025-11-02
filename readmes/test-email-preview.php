@@ -1,12 +1,11 @@
 <?php
 
 use App\Models\Email;
-use Illuminate\Support\Facades\Route;
 
 // Get the first email from the database for testing
 $email = Email::first();
 
-if (!$email) {
+if (! $email) {
     echo "No emails found in the database for testing.\n";
     exit;
 }

@@ -1,13 +1,12 @@
 <?php
 
-use App\Models\Email;
+use App\Helpers\PermissionHelper;
 use App\Models\Conversation;
+use App\Models\Email;
 use App\Models\Project;
 use App\Models\User;
 use App\Notifications\EmailApproved;
-use App\Helpers\PermissionHelper;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 // This script tests the email approved notification system
 // It creates a test email, changes its status to approved,
@@ -29,14 +28,14 @@ echo "\nCreating test users...\n";
 // Create a user with global view_emails permission
 $viewerUser = User::create([
     'name' => 'Email Viewer',
-    'email' => 'viewer_' . time() . '@example.com',
+    'email' => 'viewer_'.time().'@example.com',
     'password' => bcrypt('password'),
 ]);
 
 // Create a user with approve_emails permission (who will approve the email)
 $approverUser = User::create([
     'name' => 'Email Approver',
-    'email' => 'approver_' . time() . '@example.com',
+    'email' => 'approver_'.time().'@example.com',
     'password' => bcrypt('password'),
 ]);
 
@@ -114,7 +113,7 @@ echo "Updated email status to: {$email->status}\n";
 // 7. Manually test sending the notification
 echo "\nTesting notification manually...\n";
 $usersToNotify = PermissionHelper::getAllUsersWithPermission('view_emails', $project->id);
-echo "Found " . $usersToNotify->count() . " users with view_emails permission\n";
+echo 'Found '.$usersToNotify->count()." users with view_emails permission\n";
 
 foreach ($usersToNotify as $userToNotify) {
     echo "Sending notification to user {$userToNotify->name} (ID: {$userToNotify->id})\n";

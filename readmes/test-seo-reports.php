@@ -1,11 +1,10 @@
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
-use Carbon\Carbon;
-use Illuminate\Http\Request;
 use App\Models\Project;
 use App\Models\SeoReport;
+use Carbon\Carbon;
 
 // Mock test for SeoReportController functionality
 
@@ -17,7 +16,7 @@ echo "1. Testing SeoReport creation:\n";
 // Find a project to use for testing
 $project = Project::first();
 
-if (!$project) {
+if (! $project) {
     echo "Error: No projects found in the database. Please create a project first.\n";
     exit(1);
 }
@@ -81,7 +80,7 @@ if ($retrievedReport) {
     echo "Report ID: {$retrievedReport->id}\n";
     echo "Project ID: {$retrievedReport->project_id}\n";
     echo "Report Date: {$retrievedReport->report_date->format('Y-m-d')}\n";
-    echo "Data sample: " . json_encode(array_slice($retrievedReport->data, 0, 2)) . "\n";
+    echo 'Data sample: '.json_encode(array_slice($retrievedReport->data, 0, 2))."\n";
 } else {
     echo "Error: Failed to retrieve the report.\n";
 }
@@ -96,6 +95,6 @@ $availableMonths = SeoReport::where('project_id', $project->id)
         return Carbon::parse($date)->format('Y-m');
     });
 
-echo "Available months: " . implode(', ', $availableMonths->toArray()) . "\n";
+echo 'Available months: '.implode(', ', $availableMonths->toArray())."\n";
 
 echo "\nTest completed successfully!\n";

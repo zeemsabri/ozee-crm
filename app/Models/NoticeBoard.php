@@ -20,8 +20,11 @@ class NoticeBoard extends ShareableResource
 
     // Notice types
     public const TYPE_GENERAL = 'General';
+
     public const TYPE_WARNING = 'Warning';
+
     public const TYPE_UPDATES = 'Updates';
+
     public const TYPE_FINAL_NOTICE = 'Final Notice';
 
     public const TYPES = [
@@ -40,7 +43,7 @@ class NoticeBoard extends ShareableResource
         'created_by',
         'visible_to_client',
         'notice',
-        'sent_push'
+        'sent_push',
     ];
 
     protected $casts = [
@@ -75,7 +78,7 @@ class NoticeBoard extends ShareableResource
 
     public function isClickable(): bool
     {
-        return !empty($this->url);
+        return ! empty($this->url);
     }
 
     /**
@@ -85,7 +88,9 @@ class NoticeBoard extends ShareableResource
     public function getThumbnailUrlPublicAttribute(): ?string
     {
         $path = $this->attributes['thumbnail_url'] ?? null;
-        if (!$path) return null;
+        if (! $path) {
+            return null;
+        }
         try {
             return Storage::disk('gcs')->temporaryUrl($path, now()->addDays(3));
         } catch (\Throwable $e) {

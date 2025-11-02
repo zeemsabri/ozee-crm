@@ -18,6 +18,7 @@ class FixStandupPointsPerProject extends Command
     protected $description = 'Backfill missing standup points per project (once-per-day-per-project) and update MonthlyPoint totals starting from the first PointsLedger entry.';
 
     private const BASE_POINTS_STANDUP_ON_TIME = 25;
+
     private const BASE_POINTS_STANDUP_LATE = 10;
 
     public function handle()
@@ -25,8 +26,9 @@ class FixStandupPointsPerProject extends Command
         $dryRun = (bool) $this->option('dry-run');
 
         $firstLedgerAt = PointsLedger::min('created_at');
-        if (!$firstLedgerAt) {
+        if (! $firstLedgerAt) {
             $this->info('No PointsLedger entries found. Nothing to fix.');
+
             return self::SUCCESS;
         }
 
@@ -34,7 +36,7 @@ class FixStandupPointsPerProject extends Command
         $startDate = $fromInput ? Carbon::parse($fromInput)->startOfDay() : Carbon::parse($firstLedgerAt)->startOfDay();
         $endDate = Carbon::now();
 
-        $this->info("Fixing standup points from {$startDate->toDateString()} to {$endDate->toDateString()}" . ($dryRun ? ' (dry run)' : ''));
+        $this->info("Fixing standup points from {$startDate->toDateString()} to {$endDate->toDateString()}".($dryRun ? ' (dry run)' : ''));
 
         $totalChecked = 0;
         $totalCreated = 0;
@@ -50,8 +52,9 @@ class FixStandupPointsPerProject extends Command
                     $totalChecked++;
 
                     $user = User::find($note->creator_id);
-                    if (!$user) {
+                    if (! $user) {
                         $this->warn("Skipping note {$note->id}: user {$note->creator_id} not found");
+
                         continue;
                     }
 
@@ -79,12 +82,13 @@ class FixStandupPointsPerProject extends Command
                     if ($project) {
                         // Prefer Project::tier() relation; fallback gracefully
                         $multiplier = optional($project->tier)->point_multiplier ?? 1.0;
-                        $finalPoints = $basePoints * (float)$multiplier;
+                        $finalPoints = $basePoints * (float) $multiplier;
                     }
 
                     if ($dryRun) {
                         $this->line("Would create ledger for standup #{$note->id} (user {$note->creator_id}, project {$note->project_id}) = {$finalPoints} pts, desc='{$description}', date={$standupAtUserTz->toDateString()}");
                         $totalCreated++;
+
                         continue;
                     }
 
@@ -109,7 +113,7 @@ class FixStandupPointsPerProject extends Command
                         $standupDate = Carbon::parse($note->created_at);
                         /** @var MonthlyPoint $monthly */
                         $monthly = MonthlyPoint::firstOrCreate(
-                            ['user_id' => $note->creator_id, 'year' => (int)$standupDate->year, 'month' => (int)$standupDate->month],
+                            ['user_id' => $note->creator_id, 'year' => (int) $standupDate->year, 'month' => (int) $standupDate->month],
                             ['total_points' => 0]
                         );
                         $monthly->increment('total_points', $finalPoints);
@@ -118,7 +122,7 @@ class FixStandupPointsPerProject extends Command
                         $totalCreated++;
                     } catch (\Throwable $e) {
                         DB::rollBack();
-                        $this->error('Failed to create ledger for standup ' . $note->id . ': ' . $e->getMessage());
+                        $this->error('Failed to create ledger for standup '.$note->id.': '.$e->getMessage());
                     }
                 }
             });

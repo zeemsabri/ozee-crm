@@ -26,7 +26,7 @@ class BonusConfigurationController extends Controller
 
             return response()->json($bonusConfigurations);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to retrieve bonus configurations: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to retrieve bonus configurations: '.$e->getMessage()], 500);
         }
     }
 
@@ -62,7 +62,7 @@ class BonusConfigurationController extends Controller
 
             return response()->json($bonusConfiguration, 201);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to create bonus configuration: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to create bonus configuration: '.$e->getMessage()], 500);
         }
     }
 
@@ -80,13 +80,13 @@ class BonusConfigurationController extends Controller
                 ->where('user_id', $user->id)
                 ->first();
 
-            if (!$bonusConfiguration) {
+            if (! $bonusConfiguration) {
                 return response()->json(['error' => 'Bonus configuration not found'], 404);
             }
 
             return response()->json($bonusConfiguration);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to retrieve bonus configuration: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to retrieve bonus configuration: '.$e->getMessage()], 500);
         }
     }
 
@@ -105,7 +105,7 @@ class BonusConfigurationController extends Controller
                 'appliesTo' => 'required|in:task,milestone,standup,late_task,late_milestone,standup_missed',
                 'targetBonusTypeForRevocation' => 'required_if:amountType,all_related_bonus|nullable|string|max:255',
                 'isActive' => 'boolean',
-                'uuid' => 'required|string|unique:bonus_configurations,uuid,' . $id,
+                'uuid' => 'required|string|unique:bonus_configurations,uuid,'.$id,
             ]);
 
             if ($validator->fails()) {
@@ -120,7 +120,7 @@ class BonusConfigurationController extends Controller
                 ->where('user_id', $user->id)
                 ->first();
 
-            if (!$bonusConfiguration) {
+            if (! $bonusConfiguration) {
                 return response()->json(['error' => 'Bonus configuration not found'], 404);
             }
 
@@ -129,7 +129,7 @@ class BonusConfigurationController extends Controller
 
             return response()->json($bonusConfiguration);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to update bonus configuration: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to update bonus configuration: '.$e->getMessage()], 500);
         }
     }
 
@@ -147,7 +147,7 @@ class BonusConfigurationController extends Controller
                 ->where('user_id', $user->id)
                 ->first();
 
-            if (!$bonusConfiguration) {
+            if (! $bonusConfiguration) {
                 return response()->json(['error' => 'Bonus configuration not found'], 404);
             }
 
@@ -156,7 +156,7 @@ class BonusConfigurationController extends Controller
 
             return response()->json(['message' => 'Bonus configuration deleted successfully']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to delete bonus configuration: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to delete bonus configuration: '.$e->getMessage()], 500);
         }
     }
 }

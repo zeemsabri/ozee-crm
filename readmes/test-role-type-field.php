@@ -20,7 +20,7 @@ echo "Simulating form submission with the following data:\n";
 echo "- Name: {$formData['name']}\n";
 echo "- Description: {$formData['description']}\n";
 echo "- Type: {$formData['type']}\n";
-echo "- Permissions: " . implode(', ', $formData['permissions']) . "\n\n";
+echo '- Permissions: '.implode(', ', $formData['permissions'])."\n\n";
 
 // Simulate validation
 echo "Validating form data...\n";
@@ -38,11 +38,11 @@ if (empty($formData['name'])) {
     $validationErrors['name'] = 'The name field is required.';
 }
 
-if (!in_array($formData['type'], ['application', 'client', 'project'])) {
+if (! in_array($formData['type'], ['application', 'client', 'project'])) {
     $validationErrors['type'] = 'The type must be one of: application, client, project.';
 }
 
-if (!empty($validationErrors)) {
+if (! empty($validationErrors)) {
     echo "Validation failed with the following errors:\n";
     foreach ($validationErrors as $field => $error) {
         echo "- $field: $error\n";

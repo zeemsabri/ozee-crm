@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
+use App\Models\Traits\Taggable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use App\Models\Traits\Taggable;
 
 class Resource extends Model
 {
@@ -38,8 +38,6 @@ class Resource extends Model
 
     /**
      * Determine if the resource is a link.
-     *
-     * @return bool
      */
     public function isLink(): bool
     {
@@ -48,8 +46,6 @@ class Resource extends Model
 
     /**
      * Determine if the resource is a file.
-     *
-     * @return bool
      */
     public function isFile(): bool
     {

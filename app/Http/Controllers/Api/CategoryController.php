@@ -14,6 +14,7 @@ class CategoryController extends Controller
     public function index(CategorySet $categorySet)
     {
         $categories = $categorySet->categories()->orderBy('name')->get();
+
         return response()->json($categories);
     }
 
@@ -36,7 +37,7 @@ class CategoryController extends Controller
 
         // Create set if requested
         $set = null;
-        if (!empty($validated['new_set_name'])) {
+        if (! empty($validated['new_set_name'])) {
             $set = new CategorySet(['name' => $validated['new_set_name']]);
             $set->save();
 
@@ -66,8 +67,8 @@ class CategoryController extends Controller
     public function update(Request $request, Category $category)
     {
         $validated = $request->validate([
-            'name' => ['sometimes','required','string','max:255'],
-            'category_set_id' => ['sometimes','required','integer', Rule::exists('category_sets','id')],
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'category_set_id' => ['sometimes', 'required', 'integer', Rule::exists('category_sets', 'id')],
         ]);
 
         if (isset($validated['name'])) {
@@ -84,6 +85,7 @@ class CategoryController extends Controller
     public function destroy(Category $category)
     {
         $category->delete();
+
         return response()->json(['message' => 'Deleted']);
     }
 }

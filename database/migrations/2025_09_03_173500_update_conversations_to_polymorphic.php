@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -32,7 +32,8 @@ return new class extends Migration
             // Safely drop foreign key if exists
             try {
                 $table->dropForeign(['client_id']);
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+            }
             if (Schema::hasColumn('conversations', 'client_id')) {
                 $table->dropColumn('client_id');
             }
@@ -58,7 +59,8 @@ return new class extends Migration
         Schema::table('conversations', function (Blueprint $table) {
             try {
                 $table->unsignedBigInteger('project_id')->nullable(false)->change();
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+            }
         });
 
         // Drop polymorphic columns

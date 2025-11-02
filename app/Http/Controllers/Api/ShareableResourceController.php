@@ -38,7 +38,7 @@ class ShareableResourceController extends Controller
         // Search by title or description
         if ($request->filled('q')) {
             $q = $request->string('q');
-            $query->where(function($sub) use ($q) {
+            $query->where(function ($sub) use ($q) {
                 $sub->where('title', 'like', '%'.$q.'%')
                     ->orWhere('description', 'like', '%'.$q.'%');
             });
@@ -52,7 +52,9 @@ class ShareableResourceController extends Controller
         }
 
         $perPage = (int) ($request->input('per_page', 10));
-        if ($perPage <= 0) { $perPage = 10; }
+        if ($perPage <= 0) {
+            $perPage = 10;
+        }
         $resources = $query->latest()->paginate($perPage);
 
         return response()->json($resources);
@@ -61,7 +63,6 @@ class ShareableResourceController extends Controller
     /**
      * Store a newly created resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request)
@@ -70,7 +71,7 @@ class ShareableResourceController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'url' => 'required|url|max:2048',
-            'type' => 'required|string|in:' . collect(config('options.shareable_resource_types'))->pluck('value')->implode(','),
+            'type' => 'required|string|in:'.collect(config('options.shareable_resource_types'))->pluck('value')->implode(','),
             'thumbnail_url' => 'nullable|url|max:2048',
             'visible_to_client' => 'boolean',
             'visible_to_team' => 'boolean',
@@ -92,9 +93,18 @@ class ShareableResourceController extends Controller
             $is_private = $request->visibility === 'private';
         }
         // Enforce exclusivity
-        if ($is_private) { $visible_to_client = false; $visible_to_team = false; }
-        if ($visible_to_team) { $visible_to_client = false; $is_private = false; }
-        if ($visible_to_client) { $visible_to_team = false; $is_private = false; }
+        if ($is_private) {
+            $visible_to_client = false;
+            $visible_to_team = false;
+        }
+        if ($visible_to_team) {
+            $visible_to_client = false;
+            $is_private = false;
+        }
+        if ($visible_to_client) {
+            $visible_to_team = false;
+            $is_private = false;
+        }
 
         $resource = ShareableResource::create([
             'title' => $request->title,
@@ -109,7 +119,6 @@ class ShareableResourceController extends Controller
         ]);
 
         $resource->syncTags($request->tags ?? []);
-
 
         return response()->json($resource->load('tags'), 201);
     }
@@ -130,7 +139,6 @@ class ShareableResourceController extends Controller
     /**
      * Update the specified resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
      * @return \Illuminate\Http\JsonResponse
      */
@@ -142,12 +150,12 @@ class ShareableResourceController extends Controller
             'title' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
             'url' => 'sometimes|required|url|max:2048',
-            'type' => 'required|string|in:' . collect(config('options.shareable_resource_types'))->pluck('value')->implode(','),
+            'type' => 'required|string|in:'.collect(config('options.shareable_resource_types'))->pluck('value')->implode(','),
             'thumbnail_url' => 'nullable|url|max:2048',
             'visible_to_client' => 'boolean',
             'visible_to_team' => 'boolean',
             'is_private' => 'boolean',
-            'visibility' => 'nullable|string|in:client,team,private'
+            'visibility' => 'nullable|string|in:client,team,private',
         ]);
 
         $resource->syncTags($request->tags ?? []);
@@ -166,9 +174,18 @@ class ShareableResourceController extends Controller
             $is_private = $request->visibility === 'private';
         }
         // Enforce exclusivity
-        if ($is_private) { $visible_to_client = false; $visible_to_team = false; }
-        if ($visible_to_team) { $visible_to_client = false; $is_private = false; }
-        if ($visible_to_client) { $visible_to_team = false; $is_private = false; }
+        if ($is_private) {
+            $visible_to_client = false;
+            $visible_to_team = false;
+        }
+        if ($visible_to_team) {
+            $visible_to_client = false;
+            $is_private = false;
+        }
+        if ($visible_to_client) {
+            $visible_to_team = false;
+            $is_private = false;
+        }
 
         $payload = $request->only([
             'title',

@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\MonthlyPoint;
 use App\Models\PointsLedger;
 use App\Models\ProjectNote;
-use App\Models\Project;
 use App\Models\Task;
 use App\Services\BonusService;
 use Carbon\Carbon;
@@ -27,6 +26,7 @@ class LeaderboardController extends Controller
         // Now includes all users, providing a default of 0 points if monthlyPoints is empty
         $data = $users->map(function ($user) {
             $monthlyPoint = $user->monthlyPoints->first(); // The query sorts and limits to one
+
             return [
                 'id' => (string) $user->id,
                 'name' => $user->name,
@@ -58,7 +58,7 @@ class LeaderboardController extends Controller
         // Calculate the difference in days. Carbon's diffInDays method is used
         // to get the number of days between the two dates.
         $daysLeftInMonth = (int) $today->diffInDays($endOfMonth);
-//        $daysLeftInMonth = Carbon::now()->endOfMonth()->diffInDays(Carbon::today());
+        //        $daysLeftInMonth = Carbon::now()->endOfMonth()->diffInDays(Carbon::today());
 
         // User's monthly points from monthly_points
         $monthlyPointsRow = MonthlyPoint::where('user_id', $user->id)
@@ -77,11 +77,11 @@ class LeaderboardController extends Controller
 
         // Pending tasks across accessible projects: tasks linked via milestones
         $pendingTaskCount = Task::whereIn('status', [
-                Task::STATUS_TO_DO,
-                Task::STATUS_IN_PROGRESS,
-                Task::STATUS_PAUSED,
-                Task::STATUS_BLOCKED,
-            ])
+            Task::STATUS_TO_DO,
+            Task::STATUS_IN_PROGRESS,
+            Task::STATUS_PAUSED,
+            Task::STATUS_BLOCKED,
+        ])
             ->whereHas('milestone.project', function ($q) use ($accessibleProjectIds) {
                 $q->whereIn('projects.id', $accessibleProjectIds);
             })

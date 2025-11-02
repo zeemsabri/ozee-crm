@@ -3,18 +3,17 @@
 // This is a simple test script to verify the user saving issue and test potential fixes
 // Run this script with: php test-user-save-issue.php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap the Laravel application
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use App\Models\Project;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Http\Request;
 
 echo "Testing user saving issue...\n\n";
 
@@ -27,18 +26,18 @@ foreach ($roles as $role) {
 echo "\n";
 
 // Get a manager user
-$manager = User::whereHas('role', function($query) {
+$manager = User::whereHas('role', function ($query) {
     $query->where('slug', 'manager');
 })->first();
 
-if (!$manager) {
+if (! $manager) {
     echo "Manager user not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
 
 // Get a project
 $project = Project::first();
-if (!$project) {
+if (! $project) {
     echo "No projects found in the database. Creating a test project...\n";
 
     // Create a test project
@@ -60,18 +59,18 @@ echo "Testing with Manager: {$manager->name} (ID: {$manager->id})\n\n";
 Auth::login($manager);
 
 // Find a user not already assigned to the project
-$newUser = User::whereDoesntHave('projects', function($query) use ($project) {
+$newUser = User::whereDoesntHave('projects', function ($query) use ($project) {
     $query->where('projects.id', $project->id);
 })->first();
 
-if (!$newUser) {
+if (! $newUser) {
     echo "No available users to add to the project. Creating a new user...\n";
 
     // Create a new user
     $employeeRole = Role::where('slug', 'employee')->first();
     $newUser = User::create([
         'name' => 'Test User for Save Issue',
-        'email' => 'test-user-save-issue-' . time() . '@example.com',
+        'email' => 'test-user-save-issue-'.time().'@example.com',
         'password' => bcrypt('password'),
         'role_id' => $employeeRole->id,
     ]);
@@ -81,7 +80,7 @@ if (!$newUser) {
 
 // Find a role to assign
 $userRoleToAssign = Role::where('slug', 'employee')->first();
-if (!$userRoleToAssign) {
+if (! $userRoleToAssign) {
     $userRoleToAssign = $roles->first();
 }
 
@@ -90,15 +89,15 @@ echo "Testing saving user {$newUser->name} with role {$userRoleToAssign->name} (
 // Test 1: Test with empty user_ids array
 echo "\nTEST 1: Test with empty user_ids array\n";
 $emptyData = [
-    'user_ids' => []
+    'user_ids' => [],
 ];
 
 try {
     // Simulate validation error for empty user_ids array
     echo "EXCEPTION: Please select at least one user to save.\n";
-    echo "Validation errors: " . json_encode(['user_ids' => ['Please select at least one user to save.']]) . "\n";
+    echo 'Validation errors: '.json_encode(['user_ids' => ['Please select at least one user to save.']])."\n";
 } catch (\Exception $e) {
-    echo "EXCEPTION: " . $e->getMessage() . "\n";
+    echo 'EXCEPTION: '.$e->getMessage()."\n";
 }
 
 // Test 2: Test with properly formatted user_ids array
@@ -107,9 +106,9 @@ $userData = [
     'user_ids' => [
         [
             'id' => $newUser->id,
-            'role_id' => $userRoleToAssign->id
-        ]
-    ]
+            'role_id' => $userRoleToAssign->id,
+        ],
+    ],
 ];
 
 try {
@@ -143,7 +142,7 @@ try {
         echo "FAILURE: User was not added to the project\n";
     }
 } catch (\Exception $e) {
-    echo "EXCEPTION: " . $e->getMessage() . "\n";
+    echo 'EXCEPTION: '.$e->getMessage()."\n";
 }
 
 // Clean up - remove the test user from the project

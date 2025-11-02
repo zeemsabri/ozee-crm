@@ -9,8 +9,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Spatie\Activitylog\Models\Activity;
-use function PHPUnit\Framework\isNumeric;
-use function PHPUnit\Framework\isString;
 
 class WireframeController extends Controller
 {
@@ -23,7 +21,6 @@ class WireframeController extends Controller
     public function index($projectId)
     {
 
-
         $wireframes = Wireframe::where('project_id', $projectId)
             ->with(['versions' => function ($query) {
                 $query->orderBy('version_number', 'desc');
@@ -31,6 +28,7 @@ class WireframeController extends Controller
             ->get()
             ->map(function ($wireframe) {
                 $latestVersion = $wireframe->latestVersion();
+
                 return [
                     'id' => $wireframe->id,
                     'name' => $wireframe->name,
@@ -48,7 +46,6 @@ class WireframeController extends Controller
     /**
      * Store a newly created wireframe with version 1 (draft).
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $projectId
      * @return \Illuminate\Http\JsonResponse
      */
@@ -125,7 +122,6 @@ class WireframeController extends Controller
      *
      * @param  int  $projectId
      * @param  int  $id
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function show(Request $request, $projectId, $id)
@@ -136,13 +132,13 @@ class WireframeController extends Controller
 
         $versionNumber = $request->query('version');
 
-        if (ISSET($versionNumber) && $versionNumber !== 'latest') {
+        if (isset($versionNumber) && $versionNumber !== 'latest') {
             $version = WireframeVersion::where('wireframe_id', $wireframe->id)
                 ->where('id', $versionNumber)
                 ->firstOrFail();
         } else {
             $version = $wireframe->latestVersion();
-            if (!$version) {
+            if (! $version) {
                 return response()->json(['error' => 'No versions found for this wireframe'], 404);
             }
         }
@@ -156,7 +152,6 @@ class WireframeController extends Controller
     /**
      * Update the latest draft or create a new draft.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $projectId
      * @param  int  $id
      * @return \Illuminate\Http\JsonResponse
@@ -164,7 +159,7 @@ class WireframeController extends Controller
     public function update(Request $request, $projectId, $id)
     {
         // Check that at least one of 'name' or 'data' is present.
-        if (!$request->has('name') && !$request->has('data')) {
+        if (! $request->has('name') && ! $request->has('data')) {
             return response()->json(['errors' => ['name_or_data' => 'At least one of name or data must be provided.']], 422);
         }
 
@@ -191,10 +186,10 @@ class WireframeController extends Controller
         // Check if a specific version is requested
         $versionParam = $request->query('version');
 
-        if ($versionParam && is_numeric((int)$versionParam)) {
+        if ($versionParam && is_numeric((int) $versionParam)) {
             // Update a specific version
             $version = $wireframe->versions()
-                ->where('id', (int)$versionParam)
+                ->where('id', (int) $versionParam)
                 ->firstOrFail();
 
             if ($request->has('name')) {
@@ -289,7 +284,7 @@ class WireframeController extends Controller
         $wf = $wireframe->firstOrFail();
         $latestDraft = $wf->latestDraftVersion();
 
-        if (!$latestDraft) {
+        if (! $latestDraft) {
             return response()->json(['error' => 'No draft version available to publish'], 422);
         }
 
@@ -312,7 +307,6 @@ class WireframeController extends Controller
     /**
      * Create a new draft version.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $projectId
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -396,7 +390,7 @@ class WireframeController extends Controller
 
         return response()->json([
             'wireframe' => $wireframe,
-            'versions' => $versions
+            'versions' => $versions,
         ]);
     }
 
@@ -414,12 +408,12 @@ class WireframeController extends Controller
             ->firstOrFail();
 
         $logs = Activity::where(function ($query) use ($wireframe) {
-                $query->where('subject_type', Wireframe::class)
-                      ->where('subject_id', $wireframe->id);
-            })
+            $query->where('subject_type', Wireframe::class)
+                ->where('subject_id', $wireframe->id);
+        })
             ->orWhere(function ($query) use ($wireframe) {
                 $query->where('subject_type', WireframeVersion::class)
-                      ->whereIn('subject_id', $wireframe->versions()->pluck('id'));
+                    ->whereIn('subject_id', $wireframe->versions()->pluck('id'));
             })
             ->orderBy('created_at', 'desc')
             ->get();
@@ -430,7 +424,6 @@ class WireframeController extends Controller
     /**
      * Get the latest wireframe for a project.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $projectId
      * @return \Illuminate\Http\Response
      */
@@ -444,7 +437,7 @@ class WireframeController extends Controller
             ->latest()
             ->first();
 
-        if (!$wireframe) {
+        if (! $wireframe) {
             return response()->json(['error' => 'No wireframes found for this project'], 404);
         }
 
@@ -465,7 +458,7 @@ class WireframeController extends Controller
             $version = $wireframe->latestVersion();
         }
 
-        if (!$version) {
+        if (! $version) {
             return response()->json(['error' => 'No versions found for this wireframe'], 404);
         }
 
@@ -478,7 +471,6 @@ class WireframeController extends Controller
     /**
      * Update a specific version of a wireframe.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  int  $projectId
      * @param  int  $id
      * @param  int  $versionNumber
@@ -500,7 +492,7 @@ class WireframeController extends Controller
             ->firstOrFail();
 
         $version = $wireframe->versions()
-            ->where('id', (int)$versionNumber)
+            ->where('id', (int) $versionNumber)
             ->firstOrFail();
 
         // Update the wireframe name

@@ -4,14 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Project;
-use App\Models\ProjectNote;
 use App\Services\GoogleChatService;
-use App\Services\GoogleDriveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class ProjectSectionController extends Controller
@@ -23,10 +19,10 @@ class ProjectSectionController extends Controller
         $this->googleChatService = $googleChatService;
         $this->projectController = $projectController;
     }
+
     /**
      * Get basic project information
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getBasicInfo(Project $project)
@@ -34,7 +30,7 @@ class ProjectSectionController extends Controller
         $user = Auth::user();
 
         // Check if user has access to the project
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
@@ -61,13 +57,12 @@ class ProjectSectionController extends Controller
             $user = Auth::user();
 
             // Check if user has permission to manage the project
-            if (!$this->projectController->canManageProjects($user, $project)) {
+            if (! $this->projectController->canManageProjects($user, $project)) {
                 return response()->json(['message' => 'Unauthorized. You do not have permission to update this project.'], 403);
             }
 
             // Determine if the request is JSON or FormData
             $isJsonRequest = $request->isJson() || $request->header('Content-Type') === 'application/json';
-
 
             // Adjust validation rules based on request type and user permissions
             $validationRules = [
@@ -82,10 +77,9 @@ class ProjectSectionController extends Controller
                 'google_drive_link' => 'nullable|url',
             ];
 
-
             $validated = $request->validate($validationRules);
             if (array_key_exists('status', $validated)) {
-                app(\App\Services\ValueSetValidator::class)->validate('Project','status',$validated['status']);
+                app(\App\Services\ValueSetValidator::class)->validate('Project', 'status', $validated['status']);
             }
 
             // Initialize project data with basic information
@@ -111,7 +105,8 @@ class ProjectSectionController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
-            Log::error('Error updating project: ' . $e->getMessage(), ['project_id' => $project->id, 'request' => $request->all(), 'error' => $e->getTraceAsString()]);
+            Log::error('Error updating project: '.$e->getMessage(), ['project_id' => $project->id, 'request' => $request->all(), 'error' => $e->getTraceAsString()]);
+
             return response()->json(['message' => 'Failed to update project', 'error' => $e->getMessage()], 500);
         }
     }
@@ -119,7 +114,6 @@ class ProjectSectionController extends Controller
     /**
      * Get project services and payment information
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getServicesAndPayment(Project $project)
@@ -127,12 +121,12 @@ class ProjectSectionController extends Controller
         $user = Auth::user();
 
         // Check if user has access to the project
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
         // Check if user has permission to view project services and payments
-        if (!$this->canViewProjectServicesAndPayments($user, $project)) {
+        if (! $this->canViewProjectServicesAndPayments($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to view financial information.'], 403);
         }
 
@@ -148,8 +142,6 @@ class ProjectSectionController extends Controller
     /**
      * Update project services and payment information
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function updateServicesAndPayment(Request $request, Project $project)
@@ -157,12 +149,12 @@ class ProjectSectionController extends Controller
         $user = Auth::user();
 
         // Check if user has access to the project
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
         // Check if user has permission to manage project services and payments
-        if (!$this->canManageProjectServicesAndPayments($user, $project)) {
+        if (! $this->canManageProjectServicesAndPayments($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to manage financial information.'], 403);
         }
 
@@ -194,7 +186,6 @@ class ProjectSectionController extends Controller
     /**
      * Get project transactions
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getTransactions(Project $project)
@@ -202,27 +193,29 @@ class ProjectSectionController extends Controller
         $user = Auth::user();
 
         // Check if user has access to the project
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
         // Check if user has permission to view project transactions
-        if (!$this->canViewProjectTransactions($user, $project)) {
+        if (! $this->canViewProjectTransactions($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to view transactions.'], 403);
         }
 
         $project->load('transactions');
 
         // If user can only view expenses or only income, filter accordingly
-        if ($this->canManageProjectExpenses($user, $project) && !$this->canManageProjectIncome($user, $project)) {
+        if ($this->canManageProjectExpenses($user, $project) && ! $this->canManageProjectIncome($user, $project)) {
             $filteredTransactions = $project->transactions->filter(function ($transaction) {
                 return $transaction->type === 'expense';
             });
+
             return response()->json($filteredTransactions);
-        } elseif (!$this->canManageProjectExpenses($user, $project) && $this->canManageProjectIncome($user, $project)) {
+        } elseif (! $this->canManageProjectExpenses($user, $project) && $this->canManageProjectIncome($user, $project)) {
             $filteredTransactions = $project->transactions->filter(function ($transaction) {
                 return $transaction->type === 'income';
             });
+
             return response()->json($filteredTransactions);
         } else {
             return response()->json($project->transactions);
@@ -232,8 +225,6 @@ class ProjectSectionController extends Controller
     /**
      * Update project transactions
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function updateTransactions(Request $request, Project $project)
@@ -241,12 +232,12 @@ class ProjectSectionController extends Controller
         $user = Auth::user();
 
         // Check if user has access to the project
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
         // Check if user has permission to manage project expenses or income
-        if (!$this->canManageProjectExpenses($user, $project) && !$this->canManageProjectIncome($user, $project)) {
+        if (! $this->canManageProjectExpenses($user, $project) && ! $this->canManageProjectIncome($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to manage transactions.'], 403);
         }
 
@@ -265,12 +256,12 @@ class ProjectSectionController extends Controller
         $transactions = $validatedData['transactions'];
 
         // Filter transactions based on user permissions
-        if (!$this->canManageProjectExpenses($user, $project)) {
+        if (! $this->canManageProjectExpenses($user, $project)) {
             $transactions = array_filter($transactions, function ($transaction) {
                 return $transaction['type'] !== 'expense';
             });
         }
-        if (!$this->canManageProjectIncome($user, $project)) {
+        if (! $this->canManageProjectIncome($user, $project)) {
             $transactions = array_filter($transactions, function ($transaction) {
                 return $transaction['type'] !== 'income';
             });
@@ -305,7 +296,6 @@ class ProjectSectionController extends Controller
     /**
      * Get project clients
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getProjectClients(Project $project)
@@ -313,23 +303,23 @@ class ProjectSectionController extends Controller
         $user = Auth::user();
 
         // Check if user has access to the project
-//        if (!$this->canAccessProject($user, $project)) {
-//            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
-//        }
-//
-//        // Check if user has permission to view client contacts
-//        if (!$this->canViewClientContacts($user, $project)) {
-//            return response()->json(['message' => 'Unauthorized. You do not have permission to view client contacts.'], 403);
-//        }
+        //        if (!$this->canAccessProject($user, $project)) {
+        //            return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
+        //        }
+        //
+        //        // Check if user has permission to view client contacts
+        //        if (!$this->canViewClientContacts($user, $project)) {
+        //            return response()->json(['message' => 'Unauthorized. You do not have permission to view client contacts.'], 403);
+        //        }
 
         $project->load('clients');
+
         return response()->json($project->clients);
     }
 
     /**
      * Get project contract details
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getContractDetails(Project $project)
@@ -337,12 +327,12 @@ class ProjectSectionController extends Controller
         $user = Auth::user();
 
         // Check if user has access to the project
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
         // Check if user has permission to view client financial
-        if (!$this->canViewClientFinancial($user, $project)) {
+        if (! $this->canViewClientFinancial($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to view contract details.'], 403);
         }
 
@@ -352,7 +342,6 @@ class ProjectSectionController extends Controller
     /**
      * Get project clients and users
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getClientsAndUsers(Project $project)
@@ -361,7 +350,7 @@ class ProjectSectionController extends Controller
         $result = [];
 
         // Check if user has access to the project
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
@@ -393,7 +382,7 @@ class ProjectSectionController extends Controller
                                 'id' => $permission->id,
                                 'name' => $permission->name,
                                 'slug' => $permission->slug,
-                                'category' => $permission->category
+                                'category' => $permission->category,
                             ];
                         }
 
@@ -402,7 +391,7 @@ class ProjectSectionController extends Controller
                             'id' => $projectRole->id,
                             'name' => $projectRole->name,
                             'slug' => $projectRole->slug,
-                            'permissions' => $permissions
+                            'permissions' => $permissions,
                         ];
 
                         // Make sure role_data is included in the JSON response
@@ -421,7 +410,7 @@ class ProjectSectionController extends Controller
                             'id' => $permission->id,
                             'name' => $permission->name,
                             'slug' => $permission->slug,
-                            'category' => $permission->category
+                            'category' => $permission->category,
                         ];
                     }
                     $user->global_permissions = $globalPermissions;
@@ -440,7 +429,6 @@ class ProjectSectionController extends Controller
     /**
      * Get project users
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getProjectUsers(Project $project)
@@ -448,12 +436,12 @@ class ProjectSectionController extends Controller
         $user = Auth::user();
 
         // Check if user has access to the project
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
         // Check if user has permission to view users
-        if (!$this->canViewUsers($user, $project)) {
+        if (! $this->canViewUsers($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to view team members.'], 403);
         }
 
@@ -477,7 +465,7 @@ class ProjectSectionController extends Controller
                             'id' => $permission->id,
                             'name' => $permission->name,
                             'slug' => $permission->slug,
-                            'category' => $permission->category
+                            'category' => $permission->category,
                         ];
                     }
 
@@ -486,7 +474,7 @@ class ProjectSectionController extends Controller
                         'id' => $projectRole->id,
                         'name' => $projectRole->name,
                         'slug' => $projectRole->slug,
-                        'permissions' => $permissions
+                        'permissions' => $permissions,
                     ];
 
                     // Make sure role_data is included in the JSON response
@@ -505,7 +493,7 @@ class ProjectSectionController extends Controller
                         'id' => $permission->id,
                         'name' => $permission->name,
                         'slug' => $permission->slug,
-                        'category' => $permission->category
+                        'category' => $permission->category,
                     ];
                 }
                 $user->global_permissions = $globalPermissions;
@@ -521,7 +509,6 @@ class ProjectSectionController extends Controller
     /**
      * Get project documents
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getDocuments(Project $project)
@@ -529,12 +516,12 @@ class ProjectSectionController extends Controller
         $user = Auth::user();
 
         // Check if user has access to the project
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
         // Check if user has permission to view project documents
-        if (!$this->canViewProjectDocuments($user, $project)) {
+        if (! $this->canViewProjectDocuments($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to view documents.'], 403);
         }
 
@@ -544,8 +531,6 @@ class ProjectSectionController extends Controller
     /**
      * Get project notes
      *
-     * @param Project $project
-     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function getNotes(Project $project, Request $request)
@@ -553,12 +538,12 @@ class ProjectSectionController extends Controller
         $user = Auth::user();
 
         // Check if user has access to the project
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
         // Check if user has permission to view project notes
-        if (!$this->canViewProjectNotes($user, $project)) {
+        if (! $this->canViewProjectNotes($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to view notes.'], 403);
         }
 
@@ -566,26 +551,26 @@ class ProjectSectionController extends Controller
         $notesQuery = $project->notes()->with('user')->whereNull('parent_id');
 
         // Filter by note type if specified
-        if ($request->has('type') && !empty($request->type)) {
+        if ($request->has('type') && ! empty($request->type)) {
             $notesQuery->where('type', $request->type);
         }
 
         // Filter by user_id if specified
-        if ($request->has('user_id') && !empty($request->user_id)) {
+        if ($request->has('user_id') && ! empty($request->user_id)) {
             Log::info('Filtering notes by user_id', [
                 'project_id' => $project->id,
                 'user_id' => $request->user_id,
-                'request_params' => $request->all()
+                'request_params' => $request->all(),
             ]);
             $notesQuery->where('user_id', $request->user_id);
         }
 
         // Apply date range filters if provided
-        if ($request->has('start_date') && !empty($request->start_date)) {
+        if ($request->has('start_date') && ! empty($request->start_date)) {
             $notesQuery->whereDate('created_at', '>=', $request->start_date);
         }
 
-        if ($request->has('end_date') && !empty($request->end_date)) {
+        if ($request->has('end_date') && ! empty($request->end_date)) {
             $notesQuery->whereDate('created_at', '<=', $request->end_date);
         }
 
@@ -599,7 +584,7 @@ class ProjectSectionController extends Controller
         Log::info('Notes found after filtering', [
             'project_id' => $project->id,
             'count' => $notes->count(),
-            'filters' => $request->all()
+            'filters' => $request->all(),
         ]);
 
         // Decrypt note content and add reply count
@@ -608,14 +593,15 @@ class ProjectSectionController extends Controller
         });
 
         // Apply search filter if provided (after decryption)
-        if ($request->has('search') && !empty($request->search)) {
+        if ($request->has('search') && ! empty($request->search)) {
             $searchTerm = strtolower($request->search);
-            $notes = $notes->filter(function($note) use ($searchTerm) {
+            $notes = $notes->filter(function ($note) use ($searchTerm) {
 
                 // Skip notes that couldn't be decrypted
                 if ($note->content === '[Encrypted content could not be decrypted]') {
                     return false;
                 }
+
                 return str_contains(strtolower($note->content), $searchTerm);
             });
 
@@ -628,8 +614,8 @@ class ProjectSectionController extends Controller
     /**
      * Check if user has access to the project
      *
-     * @param \App\Models\User $user
-     * @param \App\Models\Project $project
+     * @param  \App\Models\User  $user
+     * @param  \App\Models\Project  $project
      * @return bool
      */
     private function canAccessProject($user, $project)
@@ -639,7 +625,7 @@ class ProjectSectionController extends Controller
             return true;
         }
         // Employees and Contractors can only view projects they're assigned to
-        else if ($user->isEmployee() || $user->isContractor()) {
+        elseif ($user->isEmployee() || $user->isContractor()) {
             // Check if user is assigned to this project
             return $project->users->contains($user->id);
         }
@@ -652,8 +638,8 @@ class ProjectSectionController extends Controller
     /**
      * Check if user has permission to view client contacts
      *
-     * @param \App\Models\User $user
-     * @param \App\Models\Project $project
+     * @param  \App\Models\User  $user
+     * @param  \App\Models\Project  $project
      * @return bool
      */
     private function canViewClientContacts($user, $project)
@@ -679,8 +665,8 @@ class ProjectSectionController extends Controller
     /**
      * Check if user has permission to view client financial
      *
-     * @param \App\Models\User $user
-     * @param \App\Models\Project $project
+     * @param  \App\Models\User  $user
+     * @param  \App\Models\Project  $project
      * @return bool
      */
     private function canViewClientFinancial($user, $project)
@@ -706,8 +692,8 @@ class ProjectSectionController extends Controller
     /**
      * Check if user has permission to view users
      *
-     * @param \App\Models\User $user
-     * @param \App\Models\Project $project
+     * @param  \App\Models\User  $user
+     * @param  \App\Models\Project  $project
      * @return bool
      */
     private function canViewUsers($user, $project)
@@ -733,8 +719,8 @@ class ProjectSectionController extends Controller
     /**
      * Check if user has permission to view project services and payments
      *
-     * @param \App\Models\User $user
-     * @param \App\Models\Project $project
+     * @param  \App\Models\User  $user
+     * @param  \App\Models\Project  $project
      * @return bool
      */
     private function canViewProjectServicesAndPayments($user, $project)
@@ -760,8 +746,8 @@ class ProjectSectionController extends Controller
     /**
      * Check if user has permission to view project transactions
      *
-     * @param \App\Models\User $user
-     * @param \App\Models\Project $project
+     * @param  \App\Models\User  $user
+     * @param  \App\Models\Project  $project
      * @return bool
      */
     private function canViewProjectTransactions($user, $project)
@@ -787,8 +773,8 @@ class ProjectSectionController extends Controller
     /**
      * Check if user has permission to manage project expenses
      *
-     * @param \App\Models\User $user
-     * @param \App\Models\Project $project
+     * @param  \App\Models\User  $user
+     * @param  \App\Models\Project  $project
      * @return bool
      */
     private function canManageProjectExpenses($user, $project)
@@ -814,8 +800,8 @@ class ProjectSectionController extends Controller
     /**
      * Check if user has permission to manage project income
      *
-     * @param \App\Models\User $user
-     * @param \App\Models\Project $project
+     * @param  \App\Models\User  $user
+     * @param  \App\Models\Project  $project
      * @return bool
      */
     private function canManageProjectIncome($user, $project)
@@ -841,8 +827,8 @@ class ProjectSectionController extends Controller
     /**
      * Check if user has permission to view project documents
      *
-     * @param \App\Models\User $user
-     * @param \App\Models\Project $project
+     * @param  \App\Models\User  $user
+     * @param  \App\Models\Project  $project
      * @return bool
      */
     private function canViewProjectDocuments($user, $project)
@@ -868,8 +854,8 @@ class ProjectSectionController extends Controller
     /**
      * Check if user has permission to view project notes
      *
-     * @param \App\Models\User $user
-     * @param \App\Models\Project $project
+     * @param  \App\Models\User  $user
+     * @param  \App\Models\Project  $project
      * @return bool
      */
     private function canViewProjectNotes($user, $project)
@@ -895,8 +881,8 @@ class ProjectSectionController extends Controller
     /**
      * Check if user has permission to manage project services and payments
      *
-     * @param \App\Models\User $user
-     * @param \App\Models\Project $project
+     * @param  \App\Models\User  $user
+     * @param  \App\Models\Project  $project
      * @return bool
      */
     private function canManageProjectServicesAndPayments($user, $project)
@@ -922,8 +908,6 @@ class ProjectSectionController extends Controller
     /**
      * Add a daily standup note to the project and send it to Google Space
      *
-     * @param Request $request
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function addStandup(Request $request, Project $project)
@@ -931,12 +915,12 @@ class ProjectSectionController extends Controller
         $user = Auth::user();
 
         // Check if user has access to the project
-        if (!$this->canAccessProject($user, $project)) {
+        if (! $this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have access to this project.'], 403);
         }
 
         // Check if user has permission to add project notes
-        if (!$this->canViewProjectNotes($user, $project)) {
+        if (! $this->canViewProjectNotes($user, $project)) {
             return response()->json(['message' => 'Unauthorized. You do not have permission to add notes.'], 403);
         }
 
@@ -948,10 +932,10 @@ class ProjectSectionController extends Controller
         ]);
 
         // Format the standup content
-        $formattedContent = "**Daily Standup - " . date('F j, Y') . "**\n\n";
-        $formattedContent .= "**Yesterday:** " . $validated['yesterday'] . "\n\n";
-        $formattedContent .= "**Today:** " . $validated['today'] . "\n\n";
-        $formattedContent .= "**Blockers:** " . ($validated['blockers'] ?? 'None');
+        $formattedContent = '**Daily Standup - '.date('F j, Y')."**\n\n";
+        $formattedContent .= '**Yesterday:** '.$validated['yesterday']."\n\n";
+        $formattedContent .= '**Today:** '.$validated['today']."\n\n";
+        $formattedContent .= '**Blockers:** '.($validated['blockers'] ?? 'None');
 
         // Create the note with type 'standup'
         $note = $project->notes()->create([
@@ -964,10 +948,10 @@ class ProjectSectionController extends Controller
         if ($project->google_chat_id) {
             try {
                 // Format the message for Google Chat
-                $messageText = "🏃‍♂️ *Daily Standup from {$user->name} - " . date('F j, Y') . "*\n\n";
-                $messageText .= "💼 *Yesterday:* " . $validated['yesterday'] . "\n\n";
-                $messageText .= "📝 *Today:* " . $validated['today'] . "\n\n";
-                $messageText .= "🚧 *Blockers:* " . ($validated['blockers'] ?? 'None');
+                $messageText = "🏃‍♂️ *Daily Standup from {$user->name} - ".date('F j, Y')."*\n\n";
+                $messageText .= '💼 *Yesterday:* '.$validated['yesterday']."\n\n";
+                $messageText .= '📝 *Today:* '.$validated['today']."\n\n";
+                $messageText .= '🚧 *Blockers:* '.($validated['blockers'] ?? 'None');
 
                 $response = $this->googleChatService->sendMessage($project->google_chat_id, $messageText);
 
@@ -979,7 +963,7 @@ class ProjectSectionController extends Controller
                     'project_id' => $project->id,
                     'space_name' => $project->google_chat_id,
                     'user_id' => $user->id,
-                    'chat_message_id' => $response['name'] ?? null
+                    'chat_message_id' => $response['name'] ?? null,
                 ]);
             } catch (\Exception $e) {
                 // Log the error but don't fail the note creation
@@ -987,7 +971,7 @@ class ProjectSectionController extends Controller
                     'project_id' => $project->id,
                     'space_name' => $project->google_chat_id,
                     'error' => $e->getMessage(),
-                    'exception' => $e
+                    'exception' => $e,
                 ]);
             }
         }
@@ -995,7 +979,7 @@ class ProjectSectionController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Standup submitted successfully',
-            'note' => $note
+            'note' => $note,
         ], 201);
     }
 }

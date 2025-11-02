@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api\Concerns;
 use App\Models\Email;
 use App\Models\Lead;
 use Exception;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
 
 trait HandlesAiTemplatedEmails
@@ -13,9 +12,8 @@ trait HandlesAiTemplatedEmails
     /**
      * Renders the subject and body for an AI-generated email.
      *
-     * @param Email $email
-     * @param bool $isFinalSend
      * @return array With keys 'subject' and 'body'.
+     *
      * @throws Exception
      */
     public function renderAiEmailContent(Email $email, bool $isFinalSend = false): array
@@ -26,13 +24,13 @@ trait HandlesAiTemplatedEmails
         // The structured content for the body is stored in the 'body' column.
         $structuredBody = json_decode($email->body, true) ?? [];
 
-        if (empty($structuredBody) || !isset($fullAiResponse['subject'])) {
-            throw new Exception('AI response data is missing or malformed for email ID: ' . $email->id);
+        if (empty($structuredBody) || ! isset($fullAiResponse['subject'])) {
+            throw new Exception('AI response data is missing or malformed for email ID: '.$email->id);
         }
 
         $recipient = $email->conversation->conversable;
-        if (!($recipient instanceof Lead)) {
-            throw new Exception('Recipient for AI email is not a Lead. Email ID: ' . $email->id);
+        if (! ($recipient instanceof Lead)) {
+            throw new Exception('Recipient for AI email is not a Lead. Email ID: '.$email->id);
         }
 
         $senderDetails = $this->getSenderDetails($email);
@@ -45,7 +43,7 @@ trait HandlesAiTemplatedEmails
             'senderName' => $senderDetails['name'],
             'senderRole' => $senderDetails['role'],
             // Dynamically load all branding details from the config file
-            ...$this->getBrandingData($email, $isFinalSend)
+            ...$this->getBrandingData($email, $isFinalSend),
         ];
 
         $renderedBody = View::make('emails.ai_lead_outreach_template', $viewData)->render();
@@ -90,4 +88,3 @@ trait HandlesAiTemplatedEmails
         return $data;
     }
 }
-

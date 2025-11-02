@@ -1,12 +1,12 @@
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 
 echo "Testing UserController changes...\n";
@@ -17,14 +17,14 @@ $managerRole = Role::where('slug', 'manager')->first();
 $employeeRole = Role::where('slug', 'employee')->first();
 $contractorRole = Role::where('slug', 'contractor')->first();
 
-if (!$superAdminRole || !$managerRole || !$employeeRole || !$contractorRole) {
+if (! $superAdminRole || ! $managerRole || ! $employeeRole || ! $contractorRole) {
     echo "ERROR: Required roles not found. Please ensure RolePermissionSeeder has been run.\n";
     exit(1);
 }
 
 // Test user creation with role_id
 echo "\nTesting user creation with role_id...\n";
-$testEmail = 'test-user-' . time() . '@example.com';
+$testEmail = 'test-user-'.time().'@example.com';
 
 try {
     $user = User::create([
@@ -58,7 +58,7 @@ try {
         echo "FAIL: isEmployee() method not working correctly\n";
     }
 
-    if (!$user->isSuperAdmin()) {
+    if (! $user->isSuperAdmin()) {
         echo "PASS: isSuperAdmin() method works correctly\n";
     } else {
         echo "FAIL: isSuperAdmin() method not working correctly\n";
@@ -85,7 +85,7 @@ try {
         echo "FAIL: isContractor() method not working correctly after update\n";
     }
 
-    if (!$user->isEmployee()) {
+    if (! $user->isEmployee()) {
         echo "PASS: isEmployee() method works correctly after update\n";
     } else {
         echo "FAIL: isEmployee() method not working correctly after update\n";
@@ -97,7 +97,7 @@ try {
     echo "Test user deleted\n";
 
 } catch (\Exception $e) {
-    echo "ERROR: " . $e->getMessage() . "\n";
+    echo 'ERROR: '.$e->getMessage()."\n";
 }
 
 echo "\nTest completed.\n";

@@ -2,9 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\HandlesSchedules;
-use App\Models\Schedule;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
 class ScheduleApiController extends Controller

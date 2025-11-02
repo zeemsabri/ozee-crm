@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\Log;
 
 class TaskCompletedListener implements ShouldQueue
 {
-
     use InteractsWithQueue;
+
     /**
      * @var PointsService
      */
@@ -20,7 +20,6 @@ class TaskCompletedListener implements ShouldQueue
     /**
      * Create the event listener.
      *
-     * @param PointsService $pointsService
      * @return void
      */
     public function __construct(PointsService $pointsService)
@@ -31,7 +30,6 @@ class TaskCompletedListener implements ShouldQueue
     /**
      * Handle the event.
      *
-     * @param TaskCompletedEvent $event
      * @return void
      */
     public function handle(TaskCompletedEvent $event)

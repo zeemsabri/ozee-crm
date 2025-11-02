@@ -1,18 +1,17 @@
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Route;
-use App\Models\User;
 use App\Models\ProjectNote;
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 
 // Test the getUserStandups endpoint
 echo "Testing getUserStandups endpoint...\n";
 
 // Get a user for testing
 $user = User::first();
-if (!$user) {
+if (! $user) {
     echo "No users found in the database.\n";
     exit(1);
 }
@@ -26,7 +25,7 @@ Auth::login($user);
 $today = now()->format('Y-m-d');
 echo "Creating a test standup note for today ({$today})...\n";
 
-$standup = new ProjectNote();
+$standup = new ProjectNote;
 $standup->user_id = $user->id;
 $standup->type = 'standup';
 $standup->content = "Test standup for {$today}";
@@ -35,7 +34,7 @@ $standup->save();
 echo "Created test standup with ID: {$standup->id}\n";
 
 // Call the endpoint directly
-$controller = new \App\Http\Controllers\Api\ProjectReadController();
+$controller = new \App\Http\Controllers\Api\ProjectReadController;
 $response = $controller->getUserStandups();
 
 // Get the response data

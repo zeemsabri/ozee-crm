@@ -7,7 +7,6 @@ use App\Models\EmailTemplate;
 use App\Models\PlaceholderDefinition; // <-- New Import
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Inertia\Inertia;
 
 class EmailTemplateController extends Controller
 {
@@ -19,9 +18,10 @@ class EmailTemplateController extends Controller
     {
         $query = EmailTemplate::with('placeholders');
         $user = auth()->user();
-        if (!$user || !$user->can('view_private_templates')) {
+        if (! $user || ! $user->can('view_private_templates')) {
             $query->where('is_private', false);
         }
+
         return response()->json($query->get());
     }
 
@@ -45,7 +45,7 @@ class EmailTemplateController extends Controller
             $template = EmailTemplate::create($validatedData);
 
             // Extract placeholder names from the content using the corrected regex
-            $placeholderNames = $this->extractPlaceholders($template->subject . ' ' . $template->body_html);
+            $placeholderNames = $this->extractPlaceholders($template->subject.' '.$template->body_html);
             $placeholderIds = PlaceholderDefinition::whereIn('name', $placeholderNames)->pluck('id');
 
             $template->placeholders()->sync($placeholderIds);
@@ -55,7 +55,8 @@ class EmailTemplateController extends Controller
             return response()->json($template->load('placeholders'), 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Failed to create template: ' . $e->getMessage()], 500);
+
+            return response()->json(['message' => 'Failed to create template: '.$e->getMessage()], 500);
         }
     }
 
@@ -66,7 +67,7 @@ class EmailTemplateController extends Controller
     {
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
-            'slug' => 'required|string|max:255|unique:email_templates,slug,' . $emailTemplate->id,
+            'slug' => 'required|string|max:255|unique:email_templates,slug,'.$emailTemplate->id,
             'subject' => 'required|string|max:255',
             'body_html' => 'required|string',
             'description' => 'nullable|string',
@@ -78,7 +79,7 @@ class EmailTemplateController extends Controller
         try {
             $emailTemplate->update($validatedData);
 
-            $placeholderNames = $this->extractPlaceholders($emailTemplate->subject . ' ' . $emailTemplate->body_html);
+            $placeholderNames = $this->extractPlaceholders($emailTemplate->subject.' '.$emailTemplate->body_html);
             $placeholderIds = PlaceholderDefinition::whereIn('name', $placeholderNames)->pluck('id');
 
             $emailTemplate->placeholders()->sync($placeholderIds);
@@ -88,7 +89,8 @@ class EmailTemplateController extends Controller
             return response()->json($emailTemplate->load('placeholders'));
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Failed to update template: ' . $e->getMessage()], 500);
+
+            return response()->json(['message' => 'Failed to update template: '.$e->getMessage()], 500);
         }
     }
 
@@ -98,15 +100,13 @@ class EmailTemplateController extends Controller
     public function destroy(EmailTemplate $emailTemplate)
     {
         $emailTemplate->delete();
+
         return response()->json(null, 204);
     }
 
     /**
      * Helper function to extract placeholder names from a string.
      * This will be used to automatically link templates to definitions.
-     *
-     * @param string $content
-     * @return array
      */
     private function extractPlaceholders(string $content): array
     {
@@ -119,6 +119,7 @@ class EmailTemplateController extends Controller
                 $placeholders[] = trim($match);
             }
         }
+
         return array_unique($placeholders);
     }
 }

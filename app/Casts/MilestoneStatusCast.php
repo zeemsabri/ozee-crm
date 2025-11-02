@@ -24,14 +24,14 @@ class MilestoneStatusCast implements CastsAttributes
     /** @var array<string,string> Map of normalized legacy => normalized canonical */
     protected array $synonyms;
 
-    public function __construct(string $enumClass = null, string $synonymsJson = null)
+    public function __construct(?string $enumClass = null, ?string $synonymsJson = null)
     {
         // Default to MilestoneStatus when not parameterized
         $this->enumClass = $enumClass && enum_exists($enumClass)
             ? $enumClass
             : (enum_exists('App\\Enums\\MilestoneStatus') ? 'App\\Enums\\MilestoneStatus' : $enumClass);
 
-        if (!$this->enumClass || !enum_exists($this->enumClass)) {
+        if (! $this->enumClass || ! enum_exists($this->enumClass)) {
             throw new InvalidArgumentException('MilestoneStatusCast requires a valid enum class.');
         }
 
@@ -43,7 +43,7 @@ class MilestoneStatusCast implements CastsAttributes
                 // Normalize keys/values of provided overrides
                 $normalized = [];
                 foreach ($extra as $k => $v) {
-                    $normalized[self::normalize((string)$k)] = self::normalize((string)$v);
+                    $normalized[self::normalize((string) $k)] = self::normalize((string) $v);
                 }
                 $this->synonyms = array_merge($this->synonyms, $normalized);
             }
@@ -84,7 +84,7 @@ class MilestoneStatusCast implements CastsAttributes
             }
         }
 
-        throw new ValueError('"' . (is_scalar($value) ? (string)$value : gettype($value)) . '" is not a valid backing value for enum ' . $enumClass);
+        throw new ValueError('"'.(is_scalar($value) ? (string) $value : gettype($value)).'" is not a valid backing value for enum '.$enumClass);
     }
 
     public function set(Model $model, string $key, $value, array $attributes): ?string
@@ -119,12 +119,12 @@ class MilestoneStatusCast implements CastsAttributes
             }
         }
 
-        throw new ValueError('Invalid value for ' . $enumClass . ' given to attribute ' . $key);
+        throw new ValueError('Invalid value for '.$enumClass.' given to attribute '.$key);
     }
 
     protected static function caseValue(\UnitEnum $case): string
     {
-        return property_exists($case, 'value') ? (string)$case->value : (string)$case->name;
+        return property_exists($case, 'value') ? (string) $case->value : (string) $case->name;
     }
 
     protected static function splitCamel(string $value): string
@@ -140,6 +140,7 @@ class MilestoneStatusCast implements CastsAttributes
         $v = str_replace(['_', '-'], ' ', $v);
         // Collapse multiple spaces
         $v = preg_replace('/\s+/', ' ', $v);
+
         return $v;
     }
 

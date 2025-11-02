@@ -9,8 +9,8 @@
  */
 
 // Bootstrap the Laravel application
-require __DIR__ . '/vendor/autoload.php';
-$app = require_once __DIR__ . '/bootstrap/app.php';
+require __DIR__.'/vendor/autoload.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
@@ -26,7 +26,7 @@ Log::info('Starting Magic Link Redirect test');
 try {
     // Find a project to use for testing
     $project = Project::first();
-    if (!$project) {
+    if (! $project) {
         echo "No projects found in the database. Please create a project first.\n";
         exit(1);
     }
@@ -69,9 +69,9 @@ try {
     echo "Test magic link deleted.\n";
 
 } catch (\Exception $e) {
-    echo "Error: " . $e->getMessage() . "\n";
-    Log::error('Error in Magic Link Redirect test: ' . $e->getMessage(), [
-        'error' => $e->getTraceAsString()
+    echo 'Error: '.$e->getMessage()."\n";
+    Log::error('Error in Magic Link Redirect test: '.$e->getMessage(), [
+        'error' => $e->getTraceAsString(),
     ]);
 }
 

@@ -13,5 +13,5 @@ interface StepHandlerContract
      * - output: mixed Raw output
      * - logs: array Arbitrary info for debugging
      */
-    public function handle(array $context, WorkflowStep $step, ExecutionLog $execLog = null): array;
+    public function handle(array $context, WorkflowStep $step, ?ExecutionLog $execLog = null): array;
 }

@@ -6,8 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Milestone;
 use App\Models\Project;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 
 class MilestoneController extends Controller
 {
@@ -18,7 +16,6 @@ class MilestoneController extends Controller
      * 1. GET /api/milestones?project_id=X - General route with query parameter
      * 2. GET /api/projects/{project}/milestones - Project-specific route with route parameter
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request)
@@ -45,7 +42,7 @@ class MilestoneController extends Controller
 
         if ($status) {
             $statusFilter = $status;
-            $enum = \App\Enums\MilestoneStatus::tryFrom($status) ?? \App\Enums\MilestoneStatus::tryFrom(strtolower((string)$status));
+            $enum = \App\Enums\MilestoneStatus::tryFrom($status) ?? \App\Enums\MilestoneStatus::tryFrom(strtolower((string) $status));
             if ($enum) {
                 $statusFilter = $enum->value;
             }
@@ -72,23 +69,36 @@ class MilestoneController extends Controller
                 'expendable.user' => function ($q) {
                     $q->select('id', 'name');
                 },
-                'budget'
+                'budget',
             ])
             // Task counts by status
             ->withCount([
-                'tasks as tasks_todo_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::ToDo->value); },
-                'tasks as tasks_in_progress_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::InProgress->value); },
-                'tasks as tasks_paused_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Paused->value); },
-                'tasks as tasks_blocked_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Blocked->value); },
-                'tasks as tasks_done_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Done->value); },
-                'tasks as tasks_archived_count' => function ($q) { $q->where('status', \App\Enums\TaskStatus::Archived->value); },
-                'tasks as tasks_total_count'
+                'tasks as tasks_todo_count' => function ($q) {
+                    $q->where('status', \App\Enums\TaskStatus::ToDo->value);
+                },
+                'tasks as tasks_in_progress_count' => function ($q) {
+                    $q->where('status', \App\Enums\TaskStatus::InProgress->value);
+                },
+                'tasks as tasks_paused_count' => function ($q) {
+                    $q->where('status', \App\Enums\TaskStatus::Paused->value);
+                },
+                'tasks as tasks_blocked_count' => function ($q) {
+                    $q->where('status', \App\Enums\TaskStatus::Blocked->value);
+                },
+                'tasks as tasks_done_count' => function ($q) {
+                    $q->where('status', \App\Enums\TaskStatus::Done->value);
+                },
+                'tasks as tasks_archived_count' => function ($q) {
+                    $q->where('status', \App\Enums\TaskStatus::Archived->value);
+                },
+                'tasks as tasks_total_count',
             ])
             ->orderByRaw('completion_date IS NULL')
             ->orderBy('completion_date', 'asc')
             ->get()
             ->map(function ($m) {
                 $total = $m->expendable->sum('amount');
+
                 return array_merge($m->toArray(), [
                     'expendables_total' => $total,
                 ]);
@@ -121,7 +131,6 @@ class MilestoneController extends Controller
     /**
      * Store a newly created resource in storage.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request)
@@ -136,7 +145,7 @@ class MilestoneController extends Controller
         ]);
 
         // Soft-validate status against registry
-        app(\App\Services\ValueSetValidator::class)->validate('Milestone','status', $validated['status']);
+        app(\App\Services\ValueSetValidator::class)->validate('Milestone', 'status', $validated['status']);
         // Create the milestone
         $milestone = Milestone::create($validated);
 
@@ -149,7 +158,6 @@ class MilestoneController extends Controller
     /**
      * Display the specified resource.
      *
-     * @param Milestone $milestone
      * @return \Illuminate\Http\JsonResponse
      */
     public function show(Milestone $milestone)
@@ -163,8 +171,6 @@ class MilestoneController extends Controller
     /**
      * Update the specified resource in storage.
      *
-     * @param Request $request
-     * @param Milestone $milestone
      * @return \Illuminate\Http\JsonResponse
      */
     public function update(Request $request, Milestone $milestone)
@@ -181,7 +187,7 @@ class MilestoneController extends Controller
 
         // Soft-validate status when provided
         if (array_key_exists('status', $validated)) {
-            app(\App\Services\ValueSetValidator::class)->validate('Milestone','status', $validated['status']);
+            app(\App\Services\ValueSetValidator::class)->validate('Milestone', 'status', $validated['status']);
         }
         // Update the milestone
         $milestone->update($validated);
@@ -195,7 +201,6 @@ class MilestoneController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param Milestone $milestone
      * @return \Illuminate\Http\JsonResponse
      */
     public function destroy(Milestone $milestone)
@@ -209,7 +214,6 @@ class MilestoneController extends Controller
     /**
      * Mark a milestone as completed.
      *
-     * @param Milestone $milestone
      * @return \Illuminate\Http\JsonResponse
      */
     public function markAsCompleted(Request $request, Milestone $milestone)
@@ -230,7 +234,7 @@ class MilestoneController extends Controller
         }
 
         // Update milestone status and timestamps
-        app(\App\Services\ValueSetValidator::class)->validate('Milestone','status', \App\Enums\MilestoneStatus::Completed);
+        app(\App\Services\ValueSetValidator::class)->validate('Milestone', 'status', \App\Enums\MilestoneStatus::Completed);
         $milestone->status = \App\Enums\MilestoneStatus::Completed;
         $milestone->completed_at = now();
         $milestone->save();
@@ -238,7 +242,7 @@ class MilestoneController extends Controller
         // Create a project note of type 'milestone' and notify
         $milestone->load('project');
         if ($milestone->project) {
-            $content = "Milestone '{$milestone->name}' marked complete. Review: " . $validated['reason'];
+            $content = "Milestone '{$milestone->name}' marked complete. Review: ".$validated['reason'];
             \App\Models\ProjectNote::createAndNotify($milestone->project, $content, [
                 'type' => 'milestone',
                 'noteable' => $milestone,
@@ -254,7 +258,6 @@ class MilestoneController extends Controller
     /**
      * Start a milestone (change status to In Progress).
      *
-     * @param Milestone $milestone
      * @return \Illuminate\Http\JsonResponse
      */
     public function start(Milestone $milestone)
@@ -283,7 +286,7 @@ class MilestoneController extends Controller
         // Create a project note and notify Google Chat
         $milestone->load('project');
         if ($milestone->project) {
-            $content = "Milestone '{$milestone->name}' rejected. Reason: " . $data['reason'];
+            $content = "Milestone '{$milestone->name}' rejected. Reason: ".$data['reason'];
             \App\Models\ProjectNote::createAndNotify($milestone->project, $content, [
                 'type' => 'milestone',
                 'noteable' => $milestone,
@@ -291,6 +294,7 @@ class MilestoneController extends Controller
         }
 
         $milestone->load('tasks');
+
         return response()->json($milestone);
     }
 
@@ -310,7 +314,7 @@ class MilestoneController extends Controller
         // Create a project note and notify Google Chat
         $milestone->load('project');
         if ($milestone->project) {
-            $content = "Milestone '{$milestone->name}' approved. Reason: " . $data['reason'];
+            $content = "Milestone '{$milestone->name}' approved. Reason: ".$data['reason'];
             \App\Models\ProjectNote::createAndNotify($milestone->project, $content, [
                 'type' => 'milestone',
                 'noteable' => $milestone,
@@ -318,6 +322,7 @@ class MilestoneController extends Controller
         }
 
         $milestone->load('tasks');
+
         return response()->json($milestone);
     }
 
@@ -338,7 +343,7 @@ class MilestoneController extends Controller
         // Create a project note and notify Google Chat
         $milestone->load('project');
         if ($milestone->project) {
-            $content = "Milestone '{$milestone->name}' reopened. Reason: " . $data['reason'];
+            $content = "Milestone '{$milestone->name}' reopened. Reason: ".$data['reason'];
             \App\Models\ProjectNote::createAndNotify($milestone->project, $content, [
                 'type' => 'milestone',
                 'noteable' => $milestone,
@@ -346,6 +351,7 @@ class MilestoneController extends Controller
         }
 
         $milestone->load('tasks');
+
         return response()->json($milestone);
     }
 }

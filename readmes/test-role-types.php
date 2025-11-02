@@ -3,10 +3,10 @@
 // This script tests the RolePermissionSeeder to verify that roles are created with the correct types
 // Run this script with: php test-role-types.php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap the Laravel application
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 use App\Models\Role;
@@ -16,7 +16,7 @@ echo "Testing RolePermissionSeeder role types...\n\n";
 
 // Check if the roles table has the 'type' column
 $hasTypeColumn = DB::getSchemaBuilder()->hasColumn('roles', 'type');
-if (!$hasTypeColumn) {
+if (! $hasTypeColumn) {
     echo "Error: The 'type' column does not exist in the roles table.\n";
     echo "Please run the migration to add the 'type' column first.\n";
     exit(1);
@@ -31,23 +31,23 @@ $nullTypeRoles = Role::whereNull('type')->get();
 echo "Roles by type:\n";
 echo "-------------\n";
 
-echo "\nApplication Roles (" . count($applicationRoles) . "):\n";
+echo "\nApplication Roles (".count($applicationRoles)."):\n";
 foreach ($applicationRoles as $role) {
     echo "- {$role->name} (slug: {$role->slug})\n";
 }
 
-echo "\nClient Roles (" . count($clientRoles) . "):\n";
+echo "\nClient Roles (".count($clientRoles)."):\n";
 foreach ($clientRoles as $role) {
     echo "- {$role->name} (slug: {$role->slug})\n";
 }
 
-echo "\nProject Roles (" . count($projectRoles) . "):\n";
+echo "\nProject Roles (".count($projectRoles)."):\n";
 foreach ($projectRoles as $role) {
     echo "- {$role->name} (slug: {$role->slug})\n";
 }
 
 if (count($nullTypeRoles) > 0) {
-    echo "\nRoles with NULL type (" . count($nullTypeRoles) . "):\n";
+    echo "\nRoles with NULL type (".count($nullTypeRoles)."):\n";
     foreach ($nullTypeRoles as $role) {
         echo "- {$role->name} (slug: {$role->slug})\n";
     }

@@ -17,6 +17,7 @@ class PlaceholderDefinitionController extends Controller
     public function index()
     {
         $placeholderDefinitions = PlaceholderDefinition::all();
+
         return response()->json($placeholderDefinitions);
     }
 
@@ -31,9 +32,9 @@ class PlaceholderDefinitionController extends Controller
             'source_model' => 'nullable|string|max:255',
             'source_attribute' => 'nullable|string|max:255',
             'is_dynamic' => 'boolean',
-            'is_repeatable' =>  'boolean',
-            'is_link'   =>  'boolean',
-            'is_selectable' =>  'boolean'
+            'is_repeatable' => 'boolean',
+            'is_link' => 'boolean',
+            'is_selectable' => 'boolean',
         ]);
 
         $placeholder = PlaceholderDefinition::create($request->all());
@@ -55,14 +56,14 @@ class PlaceholderDefinitionController extends Controller
     public function update(Request $request, PlaceholderDefinition $placeholderDefinition)
     {
         $request->validate([
-            'name' => 'required|string|max:255|unique:placeholder_definitions,name,' . $placeholderDefinition->id,
+            'name' => 'required|string|max:255|unique:placeholder_definitions,name,'.$placeholderDefinition->id,
             'description' => 'nullable|string',
             'source_model' => 'nullable|string|max:255',
             'source_attribute' => 'nullable|string|max:255',
             'is_dynamic' => 'boolean',
-            'is_repeatable' =>  'boolean',
-            'is_link'   =>  'boolean',
-            'is_selectable' =>  'boolean'
+            'is_repeatable' => 'boolean',
+            'is_link' => 'boolean',
+            'is_selectable' => 'boolean',
         ]);
 
         $placeholderDefinition->update($request->all());
@@ -95,9 +96,9 @@ class PlaceholderDefinitionController extends Controller
         $registry = [];
         foreach ($modelFiles as $modelFile) {
             $modelName = $modelFile->getFilenameWithoutExtension();
-            $className = 'App\\Models\\' . $modelName;
+            $className = 'App\\Models\\'.$modelName;
             if (class_exists($className) && is_subclass_of($className, 'Illuminate\Database\Eloquent\Model')) {
-                $instance = new $className();
+                $instance = new $className;
                 $table = $instance->getTable();
                 $columns = $schema->getColumnListing($table);
                 $registry[$modelName] = [
@@ -134,10 +135,10 @@ class PlaceholderDefinitionController extends Controller
                             'columns' => $registry[$relatedBase]['columns'],
                         ];
                     } else {
-                        $candidate = 'App\\Models\\' . $relatedBase;
+                        $candidate = 'App\\Models\\'.$relatedBase;
                         if (class_exists($candidate)) {
                             // Load columns if possible
-                            $inst = new $candidate();
+                            $inst = new $candidate;
                             $relTable = $inst->getTable();
                             $relCols = $schema->hasTable($relTable) ? $schema->getColumnListing($relTable) : [];
                             $relationships[] = [
@@ -154,9 +155,11 @@ class PlaceholderDefinitionController extends Controller
             }
 
             // hasMany: other models that have currentModel_id
-            $currentFk = Str::snake(Str::singular($modelName)) . '_id';
+            $currentFk = Str::snake(Str::singular($modelName)).'_id';
             foreach ($registry as $otherName => $otherInfo) {
-                if ($otherName === $modelName) continue;
+                if ($otherName === $modelName) {
+                    continue;
+                }
                 if (in_array($currentFk, $otherInfo['columns'], true)) {
                     $relationships[] = [
                         'name' => Str::camel(Str::pluralStudly($otherName)),
@@ -171,7 +174,7 @@ class PlaceholderDefinitionController extends Controller
 
             // Attach field metadata for enum/value sets if available
             $fieldMeta = [];
-            if (!empty($valueSets[$info['name']]['fields'] ?? [])) {
+            if (! empty($valueSets[$info['name']]['fields'] ?? [])) {
                 foreach ($valueSets[$info['name']]['fields'] as $fieldName => $def) {
                     $fieldMeta[$fieldName] = array_merge(['enum' => true], $def);
                 }

@@ -3,17 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use App\Models\Lead;
 use App\Models\Presentation;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PresentationGeneratorController extends Controller
 {
     /**
      * Generate a new presentation with a random, structured set of slides.
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function generate(Request $request)
@@ -24,7 +23,7 @@ class PresentationGeneratorController extends Controller
         ]);
 
         $lead = Lead::first();
-        if (!$lead) {
+        if (! $lead) {
             return response()->json(['message' => 'No available lead to associate the presentation with.'], 404);
         }
 
@@ -61,10 +60,6 @@ class PresentationGeneratorController extends Controller
 
     /**
      * Generate a random selection of middle slides for the presentation.
-     *
-     * @param Presentation $presentation
-     * @param int $count
-     * @return void
      */
     private function generateMiddleSlides(Presentation $presentation, int $count): void
     {
@@ -92,11 +87,6 @@ class PresentationGeneratorController extends Controller
 
     /**
      * Creates a slide and its content blocks from a structured blueprint array.
-     *
-     * @param Presentation $presentation
-     * @param array $blueprint
-     * @param int $displayOrder
-     * @return void
      */
     private function createSlideFromStructure(Presentation $presentation, array $blueprint, int $displayOrder): void
     {
@@ -106,7 +96,7 @@ class PresentationGeneratorController extends Controller
             'display_order' => $displayOrder,
         ]);
 
-        if (!empty($blueprint['content_blocks'])) {
+        if (! empty($blueprint['content_blocks'])) {
             // Add a display_order to each block sequentially.
             collect($blueprint['content_blocks'])->each(function ($blockData, $index) use ($slide) {
                 $slide->contentBlocks()->create([

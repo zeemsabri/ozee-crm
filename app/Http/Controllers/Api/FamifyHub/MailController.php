@@ -46,40 +46,54 @@ class MailController extends Controller
         $data = $validator->validated();
 
         $toEmail = 'hello@famifyhub.com.au';
-        $subject = 'New ' . ($data['userType'] ?? 'Website') . ' form submission — Famify Website';
+        $subject = 'New '.($data['userType'] ?? 'Website').' form submission — Famify Website';
 
         // Build a contextual message based on user type
         $summaryMessage = null;
         if (($data['userType'] ?? null) === 'Parent') {
-            $pg = trim((string)($data['parentGoal'] ?? ''));
-            $ca = trim((string)($data['childAge'] ?? ''));
+            $pg = trim((string) ($data['parentGoal'] ?? ''));
+            $ca = trim((string) ($data['childAge'] ?? ''));
             $parts = [];
-            if ($pg !== '') { $parts[] = "Goal: $pg"; }
-            if ($ca !== '') { $parts[] = "Child age: $ca"; }
-            $summaryMessage = 'A Parent submitted the form' . (count($parts) ? ' — ' . implode('; ', $parts) : '.') ;
+            if ($pg !== '') {
+                $parts[] = "Goal: $pg";
+            }
+            if ($ca !== '') {
+                $parts[] = "Child age: $ca";
+            }
+            $summaryMessage = 'A Parent submitted the form'.(count($parts) ? ' — '.implode('; ', $parts) : '.');
         } elseif (($data['userType'] ?? null) === 'Content Creator') {
-            $cg = trim((string)($data['creatorGoal'] ?? ''));
-            $summaryMessage = 'A Content Creator submitted the form' . ($cg !== '' ? ' — Goal: ' . $cg : '.') ;
+            $cg = trim((string) ($data['creatorGoal'] ?? ''));
+            $summaryMessage = 'A Content Creator submitted the form'.($cg !== '' ? ' — Goal: '.$cg : '.');
         }
 
         // Prefer existing message if provided, otherwise use our contextual summary
-        if (empty($data['message']) && !empty($summaryMessage)) {
+        if (empty($data['message']) && ! empty($summaryMessage)) {
             $data['message'] = $summaryMessage;
         }
 
         // Prepare key/value collection from all submitted fields, filtering empty values
         $allFields = collect($request->all())
             ->filter(function ($value) {
-                if (is_null($value)) return false;
-                if (is_string($value)) return trim($value) !== '';
-                if (is_array($value)) return count($value) > 0;
-                if (is_object($value)) return count((array)$value) > 0;
+                if (is_null($value)) {
+                    return false;
+                }
+                if (is_string($value)) {
+                    return trim($value) !== '';
+                }
+                if (is_array($value)) {
+                    return count($value) > 0;
+                }
+                if (is_object($value)) {
+                    return count((array) $value) > 0;
+                }
+
                 return true;
             })
             ->map(function ($value, $key) {
                 if (is_array($value) || is_object($value)) {
                     $value = json_encode($value);
                 }
+
                 return [
                     'key' => Str::title(e((string) $key)),
                     'value' => e((string) $value),
@@ -91,7 +105,7 @@ class MailController extends Controller
         try {
             // Use the dedicated Famify SMTP mailer with a Mailable + Blade view
             $mailer = Mail::mailer('famify_smtp')->to($toEmail);
-            if (!empty($data['email'])) {
+            if (! empty($data['email'])) {
 
                 // Send a thank-you email to the submitter
                 try {
@@ -106,7 +120,7 @@ class MailController extends Controller
                         ));
                 } catch (\Throwable $te) {
                     // Don't fail the main flow if the thank-you email fails
-                    Log::warning('Failed to send Famify thank-you email: ' . $te->getMessage(), [
+                    Log::warning('Failed to send Famify thank-you email: '.$te->getMessage(), [
                         'email' => $data['email'],
                     ]);
                 }
@@ -119,7 +133,7 @@ class MailController extends Controller
                 'message' => 'Your message has been sent successfully.',
             ]);
         } catch (\Throwable $e) {
-            Log::error('Famify contact form email failed: ' . $e->getMessage(), [
+            Log::error('Famify contact form email failed: '.$e->getMessage(), [
                 'exception' => $e,
             ]);
 
@@ -157,21 +171,31 @@ class MailController extends Controller
         $toEmail = 'hello@famifyhub.com.au';
 
         // Subject: prefer provided subject, add suffix for clarity
-        $subject = ($data['subject'] ?? 'New contact message') . ' — Famify Website';
+        $subject = ($data['subject'] ?? 'New contact message').' — Famify Website';
 
         // Build fields list, include only non-empty values
         $allFields = collect($request->all())
             ->filter(function ($value) {
-                if (is_null($value)) return false;
-                if (is_string($value)) return trim($value) !== '';
-                if (is_array($value)) return count($value) > 0;
-                if (is_object($value)) return count((array)$value) > 0;
+                if (is_null($value)) {
+                    return false;
+                }
+                if (is_string($value)) {
+                    return trim($value) !== '';
+                }
+                if (is_array($value)) {
+                    return count($value) > 0;
+                }
+                if (is_object($value)) {
+                    return count((array) $value) > 0;
+                }
+
                 return true;
             })
             ->map(function ($value, $key) {
                 if (is_array($value) || is_object($value)) {
                     $value = json_encode($value);
                 }
+
                 return [
                     'key' => Str::title(e((string) $key)),
                     'value' => e((string) $value),
@@ -190,7 +214,7 @@ class MailController extends Controller
                 'message' => 'Your message has been sent successfully.',
             ]);
         } catch (\Throwable $e) {
-            Log::error('Famify simple contact form email failed: ' . $e->getMessage(), [
+            Log::error('Famify simple contact form email failed: '.$e->getMessage(), [
                 'exception' => $e,
             ]);
 
@@ -200,5 +224,4 @@ class MailController extends Controller
             ], 500);
         }
     }
-
 }

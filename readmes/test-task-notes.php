@@ -1,20 +1,18 @@
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 use App\Models\Task;
 use App\Models\User;
-use App\Models\ProjectNote;
-use Illuminate\Support\Facades\DB;
 
 // Bootstrap Laravel
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 // Find a task to test with
 $task = Task::first();
 
-if (!$task) {
+if (! $task) {
     echo "No tasks found in the database.\n";
     exit(1);
 }
@@ -22,22 +20,22 @@ if (!$task) {
 // Find a user to associate with the note
 $user = User::first();
 
-if (!$user) {
+if (! $user) {
     echo "No users found in the database.\n";
     exit(1);
 }
 
 echo "Testing addNote method on Task ID: {$task->id}\n";
-echo "Before adding note, count of notes for this task: " . $task->notes()->count() . "\n";
+echo 'Before adding note, count of notes for this task: '.$task->notes()->count()."\n";
 
 // Add a note to the task
-$noteContent = "Test note created at " . date('Y-m-d H:i:s');
+$noteContent = 'Test note created at '.date('Y-m-d H:i:s');
 $result = $task->addNote($noteContent, $user);
 
 // Refresh the task model to get the latest data
 $task->refresh();
 
-echo "After adding note, count of notes for this task: " . $task->notes()->count() . "\n";
+echo 'After adding note, count of notes for this task: '.$task->notes()->count()."\n";
 
 // Get the latest note
 $latestNote = $task->notes()->latest()->first();

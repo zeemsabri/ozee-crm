@@ -13,10 +13,10 @@ class TransformContentStepHandler implements StepHandlerContract
         protected WorkflowEngineService $engine,
     ) {}
 
-    public function handle(array $context, WorkflowStep $step, ExecutionLog|null $execLog = null): array
+    public function handle(array $context, WorkflowStep $step, ?ExecutionLog $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
-        $type = (string)($cfg['type'] ?? '');
+        $type = (string) ($cfg['type'] ?? '');
 
         if ($type === '') {
             throw new \InvalidArgumentException('TRANSFORM_CONTENT step requires step_config.type');
@@ -24,7 +24,7 @@ class TransformContentStepHandler implements StepHandlerContract
 
         // Resolve source content (can be a token like {{trigger.body}})
         $source = $this->engine->getTemplatedValue($cfg['source'] ?? '', $context);
-        if (!is_string($source)) {
+        if (! is_string($source)) {
             // Try to stringify non-string values to avoid fatal errors and be permissive
             $source = is_scalar($source) ? (string) $source : json_encode($source);
         }
@@ -36,7 +36,7 @@ class TransformContentStepHandler implements StepHandlerContract
                 // Support both `marker` and `remove_after` keys for configuration flexibility
                 $rawMarker = $cfg['marker'] ?? ($cfg['remove_after'] ?? '');
                 $marker = $this->engine->getTemplatedValue($rawMarker, $context);
-                if (!is_string($marker)) {
+                if (! is_string($marker)) {
                     $marker = is_scalar($marker) ? (string) $marker : json_encode($marker);
                 }
                 $result = $this->removeAfterMarker($source, $marker);
@@ -73,7 +73,7 @@ class TransformContentStepHandler implements StepHandlerContract
                 ],
             ],
             // Optional: mirror under a namespaced context as well
-            'context' => [ 'transform' => [ 'step_' . $step->id => [ 'result' => $result, 'cleaned_body' => $result ] ] ],
+            'context' => ['transform' => ['step_'.$step->id => ['result' => $result, 'cleaned_body' => $result]]],
         ];
     }
 
@@ -83,11 +83,11 @@ class TransformContentStepHandler implements StepHandlerContract
      */
     protected function removeAfterMarker(string $source, string $marker): string
     {
-//        $marker = $request->input('marker');
-//        $source = $request->input('source');
+        //        $marker = $request->input('marker');
+        //        $source = $request->input('source');
 
-        Log::info('marker: ' . $marker);
-        Log::info('source: ' . $source);
+        Log::info('marker: '.$marker);
+        Log::info('source: '.$source);
         // --- Step 1: Prepare and validate the marker ---
         $cleanMarker = trim($marker);
 
@@ -131,6 +131,7 @@ class TransformContentStepHandler implements StepHandlerContract
         $normalized = strtolower($normalized);
         $normalized = preg_replace('/[^a-z0-9\s]/', '', $normalized);
         $normalized = preg_replace('/\s+/', ' ', $normalized);
+
         return trim($normalized);
     }
 }

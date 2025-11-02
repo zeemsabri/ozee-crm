@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Role;
 use App\Models\Permission;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\DB;
 
 class RoleController extends Controller
 {
@@ -19,6 +19,7 @@ class RoleController extends Controller
     public function index()
     {
         $roles = Role::with('permissions')->get();
+
         return view('admin.roles.index', compact('roles'));
     }
 
@@ -28,6 +29,7 @@ class RoleController extends Controller
     public function create()
     {
         $permissions = Permission::orderBy('category')->get()->groupBy('category');
+
         return view('admin.roles.create', compact('permissions'));
     }
 
@@ -58,11 +60,13 @@ class RoleController extends Controller
             }
 
             DB::commit();
+
             return redirect()->route('admin.roles.index')
                 ->with('success', 'Role created successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error creating role: ' . $e->getMessage());
+
+            return back()->with('error', 'Error creating role: '.$e->getMessage());
         }
     }
 
@@ -152,7 +156,7 @@ class RoleController extends Controller
                 return response()->json([
                     'success' => true,
                     'message' => 'Role updated successfully.',
-                    'role' => $role->load('permissions')
+                    'role' => $role->load('permissions'),
                 ], 200); // Explicitly return 200 OK status code
             }
 
@@ -166,11 +170,11 @@ class RoleController extends Controller
             if ($request->wantsJson() || $request->header('X-Inertia')) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Error updating role: ' . $e->getMessage()
+                    'message' => 'Error updating role: '.$e->getMessage(),
                 ], 500);
             }
 
-            return back()->with('error', 'Error updating role: ' . $e->getMessage());
+            return back()->with('error', 'Error updating role: '.$e->getMessage());
         }
     }
 
@@ -191,7 +195,7 @@ class RoleController extends Controller
             return redirect()->route('admin.roles.index')
                 ->with('success', 'Role deleted successfully.');
         } catch (\Exception $e) {
-            return back()->with('error', 'Error deleting role: ' . $e->getMessage());
+            return back()->with('error', 'Error deleting role: '.$e->getMessage());
         }
     }
 
@@ -240,11 +244,13 @@ class RoleController extends Controller
             }
 
             DB::commit();
+
             return redirect()->route('admin.roles.show', $role)
                 ->with('success', 'Role permissions updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error updating role permissions: ' . $e->getMessage());
+
+            return back()->with('error', 'Error updating role permissions: '.$e->getMessage());
         }
     }
 
@@ -285,7 +291,7 @@ class RoleController extends Controller
             if ($request->wantsJson() || $request->header('X-Inertia')) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'Role revoked successfully.'
+                    'message' => 'Role revoked successfully.',
                 ]);
             }
 
@@ -296,11 +302,11 @@ class RoleController extends Controller
             if ($request->wantsJson() || $request->header('X-Inertia')) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Error revoking role: ' . $e->getMessage()
+                    'message' => 'Error revoking role: '.$e->getMessage(),
                 ], 500);
             }
 
-            return back()->with('error', 'Error revoking role: ' . $e->getMessage());
+            return back()->with('error', 'Error revoking role: '.$e->getMessage());
         }
     }
 }

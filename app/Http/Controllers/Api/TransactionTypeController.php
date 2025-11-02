@@ -25,6 +25,7 @@ class TransactionTypeController extends Controller
             'slug' => Str::slug($validated['name']),
             'created_by_user_id' => Auth::id(),
         ]);
+
         return response()->json($transactionType, 201);
     }
 
@@ -37,6 +38,7 @@ class TransactionTypeController extends Controller
             })
             ->orderBy('name')
             ->get();
+
         return response()->json($results);
     }
 }

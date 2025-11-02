@@ -4,18 +4,17 @@
 // It verifies that each section of the project can be updated independently
 // and that permissions are correctly enforced for each section
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap the Laravel application
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
-use App\Models\Role;
-use App\Models\Project;
 use App\Models\Permission;
+use App\Models\Project;
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
 echo "Testing project form independence functionality...\n\n";
@@ -26,7 +25,7 @@ $managerRole = Role::where('slug', 'manager')->first();
 $employeeRole = Role::where('slug', 'employee')->first();
 $contractorRole = Role::where('slug', 'contractor')->first();
 
-if (!$superAdminRole || !$managerRole || !$employeeRole || !$contractorRole) {
+if (! $superAdminRole || ! $managerRole || ! $employeeRole || ! $contractorRole) {
     echo "Roles not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
@@ -37,7 +36,7 @@ $manager = User::where('role_id', $managerRole->id)->first();
 $employee = User::where('role_id', $employeeRole->id)->first();
 $contractor = User::where('role_id', $contractorRole->id)->first();
 
-if (!$superAdmin || !$manager || !$employee || !$contractor) {
+if (! $superAdmin || ! $manager || ! $employee || ! $contractor) {
     echo "Users with required roles not found. Please create users with appropriate roles first.\n";
     exit;
 }
@@ -45,7 +44,7 @@ if (!$superAdmin || !$manager || !$employee || !$contractor) {
 // Get a project to test with
 $project = Project::first();
 
-if (!$project) {
+if (! $project) {
     echo "No projects found. Please create a project first.\n";
     exit;
 }
@@ -62,7 +61,7 @@ echo "Logged in as {$superAdmin->name} (Role: {$superAdmin->role->name})\n";
 try {
     $response = Http::withToken($superAdmin->createToken('test-token')->plainTextToken)
         ->put(url("/api/projects/{$project->id}/sections/basic"), [
-            'name' => $project->name . ' (Updated by Super Admin)',
+            'name' => $project->name.' (Updated by Super Admin)',
             'description' => $project->description,
             'website' => $project->website,
             'social_media_link' => $project->social_media_link,
@@ -77,10 +76,10 @@ try {
     if ($response->successful()) {
         echo "✓ Successfully updated basic information\n";
     } else {
-        echo "✗ Failed to update basic information: " . $response->body() . "\n";
+        echo '✗ Failed to update basic information: '.$response->body()."\n";
     }
 } catch (\Exception $e) {
-    echo "✗ Exception when updating basic information: " . $e->getMessage() . "\n";
+    echo '✗ Exception when updating basic information: '.$e->getMessage()."\n";
 }
 
 // Test updating services and payment
@@ -96,10 +95,10 @@ try {
     if ($response->successful()) {
         echo "✓ Successfully updated services and payment\n";
     } else {
-        echo "✗ Failed to update services and payment: " . $response->body() . "\n";
+        echo '✗ Failed to update services and payment: '.$response->body()."\n";
     }
 } catch (\Exception $e) {
-    echo "✗ Exception when updating services and payment: " . $e->getMessage() . "\n";
+    echo '✗ Exception when updating services and payment: '.$e->getMessage()."\n";
 }
 
 // Test updating transactions
@@ -113,17 +112,17 @@ try {
                     'user_id' => null,
                     'hours_spent' => null,
                     'type' => 'income',
-                ]
+                ],
             ],
         ]);
 
     if ($response->successful()) {
         echo "✓ Successfully updated transactions\n";
     } else {
-        echo "✗ Failed to update transactions: " . $response->body() . "\n";
+        echo '✗ Failed to update transactions: '.$response->body()."\n";
     }
 } catch (\Exception $e) {
-    echo "✗ Exception when updating transactions: " . $e->getMessage() . "\n";
+    echo '✗ Exception when updating transactions: '.$e->getMessage()."\n";
 }
 
 // Test updating notes
@@ -133,17 +132,17 @@ try {
             'notes' => [
                 [
                     'content' => 'Test note by Super Admin',
-                ]
+                ],
             ],
         ]);
 
     if ($response->successful()) {
         echo "✓ Successfully updated notes\n";
     } else {
-        echo "✗ Failed to update notes: " . $response->body() . "\n";
+        echo '✗ Failed to update notes: '.$response->body()."\n";
     }
 } catch (\Exception $e) {
-    echo "✗ Exception when updating notes: " . $e->getMessage() . "\n";
+    echo '✗ Exception when updating notes: '.$e->getMessage()."\n";
 }
 
 echo "\n";
@@ -158,7 +157,7 @@ echo "Logged in as {$manager->name} (Role: {$manager->role->name})\n";
 try {
     $response = Http::withToken($manager->createToken('test-token')->plainTextToken)
         ->put(url("/api/projects/{$project->id}/sections/basic"), [
-            'name' => $project->name . ' (Updated by Manager)',
+            'name' => $project->name.' (Updated by Manager)',
             'description' => $project->description,
             'website' => $project->website,
             'social_media_link' => $project->social_media_link,
@@ -173,10 +172,10 @@ try {
     if ($response->successful()) {
         echo "✓ Successfully updated basic information\n";
     } else {
-        echo "✗ Failed to update basic information: " . $response->body() . "\n";
+        echo '✗ Failed to update basic information: '.$response->body()."\n";
     }
 } catch (\Exception $e) {
-    echo "✗ Exception when updating basic information: " . $e->getMessage() . "\n";
+    echo '✗ Exception when updating basic information: '.$e->getMessage()."\n";
 }
 
 // Test updating services and payment
@@ -192,10 +191,10 @@ try {
     if ($response->successful()) {
         echo "✓ Successfully updated services and payment\n";
     } else {
-        echo "✗ Failed to update services and payment: " . $response->body() . "\n";
+        echo '✗ Failed to update services and payment: '.$response->body()."\n";
     }
 } catch (\Exception $e) {
-    echo "✗ Exception when updating services and payment: " . $e->getMessage() . "\n";
+    echo '✗ Exception when updating services and payment: '.$e->getMessage()."\n";
 }
 
 echo "\n";
@@ -210,7 +209,7 @@ echo "Logged in as {$employee->name} (Role: {$employee->role->name})\n";
 try {
     $response = Http::withToken($employee->createToken('test-token')->plainTextToken)
         ->put(url("/api/projects/{$project->id}/sections/basic"), [
-            'name' => $project->name . ' (Updated by Employee)',
+            'name' => $project->name.' (Updated by Employee)',
             'description' => $project->description,
             'website' => $project->website,
             'social_media_link' => $project->social_media_link,
@@ -228,7 +227,7 @@ try {
         echo "✓ Employee correctly denied permission to update basic information\n";
     }
 } catch (\Exception $e) {
-    echo "✓ Exception when employee tries to update basic information: " . $e->getMessage() . "\n";
+    echo '✓ Exception when employee tries to update basic information: '.$e->getMessage()."\n";
 }
 
 // Test updating notes (should succeed if employee has add_project_notes permission)
@@ -237,7 +236,7 @@ if ($addProjectNotesPermission) {
     // Check if employee role has this permission
     $hasPermission = $employeeRole->permissions()->where('permissions.id', $addProjectNotesPermission->id)->exists();
 
-    if (!$hasPermission) {
+    if (! $hasPermission) {
         // Add the permission temporarily for testing
         $employeeRole->permissions()->attach($addProjectNotesPermission->id);
         echo "Temporarily added add_project_notes permission to employee role\n";
@@ -249,21 +248,21 @@ if ($addProjectNotesPermission) {
                 'notes' => [
                     [
                         'content' => 'Test note by Employee',
-                    ]
+                    ],
                 ],
             ]);
 
         if ($response->successful()) {
             echo "✓ Successfully updated notes with add_project_notes permission\n";
         } else {
-            echo "✗ Failed to update notes despite having permission: " . $response->body() . "\n";
+            echo '✗ Failed to update notes despite having permission: '.$response->body()."\n";
         }
     } catch (\Exception $e) {
-        echo "✗ Exception when updating notes: " . $e->getMessage() . "\n";
+        echo '✗ Exception when updating notes: '.$e->getMessage()."\n";
     }
 
     // Remove the permission if we added it temporarily
-    if (!$hasPermission) {
+    if (! $hasPermission) {
         $employeeRole->permissions()->detach($addProjectNotesPermission->id);
         echo "Removed temporary add_project_notes permission from employee role\n";
     }
@@ -281,7 +280,7 @@ echo "Logged in as {$contractor->name} (Role: {$contractor->role->name})\n";
 
 // Check if contractor is already assigned to the project
 $isAssigned = $project->users()->where('users.id', $contractor->id)->exists();
-if (!$isAssigned) {
+if (! $isAssigned) {
     // Assign contractor to the project with a manager role
     $managerProjectRole = Role::where('slug', 'manager')->where('type', 'project')->first();
     if ($managerProjectRole) {
@@ -296,7 +295,7 @@ if (!$isAssigned) {
 try {
     $response = Http::withToken($contractor->createToken('test-token')->plainTextToken)
         ->put(url("/api/projects/{$project->id}/sections/basic"), [
-            'name' => $project->name . ' (Updated by Contractor with project role)',
+            'name' => $project->name.' (Updated by Contractor with project role)',
             'description' => $project->description,
             'website' => $project->website,
             'social_media_link' => $project->social_media_link,
@@ -311,10 +310,10 @@ try {
     if ($response->successful()) {
         echo "✓ Successfully updated basic information with project-specific role\n";
     } else {
-        echo "✗ Failed to update basic information despite project role: " . $response->body() . "\n";
+        echo '✗ Failed to update basic information despite project role: '.$response->body()."\n";
     }
 } catch (\Exception $e) {
-    echo "✗ Exception when updating basic information: " . $e->getMessage() . "\n";
+    echo '✗ Exception when updating basic information: '.$e->getMessage()."\n";
 }
 
 echo "\n";

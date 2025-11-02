@@ -16,15 +16,13 @@ use App\Policies\EmailPolicy;
 use App\Policies\ProjectPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-
     protected $policies = [
-//        Client::class => ClientPolicy::class,
+        //        Client::class => ClientPolicy::class,
         Project::class => ProjectPolicy::class,
         User::class => UserPolicy::class,
         Email::class => EmailPolicy::class,

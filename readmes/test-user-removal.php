@@ -3,15 +3,15 @@
 // This is a simple test script to verify that user removal works correctly
 // Run this script with: php test-user-removal.php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
 // Bootstrap the Laravel application
-$app = require_once __DIR__ . '/bootstrap/app.php';
+$app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-use App\Models\User;
 use App\Models\Project;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -26,18 +26,18 @@ foreach ($roles as $role) {
 echo "\n";
 
 // Get a manager user
-$manager = User::whereHas('role', function($query) {
+$manager = User::whereHas('role', function ($query) {
     $query->where('slug', 'manager');
 })->first();
 
-if (!$manager) {
+if (! $manager) {
     echo "Manager user not found. Please run the RolePermissionSeeder first.\n";
     exit;
 }
 
 // Get a project
 $project = Project::first();
-if (!$project) {
+if (! $project) {
     echo "No projects found in the database. Creating a test project...\n";
 
     // Create a test project
@@ -67,8 +67,8 @@ if (count($users) < 2) {
     for ($i = $existingCount; $i < 2; $i++) {
         $employeeRole = Role::where('slug', 'employee')->first();
         $user = User::create([
-            'name' => 'Test User ' . ($i + 1),
-            'email' => 'test-user-' . ($i + 1) . '@example.com',
+            'name' => 'Test User '.($i + 1),
+            'email' => 'test-user-'.($i + 1).'@example.com',
             'password' => bcrypt('password'),
             'role_id' => $employeeRole->id,
         ]);
@@ -84,7 +84,7 @@ echo "Test User 2: {$user2->name} (ID: {$user2->id})\n\n";
 
 // Find a role to assign
 $userRole = Role::where('slug', 'employee')->first();
-if (!$userRole) {
+if (! $userRole) {
     $userRole = $roles->first();
 }
 
@@ -96,13 +96,13 @@ $userData = [
     'user_ids' => [
         [
             'id' => $user1->id,
-            'role_id' => $userRole->id
+            'role_id' => $userRole->id,
         ],
         [
             'id' => $user2->id,
-            'role_id' => $userRole->id
-        ]
-    ]
+            'role_id' => $userRole->id,
+        ],
+    ],
 ];
 
 // Instead of calling the controller method directly, we'll use the DB to simulate the action
@@ -128,18 +128,18 @@ try {
             ->whereIn('user_id', [$user1->id, $user2->id])
             ->get();
 
-        echo "Found " . count($projectUsers) . " users attached to the project\n";
+        echo 'Found '.count($projectUsers)." users attached to the project\n";
 
         foreach ($projectUsers as $pu) {
             $user = User::find($pu->user_id);
-            $roleName = $pu->role_id ? Role::find($pu->role_id)->name ?? "Unknown Role ({$pu->role_id})" : "No Role";
+            $roleName = $pu->role_id ? Role::find($pu->role_id)->name ?? "Unknown Role ({$pu->role_id})" : 'No Role';
             echo "- User: {$user->name}, Role ID: {$pu->role_id}, Role Name: {$roleName}\n";
         }
     } else {
-        echo "FAILURE: API call failed with status code " . $response->getStatusCode() . "\n";
+        echo 'FAILURE: API call failed with status code '.$response->getStatusCode()."\n";
     }
 } catch (\Exception $e) {
-    echo "FAILURE: Exception occurred: " . $e->getMessage() . "\n";
+    echo 'FAILURE: Exception occurred: '.$e->getMessage()."\n";
 }
 
 // Step 2: Remove one user and save
@@ -150,9 +150,9 @@ $userData = [
     'user_ids' => [
         [
             'id' => $user1->id,
-            'role_id' => $userRole->id
-        ]
-    ]
+            'role_id' => $userRole->id,
+        ],
+    ],
 ];
 
 // Instead of calling the controller method directly, we'll use the DB to simulate the action
@@ -177,11 +177,11 @@ try {
             ->where('project_id', $project->id)
             ->get();
 
-        echo "Found " . count($projectUsers) . " users attached to the project\n";
+        echo 'Found '.count($projectUsers)." users attached to the project\n";
 
         foreach ($projectUsers as $pu) {
             $user = User::find($pu->user_id);
-            $roleName = $pu->role_id ? Role::find($pu->role_id)->name ?? "Unknown Role ({$pu->role_id})" : "No Role";
+            $roleName = $pu->role_id ? Role::find($pu->role_id)->name ?? "Unknown Role ({$pu->role_id})" : 'No Role';
             echo "- User: {$user->name}, Role ID: {$pu->role_id}, Role Name: {$roleName}\n";
         }
 
@@ -191,16 +191,16 @@ try {
             ->where('user_id', $user2->id)
             ->exists();
 
-        if (!$user2Still) {
+        if (! $user2Still) {
             echo "SUCCESS: User 2 was properly removed\n";
         } else {
             echo "FAILURE: User 2 was not removed\n";
         }
     } else {
-        echo "FAILURE: API call failed with status code " . $response->getStatusCode() . "\n";
+        echo 'FAILURE: API call failed with status code '.$response->getStatusCode()."\n";
     }
 } catch (\Exception $e) {
-    echo "FAILURE: Exception occurred: " . $e->getMessage() . "\n";
+    echo 'FAILURE: Exception occurred: '.$e->getMessage()."\n";
 }
 
 // Clean up - remove all test users from the project

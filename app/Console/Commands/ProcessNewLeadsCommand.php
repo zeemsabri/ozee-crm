@@ -41,6 +41,7 @@ class ProcessNewLeadsCommand extends Command
 
         if ($newLeads->isEmpty()) {
             $this->info('No new leads to process.');
+
             return;
         }
 

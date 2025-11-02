@@ -3,21 +3,18 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Presentation;
 use App\Services\PresentationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use App\Models\Presentation;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class PresentationAIController extends Controller
 {
-
-    public function __construct(public PresentationService $presentationService)
-    {
-    }
+    public function __construct(public PresentationService $presentationService) {}
 
     /**
      * Receives a prompt from the user, sends it to the Google Gemini API,
@@ -25,7 +22,6 @@ class PresentationAIController extends Controller
      */
     public function generateSlide(Request $request, Presentation $presentation)
     {
-
 
         try {
             // 1. Validate the incoming request from our Vue front-end.
@@ -39,7 +35,7 @@ class PresentationAIController extends Controller
             $apiKey = config('services.gemini.key');
 
             // 2. Ensure the API key is configured before proceeding.
-            if (!$apiKey) {
+            if (! $apiKey) {
                 return response()->json(['error' => 'AI service is not configured on the server.'], 500);
             }
 
@@ -55,13 +51,13 @@ class PresentationAIController extends Controller
             // 4. Construct the payload for the Gemini API.
             $payload = [
                 'contents' => [
-                    ['parts' => [['text' => $userPrompt]]]
+                    ['parts' => [['text' => $userPrompt]]],
                 ],
                 'systemInstruction' => [
-                    'parts' => [['text' => $systemPrompt]]
+                    'parts' => [['text' => $systemPrompt]],
                 ],
                 'generationConfig' => [
-                    'responseMimeType' => "application/json",
+                    'responseMimeType' => 'application/json',
                 ],
             ];
 
@@ -96,6 +92,7 @@ class PresentationAIController extends Controller
             return response()->json(['error' => $e->getMessage()], 400);
         } catch (\Exception $e) {
             report($e);
+
             return response()->json(['error' => 'An unexpected error occurred.'], 500);
         }
     }
@@ -157,6 +154,7 @@ class PresentationAIController extends Controller
         } catch (\Throwable $e) {
             // If anything inside the transaction fails, catch the error.
             report($e); // Log the actual error for debugging
+
             return response()->json(['error' => 'Failed to save the new slide to the database.'], 500);
         }
     }

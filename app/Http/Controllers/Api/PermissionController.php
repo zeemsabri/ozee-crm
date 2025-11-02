@@ -3,10 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Permission;
 use App\Models\Project;
 use App\Models\Role;
-use App\Models\Permission;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -37,14 +36,14 @@ class PermissionController extends Controller
                         'name' => $permission->name,
                         'slug' => $permission->slug,
                         'category' => $permission->category,
-                        'source' => 'application'
+                        'source' => 'application',
                     ];
                 }
             }
 
             $projectIds = $user->projects->pluck('id')->toArray();
-            if($expendablePermission = $user->hasProjectPermissionOnAnyRole($projectIds, 'add_expendables')) {
-                $permissions[]  = $expendablePermission;
+            if ($expendablePermission = $user->hasProjectPermissionOnAnyRole($projectIds, 'add_expendables')) {
+                $permissions[] = $expendablePermission;
             }
 
             return response()->json([
@@ -53,17 +52,18 @@ class PermissionController extends Controller
                     'id' => $user->role->id,
                     'name' => $user->role->name,
                     'slug' => $user->role->slug,
-                    'type' => $user->role->type
-                ] : null
+                    'type' => $user->role->type,
+                ] : null,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching user permissions: ' . $e->getMessage(), [
+            Log::error('Error fetching user permissions: '.$e->getMessage(), [
                 'user_id' => Auth::id(),
-                'error' => $e->getTraceAsString()
+                'error' => $e->getTraceAsString(),
             ]);
+
             return response()->json([
                 'message' => 'Failed to fetch user permissions',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -72,7 +72,6 @@ class PermissionController extends Controller
      * Get the current user's permissions for a specific project
      * This endpoint returns the user's project-specific role and permissions
      *
-     * @param Project $project
      * @return \Illuminate\Http\JsonResponse
      */
     public function getUserProjectPermissions(Project $project)
@@ -81,10 +80,10 @@ class PermissionController extends Controller
             $user = Auth::user();
 
             // Check if user has access to this project
-            if (!$user->isSuperAdmin() && !$user->isManager()) {
-                if (!$project->users->contains($user->id)) {
+            if (! $user->isSuperAdmin() && ! $user->isManager()) {
+                if (! $project->users->contains($user->id)) {
                     return response()->json([
-                        'message' => 'Unauthorized. You do not have access to this project.'
+                        'message' => 'Unauthorized. You do not have access to this project.',
                     ], 403);
                 }
             }
@@ -97,7 +96,7 @@ class PermissionController extends Controller
                 'project_id' => $project->id,
                 'global_role' => null,
                 'project_role' => null,
-                'permissions' => []
+                'permissions' => [],
             ];
 
             // Add global role information
@@ -106,7 +105,7 @@ class PermissionController extends Controller
                     'id' => $user->role->id,
                     'name' => $user->role->name,
                     'slug' => $user->role->slug,
-                    'type' => $user->role->type
+                    'type' => $user->role->type,
                 ];
 
                 // Add global permissions
@@ -117,7 +116,7 @@ class PermissionController extends Controller
                         'name' => $permission->name,
                         'slug' => $permission->slug,
                         'category' => $permission->category,
-                        'source' => 'application'
+                        'source' => 'application',
                     ];
                 }
 
@@ -140,7 +139,7 @@ class PermissionController extends Controller
                         'id' => $projectRole->id,
                         'name' => $projectRole->name,
                         'slug' => $projectRole->slug,
-                        'type' => $projectRole->type
+                        'type' => $projectRole->type,
                     ];
 
                     // Add project-specific permissions (these override global permissions)
@@ -151,7 +150,7 @@ class PermissionController extends Controller
                             'name' => $permission->name,
                             'slug' => $permission->slug,
                             'category' => $permission->category,
-                            'source' => 'project'
+                            'source' => 'project',
                         ];
                     }
 
@@ -165,20 +164,20 @@ class PermissionController extends Controller
             Log::info('Returning user project permissions', [
                 'user_id' => $user->id,
                 'project_id' => $project->id,
-                'permission_count' => count($response['permissions'])
+                'permission_count' => count($response['permissions']),
             ]);
 
             return response()->json($response);
         } catch (\Exception $e) {
-            Log::error('Error fetching user project permissions: ' . $e->getMessage(), [
+            Log::error('Error fetching user project permissions: '.$e->getMessage(), [
                 'user_id' => Auth::id(),
                 'project_id' => $project->id,
-                'error' => $e->getTraceAsString()
+                'error' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'message' => 'Failed to fetch user project permissions',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -198,13 +197,13 @@ class PermissionController extends Controller
 
             return response()->json($groupedPermissions);
         } catch (\Exception $e) {
-            Log::error('Error fetching all permissions: ' . $e->getMessage(), [
-                'error' => $e->getTraceAsString()
+            Log::error('Error fetching all permissions: '.$e->getMessage(), [
+                'error' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'message' => 'Failed to fetch permissions',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
