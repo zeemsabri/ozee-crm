@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\Lead;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class PublicLeadApiController extends Controller
 {
@@ -28,14 +29,69 @@ class PublicLeadApiController extends Controller
             $providedKey = trim($authHeader);
         }
 
-        $allowedKeys = collect((array) config('public_api.keys', []))
+        // Build key entries from config: entries[] (with domains) + keys[] (simple)
+        $configEntries = collect(config('public_api.entries', []))
+            ->filter(fn ($e) => is_array($e) && ! empty($e['key']))
+            ->map(function ($e) {
+                $domains = [];
+                if (! empty($e['domains']) && is_array($e['domains'])) {
+                    $domains = array_values(array_filter(array_map('strval', $e['domains'])));
+                }
+
+                return [
+                    'key' => trim((string) $e['key']),
+                    'domains' => $domains,
+                ];
+            });
+        $envEntries = collect((array) config('public_api.keys', []))
             ->map(fn ($v) => is_string($v) ? trim($v) : $v)
             ->filter(fn ($v) => is_string($v) && $v !== '')
-            ->values();
+            ->map(fn ($k) => ['key' => $k, 'domains' => []]);
+        $allEntries = $configEntries->concat($envEntries)->values();
 
-        if ($providedKey === '' || ! $allowedKeys->contains($providedKey)) {
+        // Validate key exists
+        if ($providedKey === '') {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
+        $matched = $allEntries->first(fn ($e) => hash_equals($e['key'], $providedKey));
+        if (! $matched) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        // If domains are specified for this key, enforce Origin/Referer host match
+        if (! empty($matched['domains'])) {
+            $origin = (string) ($request->headers->get('Origin') ?? $request->headers->get('Referer') ?? '');
+            $host = $origin ? parse_url($origin, PHP_URL_HOST) : null;
+            if (! is_string($host) || $host === '') {
+                return response()->json(['message' => 'Forbidden: missing or invalid origin'], 403);
+            }
+            $host = strtolower($host);
+            $allowed = false;
+            foreach ($matched['domains'] as $pattern) {
+                $pattern = strtolower(trim((string) $pattern));
+                if ($pattern === '') {
+                    continue;
+                }
+                if (str_starts_with($pattern, '*.')) {
+                    $suffix = substr($pattern, 1); // ".example.com"
+                    if ($suffix !== '' && str_ends_with($host, $suffix)) {
+                        $allowed = true;
+                        break;
+                    }
+                } else {
+                    if ($host === $pattern) {
+                        $allowed = true;
+                        break;
+                    }
+                }
+            }
+            if (! $allowed) {
+                return response()->json(['message' => 'Forbidden: domain not allowed'], 403);
+            }
+        }
+
+        // Build a list of keys for response rotation
+        $allowedKeys = $allEntries->pluck('key');
 
         // 2) Validate payload
         $validated = $request->validate([
@@ -115,10 +171,86 @@ class PublicLeadApiController extends Controller
         $otherKey = $allowedKeys->first(fn ($k) => $k !== $providedKey);
         $responseKey = $otherKey ?: null;
 
+        // 5) Rotate the used key (one-time use): generate a new key and persist to config/public_api.php if it exists in entries
+        $this->rotateApiKey($providedKey);
+
         return response()->json([
             'ok' => true,
             'lead_id' => $lead->id,
             'api_key' => $responseKey,
         ], $lead->wasRecentlyCreated ? 201 : 200);
+    }
+
+    /**
+     * Replace a used API key in config/public_api.php entries[] with a newly generated key.
+     * Returns the new key on success, or null if not rotated (e.g., key not found in entries or write failed).
+     */
+    protected function rotateApiKey(string $usedKey): ?string
+    {
+        try {
+            $entries = config('public_api.entries', []);
+            if (! is_array($entries) || empty($entries)) {
+                return null; // nothing to rotate
+            }
+
+            $idx = null;
+            foreach ($entries as $i => $entry) {
+                if (is_array($entry) && isset($entry['key']) && hash_equals((string) $entry['key'], $usedKey)) {
+                    $idx = $i;
+                    break;
+                }
+            }
+            if ($idx === null) {
+                return null; // used key not from entries[] (likely from env keys)
+            }
+
+            $newKey = Str::random(64);
+            $entries[$idx]['key'] = $newKey;
+
+            // Rebuild config/public_api.php contents deterministically
+            $path = base_path('config/public_api.php');
+            $php = $this->buildPublicApiConfigPhp($entries);
+
+            // Atomic-ish write
+            $tmp = $path.'.tmp';
+            if (file_put_contents($tmp, $php, LOCK_EX) === false) {
+                return null;
+            }
+            if (! @rename($tmp, $path)) {
+                // Fallback: write directly
+                if (file_put_contents($path, $php, LOCK_EX) === false) {
+                    return null;
+                }
+            }
+
+            return $newKey;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    protected function buildPublicApiConfigPhp(array $entries): string
+    {
+        // Use nowdoc to keep formatting simple; var_export for entries
+        $entriesExport = var_export($entries, true);
+        $php = <<<'PHP'
+<?php
+
+return [
+    // 1) Simple keys via env (comma-separated). Example: PUBLIC_API_KEYS=key1,key2
+    'keys' => collect(explode(',', (string) env('PUBLIC_API_KEYS', '')))
+        ->map(fn ($v) => is_string($v) ? trim($v) : $v)
+        ->filter(fn ($v) => is_string($v) && $v !== '')
+        ->values()
+        ->all(),
+
+    // 2) Advanced entries allow per-key domain restrictions.
+    // Each entry: ['key' => 'your-key', 'domains' => ['example.com', '*.example.org']]
+    // If 'domains' is provided and non-empty, incoming requests must have an Origin or Referer host matching one of the patterns.
+    'entries' => %s,
+];
+PHP;
+
+        return sprintf($php, $entriesExport);
     }
 }
