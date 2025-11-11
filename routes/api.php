@@ -400,6 +400,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('milestones/{milestone}/reject', [MilestoneController::class, 'reject']);
     Route::post('milestones/{milestone}/reopen', [MilestoneController::class, 'reopen']);
     Route::post('milestones/{milestone}/start', [MilestoneController::class, 'start']);
+    Route::post('milestones/{milestone}/update-due-date', [MilestoneController::class, 'updateDueDate']);
     Route::get('milestones/{milestone}/reasons', [MilestoneController::class, 'reasons']);
 
     // Project-specific Task Management Routes

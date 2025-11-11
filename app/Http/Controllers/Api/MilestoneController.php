@@ -354,4 +354,35 @@ class MilestoneController extends Controller
 
         return response()->json($milestone);
     }
+
+    /**
+     * Update a milestone's due date and log the change with reason.
+     */
+    public function updateDueDate(Request $request, Milestone $milestone)
+    {
+        $validated = $request->validate([
+            'completion_date' => 'required|date',
+            'reason' => 'required|string|min:10',
+        ]);
+
+        $oldDate = $milestone->completion_date;
+        $milestone->completion_date = $validated['completion_date'];
+        $milestone->save();
+
+        // Create a project note to log the change
+        $milestone->load('project');
+        if ($milestone->project) {
+            $oldDateFormatted = $oldDate ? $oldDate->toDateString() : 'Not set';
+            $newDateFormatted = $validated['completion_date'];
+            $content = "Milestone '{$milestone->name}' due date changed from {$oldDateFormatted} to {$newDateFormatted}. Reason: ".$validated['reason'];
+            \App\Models\ProjectNote::createAndNotify($milestone->project, $content, [
+                'type' => 'milestone',
+                'noteable' => $milestone,
+            ]);
+        }
+
+        $milestone->load('tasks');
+
+        return response()->json($milestone);
+    }
 }
