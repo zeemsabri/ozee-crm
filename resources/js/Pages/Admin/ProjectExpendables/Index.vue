@@ -10,6 +10,7 @@ import { success, error, confirmPrompt } from '@/Utils/notification';
 import { formatCurrency, convertCurrency, conversionRatesToUSD, fetchCurrencyRates, displayCurrency } from '@/Utils/currency';
 import MilestoneExpendableModal from "@/Components/ProjectExpendables/MilestoneExpendableModal.vue";
 import ReasonModal from "@/Components/ProjectExpendables/ReasonModal.vue";
+import UpdateMilestoneDueDateModal from "@/Components/ProjectExpendables/UpdateMilestoneDueDateModal.vue";
 import MilestoneFormModal from '@/Components/ProjectTasks/MilestoneFormModal.vue';
 import BulkTaskModal from '@/Components/ProjectTasks/BulkTaskModal.vue';
 import MilestoneCompletionDateModal from '@/Components/ProjectTasks/MilestoneCompletionDateModal.vue';
@@ -51,6 +52,8 @@ const showCompletionDateModal = ref(false);
 const pendingMilestoneForDate = ref(null);
 const pendingContractId = ref(null);
 const activeExpendable = ref(null);
+const showUpdateDueDateModal = ref(false);
+const milestoneForDueDateUpdate = ref(null);
 
 const currencyOptions = [
     { value: 'PKR', label: 'PKR' },
@@ -67,6 +70,7 @@ const canApproveMilestoneExpendables = canDo('approve_milestone_expendables');
 const canApproveExpendables = canDo('approve_expendables');
 const canApproveMilestones = canDo('approve_milestones');
 const canViewMonthlyBudgets = canDo('view_monthly_budgets');
+const canUpdateMilestoneDueDate = canDo('update_milestone_due_date');
 
 const currentDisplayCurrency = displayCurrency;
 const projectBudgetAmount = ref(null);
@@ -347,6 +351,24 @@ const onReasonModalClose = () => {
     showReasonModal.value = false;
     activeMilestone.value = null;
     activeExpendable.value = null;
+};
+
+const openUpdateDueDateModal = (milestone) => {
+    if (!milestone || !milestone.id) {
+        error('Invalid milestone selected.');
+        return;
+    }
+    milestoneForDueDateUpdate.value = milestone;
+    showUpdateDueDateModal.value = true;
+};
+
+const onDueDateUpdated = async () => {
+    showUpdateDueDateModal.value = false;
+    milestoneForDueDateUpdate.value = null;
+    // Refresh milestones to reflect the updated due date and notes
+    if (selectedProjectId.value) {
+        await loadMilestones();
+    }
 };
 
 const markComplete = async (m) => {
@@ -633,7 +655,18 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                         <!-- Completion date and days remaining -->
                                         <div class="mt-1 text-xs text-gray-500 flex items-center gap-2">
                                             <span v-if="m.completion_date">
-                                                Due by: <span class="font-medium text-gray-700">{{ new Date(m.completion_date).toLocaleDateString() }}</span>
+                                                Due by:
+                                                <span
+                                                    v-if="canUpdateMilestoneDueDate && activeTab === 'active'"
+                                                    @click.stop="openUpdateDueDateModal(m)"
+                                                    class="font-medium text-gray-700 cursor-pointer hover:text-indigo-600 hover:underline transition-colors"
+                                                    title="Click to update due date"
+                                                >
+                                                    {{ new Date(m.completion_date).toLocaleDateString() }}
+                                                </span>
+                                                <span v-else class="font-medium text-gray-700">
+                                                    {{ new Date(m.completion_date).toLocaleDateString() }}
+                                                </span>
                                             </span>
                                             <span v-else>No completion date</span>
                                             <span v-if="m.completion_date" :class="[
@@ -884,6 +917,14 @@ watch(currentDisplayCurrency, async (newCurrency) => {
             :initial-completion-date="pendingMilestoneForDate?.completion_date ? String(pendingMilestoneForDate.completion_date).split('T')[0] : null"
             @close="() => { showCompletionDateModal = false; pendingMilestoneForDate = null; }"
             @updated="onCompletionDateUpdated"
+        />
+
+        <!-- Update Milestone Due Date Modal -->
+        <UpdateMilestoneDueDateModal
+            :show="showUpdateDueDateModal"
+            :milestone="milestoneForDueDateUpdate"
+            @close="() => { showUpdateDueDateModal = false; milestoneForDueDateUpdate = null; }"
+            @submitted="onDueDateUpdated"
         />
     </AuthenticatedLayout>
 </template>
