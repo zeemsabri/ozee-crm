@@ -48,11 +48,13 @@ class AvailabilityController extends Controller
         $query = UserAvailability::with('user:id,name')->whereBetween('date', [$startDate, $endDate]);
 
         // If user_id is provided and user is admin/manager, filter by that user
-        if ($request->has('user_id') && ($user->isSuperAdmin() || $user->isManager())) {
+        if ($request->has('user_id') && $user->hasPermission('view_users_availability')
+//            && ($user->isSuperAdmin() || $user->isManager())
+        ) {
             $query->where('user_id', $request->input('user_id'));
         } else {
             // Regular users can only see their own availabilities
-            if (! $user->isSuperAdmin() && ! $user->isManager()) {
+            if (! $user->hasPermission('view_users_availability')) {
                 $query->where('user_id', $user->id);
             }
         }
