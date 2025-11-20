@@ -405,6 +405,7 @@ class TaskController extends Controller
             'milestone_id' => 'nullable|exists:milestones,id',
             'details' => 'nullable|array',
             'needs_approval' => 'sometimes|boolean',
+            'priority'  =>  'sometimes|in:low,medium,high'
         ]);
 
         // Coerce and soft-validate status via value dictionary (update)

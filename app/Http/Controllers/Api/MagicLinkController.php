@@ -187,7 +187,7 @@ class MagicLinkController extends Controller
             $token = Str::random(64);
 
             // Set expiration time (24 hours from now)
-            $expiresAt = now()->addHours(24);
+            $expiresAt = now()->addDays(7);
 
             // Create a new magic link
             $magicLink = MagicLink::create([
