@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 
 // Define props for the component
 const props = defineProps({
@@ -32,6 +32,7 @@ const emit = defineEmits(['update:modelValue']);
 // Reactive state for the dropdown
 const isDropdownOpen = ref(false);
 const searchTerm = ref('');
+const inputRef = ref(null);
 
 // Computed property to filter options based on search term
 const filteredOptions = computed(() => {
@@ -80,13 +81,12 @@ const isSelected = (itemId) => {
 </script>
 
 <template>
-    <div class="relative" v-click-outside="() => isDropdownOpen = false">
+    <div class="relative" v-click-outside="() => { isDropdownOpen = false }">
         <!-- Input/Display area -->
         <div
             class="flex flex-wrap items-center w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm cursor-pointer min-h-[38px] bg-white focus-within:border-indigo-500 focus-within:ring-indigo-500"
-            @click="isDropdownOpen = !isDropdownOpen"
+            @click="() => { isDropdownOpen = !isDropdownOpen; nextTick(() => inputRef && inputRef.focus && inputRef.focus()); }"
         >
-            <span v-if="modelValue.length === 0 && !searchTerm" class="text-gray-400 text-sm">{{ placeholder }}</span>
             <div v-for="id in modelValue" :key="id"
                  class="inline-flex items-center bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded mr-2 mb-1"
             >
@@ -97,10 +97,11 @@ const isSelected = (itemId) => {
             </div>
             <input
                 type="text"
+                ref="inputRef"
                 v-model="searchTerm"
                 @input="isDropdownOpen = true"
                 class="flex-grow border-none focus:ring-0 p-0 text-sm placeholder-gray-400 bg-transparent outline-none"
-                :placeholder="modelValue.length === 0 ? 'Search...' : ''"
+                :placeholder="modelValue.length === 0 ? placeholder : 'Search...'"
             >
         </div>
 

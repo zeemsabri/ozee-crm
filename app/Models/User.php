@@ -77,7 +77,7 @@ class User extends Authenticatable
 
     protected $with = ['role']; // Always load the role relationship
 
-    protected $appends = ['role_data']; // Add role data to JSON
+    protected $appends = ['role_data','avatar']; // Add role data to JSON
 
     /**
      * Get project expendable created/owned by this user.
@@ -677,5 +677,10 @@ class User extends Authenticatable
     public function contexts()
     {
         return $this->hasMany(Context::class);
+    }
+
+    public function getAvatarAttribute()
+    {
+        return 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . '&background=random&color=fff';
     }
 }
