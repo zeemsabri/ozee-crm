@@ -635,6 +635,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('Workspace/Index');
     })->name('workspace.index');
 
+    // Team Pulse Dashboard
+    Route::get('/workspace/team-pulse', function () {
+        return Inertia::render('Workspace/TeamPulseDashboard');
+    })->name('workspace.team-pulse');
+
     Route::get('/shareable-resources', function () {
         return Inertia::render('ShareableResources/Index');
     })->name('shareable-resources.page')->middleware('permission:view_shareable_resources');

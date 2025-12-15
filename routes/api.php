@@ -579,6 +579,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('prompts', \App\Http\Controllers\Api\PromptController::class);
     Route::apiResource('workflow-steps', \App\Http\Controllers\Api\WorkflowStepController::class);
 
+    // Standup Analytics Routes
+    Route::prefix('standups/analytics')->group(function () {
+        Route::get('/filters', [App\Http\Controllers\Api\StandupAnalyticsController::class, 'getFilters']);
+        Route::get('/matrix', [App\Http\Controllers\Api\StandupAnalyticsController::class, 'getComplianceMatrix']);
+        Route::get('/feed', [App\Http\Controllers\Api\StandupAnalyticsController::class, 'getFeed']);
+        Route::get('/stats', [App\Http\Controllers\Api\StandupAnalyticsController::class, 'getStats']);
+    });
+
 });
 
 // === Client-Specific API Routes (Protected by Magic Link Token) ===

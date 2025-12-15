@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Pulse & Standup Analytics (Vue Prototype)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Day.js Core -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.7/dayjs.min.js"></script>
+    <!-- Day.js RelativeTime Plugin -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.7/plugin/relativeTime.min.js"></script>
+    <script>
+        // Initialize the plugin
+        dayjs.extend(window.dayjs_plugin_relativeTime);
+    </script>
+    <style>
+        /* Custom highlight classes */
+        .highlight-blocked {
+            color: #dc2626; font-weight: 600; background-color: #fef2f2; padding: 0 4px; border-radius: 4px;
+        }
+        .highlight-waiting {
+            color: #d97706; font-weight: 600; background-color: #fffbeb; padding: 0 4px; border-radius: 4px;
+        }
+        [v-cloak] { display: none; }
+
+        /* Transition classes */
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-900">
+
+<div id="app" v-cloak>
+    <!-- Toast Notification -->
+    <div class="fixed top-4 right-4 z-50 transform transition-all duration-300"
+         :class="toast.show ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'">
+        <div class="bg-gray-900 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+            <span class="text-green-400 text-xl">✓</span>
+            <div>
+                <h4 class="font-bold text-sm">Success</h4>
+                <p class="text-xs text-gray-300">{{ toast.message }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Navigation -->
+    <nav class="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+        <div class="flex items-center gap-4">
+            <h1 class="text-2xl font-bold text-gray-800">Team Pulse</h1>
+            <span class="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-semibold">Manager View</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="text-sm text-gray-500">
+                <span class="w-2 h-2 rounded-full bg-green-500 inline-block mr-1"></span>
+                Live Data
+            </div>
+            <img src="https://ui-avatars.com/api/?name=Admin&background=4f46e5&color=fff" class="w-8 h-8 rounded-full border border-gray-300">
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- Controls & Filters -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <!-- Filter Bar -->
+            <div class="flex items-center bg-white p-1 rounded-lg shadow-sm border border-gray-200 overflow-x-auto max-w-full">
+
+                <!-- Date Range Filter -->
+                <select v-model="filters.range" class="text-sm border-none focus:ring-0 text-gray-600 font-medium bg-transparent py-2 pl-3 pr-8 cursor-pointer hover:text-indigo-600">
+                    <option value="7">Last 7 Days</option>
+                    <option value="14">Last 14 Days</option>
+                    <option value="30">Last 30 Days</option>
+                </select>
+
+                <div class="w-px h-6 bg-gray-200 mx-2"></div>
+
+                <!-- Project Filter -->
+                <select v-model="filters.project" class="text-sm border-none focus:ring-0 text-gray-600 font-medium bg-transparent py-2 pl-3 pr-8 cursor-pointer hover:text-indigo-600">
+                    <option value="all">All Projects</option>
+                    <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+                </select>
+
+                <div class="w-px h-6 bg-gray-200 mx-2"></div>
+
+                <!-- Member Filter -->
+                <select v-model="filters.member" class="text-sm border-none focus:ring-0 text-gray-600 font-medium bg-transparent py-2 pl-3 pr-8 cursor-pointer hover:text-indigo-600">
+                    <option value="all">All Members</option>
+                    <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
+                </select>
+            </div>
+
+            <!-- View Toggles -->
+            <div class="flex bg-gray-200 p-1 rounded-lg">
+                <button @click="currentView = 'matrix'"
+                        :class="currentView === 'matrix' ? 'bg-white text-gray-800 shadow' : 'text-gray-600 hover:text-gray-800'"
+                        class="px-4 py-2 text-sm font-semibold rounded-md transition-all duration-200">
+                    Compliance Matrix
+                </button>
+                <button @click="currentView = 'feed'"
+                        :class="currentView === 'feed' ? 'bg-white text-gray-800 shadow' : 'text-gray-600 hover:text-gray-800'"
+                        class="px-4 py-2 text-sm font-medium rounded-md transition-all duration-200">
+                    Daily Feed
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- Left Column: Main View Area -->
+            <div class="lg:col-span-2">
+
+                <!-- VIEW 1: Compliance Matrix -->
+                <div v-if="currentView === 'matrix'" class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                        <h3 class="text-lg font-semibold text-gray-800">Attendance: Last {{ filters.range }} Days</h3>
+                        <div class="flex gap-4 text-xs text-gray-500 font-medium">
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> On Time</span>
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-yellow-500"></span> Late (>10am)</span>
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500"></span> Missed</span>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                            <tr class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider border-b border-gray-100">
+                                <th class="px-6 py-4 font-semibold sticky left-0 bg-gray-50 z-10 shadow-sm">Team Member</th>
+                                <th v-for="day in dateHeaders" :key="day.full" class="px-4 py-3 text-center min-w-[80px]">
+                                    {{ day.name }} <span class="block text-[10px] text-gray-400 font-normal">{{ day.date }}</span>
+                                </th>
+                            </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 text-sm">
+                            <tr v-for="user in filteredMatrixUsers" :key="user.id" class="hover:bg-gray-50 transition-colors group">
+                                <td class="px-6 py-4 font-medium text-gray-900 flex items-center gap-3 sticky left-0 bg-white group-hover:bg-gray-50 transition-colors z-10 border-r border-gray-100">
+                                    <div class="relative">
+                                        <img :src="user.avatar" class="w-8 h-8 rounded-full border border-gray-100">
+                                        <div v-if="user.streak > 5" class="absolute -top-1 -right-1 flex h-3 w-3">
+                                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                                            <span class="relative inline-flex rounded-full h-3 w-3 bg-orange-500"></span>
+                                        </div>
+                                    </div>
+                                    {{ user.name }}
+                                </td>
+                                <td v-for="day in dateHeaders" :key="day.full" class="px-4 py-3 text-center">
+                                    <div class="flex justify-center">
+                                        <span v-html="getStatusIcon(user.id, day.full)"></span>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- VIEW 2: Daily Feed -->
+                <div v-else class="space-y-6">
+
+                    <!-- Feed Controls -->
+                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 px-1 gap-4">
+                        <div class="flex items-center gap-2 text-sm text-gray-600 bg-white p-1.5 rounded-lg border border-gray-200 shadow-sm">
+                            <span class="font-medium px-2">Group by:</span>
+                            <button @click="feedGroupBy = 'user'"
+                                    :class="feedGroupBy === 'user' ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-500 hover:text-gray-800'"
+                                    class="px-3 py-1 rounded-md transition-colors">
+                                Individual
+                            </button>
+                            <span class="text-gray-200">|</span>
+                            <button @click="feedGroupBy = 'project'"
+                                    :class="feedGroupBy === 'project' ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-500 hover:text-gray-800'"
+                                    class="px-3 py-1 rounded-md transition-colors">
+                                Project
+                            </button>
+                        </div>
+                        <button @click="copyAllStandups" class="text-xs font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-md transition-colors flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                            Copy visible
+                        </button>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div v-if="filteredFeed.length === 0" class="bg-white rounded-xl shadow-sm p-12 text-center border border-gray-100">
+                        <div class="bg-gray-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900">No standups found</h3>
+                        <p class="text-gray-500 mt-1">Try adjusting your filters to see more data.</p>
+                        <button @click="resetFilters" class="mt-4 text-indigo-600 font-medium hover:underline">Clear Filters</button>
+                    </div>
+
+                    <!-- MODE: Group By Project -->
+                    <div v-if="feedGroupBy === 'project'" class="space-y-6">
+                        <div v-for="group in feedByProject" :key="group.projectId"
+                             class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+
+                            <!-- Project Header -->
+                            <div class="bg-gray-50 px-5 py-3 border-b border-gray-200 flex justify-between items-center">
+                                <h3 class="font-bold text-gray-800 text-lg flex items-center gap-2">
+                                    {{ group.projectName }}
+                                    <span class="text-xs font-normal text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+                                            {{ group.items.length }} Updates
+                                        </span>
+                                </h3>
+                                <div class="text-xs text-gray-500">
+                                    {{ filters.range }} Day Summary
+                                </div>
+                            </div>
+
+                            <!-- List of Member Updates within Project -->
+                            <div class="divide-y divide-gray-100">
+                                <div v-for="note in group.items" :key="note.id" class="p-5 hover:bg-gray-50/50 transition-colors">
+                                    <div class="flex items-start gap-4">
+                                        <!-- User Avatar -->
+                                        <img :src="getUser(note.userId).avatar" class="w-10 h-10 rounded-full border border-gray-200 flex-shrink-0 mt-1">
+
+                                        <div class="flex-grow">
+                                            <div class="flex justify-between items-center mb-2">
+                                                <div class="flex items-center gap-2">
+                                                    <h4 class="font-bold text-gray-900 text-sm">{{ getUser(note.userId).name }}</h4>
+                                                    <span class="text-gray-300">•</span>
+                                                    <span class="text-xs text-gray-500">{{ formatTime(note.createdAt) }}</span>
+                                                    <span v-if="isLate(note.createdAt)" class="text-yellow-600 bg-yellow-50 px-1.5 rounded font-bold text-[10px]">LATE</span>
+                                                </div>
+                                                <!-- Actions -->
+                                                <button class="text-gray-400 hover:text-indigo-600" title="View in Google Chat">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                                </button>
+                                            </div>
+
+                                            <!-- Content -->
+                                            <div class="prose prose-sm max-w-none text-gray-700" v-html="highlightKeywords(note.content)"></div>
+
+                                            <!-- Linked Task -->
+                                            <div v-if="note.taskId" class="mt-3">
+                                                <a href="#" class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-gray-50 border border-gray-200 text-[11px] font-medium text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-colors">
+                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                                                    Task #{{ note.taskId }}
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MODE: Individual Feed (Default) -->
+                    <div v-else class="space-y-4">
+                        <div v-for="note in filteredFeed" :key="note.id"
+                             class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 transition hover:shadow-md group relative overflow-hidden"
+                             :class="note.hasBlocker ? 'border-l-4 border-l-red-500' : 'border-l-4 border-l-green-500'">
+
+                            <!-- Header -->
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex items-center gap-3">
+                                    <img :src="getUser(note.userId).avatar" class="w-10 h-10 rounded-full border border-gray-100">
+                                    <div>
+                                        <h4 class="font-bold text-gray-900">{{ getUser(note.userId).name }}</h4>
+                                        <div class="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
+                                            <span class="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 font-medium">{{ getProject(note.projectId).name }}</span>
+                                            <span class="text-gray-300">•</span>
+                                            <span>{{ formatTime(note.createdAt) }}</span>
+                                            <span v-if="isLate(note.createdAt)" class="text-yellow-600 bg-yellow-50 px-1.5 rounded font-bold text-[10px]">LATE</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button class="text-gray-400 hover:text-indigo-600 p-1 hover:bg-gray-50 rounded" title="View in Google Chat">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Content -->
+                            <div class="prose prose-sm max-w-none text-gray-700 ml-13 pl-10 border-l border-gray-100" v-html="highlightKeywords(note.content)"></div>
+
+                            <!-- Linked Task -->
+                            <div v-if="note.taskId" class="mt-4 pl-10 ml-3">
+                                <a href="#" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-200 text-xs text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-colors">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                                    Linked to Task #{{ note.taskId }}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- Right Column: Analytics & Widgets -->
+            <div class="space-y-6">
+
+                <!-- Widget 1: Streak Leaderboard -->
+                <div class="bg-white rounded-xl shadow-md p-6 border border-gray-100">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-gray-800">🔥 Top Streaks</h3>
+                        <span class="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded">+350 pts awarded</span>
+                    </div>
+                    <ul class="space-y-4">
+                        <li v-for="(user, idx) in sortedByStreak" :key="user.id" class="flex items-center justify-between group">
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 text-center font-bold" :class="idx === 0 ? 'text-yellow-500 text-lg' : (idx === 1 ? 'text-gray-400 text-lg' : 'text-gray-300 text-sm')">
+                                    {{ idx + 1 }}
+                                </div>
+                                <img :src="user.avatar" class="w-8 h-8 rounded-full border border-gray-100">
+                                <div class="text-sm">
+                                    <p class="font-semibold text-gray-900">{{ user.name }}</p>
+                                    <p class="text-xs text-gray-500">{{ user.streak }} Day Streak</p>
+                                </div>
+                            </div>
+                            <button @click="sendKudo(user)" class="opacity-0 group-hover:opacity-100 text-xs font-medium text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded transition-all">
+                                Send Kudo
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Widget 2: Ghost Projects Alert -->
+                <div v-if="ghostProjects.length > 0" class="bg-red-50 rounded-xl shadow-sm p-5 border border-red-100">
+                    <div class="flex items-start gap-3">
+                        <div class="bg-red-100 p-2 rounded-full text-red-600 flex-shrink-0">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        </div>
+                        <div class="w-full">
+                            <h4 class="font-bold text-red-900 text-sm">Ghost Project Alert</h4>
+                            <p class="text-xs text-red-700 mt-1 mb-3">Projects with active tasks but 0 standups in 48h.</p>
+                            <div class="space-y-2">
+                                <div v-for="gp in ghostProjects" :key="gp.id" class="bg-white rounded px-3 py-2 border border-red-200 shadow-sm flex justify-between items-center">
+                                    <div>
+                                        <p class="text-sm font-semibold text-gray-800">{{ gp.name }}</p>
+                                        <p class="text-[10px] text-gray-500">Last standup: {{ gp.lastActivity }}</p>
+                                    </div>
+                                    <button class="text-xs text-red-600 hover:underline">Nudge Team</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Widget 3: Engagement Stats -->
+                <div class="bg-white rounded-xl shadow-md p-6 border border-gray-100">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Engagement Pulse</h3>
+                    <div class="space-y-5">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1.5">
+                                <span class="text-gray-600 font-medium">Standup Completion</span>
+                                <span class="font-bold text-gray-900">{{ stats.completion }}%</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="bg-indigo-600 h-2 rounded-full transition-all duration-1000" :style="{ width: stats.completion + '%' }"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs mb-1.5">
+                                <span class="text-gray-600 font-medium">On-Time Rate</span>
+                                <span class="font-bold text-gray-900">{{ stats.onTime }}%</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="bg-yellow-500 h-2 rounded-full transition-all duration-1000" :style="{ width: stats.onTime + '%' }"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs mb-1.5">
+                                <span class="text-gray-600 font-medium">Blocker Ratio</span>
+                                <span class="font-bold text-gray-900">{{ stats.blockerRatio }}%</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="bg-red-400 h-2 rounded-full transition-all duration-1000" :style="{ width: stats.blockerRatio + '%' }"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+        setup() {
+            // --- State ---
+            const currentView = ref('matrix');
+            const feedGroupBy = ref('user'); // 'user' (default) or 'project'
+            const filters = ref({
+                range: '7',
+                project: 'all',
+                member: 'all'
+            });
+            const toast = ref({ show: false, message: '' });
+
+            // --- Mock Data (Simulating Laravel API) ---
+            const users = ref([
+                { id: 1, name: 'Alex Ray', avatar: 'https://ui-avatars.com/api/?name=Alex+R&background=c7d2fe&color=3730a3', streak: 24 },
+                { id: 2, name: 'Sarah Chen', avatar: 'https://ui-avatars.com/api/?name=Sarah+C&background=fecaca&color=991b1b', streak: 2 },
+                { id: 3, name: 'Mike Jones', avatar: 'https://ui-avatars.com/api/?name=Mike+J&background=e5e7eb&color=374151', streak: 12 },
+                { id: 4, name: 'Emily Wu', avatar: 'https://ui-avatars.com/api/?name=Emily+W&background=bbf7d0&color=166534', streak: 18 },
+            ]);
+
+            const projects = ref([
+                { id: 101, name: 'Project Phoenix', lastStandup: '2023-10-25' },
+                { id: 102, name: 'Project Odyssey', lastStandup: '2023-10-24' },
+                { id: 103, name: 'Project Gemini', lastStandup: '2023-10-20' }, // Ghost project
+            ]);
+
+            // Generate last 30 days of mock standups
+            const standups = ref([]);
+            const generateMockData = () => {
+                const notes = [];
+                const today = dayjs();
+
+                // Generate data for users
+                users.value.forEach(u => {
+                    for(let i = 0; i < 30; i++) {
+                        const date = today.subtract(i, 'day');
+
+                        // Randomly skip weekends or leave
+                        if (date.day() === 0 || date.day() === 6) continue;
+                        if (Math.random() > 0.9) continue; // Randomly missed
+
+                        // Late calculation (randomly set time)
+                        let hour = 9;
+                        let minute = Math.floor(Math.random() * 60);
+
+                        if (Math.random() > 0.8) {
+                            hour = 11 + Math.floor(Math.random() * 3); // Late
+                        }
+
+                        const createdAt = date.hour(hour).minute(minute).toISOString();
+
+                        // Mock Content
+                        const hasBlocker = Math.random() > 0.8;
+                        let content = `
+                                <p class="mb-1"><strong>Yesterday:</strong> Worked on the API endpoints.</p>
+                                <p class="mb-1"><strong>Today:</strong> Integration tests.</p>
+                            `;
+
+                        if (hasBlocker) {
+                            content += `<p><strong>Blockers:</strong> <span class="highlight-blocked">BLOCKED</span> by database migration.</p>`;
+                        } else {
+                            content += `<p><strong>Blockers:</strong> None.</p>`;
+                        }
+
+                        notes.push({
+                            id: `${u.id}-${i}`,
+                            userId: u.id,
+                            projectId: Math.random() > 0.5 ? 101 : 102,
+                            createdAt: createdAt,
+                            content: content,
+                            hasBlocker: hasBlocker,
+                            taskId: Math.random() > 0.7 ? Math.floor(Math.random() * 500) : null
+                        });
+                    }
+                });
+
+                standups.value = notes.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+            };
+
+            onMounted(() => {
+                generateMockData();
+            });
+
+            // --- Computed Logic ---
+
+            // 1. Filtered Feed
+            const filteredFeed = computed(() => {
+                return standups.value.filter(note => {
+                    // Project Filter
+                    if (filters.value.project !== 'all' && note.projectId != filters.value.project) return false;
+                    // Member Filter
+                    if (filters.value.member !== 'all' && note.userId != filters.value.member) return false;
+                    // Date Range Filter (simplified to "within last X days")
+                    const diff = dayjs().diff(dayjs(note.createdAt), 'day');
+                    if (diff > parseInt(filters.value.range)) return false;
+
+                    return true;
+                });
+            });
+
+            // 2. Feed By Project (New Grouping)
+            const feedByProject = computed(() => {
+                const groups = {};
+
+                // Group filtered items by project
+                filteredFeed.value.forEach(note => {
+                    if (!groups[note.projectId]) {
+                        groups[note.projectId] = {
+                            projectId: note.projectId,
+                            projectName: getProject(note.projectId).name,
+                            items: []
+                        };
+                    }
+                    groups[note.projectId].items.push(note);
+                });
+
+                // Convert to array and sort by latest update
+                return Object.values(groups).sort((a, b) => {
+                    const dateA = a.items[0]?.createdAt || 0;
+                    const dateB = b.items[0]?.createdAt || 0;
+                    return new Date(dateB) - new Date(dateA);
+                });
+            });
+
+            // 3. Matrix Headers
+            const dateHeaders = computed(() => {
+                const days = parseInt(filters.value.range);
+                const headers = [];
+                for(let i = 0; i < days; i++) {
+                    const d = dayjs().subtract(i, 'day');
+                    headers.push({
+                        name: d.format('ddd'),
+                        date: d.format('D MMM'),
+                        full: d.format('YYYY-MM-DD'),
+                        isWeekend: d.day() === 0 || d.day() === 6
+                    });
+                }
+                return headers; // Reverse to show Left=Today if preferred, or maintain Right=Today
+            });
+
+            // 4. Filtered Matrix Users
+            const filteredMatrixUsers = computed(() => {
+                if (filters.value.member !== 'all') {
+                    return users.value.filter(u => u.id == filters.value.member);
+                }
+                return users.value;
+            });
+
+            // 5. Ghost Projects
+            const ghostProjects = computed(() => {
+                return projects.value.filter(p => p.id === 103).map(p => ({
+                    ...p,
+                    lastActivity: dayjs(p.lastStandup).fromNow()
+                }));
+            });
+
+            // 6. Leaderboard
+            const sortedByStreak = computed(() => {
+                return [...users.value].sort((a,b) => b.streak - a.streak).slice(0,5);
+            });
+
+            // 7. Stats
+            const stats = computed(() => {
+                const total = filteredFeed.value.length;
+                if (total === 0) return { completion: 0, onTime: 0, blockerRatio: 0 };
+
+                const lateCount = filteredFeed.value.filter(n => dayjs(n.createdAt).hour() >= 10).length;
+                const blockedCount = filteredFeed.value.filter(n => n.hasBlocker).length;
+
+                return {
+                    completion: 85, // Mock static for demo
+                    onTime: Math.round(((total - lateCount) / total) * 100),
+                    blockerRatio: Math.round((blockedCount / total) * 100)
+                };
+            });
+
+            // --- Helpers ---
+
+            const getUser = (id) => users.value.find(u => u.id === id) || { name: 'Unknown', avatar: '' };
+            const getProject = (id) => projects.value.find(p => p.id === id) || { name: 'General' };
+
+            const formatTime = (iso) => {
+                const d = dayjs(iso);
+                const diff = dayjs().diff(d, 'hour');
+                if (diff < 24) {
+                    return d.format('h:mm A');
+                } else if (diff < 48) {
+                    return 'Yesterday';
+                }
+                return d.format('MMM D');
+            };
+
+            const isLate = (iso) => dayjs(iso).hour() >= 10;
+
+            const highlightKeywords = (content) => content;
+
+            // Matrix Logic: Returns HTML for the status icon
+            const getStatusIcon = (userId, dateStr) => {
+                const isWeekend = dayjs(dateStr).day() === 0 || dayjs(dateStr).day() === 6;
+                const note = standups.value.find(n => n.userId === userId && n.createdAt.startsWith(dateStr));
+
+                if (note) {
+                    if (isLate(note.createdAt)) {
+                        return `<div class="mx-auto w-6 h-6 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center cursor-help" title="Late: Submitted at ${dayjs(note.createdAt).format('h:mm A')}">⚠️</div>`;
+                    }
+                    return `<div class="mx-auto w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center cursor-help" title="Submitted at ${dayjs(note.createdAt).format('h:mm A')}">✓</div>`;
+                }
+
+                if (isWeekend) return `<span class="text-gray-300 text-xs">-</span>`;
+                if (Math.random() > 0.95) return `<div class="mx-auto w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center text-[10px]" title="On Leave">OFF</div>`;
+
+                return `<div class="mx-auto w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center cursor-help" title="Missed Standup">✕</div>`;
+            };
+
+            // --- Actions ---
+
+            const showToast = (msg) => {
+                toast.value = { show: true, message: msg };
+                setTimeout(() => toast.value.show = false, 3000);
+            };
+
+            const sendKudo = (user) => {
+                showToast(`Kudo sent to ${user.name} for their ${user.streak} day streak!`);
+            };
+
+            const copyAllStandups = () => {
+                const text = filteredFeed.value.map(n =>
+                    `${getUser(n.userId).name} (${dayjs(n.createdAt).format('YYYY-MM-DD')}): \n${n.content.replace(/<[^>]*>?/gm, '')}`
+                ).join('\n---\n');
+
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(`Copied ${filteredFeed.value.length} standups to clipboard`);
+                });
+            };
+
+            const resetFilters = () => {
+                filters.value = { range: '7', project: 'all', member: 'all' };
+            };
+
+            return {
+                currentView,
+                feedGroupBy,
+                filters,
+                users,
+                projects,
+                filteredFeed,
+                feedByProject,
+                filteredMatrixUsers,
+                dateHeaders,
+                ghostProjects,
+                sortedByStreak,
+                stats,
+                toast,
+                getUser,
+                getProject,
+                formatTime,
+                isLate,
+                highlightKeywords,
+                getStatusIcon,
+                sendKudo,
+                copyAllStandups,
+                resetFilters
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
