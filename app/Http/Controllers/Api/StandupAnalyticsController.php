@@ -15,6 +15,71 @@ use Illuminate\Support\Facades\DB;
 class StandupAnalyticsController extends Controller
 {
     /**
+     * Resolve a date range based on the requested range mode.
+     *
+     * Supported range values:
+     * - today
+     * - yesterday
+     * - 7, 14, 30 (last N days, inclusive)
+     * - custom (requires start_date and end_date, Y-m-d)
+     */
+    private function resolveDateRange(Request $request, int $defaultDays = 7): array
+    {
+        $range = (string) $request->input('range', (string) $defaultDays);
+        $today = Carbon::today();
+
+        $makeSpan = static function (Carbon $start, Carbon $end): array {
+            // Always normalise to full days
+            return [
+                $start->copy()->startOfDay(),
+                $end->copy()->endOfDay(),
+            ];
+        };
+
+        switch ($range) {
+            case 'today':
+                return $makeSpan($today, $today);
+            case 'yesterday':
+                $yesterday = $today->copy()->subDay();
+                return $makeSpan($yesterday, $yesterday);
+            case '7':
+            case '14':
+            case '30':
+                $days = (int) $range;
+                if ($days > 0) {
+                    $start = $today->copy()->subDays($days - 1);
+                    return $makeSpan($start, $today);
+                }
+                break;
+            case 'custom':
+                $startStr = $request->input('start_date');
+                $endStr = $request->input('end_date');
+                if ($startStr && $endStr) {
+                    try {
+                        $start = Carbon::parse($startStr);
+                        $end = Carbon::parse($endStr);
+                        return $makeSpan($start, $end);
+                    } catch (\Throwable $e) {
+                        // fall through to default
+                    }
+                }
+                break;
+            default:
+                if (is_numeric($range)) {
+                    $days = (int) $range;
+                    if ($days > 0) {
+                        $start = $today->copy()->subDays($days - 1);
+                        return $makeSpan($start, $today);
+                    }
+                }
+        }
+
+        // Fallback to default last N days
+        $start = $today->copy()->subDays($defaultDays - 1);
+        return $makeSpan($start, $today);
+    }
+
+    /**
      * Get initial data for filters (Projects, Users).
      */
     public function getFilters()
@@ -47,12 +112,13 @@ class StandupAnalyticsController extends Controller
      */
     public function getComplianceMatrix(Request $request)
     {
-        $days = (int) $request->input('range', 7);
         $projectId = $request->input('project_id');
         $userId = $request->input('user_id');
 
-        $endDate = Carbon::today();
-        $startDate = Carbon::today()->subDays($days - 1);
+        [$startDateTime, $endDateTime] = $this->resolveDateRange($request, 7);
+        // Use date-only for the matrix headers / availability query
+        $startDate = $startDateTime->copy()->startOfDay();
+        $endDate = $endDateTime->copy()->startOfDay();
         $period = CarbonPeriod::create($startDate, $endDate);
 
         // Base query for users
@@ -75,7 +141,7 @@ class StandupAnalyticsController extends Controller
 
         // Pre-fetch standups for the date range
         $standupsQuery = ProjectNote::where('type', ProjectNote::STANDUP)
-            ->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
+            ->whereBetween('created_at', [$startDateTime, $endDateTime]);
 
         if ($projectId && $projectId !== 'all') {
             $standupsQuery->where('project_id', $projectId);
@@ -144,13 +210,13 @@ class StandupAnalyticsController extends Controller
      */
     public function getFeed(Request $request)
     {
-        $range = (int) $request->input('range', 7);
+        [$startDateTime, $endDateTime] = $this->resolveDateRange($request, 7);
         $projectId = $request->input('project_id');
         $userId = $request->input('user_id');
 
         $query = ProjectNote::with(['creator', 'project', 'noteable']) // noteable for task links
-        ->where('type', ProjectNote::STANDUP)
-            ->where('created_at', '>=', Carbon::now()->subDays($range)->startOfDay())
+            ->where('type', ProjectNote::STANDUP)
+            ->whereBetween('created_at', [$startDateTime, $endDateTime])
             ->latest();
 
         if ($projectId && $projectId !== 'all') {

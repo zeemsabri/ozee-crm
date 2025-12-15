@@ -8,7 +8,9 @@ import CustomMultiSelect from '@/Components/CustomMultiSelect.vue';
 const currentView = ref('matrix');
 const feedGroupBy = ref('user'); // 'user' (default) or 'project'
 const filters = ref({
-    range: '7',
+    range: '7',       // today | yesterday | 7 | 14 | 30 | custom
+    startDate: null,  // used when range === 'custom'
+    endDate: null,
 });
 const selectedProjects = ref([]); // array of project ids
 const selectedMembers = ref([]); // array of user ids
@@ -24,6 +26,27 @@ const loading = ref({ filters: false, feed: false, matrix: false, stats: false }
 const errors = ref({ filters: '', feed: '', matrix: '', stats: '' });
 const allUsers = ref([]); // cache of full user list for "All Members"
 
+const rangeOptions = [
+    { value: 'today', label: 'Today' },
+    { value: 'yesterday', label: 'Yesterday' },
+    { value: '7', label: 'Last 7 Days' },
+    { value: '14', label: 'Last 14 Days' },
+    { value: '30', label: 'Last 30 Days' },
+    { value: 'custom', label: 'Custom range' },
+];
+
+const rangeDisplayLabel = computed(() => {
+    const mode = filters.value.range;
+    const opt = rangeOptions.find(o => o.value === mode);
+    if (mode === 'custom') {
+        if (filters.value.startDate && filters.value.endDate) {
+            return `${filters.value.startDate} → ${filters.value.endDate}`;
+        }
+        return opt?.label || 'Custom range';
+    }
+    return opt?.label || 'Last 7 Days';
+});
+
 // Options mapped for selects
 const projectOptions = computed(() => (projects.value || []).map(p => ({
     id: p.id ?? p.project_id,
@@ -38,6 +61,10 @@ const userOptions = computed(() => (users.value || []).map(u => ({
 const buildParams = () => {
     const params = {};
     if (filters.value.range) params.range = filters.value.range;
+    if (filters.value.range === 'custom') {
+        if (filters.value.startDate) params.start_date = filters.value.startDate;
+        if (filters.value.endDate) params.end_date = filters.value.endDate;
+    }
     if (selectedProjects.value.length === 1) {
         params.project_id = selectedProjects.value[0];
     } else if (selectedProjects.value.length > 1) {
@@ -232,10 +259,6 @@ const filteredFeed = computed(() => {
         if (selectedProjects.value.length && !selectedProjects.value.includes(note.projectId)) return false;
         // Member Filter
         if (selectedMembers.value.length && !selectedMembers.value.includes(note.userId)) return false;
-        // Date Range Filter (simplified to "within last X days")
-        const diff = Math.floor((new Date() - new Date(note.createdAt)) / (1000 * 60 * 60 * 24));
-        if (diff > parseInt(filters.value.range)) return false;
-
         return true;
     });
 });
@@ -535,11 +558,26 @@ const resetFilters = () => {
                     <!-- Filter Bar -->
                     <div class="flex items-center bg-white p-1 rounded-lg shadow-sm border border-gray-200 overflow-visible max-w-full gap-2">
                         <!-- Date Range Filter -->
-                        <select v-model="filters.range" class="text-sm border-none focus:ring-0 text-gray-600 font-medium bg-transparent py-2 pl-3 pr-8 cursor-pointer hover:text-indigo-600">
-                            <option value="7">Last 7 Days</option>
-                            <option value="14">Last 14 Days</option>
-                            <option value="30">Last 30 Days</option>
-                        </select>
+                        <div class="flex items-center gap-2">
+                            <select v-model="filters.range" class="text-sm border-none focus:ring-0 text-gray-600 font-medium bg-transparent py-2 pl-3 pr-2 cursor-pointer hover:text-indigo-600">
+                                <option v-for="opt in rangeOptions" :key="opt.value" :value="opt.value">
+                                    {{ opt.label }}
+                                </option>
+                            </select>
+                            <div v-if="filters.range === 'custom'" class="flex items-center gap-2 text-xs text-gray-600">
+                                <input
+                                    type="date"
+                                    v-model="filters.startDate"
+                                    class="border-gray-300 rounded-md text-xs px-2 py-1 focus:border-indigo-500 focus:ring-indigo-500"
+                                />
+                                <span>to</span>
+                                <input
+                                    type="date"
+                                    v-model="filters.endDate"
+                                    class="border-gray-300 rounded-md text-xs px-2 py-1 focus:border-indigo-500 focus:ring-indigo-500"
+                                />
+                            </div>
+                        </div>
 
                         <div class="w-px h-6 bg-gray-200 mx-2"></div>
 
@@ -589,7 +627,9 @@ const resetFilters = () => {
                         <!-- VIEW 1: Compliance Matrix -->
                         <div v-if="currentView === 'matrix'" class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
                             <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                                <h3 class="text-lg font-semibold text-gray-800">Attendance: Last {{ filters.range }} Days</h3>
+                                <h3 class="text-lg font-semibold text-gray-800">
+                                    Attendance: {{ rangeDisplayLabel }}
+                                </h3>
                                 <div class="flex gap-4 text-xs text-gray-500 font-medium">
                                     <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> On Time</span>
                                     <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-yellow-500"></span> Late (>10am)</span>
@@ -677,7 +717,7 @@ const resetFilters = () => {
                                             </span>
                                         </h3>
                                         <div class="text-xs text-gray-500">
-                                            {{ filters.range }} Day Summary
+                                            {{ rangeDisplayLabel }}
                                         </div>
                                     </div>
 
