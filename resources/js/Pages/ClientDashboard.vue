@@ -21,6 +21,10 @@ const props = defineProps({
     projectId: { // Project ID associated with the magic link
         type: [String, Number],
         required: true
+    },
+    clientProjects: {
+        type: Array,
+        default: () => []
     }
 });
 
@@ -180,6 +184,36 @@ const handleUpdateInvoice = async (id, status) => {
     }
 };
 
+const handleProjectSwitch = async (projectId) => {
+    isLoading.value = true;
+    try {
+        const response = await fetch(`/api/client-api/switch-project`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${props.initialAuthToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                token: props.initialAuthToken,
+                project_id: projectId
+            })
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.json();
+            throw new Error(errorBody.message || 'Failed to switch project.');
+        }
+
+        // Successfully switched. Reload the page to refresh all data for the new project.
+        window.location.reload();
+    } catch (err) {
+        console.error('Error switching project:', err);
+        error.value = err.message;
+        isLoading.value = false;
+    }
+};
+
 // Initial data loading using the new API endpoints
 onMounted(async () => {
     isLoading.value = true;
@@ -253,8 +287,11 @@ provide('activityService', { addActivity: addActivity }); // Provided for child 
             :isExpanded="isSidebarExpanded"
             :hasWireframes="hasWireframes"
             :wireframeShareUrl="wireframeShareUrl"
+            :clientProjects="clientProjects"
+            :currentProjectId="projectId"
             @section-change="currentSection = $event"
             @update:isExpanded="isSidebarExpanded = $event"
+            @switch-project="handleProjectSwitch"
         />
 
         <!-- Main content area with dynamic left margin -->
@@ -270,7 +307,10 @@ provide('activityService', { addActivity: addActivity }); // Provided for child 
                 :deliverables="deliverables"
                 :shareableResources="shareableResources"
                 :seo-reports-count="seoReportsCount"
+                :clientProjects="clientProjects"
+                :currentProjectId="projectId"
                 @open-deliverable-viewer="handleOpenDeliverableViewer"
+                @switch-project="handleProjectSwitch"
                 :project-data="projectData"
             />
             <SEOReport

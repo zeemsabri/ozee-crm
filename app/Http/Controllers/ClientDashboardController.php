@@ -40,11 +40,20 @@ class ClientDashboardController extends Controller
             abort(403, 'This dashboard link is invalid or has expired.');
         }
 
-        // 4. If validation passes, render the Inertia Vue component.
+        // 4. Fetch all projects associated with this email
+        $email = $magicLink->email;
+        $clientProjects = \App\Models\Project::whereHas('clients', function ($query) use ($email) {
+            $query->where('email', $email);
+        })->orWhereHas('client', function ($query) use ($email) {
+            $query->where('email', $email);
+        })->select('id', 'name')->get();
+
+        // 5. If validation passes, render the Inertia Vue component.
         // We pass the project data and the token to the frontend.
-        return Inertia::render('Clients/Dashboard', [
-            'magicToken' => $magicLink->token,
-            'project' => $magicLink->project,
+        return Inertia::render('ClientDashboard', [ // Changed to ClientDashboard to match use case
+            'initialAuthToken' => $magicLink->token,
+            'projectId' => $magicLink->project_id,
+            'clientProjects' => $clientProjects,
             'clientEmail' => $magicLink->email,
         ]);
     }

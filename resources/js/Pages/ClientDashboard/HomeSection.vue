@@ -1,6 +1,7 @@
 <script setup>
 import { defineProps, computed, defineEmits, ref, onMounted, watch } from 'vue';
 import Chart from 'chart.js/auto';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 
 const props = defineProps({
     activities: {
@@ -42,10 +43,17 @@ const props = defineProps({
     projectData: {
         type: [Object, null],
         default: () => ({})
+    },
+    clientProjects: {
+        type: Array,
+        default: () => []
+    },
+    currentProjectId: {
+        type: [String, Number]
     }
 });
 
-const emits = defineEmits(['open-deliverable-viewer']);
+const emits = defineEmits(['open-deliverable-viewer', 'switch-project']);
 
 // --- State for search and filters ---
 const globalSearchQuery = ref('');
@@ -335,7 +343,20 @@ const formatDate = (dateString) => {
 <!--                    {{ projectInitials }}-->
 <!--                </div>-->
 
-                <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">{{ projectData.name || 'Client Dashboard' }}</h1>
+                <div class="flex flex-col">
+                    <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">{{ projectData.name || 'Client Dashboard' }}</h1>
+                    <div v-if="props.clientProjects.length > 1" class="mt-2 flex items-center space-x-2 w-full">
+                        <span class="text-xs font-medium text-gray-500 uppercase tracking-wider">Switch project:</span>
+                        <SelectDropdown
+                            :options="props.clientProjects"
+                            :modelValue="props.currentProjectId"
+                            valueKey="id"
+                            labelKey="name"
+                            @change="emits('switch-project', $event)"
+                            class="flex-1"
+                        />
+                    </div>
+                </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full sm:w-auto">

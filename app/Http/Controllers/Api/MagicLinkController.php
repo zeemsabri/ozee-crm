@@ -290,10 +290,19 @@ class MagicLinkController extends Controller
             // Get the project (optional, might be needed for internal checks)
             // $project = $magicLink->project;
 
+            // Fetch all projects associated with this email via project_client or project->client_id
+            $email = $magicLink->email;
+            $clientProjects = Project::whereHas('clients', function ($query) use ($email) {
+                $query->where('email', $email);
+            })->orWhereHas('client', function ($query) use ($email) {
+                $query->where('email', $email);
+            })->select('id', 'name')->get();
+
             // Render the ClientDashboard Vue component and pass the token and Firebase config as props
             return Inertia::render('ClientDashboard', [
                 'initialAuthToken' => $magicLink->token, // Pass the token to the Vue component
                 'projectId' => $magicLink->project_id,
+                'clientProjects' => $clientProjects,
             ]);
 
         } catch (\Exception $e) {
@@ -353,6 +362,69 @@ class MagicLinkController extends Controller
             ]);
 
             return response()->json(['message' => 'Failed to verify magic link.'], 500);
+        }
+    }
+
+    /**
+     * Switch the project for a magic link.
+     */
+    public function switchProject(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'token' => 'required|string',
+                'project_id' => 'required|exists:projects,id',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            $token = $request->input('token');
+            $projectId = $request->input('project_id');
+
+            $magicLink = MagicLink::where('token', $token)->first();
+            if (! $magicLink) {
+                return response()->json(['message' => 'Invalid magic link token.'], 404);
+            }
+
+            if ($magicLink->hasExpired()) {
+                return response()->json(['message' => 'Magic link token has expired.'], 403);
+            }
+
+            // Verify user has access to this project
+            $email = $magicLink->email;
+            $hasAccess = Project::where('id', $projectId)
+                ->where(function ($query) use ($email) {
+                    $query->whereHas('clients', function ($q) use ($email) {
+                        $q->where('email', $email);
+                    })->orWhereHas('client', function ($q) use ($email) {
+                        $q->where('email', $email);
+                    });
+                })->exists();
+
+            if (! $hasAccess) {
+                return response()->json(['message' => 'You do not have access to this project.'], 403);
+            }
+
+            $magicLink->update(['project_id' => $projectId]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Project switched successfully.',
+                'project_id' => $projectId,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error switching project: '.$e->getMessage(), [
+                'token' => $request->input('token'),
+                'project_id' => $request->input('project_id'),
+                'error' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json(['message' => 'Failed to switch project.'], 500);
         }
     }
 }

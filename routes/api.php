@@ -624,5 +624,6 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
     Route::post('tasks', [ProjectClientAction::class, 'createTask']);
     Route::post('documents', [ProjectClientAction::class, 'uploadClientDocuments']);
     Route::post('documents/{document}/notes', [ProjectClientAction::class, 'addNoteToDocument']);
+    Route::post('switch-project', [MagicLinkController::class, 'switchProject']);
 
 });

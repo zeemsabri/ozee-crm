@@ -1,14 +1,17 @@
 <script setup>
 import { defineProps, defineEmits, ref } from 'vue';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 
 const props = defineProps({
     userId: String,
     activeSection: String, // Prop to control active state from parent
     hasWireframes: { type: Boolean, default: false },
-    wireframeShareUrl: { type: String, default: '' }
+    wireframeShareUrl: { type: String, default: '' },
+    clientProjects: { type: Array, default: () => [] },
+    currentProjectId: { type: [String, Number] }
 });
 
-const emits = defineEmits(['section-change']);
+const emits = defineEmits(['section-change', 'update:isExpanded', 'switch-project']);
 
 const handleClick = (sectionId) => {
     emits('section-change', sectionId);
@@ -71,10 +74,49 @@ const openWireframes = () => {
             <span v-if="isExpanded" class="flex h-full items-center">
                 <img src="/logo.png" alt="OZEE Logo" class="h-full object-contain">
             </span>
-                    <span v-else class="flex h-full items-center justify-center w-full">
+            <span v-else class="flex h-full items-center justify-center w-full">
                 <img src="/logo_sm.png" alt="OZEE logo" class="h-20 object-contain">
             </span>
         </h1>
+
+        <!-- Project Switcher -->
+        <div v-if="props.clientProjects.length > 1" class="px-2 mb-6">
+            <div v-if="isExpanded" class="p-2 bg-gray-50 rounded-lg border border-gray-200">
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-1">
+                    Current Project
+                </label>
+                <SelectDropdown
+                    :options="props.clientProjects"
+                    :modelValue="props.currentProjectId"
+                    valueKey="id"
+                    labelKey="name"
+                    @change="emits('switch-project', $event)"
+                    class="w-full"
+                />
+            </div>
+            <div v-else class="flex justify-center group relative">
+                <button class="p-2 text-gray-700 hover:bg-blue-100 rounded-lg transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                </button>
+                <!-- Tooltip/Floating Menu for collapsed state -->
+                <div class="absolute left-full ml-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-50 py-2">
+                    <div class="px-3 py-1 text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 mb-1">
+                        Select Project
+                    </div>
+                    <button
+                        v-for="project in props.clientProjects"
+                        :key="project.id"
+                        @click="emits('switch-project', project.id)"
+                        class="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 transition-colors"
+                        :class="{'text-blue-600 font-semibold bg-blue-50': project.id == props.currentProjectId, 'text-gray-700': project.id != props.currentProjectId}"
+                    >
+                        {{ project.name }}
+                    </button>
+                </div>
+            </div>
+        </div>
         <nav class="flex-1">
             <button
                 v-for="item in navItems"
@@ -103,6 +145,9 @@ const openWireframes = () => {
                 </span>
             </button>
         </nav>
+
+
+
         <div class="mt-auto text-sm text-gray-500 whitespace-nowrap overflow-hidden px-4 pb-2">
             <p v-if="isExpanded">User ID: <span id="user-id-display">{{ props.userId }}</span></p>
             <p v-else class="flex items-center justify-center h-8">ID</p>
