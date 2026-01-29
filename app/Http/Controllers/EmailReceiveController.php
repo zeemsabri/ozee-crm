@@ -89,14 +89,7 @@ class EmailReceiveController extends Controller
                 $date = Carbon::parse($emailDetails['date'])->setTimezone('UTC');
                 $emailDetails['date'] = $date;
 
-                //                if ($lastReceivedEmail && Carbon::parse($emailDetails['date'])->lte(Carbon::parse($lastReceivedEmail->sent_at))) {
-                //                    Log::info('Skipping email with date ' . $emailDetails['date'] . ' ' . $messageId . ' because it is older than the last received email.');
-                //                    continue;
-                //                }
-
                 if (Email::where('message_id', $emailDetails['id'])->exists()) {
-                    Log::info('Skipping email with message ID '.$emailDetails['id'].' because it has already been received.');
-
                     continue;
                 }
 
@@ -131,7 +124,6 @@ class EmailReceiveController extends Controller
                     $processed = true;
 
                 } else {
-                    Log::info('Skipping email with from '.$emailDetails['from'].' because it is not a client or lead.');
                     $result = $this->handleUnknownEmail($emailDetails, $fromEmail, $authorizedGmailAccount);
 
                 }
@@ -163,7 +155,6 @@ class EmailReceiveController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error($e->getMessage());
 
             return response()->json(['message' => 'Failed to receive emails: '.$e->getMessage()], 500);
         }
@@ -171,16 +162,6 @@ class EmailReceiveController extends Controller
 
     private function handleUnknownEmail(array $emailDetails, string $from, string $authorizedGmailAccount): array
     {
-
-        Log::info('Received unknown email from '.$emailDetails['from']);
-
-        //        $client =   Client::createOrFirst(
-        //            ['email'  =>  $from ?? null],
-        //            ['name' => $emailDetails['name'] ?? $from ?? null]
-        //        );
-
-        //        $options = Client::availableCategoryOptions('other');
-        //        $client->syncCategories(collect($options)->pluck('value')->toArray());
 
         $conversation = Conversation::createOrFirst(
             ['subject' => $emailDetails['subject']],
