@@ -19,10 +19,11 @@ class Client extends Model
         'notes',
         'timezone',
         'lead_id',
+        'pin',
     ];
 
     protected $hidden = [
-        'email', 'phone', 'address',
+        'email', 'phone', 'address', 'pin',
     ];
 
     // Add a boot method to handle dynamic hiding
@@ -49,7 +50,7 @@ class Client extends Model
 
     public function projects()
     {
-        return $this->hasMany(Project::class);
+        return $this->belongsToMany(Project::class, 'project_client')->withPivot('role_id');
     }
 
     public function conversations()
