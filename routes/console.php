@@ -20,4 +20,6 @@ Schedule::command('points:calculate-streak')->weeklyOn(7);
 //
 // Schedule::command('leads:process-follow-ups')->daily();
 //
+Schedule::command('auth:cleanup-client-data')->hourly();
+
 Schedule::command('app:run-scheduler')->everyMinute();

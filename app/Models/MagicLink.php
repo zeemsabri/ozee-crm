@@ -15,6 +15,8 @@ class MagicLink extends Model
         'email',
         'token',
         'project_id',
+        'temporary_pin',
+        'temp_pin_expires_at',
         'expires_at',
         'used',
     ];
@@ -26,6 +28,7 @@ class MagicLink extends Model
      */
     protected $casts = [
         'expires_at' => 'datetime',
+        'temp_pin_expires_at' => 'datetime',
         'used' => 'boolean',
     ];
 

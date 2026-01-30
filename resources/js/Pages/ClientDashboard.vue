@@ -10,6 +10,7 @@ import DocumentsSection from './ClientDashboard/DocumentsSection.vue';
 import InvoicesSection from './ClientDashboard/InvoicesSection.vue';
 import AnnouncementsSection from './ClientDashboard/AnnouncementsSection.vue';
 import DeliverableViewerModal from './ClientDashboard/DeliverableViewerModal.vue';
+import PinSetupModal from './ClientDashboard/PinSetupModal.vue';
 import ResourcesSection from './ClientDashboard/ResourceSection.vue'; // Import the new ResourcesSection
 import SEOReport from "@/Pages/ClientDashboard/SEOReport.vue";
 
@@ -25,8 +26,16 @@ const props = defineProps({
     clientProjects: {
         type: Array,
         default: () => []
+    },
+    clientHasPin: {
+        type: Boolean,
+        default: false
     }
 });
+
+const showPinSetup = ref(false);
+const hasPin = ref(props.clientHasPin);
+const isPinReset = ref(false); // Flag to indicate if this is a PIN reset (not initial setup)
 
 const isLoading = ref(true);
 const userId = ref('client-user'); // This could be derived from API response if a client ID is sent back
@@ -261,6 +270,23 @@ onMounted(async () => {
     }
 
     isLoading.value = false;
+
+    // Check if user logged in with temporary PIN
+    const usedTempPin = localStorage.getItem('client_used_temp_pin');
+    if (usedTempPin === 'true') {
+        // Clear the flag
+        localStorage.removeItem('client_used_temp_pin');
+        // Force PIN reset
+        isPinReset.value = true;
+        setTimeout(() => {
+            showPinSetup.value = true;
+        }, 1000);
+    } else if (!hasPin.value) {
+        // Show PIN setup if not set (initial setup)
+        setTimeout(() => {
+            showPinSetup.value = true;
+        }, 2000);
+    }
 });
 
 // Provide services to child components
@@ -342,6 +368,14 @@ provide('activityService', { addActivity: addActivity }); // Provided for child 
             :initialAuthToken="initialAuthToken"
             :projectId="projectId"
             @deliverable-action-success="handleUpdateApproval"
+        />
+
+        <PinSetupModal 
+            :isOpen="showPinSetup"
+            :token="initialAuthToken"
+            :isReset="isPinReset"
+            @close="showPinSetup = false"
+            @success="hasPin = true"
         />
 
     </div>

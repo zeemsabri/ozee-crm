@@ -102,8 +102,7 @@ Route::get('/', function (Request $request) {
 // Public route for handling the magic link (this is the new client dashboard route)
 // This route will render the ClientDashboard.vue component
 Route::get('/client/dashboard/{token}', [MagicLinkController::class, 'handleMagicLink'])
-    ->name('client.magic-link-login') // Consistent name with controller
-    ->middleware(['signed']); // Ensure the URL is signed
+    ->name('client.magic-link-login'); // Manually handle signature check in controller
 
 // You might also want a dedicated error page for magic links
 Route::get('/magic-link-error', function () {

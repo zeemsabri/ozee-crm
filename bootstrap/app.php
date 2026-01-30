@@ -31,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'google.chat.auth' => \App\Http\Middleware\AuthenticateGoogleChat::class,
             'process.basic' => \App\Http\Middleware\ProcessBasicProperty::class,
             'permissionInAnyProject' => \App\Http\Middleware\CheckPermissionInAnyProject::class,
+            'client.throttle' => \App\Http\Middleware\ThrottleClientAuth::class,
         ]);
 
         //
