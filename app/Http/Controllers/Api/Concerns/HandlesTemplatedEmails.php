@@ -404,7 +404,7 @@ trait HandlesTemplatedEmails
         ];
     }
 
-    public function getData($subject, $body, $senderDetails, $email = null, $isFinalSend = false)
+    public function getData($subject, $body, $senderDetails, $email = null, $isFinalSend = false, $project = null)
     {
         // Load all reusable data from the new config file
         $config = config('branding');
@@ -416,6 +416,7 @@ trait HandlesTemplatedEmails
             'emailData' => [
                 'subject' => $subject,
             ],
+            'projectName' => $project?->name ?? $email?->conversation?->project?->name,
             'bodyContent' => $body,
             'senderName' => $senderDetails['name'],
             'senderRole' => $senderDetails['role'],
