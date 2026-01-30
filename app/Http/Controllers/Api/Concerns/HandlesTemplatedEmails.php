@@ -300,12 +300,23 @@ trait HandlesTemplatedEmails
             $template = $email->email_template ?: Email::TEMPLATE_DEFAULT;
             $fullHtml = $this->renderHtmlTemplate($data, $template);
 
+            $conversation = $email->conversation()->with(['project', 'conversable'])->first();
+            $availableProjects = [];
+            if ($conversation && $conversation->conversable instanceof Client) {
+                $availableProjects = $conversation->conversable->projects()->get(['projects.id', 'projects.name']);
+            }
+
             return response()->json([
                 'id' => $email->id,
                 'subject' => $subject,
                 'body_html' => $fullHtml,
                 'status' => $email->status,
                 'contexts' => $email->contexts()->get(['id', 'summary', 'meta_data']),
+                'conversation' => $conversation,
+                'available_projects' => $availableProjects,
+                'rejection_reason' => $email->rejection_reason,
+                'type' => $email->type,
+                'is_private' => $email->is_private,
             ]);
 
         } catch (Exception $e) {
