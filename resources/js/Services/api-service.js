@@ -52,3 +52,10 @@ export const toggleEmailPrivacy = async (emailId, isPrivate = null) => {
     const { data } = await axios.patch(`${API_BASE_URL}/emails/${emailId}/privacy`, payload);
     return data;
 };
+
+export const updateConversationProject = async (conversationId, projectId) => {
+    const { data } = await axios.patch(`${API_BASE_URL}/conversations/${conversationId}/project`, {
+        project_id: projectId,
+    });
+    return data;
+};

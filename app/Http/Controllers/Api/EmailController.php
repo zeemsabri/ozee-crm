@@ -1112,4 +1112,42 @@ class EmailController extends Controller
 
         return response()->json($email->fresh()->load(['sender', 'conversation.project', 'approver']));
     }
+
+    /**
+     * Update the project for a conversation.
+     *
+     * @param Request $request
+     * @param Conversation $conversation
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function updateConversationProject(Request $request, Conversation $conversation)
+    {
+        $user = Auth::user();
+        
+        $validated = $request->validate([
+            'project_id' => 'required|exists:projects,id',
+        ]);
+
+        $project = Project::findOrFail($validated['project_id']);
+
+        // Check if user has permission to manage this project or conversation
+        if (!$user->isSuperAdmin() && !$user->isManager()) {
+            if ($user->isContractor()) {
+                if (!$user->projects->contains($conversation->project_id) || !$user->projects->contains($project->id)) {
+                    return response()->json(['message' => 'Unauthorized to move conversation between these projects.'], 403);
+                }
+            } else {
+                 return response()->json(['message' => 'Unauthorized.'], 403);
+            }
+        }
+
+        $conversation->update([
+            'project_id' => $project->id,
+        ]);
+
+        return response()->json([
+            'message' => 'Conversation project updated successfully.',
+            'conversation' => $conversation->load('project'),
+        ]);
+    }
 }

@@ -21,6 +21,11 @@ const loadingEmailDetails = ref(false);
 const users = ref([]);
 const usersLoading = ref(false);
 const usersError = ref(null);
+const selectedProjectId = ref(null);
+const projectUpdateLoading = ref(false);
+const projectUpdateError = ref(null);
+import { updateConversationProject as updateConversationProjectApi } from '@/Services/api-service.js';
+import axios from 'axios';
 
 const isApprovalPending = computed(() => {
     return localEmail.value?.status === 'pending_approval' || localEmail.value?.status === 'pending_approval_received';
@@ -33,6 +38,7 @@ const canDeleteEmails = computed(() => canDo('delete_emails').value);
 const canTogglePrivacy = computed(() => canDo('delete_emails').value); // same permission as delete
 const privacyLoading = ref(false);
 const privacyError = ref(null);
+
 
 const togglePrivacy = async () => {
     if (!props.email?.id) return;
@@ -102,6 +108,10 @@ const fetchEmailDetails = async () => {
         localEmail.value = response;
         if (localEmail.value && localEmail.value.id) {
             fetchAttachments();
+            // Initialize selected project ID from localEmail's conversation
+            if (localEmail.value.conversation?.project?.id) {
+                selectedProjectId.value = localEmail.value.conversation.project.id;
+            }
         }
     } catch (error) {
         console.error('Failed to fetch email details:', error);
@@ -185,6 +195,31 @@ const toggleTaskForm = () => {
     showTaskForm.value = !showTaskForm.value;
     if (showTaskForm.value && localEmail.value?.conversation?.project?.id) {
         fetchUsers(localEmail.value.conversation.project.id);
+    }
+};
+
+const handleProjectChange = async () => {
+    if (!localEmail.value?.conversation?.id || !selectedProjectId.value) return;
+
+    projectUpdateLoading.value = true;
+    projectUpdateError.value = null;
+    try {
+        await updateConversationProjectApi(localEmail.value.conversation.id, selectedProjectId.value);
+        // Update local ref to match
+        if (localEmail.value.conversation?.project) {
+            const newProj = localEmail.value.available_projects.find(p => p.id === selectedProjectId.value);
+            if (newProj) {
+                localEmail.value.conversation.project = { ...localEmail.value.conversation.project, ...newProj };
+            }
+        }
+    } catch (e) {
+        projectUpdateError.value = e?.response?.data?.message || 'Failed to update project.';
+        // Revert selection on error
+        if (localEmail.value.conversation?.project?.id) {
+            selectedProjectId.value = localEmail.value.conversation.project.id;
+        }
+    } finally {
+        projectUpdateLoading.value = false;
     }
 };
 
@@ -351,6 +386,36 @@ const formatContextMeta = (meta) => {
                 >
                     Reject
                 </button>
+            </div>
+        </div>
+
+        <!-- Project Link Section -->
+        <div v-if="localEmail?.available_projects?.length > 1 && canDeleteEmails" class="pt-6 border-t border-gray-100">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                Linked Project
+            </label>
+            <div class="flex items-center space-x-2">
+                <select
+                    v-model="selectedProjectId"
+                    @change="handleProjectChange"
+                    :disabled="projectUpdateLoading"
+                    class="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                    <option v-for="p in localEmail.available_projects" :key="p.id" :value="p.id">
+                        {{ p.name }}
+                    </option>
+                </select>
+                <span v-if="projectUpdateLoading" class="animate-spin h-4 w-4 border-2 border-indigo-500 border-t-transparent rounded-full"></span>
+            </div>
+            <p v-if="projectUpdateError" class="mt-1 text-xs text-red-600">{{ projectUpdateError }}</p>
+            <p v-else class="mt-1 text-xs text-gray-400">Change project for this conversation</p>
+        </div>
+        <div v-else-if="localEmail?.conversation?.project" class="pt-6 border-t border-gray-100">
+             <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                Project
+            </label>
+            <div class="text-sm font-medium text-gray-900 bg-gray-50 px-3 py-2 rounded-md border border-gray-200">
+                {{ localEmail.conversation.project.name }}
             </div>
         </div>
 
