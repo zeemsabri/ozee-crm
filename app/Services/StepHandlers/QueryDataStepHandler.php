@@ -31,17 +31,43 @@ class QueryDataStepHandler implements StepHandlerContract
             $with = array_values(array_filter(array_map('strval', $cfg['with']), fn ($p) => $p !== ''));
         }
         // Relationships payload from RelatedDataPicker (roots + nested)
+        // Relationships payload from RelatedDataPicker (roots + nested)
         if (empty($with) && ! empty($cfg['relationships']) && is_array($cfg['relationships'])) {
             $rels = $cfg['relationships'];
-            $roots = is_array($rels['roots'] ?? null) ? $rels['roots'] : [];
-            foreach ($roots as $root) {
-                $with[] = (string) $root;
-                $nested = is_array(($rels['nested'] ?? [])[$root] ?? null) ? ($rels['nested'][$root] ?? []) : [];
-                foreach ($nested as $child) {
-                    $with[] = $root.'.'.$child;
+
+            // Scenario 1: Complex structure with 'roots', 'nested', and potentially 'fields'
+            if (isset($rels['roots']) && is_array($rels['roots'])) {
+                $roots = $rels['roots'];
+                $fieldsCfg = is_array($rels['fields'] ?? null) ? $rels['fields'] : [];
+
+                foreach ($roots as $root) {
+                    $rootName = (string) $root;
+
+                    // Apply field filtering if defined (New Scenario), otherwise load all (Existing Scenario)
+                    if (! empty($fieldsCfg[$rootName]) && is_array($fieldsCfg[$rootName])) {
+                        $with[] = $rootName.':'.implode(',', $fieldsCfg[$rootName]);
+                    } else {
+                        $with[] = $rootName;
+                    }
+
+                    // Handle nested relationships (consistent across scenarios)
+                    $nested = is_array(($rels['nested'] ?? [])[$rootName] ?? null) ? ($rels['nested'][$rootName] ?? []) : [];
+                    foreach ($nested as $child) {
+                        $with[] = $rootName.'.'.$child;
+                    }
                 }
             }
-            // De-duplicate
+            // Scenario 2: Simple flat array structure (Fallback for legacy or manual configs)
+            else {
+                foreach ($rels as $key => $val) {
+                    $relItem = is_int($key) ? $val : $key;
+                    if (is_string($relItem) && $relItem !== '') {
+                        $with[] = $relItem;
+                    }
+                }
+            }
+
+            // De-duplicate and filter empty values
             $with = array_values(array_unique(array_filter($with)));
         }
         if (! empty($with)) {
