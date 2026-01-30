@@ -85,12 +85,28 @@
     </div>
     @endif
     <div class="content-body">
-        {!! $bodyContent !!}
+        <div style="text-align: right; margin-bottom: 25px; font-size: 13px; color: {{ $textColorSecondary ?? '#4a5568' }}; line-height: 1.5;">
+            <div><strong>Date:</strong> {{ date('d M, Y') }}</div>
+            @if(isset($projectName))
+                <div style="color: {{ $brandPrimaryColor }}; font-weight: bold;"><strong>Project:</strong> {{ $projectName }}</div>
+            @endif
+        </div>
+
+        <div class="email-main-content">
+            {!! $bodyContent !!}
+        </div>
+
+        <!-- Security Disclaimer -->
+        <div style="margin-top: 40px; padding: 15px; background-color: #fffaf0; border: 1px solid #feebc8; border-radius: 6px; font-size: 12px; color: #744210; line-height: 1.6;">
+            <p style="margin: 0;">
+                <strong>🔒 Security Notice:</strong> Please be advised that all official correspondence from <strong>OZee Web & Digital</strong> is sent exclusively from <strong>info@OZeeWeb.com.au</strong>. To ensure your security, please treat any emails from other addresses (including similar-looking Gmail accounts) as suspicious. If you receive any communication that seems out of the ordinary, do not hesitate to contact us directly.
+            </p>
+        </div>
 
     @if(isset($show_signature) && $show_signature === true)
         <!-- Signature Block -->
         <div class="signature-block">
-            <table role="presentation">
+            <table role="presentation" style="width: 100%;">
                 <tr>
                     <td colspan="2" style="vertical-align: top;">
                         <p style="margin: 0; font-size: 18px; color: {{ $textColorPrimary }}; line-height: 1.2;">Best Regards</p>

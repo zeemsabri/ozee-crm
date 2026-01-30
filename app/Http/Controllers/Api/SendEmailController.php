@@ -68,7 +68,7 @@ class SendEmailController extends Controller
             'role' => $this->getProjectRoleName($sender, $project) ?? 'Staff',
         ];
 
-        $data = $this->getData($subject, $bodyHtml, $senderDetails);
+        $data = $this->getData($subject, $bodyHtml, $senderDetails, null, false, $project);
 
         $fullHtml = $this->renderHtmlTemplate($data);
 
