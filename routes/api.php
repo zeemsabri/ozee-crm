@@ -79,10 +79,17 @@ Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
 Route::post('/reset-password', [NewPasswordController::class, 'store'])
     ->middleware('guest');
 
-// Client Magic Link Route (accessible without authentication)
-Route::post('/client-magic-link', [MagicLinkController::class, 'sendClientMagicLink']);
-// Client token verify endpoint
+// Client Magic Link Routes (protected by specialized throttling)
+Route::middleware(['client.throttle'])->group(function () {
+    Route::post('/client-magic-link', [MagicLinkController::class, 'sendClientMagicLink']);
+    Route::post('/client-api/check-status', [MagicLinkController::class, 'checkStatus']);
+    Route::post('/client-api/verify-pin', [MagicLinkController::class, 'verifyPin']);
+    Route::post('/client-api/resend-magic-link', [MagicLinkController::class, 'resendMagicLink']);
+});
+
+// Other client endpoints
 Route::post('/client-api/verify', [MagicLinkController::class, 'verifyClient']);
+Route::post('/client-api/setup-pin', [MagicLinkController::class, 'setupPin']);
 
 Route::get('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
 Route::post('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);

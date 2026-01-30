@@ -72,6 +72,14 @@
     <p>Or copy and paste this URL into your browser:</p>
     <p style="word-break: break-all;">{{ $url }}</p>
 
+    @if(isset($temporaryPin))
+    <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
+        <p style="margin-bottom: 8px; font-weight: 600; color: #4b5563;">Instant Login PIN</p>
+        <div style="font-size: 32px; font-weight: 800; letter-spacing: 0.2em; color: #4f46e5;">{{ $temporaryPin }}</div>
+        <p style="margin-top: 8px; font-size: 14px; color: #6b7280;">This PIN expires in 15 minutes and is for one-time use.</p>
+    </div>
+    @endif
+
     <p class="expiration">This magic link will expire in 24 hours.</p>
 
     <p>If you didn't request this link, you can safely ignore this email.</p>

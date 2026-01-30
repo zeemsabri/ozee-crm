@@ -23,9 +23,37 @@ defineProps({
 
 const showClientLoginModal = ref(false);
 const clientEmail = ref('');
+const clientPin = ref('');
+const showPinInput = ref(false);
 const sendingMagicLink = ref(false);
 const magicLinkSuccess = ref('');
 const magicLinkError = ref('');
+const verifyingPin = ref(false);
+const lockoutSeconds = ref(0);
+let lockoutTimer = null;
+
+const startLockoutTimer = (seconds) => {
+    lockoutSeconds.value = seconds;
+    if (lockoutTimer) clearInterval(lockoutTimer);
+
+    lockoutTimer = setInterval(() => {
+        lockoutSeconds.value--;
+        if (lockoutSeconds.value <= 0) {
+            clearInterval(lockoutTimer);
+        }
+    }, 1000);
+};
+
+const handleNext = () => {
+    if (!clientEmail.value || !clientEmail.value.includes('@')) {
+        magicLinkError.value = 'Please enter a valid email address';
+        return;
+    }
+
+    magicLinkError.value = '';
+    // Security: We show PIN input for everyone to hide which emails exist or have PINs
+    showPinInput.value = true;
+};
 
 const sendMagicLink = async () => {
     if (!clientEmail.value) {
@@ -44,28 +72,69 @@ const sendMagicLink = async () => {
         );
 
         if (response.data.success) {
-            magicLinkSuccess.value = response.data.message;
-            clientEmail.value = ''; // Reset after successful send
+            magicLinkSuccess.value = 'Magic link and temporary PIN sent to your email. You can login with the temporary PIN below or click the magic link in your email.';
+            // Keep PIN input visible so user can enter the temporary PIN
+            showPinInput.value = true;
         } else {
             magicLinkError.value = response.data.message || 'Failed to send magic link';
         }
     } catch (error) {
-        console.error('Error sending magic link:', error);
-        if (error.response?.status === 404) {
-            magicLinkError.value = 'No projects found associated with this email address.';
-        } else {
-            magicLinkError.value = error.response?.data?.message || 'An error occurred while sending the magic link';
-        }
+        magicLinkError.value = error.response?.data?.message || 'An error occurred';
     } finally {
         sendingMagicLink.value = false;
     }
 };
 
+const verifyPin = async () => {
+    if (!clientPin.value || clientPin.value.length < 4) {
+        magicLinkError.value = 'Please enter a valid PIN';
+        return;
+    }
+
+    verifyingPin.value = true;
+    magicLinkError.value = '';
+
+    try {
+        const response = await window.axios.post('/api/client-api/verify-pin', {
+            email: clientEmail.value,
+            pin: clientPin.value
+        });
+
+        if (response.data.success) {
+            localStorage.setItem('client_dashboard_token', response.data.auth_token);
+            // Store flag if user logged in with temporary PIN (for forcing PIN reset)
+            if (response.data.used_temporary_pin) {
+                localStorage.setItem('client_used_temp_pin', 'true');
+            }
+            // Use the signed URL from the backend to ensure proper signature validation
+            window.location.href = response.data.redirect_url;
+        }
+    } catch (error) {
+        if (error.response?.status === 429) {
+            magicLinkError.value = 'Too many attempts.';
+            startLockoutTimer(error.response.data.lockout_seconds);
+        } else {
+            magicLinkError.value = error.response?.data?.message || 'Invalid credentials. Please attempt again.';
+        }
+    } finally {
+        verifyingPin.value = false;
+    }
+};
+
 const closeModal = () => {
     clientEmail.value = '';
+    clientPin.value = '';
+    showPinInput.value = false;
     magicLinkSuccess.value = '';
     magicLinkError.value = '';
+    lockoutSeconds.value = 0;
+    if (lockoutTimer) clearInterval(lockoutTimer);
     showClientLoginModal.value = false;
+};
+
+const openClientLoginModal = () => {
+    closeModal();
+    showClientLoginModal.value = true;
 };
 </script>
 
@@ -98,7 +167,7 @@ const closeModal = () => {
                                 Team Log in
                             </Link>
                             <button
-                                @click="showClientLoginModal = true"
+                                @click="openClientLoginModal"
                                 class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                             >
                                 Client Login
@@ -334,24 +403,68 @@ const closeModal = () => {
                         type="email"
                         v-model="clientEmail"
                         class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full"
-                        placeholder="Enter your email address"
+                        placeholder="your@email.com"
+                        @keyup.enter="!showPinInput ? handleNext() : null"
                     />
-                    <p class="mt-2 text-sm text-gray-500">
-                        Enter your email address to receive a magic link for project access.
-                    </p>
                 </div>
 
-                <div class="mt-6 flex justify-end space-x-3">
-                    <SecondaryButton @click="closeModal" type="button">
-                        Cancel
-                    </SecondaryButton>
-                    <PrimaryButton
-                        @click="sendMagicLink"
-                        :disabled="sendingMagicLink || !clientEmail"
-                        class="bg-indigo-600 hover:bg-indigo-700"
-                    >
-                        {{ sendingMagicLink ? 'Sending...' : 'Send Magic Link' }}
-                    </PrimaryButton>
+                <div v-if="showPinInput" class="mb-4">
+                    <InputLabel for="client-pin" value="Enter PIN (Permanent or Temporary)" />
+                    <input
+                        id="client-pin"
+                        type="password"
+                        v-model="clientPin"
+                        maxlength="6"
+                        class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full text-center tracking-[0.5em] font-bold text-lg"
+                        placeholder=""
+                        @keyup.enter="verifyPin"
+                    />
+                    <div v-if="lockoutSeconds > 0" class="mt-2 p-2 bg-amber-50 text-amber-700 text-xs rounded-md border border-amber-100 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Try again in {{ lockoutSeconds }}s
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <!-- Step 1: Initial State -->
+                    <div v-if="!showPinInput && !magicLinkSuccess">
+                        <PrimaryButton
+                            @click="handleNext"
+                            class="bg-indigo-600 hover:bg-indigo-700 w-full justify-center py-2.5"
+                        >
+                            Next Step
+                        </PrimaryButton>
+                    </div>
+
+                    <!-- Step 2: PIN Input State -->
+                    <div v-if="showPinInput" class="space-y-4">
+                        <PrimaryButton
+                            @click="verifyPin"
+                            :disabled="verifyingPin || clientPin.length < 4 || lockoutSeconds > 0"
+                            class="bg-indigo-600 hover:bg-indigo-700 w-full justify-center py-2.5"
+                        >
+                            {{ verifyingPin ? 'Verifying...' : 'Log in' }}
+                        </PrimaryButton>
+
+                        <div class="relative">
+                            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-200"></div></div>
+                            <div class="relative flex justify-center text-xs"><span class="px-2 bg-white text-gray-400">OR</span></div>
+                        </div>
+
+                        <SecondaryButton
+                            @click="sendMagicLink"
+                            :disabled="sendingMagicLink"
+                            class="w-full justify-center py-2.5"
+                        >
+                            {{ sendingMagicLink ? 'Sending...' : 'Email me a new Magic Link' }}
+                        </SecondaryButton>
+
+                        <p class="text-xs text-center text-gray-500">
+                             Check your email for your permanent PIN or request a magic link to receive a temporary PIN.
+                        </p>
+                    </div>
                 </div>
             </div>
         </Modal>
