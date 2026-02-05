@@ -251,6 +251,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('projects/{project}/documents', [ProjectActionController::class, 'uploadDocuments'])->name('multipleDocuments');
     Route::post('projects/{project}/logo', [ProjectActionController::class, 'uploadLogo']);
     Route::post('projects/{project}/standup', [ProjectActionController::class, 'addStandup']);
+    Route::post('projects/{project}/meeting-minutes', [ProjectActionController::class, 'addMeetingMinutes']);
     Route::post('/projects/{project}/meetings', [ProjectActionController::class, 'createProjectMeeting']);
     Route::delete('/projects/{project}/meetings/{googleEventId}', [ProjectActionController::class, 'deleteProjectMeeting']);
     Route::patch('projects/{project}/convert-payment-type', [ProjectActionController::class, 'convertPaymentType']); // Moved PATCH route

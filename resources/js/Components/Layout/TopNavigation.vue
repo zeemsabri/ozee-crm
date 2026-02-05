@@ -19,7 +19,7 @@ const props = defineProps({
     }
 });
 
-const emit = defineEmits(['openCreateTaskModal', 'openAddResource', 'openNotificationsSidebar', 'open-kudo-modal']);
+const emit = defineEmits(['openCreateTaskModal', 'openAddResource', 'openNotificationsSidebar', 'open-kudo-modal', 'open-meeting-minutes-modal']);
 
 const showingNavigationDropdown = ref(false);
 const user = computed(() => usePage().props.auth.user);
@@ -177,6 +177,15 @@ onMounted(async () => {
                         >
                             <Plus class="h-4 w-4 mr-1.5" />
                             <span>Add Resource</span>
+                        </PrimaryButton>
+
+                        <PrimaryButton
+                            type="button"
+                            @click="emit('open-meeting-minutes-modal')"
+                            class="px-3 py-1.5 text-sm"
+                        >
+                            <Plus class="h-4 w-4 mr-1.5" />
+                            <span>Add Meeting Minutes</span>
                         </PrimaryButton>
 
                         <button
