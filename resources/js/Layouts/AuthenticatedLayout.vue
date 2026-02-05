@@ -21,11 +21,13 @@ import TaskSidebar from '@/Components/Layout/TaskSidebar.vue';
 import NoticeboardModal from "@/Components/Notices/NoticeboardModal.vue";
 import { useNotices } from '@/Utils/useNotices.js';
 import PromptOrchestrator from '@/Components/Prompts/PromptOrchestrator.vue';
+import MeetingMinutesModal from '@/Components/MeetingMinutesModal.vue';
 
 const showingNavigationDropdown = ref(false);
 const openCreateTaskModel = ref(false);
 const addResource = ref(false);
 const openKudoModal = ref(false);
+const openMeetingMinutesModal = ref(false);
 
 const allProjectsForSidebar = ref([]);
 const loadingAllProjects = ref(true);
@@ -158,6 +160,7 @@ onBeforeUnmount(() => {
                 @open-add-resource="addResource = true"
                 @open-notifications-sidebar="openNotificationsSidebar"
                 @open-kudo-modal="openKudoModal = true"
+                @open-meeting-minutes-modal="openMeetingMinutesModal = true"
             />
 
             <!-- Mobile Navigation -->
@@ -188,6 +191,13 @@ onBeforeUnmount(() => {
                 @close="addResource = false" />
 
             <KudoModal :show="openKudoModal" @close="openKudoModal = false" @submitted="openKudoModal = false" />
+
+            <MeetingMinutesModal 
+                :show="openMeetingMinutesModal" 
+                :projects="allProjectsForSidebar"
+                @close="openMeetingMinutesModal = false" 
+                @minutes-added="openMeetingMinutesModal = false" 
+            />
         </div>
 
         <!-- Task Sidebar -->

@@ -1749,4 +1749,82 @@ class ProjectActionController extends Controller
             return response()->json(['message' => 'Failed to update comment.'], 500);
         }
     }
+
+    /**
+     * Add meeting minutes to a project and send to Google Space.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function addMeetingMinutes(Request $request, Project $project)
+    {
+        $user = Auth::user();
+        $this->authorize('view', $project);
+
+        $validated = $request->validate([
+            'discussion' => 'nullable|string',
+            'more_info' => 'nullable|string',
+            'blockers' => 'nullable|string',
+            'actions' => 'nullable|string',
+            'full_minutes' => 'nullable|string',
+        ]);
+
+        $formattedContent = '**Meeting Minutes - '.date('F j, Y')."**\n\n";
+        
+        if (!empty($validated['full_minutes'])) {
+            $formattedContent .= $validated['full_minutes'];
+        } else {
+            if (!empty($validated['discussion'])) {
+                $formattedContent .= "**Discussion:**\n" . $validated['discussion'] . "\n\n";
+            }
+            if (!empty($validated['more_info'])) {
+                $formattedContent .= "**Require More Information:**\n" . $validated['more_info'] . "\n\n";
+            }
+            if (!empty($validated['blockers'])) {
+                $formattedContent .= "**Blockers:**\n" . $validated['blockers'] . "\n\n";
+            }
+            if (!empty($validated['actions'])) {
+                $formattedContent .= "**Actions:**\n" . $validated['actions'] . "\n\n";
+            }
+        }
+
+        $note = $project->notes()->create([
+            'content' => $formattedContent,
+            'user_id' => $user->id,
+            'type' => ProjectNote::MEETING_MINUTES,
+        ]);
+
+        if ($project->google_chat_id) {
+            try {
+                $messageText = "📝 *Meeting Minutes from {$user->name} - ".date('F j, Y')."*\n\n";
+                
+                if (!empty($validated['full_minutes'])) {
+                    $messageText .= $validated['full_minutes'];
+                } else {
+                    if (!empty($validated['discussion'])) {
+                        $messageText .= "💬 *Discussion:*\n" . $validated['discussion'] . "\n\n";
+                    }
+                    if (!empty($validated['more_info'])) {
+                        $messageText .= "❓ *Require More Information:*\n" . $validated['more_info'] . "\n\n";
+                    }
+                    if (!empty($validated['blockers'])) {
+                        $messageText .= "🚧 *Blockers:*\n" . $validated['blockers'] . "\n\n";
+                    }
+                    if (!empty($validated['actions'])) {
+                        $messageText .= "✅ *Actions:*\n" . $validated['actions'] . "\n";
+                    }
+                }
+
+                $response = $this->googleChatService->sendMessage($project->google_chat_id, $messageText);
+
+                $note->chat_message_id = $response['name'] ?? null;
+                $note->save();
+
+                Log::info('Sent meeting minutes notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'user_id' => $user->id, 'chat_message_id' => $response['name'] ?? null]);
+            } catch (\Exception $e) {
+                Log::error('Failed to send meeting minutes notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
+            }
+        }
+
+        return response()->json(['success' => true, 'message' => 'Meeting minutes submitted successfully', 'note' => $note], 201);
+    }
 }

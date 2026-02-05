@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\Client;
 use App\Models\Lead;
+use App\Models\ProjectNote;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request; // Ensure this is imported
@@ -27,6 +28,7 @@ class AutomationSchemaController extends Controller
             \App\Models\Email::class,
             \App\Models\Category::class,
             \App\Models\CategorySet::class,
+            ProjectNote::class,
             Campaign::class,
             Lead::class,
             //            User::class
@@ -221,6 +223,11 @@ class AutomationSchemaController extends Controller
                 ['value' => 'updated', 'label' => 'is updated'],
             ],
             'User' => [
+                ['value' => 'received', 'label' => 'is received'],
+                ['value' => 'created', 'label' => 'is created'],
+                ['value' => 'updated', 'label' => 'is updated'],
+            ],
+            'ProjectNote' => [
                 ['value' => 'received', 'label' => 'is received'],
                 ['value' => 'created', 'label' => 'is created'],
                 ['value' => 'updated', 'label' => 'is updated'],
