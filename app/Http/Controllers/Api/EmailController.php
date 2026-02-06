@@ -155,8 +155,6 @@ class EmailController extends Controller
                 $email = $this->handleCustomClientEmail($user, $validated);
             }
 
-            Log::info('Email created/submitted', ['email_id' => $email->id, 'status' => $email->status, 'user_id' => $user->id]);
-
             return response()->json($email->load('conversation'), 201);
         } catch (ValidationException $e) {
             return response()->json([
@@ -239,8 +237,6 @@ class EmailController extends Controller
                 //            ProcessDraftEmailJob::dispatch($email);
 
                 $conversation->update(['last_activity_at' => now()]);
-
-                Log::info('Templated email created/submitted for approval', ['email_id' => $email->id, 'status' => $email->status, 'user_id' => $user->id]);
 
                 return response()->json($email->load('conversation'), 201);
 
@@ -461,8 +457,6 @@ class EmailController extends Controller
                 'approved_by' => $user->id,
             ]);
 
-            Log::info('Received email approved', ['email_id' => $email->id, 'approved_by' => $user->id]);
-
             return response()->json(['message' => 'Received email approved successfully!', 'email' => $email->load('approver')], 200);
         } catch (\Exception $e) {
             Log::error('Error approving received email: '.$e->getMessage(), ['email_id' => $email->id, 'error' => $e->getTraceAsString()]);
@@ -497,11 +491,6 @@ class EmailController extends Controller
             app(\App\Services\ValueSetValidator::class)->validate('Email', 'status', \App\Enums\EmailStatus::Received);
             $email->update([
                 'status' => \App\Enums\EmailStatus::Received,
-                'approved_by' => $user->id,
-            ]);
-
-            Log::info('Received email edited and approved', [
-                'email_id' => $email->id,
                 'approved_by' => $user->id,
             ]);
 
@@ -548,8 +537,6 @@ class EmailController extends Controller
                 'rejection_reason' => $validated['rejection_reason'],
                 'approved_by' => $user->id,
             ]);
-
-            Log::info('Received email rejected', ['email_id' => $email->id, 'rejection_reason' => $validated['rejection_reason'], 'rejected_by' => $user->id]);
 
             return response()->json(['message' => 'Received email rejected successfully!', 'email' => $email->load('approver')], 200);
         } catch (ValidationException $e) {
@@ -1123,7 +1110,7 @@ class EmailController extends Controller
     public function updateConversationProject(Request $request, Conversation $conversation)
     {
         $user = Auth::user();
-        
+
         $validated = $request->validate([
             'project_id' => 'required|exists:projects,id',
         ]);

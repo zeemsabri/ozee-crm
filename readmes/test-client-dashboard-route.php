@@ -18,9 +18,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 
-// Set up logging
-Log::info('Starting Client Dashboard Route test');
-
 try {
     // Create a test token
     $token = 'test_token_'.time();
@@ -125,5 +122,3 @@ try {
         'error' => $e->getTraceAsString(),
     ]);
 }
-
-Log::info('Completed Client Dashboard Route test');

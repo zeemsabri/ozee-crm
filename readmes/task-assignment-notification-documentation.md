@@ -25,10 +25,6 @@ if ($task->assigned_to_user_id) {
     if ($task->assignedTo) {
         try {
             $task->assignedTo->notify(new TaskAssigned($task));
-            Log::info('Task assignment notification sent to user', [
-                'task_id' => $task->id,
-                'user_id' => $task->assigned_to_user_id
-            ]);
         } catch (\Exception $notifyException) {
             Log::error('Failed to send task assignment notification: ' . $notifyException->getMessage(), [
                 'task_id' => $task->id,

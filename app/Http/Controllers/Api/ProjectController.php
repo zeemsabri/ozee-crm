@@ -1053,7 +1053,6 @@ class ProjectController extends Controller
                 }
             }
             $project->delete();
-            Log::info('Project deleted', ['project_id' => $project->id, 'project_name' => $project->name, 'user_id' => Auth::id()]);
 
             return response()->json(null, 204);
         } catch (\Exception $e) {
@@ -1114,24 +1113,12 @@ class ProjectController extends Controller
                             User::where('email', $userInfo['email'])->update(['chat_name' => $userInfo['chat_name']]);
                         }
                     }
-
-                    Log::info('Added members to Google Chat space', [
-                        'project_id' => $project->id,
-                        'space_name' => $project->google_chat_id,
-                        'added_emails' => $addedUserEmails,
-                        'response' => $responseArray,
-                    ]);
                 }
 
                 // Remove members from Google Chat space
                 if (! empty($removedUserEmails)) {
                     $usersToDetach = User::whereIn('email', $removedUserEmails)->get();
                     $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToDetach->toArray());
-                    Log::info('Removed members from Google Chat space', [
-                        'project_id' => $project->id,
-                        'space_name' => $project->google_chat_id,
-                        'removed_emails' => $removedUserEmails,
-                    ]);
                 }
             } catch (\Exception $e) {
                 // Log the error but don't fail the user assignment
@@ -1175,12 +1162,6 @@ class ProjectController extends Controller
                         ]);
                     }
                 }
-                Log::info('Google Drive permissions updated for project', [
-                    'project_id' => $project->id,
-                    'folder_id' => $project->google_drive_folder_id,
-                    'added_emails' => $addedUserEmails,
-                    'removed_emails' => $removedUserEmails,
-                ]);
 
             } catch (\Exception $e) {
                 Log::error('Failed to update Google Drive permissions for project', [
@@ -1215,11 +1196,6 @@ class ProjectController extends Controller
             try {
                 // Remove members from Google Chat space - pass the user objects directly
                 $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToDetach->all());
-                Log::info('Removed members from Google Chat space', [
-                    'project_id' => $project->id,
-                    'space_name' => $project->google_chat_id,
-                    'removed_emails' => $usersToDetach->pluck('email')->toArray(),
-                ]);
             } catch (\Exception $e) {
                 // Log the error but don't fail the user detachment
                 Log::error('Failed to remove members from Google Chat space', [
@@ -1301,12 +1277,6 @@ class ProjectController extends Controller
                     $notes[count($notes) - 1]->chat_message_id = $response['name'] ?? null;
                     $notes[count($notes) - 1]->save();
 
-                    Log::info('Sent note notification to Google Chat space', [
-                        'project_id' => $project->id,
-                        'space_name' => $project->google_chat_id,
-                        'user_id' => $user->id,
-                        'chat_message_id' => $response['name'] ?? null,
-                    ]);
                 } catch (\Exception $e) {
                     // Log the error but don't fail the note creation
                     Log::error('Failed to send note notification to Google Chat space', [
@@ -1485,12 +1455,6 @@ class ProjectController extends Controller
             // Construct thread name: spaces/{space_id}/threads/{thread_key}
             $threadNameForReply = 'spaces/'.$spaceId.'/threads/'.$threadKey;
 
-            Log::info('Attempting to send threaded message with:', [
-                'project_chat_id' => $project->google_chat_id,
-                'constructed_thread_name' => $threadNameForReply,
-                'original_note_chat_message_id' => $note->chat_message_id,
-            ]);
-
             // Send the reply to the specified space and thread
             $response = $this->googleChatService->sendThreadedMessage(
                 $project->google_chat_id,
@@ -1517,17 +1481,6 @@ class ProjectController extends Controller
 
             // Set the decrypted content for the response
             $replyNote->content = $validated['content'];
-
-            Log::info('Sent reply to note in Google Chat thread', [
-                'project_id' => $project->id,
-                'space_name' => $project->google_chat_id,
-                'thread_name_used' => $threadNameForReply,
-                'original_chat_message_id' => $note->chat_message_id,
-                'user_id' => $user->id,
-                'original_note_id' => $note->id,
-                'reply_note_id' => $replyNote->id,
-                'new_chat_message_id' => $response['name'] ?? null,
-            ]);
 
             return response()->json([
                 'message' => 'Reply sent successfully',

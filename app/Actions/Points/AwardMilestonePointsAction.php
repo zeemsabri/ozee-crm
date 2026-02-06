@@ -50,9 +50,6 @@ class AwardMilestonePointsAction
             ->first();
 
         if ($existingEntry) {
-            // We can log this but we don't need to return anything here.
-            Log::info("Points already awarded for milestone with ID {$milestone->id}. Points not re-awarded.");
-
             return;
         }
 

@@ -70,7 +70,6 @@ class LeadReplyHandlerService
         switch ($aiAnalysis['response_status'] ?? 'MANUAL_APPROVAL_REQUIRED') {
             case 'AUTO_SEND':
                 $this->queueReply($lead, $aiAnalysis);
-                Log::info('Automated reply queued for lead.', ['lead_id' => $lead->id, 'reason' => $aiAnalysis['context_summary']]);
                 break;
 
             case 'MANUAL_APPROVAL_REQUIRED':
@@ -81,13 +80,11 @@ class LeadReplyHandlerService
                     $aiAnalysis['context_summary'],
                     $aiAnalysis
                 );
-                Log::info('Manual review task created for lead.', ['lead_id' => $lead->id, 'reason' => $aiAnalysis['context_summary']]);
                 break;
 
             case 'POSITIVE_CLOSE':
                 // TODO: Consider creating a LeadStatus::UNSUBSCRIBED enum or constant.
                 $lead->update(['status' => 'unsubscribed', 'next_follow_up_date' => null]);
-                Log::info('Lead unsubscribed. Sequence halted.', ['lead_id' => $lead->id, 'reason' => $aiAnalysis['context_summary']]);
                 break;
 
             default:

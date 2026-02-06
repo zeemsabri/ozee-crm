@@ -113,17 +113,6 @@ class QueryDataStepHandler implements StepHandlerContract
         $countOnly = (bool) ($cfg['count_only'] ?? false);
 
         // Logging preview (avoid mutating builder before execution)
-        try {
-            Log::info('Executing query', [
-                'sql' => $q->toSql(),
-                'bindings' => $q->getBindings(),
-                'with' => $with,
-                'single' => $single,
-            ]);
-        } catch (\Throwable $e) {
-            // ignore log failures
-        }
-
         if ($single) {
             $record = $q->first();
             $count = $record ? 1 : 0;

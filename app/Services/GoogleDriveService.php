@@ -29,11 +29,6 @@ class GoogleDriveService
                 'fields' => 'id',
             ]);
 
-            Log::info('Google Drive folder created', [
-                'folder_name' => $folderName,
-                'folder_id' => $createdFolder->id,
-            ]);
-
             return $createdFolder->id;
         } catch (\Exception $e) {
             Log::error('Error creating Google Drive folder: '.$e->getMessage(), [
@@ -77,12 +72,6 @@ class GoogleDriveService
                 ['fields' => 'id'] // Request only the ID of the created permission (optional, but good practice)
             );
 
-            Log::info('File uploaded to Google Drive', [
-                'file_name' => $fileName,
-                'file_id' => $uploadedFile->id,
-                'parent_folder_id' => $parentFolderId,
-            ]);
-
             return [
                 'id' => $uploadedFile->id,
                 'thumbnail' => $this->getThumbnailLink($uploadedFile->id),
@@ -119,13 +108,6 @@ class GoogleDriveService
             $copiedFile = $this->driveService->files->copy($sourceFileId, $file, [
                 'fields' => 'id, webViewLink', // Request ID and webViewLink for the new file
                 'supportsAllDrives' => true,      // Add this for robustness with Shared Drives
-            ]);
-
-            Log::info('File copied in Google Drive', [
-                'source_file_id' => $sourceFileId,
-                'copied_file_id' => $copiedFile->id,
-                'destination_folder_id' => $destinationFolderId,
-                'new_file_name' => $newFileName,
             ]);
 
             return [
@@ -198,16 +180,7 @@ class GoogleDriveService
      */
     public function deleteFile(string $fileId): void
     {
-        //        try {
         $this->driveService->files->delete($fileId);
-        Log::info('Google Drive file/folder deleted', ['file_id' => $fileId]);
-        //        } catch (\Exception $e) {
-        //            Log::error('Error deleting Google Drive file/folder: ' . $e->getMessage(), [
-        //                'file_id' => $fileId,
-        //                'error' => $e->getTraceAsString(),
-        //            ]);
-        //            throw $e;
-        //        }
     }
 
     /**
@@ -219,10 +192,6 @@ class GoogleDriveService
             $file = new Drive\DriveFile;
             $file->setName($newName);
             $this->driveService->files->update($folderId, $file);
-            Log::info('Google Drive folder name updated', [
-                'folder_id' => $folderId,
-                'new_name' => $newName,
-            ]);
         } catch (\Exception $e) {
             Log::error('Failed to update Google Drive folder name: '.$e->getMessage(), [
                 'folder_id' => $folderId,
@@ -255,13 +224,6 @@ class GoogleDriveService
             // $optParams = ['sendNotificationEmail' => false];
 
             $newPermission = $this->driveService->permissions->create($fileId, $permission);
-
-            Log::info('Google Drive permission added', [
-                'file_id' => $fileId,
-                'email_address' => $emailAddress,
-                'role' => $role,
-                'permission_id' => $newPermission->id,
-            ]);
 
             return $newPermission;
         } catch (\Google\Service\Exception $e) {
@@ -317,11 +279,6 @@ class GoogleDriveService
 
             if ($permissionIdToRemove) {
                 $this->driveService->permissions->delete($fileId, $permissionIdToRemove);
-                Log::info('Google Drive permission removed', [
-                    'file_id' => $fileId,
-                    'email_address' => $emailAddress,
-                    'permission_id' => $permissionIdToRemove,
-                ]);
             } else {
                 Log::warning('Google Drive permission not found for removal', [
                     'file_id' => $fileId,
@@ -342,8 +299,6 @@ class GoogleDriveService
     {
         try {
             $file = $this->driveService->files->get($fileId, ['fields' => $field]);
-            Log::info('Fetched webContentLink for file', ['file_id' => $fileId]);
-
             return $file->{$field};
         } catch (\Exception $e) {
             Log::error('Error fetching webContentLink: '.$e->getMessage(), [
@@ -363,8 +318,6 @@ class GoogleDriveService
     {
         try {
             $file = $this->driveService->files->get($fileId, ['fields' => 'thumbnailLink']);
-            Log::info('Fetched thumbnail link for file', ['file_id' => $fileId, 'thumbnail_link' => $file->getThumbnailLink()]);
-
             return $file->getThumbnailLink();
         } catch (\Exception $e) {
             Log::error('Error fetching thumbnail link: '.$e->getMessage(), [

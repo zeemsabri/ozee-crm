@@ -19,11 +19,6 @@ class WorkflowTriggerListener
             ->where('trigger_event', $event->eventName)
             ->get();
 
-        Log::info('WorkflowTriggerListener.handle', [
-            'count' => 'running for '.$workflows->count(),
-            'from' => $event->from,
-        ]);
-
         foreach ($workflows as $workflow) {
             // Enrich context with event metadata for downstream use and unique key derivation
             $ctx = $event->context;
@@ -34,12 +29,6 @@ class WorkflowTriggerListener
             $ctx['triggering_object_id'] = $event->triggeringObjectId;
 
             $uniqueKey = 'workflow:'.$workflow->id.'|event:'.$event->eventName.'|object:'.($event->triggeringObjectId ?? '');
-
-            Log::info('WorkflowTriggerListener.dispatch_job', [
-                'workflow_id' => $workflow->id,
-                'event' => $event->eventName,
-                'unique' => $uniqueKey,
-            ]);
 
             RunWorkflowJob::dispatch($workflow->id, $ctx, null, $uniqueKey);
         }

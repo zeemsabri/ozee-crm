@@ -81,7 +81,6 @@ class GoogleChatServiceV2
         $this->client->setAccessToken($tokens['access_token']);
 
         if ($this->client->isAccessTokenExpired()) {
-            Log::info('Google access token expired for Chat Service V2, attempting to refresh.');
             if (empty($tokens['refresh_token'])) {
                 throw new Exception('Refresh token not found. User needs to re-authorize for Google Chat V2.');
             }
@@ -96,11 +95,9 @@ class GoogleChatServiceV2
 
                 if (isset($newTokens['refresh_token'])) {
                     $tokens['refresh_token'] = $newTokens['refresh_token'];
-                    Log::info('Google refresh token updated for Chat Service V2.');
                 }
 
                 Storage::disk('local')->put('google_tokens.json', json_encode($tokens, JSON_PRETTY_PRINT));
-                Log::info('Google access token refreshed successfully for Chat Service V2.');
 
             } catch (Exception $e) {
                 Log::error('Failed to refresh Google access token for Chat Service V2: '.$e->getMessage(), ['exception' => $e]);
@@ -141,11 +138,6 @@ class GoogleChatServiceV2
 
         try {
             $sentMessage = $this->chatServiceClient->createMessage($spaceName, $message);
-            Log::info('Threaded message sent to Google Chat space (V2)', [
-                'space_name' => $spaceName,
-                'thread_name' => $threadName,
-                'message_id' => $sentMessage->getName(),
-            ]);
 
             return [
                 'name' => $sentMessage->getName(),

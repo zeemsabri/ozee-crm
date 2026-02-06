@@ -347,7 +347,6 @@ class ProjectActionController extends Controller
                 }
             }
             $project->delete();
-            Log::info('Project deleted', ['project_id' => $project->id, 'project_name' => $project->name, 'user_id' => Auth::id()]);
 
             return response()->json(null, 204);
         } catch (\Exception $e) {
@@ -401,7 +400,6 @@ class ProjectActionController extends Controller
                             User::where('email', $userInfo['email'])->update(['chat_name' => $userInfo['chat_name']]);
                         }
                     }
-                    Log::info('Added members to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'added_emails' => $addedUserEmails, 'response' => $responseArray]);
                 }
                 if (! empty($removedUserEmails)) {
                     // Only remove users who are not project leads or Google Chat members
@@ -418,11 +416,6 @@ class ProjectActionController extends Controller
 
                     if (! empty($usersToActuallyRemove)) {
                         $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToActuallyRemove);
-                        Log::info('Removed members from Google Chat space', [
-                            'project_id' => $project->id,
-                            'space_name' => $project->google_chat_id,
-                            'removed_emails' => array_map(fn ($u) => $u->email, $usersToActuallyRemove),
-                        ]);
                     }
                 }
             } catch (\Exception $e) {
@@ -446,7 +439,6 @@ class ProjectActionController extends Controller
                         Log::error('Failed to remove Google Drive permission for '.$email, ['project_id' => $project->id, 'folder_id' => $project->google_drive_folder_id, 'email' => $email, 'error' => $e->getMessage()]);
                     }
                 }
-                Log::info('Google Drive permissions updated for project', ['project_id' => $project->id, 'folder_id' => $project->google_drive_folder_id, 'added_emails' => $addedUserEmails, 'removed_emails' => $removedUserEmails]);
             } catch (\Exception $e) {
                 Log::error('Failed to update Google Drive permissions for project', ['project_id' => $project->id, 'folder_id' => $project->google_drive_folder_id, 'error' => $e->getMessage(), 'exception' => $e]);
             }
@@ -475,7 +467,6 @@ class ProjectActionController extends Controller
         if ($project->google_chat_id && $usersToDetach->count() > 0) {
             try {
                 $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToDetach->all());
-                Log::info('Removed members from Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'removed_emails' => $usersToDetach->pluck('email')->toArray()]);
             } catch (\Exception $e) {
                 Log::error('Failed to remove members from Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
             }
@@ -633,9 +624,6 @@ class ProjectActionController extends Controller
                 'parent_id' => $note->id,
             ]);
             $replyNote->content = $validated['content']; // Set decrypted content for immediate response
-
-            Log::info('Sent reply to note in Google Chat thread', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'thread_name_used' => $threadNameForReply, 'original_chat_message_id' => $note->chat_message_id, 'user_id' => $user->id, 'original_note_id' => $note->id, 'reply_note_id' => $replyNote->id, 'new_chat_message_id' => $response['name'] ?? null]);
-
             return response()->json(['message' => 'Reply sent successfully', 'note' => $replyNote, 'success' => true]);
 
         } catch (\Exception $e) {
@@ -774,7 +762,6 @@ class ProjectActionController extends Controller
                 $note->chat_message_id = $response['name'] ?? null;
                 $note->save();
 
-                Log::info('Sent standup notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'user_id' => $user->id, 'chat_message_id' => $response['name'] ?? null]);
             } catch (\Exception $e) {
                 Log::error('Failed to send standup notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
             }
@@ -840,10 +827,7 @@ class ProjectActionController extends Controller
                     $extractedFolderId = $matches[1];
                     // Update the google_drive_folder_id in projectData
                     $projectData['google_drive_folder_id'] = $extractedFolderId;
-                    Log::info('Extracted Google Drive folder ID from link', [
-                        'link' => $link,
-                        'extracted_id' => $extractedFolderId,
-                    ]);
+
                 } else {
                     // If no valid ID could be extracted, set it to null or log a warning
                     $projectData['google_drive_folder_id'] = null;
@@ -855,7 +839,6 @@ class ProjectActionController extends Controller
             } elseif (array_key_exists('google_drive_link', $validated) && $validated['google_drive_link'] === null) {
                 // If google_drive_link is explicitly sent as null, clear the folder ID as well
                 $projectData['google_drive_folder_id'] = null;
-                Log::info('Google Drive link set to null, clearing folder ID.', ['project_id' => $project->id]);
             }
             // --- END NEW LOGIC ---
 
@@ -987,23 +970,12 @@ class ProjectActionController extends Controller
                             User::where('email', $userInfo['email'])->update(['chat_name' => $userInfo['chat_name']]);
                         }
                     }
-                    Log::info('Added project leads to Google Chat space', [
-                        'project_id' => $project->id,
-                        'space_name' => $project->google_chat_id,
-                        'added_emails' => $emailsToAdd,
-                        'response' => $responseArray,
-                    ]);
                 }
 
                 // Remove old leads from Google Chat (only if they're not in project users)
                 if (! empty($emailsToRemove)) {
                     $usersToDetach = User::whereIn('email', $emailsToRemove)->get();
                     $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToDetach->toArray());
-                    Log::info('Removed old project leads from Google Chat space', [
-                        'project_id' => $project->id,
-                        'space_name' => $project->google_chat_id,
-                        'removed_emails' => $emailsToRemove,
-                    ]);
                 }
             } catch (\Exception $e) {
                 Log::error('Failed to update Google Chat space for project leads', [
@@ -1265,8 +1237,6 @@ class ProjectActionController extends Controller
             $localPath = $request->file('logo')->store('logos', 'public');
             $project->logo = $localPath;
             $project->save();
-
-            Log::info('Generated Logo URL: '.asset($project->logo));
 
             return response()->json([
                 'message' => 'Logo uploaded successfully',
@@ -1613,21 +1583,10 @@ class ProjectActionController extends Controller
                             User::where('email', $userInfo['email'])->update(['chat_name' => $userInfo['chat_name']]);
                         }
                     }
-                    Log::info('Added Google Chat members to space', [
-                        'project_id' => $project->id,
-                        'space_name' => $project->google_chat_id,
-                        'added_emails' => $addedChatMemberEmails,
-                        'response' => $responseArray,
-                    ]);
                 }
                 if (! empty($removedChatMemberEmails)) {
                     $usersToDetach = User::whereIn('email', $removedChatMemberEmails)->get();
                     $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToDetach->toArray());
-                    Log::info('Removed Google Chat members from space', [
-                        'project_id' => $project->id,
-                        'space_name' => $project->google_chat_id,
-                        'removed_emails' => $removedChatMemberEmails,
-                    ]);
                 }
             } catch (\Exception $e) {
                 Log::error('Failed to update Google Chat space members', [
@@ -1673,11 +1632,6 @@ class ProjectActionController extends Controller
 
                 if ($usersToActuallyRemove->count() > 0) {
                     $this->googleChatService->removeMembersFromSpace($project->google_chat_id, $usersToActuallyRemove->toArray());
-                    Log::info('Removed Google Chat members from space', [
-                        'project_id' => $project->id,
-                        'space_name' => $project->google_chat_id,
-                        'removed_emails' => $usersToActuallyRemove->pluck('email')->toArray(),
-                    ]);
                 }
             } catch (\Exception $e) {
                 Log::error('Failed to remove Google Chat space members', [
@@ -1781,7 +1735,7 @@ class ProjectActionController extends Controller
         }
 
         $formattedContent = '**Meeting Minutes - '.date('F j, Y')."**\n\n";
-        
+
         if (!empty($attendeeNames)) {
             $formattedContent .= "**Attendees:** " . implode(', ', $attendeeNames) . "\n\n";
         }
@@ -1812,7 +1766,7 @@ class ProjectActionController extends Controller
         if ($project->google_chat_id) {
             try {
                 $messageText = "📝 *Meeting Minutes from {$user->name} - ".date('F j, Y')."*\n\n";
-                
+
                 if (!empty($attendeeNames)) {
                     $messageText .= "👥 *Attendees:* " . implode(', ', $attendeeNames) . "\n\n";
                 }
@@ -1838,8 +1792,6 @@ class ProjectActionController extends Controller
 
                 $note->chat_message_id = $response['name'] ?? null;
                 $note->save();
-
-                Log::info('Sent meeting minutes notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'user_id' => $user->id, 'chat_message_id' => $response['name'] ?? null]);
             } catch (\Exception $e) {
                 Log::error('Failed to send meeting minutes notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
             }

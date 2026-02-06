@@ -170,7 +170,6 @@ class MagicLinkController extends Controller
 
             // If no client, return generic success to prevent email enumeration
             if (! $client) {
-                Log::info('Magic link request: email not found in clients table.', ['email' => $clientEmail]);
                 return $genericSuccessResponse;
             }
 
@@ -184,7 +183,6 @@ class MagicLinkController extends Controller
 
             // If no projects, return generic success to prevent email enumeration
             if ($projects->isEmpty()) {
-                Log::info('Magic link request: no projects associated with client.', ['email' => $clientEmail, 'client_id' => $client->id]);
                 return $genericSuccessResponse;
             }
 
@@ -196,7 +194,7 @@ class MagicLinkController extends Controller
 
             // Generate a 6-digit temporary PIN
             $temporaryPin = (string) rand(100000, 999999);
-            
+
             // Set expiration time (24 hours for token, 15 mins for PIN)
             $expiresAt = now()->addDays(7);
             $tempPinExpiresAt = now()->addMinutes(15);
@@ -458,11 +456,11 @@ class MagicLinkController extends Controller
 
             $client = Client::where('email', $email)->first();
             $isPermanentPinValid = $client && ! empty($client->pin) && Hash::check($request->pin, $client->pin);
-            
+
             // Check for temporary PIN if permanent one is invalid or doesn't exist
             $isTemporaryPinValid = false;
             $activeMagicLink = null;
-            
+
             if (! $isPermanentPinValid) {
                 $activeMagicLinks = MagicLink::where('email', $email)
                     ->where('temp_pin_expires_at', '>', now())
@@ -483,7 +481,7 @@ class MagicLinkController extends Controller
 
             if (! $successful) {
                 return response()->json([
-                    'success' => false, 
+                    'success' => false,
                     'message' => 'Invalid PIN. Please try again.',
                 ], 403);
             }

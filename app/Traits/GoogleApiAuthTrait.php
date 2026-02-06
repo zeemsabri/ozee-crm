@@ -156,7 +156,6 @@ trait GoogleApiAuthTrait
                 Storage::disk('local')->put('google_tokens.json', json_encode($updateData, JSON_PRETTY_PRINT));
             }
 
-            Log::info('Google access token refreshed successfully.', ['email' => $this->authorizedEmail]);
         } catch (Exception $e) {
             Log::error('Failed to refresh Google access token: '.$e->getMessage(), [
                 'email' => $this->authorizedEmail,

@@ -64,7 +64,6 @@ class ClientController extends Controller
             ]);
 
             $client = Client::create($validated);
-            Log::info('Client created', ['client_id' => $client->id, 'client_name' => $client->name, 'user_id' => Auth::id()]);
 
             return (new ClientResource($client))->response()->setStatusCode(201);
         } catch (ValidationException $e) {
@@ -121,7 +120,6 @@ class ClientController extends Controller
             ]);
 
             $client->update($validated);
-            Log::info('Client updated', ['client_id' => $client->id, 'client_name' => $client->name, 'user_id' => Auth::id()]);
 
             return new ClientResource($client);
         } catch (ValidationException $e) {
@@ -150,7 +148,6 @@ class ClientController extends Controller
 
         try {
             $client->delete();
-            Log::info('Client deleted', ['client_id' => $client->id, 'client_name' => $client->name, 'user_id' => Auth::id()]);
 
             return response()->json(null, 204);
         } catch (\Exception $e) {

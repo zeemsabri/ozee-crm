@@ -65,8 +65,6 @@ class TransactionBonusService
 
                         // Check for duplicates before creating
                         if ($this->isDuplicateTransaction($userId, $amountPkr, $description, $startOfMonth, $endOfMonth)) {
-                            Log::info("Skipping duplicate transaction for user {$userId} and project {$projectName}.");
-
                             continue;
                         }
 
@@ -91,8 +89,6 @@ class TransactionBonusService
                             'description' => $description,
                             'currency' => 'PKR',
                         ]);
-                        Log::info("Skipping duplicate transaction for user {$userId} and award {$awardTitle}.");
-
                         continue;
                     }
 

@@ -55,10 +55,8 @@ class RunWorkflowJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
         }
 
         if ($this->startStepId) {
-            Log::info('execute flow with step id');
             $engine->executeFromStepId($workflow, $this->context, $this->startStepId);
         } else {
-            Log::info('execute flow');
             $engine->execute($workflow, $this->context);
         }
     }

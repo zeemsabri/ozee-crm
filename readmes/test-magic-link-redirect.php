@@ -20,9 +20,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
-// Set up logging
-Log::info('Starting Magic Link Redirect test');
-
 try {
     // Find a project to use for testing
     $project = Project::first();
@@ -74,5 +71,3 @@ try {
         'error' => $e->getTraceAsString(),
     ]);
 }
-
-Log::info('Completed Magic Link Redirect test');

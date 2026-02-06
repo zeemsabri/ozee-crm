@@ -108,15 +108,6 @@ class SyncRelationshipStepHandler implements StepHandlerContract
                     throw new \RuntimeException("Unknown sync mode: {$syncMode}");
             }
 
-            Log::info('SyncRelationshipStepHandler.success', [
-                'step_id' => $step->id,
-                'target_model' => $targetModel,
-                'record_id' => $resolvedRecordId,
-                'relationship' => $relationship,
-                'sync_mode' => $syncMode,
-                'related_ids' => $resolvedRelatedIds,
-            ]);
-
         } catch (\Exception $e) {
             Log::error('SyncRelationshipStepHandler.error', [
                 'step_id' => $step->id,

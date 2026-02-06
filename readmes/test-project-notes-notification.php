@@ -125,11 +125,7 @@ function simulateAddNotes($noteContent)
         try {
             $messageText = "📝 *New Note Added by {$user->name}*: ".$noteContent;
             $result = $googleChatService->sendMessage($project->google_chat_id, $messageText);
-            MockLog::info('Sent note notification to Google Chat space', [
-                'project_id' => $project->id,
-                'space_name' => $project->google_chat_id,
-                'user_id' => $user->id,
-            ]);
+
 
             echo "Message sent successfully with ID: {$result['name']}\n";
         } catch (\Exception $e) {

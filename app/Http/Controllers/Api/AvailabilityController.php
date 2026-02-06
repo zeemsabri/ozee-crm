@@ -456,10 +456,6 @@ class AvailabilityController extends Controller
                 $messageText = "🕑 Late availability submission reason by {$user->name}: {$lateReason}";
                 $this->googleChatService->sendAs(GoogleChatService::APP_AS_USER);
                 $this->googleChatService->sendMessage($spaceName, $messageText);
-                Log::info('Sent late submission reason to Google Chat space', [
-                    'space_name' => $spaceName,
-                    'user_id' => $user->id,
-                ]);
             } catch (\Exception $e) {
                 Log::error('Failed to send late submission reason to Google Chat', [
                     'error' => $e->getMessage(),

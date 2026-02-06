@@ -33,9 +33,6 @@ class TestFormController extends Controller
         // In a real application, you might save to database, etc.
         $data = $request->all();
 
-        // Log the request for debugging
-        \Log::info('Test form submission received', ['data' => $data]);
-
         // Return a success response
         return response()->json([
             'message' => 'Form submitted successfully',

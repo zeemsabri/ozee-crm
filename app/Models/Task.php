@@ -306,10 +306,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                     if ($task->assignedTo) {
                         try {
                             $task->assignedTo->notify(new TaskAssigned($task));
-                            Log::info('Task assignment notification sent to user', [
-                                'task_id' => $task->id,
-                                'user_id' => $task->assigned_to_user_id,
-                            ]);
+
                         } catch (\Exception $notifyException) {
                             Log::error('Failed to send task assignment notification: '.$notifyException->getMessage(), [
                                 'task_id' => $task->id,
@@ -355,13 +352,6 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
             // or assign a default (e.g., an 'admin' user or null if nullable).
             // For now, if no creator, it remains unset, allowing database to handle nullability.
         });
-
-        //        static::updated(function (Task $task) {
-        //            Log::info('Task updated', [
-        //                'task_id'   =>  $task->id
-        //            ]);
-        //           GlobalModelEventSubscriber::dispatch(model: $task, from: 'task model');
-        //        });
 
     }
 
@@ -582,11 +572,6 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                         //                        }
                     } else {
                         // For non-User creators (e.g., Client), skip for now but log for future implementation
-                        Log::info('Task approval notification skipped for non-User creator', [
-                            'task_id' => $this->id,
-                            'creator_type' => get_class($this->creator),
-                            'creator_id' => $this->creator->id ?? null,
-                        ]);
                     }
                 }
             } catch (\Exception $e) {
@@ -746,12 +731,6 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
                     $this->google_chat_space_id = $this->milestone->project->google_chat_id;
                     $this->save();
                 } else {
-                    // Log that we can't send to Google Chat but continue with note creation
-                    Log::info('Note created but not sent to Google Chat: Google Chat space ID is missing', [
-                        'task_id' => $this->id,
-                        'milestone_id' => $this->milestone_id ?? 'null',
-                    ]);
-
                     return $projectNote; // Return the note even though we couldn't send to Google Chat
                 }
             }

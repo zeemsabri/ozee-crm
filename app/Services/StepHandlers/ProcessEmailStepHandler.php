@@ -41,11 +41,6 @@ class ProcessEmailStepHandler implements StepHandlerContract
             $dispatch->onQueue($cfg['on_queue']);
         }
 
-        Log::info('Workflow PROCESS_EMAIL dispatched ProcessDraftEmailJob', [
-            'email_id' => $email->id,
-            'workflow_step_id' => $step->id,
-        ]);
-
         return [
             'parsed' => [
                 'queued' => true,

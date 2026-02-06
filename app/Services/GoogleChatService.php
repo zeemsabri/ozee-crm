@@ -42,9 +42,6 @@ class GoogleChatService
         try {
             // Use spaces->create for an empty space
             $createdSpace = $service->spaces->create($space);
-
-            Log::info('Google Chat space created successfully (empty)', ['space_name' => $createdSpace->getName(), 'display_name' => $createdSpace->getDisplayName()]);
-
             return [
                 'name' => $createdSpace->getName(),
                 'displayName' => $createdSpace->getDisplayName(),
@@ -83,7 +80,6 @@ class GoogleChatService
 
                 // Add the member to the space
                 $response = $service->spaces_members->create($spaceName, $membership);
-                Log::info('Added member to Google Chat space', ['space_name' => $spaceName, 'member_email' => $email, 'response' => json_encode($response)]);
                 // Get the member name and extract just the ID part if it starts with 'users/'
                 $memberName = $response->getMember()?->getName();
                 $chatName = $memberName;
@@ -165,14 +161,8 @@ class GoogleChatService
             Log::warning('Card messages are not fully implemented. Only text will be sent.');
         }
 
-        Log::info('GoogleChatService client status', [
-            'access_token' => $this->client ? json_encode($this->client->getAccessToken()) : 'No client',
-            'token_expired' => $this->client ? json_encode($this->client->isAccessTokenExpired()) : 'No client',
-        ]);
-
         try {
             $sentMessage = $service->spaces_messages->create($spaceName, $message);
-            Log::info('Message sent to Google Chat space', ['space_name' => $spaceName, 'message_id' => $sentMessage->getName()]);
 
             // Convert Message object to array manually for consistency
             return [
@@ -199,8 +189,6 @@ class GoogleChatService
     public function sendWelcomeMessage(string $spaceName, string $projectName): array
     {
         $messageText = "👋 Welcome to the new project space for *{$projectName}*! Let's collaborate here.";
-        Log::info('Sending initial welcome message to new space.', ['space_name' => $spaceName, 'project_name' => $projectName]);
-
         return $this->sendMessage($spaceName, $messageText);
     }
 
@@ -217,8 +205,6 @@ class GoogleChatService
     public function pinProjectDocument(string $spaceName, string $resourceLink, string $projectName): array
     {
         $messageText = "📌 *Project Document: {$projectName} Overview*: {$resourceLink}";
-        Log::info('Simulating pinning project document by sending a highlighted message.', ['space_name' => $spaceName, 'resource_link' => $resourceLink]);
-
         return $this->sendMessage($spaceName, $messageText);
     }
 

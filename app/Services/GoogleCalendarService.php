@@ -138,14 +138,6 @@ class GoogleCalendarService
 
             $createdEvent = $this->calendarService->events->insert($this->calendarId, $event, $optParams);
 
-            Log::info('Google Calendar event created successfully', [
-                'event_id' => $createdEvent->getId(),
-                'summary' => $summary,
-                'html_link' => $createdEvent->getHtmlLink(),
-                'attendees' => $attendeeEmails,
-                'effective_timezone_used' => $eventTimeZone, // Log the actual timezone used for clarity
-            ]);
-
             return [
                 'id' => $createdEvent->getId(),
                 'htmlLink' => $createdEvent->getHtmlLink(),
@@ -179,9 +171,6 @@ class GoogleCalendarService
 
             $this->calendarService->events->delete($this->calendarId, $eventId, $optParams);
 
-            Log::info('Google Calendar event deleted', [
-                'event_id' => $eventId,
-            ]);
         } catch (\Exception $e) {
             Log::error('Error deleting Google Calendar event: '.$e->getMessage(), [
                 'event_id' => $eventId,

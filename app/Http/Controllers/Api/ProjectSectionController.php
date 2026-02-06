@@ -557,11 +557,6 @@ class ProjectSectionController extends Controller
 
         // Filter by user_id if specified
         if ($request->has('user_id') && ! empty($request->user_id)) {
-            Log::info('Filtering notes by user_id', [
-                'project_id' => $project->id,
-                'user_id' => $request->user_id,
-                'request_params' => $request->all(),
-            ]);
             $notesQuery->where('user_id', $request->user_id);
         }
 
@@ -579,13 +574,6 @@ class ProjectSectionController extends Controller
 
         // Get the notes with their associated users
         $notes = $notesQuery->get();
-
-        // Log the number of notes found after filtering
-        Log::info('Notes found after filtering', [
-            'project_id' => $project->id,
-            'count' => $notes->count(),
-            'filters' => $request->all(),
-        ]);
 
         // Decrypt note content and add reply count
         $notes->each(function ($note) {
@@ -959,12 +947,6 @@ class ProjectSectionController extends Controller
                 $note->chat_message_id = $response['name'] ?? null;
                 $note->save();
 
-                Log::info('Sent standup notification to Google Chat space', [
-                    'project_id' => $project->id,
-                    'space_name' => $project->google_chat_id,
-                    'user_id' => $user->id,
-                    'chat_message_id' => $response['name'] ?? null,
-                ]);
             } catch (\Exception $e) {
                 // Log the error but don't fail the note creation
                 Log::error('Failed to send standup notification to Google Chat space', [

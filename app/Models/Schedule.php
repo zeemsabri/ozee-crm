@@ -65,8 +65,7 @@ class Schedule extends Model
 
     public function isDueAt(?Carbon $asOf = null): bool
     {
-        //        Log::info($asOf);
-        //        Log::info($this->start_at);
+
         $asOf = ($asOf ?: now())->copy()->startOfMinute();
         if (! $this->is_active) {
             return false;
