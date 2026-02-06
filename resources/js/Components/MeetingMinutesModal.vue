@@ -5,6 +5,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import MultiSelectDropdown from '@/Components/MultiSelectDropdown.vue';
 
 const props = defineProps({
     show: Boolean,
@@ -18,6 +19,9 @@ const props = defineProps({
 const emit = defineEmits(['close', 'minutesAdded']);
 
 const mode = ref('separate'); // 'separate' or 'full'
+const loadingAttendees = ref(false);
+const projectUsers = ref([]);
+const projectClients = ref([]);
 
 // Form state for adding meeting minutes
 const minutesForm = reactive({
@@ -27,6 +31,8 @@ const minutesForm = reactive({
     blockers: '',
     actions: '',
     full_minutes: '',
+    attended_users: [],
+    attended_clients: [],
 });
 
 // Watch for changes in projectId prop
@@ -45,9 +51,31 @@ watch(() => props.show, (isVisible) => {
         minutesForm.blockers = '';
         minutesForm.actions = '';
         minutesForm.full_minutes = '';
+        minutesForm.attended_users = [];
+        minutesForm.attended_clients = [];
         mode.value = 'separate';
     }
 });
+
+const fetchAttendees = async (projectId) => {
+    if (!projectId) return;
+    loadingAttendees.value = true;
+    try {
+        const response = await window.axios.get(`/api/projects/${projectId}/sections/clients-users`);
+        projectUsers.value = (response.data.users || []).map(u => ({
+            value: u.id,
+            label: u.name
+        }));
+        projectClients.value = (response.data.clients || []).map(c => ({
+            value: c.id,
+            label: c.name
+        }));
+    } catch (error) {
+        console.error('Error fetching attendees:', error);
+    } finally {
+        loadingAttendees.value = false;
+    }
+};
 
 const handleMinutesSubmitted = (responseData) => {
     emit('minutesAdded');
@@ -62,8 +90,11 @@ const apiEndpoint = ref('');
 watch(() => minutesForm.project_id, (newProjectId) => {
     if (newProjectId) {
         apiEndpoint.value = `/api/projects/${newProjectId}/meeting-minutes`;
+        fetchAttendees(newProjectId);
     } else {
         apiEndpoint.value = '';
+        projectUsers.value = [];
+        projectClients.value = [];
     }
 }, { immediate: true });
 
@@ -102,6 +133,34 @@ watch(() => props.projects, (newProjects) => {
                     class="mt-1 block w-full"
                 />
                 <InputError :message="errors.project_id ? errors.project_id[0] : ''" class="mt-2" />
+            </div>
+
+            <!-- Attendees Selection -->
+            <div v-if="minutesForm.project_id" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <InputLabel for="attended_users" value="Who attended (Internal)" />
+                    <MultiSelectDropdown
+                        v-model="minutesForm.attended_users"
+                        :options="projectUsers"
+                        :is-multi="true"
+                        placeholder="Select team members..."
+                        class="mt-1"
+                        :disabled="loadingAttendees"
+                    />
+                    <InputError :message="errors.attended_users ? errors.attended_users[0] : ''" class="mt-2" />
+                </div>
+                <div>
+                    <InputLabel for="attended_clients" value="Client Attended (Optional)" />
+                    <MultiSelectDropdown
+                        v-model="minutesForm.attended_clients"
+                        :options="projectClients"
+                        :is-multi="true"
+                        placeholder="Select clients..."
+                        class="mt-1"
+                        :disabled="loadingAttendees"
+                    />
+                    <InputError :message="errors.attended_clients ? errors.attended_clients[0] : ''" class="mt-2" />
+                </div>
             </div>
 
             <!-- Mode Selector -->

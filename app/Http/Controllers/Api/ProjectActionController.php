@@ -1766,10 +1766,26 @@ class ProjectActionController extends Controller
             'blockers' => 'nullable|string',
             'actions' => 'nullable|string',
             'full_minutes' => 'nullable|string',
+            'attended_users' => 'nullable|array',
+            'attended_users.*' => 'exists:users,id',
+            'attended_clients' => 'nullable|array',
+            'attended_clients.*' => 'exists:clients,id',
         ]);
+
+        $attendeeNames = [];
+        if (!empty($validated['attended_users'])) {
+            $attendeeNames = array_merge($attendeeNames, \App\Models\User::whereIn('id', $validated['attended_users'])->pluck('name')->toArray());
+        }
+        if (!empty($validated['attended_clients'])) {
+            $attendeeNames = array_merge($attendeeNames, \App\Models\Client::whereIn('id', $validated['attended_clients'])->pluck('name')->toArray());
+        }
 
         $formattedContent = '**Meeting Minutes - '.date('F j, Y')."**\n\n";
         
+        if (!empty($attendeeNames)) {
+            $formattedContent .= "**Attendees:** " . implode(', ', $attendeeNames) . "\n\n";
+        }
+
         if (!empty($validated['full_minutes'])) {
             $formattedContent .= $validated['full_minutes'];
         } else {
@@ -1797,6 +1813,10 @@ class ProjectActionController extends Controller
             try {
                 $messageText = "📝 *Meeting Minutes from {$user->name} - ".date('F j, Y')."*\n\n";
                 
+                if (!empty($attendeeNames)) {
+                    $messageText .= "👥 *Attendees:* " . implode(', ', $attendeeNames) . "\n\n";
+                }
+
                 if (!empty($validated['full_minutes'])) {
                     $messageText .= $validated['full_minutes'];
                 } else {

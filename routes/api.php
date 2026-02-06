@@ -221,7 +221,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Project Expendables
     Route::get('projects/{project}/expendables', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'index']);
     Route::get('projects/{project}/sections/clients-users', [ProjectReadController::class, 'getClientsAndUsers']);
-    Route::get('projects/{project}/sections/clients', [ProjectReadController::class, 'getClientsAndUsers']);
+    Route::get('s', [ProjectReadController::class, 'getClientsAndUsers']);
     Route::get('projects/{project}/sections/users', [ProjectReadController::class, 'getClientsAndUsers']);
     Route::get('projects/{project}/sections/services-payment', [ProjectReadController::class, 'getServicesAndPayment']);
     Route::get('projects/{project}/expendable-budget', [ProjectReadController::class, 'getExpendableBudget']);

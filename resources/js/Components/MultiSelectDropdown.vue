@@ -249,7 +249,7 @@ watch(() => props.modelValue, (newVal) => {
             <div
                 v-show="isOpen && usePortal"
                 ref="portalPanelRef"
-                class="z-50 rounded-xl shadow-lg bg-white ring-1 ring-black ring-opacity-5"
+                class="z-[3000] rounded-xl shadow-lg bg-white ring-1 ring-black ring-opacity-5"
                 :style="{ position: 'absolute', top: panelCoords.top + 'px', left: panelCoords.left + 'px', width: panelCoords.width + 'px' }"
                 @click.stop
             >
