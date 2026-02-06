@@ -160,13 +160,6 @@ class PermissionController extends Controller
                 }
             }
 
-            // Log the permissions being returned
-            Log::info('Returning user project permissions', [
-                'user_id' => $user->id,
-                'project_id' => $project->id,
-                'permission_count' => count($response['permissions']),
-            ]);
-
             return response()->json($response);
         } catch (\Exception $e) {
             Log::error('Error fetching user project permissions: '.$e->getMessage(), [

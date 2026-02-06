@@ -149,7 +149,6 @@ class GenerateLeadFollowUpJob implements ShouldQueue
             // 6. Dispatch the job to send the email.
             ProcessDraftEmailJob::dispatch($email);
 
-            Log::info('Successfully generated AI follow-up for lead.', ['lead_id' => $this->lead->id]);
         } catch (Throwable $e) {
             // If anything fails, revert the status so it can be picked up again on the next run.
             $this->lead->update(['status' => Lead::STATUS_OUTREACH_SENT]);

@@ -33,11 +33,6 @@ class EmailProcessingService
 
             // Only process if status is auto_send or draft
             if (! in_array($email->status, [EmailStatus::AutoSend, EmailStatus::Draft])) {
-                Log::info('Email already processed, skipping', [
-                    'email_id' => $email->id,
-                    'current_status' => $email->status->value ?? $email->status,
-                ]);
-
                 return;
             }
 
@@ -45,43 +40,19 @@ class EmailProcessingService
             $isAiGenerated = is_null($email->template_id) && $body && ($body->greeting && isset($body->paragraphs));
 
             if ($isAiGenerated) {
-                Log::info('this is ai generated email');
                 $this->processEmailOutReach($email);
 
                 return;
             }
-            Log::info('this is not ai generated email');
             // 1. Render the template to get the final subject and body
             // We set isFinalSend to `true` to populate all placeholders correctly.
             $renderedContent = $this->renderEmailContent($email, true);
             $subject = $renderedContent['subject'];
             $bodyHtml = $renderedContent['body'];
 
-            // 2. Prepare plain text version for the AI
-            // This is crucial for cost-effectiveness and accuracy.
-            //            $plainTextForAI = $this->prepareTextForAI($subject, $bodyHtml);
-
-            // 3. Get AI analysis and context
-            //            $aiResponse = $this->aiAnalysisService->analyzeAndSummarize($plainTextForAI);
-            //
-            //            if (!$aiResponse) {
-            //                // If AI fails, move to pending approval for safety
-            //                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
-            //                return;
-            //            }
-
-            // 4. Create the context from the AI's response
-            //            $this->createContextForEmail($email, $aiResponse);
-
-            // 5. Decide the next step based on AI feedback
-            //            if ($aiResponse['approval_required']) {
-            //                $email->update(['status' => Email::STATUS_PENDING_APPROVAL_SENT]);
-            //                Log::info('Email moved to pending approval by AI.', ['email_id' => $email->id, 'reason' => $aiResponse['reason']]);
-            //            } else {
             // Auto-approved! Send the email.
             $this->sendApprovedEmail($email, $subject, $bodyHtml);
-            //                Log::info('Email auto-approved and sent by AI.', ['email_id' => $email->id]);
-            //            }
+
         } catch (Throwable $e) {
             // If any part of the process fails, ensure it goes to manual approval.
             $email->update(['status' => EmailStatus::PendingApproval]);
@@ -110,12 +81,9 @@ class EmailProcessingService
         $senderDetails = $this->getSenderDetails($email);
         $data = $this->getData($subject, $renderedBody, $senderDetails, $email, true);
         $finalRenderedBody = $this->renderHtmlTemplate($data, $template);
-        Log::info(json_encode($email));
         $recipient = $email->conversation?->conversable ?? null;
 
-        Log::info('recipient', ['recipient' => $recipient]);
         if ($recipient && ! empty($recipient->email)) {
-            Log::info('sending email', ['recipient' => $recipient->email]);
             $this->gmailService->sendEmail(
                 $recipient->email,
                 $subject,

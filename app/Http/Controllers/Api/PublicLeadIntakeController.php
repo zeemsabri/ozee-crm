@@ -87,7 +87,6 @@ class PublicLeadIntakeController extends Controller
             $recipients = User::permission('receive_lead_emails')->get();
         } catch (\Throwable $e) {
             // If spatie/permission is not installed or trait not applied, fallback to admins
-            Log::info('User::permission not available or failed: '.$e->getMessage());
             $recipients = User::where('id', 1)->get();
         }
 

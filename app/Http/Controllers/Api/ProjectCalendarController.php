@@ -86,24 +86,6 @@ class ProjectCalendarController extends Controller
                 $enableRecording
             );
 
-            // You might want to save the Google Calendar Event ID and Link
-            // in your database, perhaps in a new 'meetings' table associated with the project.
-            // For example:
-            // $project->meetings()->create([
-            //     'google_event_id' => $eventData['id'],
-            //     'google_event_link' => $eventData['htmlLink'],
-            //     'google_meet_link' => $eventData['hangoutLink'] ?? null,
-            //     'summary' => $summary,
-            //     'start_time' => $startDateTime,
-            //     'end_time' => $endDateTime,
-            //     'created_by_user_id' => Auth::id(),
-            // ]);
-
-            Log::info('Project meeting created successfully', [
-                'project_id' => $project->id,
-                'event_id' => $eventData['id'],
-                'html_link' => $eventData['htmlLink'],
-            ]);
 
             return response()->json([
                 'message' => 'Meeting created successfully!',
@@ -132,22 +114,10 @@ class ProjectCalendarController extends Controller
     public function deleteProjectMeeting(Request $request, Project $project, string $googleEventId)
     {
         // You might want to add authorization checks here
-        // $this->authorize('deleteMeeting', $project);
 
         try {
-            // If you stored the event ID in your database, you could retrieve it here
-            // to ensure it belongs to this project before attempting to delete.
-            // Example:
-            // $meeting = $project->meetings()->where('google_event_id', $googleEventId)->firstOrFail();
-            // $this->googleCalendarService->deleteEvent($meeting->google_event_id);
-            // $meeting->delete(); // Delete from your local database too
 
             $this->googleCalendarService->deleteEvent($googleEventId);
-
-            Log::info('Project meeting deleted successfully', [
-                'project_id' => $project->id,
-                'event_id' => $googleEventId,
-            ]);
 
             return response()->json([
                 'message' => 'Meeting deleted successfully!',

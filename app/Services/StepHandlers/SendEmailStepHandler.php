@@ -40,12 +40,9 @@ class SendEmailStepHandler implements StepHandlerContract
                 Mail::raw($body, function ($message) use ($to, $subject) {
                     $message->to($to)->subject($subject);
                 });
-            } else {
-                Log::info('SendEmailStepHandler.mail', compact('to', 'subject', 'body'));
             }
         } catch (\Throwable $e) {
-            // Fallback to logging
-            Log::info('SendEmailStepHandler.mail_fallback', compact('to', 'subject', 'body'));
+
         }
 
         return [

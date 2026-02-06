@@ -41,8 +41,6 @@ class RunScheduler extends Command
                     }
 
                     if (! $schedule->isDueAt($now)) {
-                        Log::info('not due yet');
-
                         // Not due yet; skip quietly to avoid noisy logs
                         continue;
                     }
@@ -65,7 +63,6 @@ class RunScheduler extends Command
             }, 'id', 'id');
 
         $this->info("Checked $count schedules, dispatched $dispatched jobs.");
-        Log::info('RunScheduler summary', compact('count', 'dispatched'));
 
         return self::SUCCESS;
     }

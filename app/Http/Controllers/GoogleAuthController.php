@@ -71,8 +71,6 @@ class GoogleAuthController extends Controller
             // Store the tokens in storage/app/google_tokens.json
             Storage::disk('local')->put('google_tokens.json', json_encode($tokens, JSON_PRETTY_PRINT));
 
-            Log::info('Google authorization successful', ['email' => $googleUser->email, 'token_file' => 'google_tokens.json']);
-
             return Inertia::render('GoogleAuthSuccess', [
                 'message' => 'Google authorization successful! Tokens stored in storage/app/google_tokens.json.',
                 'authorized_email' => $googleUser->email,

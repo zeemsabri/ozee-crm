@@ -87,11 +87,5 @@ class TransactionObserver
 
         $project->save();
 
-        Log::info('Updated project profit margin', [
-            'project_id' => $project->id,
-            'profit_margin_percentage' => $project->profit_margin_percentage,
-            'total_income' => $totalIncome,
-            'total_expense' => $totalExpense,
-        ]);
     }
 }

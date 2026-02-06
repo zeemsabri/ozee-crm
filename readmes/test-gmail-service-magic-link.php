@@ -20,8 +20,6 @@ use App\Services\GmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
-// Set up logging
-Log::info('Starting GmailService Magic Link test');
 
 try {
     // Create a test project if needed
@@ -71,5 +69,3 @@ try {
         'error' => $e->getTraceAsString(),
     ]);
 }
-
-Log::info('Completed GmailService Magic Link test');

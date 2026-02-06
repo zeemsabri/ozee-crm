@@ -22,9 +22,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
-// Set up logging
-Log::info('Starting Magic Link Flow test');
-
 try {
     // Step 1: Create a test magic link
     echo "Step 1: Creating a test magic link\n";
@@ -149,5 +146,3 @@ try {
         'error' => $e->getTraceAsString(),
     ]);
 }
-
-Log::info('Completed Magic Link Flow test');

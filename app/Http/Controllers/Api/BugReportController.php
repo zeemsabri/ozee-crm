@@ -77,7 +77,6 @@ class BugReportController extends Controller
 
     private function getPattern($request)
     {
-        Log::info('GET /api/bugs/status called', ['query' => $request->query()]);
         $pageUrl = $request->query('pageUrl') ?? $request->query('url') ?? $request->input('pageUrl') ?? $request->input('url');
         if (empty($pageUrl)) {
             return response()->json(['message' => 'The pageUrl query parameter is required.'], 422);

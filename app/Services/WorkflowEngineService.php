@@ -90,9 +90,6 @@ class WorkflowEngineService
     public function execute(Workflow $workflow, array $context = [], ?ExecutionLog $parentLog = null): array
     {
 
-        Log::info('WorkflowEngineService.execute', [
-            'context' => $context,
-        ]);
         // Track if the incoming context was empty (useful for schedule-run guard)
         $initiallyEmpty = empty($context);
         // Seed a trigger namespace if not present for variable paths like {{ trigger.* }}
@@ -269,11 +266,6 @@ class WorkflowEngineService
 
         if ($isNested) {
             // For nested steps, we need to re-execute the parent with resume info
-            // Pass the resume step ID in context so the parent handler can resume from there
-            Log::info('WorkflowEngineService.executeFromStepId: resuming nested step via parent', [
-                'nested_step_id' => $startStepId,
-                'parent_id' => $startStepConfig['_parent_id'],
-            ]);
             // Preserve the original resume step ID if it's not already set (for deeply nested steps)
             if (! isset($context['_resume_from_nested_step_id'])) {
                 $context['_resume_from_nested_step_id'] = $startStepId;
@@ -498,20 +490,11 @@ class WorkflowEngineService
             // If resuming, skip steps until we reach the resume point
             if ($shouldSkip) {
                 if ((int) $step->id === (int) $resumeFromStepId) {
-                    Log::info('WorkflowEngineService.executeSteps: reached resume point', [
-                        'step_id' => $step->id,
-                        'workflow_id' => $workflow->id,
-                    ]);
                     // We reached the exact target step; clear the marker so child scopes don't keep skipping
                     unset($context['_resume_from_nested_step_id']);
                     $shouldSkip = false; // Start executing from this step
                     $justResumedToThisStep = true; // Mark that we just resumed here
                 } elseif ($resumeFromStepId && $this->isAncestorOf($workflow, (int) $step->id, (int) $resumeFromStepId)) {
-                    Log::info('WorkflowEngineService.executeSteps: reached resume ancestor', [
-                        'ancestor_step_id' => $step->id,
-                        'target_step_id' => $resumeFromStepId,
-                        'workflow_id' => $workflow->id,
-                    ]);
                     // Do NOT clear the marker; we want the child scope to continue skipping until the exact target
                     $shouldSkip = false;
                     $justResumedToThisStep = true;
@@ -527,11 +510,6 @@ class WorkflowEngineService
 
             // Honor delay_minutes for nested steps too (but not if we just resumed to this step)
             if (! $justResumedToThisStep && ($step->delay_minutes ?? 0) > 0) {
-                Log::info('WorkflowEngineService.executeSteps: scheduling delayed nested step', [
-                    'workflow_id' => $workflow->id,
-                    'step_id' => $step->id,
-                    'delay_minutes' => $step->delay_minutes,
-                ]);
                 $execLog = ExecutionLog::create([
                     'workflow_id' => $workflow->id,
                     'step_id' => $step->id,
@@ -543,10 +521,6 @@ class WorkflowEngineService
                 $uniqueKey = 'workflow:'.$workflow->id.'|resume_step:'.$step->id;
                 RunWorkflowJob::dispatch($workflow->id, $context, $step->id, $uniqueKey)
                     ->delay(now()->addMinutes((int) $step->delay_minutes));
-                Log::info('WorkflowEngineService.executeSteps: delayed job dispatched', [
-                    'workflow_id' => $workflow->id,
-                    'step_id' => $step->id,
-                ]);
                 $results[] = [
                     'step_id' => $step->id,
                     'status' => 'scheduled',

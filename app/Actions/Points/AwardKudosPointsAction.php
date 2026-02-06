@@ -35,8 +35,6 @@ class AwardKudosPointsAction
     {
         // 1. Defensive Checks: Ensure the kudo is in a valid state.
         if (! $kudo->is_approved) {
-            Log::info("Kudos points not awarded for kudo ID {$kudo->id} because it is not approved.");
-
             return null;
         }
 

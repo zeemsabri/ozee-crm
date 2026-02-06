@@ -55,12 +55,7 @@ function fixNoteEncryption()
 
                 echo "Fixed note with placeholder content.\n";
                 $fixedCount++;
-
-                // Log the fix
-                Log::info('Fixed corrupted note content', [
-                    'note_id' => $note->id,
-                    'original_content' => $originalContent,
-                ]);
+                
             } catch (\Exception $fixError) {
                 echo "Failed to fix note: {$fixError->getMessage()}\n";
                 Log::error('Failed to fix corrupted note', [

@@ -118,7 +118,6 @@ class PresentationAIController extends Controller
     public function createSlideFromData(Presentation $presentation, array $validatedData)
     {
 
-        Log::info(json_encode($validatedData));
         try {
             // 2. Wrap the entire creation process in a database transaction.
             // This ensures that if any part fails, everything is rolled back.

@@ -61,7 +61,6 @@ class RecalculatePoints extends Command
             $query->where('created_at', '<=', $endDate)
                 ->chunkById(100, function ($items) use ($modelName, $dryRun) {
                     foreach ($items as $item) {
-                        Log::info("Processing {$modelName} #{$item->id}");
                         if (! $dryRun) {
                             // Use the new, refactored method name
                             $this->pointsService->awardPointsFor($item);

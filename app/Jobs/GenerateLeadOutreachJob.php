@@ -103,8 +103,6 @@ class GenerateLeadOutreachJob implements ShouldQueue
             // This service will now know how to render the 'ai_lead_outreach_template'
             \App\Jobs\ProcessDraftEmailJob::dispatch($email);
 
-            Log::info('Successfully generated AI outreach for lead.', ['lead_id' => $this->lead->id]);
-
         } catch (Throwable $e) {
             Log::error('Failed to generate lead outreach.', [
                 'lead_id' => $this->lead->id,

@@ -83,11 +83,7 @@ class TransformContentStepHandler implements StepHandlerContract
      */
     protected function removeAfterMarker(string $source, string $marker): string
     {
-        //        $marker = $request->input('marker');
-        //        $source = $request->input('source');
 
-        Log::info('marker: '.$marker);
-        Log::info('source: '.$source);
         // --- Step 1: Prepare and validate the marker ---
         $cleanMarker = trim($marker);
 

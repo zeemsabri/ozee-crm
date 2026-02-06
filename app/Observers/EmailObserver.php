@@ -129,8 +129,6 @@ class EmailObserver
                 ->where('data.email.id', $email->id)
                 ->markAsRead();
         }
-
-        Log::info('Marked approval notifications as read for email.', ['email_id' => $email->id]);
     }
 
     /**

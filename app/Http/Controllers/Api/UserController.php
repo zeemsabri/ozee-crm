@@ -142,8 +142,6 @@ class UserController extends Controller
                 'user_type' => $request->input('user_type'),
             ]);
 
-            Log::info('User created', ['user_id' => $user->id, 'user_email' => $user->email, 'created_by' => Auth::id()]);
-
             return response()->json($user->load('role'), 201); // 201 Created status with role
         } catch (ValidationException $e) {
             // Return validation errors
@@ -272,7 +270,6 @@ class UserController extends Controller
 
         try {
             $user->delete();
-            Log::info('User deleted', ['user_id' => $user->id, 'deleted_by' => Auth::id()]);
 
             return response()->json(null, 204); // 204 No Content
         } catch (\Exception $e) {
@@ -296,7 +293,6 @@ class UserController extends Controller
         try {
             if ($user->trashed()) {
                 $user->restore();
-                Log::info('User restored', ['user_id' => $user->id, 'restored_by' => Auth::id()]);
             }
 
             return response()->json($user->fresh('role'));

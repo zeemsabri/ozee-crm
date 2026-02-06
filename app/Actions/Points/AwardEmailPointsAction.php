@@ -36,8 +36,6 @@ class AwardEmailPointsAction
     {
         // 1. Defensive Checks:
         if ($email->type !== 'sent' || $email->status !== 'sent') {
-            Log::info("Email points not awarded for email ID {$email->id} because it is not a sent email.");
-
             return null;
         }
 

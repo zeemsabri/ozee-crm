@@ -106,7 +106,6 @@ class FetchCurrencyRatesJob implements ShouldQueue
                     ]
                 );
             }
-            Log::info('Currency rates fetched and updated successfully (converted to USD base).');
         } else {
             Log::error('Failed to fetch currency rates from API.', ['api_response' => $data]);
         }
