@@ -46,7 +46,7 @@ class GoogleUserAuthController extends Controller
         return Socialite::driver('google')
             ->scopes($scopes)
             ->with(['access_type' => 'offline', 'prompt' => 'consent'])
-            ->redirectUrl(env('USER_REDIRECT_URL', config('services.google.user_redirect')))
+            ->redirectUrl(config('services.google.user_redirect'))
             ->redirect();
     }
 
@@ -75,7 +75,7 @@ class GoogleUserAuthController extends Controller
             }
 
             // Get the Google user
-            $googleUser = Socialite::driver('google')->redirectUrl(env('USER_REDIRECT_URL'))->stateless()->user();
+            $googleUser = Socialite::driver('google')->redirectUrl(config('services.google.user_redirect'))->stateless()->user();
 
             // Store or update the user's Google credentials
             GoogleAccounts::updateOrCreate(

@@ -538,17 +538,22 @@ const latestBlockActivity = computed(() => {
             <!-- Task Overview -->
             <div class="bg-gray-50 p-4 rounded-lg shadow-sm">
                 <h4 class="text-xl font-bold text-gray-900 mb-2">{{ task.name }}</h4>
-                <div class="flex items-center space-x-2 text-sm text-gray-600 mb-4">
+                <div class="flex flex-wrap items-center gap-y-1 gap-x-2 text-sm text-gray-600 mb-4">
                     <span class="px-2 py-1 rounded-full text-xs font-medium" :class="taskStatusClass">
                         {{ task.status }}
                     </span>
                     <span v-if="task.task_type" class="text-indigo-600 font-medium">
                         |  {{ task.task_type?.name }}  |
                     </span>
-                    <br />
-                    <span v-if="task.milestone?.name" class="text-purple-600 font-medium">
-                        {{ task.milestone?.name }}
-                    </span>
+                    <div class="w-full flex items-center gap-1 mt-1">
+                        <span v-if="task.milestone?.project" class="text-blue-700 font-bold uppercase tracking-wider text-[10px] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                            {{ task.milestone?.project?.name }}
+                        </span>
+                        <span v-if="task.milestone?.project && task.milestone?.name" class="text-gray-400 mx-0.5">/</span>
+                        <span v-if="task.milestone?.name" class="text-purple-600 font-medium">
+                            {{ task.milestone?.name }}
+                        </span>
+                    </div>
                 </div>
                 <p class="text-gray-700 leading-relaxed">{{ task.description || 'No description provided.' }}</p>
 
