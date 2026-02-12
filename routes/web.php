@@ -27,7 +27,7 @@ use Inertia\Inertia;
 | Here is where you can register web routes for your application. These
 | routes are loaded by the RouteServiceProvider within a group which
 | contains the "web" middleware group. Now create something great!
-|
+|activity_log
 */
 $sourceOptions = [
     [
@@ -253,6 +253,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
             return Inertia::render('Admin/PMPayoutCalculator/Index');
         })
             ->name('pm-payout-calculator.index');
+
+        // Productivity Report
+        Route::get('/productivity', [\App\Http\Controllers\Admin\ProductivityReportController::class, 'index'])
+            ->middleware(['permission:manage_projects'])
+            ->name('productivity.index');
 
         // Categories CRUD Page
         Route::get('/categories', function () {

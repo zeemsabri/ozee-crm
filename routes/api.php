@@ -382,6 +382,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // Activity Log Routes
     Route::get('activities', [ActivityController::class, 'index']);
 
+    // Productivity Report API
+    Route::get('productivity/report', [\App\Http\Controllers\Api\ProductivityReportController::class, 'index'])
+        ->middleware('permission:manage_projects');
+
+
     // Apply ProcessTags middleware to store and update methods
     Route::post('tasks/bulk', [TaskController::class, 'bulk']);
     Route::apiResource('tasks', TaskController::class)->middleware(['process.tags']);
