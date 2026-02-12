@@ -137,6 +137,7 @@ const createCategory = async () => {
                                 <DropdownLink v-permission="'create_users'" :href="route('users.page')" :active="route().current('users.page')" class="!px-2 !py-1.5">Users</DropdownLink>
                                 <DropdownLink v-permission="'manage_projects'" :href="route('leads.page')" :active="route().current('leads.page')" class="!px-2 !py-1.5">Leads</DropdownLink>
                                 <DropdownLink v-permission="'manage_projects'" href="/campaigns" :active="$page.url && $page.url.startsWith('/campaigns')" class="!px-2 !py-1.5">Campaigns</DropdownLink>
+                                <DropdownLink v-permission="'manage_projects'" href="/admin/productivity" :active="$page.url && $page.url.startsWith('/productivity')" class="!px-2 !py-1.5">Productivity Report</DropdownLink>
                             </div>
                         </div>
 
