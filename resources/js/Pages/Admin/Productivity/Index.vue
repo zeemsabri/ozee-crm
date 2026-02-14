@@ -5,33 +5,28 @@ import { ref, onMounted, computed } from 'vue';
 import MultiSelectDropdown from '@/Components/MultiSelectDropdown.vue';
 import ChartComponent from '@/Components/ChartComponent.vue';
 import RightSidebar from '@/Components/RightSidebar.vue';
-import { 
+import {
     UserIcon, CalendarIcon, ClockIcon, ExclamationTriangleIcon, ChevronDownIcon, ChevronUpIcon,
-    PrinterIcon, DocumentTextIcon, ChatBubbleLeftIcon, CheckCircleIcon, QuestionMarkCircleIcon,
-    PlusIcon, XMarkIcon
+    PrinterIcon, CheckCircleIcon, QuestionMarkCircleIcon, PlusIcon, XMarkIcon,
+    ArrowTrendingUpIcon, BriefcaseIcon, CheckBadgeIcon, ChartBarIcon
 } from '@heroicons/vue/24/outline';
 
 import TaskDetailSidebar from '@/Components/ProjectTasks/TaskDetailSidebar.vue';
 import EffortEstimationGuide from '@/Components/EffortEstimationGuide.vue';
 
-const props = defineProps();
-
 const reportData = ref([]);
 const charts = ref({});
 const users = ref([]);
-const projects = ref([]); // Projects list for manual entry
-const filters = ref({
-    user_ids: [],
-    date_start: '',
-    date_end: '',
-});
+const projects = ref([]);
 const loading = ref(false);
 
 const selectedUserIds = ref([]);
 const dateStart = ref('');
 const dateEnd = ref('');
 
-// Manual Entry State
+// --- Restored UI State ---
+const expandedUsers = ref({});
+const expandedTasks = ref({});
 const showManualDialog = ref(false);
 const manualEntryForm = ref({
     user_id: null,
@@ -39,26 +34,42 @@ const manualEntryForm = ref({
     name: '',
     project_id: '',
     hours: '',
-    date: '' // Defaults to today if empty
+    date: ''
 });
 
-// Task Details Sidebar State
 const showTaskDetailSidebar = ref(false);
 const selectedTaskId = ref(null);
 const selectedProjectId = ref(null);
-// We can use the global user list, or fetch per project if needed
-// TaskDetailSidebar handles fetching project users on demand
-const taskDetailProjectUsers = ref([]); 
+const taskDetailProjectUsers = ref([]);
+const showEffortHelp = ref(false);
 
-const openTaskDetail = (task) => {
-    // Check if task exists and has ID
+// --- Navigation & UI Handlers ---
+const toggleUserExpand = (userId) => {
+    expandedUsers.value[userId] = !expandedUsers.value[userId];
+};
+
+const toggleTaskExpand = (taskId) => {
+    expandedTasks.value[taskId] = !expandedTasks.value[taskId];
+};
+
+const openTaskDetail = async (task) => {
     if (!task || !task.task_id) return;
-    
     selectedTaskId.value = task.task_id;
-    selectedProjectId.value = task.project_id || 0; // Fallback if project_id missing
+    selectedProjectId.value = task.project_id || 0;
+    
+    // Fetch project users for the sidebar
+    if (selectedProjectId.value) {
+        try {
+            const res = await window.axios.get(`/api/projects/${selectedProjectId.value}/sections/clients-users`);
+            taskDetailProjectUsers.value = res.data.users || [];
+        } catch (e) {
+            console.error('Failed to fetch project users', e);
+        }
+    }
+
     showTaskDetailSidebar.value = true;
 };
-    
+
 const openManualEntry = (userReport) => {
     manualEntryForm.value = {
         user_id: userReport.user_id,
@@ -77,526 +88,451 @@ const closeManualEntry = () => {
 
 const submitManualEntry = async () => {
     if (!manualEntryForm.value.name || !manualEntryForm.value.hours) return;
-    
     try {
         await window.axios.post('/api/tasks/manual-effort', {
             name: manualEntryForm.value.name,
             assigned_to_user_id: manualEntryForm.value.user_id,
-            project_id: manualEntryForm.value.project_id || null, // Ensure explicit null if empty string
+            project_id: manualEntryForm.value.project_id || null,
             manual_effort_override: parseFloat(manualEntryForm.value.hours),
             date: manualEntryForm.value.date
         });
-        
         showManualDialog.value = false;
-        fetchReport(); // Refresh data
-        
+        fetchReport();
     } catch (e) {
         console.error('Failed to create manual entry', e);
-        alert('Failed to save entry. Please check fields.');
     }
 };
 
-// Format seconds to HH:MM:SS
-const formatDuration = (seconds) => {
-    if (seconds === null || seconds === undefined) return '-';
-    // If negative (weird adjustment?), handle abs
-    const absSeconds = Math.abs(seconds);
-    const h = Math.floor(absSeconds / 3600);
-    const m = Math.floor((absSeconds % 3600) / 60);
-    const s = absSeconds % 60;
-    return `${h}h ${m}m`; // Simplified for report
-};
-
-// Expand/Collapse state for user cards
-const expandedUsers = ref({});
-const toggleUserExpand = (userId) => {
-    expandedUsers.value[userId] = !expandedUsers.value[userId];
-};
-
-// Calculator State
-const effortGuideMode = ref('developer'); // 'developer' or 'admin' 
-const calcDifficulty = ref(1);
-const calcScope = ref(1);
-const taskVolume = ref(1); // For Admin Calculator
-
-const calculatedPoints = computed(() => {
-    if (effortGuideMode.value === 'admin') {
-        const vol = taskVolume.value;
-        const pts = vol === 1 ? 1 : (vol === 2 ? 2 : (vol === 3 ? 3 : 5));
-        return pts;
+const handleTaskUpdated = (updatedTask) => {
+    for (let userReport of reportData.value) {
+        const index = userReport.tasks.findIndex(t => t.task_id === updatedTask.id);
+        if (index !== -1) {
+            const t = userReport.tasks[index];
+            t.task_name = updatedTask.name;
+            t.effort = updatedTask.effort;
+            t.priority = updatedTask.priority;
+            t.status = updatedTask.status?.value || updatedTask.status;
+            t.due_date = updatedTask.due_date;
+            t.subtasks = updatedTask.subtasks || [];
+            
+            // Recalculate checklist string
+            if (t.subtasks.length > 0) {
+                const total = t.subtasks.length;
+                const done = t.subtasks.filter(s => s.status === 'done').length;
+                t.checklist = `${done}/${total}`;
+            }
+            break;
+        }
     }
-    
-    // Developer logic
-    const raw = calcDifficulty.value * calcScope.value;
-    // Map to nearest Fibonacci: 1, 2, 3, 5, 8, 13
-    const fib = [1, 2, 3, 5, 8, 13];
-    return fib.reduce((prev, curr) => {
-        return (Math.abs(curr - raw) < Math.abs(prev - raw) ? curr : prev);
+};
+
+const getChecklistTooltip = (task) => {
+    if (!task.subtasks?.length) return 'No items';
+    return task.subtasks.map(s => `${s.status === 'done' ? '✅' : '⬜'} ${s.name}`).join('\n');
+};
+
+// --- Live Reactive Calculations (KPIs & Insights) ---
+
+const stats = computed(() => {
+    let totalHrs = 0;
+    let totalEffort = 0;
+    let completedCount = 0;
+    let lateCount = 0;
+
+    reportData.value.forEach(u => {
+        totalHrs += parseFloat(u.total_hours || 0);
+        u.tasks.forEach(t => {
+            totalEffort += parseInt(t.effort || 0);
+            if (t.status === 'Done') completedCount++;
+            if (t.is_late) lateCount++;
+        });
+    });
+
+    return {
+        totalHours: totalHrs.toFixed(1),
+        velocity: totalEffort,
+        completed: completedCount,
+        late: lateCount
+    };
+});
+
+const dailyInsights = computed(() => {
+    const daily = {};
+
+    reportData.value.forEach(u => {
+        u.tasks.forEach(t => {
+            // Aggregate Points by Due Date if completed
+            const pointDate = t.due_date || 'N/A';
+            if (t.status === 'Done') {
+                if (!daily[pointDate]) daily[pointDate] = { hours: 0, points: 0 };
+                daily[pointDate].points += parseInt(t.effort || 0);
+            }
+
+            // Aggregate Hours by Activity logs
+            (t.sessions || []).forEach(s => {
+                const date = (s.start || '').split(' ')[0];
+                if (date) {
+                    if (!daily[date]) daily[date] = { hours: 0, points: 0 };
+                    daily[date].hours += (parseFloat(s.duration_seconds || 0) / 3600);
+                }
+            });
+
+            // Handle specific manual overrides if no logs exist
+            if (t.manual_effort_override && (!t.sessions || t.sessions.length === 0)) {
+                const date = t.due_date || 'Manual';
+                if (!daily[date]) daily[date] = { hours: 0, points: 0 };
+                daily[date].hours += parseFloat(t.manual_effort_override);
+            }
+        });
+    });
+
+    return Object.keys(daily).sort().reverse().map(date => {
+        const item = daily[date];
+        const efficiency = item.hours > 0 ? (item.points / item.hours).toFixed(1) : 0;
+        return { date, ...item, efficiency };
     });
 });
 
-const showEffortHelp = ref(false);
-
-// Expand/Collapse state for individual tasks
-const expandedTasks = ref({});
-const toggleTaskExpand = (taskId) => {
-    expandedTasks.value[taskId] = !expandedTasks.value[taskId];
-};
+// --- Data Fetching & Persistence ---
 
 const fetchReport = async () => {
     loading.value = true;
     try {
-        const response = await window.axios.get('/api/productivity/report', {
+        const res = await window.axios.get('/api/productivity/report', {
             params: {
                 user_ids: selectedUserIds.value.join(','),
                 date_start: dateStart.value,
                 date_end: dateEnd.value,
             }
         });
-        
-        reportData.value = response.data.reportData.details;
-        charts.value = response.data.reportData.charts;
-        users.value = response.data.users;
-        projects.value = response.data.projects || [];
-        
-        // Update local filters if needed
-        if (!dateStart.value && response.data.filters.date_start) {
-            dateStart.value = response.data.filters.date_start;
-        }
-// ...
-        if (!dateEnd.value && response.data.filters.date_end) {
-             dateEnd.value = response.data.filters.date_end;
-        }
+        reportData.value = res.data.reportData.details;
+        charts.value = res.data.reportData.charts;
+        users.value = res.data.users;
+        projects.value = res.data.projects;
 
         if (reportData.value.length === 1) {
             expandedUsers.value[reportData.value[0].user_id] = true;
         }
-
-    } catch (error) {
-        console.error('Error fetching productivity report:', error);
+    } catch (e) {
+        console.error(e);
     } finally {
         loading.value = false;
     }
 };
 
-const handleManualOverride = async (task, userReport, event) => {
-    const newVal = event.target.value;
-    
-    // Update local state for immediate feedback without reload
-    const hours = newVal === '' ? null : parseFloat(newVal);
-    task.manual_effort_override = hours;
-    
-    // Recalc task usage
-    if (hours !== null && !isNaN(hours)) {
-        task.used_seconds = hours * 3600;
-    } else {
-        task.used_seconds = task.total_seconds;
-    }
-    
-    // Recalc user totals
-    let totalSecs = 0;
-    userReport.tasks.forEach(t => {
-        totalSecs += t.used_seconds;
-    });
-    userReport.total_seconds = totalSecs;
-    userReport.total_hours = (totalSecs / 3600).toFixed(2);
+const handleMetaUpdate = async (task, user, field, value) => {
+    // 1. Instant Local Update (Re-calcs totals and KPIs immediately)
+    if (field === 'manual_effort_override') {
+        const hours = value === '' || value === null ? null : parseFloat(value);
+        task.manual_effort_override = hours;
 
-    // Background API call
-    try {
-        await window.axios.post(`/api/tasks/${task.task_id}/productivity-meta`, {
-            manual_effort_override: hours
-        });
-    } catch (e) {
-        console.error('Failed to update manual effort', e);
-    }
-};
-
-const handleEffortChange = async (task, event) => {
-    const newVal = event.target.value;
-    const effort = newVal === '' ? null : parseInt(newVal);
-    task.effort = effort; // Update local state
-    try {
-        await window.axios.post(`/api/tasks/${task.task_id}/productivity-meta`, {
-            effort: effort
-        });
-    } catch (e) {
-         console.error('Failed to update effort', e);
-    }
-};
-
-const handlePriorityChange = async (task, event) => {
-    const newVal = event.target.value;
-    task.priority = newVal; // Update local state
-    try {
-        await window.axios.post(`/api/tasks/${task.task_id}/productivity-meta`, {
-            priority: newVal
-        });
-        // Only task updated, no need to refetch full report
-    } catch (e) {
-         console.error('Failed to update priority', e);
-    }
-};
-
-const handleTaskUpdated = (updatedTask) => {
-    // Find the task in reportData and update it
-    for (let userReport of reportData.value) {
-        const index = userReport.tasks.findIndex(t => t.task_id === updatedTask.id);
-        if (index !== -1) {
-            // Merge updated fields. Note: report structure might be slightly different
-            // Productivity report task has keys like task_name, checklist, used_seconds etc.
-            // updatedTask from Sidebar is a full Task model.
-            userReport.tasks[index].task_name = updatedTask.name;
-            userReport.tasks[index].description = updatedTask.description;
-            userReport.tasks[index].effort = updatedTask.effort;
-            userReport.tasks[index].priority = updatedTask.priority;
-            userReport.tasks[index].due_date = updatedTask.due_date ? moment(updatedTask.due_date).format('Y-m-d') : null;
-            userReport.tasks[index].status = updatedTask.status;
-            break;
+        // Update task duration for UI displays
+        if (hours !== null && !isNaN(hours)) {
+            task.used_seconds = hours * 3600;
+        } else {
+            task.used_seconds = task.total_seconds || 0;
         }
+
+        // Recalculate user total hours locally
+        let totalSecs = 0;
+        user.tasks.forEach(t => {
+            totalSecs += parseFloat(t.used_seconds || 0);
+        });
+        user.total_seconds = totalSecs;
+        user.total_hours = (totalSecs / 3600).toFixed(2);
+    } else {
+        task[field] = value;
+    }
+
+    // 2. Background API Call
+    try {
+        await window.axios.post(`/api/tasks/${task.task_id}/productivity-meta`, {
+            [field]: value
+        });
+    } catch (e) {
+        console.error("Persistence failed", e);
     }
 };
 
-onMounted(() => {
-    fetchReport();
-});
-
-const applyFilters = () => {
-    fetchReport();
+const formatDuration = (sec) => {
+    if (sec === null || sec === undefined) return '0h';
+    const h = Math.floor(Math.abs(sec) / 3600);
+    const m = Math.floor((Math.abs(sec) % 3600) / 60);
+    return `${h}h ${m}m`;
 };
 
-const getChecklistTooltip = (task) => {
-    if (!task.subtasks || !Array.isArray(task.subtasks) || task.subtasks.length === 0) {
-        return 'No items';
-    }
-    return task.subtasks.map(s => {
-        const icon = s.status === 'done' ? '✅' : '⬜';
-        return `${icon} ${s.name}`;
-    }).join('\n');
-};
-
-const printReport = () => {
-    window.print();
-};
+onMounted(() => fetchReport());
+const printReport = () => window.print();
 
 </script>
 
 <template>
-    <Head title="Productivity Report" />
-
+    <Head title="Productivity Dashboard" />
     <AuthenticatedLayout>
         <template #header>
             <div class="flex justify-between items-center print:hidden">
-                <h2 class="font-semibold text-xl text-gray-800 leading-tight">Productivity Report</h2>
-                <div class="flex space-x-2">
-                     <button 
-                        @click="printReport"
-                        class="inline-flex items-center px-4 py-2 bg-gray-800 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 focus:bg-gray-700 active:bg-gray-900 focus:outline-none transition ease-in-out duration-150"
-                    >
-                        <PrinterIcon class="h-4 w-4 mr-2" />
-                        Print / PDF
-                    </button>
-                    <!-- Email button could go here -->
-                </div>
+                <h2 class="font-bold text-2xl text-gray-900 tracking-tight">Productivity Dashboard</h2>
+                <button @click="printReport" class="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition">
+                    <PrinterIcon class="h-4 w-4 mr-2" /> Export PDF
+                </button>
             </div>
         </template>
 
-        <div class="py-12 print:py-0 print:m-0">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6 print:w-full print:max-w-none print:px-0">
-                
-                <!-- Filters Card (Hidden on Print) -->
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 print:hidden">
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        <div class="col-span-1 md:col-span-2">
-                             <label class="block text-sm font-medium text-gray-700 mb-1">Users</label>
-                             <MultiSelectDropdown
-                                 v-model="selectedUserIds"
-                                 :options="users"
-                                 :is-multi="true"
-                                 placeholder="Select Users..."
-                                 class="w-full"
-                             />
+        <div class="py-8 bg-gray-50 min-h-screen print:bg-white print:py-0">
+            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+
+                <!-- Filter Panel -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 print:hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
+                        <div class="col-span-2">
+                            <label class="text-xs font-bold text-gray-500 uppercase mb-2 block">Team Members</label>
+                            <MultiSelectDropdown v-model="selectedUserIds" :options="users" :is-multi="true" placeholder="Search team members..." />
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                            <input 
-                                type="date" 
-                                v-model="dateStart"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                            />
+                            <label class="text-xs font-bold text-gray-500 uppercase mb-2 block">Range Start</label>
+                            <input type="date" v-model="dateStart" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500" />
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                            <input 
-                                type="date" 
-                                v-model="dateEnd"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                            />
+                            <label class="text-xs font-bold text-gray-500 uppercase mb-2 block">Range End</label>
+                            <input type="date" v-model="dateEnd" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500" />
                         </div>
-                    </div>
-                    <div class="mt-4 flex justify-end">
-                        <button 
-                            @click="applyFilters" 
-                            :disabled="loading"
-                            class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150"
-                        >
-                            <span v-if="loading">Loading...</span>
-                            <span v-else>Generate Report</span>
+                        <button @click="fetchReport" :disabled="loading" class="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">
+                            {{ loading ? 'Generating...' : 'Refresh Report' }}
                         </button>
                     </div>
                 </div>
 
-                <!-- Print Header -->
-                <div class="hidden print:block text-center mb-6">
-                    <h1 class="text-3xl font-bold text-gray-900">Productivity Report</h1>
-                    <p class="text-gray-600">{{ dateStart }} - {{ dateEnd }}</p>
-                </div>
-
-                <!-- Charts Section -->
-                <div v-if="reportData.length > 0 && charts.daily_trend" class="grid grid-cols-1 md:grid-cols-3 gap-6 print:break-inside-avoid">
-                    
-                    <!-- Daily Trend -->
-                    <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 col-span-2 print:border print:shadow-none">
-                         <h3 class="text-lg font-medium text-gray-900 mb-4">Productivity Trend (Daily)</h3>
-                         <ChartComponent 
-                            :data="charts.daily_trend" 
-                            type="line" 
-                            chartId="dailyTrendChart"
-                         />
+                <!-- KPI Scorecards -->
+                <div v-if="reportData.length" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-2">
+                            <ClockIcon class="h-6 w-6 text-indigo-500" />
+                            <span class="text-xs font-bold text-gray-400">Total Hours</span>
+                        </div>
+                        <div class="text-3xl font-black text-gray-900">{{ stats.totalHours }}h</div>
                     </div>
-
-                    <!-- Project Dist -->
-                    <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 print:border print:shadow-none">
-                        <h3 class="text-lg font-medium text-gray-900 mb-4">Time by Project</h3>
-                        <ChartComponent 
-                            :data="charts.project_dist" 
-                            type="pie" 
-                            chartId="projectDistChart"
-                         />
+                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-2">
+                            <ArrowTrendingUpIcon class="h-6 w-6 text-green-500" />
+                            <span class="text-xs font-bold text-gray-400">Total Velocity</span>
+                        </div>
+                        <div class="text-3xl font-black text-gray-900">{{ stats.velocity }} pts</div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-2">
+                            <CheckBadgeIcon class="h-6 w-6 text-blue-500" />
+                            <span class="text-xs font-bold text-gray-400">Tasks Completed</span>
+                        </div>
+                        <div class="text-3xl font-black text-gray-900">{{ stats.completed }}</div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-2">
+                            <ExclamationTriangleIcon class="h-6 w-6 text-red-500" />
+                            <span class="text-xs font-bold text-gray-400">Overdue Items</span>
+                        </div>
+                        <div class="text-3xl font-black text-red-600">{{ stats.late }}</div>
                     </div>
                 </div>
 
-                <!-- Results -->
-                <div v-if="reportData.length === 0 && !loading" class="text-center py-10 text-gray-500">
-                    <ClockIcon class="h-12 w-12 mx-auto text-gray-300 mb-2" />
-                    <p>No data found.</p>
-                </div>
-                
-                <div v-if="loading" class="text-center py-10 print:hidden">
-                    <p class="text-gray-500">Loading Report...</p>
-                </div>
-
-                <div v-else class="space-y-4">
-                    <div v-for="userReport in reportData" :key="userReport.user_id" class="bg-white overflow-hidden shadow-sm sm:rounded-lg print:shadow-none print:border-b-2 print:rounded-none">
-                        
-                        <!-- User Header (Collapsible Trigger) -->
-                        <div 
-                            @click="toggleUserExpand(userReport.user_id)"
-                            class="p-6 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors print:cursor-default print:hover:bg-white"
-                        >
-                            <div class="flex items-center space-x-4">
-                                <img :src="userReport.avatar" alt="" class="h-10 w-10 rounded-full bg-gray-200 print:hidden" />
-                                <div>
-                                    <h3 class="text-lg font-medium text-gray-900">{{ userReport.user_name }}</h3>
-                                    <p class="text-sm text-gray-500">{{ userReport.tasks.length }} tasks worked on</p>
-                                </div>
+                <!-- Chart Grid -->
+                <div v-if="charts.daily_trend" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                        <h3 class="text-sm font-bold text-gray-900 mb-6 flex items-center justify-between">
+                            <div class="flex items-center">
+                                <ArrowTrendingUpIcon class="h-4 w-4 mr-2 text-indigo-600" /> Activity vs Output Trend
                             </div>
-                            <div class="flex items-center space-x-4">
-                                <button 
-                                    @click.stop="openManualEntry(userReport)" 
-                                    class="p-1 rounded-full hover:bg-gray-200 text-gray-400 hover:text-indigo-600 transition-colors print:hidden"
-                                    title="Add Manual Activity"
-                                >
-                                    <PlusIcon class="h-5 w-5" />
-                                </button>
-                                <div class="text-right">
-                                    <div class="text-2xl font-bold text-indigo-600 print:text-black">{{ userReport.total_hours }} hrs</div>
-                                    <div class="text-xs text-gray-500">Total Charged Hours</div>
-                                </div>
-                                <component :is="expandedUsers[userReport.user_id] ? ChevronUpIcon : ChevronDownIcon" class="h-5 w-5 text-gray-400 print:hidden" />
+                            <div class="flex gap-4 text-[10px] font-bold uppercase tracking-wider">
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-indigo-500"></span> Hours</span>
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> Points</span>
+                            </div>
+                        </h3>
+                        <ChartComponent :data="charts.daily_trend" type="line" height="250" />
+                    </div>
+                    <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                        <h3 class="text-sm font-bold text-gray-900 mb-6 flex items-center">
+                            <BriefcaseIcon class="h-4 w-4 mr-2 text-green-600" /> Project Load
+                        </h3>
+                        <ChartComponent :data="charts.project_dist" type="pie" height="250" />
+                    </div>
+                </div>
+
+                <!-- Daily Performance Table -->
+                <div v-if="dailyInsights.length" class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/30">
+                        <h3 class="text-sm font-bold text-gray-900 flex items-center">
+                            <ChartBarIcon class="h-4 w-4 mr-2 text-indigo-600" /> Daily Productivity Breakdown
+                        </h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-gray-50/50 text-[10px] uppercase font-bold text-gray-500 tracking-wider">
+                            <tr>
+                                <th class="px-6 py-3">Date</th>
+                                <th class="px-6 py-3 text-right">Hours Logged</th>
+                                <th class="px-6 py-3 text-right">Points Done</th>
+                                <th class="px-6 py-3 text-right">Efficiency (Pts/Hr)</th>
+                                <th class="px-6 py-3 w-1/3">Velocity Meter</th>
+                            </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                            <tr v-for="day in dailyInsights" :key="day.date" class="hover:bg-gray-50/50">
+                                <td class="px-6 py-4 font-bold text-gray-900">{{ day.date }}</td>
+                                <td class="px-6 py-4 text-right font-mono">{{ day.hours.toFixed(1) }}h</td>
+                                <td class="px-6 py-4 text-right">
+                                    <span class="px-2 py-1 rounded bg-green-50 text-green-700 font-bold text-xs">{{ day.points }} pts</span>
+                                </td>
+                                <td class="px-6 py-4 text-right font-black" :class="day.efficiency > 2 ? 'text-green-600' : 'text-gray-500'">
+                                    {{ day.efficiency }}
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                        <div class="bg-indigo-500 h-full rounded-full transition-all duration-500" :style="{ width: Math.min(day.points * 10, 100) + '%' }"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Detailed Breakdown per User -->
+                <div v-for="user in reportData" :key="user.user_id" class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div
+                        @click="toggleUserExpand(user.user_id)"
+                        class="p-6 flex items-center justify-between bg-gray-50/50 cursor-pointer hover:bg-gray-100 transition print:cursor-default"
+                    >
+                        <div class="flex items-center space-x-4">
+                            <img :src="user.avatar" class="h-12 w-12 rounded-full border-2 border-white shadow-sm" />
+                            <div>
+                                <h4 class="font-bold text-gray-900">{{ user.user_name }}</h4>
+                                <p class="text-xs text-gray-500 uppercase tracking-widest font-bold">{{ user.tasks.length }} Tasks Managed</p>
                             </div>
                         </div>
+                        <div class="flex items-center space-x-6">
+                            <button
+                                @click.stop="openManualEntry(user)"
+                                class="p-2 rounded-full hover:bg-white text-gray-400 hover:text-indigo-600 transition print:hidden"
+                                title="Add Manual Activity"
+                            >
+                                <PlusIcon class="h-5 w-5" />
+                            </button>
+                            <div class="text-right">
+                                <div class="text-2xl font-black text-indigo-600">{{ user.total_hours }} hrs</div>
+                                <p class="text-[10px] text-gray-400 font-bold uppercase">Total Charged</p>
+                            </div>
+                            <component :is="expandedUsers[user.user_id] ? ChevronUpIcon : ChevronDownIcon" class="h-5 w-5 text-gray-400 print:hidden" />
+                        </div>
+                    </div>
 
-                        <!-- Expanded Details -->
-                        <div v-show="expandedUsers[userReport.user_id] || true" class="border-t border-gray-200 bg-gray-50 p-6 space-y-4 print:bg-white print:block">
-                            <!-- Helper for print to ensure they are expanded -->
-                            
-                            <div v-if="userReport.tasks.length === 0" class="text-sm text-gray-500 italic">No tasks recorded in this period.</div>
-                            
-                            <!-- Detailed Table View -->
-                            <div v-else class="overflow-x-auto">
-                                <table class="min-w-full text-sm text-left text-gray-500">
-                                    <thead class="text-gray-700 uppercase bg-gray-100 print:bg-gray-50">
-                                        <tr>
-                                            <th class="px-3 py-3 w-5"></th>
-                                            <th class="px-3 py-3 w-1/4">Task / Project</th>
-                                            <th class="px-3 py-3 w-1/6">Info</th>
-                                            <th class="px-3 py-3 text-center">Checklist</th>
-                                            <th class="px-3 py-3 text-right">
-                                                <div class="flex items-center justify-end gap-1">
-                                                    Est. Effort
-                                                    <QuestionMarkCircleIcon class="h-4 w-4 text-gray-400 cursor-pointer hover:text-indigo-600" @click="showEffortHelp = true" />
+                    <div v-show="expandedUsers[user.user_id]" class="p-0 overflow-x-auto border-t border-gray-100">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-gray-50 text-gray-400 text-[10px] uppercase font-bold tracking-wider">
+                            <tr>
+                                <th class="px-4 py-3 w-8"></th>
+                                <th class="px-4 py-3">Task Detail</th>
+                                <th class="px-4 py-3">Status / Due</th>
+                                <th class="px-4 py-3 text-center">Checklist</th>
+                                <th class="px-4 py-3 text-right">
+                                    <div class="flex items-center justify-end gap-1">
+                                        Effort
+                                        <QuestionMarkCircleIcon class="h-3 w-3 cursor-pointer" @click="showEffortHelp = true" />
+                                    </div>
+                                </th>
+                                <th class="px-4 py-3 text-right">Manual (Hrs)</th>
+                                <th class="px-4 py-3 text-right">Total Time</th>
+                            </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                            <template v-for="task in user.tasks" :key="task.task_id">
+                                <tr class="hover:bg-indigo-50/30 transition">
+                                    <td class="px-4 py-4 cursor-pointer text-gray-300 hover:text-indigo-600" @click="toggleTaskExpand(task.task_id)">
+                                        <component :is="expandedTasks[task.task_id] ? ChevronUpIcon : ChevronDownIcon" class="h-4 w-4" />
+                                    </td>
+                                    <td class="px-4 py-4">
+                                        <div
+                                            @click="openTaskDetail(task)"
+                                            class="font-bold text-gray-900 mb-0.5 cursor-pointer hover:text-indigo-600 hover:underline transition print:no-underline"
+                                        >
+                                            {{ task.task_name }}
+                                        </div>
+                                        <div class="text-[10px] text-indigo-500 font-bold uppercase">{{ task.project_name }}</div>
+                                    </td>
+                                    <td class="px-4 py-4">
+                                        <div class="flex flex-col gap-1">
+                                                <span :class="{
+                                                    'bg-green-100 text-green-700': task.status === 'Done',
+                                                    'bg-yellow-100 text-yellow-700': task.status === 'In Progress',
+                                                    'bg-gray-100 text-gray-600': task.status === 'To Do'
+                                                }" class="px-2 py-0.5 rounded text-[9px] font-black uppercase w-fit">
+                                                    {{ task.status }}
+                                                </span>
+                                            <div class="flex items-center gap-1" :class="task.is_late ? 'text-red-500' : 'text-gray-400'">
+                                                <CalendarIcon class="h-3 w-3" />
+                                                <span class="text-[10px] font-bold">{{ task.due_date || 'No Date' }}</span>
+                                                <span v-if="task.is_late" class="text-[8px] font-black uppercase bg-red-100 px-1 rounded">Late</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-4 text-center overflow-visible">
+                                        <div class="group relative inline-block">
+                                                <span class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 cursor-help">
+                                                    <CheckCircleIcon class="h-3 w-3 mr-1" />
+                                                    {{ task.checklist || '0/0' }}
+                                                </span>
+                                            <!-- Checklist Hover Detail -->
+                                            <div v-if="task.subtasks?.length" class="absolute top-full mt-1 left-1/2 -translate-x-1/2 w-52 bg-gray-900 text-white text-[10px] rounded shadow-2xl z-50 hidden group-hover:block p-3 border border-gray-700">
+                                                <div class="mb-2 font-black border-b border-gray-700 pb-1 uppercase tracking-tighter text-gray-400">Task Checklist Detail</div>
+                                                <div class="max-h-48 overflow-y-auto space-y-1.5">
+                                                    <div v-for="st in task.subtasks" :key="st.id" class="flex items-start gap-2 text-left">
+                                                        <span class="shrink-0 mt-0.5">{{ st.status === 'done' ? '✅' : '⬜' }}</span>
+                                                        <span :class="{'opacity-50 line-through': st.status === 'done'}" class="leading-tight">{{ st.name }}</span>
+                                                    </div>
                                                 </div>
-                                            </th>
-                                            <th class="px-3 py-3 text-right">Logged Time</th>
-                                            <th class="px-3 py-3 text-right w-24">Manual (Hrs)</th>
-                                            <th class="px-3 py-3 text-right">Used Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-gray-200">
-                                        <template v-for="task in userReport.tasks" :key="task.task_id">
-                                            <tr class="bg-white hover:bg-gray-50">
-                                                <td class="px-3 py-3 align-top cursor-pointer text-gray-400 hover:text-gray-600" @click="toggleTaskExpand(task.task_id)">
-                                                    <component :is="expandedTasks[task.task_id] ? ChevronUpIcon : ChevronDownIcon" class="h-4 w-4" />
-                                                </td>
-                                                <td class="px-3 py-3 align-top">
-                                                    <div 
-                                                        @click="openTaskDetail(task)"
-                                                        class="font-medium text-indigo-600 hover:text-indigo-800 cursor-pointer hover:underline print:text-black print:no-underline"
-                                                    >
-                                                        {{ task.task_name }}
-                                                    </div>
-                                                    <div class="text-xs text-gray-500 mt-1">{{ task.project_name }}</div>
-                                                    <div v-if="task.description" class="text-xs text-gray-400 mt-1 line-clamp-2 print:line-clamp-none">{{ task.description }}</div>
-                                                </td>
-                                                <td class="px-3 py-3 align-top space-y-1">
-                                                    <div class="flex flex-col gap-1">
-                                                        <div class="text-xs border border-gray-200 rounded px-2 py-1 inline-block bg-gray-50">
-                                                            Prio: {{ task.priority || 'Medium' }}
-                                                        </div>
-                                                        <div class="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                                                            {{ task.status }}
-                                                        </div>
-                                                    </div>
-
-                                                    <div class="flex items-center gap-1" :class="{'text-red-600': task.is_late, 'text-gray-500': !task.is_late}">
-                                                        <CalendarIcon class="h-3 w-3" />
-                                                        <span class="text-xs">{{ task.due_date || 'No Due Date' }}</span>
-                                                        <span v-if="task.is_late" class="text-[10px] font-bold uppercase bg-red-100 px-1 rounded">Late</span>
-                                                    </div>
-                                                </td>
-                                                <td class="px-3 py-3 text-center align-top">
-                                                     <div class="inline-flex flex-col items-center group relative">
-                                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 cursor-help"
-                                                            :title="getChecklistTooltip(task)">
-                                                            <CheckCircleIcon class="h-3 w-3 mr-1" />
-                                                            {{ task.checklist }}
-                                                         </span>
-                                                         
-                                                         <!-- Hover Popover (Tailwind group-hover) -->
-                                                         <div v-if="task.subtasks && Array.isArray(task.subtasks) && task.subtasks.length > 0" 
-                                                              class="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 w-48 bg-gray-800 text-white text-xs rounded p-2 z-50 hidden group-hover:block shadow-lg">
-                                                              <div class="mb-1 font-semibold text-gray-300 border-b border-gray-600 pb-1">Checklist</div>
-                                                              <div v-for="st in task.subtasks" :key="st.id" class="flex items-start gap-1 py-0.5 truncate">
-                                                                  <span class="text-[10px]">{{ st.status === 'done' ? '✅' : '⬜' }}</span>
-                                                                  <span :class="{'opacity-50 line-through': st.status === 'done'}">{{ st.name }}</span>
-                                                              </div>
-                                                         </div>
-
-                                                        <div v-if="task.subtasks && Array.isArray(task.subtasks) && task.subtasks.length > 0 && expandedTasks[task.task_id]" class="mt-2 text-left w-full text-xs text-gray-500 print:block hidden">
-                                                            <div v-for="st in task.subtasks" :key="st.id" class="flex items-center gap-1">
-                                                                <span class="w-2 h-2 rounded-full" :class="st.status === 'done' ? 'bg-green-400' : 'bg-gray-300'"></span>
-                                                                <span :class="{'line-through': st.status === 'done'}">{{ st.name }}</span>
-                                                            </div>
-                                                        </div>
-                                                     </div>
-                                                </td>
-                                                <td class="px-3 py-3 text-right align-top">
-                                                    <input 
-                                                        type="number" 
-                                                        step="1" 
-                                                        :value="task.effort" 
-                                                        @change="handleEffortChange(task, $event)"
-                                                        placeholder="Pts"
-                                                        class="w-16 text-xs text-right border-gray-300 rounded shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-1 print:hidden"
-                                                    />
-                                                    <span class="hidden print:block font-mono">{{ task.effort || '-' }}</span>
-                                                </td>
-                                                <td class="px-3 py-3 text-right font-mono align-top">
-                                                    {{ formatDuration(task.total_seconds) }}
-                                                    <!-- Warning for outliers -->
-                                                    <div v-if="task.sessions.some(s => s.type.includes('capped'))" class="text-orange-500 flex justify-end mt-1" title="Contains auto-capped sessions">
-                                                        <ExclamationTriangleIcon class="h-4 w-4" />
-                                                    </div>
-                                                </td>
-                                                <td class="px-3 py-3 text-right align-top">
-                                                     <!-- Manual Override Input -->
-                                                     <input 
-                                                        type="number" 
-                                                        step="0.1" 
-                                                        :value="task.manual_effort_override" 
-                                                        @change="handleManualOverride(task, userReport, $event)"
-                                                        placeholder="-"
-                                                        class="w-20 text-xs text-right border-gray-300 rounded shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-1 print:hidden"
-                                                    />
-                                                    <span class="hidden print:block font-mono">{{ task.manual_effort_override || '-' }}</span>
-                                                </td>
-                                                <td class="px-3 py-3 text-right font-bold text-gray-900 align-top">
-                                                    {{ formatDuration(task.used_seconds) }}
-                                                </td>
-                                            </tr>
-                                            <!-- Collapsible Logs Row -->
-                                            <tr v-if="expandedTasks[task.task_id]" class="bg-gray-50 print:bg-white">
-                                                <td colspan="8" class="px-4 py-3 border-t border-gray-100">
-                                                    <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Wait List / Activity Log</div>
-                                                    <table class="w-full text-xs text-left text-gray-500 inner-table">
-                                                         <thead>
-                                                            <tr class="border-b border-gray-200">
-                                                                <th class="py-1">Start</th>
-                                                                <th class="py-1">End</th>
-                                                                <th class="py-1">Duration</th>
-                                                                <th class="py-1">Type</th>
-                                                            </tr>
-                                                         </thead>
-                                                         <tbody>
-                                                            <tr v-for="(session, idx) in task.sessions" :key="idx" class="border-b border-gray-100 last:border-0">
-                                                                <td class="py-1 font-mono">{{ session.start }}</td>
-                                                                <td class="py-1 font-mono">{{ session.end }}</td>
-                                                                <td class="py-1 font-medium">{{ formatDuration(session.duration_seconds) }}</td>
-                                                                <td class="py-1">
-                                                                    <span v-if="session.type.includes('capped')" class="text-orange-600 flex items-center gap-1">
-                                                                        <ExclamationTriangleIcon class="h-3 w-3" /> Auto-Capped
-                                                                    </span>
-                                                                    <span v-else-if="session.type === 'ongoing'" class="text-green-600 font-bold">Running</span>
-                                                                    <span v-else>Recorded</span>
-                                                                </td>
-                                                            </tr>
-                                                         </tbody>
-                                                    </table>
-                                                </td>
-                                            </tr>
-                                        </template>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-4 text-right">
+                                        <input type="number" v-model="task.effort" @change="handleMetaUpdate(task, user, 'effort', task.effort)" class="w-16 text-right border-0 bg-transparent focus:ring-1 focus:ring-indigo-200 rounded text-xs font-bold" />
+                                    </td>
+                                    <td class="px-4 py-4 text-right">
+                                        <input type="number" step="0.5" v-model="task.manual_effort_override" @change="handleMetaUpdate(task, user, 'manual_effort_override', task.manual_effort_override)" class="w-16 text-right border-0 bg-transparent focus:ring-1 focus:ring-indigo-200 rounded text-xs font-bold" />
+                                    </td>
+                                    <td class="px-4 py-4 text-right font-black text-gray-900">
+                                        {{ formatDuration(task.used_seconds) }}
+                                    </td>
+                                </tr>
+                                <!-- Activity Log Expanded Row -->
+                                <tr v-if="expandedTasks[task.task_id]" class="bg-gray-50/50">
+                                    <td colspan="7" class="px-12 py-4">
+                                        <div class="text-[10px] font-black text-gray-400 uppercase mb-3 tracking-widest">Activity Session Logs</div>
+                                        <div v-if="task.sessions?.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            <div v-for="(session, idx) in task.sessions" :key="idx" class="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
+                                                <div>
+                                                    <div class="text-[9px] font-bold text-gray-400 uppercase">{{ session.type === 'ongoing' ? 'Running' : 'Recorded' }}</div>
+                                                    <div class="text-[11px] font-mono text-gray-600">{{ (session.start || '').split(' ')[1] }} - {{ session.end === 'Now' ? 'Now' : (session.end || '').split(' ')[1] }}</div>
+                                                </div>
+                                                <div class="text-xs font-black text-indigo-600">
+                                                    {{ formatDuration(session.duration_seconds) }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div v-else class="text-xs text-gray-400 italic">No activity logs tracked for this specific period.</div>
+                                    </td>
+                                </tr>
+                            </template>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-
             </div>
         </div>
-        <!-- Effort Guide Sidebar -->
-        <RightSidebar
-            v-if="showEffortHelp"
-            :show="showEffortHelp"
-            @update:show="showEffortHelp = $event"
-            title="Effort Estimation Guide"
-            :initialWidth="30"
-        >
-            <template #content>
-                <EffortEstimationGuide />
-            </template>
+
+        <!-- Right Sidebars -->
+        <RightSidebar v-model:show="showEffortHelp" title="Effort Estimation Guide" :initialWidth="30">
+            <template #content><EffortEstimationGuide /></template>
         </RightSidebar>
 
-
-        <!-- Task Detail Sidebar -->
-        <RightSidebar
-            v-if="showTaskDetailSidebar"
-            :show="showTaskDetailSidebar"
-            @update:show="showTaskDetailSidebar = $event"
-            title="Task Details"
-            :initialWidth="45"
-        >
+        <RightSidebar v-model:show="showTaskDetailSidebar" title="Task Details" :initialWidth="45">
             <template #content>
                 <TaskDetailSidebar
                     v-if="selectedTaskId"
@@ -608,95 +544,53 @@ const printReport = () => {
                 />
             </template>
         </RightSidebar>
-        
-        <!-- Manual Entry Modal -->
-        <div v-if="showManualDialog" class="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                <!-- Background overlay -->
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" @click="closeManualEntry"></div>
 
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-                    <div class="hidden sm:block absolute top-0 right-0 pt-4 pr-4">
-                        <button type="button" class="bg-white rounded-md text-gray-400 hover:text-gray-500 focus:outline-none" @click="closeManualEntry">
-                            <span class="sr-only">Close</span>
-                             <XMarkIcon class="h-6 w-6" />
-                        </button>
+        <!-- Manual Entry Dialog -->
+        <div v-if="showManualDialog" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" @click="closeManualEntry"></div>
+            <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transition-all transform scale-100">
+                <div class="p-6 border-b border-gray-100 flex justify-between items-center">
+                    <h3 class="text-lg font-bold text-gray-900">Add Manual Activity</h3>
+                    <button @click="closeManualEntry" class="text-gray-400 hover:text-gray-600"><XMarkIcon class="h-6 w-6" /></button>
+                </div>
+                <form @submit.prevent="submitManualEntry" class="p-6 space-y-4">
+                    <p class="text-sm text-gray-500">Manual entry for: <span class="font-bold text-indigo-600">{{ manualEntryForm.user_name }}</span></p>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Task Title</label>
+                        <input type="text" v-model="manualEntryForm.name" required class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 text-sm" placeholder="Work description..." />
                     </div>
-                    <div class="sm:flex sm:items-start">
-                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                            <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                                Add Manual Activity
-                            </h3>
-                            <div class="mt-2 text-sm text-gray-500 mb-4">
-                                Log work for <span class="font-bold">{{ manualEntryForm.user_name }}</span>. This will create a new entry.
-                            </div>
-                            
-                            <form @submit.prevent="submitManualEntry" class="space-y-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Description / Task Name *</label>
-                                    <input type="text" v-model="manualEntryForm.name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="e.g. Client Emails, RnD" />
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Project (Optional)</label>
-                                    <select v-model="manualEntryForm.project_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                                        <option value="">- General / Internal -</option>
-                                        <option v-for="p in projects" :key="p.value" :value="p.value">{{ p.label }}</option>
-                                    </select>
-                                </div>
-                                
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700">Date *</label>
-                                        <input type="date" v-model="manualEntryForm.date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700">Hours *</label>
-                                        <input type="number" step="0.1" v-model="manualEntryForm.hours" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="0.0" />
-                                    </div>
-                                </div>
-
-                                <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                                    <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
-                                        Save Entry
-                                    </button>
-                                    <button type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:text-gray-500 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm" @click="closeManualEntry">
-                                        Cancel
-                                    </button>
-                                </div>
-                            </form>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Project Link</label>
+                        <select v-model="manualEntryForm.project_id" class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 text-sm">
+                            <option value="">General / Internal</option>
+                            <option v-for="p in projects" :key="p.value" :value="p.value">{{ p.label }}</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
+                            <input type="date" v-model="manualEntryForm.date" required class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 text-sm" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Hours Logged</label>
+                            <input type="number" step="0.1" v-model="manualEntryForm.hours" required class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 text-sm" placeholder="e.g. 1.5" />
                         </div>
                     </div>
-                </div>
+                    <div class="pt-4 flex gap-3">
+                        <button type="submit" class="flex-1 bg-indigo-600 text-white font-bold py-2.5 rounded-xl hover:bg-indigo-700 transition">Save Log</button>
+                        <button type="button" @click="closeManualEntry" class="px-6 py-2.5 border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition">Cancel</button>
+                    </div>
+                </form>
             </div>
         </div>
-
     </AuthenticatedLayout>
 </template>
 
 <style scoped>
 @media print {
-  /* Hides everything that is not the printable area */
-  body * {
-    visibility: hidden;
-  }
-  
-  /* We need to selectively allow visibility for children of the print area */
-  /* But Inertia layouts are tricky. Usually better to duplicate the content into a print-only div 
-     or hide siblings. here we just hide specific classes like .print:hidden */
-  
-  body, #app, main { 
-      visibility: visible; 
-      background: white !important;
-      margin: 0;
-      padding: 0;
-  }
-
-  nav, header, footer, .sidebar, button {
-    display: none !important;
-  }
-  
+    .print\:hidden { display: none !important; }
+    body { background: white; }
+    .max-w-7xl { max-width: 100% !important; width: 100% !important; padding: 0 !important; }
+    .shadow-sm, .rounded-xl { border: 1px solid #e5e7eb !important; shadow: none !important; }
 }
 </style>
