@@ -164,14 +164,24 @@ class ProductivityReportController extends Controller
                 $usedSeconds = $manualOverrideSeconds !== null ? $manualOverrideSeconds : $taskTotalSeconds;
 
                 // Checklist progress
-                $checklistItems = $task->subtasks;
-                if ($checklistItems->isNotEmpty()) {
-                    $total = $checklistItems->count();
-                    $done = $checklistItems->where('status', 'done')->count();
+                $subtasks = $task->subtasks;
+                $normalizedSubtasks = [];
+
+                if ($subtasks->isNotEmpty()) {
+                    $total = $subtasks->count();
+                    $done = $subtasks->where('status', 'done')->count();
+                    $normalizedSubtasks = $subtasks->map(fn($s) => [
+                        'name' => $s->name,
+                        'status' => $s->status
+                    ])->toArray();
                 } else {
-                    $data = $task->details['checklist'] ?? [];
-                    $total = count($data);
-                    $done = count(array_filter($data, fn($i) => !empty($i['completed'])));
+                    $detailsChecklist = $task->details['checklist'] ?? [];
+                    $total = count($detailsChecklist);
+                    $done = count(array_filter($detailsChecklist, fn($i) => !empty($i['completed'])));
+                    $normalizedSubtasks = array_map(fn($item) => [
+                        'name' => $item['name'] ?? 'Untitled',
+                        'status' => !empty($item['completed']) ? 'done' : 'todo'
+                    ], $detailsChecklist);
                 }
 
                 $userTaskReports[] = [
@@ -179,7 +189,7 @@ class ProductivityReportController extends Controller
                     'task_name' => $task->name,
                     'project_name' => $task->milestone?->project?->name ?? 'Internal',
                     'sessions' => $sessions,
-                    'subtasks' => $task->subtasks, // Added subtasks for tooltip
+                    'subtasks' => $normalizedSubtasks, // Use normalized items
                     'total_seconds' => $taskTotalSeconds,
                     'manual_effort_override' => $manualOverrideSeconds ? ($manualOverrideSeconds / 3600) : null,
                     'used_seconds' => $usedSeconds,
