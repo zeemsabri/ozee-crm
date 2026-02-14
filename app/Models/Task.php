@@ -195,6 +195,8 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
         'details',
         'parent_id',
         'requires_qa',
+        'effort',
+        'manual_effort_override',
     ];
 
     /**

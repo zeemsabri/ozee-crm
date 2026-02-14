@@ -385,6 +385,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Productivity Report API
     Route::get('productivity/report', [\App\Http\Controllers\Api\ProductivityReportController::class, 'index'])
         ->middleware('permission:manage_projects');
+    Route::post('tasks/{task}/productivity-meta', [\App\Http\Controllers\Api\ProductivityReportController::class, 'updateTaskMeta'])
+        ->middleware('permission:manage_projects');
+    Route::post('tasks/manual-effort', [\App\Http\Controllers\Api\ProductivityReportController::class, 'storeManualTask'])
+        ->middleware('permission:manage_projects');
 
 
     // Apply ProcessTags middleware to store and update methods
