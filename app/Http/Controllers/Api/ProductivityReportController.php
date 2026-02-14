@@ -285,6 +285,8 @@ class ProductivityReportController extends Controller
                     'task_name' => $task->name,
                     'description' => $task->description,
                     'project_name' => $task->milestone?->project?->name ?? 'N/A',
+                    'project_id' => $task->milestone?->project_id,
+                    'milestone_name' => $task->milestone?->name, // Adding this just in case, saw it referenced in Vue comments
                     'sessions' => $sessions,
                     'total_seconds' => $taskTotalSeconds, // Calculated from logs
                     'manual_effort_override' => $manualOverrideSeconds ? round($manualOverrideSeconds / 3600, 2) : null,

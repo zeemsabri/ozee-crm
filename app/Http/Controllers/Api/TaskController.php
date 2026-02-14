@@ -301,6 +301,7 @@ class TaskController extends Controller
             'milestone_id' => 'required|exists:milestones,id',
             'needs_approval' => 'sometimes|boolean',
             'requires_qa' => 'sometimes|boolean',
+            'effort' => 'nullable|integer',
         ]);
 
         // Coerce and soft-validate status via value dictionary
@@ -405,7 +406,8 @@ class TaskController extends Controller
             'milestone_id' => 'nullable|exists:milestones,id',
             'details' => 'nullable|array',
             'needs_approval' => 'sometimes|boolean',
-            'priority'  =>  'sometimes|in:low,medium,high'
+            'priority'  =>  'sometimes|in:low,medium,high',
+            'effort' => 'nullable|integer',
         ]);
 
         // Coerce and soft-validate status via value dictionary (update)

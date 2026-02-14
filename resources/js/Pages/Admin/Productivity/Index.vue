@@ -11,6 +11,9 @@ import {
     PlusIcon, XMarkIcon
 } from '@heroicons/vue/24/outline';
 
+import TaskDetailSidebar from '@/Components/ProjectTasks/TaskDetailSidebar.vue';
+import EffortEstimationGuide from '@/Components/EffortEstimationGuide.vue';
+
 const props = defineProps();
 
 const reportData = ref([]);
@@ -39,6 +42,23 @@ const manualEntryForm = ref({
     date: '' // Defaults to today if empty
 });
 
+// Task Details Sidebar State
+const showTaskDetailSidebar = ref(false);
+const selectedTaskId = ref(null);
+const selectedProjectId = ref(null);
+// We can use the global user list, or fetch per project if needed
+// TaskDetailSidebar handles fetching project users on demand
+const taskDetailProjectUsers = ref([]); 
+
+const openTaskDetail = (task) => {
+    // Check if task exists and has ID
+    if (!task || !task.task_id) return;
+    
+    selectedTaskId.value = task.task_id;
+    selectedProjectId.value = task.project_id || 0; // Fallback if project_id missing
+    showTaskDetailSidebar.value = true;
+};
+    
 const openManualEntry = (userReport) => {
     manualEntryForm.value = {
         user_id: userReport.user_id,
@@ -193,9 +213,11 @@ const handleManualOverride = async (task, userReport, event) => {
 
 const handleEffortChange = async (task, event) => {
     const newVal = event.target.value;
+    const effort = newVal === '' ? null : parseInt(newVal);
+    task.effort = effort; // Update local state
     try {
         await window.axios.post(`/api/tasks/${task.task_id}/productivity-meta`, {
-            effort: newVal
+            effort: effort
         });
     } catch (e) {
          console.error('Failed to update effort', e);
@@ -204,6 +226,7 @@ const handleEffortChange = async (task, event) => {
 
 const handlePriorityChange = async (task, event) => {
     const newVal = event.target.value;
+    task.priority = newVal; // Update local state
     try {
         await window.axios.post(`/api/tasks/${task.task_id}/productivity-meta`, {
             priority: newVal
@@ -211,6 +234,25 @@ const handlePriorityChange = async (task, event) => {
         // Only task updated, no need to refetch full report
     } catch (e) {
          console.error('Failed to update priority', e);
+    }
+};
+
+const handleTaskUpdated = (updatedTask) => {
+    // Find the task in reportData and update it
+    for (let userReport of reportData.value) {
+        const index = userReport.tasks.findIndex(t => t.task_id === updatedTask.id);
+        if (index !== -1) {
+            // Merge updated fields. Note: report structure might be slightly different
+            // Productivity report task has keys like task_name, checklist, used_seconds etc.
+            // updatedTask from Sidebar is a full Task model.
+            userReport.tasks[index].task_name = updatedTask.name;
+            userReport.tasks[index].description = updatedTask.description;
+            userReport.tasks[index].effort = updatedTask.effort;
+            userReport.tasks[index].priority = updatedTask.priority;
+            userReport.tasks[index].due_date = updatedTask.due_date ? moment(updatedTask.due_date).format('Y-m-d') : null;
+            userReport.tasks[index].status = updatedTask.status;
+            break;
+        }
     }
 };
 
@@ -407,7 +449,12 @@ const printReport = () => {
                                                     <component :is="expandedTasks[task.task_id] ? ChevronUpIcon : ChevronDownIcon" class="h-4 w-4" />
                                                 </td>
                                                 <td class="px-3 py-3 align-top">
-                                                    <div class="font-medium text-indigo-600 print:text-black">{{ task.task_name }}</div>
+                                                    <div 
+                                                        @click="openTaskDetail(task)"
+                                                        class="font-medium text-indigo-600 hover:text-indigo-800 cursor-pointer hover:underline print:text-black print:no-underline"
+                                                    >
+                                                        {{ task.task_name }}
+                                                    </div>
                                                     <div class="text-xs text-gray-500 mt-1">{{ task.project_name }}</div>
                                                     <div v-if="task.description" class="text-xs text-gray-400 mt-1 line-clamp-2 print:line-clamp-none">{{ task.description }}</div>
                                                 </td>
@@ -536,174 +583,29 @@ const printReport = () => {
             title="Effort Estimation Guide"
             :initialWidth="30"
         >
-            <!-- ... content ... -->
             <template #content>
-                <!-- ... (existing content) ... -->
-                <div class="space-y-6 text-sm text-gray-700">
-                    
-                    <!-- Role Toggle -->
-                    <div class="flex justify-center bg-gray-100 p-1 rounded-lg mb-4">
-                        <button 
-                            @click="effortGuideMode = 'developer'"
-                            class="flex-1 py-1 text-xs font-semibold rounded-md transition-colors"
-                            :class="effortGuideMode === 'developer' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
-                        >
-                            Developer
-                        </button>
-                        <button 
-                            @click="effortGuideMode = 'admin'"
-                            class="flex-1 py-1 text-xs font-semibold rounded-md transition-colors"
-                            :class="effortGuideMode === 'admin' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
-                        >
-                            Admin / Staff
-                        </button>
-                    </div>
+                <EffortEstimationGuide />
+            </template>
+        </RightSidebar>
 
-                    <!-- Developer Content -->
-                    <template v-if="effortGuideMode === 'developer'">
-                        <section>
-                            <h4 class="font-bold text-gray-900 text-lg mb-2">What are Story Points?</h4>
-                            <p class="mb-2">Story points estimate the <span class="font-semibold">effort</span> required to implement a task. They consider:</p>
-                            <ul class="list-disc pl-5 space-y-1">
-                                <li><span class="font-semibold">Complexity:</span> How difficult is the logic?</li>
-                                <li><span class="font-semibold">Risk:</span> How much uncertainty is there?</li>
-                                <li><span class="font-semibold">Repetition:</span> How tedious is the work?</li>
-                            </ul>
-                        </section>
 
-                        <section class="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
-                            <h4 class="font-bold text-indigo-900 text-md mb-3">Quick Reference</h4>
-                            <div class="grid grid-cols-1 gap-3">
-                                <div class="flex gap-3 items-start border-b border-indigo-200 pb-2">
-                                    <span class="bg-indigo-600 text-white font-bold w-8 h-8 flex items-center justify-center rounded-full shrink-0">1</span>
-                                    <div>
-                                        <span class="font-bold block text-indigo-900">Tiny / Trivial</span>
-                                        <span class="text-xs">Typo fix, color change, simple config. &lt; 1 hour.</span>
-                                    </div>
-                                </div>
-                                <div class="flex gap-3 items-start border-b border-indigo-200 pb-2">
-                                    <span class="bg-indigo-600 text-white font-bold w-8 h-8 flex items-center justify-center rounded-full shrink-0">2</span>
-                                    <div>
-                                        <span class="font-bold block text-indigo-900">Small / Routine</span>
-                                        <span class="text-xs">Add field, update text, standard bug fix. 1-4 hours.</span>
-                                    </div>
-                                </div>
-                                <div class="flex gap-3 items-start border-b border-indigo-200 pb-2">
-                                    <span class="bg-indigo-600 text-white font-bold w-8 h-8 flex items-center justify-center rounded-full shrink-0">3</span>
-                                    <div>
-                                        <span class="font-bold block text-indigo-900">Medium</span>
-                                        <span class="text-xs">New simple feature, standard page dev, component logic. 4-8 hours (1 day).</span>
-                                    </div>
-                                </div>
-                                <div class="flex gap-3 items-start border-b border-indigo-200 pb-2">
-                                    <span class="bg-indigo-600 text-white font-bold w-8 h-8 flex items-center justify-center rounded-full shrink-0">5</span>
-                                    <div>
-                                        <span class="font-bold block text-indigo-900">Large</span>
-                                        <span class="text-xs">Complex feature, integration, heavy logic. 2-3 days.</span>
-                                    </div>
-                                </div>
-                                <div class="flex gap-3 items-start">
-                                    <span class="bg-yellow-600 text-white font-bold w-8 h-8 flex items-center justify-center rounded-full shrink-0">8+</span>
-                                    <div>
-                                        <span class="font-bold block text-yellow-900">Ex-Large (Break Down!)</span>
-                                        <span class="text-xs">Full module, major refactor. Consider splitting into smaller subtasks. 3-5+ days.</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-
-                        <section class="border-t pt-4">
-                            <h4 class="font-bold text-gray-900 text-md mb-3">Estimation Calculator</h4>
-                            <div class="space-y-4">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-500 uppercase">Difficulty</label>
-                                    <select v-model="calcDifficulty" class="w-full mt-1 rounded border-gray-300 text-sm">
-                                        <option :value="1">Low (Straightforward)</option>
-                                        <option :value="2">Medium (Some Logic/Unknowns)</option>
-                                        <option :value="3">High (Complex logic/High Risk)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-500 uppercase">Scope / Size</label>
-                                    <select v-model="calcScope" class="w-full mt-1 rounded border-gray-300 text-sm">
-                                        <option :value="1">Change (Text/Style)</option>
-                                        <option :value="2">Component / Function</option>
-                                        <option :value="3">Page / Feature</option>
-                                        <option :value="5">Module / Epic</option>
-                                    </select>
-                                </div>
-
-                                <div class="bg-gray-100 p-4 rounded text-center">
-                                    <span class="text-xs text-gray-500 uppercase block mb-1">Suggested Points</span>
-                                    <span class="text-3xl font-bold text-indigo-600">{{ calculatedPoints }}</span>
-                                </div>
-                            </div>
-                        </section>
-                    </template>
-
-                    <!-- Admin Content -->
-                    <template v-else>
-                        <section>
-                            <h4 class="font-bold text-gray-900 text-lg mb-2">Admin Effort Points</h4>
-                            <p class="mb-2">For admin and management tasks, points are based on <span class="font-semibold">Volume</span> and <span class="font-semibold">Time Required</span>.</p>
-                        </section>
-
-                        <section class="bg-green-50 p-4 rounded-lg border border-green-100">
-                            <h4 class="font-bold text-green-900 text-md mb-3">Quick Reference (Admin)</h4>
-                            <div class="grid grid-cols-1 gap-3">
-                                <div class="flex gap-3 items-start border-b border-green-200 pb-2">
-                                    <span class="bg-green-600 text-white font-bold w-8 h-8 flex items-center justify-center rounded-full shrink-0">1</span>
-                                    <div>
-                                        <span class="font-bold block text-green-900">Quick Task</span>
-                                        <span class="text-xs">Email reply, filing, updating a record. &lt; 30 mins to 1 hour.</span>
-                                    </div>
-                                </div>
-                                <div class="flex gap-3 items-start border-b border-green-200 pb-2">
-                                    <span class="bg-green-600 text-white font-bold w-8 h-8 flex items-center justify-center rounded-full shrink-0">2</span>
-                                    <div>
-                                        <span class="font-bold block text-green-900">Routine Task</span>
-                                        <span class="text-xs">Weekly meeting notes, processing stack of invoices. ~1-2 hours.</span>
-                                    </div>
-                                </div>
-                                <div class="flex gap-3 items-start border-b border-green-200 pb-2">
-                                    <span class="bg-green-600 text-white font-bold w-8 h-8 flex items-center justify-center rounded-full shrink-0">3</span>
-                                    <div>
-                                        <span class="font-bold block text-green-900">Half Day</span>
-                                        <span class="text-xs">Deep focus admin, organizing system, audits. ~3-4 hours.</span>
-                                    </div>
-                                </div>
-                                <div class="flex gap-3 items-start">
-                                    <span class="bg-green-600 text-white font-bold w-8 h-8 flex items-center justify-center rounded-full shrink-0">5</span>
-                                    <div>
-                                        <span class="font-bold block text-green-900">Full Day / Complex</span>
-                                        <span class="text-xs">Quarterly reporting, strategy planning day. Full day effort.</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-
-                        <section class="border-t pt-4">
-                            <h4 class="font-bold text-gray-900 text-md mb-3">Admin Calculator</h4>
-                            <div class="space-y-4">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-500 uppercase">Task Type / Volume</label>
-                                    <select v-model="taskVolume" class="w-full mt-1 rounded border-gray-300 text-sm">
-                                        <option :value="1">Quick Task / Ad-hoc (1 Pt)</option>
-                                        <option :value="2">Routine / Batch Work (2 Pts)</option>
-                                        <option :value="3">Deep Focus / Half Day (3 Pts)</option>
-                                        <option :value="5">Major Project / Full Day (5 Pts)</option>
-                                    </select>
-                                </div>
-
-                                <div class="bg-gray-100 p-4 rounded text-center">
-                                    <span class="text-xs text-gray-500 uppercase block mb-1">Suggested Points</span>
-                                    <span class="text-3xl font-bold text-green-600">{{ calculatedPoints }}</span>
-                                </div>
-                            </div>
-                        </section>
-                    </template>
-
-                </div>
+        <!-- Task Detail Sidebar -->
+        <RightSidebar
+            v-if="showTaskDetailSidebar"
+            :show="showTaskDetailSidebar"
+            @update:show="showTaskDetailSidebar = $event"
+            title="Task Details"
+            :initialWidth="45"
+        >
+            <template #content>
+                <TaskDetailSidebar
+                    v-if="selectedTaskId"
+                    :task-id="selectedTaskId"
+                    :project-id="selectedProjectId"
+                    :project-users="taskDetailProjectUsers"
+                    @close="showTaskDetailSidebar = false"
+                    @task-updated="handleTaskUpdated"
+                />
             </template>
         </RightSidebar>
         

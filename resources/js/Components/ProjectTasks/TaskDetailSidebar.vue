@@ -16,7 +16,9 @@ import Modal from "@/Components/Modal.vue";
 import ChecklistComponent from '@/Components/ChecklistComponent.vue';
 import ChecklistCreator from '@/Components/ChecklistCreator.vue';
 import BlockReasonModal from '@/Components/BlockReasonModal.vue';
-import { SaveIcon } from "lucide-vue-next";
+import { SaveIcon, XIcon, CheckIcon } from "lucide-vue-next";
+import { QuestionMarkCircleIcon } from '@heroicons/vue/24/outline';
+import EffortEstimationGuide from '@/Components/EffortEstimationGuide.vue';
 import { usePermissions, useProjectRole, useProjectPermissions } from '@/Directives/permissions.js';
 
 const props = defineProps({
@@ -62,9 +64,13 @@ const canChangeDueDate = computed(() => canDo('change_due_date', userProjectRole
 const editingAssignedTo = ref(false);
 const editingDueDate = ref(false);
 const editingPriority = ref(false);
+const editingEffort = ref(false);
 const newAssignedToId = ref(null);
 const newDueDate = ref(null);
 const newPriority = ref(null);
+const newEffort = ref(null);
+
+const showEffortGuideModal = ref(false);
 
 // Task history
 const taskActivities = ref([]);
@@ -198,6 +204,7 @@ const fetchTaskDetails = async () => {
         newAssignedToId.value = task.value.assigned_to_id || null;
         newDueDate.value = task.value.due_date || null;
         newPriority.value = task.value.priority || 'medium';
+        newEffort.value = task.value.effort || null;
 
         // Fetch task activities after loading task details
         fetchTaskActivities();
@@ -329,6 +336,28 @@ const savePriority = async () => {
         notification.error('Failed to update priority. Please try again.');
     } finally {
         editingPriority.value = false;
+    }
+};
+
+const saveEffort = async () => {
+    const val = newEffort.value === '' ? null : parseInt(newEffort.value);
+    if (!task.value || val === task.value.effort) {
+        editingEffort.value = false;
+        return;
+    }
+    try {
+        const response = await window.axios.patch(`/api/tasks/${task.value.id}`, {
+            effort: val
+        });
+        task.value = response.data; // Update local task data with response
+        emit('task-updated', task.value); // Notify parent of update
+    } catch (error) {
+        console.error('Error updating effort:', error);
+        // Revert upon error
+        newEffort.value = task.value.effort;
+        notification.error('Failed to update effort. Please try again.');
+    } finally {
+        editingEffort.value = false;
     }
 };
 
@@ -806,6 +835,44 @@ const latestBlockActivity = computed(() => {
                     </div>
                 </div>
 
+                <!-- Effort (Story Points) -->
+                <div class="flex items-center justify-between py-2 border-b border-gray-100">
+                    <div class="flex items-center gap-1 min-w-[100px]">
+                        <InputLabel class="text-gray-600">Effort:</InputLabel>
+                        <button @click="showEffortGuideModal = true" class="text-gray-400 hover:text-indigo-600 transition-colors" title="View Estimation Guide">
+                            <QuestionMarkCircleIcon class="h-4 w-4" />
+                        </button>
+                    </div>
+                    <div class="flex-1 text-right">
+                        <div v-if="!editingEffort"
+                             @click="task.status !== 'Done' ? editingEffort = true : notification.warning('Cannot change effort for a completed task.')"
+                             class="cursor-pointer"
+                             :class="{'text-indigo-600 hover:text-indigo-800': task.status !== 'Done', 'text-gray-500': task.status === 'Done'}">
+                            <span :class="{'font-bold': task.effort}">
+                                {{ task.effort ? task.effort + ' pts' : 'Not set' }}
+                            </span>
+                            <span v-if="task.status !== 'Done'" class="text-xs text-gray-400 ml-1">(Click to edit)</span>
+                        </div>
+                        <div v-else class="flex items-center justify-end space-x-2">
+                            <TextInput
+                                id="edit-effort"
+                                v-model="newEffort"
+                                type="number"
+                                min="0"
+                                class="mt-1 w-20 text-right"
+                                placeholder="Pts"
+                                @keypress.enter="saveEffort"
+                            />
+                            <button @click="saveEffort" class="text-green-600 hover:text-green-800 p-1">
+                                <CheckIcon class="h-5 w-5" />
+                            </button>
+                            <button @click="editingEffort = false" class="text-red-600 hover:text-red-800 p-1">
+                                <XIcon class="h-5 w-5" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Created At -->
                 <div class="flex items-center justify-between py-2 border-b border-gray-100">
                     <InputLabel class="min-w-[100px] text-gray-600">Created:</InputLabel>
@@ -930,6 +997,23 @@ const latestBlockActivity = computed(() => {
             <p v-if="task.status !== 'To Do'" class="text-xs text-red-500 mt-1">Task can only be deleted in 'To Do' status.</p>
         </div>
 
+
+
+        <!-- Effort Guide Modal -->
+        <Modal :show="showEffortGuideModal" @close="showEffortGuideModal = false" :max-width="'lg'">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">Effort Estimation Guide</h3>
+                    <button @click="showEffortGuideModal = false" class="text-gray-400 hover:text-gray-500">
+                        <XIcon class="h-6 w-6" />
+                    </button>
+                </div>
+                <EffortEstimationGuide />
+                <div class="mt-6 flex justify-end">
+                    <SecondaryButton @click="showEffortGuideModal = false">Close</SecondaryButton>
+                </div>
+            </div>
+        </Modal>
 
         <!-- Task Note Modal -->
         <TaskNoteModal
