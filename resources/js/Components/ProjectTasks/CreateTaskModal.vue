@@ -8,6 +8,10 @@ import SelectDropdown from '@/Components/SelectDropdown.vue';
 import TagInput from '@/Components/TagInput.vue';
 import MilestoneFormModal from './MilestoneFormModal.vue'; // Import the MilestoneFormModal
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
+import Modal from "@/Components/Modal.vue";
+import { QuestionMarkCircleIcon } from '@heroicons/vue/24/outline';
+import EffortEstimationGuide from '@/Components/EffortEstimationGuide.vue';
 import * as notification from '@/Utils/notification.js';
 import SchedulePickerModal from '@/Components/Scheduler/SchedulePickerModal.vue';
 import { useEmbeddedScheduler } from '@/Composables/useEmbeddedScheduler.js';
@@ -34,9 +38,12 @@ const taskForm = reactive({
     priority: 'medium', // Default priority
     needs_approval: false, // Whether this task needs approval
     requires_qa: false, // Whether this task requires QA verification after completion
+    effort: null, // Story points
     tags: [], // For tag IDs
     tags_data: [], // For tag objects with id and name
 });
+
+const showEffortGuideModal = ref(false);
 
 const taskStatuses = ['To Do', 'In Progress', 'Done', 'Blocked', 'Archived'];
 const priorityOptions = [
@@ -130,6 +137,7 @@ watch(() => props.show, async (newValue) => {
             priority: 'medium', // Reset to default priority
             needs_approval: false,
             requires_qa: false,
+            effort: null,
             tags: [], // Reset tags
             tags_data: [], // Reset tags data
         });
@@ -391,6 +399,19 @@ const milestoneOptions = computed(() => milestones.value);
                                     </button>
                                 </div>
                             </div>
+
+                            <!-- Effort -->
+                            <div v-if="taskForm.task_type_id" class="mt-5 space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <InputLabel value="Effort (Story Points)" />
+                                    <button type="button" @click="showEffortGuideModal = true" class="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                                        <QuestionMarkCircleIcon class="h-4 w-4" />
+                                        Guide
+                                    </button>
+                                </div>
+                                <TextInput id="task-effort" v-model="taskForm.effort" type="number" min="0" class="block w-full" placeholder="e.g. 1, 2, 3, 5, 8" />
+                                <InputError :message="errors.effort ? errors.effort[0] : ''" class="mt-2" />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -446,5 +467,23 @@ const milestoneOptions = computed(() => milestones.value);
         @close="showMilestoneModal = false"
         @saved="handleMilestoneSaved"
     />
+
+    <!-- Effort Guide Modal -->
+    <Modal :show="showEffortGuideModal" @close="showEffortGuideModal = false" max-width="lg">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Effort Estimation Guide</h3>
+                <button @click="showEffortGuideModal = false" class="text-gray-400 hover:text-gray-500">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <EffortEstimationGuide />
+            <div class="mt-6 flex justify-end">
+                <SecondaryButton @click="showEffortGuideModal = false">Close</SecondaryButton>
+            </div>
+        </div>
+    </Modal>
 </template>
 
