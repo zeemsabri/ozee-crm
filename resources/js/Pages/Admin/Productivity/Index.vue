@@ -43,6 +43,29 @@ const selectedProjectId = ref(null);
 const taskDetailProjectUsers = ref([]);
 const showEffortHelp = ref(false);
 
+// Teleported Checklist Tooltip State
+const hoveredChecklistTask = ref(null);
+const checklistTooltipCoords = ref({ top: 0, left: 0 });
+const showChecklistTooltip = ref(false);
+
+const handleChecklistHover = (task, event) => {
+    if (!task.subtasks?.length) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    hoveredChecklistTask.value = task;
+
+    // Position tooltip above the element by default
+    checklistTooltipCoords.value = {
+        top: rect.top + window.scrollY,
+        left: rect.left + rect.width / 2 + window.scrollX
+    };
+    showChecklistTooltip.value = true;
+};
+
+const hideChecklistTooltip = () => {
+    showChecklistTooltip.value = false;
+};
+
 // --- Navigation & UI Handlers ---
 const toggleUserExpand = (userId) => {
     expandedUsers.value[userId] = !expandedUsers.value[userId];
@@ -56,7 +79,7 @@ const openTaskDetail = async (task) => {
     if (!task || !task.task_id) return;
     selectedTaskId.value = task.task_id;
     selectedProjectId.value = task.project_id || 0;
-    
+
     // Fetch project users for the sidebar
     if (selectedProjectId.value) {
         try {
@@ -114,7 +137,7 @@ const handleTaskUpdated = (updatedTask) => {
             t.status = updatedTask.status?.value || updatedTask.status;
             t.due_date = updatedTask.due_date;
             t.subtasks = updatedTask.subtasks || [];
-            
+
             // Recalculate checklist string
             if (t.subtasks.length > 0) {
                 const total = t.subtasks.length;
@@ -396,10 +419,10 @@ const printReport = () => window.print();
                 </div>
 
                 <!-- Detailed Breakdown per User -->
-                <div v-for="user in reportData" :key="user.user_id" class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div v-for="user in reportData" :key="user.user_id" class="bg-white rounded-xl border border-gray-200 shadow-sm">
                     <div
                         @click="toggleUserExpand(user.user_id)"
-                        class="p-6 flex items-center justify-between bg-gray-50/50 cursor-pointer hover:bg-gray-100 transition print:cursor-default"
+                        class="p-6 flex items-center justify-between bg-gray-50/50 cursor-pointer hover:bg-gray-100 transition print:cursor-default rounded-t-xl relative z-10"
                     >
                         <div class="flex items-center space-x-4">
                             <img :src="user.avatar" class="h-12 w-12 rounded-full border-2 border-white shadow-sm" />
@@ -424,7 +447,7 @@ const printReport = () => window.print();
                         </div>
                     </div>
 
-                    <div v-show="expandedUsers[user.user_id]" class="p-0 overflow-x-auto border-t border-gray-100">
+                    <div v-show="expandedUsers[user.user_id]" class="p-0 overflow-x-auto border-t border-gray-100 rounded-b-xl relative z-20">
                         <table class="w-full text-sm text-left">
                             <thead class="bg-gray-50 text-gray-400 text-[10px] uppercase font-bold tracking-wider">
                             <tr>
@@ -473,22 +496,16 @@ const printReport = () => window.print();
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-4 text-center overflow-visible">
-                                        <div class="group relative inline-block">
-                                                <span class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 cursor-help">
-                                                    <CheckCircleIcon class="h-3 w-3 mr-1" />
-                                                    {{ task.checklist || '0/0' }}
-                                                </span>
-                                            <!-- Checklist Hover Detail -->
-                                            <div v-if="task.subtasks?.length" class="absolute top-full mt-1 left-1/2 -translate-x-1/2 w-52 bg-gray-900 text-white text-[10px] rounded shadow-2xl z-50 hidden group-hover:block p-3 border border-gray-700">
-                                                <div class="mb-2 font-black border-b border-gray-700 pb-1 uppercase tracking-tighter text-gray-400">Task Checklist Detail</div>
-                                                <div class="max-h-48 overflow-y-auto space-y-1.5">
-                                                    <div v-for="st in task.subtasks" :key="st.id" class="flex items-start gap-2 text-left">
-                                                        <span class="shrink-0 mt-0.5">{{ st.status === 'done' ? '✅' : '⬜' }}</span>
-                                                        <span :class="{'opacity-50 line-through': st.status === 'done'}" class="leading-tight">{{ st.name }}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                    <td class="px-4 py-4 text-center">
+                                        <div class="inline-block relative">
+                                            <span
+                                                class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 cursor-pointer hover:bg-gray-200 transition"
+                                                @mouseenter="handleChecklistHover(task, $event)"
+                                                @mouseleave="hideChecklistTooltip"
+                                            >
+                                                <CheckCircleIcon class="h-3 w-3 mr-1" />
+                                                {{ task.checklist || '0/0' }}
+                                            </span>
                                         </div>
                                     </td>
                                     <td class="px-4 py-4 text-right">
@@ -583,6 +600,38 @@ const printReport = () => window.print();
                 </form>
             </div>
         </div>
+
+        <!-- Global Teleported Checklist Tooltip -->
+        <Teleport to="body">
+            <div
+                v-if="showChecklistTooltip && hoveredChecklistTask"
+                class="fixed z-[9999] w-64 bg-slate-900 text-white text-[11px] rounded-xl shadow-2xl p-4 border border-slate-700 pointer-events-none"
+                :style="{
+                    top: (checklistTooltipCoords.top - 10) + 'px',
+                    left: checklistTooltipCoords.left + 'px',
+                    transform: 'translate(-50%, -100%)'
+                }"
+            >
+                <div
+                    class="mb-3 font-black border-b border-slate-700 pb-2 uppercase tracking-tighter text-indigo-300 flex items-center justify-between">
+                    <span>Activity Checklist</span>
+                    <span class="text-[9px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">{{
+                            hoveredChecklistTask.checklist
+                        }}</span>
+                </div>
+                <div class="max-h-60 overflow-y-auto space-y-2 custom-scrollbar pr-1">
+                    <div v-for="(st, idx) in hoveredChecklistTask.subtasks" :key="idx"
+                         class="flex items-start gap-3 text-left">
+                        <span class="shrink-0 mt-0.5 text-xs">{{ st.status === 'done' ? '✅' : '⬜' }}</span>
+                        <span class="leading-snug" :class="{'text-slate-400 line-through': st.status === 'done'}">
+                            {{ st.name }}
+                        </span>
+                    </div>
+                </div>
+                <!-- Arrow -->
+                <div class="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900"></div>
+            </div>
+        </Teleport>
     </AuthenticatedLayout>
 </template>
 
