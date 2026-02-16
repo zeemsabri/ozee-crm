@@ -19,6 +19,9 @@ class UserActivity extends Model
         'browser',
         'recorded_at',
         'last_heartbeat_at',
+        'idle_state',
+        'category',
+        'is_category_override',
     ];
 
     protected $casts = [
