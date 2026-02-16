@@ -259,6 +259,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
             ->middleware(['permission:manage_projects'])
             ->name('productivity.index');
 
+        // Activity Report
+        Route::get('/activity-report', [\App\Http\Controllers\Admin\ActivityReportController::class, 'index'])
+            ->middleware(['permission:manage_projects'])
+            ->name('activity-report.index');
+
         // Categories CRUD Page
         Route::get('/categories', function () {
             return Inertia::render('Admin/Categories/Index');
