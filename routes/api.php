@@ -391,6 +391,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Productivity Report API
     Route::get('productivity/report', [\App\Http\Controllers\Api\ProductivityReportController::class, 'index'])
         ->middleware('permission:manage_projects');
+    
+    // Activity Report API
+    Route::get('activity-report', [\App\Http\Controllers\Api\ActivityReportController::class, 'index'])
+        ->middleware('permission:manage_projects');
+    Route::patch('activities/{id}/category', [ActivityDataController::class, 'updateCategory']);
+
     Route::post('tasks/{task}/productivity-meta', [\App\Http\Controllers\Api\ProductivityReportController::class, 'updateTaskMeta'])
         ->middleware('permission:manage_projects');
     Route::post('tasks/manual-effort', [\App\Http\Controllers\Api\ProductivityReportController::class, 'storeManualTask'])

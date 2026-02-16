@@ -18,6 +18,14 @@ const props = defineProps({
     type: {
         type: String, // 'bar', 'line', 'pie', 'doughnut'
         default: 'bar'
+    },
+    yLabel: {
+        type: String,
+        default: 'Hours'
+    },
+    options: {
+        type: Object,
+        default: () => ({})
     }
 });
 
@@ -51,10 +59,15 @@ const createChart = () => {
                     beginAtZero: true,
                     title: {
                         display: true,
-                        text: 'Hours'
-                    }
+                        text: props.yLabel
+                    },
+                    ...(props.options.scales?.y || {})
+                },
+                x: {
+                    ...(props.options.scales?.x || {})
                 }
-            }
+            },
+            ...props.options
         }
     });
 };
