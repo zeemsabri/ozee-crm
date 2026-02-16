@@ -55,6 +55,7 @@ use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\Api\ActivityDataController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\NotificationController;
 use Illuminate\Http\Request;
@@ -90,6 +91,10 @@ Route::middleware(['client.throttle'])->group(function () {
 // Other client endpoints
 Route::post('/client-api/verify', [MagicLinkController::class, 'verifyClient']);
 Route::post('/client-api/setup-pin', [MagicLinkController::class, 'setupPin']);
+
+Route::middleware('auth.apikey')->group(function () {
+    Route::post('/activityData', [ActivityDataController::class, 'store']);
+});
 
 Route::get('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
 Route::post('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
@@ -355,6 +360,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('points-ledger/total', [\App\Http\Controllers\Api\PointsLedgerController::class, 'total']);
 
     Route::post('users/{user}/restore', [UserController::class, 'restore'])->name('users.restore');
+    Route::post('users/{user}/generate-api-key', [UserController::class, 'generateApiKey'])->name('users.generate-api-key');
     Route::get('users/{user}/emails', [UserController::class, 'emails']);
     Route::apiResource('users', UserController::class)->names('api.users');
 

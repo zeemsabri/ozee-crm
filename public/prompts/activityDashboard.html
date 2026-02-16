@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Activity Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased p-6">
+
+<div class="max-w-7xl mx-auto space-y-6">
+
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">Activity Dashboard</h1>
+            <p class="text-sm text-slate-500">Productivity telemetry & reporting</p>
+        </div>
+
+        <div class="flex flex-wrap gap-4 items-center">
+            <select id="userFilter" class="bg-slate-50 border border-slate-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+                <option value="all">All Users</option>
+                <option value="1">Zee Sa</option>
+                <option value="2">Jane Doe</option>
+            </select>
+
+            <input type="date" id="dateFilter" class="bg-slate-50 border border-slate-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+
+            <button onclick="applyFilters()" class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-sm px-5 py-2.5 transition">
+                Filter
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <h3 class="text-sm font-medium text-slate-500 mb-1">Total Active Time</h3>
+            <p class="text-3xl font-bold text-blue-600" id="kpiTime">0 hrs 0 mins</p>
+            <p class="text-xs text-slate-400 mt-2">Calculated from event intervals</p>
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <h3 class="text-sm font-medium text-slate-500 mb-1">Top Domain (By Time)</h3>
+            <p class="text-3xl font-bold text-slate-800" id="kpiDomain">-</p>
+            <p class="text-xs text-slate-400 mt-2" id="kpiDomainTime">0 mins</p>
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <h3 class="text-sm font-medium text-slate-500 mb-1">Total Events Logged</h3>
+            <p class="text-3xl font-bold text-slate-800" id="kpiEvents">0</p>
+            <p class="text-xs text-slate-400 mt-2">Raw telemetry points</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <h3 class="text-lg font-semibold text-slate-800 mb-4">Time Spent by Domain (Minutes)</h3>
+            <div class="relative h-64 w-full">
+                <canvas id="domainChart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <h3 class="text-lg font-semibold text-slate-800 mb-4">Activity Timeline (Minutes per Hour)</h3>
+            <div class="relative h-64 w-full">
+                <canvas id="timelineChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="p-6 border-b border-slate-100">
+            <h3 class="text-lg font-semibold text-slate-800">Activity Log & Durations</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-slate-500">
+                <thead class="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-100">
+                <tr>
+                    <th scope="col" class="px-6 py-3">Time</th>
+                    <th scope="col" class="px-6 py-3">User</th>
+                    <th scope="col" class="px-6 py-3">Domain</th>
+                    <th scope="col" class="px-6 py-3">Page Title</th>
+                    <th scope="col" class="px-6 py-3">Duration</th>
+                </tr>
+                </thead>
+                <tbody id="tableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // MOCK DATA
+    const rawMockData = [
+        { id: 1, user_id: 1, user_name: "Zee Sa", domain: "gemini.google.com", title: "Google Gemini", url: "https://gemini.google.com/app", hostname: "Zeeshans-Computer.local", recorded_at: "2026-02-16T13:00:00Z" },
+        { id: 2, user_id: 1, user_name: "Zee Sa", domain: "gemini.google.com", title: "Google Gemini", url: "https://gemini.google.com/app", hostname: "Zeeshans-Computer.local", recorded_at: "2026-02-16T13:05:30Z" },
+        { id: 3, user_id: 1, user_name: "Zee Sa", domain: "github.com", title: "ActivityWatch/activitywatch", url: "https://github.com/ActivityWatch", hostname: "Zeeshans-Computer.local", recorded_at: "2026-02-16T13:07:00Z" },
+        { id: 4, user_id: 1, user_name: "Zee Sa", domain: "github.com", title: "ActivityWatch/activitywatch", url: "https://github.com/ActivityWatch", hostname: "Zeeshans-Computer.local", recorded_at: "2026-02-16T13:10:00Z" },
+
+        // Jane's data
+        { id: 6, user_id: 2, user_name: "Jane Doe", domain: "figma.com", title: "Dashboard UI - Figma", url: "https://figma.com/file/123", hostname: "Janes-MacBook.local", recorded_at: "2026-02-16T09:05:00Z" },
+        { id: 7, user_id: 2, user_name: "Jane Doe", domain: "figma.com", title: "Dashboard UI - Figma", url: "https://figma.com/file/123", hostname: "Janes-MacBook.local", recorded_at: "2026-02-16T09:25:00Z" },
+        { id: 8, user_id: 2, user_name: "Jane Doe", domain: "stackoverflow.com", title: "How to parse JSON in PHP", url: "https://stackoverflow.com", hostname: "Janes-MacBook.local", recorded_at: "2026-02-16T09:30:00Z" },
+    ];
+
+    let domainChartInstance = null;
+    let timelineChartInstance = null;
+
+    // --- DATA PROCESSING ENGINE ---
+    function calculateDurations(data) {
+        // 1. Group by user because we can't calculate time difference between different users
+        const usersData = {};
+        data.forEach(row => {
+            if (!usersData[row.user_id]) usersData[row.user_id] = [];
+            usersData[row.user_id].push({...row});
+        });
+
+        const processedData = [];
+        const IDLE_TIMEOUT_SECONDS = 5 * 60; // 5 Minutes max idle cutoff
+        const DEFAULT_HEARTBEAT_SECONDS = 60; // Standard 1 min heartbeat
+
+        // 2. Process each user's timeline chronologically
+        Object.values(usersData).forEach(userEvents => {
+            // Sort chronologically (Oldest to Newest)
+            userEvents.sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
+
+            for (let i = 0; i < userEvents.length; i++) {
+                let currentEvent = userEvents[i];
+                let durationSeconds = DEFAULT_HEARTBEAT_SECONDS;
+
+                // If there is a "next" event, calculate the time difference
+                if (i + 1 < userEvents.length) {
+                    const nextEvent = userEvents[i + 1];
+                    const diffMs = new Date(nextEvent.recorded_at) - new Date(currentEvent.recorded_at);
+                    const diffSeconds = Math.floor(diffMs / 1000);
+
+                    // If the gap is huge (user went to lunch), cap it.
+                    // Otherwise, use the exact time difference.
+                    if (diffSeconds < IDLE_TIMEOUT_SECONDS && diffSeconds > 0) {
+                        durationSeconds = diffSeconds;
+                    }
+                }
+
+                currentEvent.duration_seconds = durationSeconds;
+                processedData.push(currentEvent);
+            }
+        });
+
+        return processedData;
+    }
+
+    // Helper to format seconds nicely (e.g., "5m 30s")
+    function formatDuration(totalSeconds) {
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        if (m === 0) return `${s}s`;
+        return `${m}m ${s}s`;
+    }
+
+    function applyFilters() {
+        const userId = document.getElementById('userFilter').value;
+        const dateStr = document.getElementById('dateFilter').value;
+
+        // First, calculate durations on the raw dataset so math is correct
+        let processedData = calculateDurations(rawMockData);
+
+        // Then, apply the UI filters
+        let filteredData = processedData.filter(row => {
+            let userMatch = userId === 'all' || row.user_id.toString() === userId;
+            let dateMatch = true;
+
+            if (dateStr) {
+                const rowDate = new Date(row.recorded_at).toISOString().split('T')[0];
+                dateMatch = rowDate === dateStr;
+            }
+            return userMatch && dateMatch;
+        });
+
+        updateDashboard(filteredData);
+    }
+
+    function updateDashboard(data) {
+        updateKPIs(data);
+        updateTable(data);
+        updateCharts(data);
+    }
+
+    function updateKPIs(data) {
+        // Sum all duration_seconds
+        const totalSeconds = data.reduce((sum, row) => sum + row.duration_seconds, 0);
+        const hrs = Math.floor(totalSeconds / 3600);
+        const mins = Math.floor((totalSeconds % 3600) / 60);
+        document.getElementById('kpiTime').innerText = `${hrs} hrs ${mins} mins`;
+
+        document.getElementById('kpiEvents').innerText = data.length;
+
+        // Calculate Top Domain By Time Spent (not event count)
+        const domainTime = {};
+        let topDomain = "-";
+        let maxSeconds = 0;
+
+        data.forEach(row => {
+            domainTime[row.domain] = (domainTime[row.domain] || 0) + row.duration_seconds;
+            if (domainTime[row.domain] > maxSeconds) {
+                maxSeconds = domainTime[row.domain];
+                topDomain = row.domain;
+            }
+        });
+
+        document.getElementById('kpiDomain').innerText = topDomain;
+        document.getElementById('kpiDomainTime').innerText = formatDuration(maxSeconds) + " total";
+    }
+
+    function updateTable(data) {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+
+        // Sort newest first for the table view
+        const sortedData = [...data].sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+
+        sortedData.forEach(row => {
+            const time = new Date(row.recorded_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const tr = document.createElement('tr');
+            tr.className = "bg-white border-b border-slate-50 hover:bg-slate-50";
+            tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">${time}</td>
+                    <td class="px-6 py-4 font-medium text-slate-900">${row.user_name}</td>
+                    <td class="px-6 py-4"><span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">${row.domain}</span></td>
+                    <td class="px-6 py-4 truncate max-w-xs" title="${row.title}">${row.title}</td>
+                    <td class="px-6 py-4 text-emerald-600 font-semibold">${formatDuration(row.duration_seconds)}</td>
+                `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function updateCharts(data) {
+        const domainTime = {};
+        const hourlyTime = Array(24).fill(0);
+
+        data.forEach(row => {
+            // Aggregate Time by Domain (in minutes)
+            domainTime[row.domain] = (domainTime[row.domain] || 0) + (row.duration_seconds / 60);
+
+            // Aggregate Time by Hour (in minutes)
+            const hour = new Date(row.recorded_at).getHours();
+            hourlyTime[hour] += (row.duration_seconds / 60);
+        });
+
+        // Round minutes for cleaner charts
+        Object.keys(domainTime).forEach(k => domainTime[k] = Math.round(domainTime[k]));
+        const roundedHourlyTime = hourlyTime.map(min => Math.round(min));
+
+        if(domainChartInstance) domainChartInstance.destroy();
+        if(timelineChartInstance) timelineChartInstance.destroy();
+
+        // Render Domain Doughnut Chart
+        const ctxDomain = document.getElementById('domainChart').getContext('2d');
+        domainChartInstance = new Chart(ctxDomain, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(domainTime),
+                datasets: [{
+                    data: Object.values(domainTime),
+                    backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#6366f1', '#ec4899'],
+                    borderWidth: 0
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+        });
+
+        // Render Timeline Bar Chart
+        const ctxTimeline = document.getElementById('timelineChart').getContext('2d');
+        timelineChartInstance = new Chart(ctxTimeline, {
+            type: 'bar',
+            data: {
+                labels: ['12am','1am','2am','3am','4am','5am','6am','7am','8am','9am','10am','11am','12pm','1pm','2pm','3pm','4pm','5pm','6pm','7pm','8pm','9pm','10pm','11pm'],
+                datasets: [{
+                    label: 'Minutes Active',
+                    data: roundedHourlyTime,
+                    backgroundColor: '#3b82f6',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    window.onload = () => {
+        document.getElementById('dateFilter').value = '2026-02-16';
+        applyFilters();
+    };
+</script>
+</body>
+</html>

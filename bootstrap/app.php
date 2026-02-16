@@ -32,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'process.basic' => \App\Http\Middleware\ProcessBasicProperty::class,
             'permissionInAnyProject' => \App\Http\Middleware\CheckPermissionInAnyProject::class,
             'client.throttle' => \App\Http\Middleware\ThrottleClientAuth::class,
+            'auth.apikey' => \App\Http\Middleware\AuthenticateWithApiKey::class,
         ]);
 
         //

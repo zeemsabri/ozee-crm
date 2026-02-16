@@ -85,6 +85,11 @@ class UserController extends Controller
         // Filter data based on role
         if ($user->hasPermission('view_users')) {
             $users = $query->orderBy('name')->get();
+            
+            // If the requester is an admin, they might need the API keys
+            if ($user->isSuperAdmin() || $user->isManager()) {
+                $users->makeVisible(['api_key']);
+            }
         } else {
             $users = collect();
         }
@@ -163,8 +168,11 @@ class UserController extends Controller
      */
     public function show(User $user)
     {
-        // Authorization is handled by the UserPolicy's `view` method.
         $this->authorize('view', $user);
+
+        if (Auth::user()->isSuperAdmin() || Auth::user()->isManager() || Auth::user()->id === $user->id) {
+            $user->makeVisible(['api_key']);
+        }
 
         return response()->json($user->load(['projects', 'role'])); // Load projects and role when showing a single user
     }
@@ -301,5 +309,20 @@ class UserController extends Controller
 
             return response()->json(['message' => 'Failed to restore user', 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Generate a new API key for the user.
+     */
+    public function generateApiKey(User $user)
+    {
+        $this->authorize('update', $user);
+
+        $key = $user->generateApiKey();
+
+        return response()->json([
+            'message' => 'API key generated successfully.',
+            'api_key' => $key
+        ]);
     }
 }

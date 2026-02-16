@@ -48,6 +48,7 @@ class User extends Authenticatable
         'user_type',
         'checklist',
         'notes',
+        'api_key',
     ];
 
     /**
@@ -63,6 +64,7 @@ class User extends Authenticatable
         'remember_token',
         'google_access_token',
         'google_refresh_token',
+        'api_key',
     ];
 
     protected $casts = [
@@ -682,5 +684,17 @@ class User extends Authenticatable
     public function getAvatarAttribute()
     {
         return 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . '&background=random&color=fff';
+    }
+
+    /**
+     * Generate a new API key for the user.
+     *
+     * @return string
+     */
+    public function generateApiKey(): string
+    {
+        $key = bin2hex(random_bytes(32));
+        $this->update(['api_key' => $key]);
+        return $key;
     }
 }
