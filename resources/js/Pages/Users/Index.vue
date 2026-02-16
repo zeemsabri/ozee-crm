@@ -21,7 +21,8 @@ import {
     PencilSquareIcon,
     TrashIcon,
     ArchiveBoxIcon,
-    ArrowUturnUpIcon
+    ArrowUturnUpIcon,
+    KeyIcon
 } from '@heroicons/vue/24/outline';
 
 // Access authenticated user
@@ -331,6 +332,25 @@ const restoreUser = async (user) => {
     }
 };
 
+// --- Generate API Key ---
+const generateApiKey = async (user) => {
+    if (!confirm(`Are you sure you want to generate a new API key for ${user.name}? The old one will stop working.`)) {
+        return;
+    }
+    
+    try {
+        const response = await window.axios.post(`/api/users/${user.id}/generate-api-key`);
+        const index = users.value.findIndex(u => u.id === user.id);
+        if (index !== -1) {
+            users.value[index].api_key = response.data.api_key;
+        }
+        console.log('API key generated successfully!');
+    } catch (error) {
+        console.error('Error generating API key:', error);
+        alert('Failed to generate API key.');
+    }
+};
+
 // Function to update the role string when role_id changes
 const updateRoleString = () => {
     const selectedRole = roleOptions.value.find(role => role.value === userForm.role_id);
@@ -525,11 +545,28 @@ const getAvatarColor = (name) => {
                                             </p>
                                             <p v-else class="text-xs text-gray-400 mt-1">No projects assigned.</p>
                                         </div>
+
+                                        <!-- API Key Display -->
+                                        <div v-if="userItem.api_key" class="mt-3 p-2 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                                            <p class="text-[10px] uppercase font-semibold text-gray-400 mb-1 flex items-center">
+                                                <KeyIcon class="h-3 w-3 mr-1" /> API Key
+                                            </p>
+                                            <code class="text-[10px] break-all text-indigo-600 block">{{ userItem.api_key }}</code>
+                                        </div>
                                     </div>
 
                                     <!-- Action icons bottom right corner -->
                                     <div class="mt-4 flex justify-end gap-2">
                                         <PrimaryButton as="a" :href="`/users/${userItem.id}`" title="View User">View</PrimaryButton>
+                                        
+                                        <button
+                                            v-if="isSuperAdmin || isManager"
+                                            @click="generateApiKey(userItem)"
+                                            class="p-2 rounded-full text-gray-400 hover:text-amber-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors"
+                                            title="Generate API Key">
+                                            <KeyIcon class="h-5 w-5" />
+                                        </button>
+
                                         <button
                                             v-if="(isSuperAdmin || isManager )"
                                             @click="openEditModal(userItem)"
