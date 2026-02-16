@@ -19,22 +19,34 @@ class ActivityReportController extends Controller
         $userIds = $request->input('user_ids') ? explode(',', $request->input('user_ids')) : [];
         $dateStart = $request->input('date_start');
         $dateEnd = $request->input('date_end');
+        $viewerTimezone = $request->user()->timezone ?? config('app.timezone', 'UTC');
 
-        $query = UserActivity::with('user:id,name');
+        $query = UserActivity::with('user:id,name,timezone');
 
         if (!empty($userIds)) {
             $query->whereIn('user_id', $userIds);
         }
 
+        // We interpret the date filters in the viewer's timezone
         if ($dateStart) {
-            $query->where('recorded_at', '>=', Carbon::parse($dateStart)->startOfDay());
+            $start = Carbon::parse($dateStart, $viewerTimezone)->startOfDay()->setTimezone('UTC');
+            $query->where('recorded_at', '>=', $start);
         }
 
         if ($dateEnd) {
-            $query->where('recorded_at', '<=', Carbon::parse($dateEnd)->endOfDay());
+            $end = Carbon::parse($dateEnd, $viewerTimezone)->endOfDay()->setTimezone('UTC');
+            $query->where('recorded_at', '<=', $end);
         }
 
         $activities = $query->latest('recorded_at')->get();
+
+        // Transform activities to include local time based on EACH user's timezone
+        $activities->transform(function ($activity) {
+            $userTz = $activity->user->timezone ?? config('app.timezone', 'UTC');
+            $activity->local_time = Carbon::parse($activity->recorded_at)->setTimezone($userTz)->toDateTimeString();
+            $activity->local_time_formatted = Carbon::parse($activity->recorded_at)->setTimezone($userTz)->format('g:i A');
+            return $activity;
+        });
 
         // Aggregate stats
         $totalSeconds = $activities->sum('duration');
@@ -43,8 +55,8 @@ class ActivityReportController extends Controller
         // Top Domain
         $topDomainData = UserActivity::select('domain', DB::raw('SUM(duration) as total_duration'))
             ->when(!empty($userIds), fn($q) => $q->whereIn('user_id', $userIds))
-            ->when($dateStart, fn($q) => $q->where('recorded_at', '>=', Carbon::parse($dateStart)->startOfDay()))
-            ->when($dateEnd, fn($q) => $q->where('recorded_at', '<=', Carbon::parse($dateEnd)->endOfDay()))
+            ->when($dateStart, fn($q) => $q->where('recorded_at', '>=', Carbon::parse($dateStart, $viewerTimezone)->startOfDay()->setTimezone('UTC')))
+            ->when($dateEnd, fn($q) => $q->where('recorded_at', '<=', Carbon::parse($dateEnd, $viewerTimezone)->endOfDay()->setTimezone('UTC')))
             ->groupBy('domain')
             ->orderByDesc('total_duration')
             ->first();
@@ -52,35 +64,17 @@ class ActivityReportController extends Controller
         // Chart Data: Domain Distribution (Top 10)
         $domainDist = UserActivity::select('domain', DB::raw('SUM(duration) as value'))
             ->when(!empty($userIds), fn($q) => $q->whereIn('user_id', $userIds))
-            ->when($dateStart, fn($q) => $q->where('recorded_at', '>=', Carbon::parse($dateStart)->startOfDay()))
-            ->when($dateEnd, fn($q) => $q->where('recorded_at', '<=', Carbon::parse($dateEnd)->endOfDay()))
+            ->when($dateStart, fn($q) => $q->where('recorded_at', '>=', Carbon::parse($dateStart, $viewerTimezone)->startOfDay()->setTimezone('UTC')))
+            ->when($dateEnd, fn($q) => $q->where('recorded_at', '<=', Carbon::parse($dateEnd, $viewerTimezone)->endOfDay()->setTimezone('UTC')))
             ->groupBy('domain')
             ->orderByDesc('value')
             ->limit(10)
             ->get();
 
-        // Chart Data: Hourly Trend
-        // Note: For sqlite or mysql, grouping by hour might differ.
-        // Assuming MySQL for production-like behavior, but let's use a more generic approach if possible.
-        $hourlyData = UserActivity::select(
-                DB::raw('HOUR(recorded_at) as hour'),
-                DB::raw('SUM(duration) as value')
-            )
-            ->when(!empty($userIds), fn($q) => $q->whereIn('user_id', $userIds))
-            ->when($dateStart, fn($q) => $q->where('recorded_at', '>=', Carbon::parse($dateStart)->startOfDay()))
-            ->when($dateEnd, fn($q) => $q->where('recorded_at', '<=', Carbon::parse($dateEnd)->endOfDay()))
-            ->groupBy('hour')
-            ->orderBy('hour')
-            ->get();
-
-        // Fill in missing hours
-        $trend = collect(range(0, 23))->map(function($hour) use ($hourlyData) {
-            $data = $hourlyData->firstWhere('hour', $hour);
-            return [
-                'label' => $this->formatHour($hour),
-                'value' => $data ? round($data->value / 60, 1) : 0 // in minutes
-            ];
-        });
+        // Chart Data: Hourly Trend (Adjusted to Viewer's Timezone)
+        // Since CONVERT_TZ might not be reliable without TZ tables, we'll group in PHP for safety
+        // or calculate the offset. Let's group in PHP since we already have the collection for this period.
+        $hourlyData = $this->getHourlyTrend($activities, $viewerTimezone);
 
         // Users for filter
         $users = User::select('id as value', 'name as label')->orderBy('name')->get();
@@ -89,10 +83,10 @@ class ActivityReportController extends Controller
         $productivity = $this->calculateProductivityMetrics($activities);
         
         // Category Breakdown
-        $categoryBreakdown = $this->getCategoryBreakdown($userIds, $dateStart, $dateEnd);
+        $categoryBreakdown = $this->getCategoryBreakdown($userIds, $dateStart, $dateEnd, $viewerTimezone);
         
         // Idle vs Active breakdown
-        $idleBreakdown = $this->getIdleBreakdown($userIds, $dateStart, $dateEnd);
+        $idleBreakdown = $this->getIdleBreakdown($activities, $viewerTimezone);
 
         return response()->json([
             'activities' => $activities,
@@ -102,6 +96,7 @@ class ActivityReportController extends Controller
                 'total_events' => $totalEvents,
                 'top_domain' => $topDomainData ? $topDomainData->domain : '-',
                 'top_domain_time' => $topDomainData ? round($topDomainData->total_duration / 60) : 0,
+                'viewer_timezone' => $viewerTimezone,
             ],
             'productivity' => $productivity,
             'charts' => [
@@ -109,12 +104,80 @@ class ActivityReportController extends Controller
                     'label' => $d->domain,
                     'value' => round($d->value / 60) // in minutes
                 ]),
-                'hourly_trend' => $trend,
+                'hourly_trend' => $hourlyData,
                 'category_breakdown' => $categoryBreakdown,
                 'idle_breakdown' => $idleBreakdown,
             ],
             'users' => $users
         ]);
+    }
+
+    private function getHourlyTrend($activities, $timezone)
+    {
+        $trend = array_fill(0, 24, 0);
+        
+        foreach ($activities as $activity) {
+            $hour = (int) Carbon::parse($activity->recorded_at)->setTimezone($timezone)->format('H');
+            $trend[$hour] += $activity->duration;
+        }
+
+        return collect($trend)->map(function($value, $hour) {
+            return [
+                'label' => $this->formatHour($hour),
+                'value' => round($value / 60, 1)
+            ];
+        })->values();
+    }
+
+    private function getIdleBreakdown($activities, $timezone)
+    {
+        $data = array_fill(0, 24, ['active' => 0, 'idle' => 0]);
+        
+        foreach ($activities as $activity) {
+            $hour = (int) Carbon::parse($activity->recorded_at)->setTimezone($timezone)->format('H');
+            if ($activity->idle_state === 'active') {
+                $data[$hour]['active'] += $activity->duration;
+            } else {
+                $data[$hour]['idle'] += $activity->duration;
+            }
+        }
+
+        return collect($data)->map(function($values, $hour) {
+            return [
+                'hour' => $this->formatHour($hour),
+                'active' => round($values['active'] / 60, 1),
+                'idle' => round($values['idle'] / 60, 1),
+            ];
+        })->values();
+    }
+
+    /**
+     * Get category breakdown with percentages.
+     */
+    private function getCategoryBreakdown($userIds, $dateStart, $dateEnd, $viewerTimezone)
+    {
+        $query = UserActivity::select('category', DB::raw('SUM(duration) as total_duration'))
+            ->when(!empty($userIds), fn($q) => $q->whereIn('user_id', $userIds))
+            ->when($dateStart, fn($q) => $q->where('recorded_at', '>=', Carbon::parse($dateStart, $viewerTimezone)->startOfDay()->setTimezone('UTC')))
+            ->when($dateEnd, fn($q) => $q->where('recorded_at', '<=', Carbon::parse($dateEnd, $viewerTimezone)->endOfDay()->setTimezone('UTC')))
+            ->whereNotNull('category')
+            ->groupBy('category')
+            ->orderByDesc('total_duration')
+            ->get();
+
+        $total = $query->sum('total_duration');
+        $categories = config('activity_categories.categories', []);
+
+        return $query->map(function($item) use ($total, $categories) {
+            $categoryConfig = $categories[$item->category] ?? [];
+            return [
+                'category' => $item->category,
+                'label' => $categoryConfig['label'] ?? ucfirst($item->category),
+                'color' => $categoryConfig['color'] ?? '#6b7280',
+                'duration' => round($item->total_duration / 60), // minutes
+                'percentage' => $total > 0 ? round(($item->total_duration / $total) * 100, 1) : 0,
+            ];
+        });
     }
 
     /**
@@ -152,73 +215,6 @@ class ActivityReportController extends Controller
             'social_media_time' => round($socialMediaTime / 60),
             'active_time' => round($totalActiveTime / 60),
         ];
-    }
-
-    /**
-     * Get category breakdown with percentages.
-     */
-    private function getCategoryBreakdown($userIds, $dateStart, $dateEnd)
-    {
-        $query = UserActivity::select('category', DB::raw('SUM(duration) as total_duration'))
-            ->when(!empty($userIds), fn($q) => $q->whereIn('user_id', $userIds))
-            ->when($dateStart, fn($q) => $q->where('recorded_at', '>=', Carbon::parse($dateStart)->startOfDay()))
-            ->when($dateEnd, fn($q) => $q->where('recorded_at', '<=', Carbon::parse($dateEnd)->endOfDay()))
-            ->whereNotNull('category')
-            ->groupBy('category')
-            ->orderByDesc('total_duration')
-            ->get();
-
-        $total = $query->sum('total_duration');
-        $categories = config('activity_categories.categories', []);
-
-        return $query->map(function($item) use ($total, $categories) {
-            $categoryConfig = $categories[$item->category] ?? [];
-            return [
-                'category' => $item->category,
-                'label' => $categoryConfig['label'] ?? ucfirst($item->category),
-                'color' => $categoryConfig['color'] ?? '#6b7280',
-                'duration' => round($item->total_duration / 60), // minutes
-                'percentage' => $total > 0 ? round(($item->total_duration / $total) * 100, 1) : 0,
-            ];
-        });
-    }
-
-    /**
-     * Get idle vs active breakdown by hour.
-     */
-    private function getIdleBreakdown($userIds, $dateStart, $dateEnd)
-    {
-        $activeData = UserActivity::select(
-                DB::raw('HOUR(recorded_at) as hour'),
-                DB::raw('SUM(duration) as value')
-            )
-            ->where('idle_state', 'active')
-            ->when(!empty($userIds), fn($q) => $q->whereIn('user_id', $userIds))
-            ->when($dateStart, fn($q) => $q->where('recorded_at', '>=', Carbon::parse($dateStart)->startOfDay()))
-            ->when($dateEnd, fn($q) => $q->where('recorded_at', '<=', Carbon::parse($dateEnd)->endOfDay()))
-            ->groupBy('hour')
-            ->get()
-            ->keyBy('hour');
-
-        $idleData = UserActivity::select(
-                DB::raw('HOUR(recorded_at) as hour'),
-                DB::raw('SUM(duration) as value')
-            )
-            ->where('idle_state', '!=', 'active')
-            ->when(!empty($userIds), fn($q) => $q->whereIn('user_id', $userIds))
-            ->when($dateStart, fn($q) => $q->where('recorded_at', '>=', Carbon::parse($dateStart)->startOfDay()))
-            ->when($dateEnd, fn($q) => $q->where('recorded_at', '<=', Carbon::parse($dateEnd)->endOfDay()))
-            ->groupBy('hour')
-            ->get()
-            ->keyBy('hour');
-
-        return collect(range(0, 23))->map(function($hour) use ($activeData, $idleData) {
-            return [
-                'hour' => $this->formatHour($hour),
-                'active' => isset($activeData[$hour]) ? round($activeData[$hour]->value / 60, 1) : 0,
-                'idle' => isset($idleData[$hour]) ? round($idleData[$hour]->value / 60, 1) : 0,
-            ];
-        });
     }
 
     private function formatHour($hour)

@@ -352,8 +352,8 @@ onUnmounted(() => {
                             </thead>
                             <tbody class="divide-y divide-gray-100">
                                 <tr v-for="activity in activities" :key="activity.id" class="hover:bg-gray-50 transition">
-                                    <td class="px-6 py-4 whitespace-nowrap text-gray-500 font-mono text-xs">
-                                        {{ formatTime(activity.recorded_at) }}
+                                    <td class="px-6 py-4 whitespace-nowrap text-gray-500 font-mono text-xs" :title="activity.local_time">
+                                        {{ activity.local_time_formatted || formatTime(activity.recorded_at) }}
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="flex items-center space-x-3">
