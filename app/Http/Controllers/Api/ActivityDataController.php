@@ -25,7 +25,7 @@ class ActivityDataController extends Controller
         $timestamp = now()->format('Y-m-d_H-i-s');
         $random = rand(100000, 999999);
         $fileName = "activity_logs/data_{$timestamp}_{$random}.json";
-        
+
         Storage::disk('local')->put($fileName, json_encode([
             'timestamp' => now()->toDateTimeString(),
             'ip' => $request->ip(),
@@ -44,9 +44,9 @@ class ActivityDataController extends Controller
             $durationReported = (int) ($payload['duration'] ?? 0);
             $idleState = $payload['idleState'] ?? 'unknown';
             $category = $this->categorizeDomain($domain, $user->id);
-            
+
             // Session Merging Threshold: 2 minutes (120 seconds)
-            // If the last activity was for the same domain, same idle state, 
+            // If the last activity was for the same domain, same idle state,
             // and happened within this threshold, we append the duration.
             $mergingThreshold = 120;
 
@@ -55,7 +55,7 @@ class ActivityDataController extends Controller
                 ->latest('id')
                 ->first();
 
-            $shouldMerge = $lastActivity && 
+            $shouldMerge = $lastActivity &&
                            $lastActivity->domain === $domain &&
                            $lastActivity->idle_state === $idleState &&
                            $now->diffInSeconds($lastActivity->last_heartbeat_at) <= $mergingThreshold;
@@ -111,11 +111,6 @@ class ActivityDataController extends Controller
         ]);
 
         $activity = UserActivity::findOrFail($id);
-        
-        // Only allow users to update their own activities
-        if ($activity->user_id !== $request->user()->id) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
 
         $activity->update([
             'category' => $request->category,
@@ -161,7 +156,7 @@ class ActivityDataController extends Controller
         // Check configured patterns
         foreach ($categories as $categoryKey => $categoryConfig) {
             $patterns = $categoryConfig['patterns'] ?? [];
-            
+
             foreach ($patterns as $pattern) {
                 // Check if the domain contains the pattern
                 if (str_contains($normalizedDomain, strtolower($pattern))) {
