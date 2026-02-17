@@ -94,6 +94,11 @@ Route::post('/client-api/setup-pin', [MagicLinkController::class, 'setupPin']);
 
 Route::middleware('auth.apikey')->group(function () {
     Route::post('/activityData', [ActivityDataController::class, 'store']);
+
+    // External API routes
+    Route::get('/activity/projects', [\App\Http\Controllers\Api\ExternalApiController::class, 'getProjects']);
+    Route::get('/activity/projects/{project}/tasks', [\App\Http\Controllers\Api\ExternalApiController::class, 'getProjectTasks']);
+    Route::post('/activity/tasks/{task}/status', [\App\Http\Controllers\Api\ExternalApiController::class, 'updateTaskStatus']);
 });
 
 Route::get('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
@@ -391,7 +396,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Productivity Report API
     Route::get('productivity/report', [\App\Http\Controllers\Api\ProductivityReportController::class, 'index'])
         ->middleware('permission:manage_projects');
-    
+
     // Activity Report API
     Route::get('activity-report', [\App\Http\Controllers\Api\ActivityReportController::class, 'index'])
         ->middleware('permission:manage_projects');
