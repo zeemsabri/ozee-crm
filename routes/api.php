@@ -130,6 +130,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Centralized options endpoint
     Route::get('options/{key}', [OptionsController::class, 'show']);
 
+    // BugHerd Routes
+    Route::get('bugherd/projects', [\App\Http\Controllers\Api\BugHerdController::class, 'index']);
+
     // Category Sets & Categories
     Route::get('category-sets', [CategorySetController::class, 'index']);
     Route::post('category-sets', [CategorySetController::class, 'store']);

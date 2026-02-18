@@ -52,6 +52,7 @@ class Project extends Model
         'profit_margin_percentage',
         'last_email_sent',
         'last_email_received',
+        'integrations',
     ];
 
     protected $casts = [
@@ -63,6 +64,7 @@ class Project extends Model
         'documents' => 'array',
         'last_email_sent' => 'datetime',
         'last_email_received' => 'datetime',
+        'integrations' => 'array',
     ];
 
     protected $hidden = [
