@@ -861,6 +861,97 @@ class ProjectReadController extends Controller
     }
 
     /**
+     * Get meeting attendees (users and clients) for a project.
+     * Includes project users, project manager, project admin, and users with view_all_projects permission.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getMeetingAttendees(Project $project)
+    {
+        $user = Auth::user();
+        $result = [];
+
+        $this->authorize('getClientsAndUsers', $project);
+
+        // Fetch Clients
+        $project->load('clients');
+        $result['clients'] = $project->clients;
+
+        // Fetch Users
+        $project->load(['users' => function ($query) {
+            $query->withPivot('role_id');
+        },
+            'users.availabilities' => function ($query) {
+                $query->where('date', '=', Today());
+            },
+        ]);
+
+        $users = $project->users;
+        $userIds = $users->pluck('id')->toArray();
+
+        // Add project manager if exists and not already included
+        if ($project->project_manager_id && ! in_array($project->project_manager_id, $userIds)) {
+            $manager = User::with(['role.permissions', 'availabilities' => function ($query) {
+                $query->where('date', '=', Today());
+            }])->find($project->project_manager_id);
+            if ($manager) {
+                $manager->pivot = (object) ['role_id' => null, 'role' => 'Project Manager'];
+                $users->push($manager);
+                $userIds[] = $manager->id;
+            }
+        }
+
+        // Add project admin if exists and not already included
+        if ($project->project_admin_id && ! in_array($project->project_admin_id, $userIds)) {
+            $admin = User::with(['role.permissions', 'availabilities' => function ($query) {
+                $query->where('date', '=', Today());
+            }])->find($project->project_admin_id);
+            if ($admin) {
+                $admin->pivot = (object) ['role_id' => null, 'role' => 'Project Admin'];
+                $users->push($admin);
+                $userIds[] = $admin->id;
+            }
+        }
+
+        // Add users with view_all_projects permission
+        $globalViewUsers = User::whereHas('role.permissions', function ($query) {
+            $query->where('slug', 'view_all_projects');
+        })->with(['role.permissions', 'availabilities' => function ($query) {
+            $query->where('date', '=', Today());
+        }])->get();
+
+        foreach ($globalViewUsers as $globalUser) {
+            if (! in_array($globalUser->id, $userIds)) {
+                $globalUser->pivot = (object) ['role_id' => null, 'role' => 'Global Access'];
+                $users->push($globalUser);
+                $userIds[] = $globalUser->id;
+            }
+        }
+
+        $users->each(function ($user) {
+            $user->load(['role.permissions']);
+            if (isset($user->pivot->role_id)) {
+                $projectRole = Role::with('permissions')->find($user->pivot->role_id);
+                if ($projectRole) {
+                    $permissions = $projectRole->permissions->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'slug' => $p->slug, 'category' => $p->category]);
+                    $user->pivot->role_data = ['id' => $projectRole->id, 'name' => $projectRole->name, 'slug' => $projectRole->slug, 'permissions' => $permissions];
+                    $user->setRelation('pivot', $user->pivot->makeVisible(['role_data']));
+                    $user->pivot->role = $projectRole->name;
+                }
+            }
+            if ($user->role) {
+                $globalPermissions = $user->role->permissions->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'slug' => $p->slug, 'category' => $p->category]);
+                $user->global_permissions = $globalPermissions;
+                $user->makeVisible(['global_permissions']);
+            }
+        });
+
+        $result['users'] = $users->unique('id')->values();
+
+        return response()->json($result);
+    }
+
+    /**
      * Get meetings that the authenticated user is invited to.
      *
      * @return \Illuminate\Http\JsonResponse

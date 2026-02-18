@@ -20,6 +20,8 @@ class Tag extends Model
         'slug',
     ];
 
+    protected $hidden = ['created_at', 'updated_at', 'pivot'];
+
     /**
      * The "booted" method of the model.
      *

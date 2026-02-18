@@ -139,9 +139,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('category-sets/{categorySet}', [CategorySetController::class, 'update']);
     Route::delete('category-sets/{categorySet}', [CategorySetController::class, 'destroy']);
     Route::get('category-sets/{categorySet}/categories', [AdminCategoryController::class, 'index']);
-    Route::post('categories', [AdminCategoryController::class, 'store']);
-    Route::put('categories/{category}', [AdminCategoryController::class, 'update']);
-    Route::patch('categories/{category}', [AdminCategoryController::class, 'update']);
+    Route::middleware('process.tags')->group(function () {
+        Route::post('categories', [AdminCategoryController::class, 'store']);
+        Route::put('categories/{category}', [AdminCategoryController::class, 'update']);
+        Route::patch('categories/{category}', [AdminCategoryController::class, 'update']);
+    });
     Route::delete('categories/{category}', [AdminCategoryController::class, 'destroy']);
 
     // Available models for bindings
@@ -234,6 +236,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Project Expendables
     Route::get('projects/{project}/expendables', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'index']);
     Route::get('projects/{project}/sections/clients-users', [ProjectReadController::class, 'getClientsAndUsers']);
+    Route::get('projects/{project}/sections/meeting-attendees', [ProjectReadController::class, 'getMeetingAttendees']);
     Route::get('projects/{project}/sections/clients', [ProjectReadController::class, 'getClientsAndUsers']);
     Route::get('projects/{project}/sections/users', [ProjectReadController::class, 'getClientsAndUsers']);
     Route::get('projects/{project}/sections/services-payment', [ProjectReadController::class, 'getServicesAndPayment']);

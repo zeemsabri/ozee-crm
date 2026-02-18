@@ -61,7 +61,7 @@ const fetchAttendees = async (projectId) => {
     if (!projectId) return;
     loadingAttendees.value = true;
     try {
-        const response = await window.axios.get(`/api/projects/${projectId}/sections/clients-users`);
+        const response = await window.axios.get(`/api/projects/${projectId}/sections/meeting-attendees`);
         projectUsers.value = (response.data.users || []).map(u => ({
             value: u.id,
             label: u.name

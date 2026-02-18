@@ -16,6 +16,8 @@ class Role extends Model
         'type',
     ];
 
+    protected $hidden = ['created_at', 'updated_at'];
+
     /**
      * The permissions that belong to the role.
      */

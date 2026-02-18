@@ -11,6 +11,7 @@ import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { usePermissions } from "@/Directives/permissions.js";
+import TagInput from '@/Components/TagInput.vue';
 
 // Import HeroIcons
 import {
@@ -57,6 +58,7 @@ const userForm = reactive({
     role_id: 4, // Default role_id for contractor - will be updated when roles are fetched
     user_type: 'contractor', // Default user type
     timezone: '',
+    category_ids: [],
 });
 
 // State for user being deleted
@@ -64,6 +66,8 @@ const userToDelete = ref(null);
 
 // Role options for dropdown
 const roleOptions = ref([]);
+const departments = ref([]);
+const departmentSetId = ref(null);
 
 // All unique projects for the filter dropdown
 const projectOptions = computed(() => {
@@ -144,6 +148,32 @@ const fetchRoles = async () => {
     }
 };
 
+// --- Fetch Departments ---
+const fetchDepartments = async () => {
+    try {
+        const setRes = await window.axios.get('/api/category-sets');
+        const set = setRes.data.find(s => s.slug === 'departments');
+        if (set) {
+            departmentSetId.value = set.id;
+            const res = await window.axios.get(`/api/category-sets/${set.id}/categories`);
+            departments.value = res.data;
+        }
+    } catch (error) {
+        console.error('Error fetching departments:', error);
+    }
+};
+
+const updateDepartmentTags = async (category, tags) => {
+    try {
+        await window.axios.put(`/api/categories/${category.id}`, {
+            tag_ids: tags
+        });
+        fetchDepartments();
+    } catch (error) {
+        console.error('Error updating department tags:', error);
+    }
+};
+
 // Permission checks
 const isSuperAdmin = computed(() => {
     if (!authUser.value) return false;
@@ -208,6 +238,7 @@ const openCreateModal = () => {
     } catch (e) {
         userForm.timezone = '';
     }
+    userForm.category_ids = [];
     errors.value = {};
     generalError.value = '';
     showCreateModal.value = true;
@@ -255,6 +286,7 @@ const openEditModal = (userToEdit) => {
         userForm.role = roleSlug;
     }
     userForm.user_type = userToEdit.user_type || 'employee';
+    userForm.category_ids = userToEdit.categories ? userToEdit.categories.map(c => c.id) : [];
     userForm.password = '';
     userForm.password_confirmation = '';
     errors.value = {};
@@ -377,6 +409,7 @@ const getProjectSummary = (userProjects) => {
 onMounted(() => {
     fetchUsers();
     fetchRoles();
+    fetchDepartments();
 });
 
 // Helper function to get role badge color
@@ -641,6 +674,27 @@ const getAvatarColor = (name) => {
                         <InputError :message="errors.user_type ? errors.user_type[0] : ''" class="mt-2" />
                     </div>
                     <div class="mb-4">
+                        <InputLabel value="Departments & Responsibilities" />
+                        <div class="mt-2 grid grid-cols-1 gap-4">
+                            <div v-for="dept in departments" :key="dept.id" class="border rounded-xl p-4 bg-gray-50/50 shadow-sm transition-all hover:bg-white hover:shadow-md">
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" :value="dept.id" v-model="userForm.category_ids" class="rounded-lg border-gray-300 text-indigo-600 focus:ring-indigo-500 w-5 h-5">
+                                    <span class="text-sm font-semibold text-gray-800">{{ dept.name }}</span>
+                                </label>
+                                <div v-if="userForm.category_ids.includes(dept.id)" class="mt-4 pt-4 border-t border-gray-100">
+                                    <TagInput 
+                                        :modelValue="dept.tags?.map(t => t.id) || []" 
+                                        @update:modelValue="(tags) => updateDepartmentTags(dept, tags)"
+                                        :initialTags="dept.tags || []"
+                                        label="Responsibilities" 
+                                        placeholder="Add responsibilities..." 
+                                    />
+                                    <p class="text-[10px] text-gray-500 mt-2 italic">Note: Responsibilities are shared across all users in this department.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-4">
                         <InputLabel for="create_timezone" value="Timezone" />
                         <TextInput id="create_timezone" type="text" class="mt-1 block w-full" v-model="userForm.timezone" placeholder="e.g., America/New_York" />
                         <InputError :message="errors.timezone ? errors.timezone[0] : ''" class="mt-2" />
@@ -695,6 +749,27 @@ const getAvatarColor = (name) => {
                             <option value="contractor">Contractor</option>
                         </select>
                         <InputError :message="errors.user_type ? errors.user_type[0] : ''" class="mt-2" />
+                    </div>
+                    <div class="mb-4">
+                        <InputLabel value="Departments & Responsibilities" />
+                        <div class="mt-2 grid grid-cols-1 gap-4">
+                            <div v-for="dept in departments" :key="dept.id" class="border rounded-xl p-4 bg-gray-50/50 shadow-sm transition-all hover:bg-white hover:shadow-md">
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" :value="dept.id" v-model="userForm.category_ids" class="rounded-lg border-gray-300 text-indigo-600 focus:ring-indigo-500 w-5 h-5">
+                                    <span class="text-sm font-semibold text-gray-800">{{ dept.name }}</span>
+                                </label>
+                                <div v-if="userForm.category_ids.includes(dept.id)" class="mt-4 pt-4 border-t border-gray-100">
+                                    <TagInput 
+                                        :modelValue="dept.tags?.map(t => t.id) || []" 
+                                        @update:modelValue="(tags) => updateDepartmentTags(dept, tags)"
+                                        :initialTags="dept.tags || []"
+                                        label="Responsibilities" 
+                                        placeholder="Add responsibilities..." 
+                                    />
+                                    <p class="text-[10px] text-gray-500 mt-2 italic">Note: Responsibilities are shared across all users in this department.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="mb-4">
                         <InputLabel for="edit_timezone" value="Timezone" />
