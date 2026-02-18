@@ -782,6 +782,10 @@ class ProjectActionController extends Controller
 
             $this->authorize('update', $project);
 
+            if ($request->has('integrations') && is_string($request->integrations)) {
+                $request->merge(['integrations' => json_decode($request->integrations, true)]);
+            }
+
             $validationRules = [
                 'name' => 'sometimes|required|string|max:255',
                 'description' => 'nullable|string',
@@ -796,6 +800,8 @@ class ProjectActionController extends Controller
                 'project_type' => 'required|string|max:30',
                 'timezone' => 'nullable|string|max:30',
                 'project_tier_id' => 'required|exists:project_tiers,id',
+                'profit_margin_percentage' => 'nullable|numeric|min:0|max:100',
+                'integrations' => 'nullable|array',
             ];
 
             $project->syncTags($request->tags ?? []);
@@ -816,6 +822,8 @@ class ProjectActionController extends Controller
                 'project_type' => $validated['project_type'] ?? 'Unknown',
                 'timezone' => $validated['timezone'] ?? null,
                 'project_tier_id' => $validated['project_tier_id'] ?? ProjectTier::first()?->id,
+                'profit_margin_percentage' => $validated['profit_margin_percentage'] ?? null,
+                'integrations' => $validated['integrations'] ?? null,
             ];
 
             // --- NEW LOGIC FOR GOOGLE DRIVE FOLDER ID ---

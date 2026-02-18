@@ -67,8 +67,27 @@ const localProjectForm = reactive({
     tags_data: [],
     timezone: null,
     project_tier_id: null,
-    profit_margin_percentage: null
+    profit_margin_percentage: null,
+    integrations: {}
 });
+
+const bugherdProjects = ref([]);
+const isLoadingBugHerd = ref(false);
+
+const fetchBugHerdProjects = async () => {
+    isLoadingBugHerd.value = true;
+    try {
+        const response = await window.axios.get('/api/bugherd/projects');
+        bugherdProjects.value = response.data.map(p => ({
+            value: p.id,
+            label: p.name
+        }));
+    } catch (err) {
+        console.error('Failed to load BugHerd projects');
+    } finally {
+        isLoadingBugHerd.value = false;
+    }
+};
 
 const isSavingLocal = ref(false); // Local saving state for this component's submit button
 const isLoadingLocal = ref(true); // Local loading state for this component's data fetch
@@ -114,7 +133,7 @@ const submitBasicInfo = async () => {
 
     // Append all basic text/non-file/non-array fields
     // Explicitly exclude 'id', 'tags', 'tags_data', and 'logo' from this initial loop
-    const fieldsToExclude = ['id', 'tags', 'tags_data', 'logo'];
+    const fieldsToExclude = ['id', 'tags', 'tags_data', 'logo', 'integrations'];
 
     // Explicitly add project_tier_id to ensure it's included
     if (localProjectForm.project_tier_id !== null && localProjectForm.project_tier_id !== undefined) {
@@ -128,6 +147,11 @@ const submitBasicInfo = async () => {
     // Add profit_margin_percentage explicitly as well
     if (localProjectForm.profit_margin_percentage !== null && localProjectForm.profit_margin_percentage !== undefined) {
         dataToSubmit.append('profit_margin_percentage', localProjectForm.profit_margin_percentage);
+    }
+
+    // Handle integrations explicitly
+    if (localProjectForm.integrations && typeof localProjectForm.integrations === 'object') {
+        dataToSubmit.append('integrations', JSON.stringify(localProjectForm.integrations));
     }
 
     // Add the rest of the fields
@@ -186,7 +210,8 @@ const submitBasicInfo = async () => {
                 tags_data: response.data.tags_data || localProjectForm.tags_data,
                 timezone: response.data.timezone || localProjectForm.timezone,
                 project_tier_id: response.data.project_tier_id || localProjectForm.project_tier_id,
-                profit_margin_percentage: response.data.profit_margin_percentage || localProjectForm.profit_margin_percentage
+                profit_margin_percentage: response.data.profit_margin_percentage || localProjectForm.profit_margin_percentage,
+                integrations: response.data.integrations || {}
             });
         }
 
@@ -232,7 +257,8 @@ const fetchBasicInfoData = async () => {
                 tags_data: data.tags_data || [],
                 timezone: data.timezone || null,
                 project_tier_id: data.project_tier_id || null,
-                profit_margin_percentage: data.profit_margin_percentage || null
+                profit_margin_percentage: data.profit_margin_percentage || null,
+                integrations: data.integrations || {}
             });
         }
     } catch (err) {
@@ -258,6 +284,7 @@ onMounted(() => {
     // The watch handler with { immediate: true } will handle the initial fetch
     // when props.projectId is first available.
     fetchProjectTiers(); // Fetch project tiers on component mount
+    fetchBugHerdProjects(); // Fetch BugHerd projects on component mount
 });
 </script>
 
@@ -446,6 +473,29 @@ onMounted(() => {
                     <img :src="localProjectForm.logo" alt="Project Logo" class="h-20 w-20 object-contain rounded-lg shadow-md border border-gray-200" />
                 </div>
                 <InputError :message="errors.logo ? errors.logo[0] : ''" class="mt-2" />
+            </div>
+
+            <!-- BugHerd Integration -->
+            <div>
+                <InputLabel for="bugherd_project_id" value="BugHerd Project Integration" />
+                <SelectDropdown
+                    id="bugherd_project_id"
+                    v-model="localProjectForm.integrations.bugherd_project_id"
+                    :options="bugherdProjects"
+                    valueKey="value"
+                    labelKey="label"
+                    placeholder="Select BugHerd Project"
+                    :disabled="!canManageProjects || isSavingLocal || isSaving || isLoadingBugHerd"
+                    class="mt-1 block w-full"
+                />
+                <div v-if="isLoadingBugHerd" class="mt-1 text-xs text-gray-500 flex items-center">
+                    <svg class="animate-spin h-3 w-3 mr-1 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Loading BugHerd projects...
+                </div>
+                <InputError :message="errors['integrations.bugherd_project_id'] ? errors['integrations.bugherd_project_id'][0] : ''" class="mt-2" />
             </div>
         </div>
 

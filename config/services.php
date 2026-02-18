@@ -53,4 +53,9 @@ return [
         'company_domain' => env('AI_COMPANY_DOMAIN', 'ozeeweb.com.au'),
     ],
 
+    'bugherd' => [
+        'base_url' => env('BUG_HERD_BASE_URL', 'https://www.bugherd.com/api_v2'),
+        'api_key' => env('BUG_HERD_API_KEY'),
+    ],
+
 ];
