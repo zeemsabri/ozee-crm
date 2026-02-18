@@ -13,7 +13,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes, \App\Models\Traits\HasCategories;
 
     /**
      * Apply a global scope to always order users by name.
@@ -77,7 +77,7 @@ class User extends Authenticatable
         'notes' => 'array',
     ];
 
-    protected $with = ['role']; // Always load the role relationship
+    protected $with = ['role', 'categories']; // Always load the role relationship
 
     protected $appends = ['role_data','avatar']; // Add role data to JSON
 

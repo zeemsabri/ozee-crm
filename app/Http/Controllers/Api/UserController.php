@@ -71,7 +71,7 @@ class UserController extends Controller
         $user = Auth::user();
 
         // Build base query with eager loads
-        $query = User::with(['projects']);
+        $query = User::with(['projects', 'categories.set']);
 
         // Apply soft delete scopes based on query params
         // ?with_trashed=1 -> include both active and archived
@@ -120,6 +120,8 @@ class UserController extends Controller
                 'role' => 'required|exists:roles,slug',
                 'timezone' => 'nullable|string|max:255',
                 'user_type' => 'required|string|in:employee,contractor,admin',
+                'category_ids' => 'nullable|array',
+                'category_ids.*' => 'integer|exists:categories,id',
             ]);
 
             // Enforce additional role restrictions based on the current user's role.
@@ -147,7 +149,11 @@ class UserController extends Controller
                 'user_type' => $request->input('user_type'),
             ]);
 
-            return response()->json($user->load('role'), 201); // 201 Created status with role
+            if ($request->has('category_ids')) {
+                $user->syncCategories($request->input('category_ids'));
+            }
+
+            return response()->json($user->load(['role', 'categories.set']), 201); // 201 Created status with role
         } catch (ValidationException $e) {
             // Return validation errors
             return response()->json([
@@ -174,7 +180,7 @@ class UserController extends Controller
             $user->makeVisible(['api_key']);
         }
 
-        return response()->json($user->load(['projects', 'role'])); // Load projects and role when showing a single user
+        return response()->json($user->load(['projects', 'role', 'categories.set'])); // Load projects and role when showing a single user
     }
 
     /**
@@ -200,6 +206,8 @@ class UserController extends Controller
                 'role' => 'sometimes|required|exists:roles,slug', // Role can be updated
                 'timezone' => 'nullable|string|max:255',
                 'user_type' => 'required|string|in:employee,contractor,admin',
+                'category_ids' => 'nullable|array',
+                'category_ids.*' => 'integer|exists:categories,id',
             ]);
 
             $currentUser = Auth::user();
@@ -248,7 +256,11 @@ class UserController extends Controller
 
             $user->update($userData);
 
-            return response()->json($user->load('role'));
+            if ($request->has('category_ids')) {
+                $user->syncCategories($request->input('category_ids'));
+            }
+
+            return response()->json($user->load(['role', 'categories.set']));
 
         } catch (ValidationException $e) {
             return response()->json([

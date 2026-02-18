@@ -8,9 +8,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Category extends Model implements CreatableViaWorkflow
 {
-    use HasFactory;
+    use HasFactory, \App\Models\Traits\Taggable;
 
     protected $fillable = ['name', 'category_set_id'];
+
+    protected $appends = ['tag_name'];
+
+    protected $hidden = ['pivot', 'created_at', 'updated_at'];
 
     public function set()
     {
@@ -42,5 +46,10 @@ class Category extends Model implements CreatableViaWorkflow
                 'description' => 'The set this category belongs to',
             ],
         ];
+    }
+
+    public function getTagNameAttribute()
+    {
+        return $this->tags()->pluck('name')->implode(', ');
     }
 }

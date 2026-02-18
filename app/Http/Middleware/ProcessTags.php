@@ -19,43 +19,46 @@ class ProcessTags
      *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next, ...$fields): Response
     {
-        // Check if the request has a 'tags' input and if it's an array
-        if ($request->has('tags') && is_array($request->input('tags'))) {
-            $incomingTagIdentifiers = $request->input('tags');
-            $processedTagIds = [];
+        // If no fields are specified, default to 'tags' and 'tag_ids'
+        $targetFields = ! empty($fields) ? $fields : ['tags', 'tag_ids'];
 
-            foreach ($incomingTagIdentifiers as $tagIdentifier) {
-                if (is_string($tagIdentifier) && str_starts_with($tagIdentifier, 'new_')) {
-                    // This is a new tag identified by the frontend (e.g., 'new_my-new-tag_timestamp')
-                    // Extract the actual tag name by removing 'new_' prefix and the timestamp suffix
-                    $parts = explode('_', $tagIdentifier);
-                    // Remove 'new' prefix
-                    array_shift($parts);
-                    // Remove timestamp suffix
-                    array_pop($parts);
-                    // Rejoin remaining parts in case the tag name itself contained underscores
-                    $tagName = implode('_', $parts);
+        foreach ($targetFields as $field) {
+            if ($request->has($field) && is_array($request->input($field))) {
+                $incomingIdentifiers = $request->input($field);
+                $processedIds = [];
 
-                    if (! empty($tagName)) {
-                        // Find or create the tag based on its name
-                        $tag = Tag::firstOrCreate(
-                            ['name' => $tagName],
-                            ['slug' => Str::slug($tagName)] // Generate slug from name
-                        );
-                        $processedTagIds[] = $tag->id;
+                foreach ($incomingIdentifiers as $identifier) {
+                    if (is_string($identifier) && str_starts_with($identifier, 'new_')) {
+                        // This is a new tag identified by the frontend (e.g., 'new_my-new-tag_timestamp')
+                        $parts = explode('_', $identifier);
+                        // Remove 'new' prefix
+                        array_shift($parts);
+                        // Remove timestamp suffix if it exists (numeric)
+                        if (count($parts) > 1 && is_numeric(end($parts))) {
+                            array_pop($parts);
+                        }
+                        // Rejoin remaining parts
+                        $tagName = implode('_', $parts);
+
+                        if (! empty($tagName)) {
+                            // Find or create the tag based on its name
+                            $tag = Tag::firstOrCreate(
+                                ['name' => $tagName],
+                                ['slug' => Str::slug($tagName)]
+                            );
+                            $processedIds[] = $tag->id;
+                        }
+                    } elseif (is_numeric($identifier)) {
+                        // This is an existing tag ID, ensure it's an integer
+                        $processedIds[] = (int) $identifier;
                     }
-                } elseif (is_numeric($tagIdentifier)) {
-                    // This is an existing tag ID, ensure it's an integer
-                    $processedTagIds[] = (int) $tagIdentifier;
                 }
-                // Optional: You might want to log or handle invalid tagIdentifier types here
-            }
 
-            // Overwrite the original 'tags' input with an array of processed tag IDs
-            // Use array_unique to prevent duplicate IDs if the same tag was added multiple times
-            $request->merge(['tags' => array_unique($processedTagIds)]);
+                // Overwrite the original input with processed IDs
+                $request->merge([$field => array_unique($processedIds)]);
+            }
         }
 
         return $next($request);

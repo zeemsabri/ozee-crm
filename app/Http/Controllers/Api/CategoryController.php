@@ -13,7 +13,7 @@ class CategoryController extends Controller
 {
     public function index(CategorySet $categorySet)
     {
-        $categories = $categorySet->categories()->orderBy('name')->get();
+        $categories = $categorySet->categories()->with('tags')->orderBy('name')->get();
 
         return response()->json($categories);
     }
@@ -29,6 +29,8 @@ class CategoryController extends Controller
             'new_set_name' => ['nullable', 'string', 'max:255'],
             'allowed_models' => ['array'], // used only when creating new set
             'allowed_models.*' => ['string'],
+            'tag_ids' => ['nullable', 'array'],
+            'tag_ids.*' => ['integer', Rule::exists('tags', 'id')],
         ]);
 
         if (empty($validated['category_set_id']) && empty($validated['new_set_name'])) {
@@ -58,8 +60,12 @@ class CategoryController extends Controller
             'category_set_id' => $set->id,
         ]);
 
+        if ($request->has('tag_ids')) {
+            $category->tags()->sync($request->input('tag_ids'));
+        }
+
         return response()->json([
-            'category' => $category,
+            'category' => $category->load('tags'),
             'set' => $set->fresh('bindings'),
         ], 201);
     }
@@ -69,6 +75,8 @@ class CategoryController extends Controller
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'category_set_id' => ['sometimes', 'required', 'integer', Rule::exists('category_sets', 'id')],
+            'tag_ids' => ['nullable', 'array'],
+            'tag_ids.*' => ['integer', Rule::exists('tags', 'id')],
         ]);
 
         if (isset($validated['name'])) {
@@ -79,7 +87,11 @@ class CategoryController extends Controller
         }
         $category->save();
 
-        return response()->json($category);
+        if ($request->has('tag_ids')) {
+            $category->tags()->sync($request->input('tag_ids'));
+        }
+
+        return response()->json($category->load('tags'));
     }
 
     public function destroy(Category $category)
