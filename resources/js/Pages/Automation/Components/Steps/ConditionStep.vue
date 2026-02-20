@@ -73,6 +73,8 @@ function updateRule(index, key, value) {
     } else if (key === 'operator') {
         newRule.operator = value;
         delete newRule.right;
+    } else if (key === 'json_path') {
+        newRule.json_path = value;
     } else if (key === 'value') {
         newRule.right = { type: 'literal', value: value };
     }
@@ -180,15 +182,15 @@ const availableFields = computed(() => {
                 const it = String(field?.itemType || '').toLowerCase();
                 return t === 'array of objects' || (t === 'array' && it === 'object');
             };
-            
+
             // Recursive function to add fields and their nested children
             const addFieldsRecursively = (fieldsList, parentPath = '', indentLevel = 0) => {
                 (fieldsList || []).forEach(field => {
                     if (!field?.name) return;
-                    
+
                     const currentPath = parentPath ? `${parentPath}.${field.name}` : field.name;
                     const indent = '  '.repeat(indentLevel);
-                    
+
                     // Always add the current field
                     fields.push({
                         value: `step_${s.id}.${currentPath}`,
@@ -198,7 +200,7 @@ const availableFields = computed(() => {
                         group: `Step ${index + 1}: ${s.name}`,
                         allowed_values: field.allowed_values || null,
                     });
-                    
+
                     // Handle nested fields based on field type
                     if (Array.isArray(field.schema)) {
                         if (isArrayOfObjects(field)) {
@@ -221,7 +223,7 @@ const availableFields = computed(() => {
                     }
                 });
             };
-            
+
             addFieldsRecursively(s.step_config.responseStructure);
         }
         if (s.step_type === 'FETCH_RECORDS') {
@@ -411,6 +413,12 @@ function getInputType(fieldPath) {
                             <p v-if="isRelationshipPath(getSelectedField(rule))" class="text-[11px] text-gray-600 font-mono mt-1 px-2 py-1 bg-gray-50 rounded overflow-hidden break-words" :title="getSelectedField(rule)">
                                 Path: {{ getCleanPath(getSelectedField(rule)) }}
                             </p>
+
+                            <!-- JSON Path Support -->
+                            <div v-if="(getFieldSchema(getSelectedField(rule))?.type === 'json' || getFieldSchema(getSelectedField(rule))?.type === 'jsonb')" class="col-span-2 mt-1 px-1">
+                                <label class="block text-[10px] font-medium text-gray-500 mb-1">Nested JSON Path (optional)</label>
+                                <input type="text" :value="rule.json_path || ''" @input="updateRule(index, 'json_path', $event.target.value)" placeholder="e.g. metadata.key or address.city" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-gray-50" />
+                            </div>
 
                             <div v-if="getSelectedField(rule)" class="grid grid-cols-2 gap-2">
                                 <select :value="getSelectedOperator(rule)" @change="updateRule(index, 'operator', $event.target.value)" class="p-2 border border-gray-300 rounded-md bg-white shadow-sm text-sm" :class="{ 'col-span-2': !operatorRequiresValue(getSelectedOperator(rule)) }">

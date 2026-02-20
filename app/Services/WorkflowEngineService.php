@@ -41,6 +41,7 @@ class WorkflowEngineService
             'FOR_EACH' => new ForEachStepHandler($this),
             'TRANSFORM_CONTENT' => new TransformContentStepHandler($this),
             'ACTION_PROCESS_EMAIL' => new \App\Services\StepHandlers\ProcessEmailStepHandler($this),
+            'ACTION_FETCH_API_DATA' => new \App\Services\StepHandlers\FetchApiDataStepHandler($this),
             // TRIGGER steps are structural; at runtime they are a no-op
             'TRIGGER' => new class implements StepHandlerContract
             {

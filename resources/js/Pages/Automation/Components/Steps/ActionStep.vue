@@ -56,6 +56,7 @@ const actionTypes = [
     { value: 'CREATE_RECORD', label: 'Create Record' },
     { value: 'UPDATE_RECORD', label: 'Update Record' },
     { value: 'SYNC_RELATIONSHIP', label: 'Sync Relationship' },
+    { value: 'FETCH_API_DATA', label: 'Fetch API Data' },
     { value: 'CHECK_MILESTONE_COMPLETION', label: 'Check for Milestone Completion & Update' },
 ];
 
@@ -594,6 +595,99 @@ function updateDelayMinutes(val) {
                         Comma-separated list of IDs to sync/attach/detach. Can use tokens from previous steps.
                     </p>
                 </div>
+            </template>
+
+            <!-- == FETCH API DATA CONFIG == -->
+            <template v-if="actionConfig.action_type === 'FETCH_API_DATA'">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">API Endpoint URL</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" :value="actionConfig.api_url || ''" @input="handleConfigChange('api_url', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="https://api.example.com/v1/data" />
+                        <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('api_url', $event)" />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mt-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">HTTP Method</label>
+                        <select :value="actionConfig.api_method || 'GET'" @change="handleConfigChange('api_method', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md bg-white shadow-sm text-sm">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="PATCH">PATCH</option>
+                            <option value="DELETE">DELETE</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Authentication</label>
+                        <select :value="actionConfig.api_auth_type || 'NONE'" @change="handleConfigChange('api_auth_type', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md bg-white shadow-sm text-sm">
+                            <option value="NONE">None</option>
+                            <option value="BEARER">Bearer Token</option>
+                            <option value="BASIC">Basic Auth</option>
+                            <option value="CUSTOM_HEADER">Custom Header</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Auth Specific Inputs -->
+                <div v-if="actionConfig.api_auth_type === 'BEARER'" class="mt-3">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Bearer Token</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" :value="actionConfig.api_auth_token || ''" @input="handleConfigChange('api_auth_token', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="e.g. {{secrets.api_key}}" />
+                        <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('api_auth_token', $event)" />
+                    </div>
+                </div>
+
+                <div v-if="actionConfig.api_auth_type === 'BASIC'" class="grid grid-cols-2 gap-4 mt-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Username</label>
+                        <div class="flex items-center gap-2">
+                            <input type="text" :value="actionConfig.api_auth_username || ''" @input="handleConfigChange('api_auth_username', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="Username" />
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Password</label>
+                        <div class="flex items-center gap-2">
+                            <input type="password" :value="actionConfig.api_auth_password || ''" @input="handleConfigChange('api_auth_password', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="Password" />
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="actionConfig.api_auth_type === 'CUSTOM_HEADER'" class="grid grid-cols-2 gap-4 mt-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Header Name</label>
+                        <input type="text" :value="actionConfig.api_auth_header_name || ''" @input="handleConfigChange('api_auth_header_name', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="e.g. X-Api-Key" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Header Value</label>
+                        <div class="flex items-center gap-2">
+                            <input type="text" :value="actionConfig.api_auth_header_value || ''" @input="handleConfigChange('api_auth_header_value', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="Value" />
+                            <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('api_auth_header_value', $event)" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Payload / Parameters (JSON)</label>
+                    <div class="relative">
+                        <textarea rows="4" :value="actionConfig.api_payload || ''" @input="handleConfigChange('api_payload', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm font-mono" placeholder='{"key": "{{trigger.value}}", "id": 123}'></textarea>
+                        <div class="absolute top-2 right-2 bg-white rounded-md shadow-sm border border-gray-200">
+                            <DataTokenInserter :all-steps-before="allStepsBefore" :loop-context-schema="loopContextSchema" @insert="insertToken('api_payload', $event)" />
+                        </div>
+                    </div>
+                    <p class="mt-1 text-[11px] text-gray-500">
+                        For GET/DELETE requests, these will be sent as query string parameters. For POST/PUT/PATCH, they will be sent as JSON body. Variables are supported!
+                    </p>
+                </div>
+                
+                <div class="mt-3">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Response Data Key (Optional)</label>
+                    <input type="text" :value="actionConfig.api_response_key || ''" @input="handleConfigChange('api_response_key', $event.target.value)" class="w-full p-2 border border-gray-300 rounded-md text-sm" placeholder="e.g. data.items" />
+                    <p class="mt-1 text-[11px] text-gray-500">
+                        Optional dot-notation path to extract specific data from the JSON response before saving to workflow context. Leave blank to return the whole response object.
+                    </p>
+                </div>
+
             </template>
 
             <!-- == "SMART ACTION" PLACEHOLDER == -->

@@ -61,7 +61,7 @@ class ConditionStepHandlerTest extends TestCase
         // Expect the YES branch to be executed when rand >= 0.5
         $engine->shouldReceive('executeSteps')
             ->once()
-            ->with($step->yes_steps, $step->workflow, Mockery::type('array'))
+            ->with($step->yes_steps, $step->workflow, Mockery::type('array'), null)
             ->andReturn([]);
 
         $handler = new ConditionStepHandler($engine);
@@ -97,7 +97,7 @@ class ConditionStepHandlerTest extends TestCase
         // Expect the NO branch to be executed when rand < 0.5
         $engine->shouldReceive('executeSteps')
             ->once()
-            ->with($step->no_steps, $step->workflow, Mockery::type('array'))
+            ->with($step->no_steps, $step->workflow, Mockery::type('array'), null)
             ->andReturn([]);
 
         $handler = new ConditionStepHandler($engine);
