@@ -69,7 +69,11 @@ class ConditionStepHandler implements StepHandlerContract
 
         foreach ($rules as $rule) {
             if (! isset($rule['left']) && isset($rule['field'])) {
-                $rule['left'] = ['type' => 'var', 'path' => $rule['field']];
+                $path = $rule['field'];
+                if (! empty($rule['json_path'])) {
+                    $path .= '.' . ltrim($rule['json_path'], '.');
+                }
+                $rule['left'] = ['type' => 'var', 'path' => $path];
             }
             if (! isset($rule['right']) && array_key_exists('value', $rule)) {
                 $rule['right'] = ['type' => 'literal', 'value' => $rule['value']];

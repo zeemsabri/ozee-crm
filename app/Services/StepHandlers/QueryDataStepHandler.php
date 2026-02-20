@@ -79,8 +79,13 @@ class QueryDataStepHandler implements StepHandlerContract
             $field = $cond['field'] ?? ($cond['column'] ?? null);
             $op = $cond['op'] ?? ($cond['operator'] ?? '=');
             $val = $cond['value'] ?? null;
+            $jsonPath = $cond['json_path'] ?? null;
             if (! $field) {
                 continue;
+            }
+            if (! empty($jsonPath)) {
+                $cleanPath = str_replace('.', '->', ltrim($jsonPath, '.->'));
+                $field .= '->' . $cleanPath;
             }
             [$op, $val, $method] = $this->normalizeOperatorAndValue($op, $val, $context);
 

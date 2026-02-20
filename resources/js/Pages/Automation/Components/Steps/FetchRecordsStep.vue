@@ -212,12 +212,18 @@ const relationshipsSummary = computed(() => {
                                 <template v-else>
                                     <input :type="getColumnMeta(cond.column)?.type === 'Date' ? 'date' : (getColumnMeta(cond.column)?.type === 'DateTime' ? 'datetime-local' : 'text')" :value="cond.value" @input="updateCondition(index, 'value', $event.target.value)" placeholder="Value" class="w-full border rounded px-2 py-2 text-sm" />
                                 </template>
-
+                                
                                 <DataTokenInserter
                                     :all-steps-before="allStepsBefore"
                                     :loop-context-schema="loopContextSchema"
                                     @insert="insertTokenForCondition(index, $event)"
                                 />
+                            </div>
+                            
+                            <!-- JSON Path Support -->
+                            <div v-if="(getColumnMeta(cond.column)?.type === 'json' || getColumnMeta(cond.column)?.type === 'jsonb')" class="col-span-2 mt-1">
+                                <label class="block text-[10px] font-medium text-gray-500 mb-1">Nested JSON Path (optional)</label>
+                                <input type="text" :value="cond.json_path || ''" @input="updateCondition(index, 'json_path', $event.target.value)" placeholder="e.g. metadata.key or address.city" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-gray-50" />
                             </div>
                         </div>
                     </div>
