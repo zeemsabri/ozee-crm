@@ -19,7 +19,6 @@ class FetchApiDataStepHandler implements StepHandlerContract
         $cfg = $step->step_config ?? [];
 
         $url = $this->engine->getTemplatedValue($cfg['api_url'] ?? '', $context);
-        Log::info('url: ' . $url);
         if (empty($url)) {
             throw new \InvalidArgumentException('API Endpoint URL is required for FETCH_API_DATA action.');
         }
