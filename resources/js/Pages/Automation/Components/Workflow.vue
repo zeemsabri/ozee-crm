@@ -10,6 +10,7 @@ import ScheduleTriggerStep from './Steps/ScheduleTriggerStep.vue';
 import AddStepButton from './Steps/AddStepButton.vue';
 import { useWorkflowStore } from '../Store/workflowStore';
 import TransformStep from './Steps/TransformStep.vue';
+import DefineVariableStep from './Steps/DefineVariableStep.vue';
 
 const store = useWorkflowStore();
 const automationSchema = computed(() => store.automationSchema || []);
@@ -33,6 +34,7 @@ const stepComponentMap = {
   AI_PROMPT: AIStep,
   FOR_EACH: ForEachStep,
   TRANSFORM_CONTENT: TransformStep,
+  DEFINE_VARIABLE: DefineVariableStep,
 };
 
 const getStepComponent = (stepType) => stepComponentMap[stepType] || null;
@@ -54,9 +56,10 @@ function getLoopContextSchema(forEachStep) {
         return t === 'array of objects' || (t === 'array' && it === 'object');
     };
 
-    // Case 1: Looping over AI Array of Objects
-    if (sourceStep?.step_type === 'AI_PROMPT') {
-        const sourceField = sourceStep.step_config?.responseStructure?.find(f => f.name === sourceFieldName);
+    // Case 1: Looping over AI Array of Objects or Fetch API Data Array of Objects
+    if (sourceStep?.step_type === 'AI_PROMPT' || (sourceStep?.step_type === 'ACTION' && sourceStep?.step_config?.action_type === 'FETCH_API_DATA')) {
+        const cleanFieldName = sourceFieldName.replace(/^parsed\./, '');
+        const sourceField = sourceStep.step_config?.responseStructure?.find(f => f.name === cleanFieldName);
         if (!isArrayOfObjects(sourceField)) return null;
         return { name: 'Loop Item', columns: sourceField.schema || [] };
     }

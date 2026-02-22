@@ -8,9 +8,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
+use App\Services\WorkflowEngineService;
 
 class CreateRecordStepHandler implements StepHandlerContract
 {
+    public function __construct(
+        protected ?WorkflowEngineService $engine = null
+    ) {}
     public function handle(array $context, WorkflowStep $step, ?ExecutionLog $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
@@ -33,7 +37,9 @@ class CreateRecordStepHandler implements StepHandlerContract
                 continue;
             }
 
-            $resolved = $this->applyTemplate($val, $context);
+            $resolved = $this->engine 
+                ? $this->engine->getTemplatedValue($val, $context)
+                : $this->applyTemplate($val, $context);
 
             if (is_array($resolved) || is_object($resolved)) {
                 $resolved = json_encode($resolved);
@@ -140,11 +146,6 @@ class CreateRecordStepHandler implements StepHandlerContract
         }, $value);
     }
 
-    /**
-     * Intelligently resolves a path from the context. It prioritizes simple
-     * lookups (including a '.parsed' fallback) before attempting to
-     * dynamically load Eloquent relationships.
-     */
     protected function getFromContextPath(array $context, string $path)
     {
         // 1. Try the direct path first (e.g., "trigger.email.id").
@@ -165,49 +166,21 @@ class CreateRecordStepHandler implements StepHandlerContract
             }
         }
 
-        // --- 3. ELOQUENT LOADING FALLBACK (if simple lookups fail) ---
+        // --- 3. ELOQUENT LOADING FALLBACK ---
         $parts = explode('.', $path);
         $currentValue = $context;
-        $modelKey = null;
-
         foreach ($parts as $index => $part) {
             if ($currentValue instanceof Model) {
                 try {
                     $currentValue = $currentValue->{$part};
-
                     continue;
-                } catch (\Throwable $e) {
-                    return null;
-                }
+                } catch (\Throwable $e) { return null; }
             }
-
             if (is_array($currentValue) && array_key_exists($part, $currentValue)) {
                 $currentValue = $currentValue[$part];
-                $modelKey = $part;
-
                 continue;
             }
-
-            if (is_array($currentValue) && isset($currentValue['id']) && $modelKey) {
-                $modelClass = $this->resolveModelClass(Str::studly($modelKey));
-                if ($modelClass) {
-                    $loadedModel = $modelClass::find($currentValue['id']);
-                    if ($loadedModel) {
-                        try {
-                            $subValue = $loadedModel;
-                            foreach (array_slice($parts, $index) as $subPart) {
-                                $subValue = $subValue->{$subPart};
-                            }
-
-                            return $subValue;
-                        } catch (\Throwable $e) {
-                            return null;
-                        }
-                    }
-                }
-            }
-
-            return null; // Path failed at this part
+            return null;
         }
 
         return $currentValue;

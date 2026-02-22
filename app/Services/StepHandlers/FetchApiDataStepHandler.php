@@ -106,7 +106,7 @@ class FetchApiDataStepHandler implements StepHandlerContract
 
         $parsed = [
             'status' => $response->status(),
-            'data' => $finalData,
+            'parsed' => $finalData,
             'duration_ms' => $durationMs
         ];
 

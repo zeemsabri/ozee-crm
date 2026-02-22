@@ -93,6 +93,16 @@ function operatorOptionsFor(columnName) {
                 { value: 'older_than_days', label: 'older than X days' },
                 { value: 'within_days', label: 'within last X days' },
             ];
+        case 'json':
+        case 'jsonb':
+        case 'Array':
+            return [
+                { value: '==', label: 'is' },
+                { value: '!=', label: 'is not' },
+                { value: 'contains', label: 'contains' },
+                { value: 'is_null', label: 'is null' },
+                { value: 'is_not_null', label: 'is not null' },
+            ];
         default:
             return [
                 { value: '==', label: 'is' },
@@ -221,7 +231,7 @@ const relationshipsSummary = computed(() => {
                             </div>
                             
                             <!-- JSON Path Support -->
-                            <div v-if="(getColumnMeta(cond.column)?.type === 'json' || getColumnMeta(cond.column)?.type === 'jsonb')" class="col-span-2 mt-1">
+                            <div v-if="(getColumnMeta(cond.column)?.type === 'json' || getColumnMeta(cond.column)?.type === 'jsonb' || getColumnMeta(cond.column)?.type === 'Array')" class="col-span-2 mt-1">
                                 <label class="block text-[10px] font-medium text-gray-500 mb-1">Nested JSON Path (optional)</label>
                                 <input type="text" :value="cond.json_path || ''" @input="updateCondition(index, 'json_path', $event.target.value)" placeholder="e.g. metadata.key or address.city" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-gray-50" />
                             </div>
