@@ -27,6 +27,7 @@ class AiPromptStepHandler implements StepHandlerContract
         }
 
         $promptData = $this->gatherPromptData($context, $cfg);
+        Log::info(json_encode($promptData));
 
         // --- REPLACEMENT ---
         // Instead of calling the service directly, dispatch the async job.
@@ -130,8 +131,44 @@ class AiPromptStepHandler implements StepHandlerContract
 
         $relationsConfig = $config['relationships'] ?? null;
         if ($relationsConfig && $baseModelName && $baseModelId) {
+            // Standard case: event-driven trigger — re-query via Eloquent
             $relationsConfig['base_model'] = $baseModelName;
             $relatedData = $this->gatherRelatedData($relationsConfig, (int) $baseModelId);
+            if (! empty($relatedData)) {
+                $promptData['with'] = $relatedData;
+            }
+        } elseif ($relationsConfig && $loopItem && ! empty($relationsConfig['roots'])) {
+            // Loop-context fallback: data is already pre-loaded in loop.item (e.g. schedule + FETCH_RECORDS with relationships).
+            // Pull the selected roots directly from the loop item instead of doing another DB query.
+            $relatedData = [];
+            foreach ($relationsConfig['roots'] as $rootName) {
+                if (array_key_exists($rootName, $loopItem)) {
+                    $rootData = $loopItem[$rootName];
+
+                    // Apply field filtering if specified
+                    $selectedFields = $relationsConfig['fields'][$rootName] ?? null;
+                    if ($selectedFields && $selectedFields !== ['*'] && is_array($rootData)) {
+                        if (isset($rootData[0])) {
+                            // Collection: filter each item
+                            $rootData = array_map(function ($item) use ($selectedFields) {
+                                return is_array($item) ? Arr::only($item, $selectedFields) : $item;
+                            }, $rootData);
+                        } else {
+                            // Single object
+                            $rootData = Arr::only($rootData, $selectedFields);
+                        }
+                    }
+
+                    // Include nested relationships if they are already loaded in the item
+                    $nestedRoots = $relationsConfig['nested'][$rootName] ?? [];
+                    foreach ($nestedRoots as $nestedName) {
+                        // Nested data is typically already present on the root items (eager-loaded by FETCH_RECORDS)
+                        // No additional processing needed; the data is already part of $rootData
+                    }
+
+                    $relatedData[$rootName] = $rootData;
+                }
+            }
             if (! empty($relatedData)) {
                 $promptData['with'] = $relatedData;
             }

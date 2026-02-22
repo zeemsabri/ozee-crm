@@ -17,8 +17,9 @@ class FetchApiDataStepHandler implements StepHandlerContract
     public function handle(array $context, WorkflowStep $step, ?ExecutionLog $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
-        
+
         $url = $this->engine->getTemplatedValue($cfg['api_url'] ?? '', $context);
+        Log::info('url: ' . $url);
         if (empty($url)) {
             throw new \InvalidArgumentException('API Endpoint URL is required for FETCH_API_DATA action.');
         }
@@ -27,7 +28,7 @@ class FetchApiDataStepHandler implements StepHandlerContract
         $authType = strtoupper($cfg['api_auth_type'] ?? 'NONE');
         $payloadStr = $cfg['api_payload'] ?? '';
         $responseKey = $cfg['api_response_key'] ?? '';
-        
+
         // Parse and template payload
         $payload = [];
         if (!empty(trim($payloadStr))) {
@@ -97,7 +98,7 @@ class FetchApiDataStepHandler implements StepHandlerContract
         }
 
         $responseData = $response->json();
-        
+
         // Filter by response key if provided
         $finalData = $responseData;
         if (!empty($responseKey) && is_array($responseData)) {
