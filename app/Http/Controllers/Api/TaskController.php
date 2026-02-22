@@ -158,12 +158,26 @@ class TaskController extends Controller
         $completedOn = $request->query('completed_on'); // date string
         $completedSince = $request->query('completed_since'); // date string
         $completedUntil = $request->query('completed_until'); // date string
+        $search = $request->query('search'); // search term
         $perPage = (int) $request->query('per_page');
 
         // Start with a base query
         $query = Task::with(['assignedTo', 'taskType', 'milestone.project', 'tags']);
 
         // Apply filters if provided
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhereHas('milestone', function ($m) use ($search) {
+                      $m->where('name', 'like', "%{$search}%")
+                        ->orWhereHas('project', function ($p) use ($search) {
+                            $p->where('name', 'like', "%{$search}%");
+                        });
+                  });
+            });
+        }
+
         if ($milestoneId) {
             $query->where('milestone_id', $milestoneId);
         }

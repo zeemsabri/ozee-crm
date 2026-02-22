@@ -287,6 +287,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // Workspace API
     Route::get('workspace/projects', [WorkspaceController::class, 'projects']);
     Route::get('workspace/projects/{project}/completed-tasks', [WorkspaceController::class, 'completedTasks']);
+
+    // Daily Work Log API
+    Route::get('daily-tasks', [\App\Http\Controllers\Api\DailyTaskController::class, 'index']);
+    Route::get('daily-tasks/history', [\App\Http\Controllers\Api\DailyTaskController::class, 'history']);
+    Route::post('daily-tasks', [\App\Http\Controllers\Api\DailyTaskController::class, 'store']);
+    Route::post('daily-tasks/reorder', [\App\Http\Controllers\Api\DailyTaskController::class, 'reorder']);
+    Route::patch('daily-tasks/{dailyTask}', [\App\Http\Controllers\Api\DailyTaskController::class, 'update']);
+    Route::post('daily-tasks/{dailyTask}/push-to-tomorrow', [\App\Http\Controllers\Api\DailyTaskController::class, 'pushToTomorrow']);
+    Route::delete('daily-tasks/{dailyTask}', [\App\Http\Controllers\Api\DailyTaskController::class, 'destroy']);
     Route::put('projects/{project}/sections/services-payment', [ProjectActionController::class, 'updateServicesAndPayment']);
     Route::put('projects/{project}/sections/transactions', [ProjectActionController::class, 'updateTransactions']);
     Route::put('projects/{project}/sections/notes', [ProjectActionController::class, 'updateNotes']);
