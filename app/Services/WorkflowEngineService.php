@@ -15,6 +15,7 @@ use App\Services\StepHandlers\SendEmailStepHandler;
 use App\Services\StepHandlers\StepHandlerContract;
 use App\Services\StepHandlers\SyncRelationshipStepHandler;
 use App\Services\StepHandlers\TransformContentStepHandler;
+use App\Services\StepHandlers\DefineVariableStepHandler;
 use App\Services\StepHandlers\UpdateRecordStepHandler;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -32,8 +33,8 @@ class WorkflowEngineService
         $this->handlers = [
             'AI_PROMPT' => new AiPromptStepHandler($ai),
             'CONDITION' => new ConditionStepHandler($this),
-            'ACTION_CREATE_RECORD' => new CreateRecordStepHandler,
-            'ACTION_UPDATE_RECORD' => new UpdateRecordStepHandler,
+            'ACTION_CREATE_RECORD' => new CreateRecordStepHandler($this),
+            'ACTION_UPDATE_RECORD' => new UpdateRecordStepHandler($this),
             'ACTION_SYNC_RELATIONSHIP' => new SyncRelationshipStepHandler($this),
             'ACTION_SEND_EMAIL' => new SendEmailStepHandler($this),
             'QUERY_DATA' => new QueryDataStepHandler,
@@ -42,6 +43,7 @@ class WorkflowEngineService
             'TRANSFORM_CONTENT' => new TransformContentStepHandler($this),
             'ACTION_PROCESS_EMAIL' => new \App\Services\StepHandlers\ProcessEmailStepHandler($this),
             'ACTION_FETCH_API_DATA' => new \App\Services\StepHandlers\FetchApiDataStepHandler($this),
+            'DEFINE_VARIABLE' => new DefineVariableStepHandler($this),
             // TRIGGER steps are structural; at runtime they are a no-op
             'TRIGGER' => new class implements StepHandlerContract
             {

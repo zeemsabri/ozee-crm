@@ -78,6 +78,48 @@ function insertToken(fieldName, token) {
     handleConfigChange(fieldName, `${currentValue}${token}`);
 }
 
+// Support for Fetch API Data response structure
+function handleAddApiField(parentField = null) {
+    const newField = { id: Date.now(), name: '', type: 'Text' };
+    if (parentField) {
+        parentField.schema = [...(parentField.schema || []), newField];
+        handleConfigChange('responseStructure', [...(actionConfig.value.responseStructure || [])]);
+    } else {
+        const currentStructure = actionConfig.value.responseStructure || [];
+        handleConfigChange('responseStructure', [...currentStructure, newField]);
+    }
+}
+
+function handleDeleteApiField(fieldId, parentField = null) {
+    if (parentField) {
+        parentField.schema = (parentField.schema || []).filter(f => f.id !== fieldId);
+        handleConfigChange('responseStructure', [...(actionConfig.value.responseStructure || [])]);
+    } else {
+        const currentStructure = actionConfig.value.responseStructure || [];
+        handleConfigChange('responseStructure', currentStructure.filter(f => f.id !== fieldId));
+    }
+}
+
+function handleUpdateApiField(fieldId, key, value, parentField = null) {
+    let structure = parentField ? parentField.schema || [] : actionConfig.value.responseStructure || [];
+
+    const newStructure = structure.map(field => {
+        if (field.id !== fieldId) return field;
+        const updatedField = { ...field, [key]: value };
+        if (key === 'type' && (value === 'Array of Objects' || value === 'Object') && !updatedField.schema) {
+            updatedField.schema = [];
+        }
+        return updatedField;
+    });
+
+    if (parentField) {
+        parentField.schema = newStructure;
+        handleConfigChange('responseStructure', [...(actionConfig.value.responseStructure || [])]);
+    } else {
+        handleConfigChange('responseStructure', newStructure);
+    }
+}
+
 const availableModels = computed(() => automationSchema.value.map(m => m.name));
 
 const modelOptions = computed(() => (automationSchema.value || []).map(m => ({ label: m.name, value: m.name })));
@@ -686,6 +728,80 @@ function updateDelayMinutes(val) {
                     <p class="mt-1 text-[11px] text-gray-500">
                         Optional dot-notation path to extract specific data from the JSON response before saving to workflow context. Leave blank to return the whole response object.
                     </p>
+                </div>
+
+                <div class="mt-4 border-t pt-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">Expected Response Structure</label>
+                        <button type="button" @click="handleAddApiField()" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">
+                            + Add Field
+                        </button>
+                    </div>
+                    
+                    <p class="text-[11px] text-gray-500 mb-3">
+                        Define fields to extract from the API response so they can be used in later steps or loops.
+                    </p>
+
+                    <div v-if="!(actionConfig.responseStructure && actionConfig.responseStructure.length)" class="py-4 text-center border-2 border-dashed rounded-md bg-gray-50">
+                        <p class="text-xs text-gray-400 italic">No response fields defined yet.</p>
+                    </div>
+
+                    <div v-else class="space-y-2">
+                        <!-- Nested Component-like structure directly here for simplicity -->
+                        <div v-for="field in actionConfig.responseStructure" :key="field.id" class="p-2 border rounded-md bg-white">
+                            <div class="flex items-center gap-2">
+                                <input 
+                                    type="text" 
+                                    :value="field.name" 
+                                    @input="handleUpdateApiField(field.id, 'name', $event.target.value)"
+                                    class="flex-1 p-1 text-xs border rounded"
+                                    placeholder="Field name (e.g. tasks)"
+                                />
+                                <select 
+                                    :value="field.type" 
+                                    @change="handleUpdateApiField(field.id, 'type', $event.target.value)"
+                                    class="w-32 p-1 text-xs border rounded"
+                                >
+                                    <option>Text</option>
+                                    <option>Number</option>
+                                    <option>Boolean</option>
+                                    <option>Object</option>
+                                    <option>Array of Objects</option>
+                                </select>
+                                <button type="button" @click="handleDeleteApiField(field.id)" class="text-gray-400 hover:text-red-500">
+                                    <TrashIcon class="w-3 h-3" />
+                                </button>
+                            </div>
+
+                            <!-- Nested schema for Objects and Arrays -->
+                            <div v-if="field.type === 'Object' || field.type === 'Array of Objects'" class="mt-2 ml-4 pl-2 border-l-2 border-gray-100 space-y-2">
+                                <div v-for="sub in field.schema" :key="sub.id" class="flex items-center gap-2">
+                                    <input 
+                                        type="text" 
+                                        :value="sub.name" 
+                                        @input="handleUpdateApiField(sub.id, 'name', $event.target.value, field)"
+                                        class="flex-1 p-1 text-xs border rounded"
+                                        placeholder="Sub-field name"
+                                    />
+                                    <select 
+                                        :value="sub.type" 
+                                        @change="handleUpdateApiField(sub.id, 'type', $event.target.value, field)"
+                                        class="w-24 p-1 text-xs border rounded"
+                                    >
+                                        <option>Text</option>
+                                        <option>Number</option>
+                                        <option>Boolean</option>
+                                    </select>
+                                    <button type="button" @click="handleDeleteApiField(sub.id, field)" class="text-gray-400 hover:text-red-500">
+                                        <TrashIcon class="w-3 h-3" />
+                                    </button>
+                                </div>
+                                <button type="button" @click="handleAddApiField(field)" class="text-[10px] text-indigo-500 hover:text-indigo-700 font-semibold">
+                                    + Add Sub-field
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
             </template>

@@ -251,7 +251,7 @@ class AutomationSchemaController extends Controller
             return 'Number';
         }
         if ($castStr === 'array' || $castStr === 'json' || $castStr === 'collection') {
-            return 'Array';
+            return 'json';
         }
         if (str_contains($castStr, 'datetime')) {
             return 'DateTime';

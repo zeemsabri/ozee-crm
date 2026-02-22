@@ -330,7 +330,9 @@ function getAvailableOperators(rule) {
 }
 
 const operatorSets = {
-    'Array': [ { value: 'not_empty', label: 'is not empty' }, { value: 'empty', label: 'is empty' } ],
+    'json': [ { value: '==', label: 'is' }, { value: '!=', label: 'is not' }, { value: 'contains', label: 'contains' }, { value: 'not_empty', label: 'is not empty' }, { value: 'empty', label: 'is empty' }, { value: 'is_null', label: 'is null' }, { value: 'is_not_null', label: 'is not null' } ],
+    'jsonb': [ { value: '==', label: 'is' }, { value: '!=', label: 'is not' }, { value: 'contains', label: 'contains' }, { value: 'not_empty', label: 'is not empty' }, { value: 'empty', label: 'is empty' }, { value: 'is_null', label: 'is null' }, { value: 'is_not_null', label: 'is not null' } ],
+    'Array': [ { value: '==', label: 'is' }, { value: '!=', label: 'is not' }, { value: 'contains', label: 'contains' }, { value: 'not_empty', label: 'is not empty' }, { value: 'empty', label: 'is empty' }, { value: 'is_null', label: 'is null' }, { value: 'is_not_null', label: 'is not null' } ],
     'True/False': [ { value: '==', label: 'is' }, { value: '!=', label: 'is not' } ],
     'Number': [ { value: '==', label: 'equals' }, { value: '!=', label: 'does not equal' }, { value: '>', label: 'is greater than' }, { value: '<', label: 'is less than' }, { value: '>=', label: 'is greater than or equal to' }, { value: '<=', label: 'is less than or equal to' } ],
     'Date': [ { value: '==', label: 'is on' }, { value: '>', label: 'is after' }, { value: '<', label: 'is before' }, { value: 'in_past', label: 'is in the past' }, { value: 'in_future', label: 'is in the future' }, { value: 'today', label: 'is today' } ],
@@ -415,7 +417,7 @@ function getInputType(fieldPath) {
                             </p>
 
                             <!-- JSON Path Support -->
-                            <div v-if="(getFieldSchema(getSelectedField(rule))?.type === 'json' || getFieldSchema(getSelectedField(rule))?.type === 'jsonb')" class="col-span-2 mt-1 px-1">
+                            <div v-if="(getFieldSchema(getSelectedField(rule))?.type === 'json' || getFieldSchema(getSelectedField(rule))?.type === 'jsonb' || getFieldSchema(getSelectedField(rule))?.type === 'Array')" class="col-span-2 mt-1 px-1">
                                 <label class="block text-[10px] font-medium text-gray-500 mb-1">Nested JSON Path (optional)</label>
                                 <input type="text" :value="rule.json_path || ''" @input="updateRule(index, 'json_path', $event.target.value)" placeholder="e.g. metadata.key or address.city" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-xs bg-gray-50" />
                             </div>

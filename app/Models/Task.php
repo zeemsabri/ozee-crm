@@ -10,6 +10,7 @@ use App\Models\Traits\Taggable;
 use App\Notifications\TaskAssigned;
 use App\Services\GoogleChatService;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -197,6 +198,9 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
         'requires_qa',
         'effort',
         'manual_effort_override',
+        'additional_info',
+        'source',
+        'source_id'
     ];
 
     /**
@@ -211,6 +215,36 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
         'needs_approval' => 'boolean',
         'status' => \App\Casts\MilestoneStatusCast::class.':'.\App\Enums\TaskStatus::class,
     ];
+
+    /**
+     * Get or set the additional info attribute, handling double-encoded JSON.
+     */
+    protected function additionalInfo(): Attribute
+    {
+        return Attribute::make(
+            get: function ($value) {
+                if (empty($value)) {
+                    return [];
+                }
+
+                // Decode first layer
+                $decoded = is_string($value) ? json_decode($value, true) : $value;
+
+                // Handle double-encoded JSON string
+                if (is_string($decoded)) {
+                    $doubleDecoded = json_decode($decoded, true);
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        return $doubleDecoded;
+                    }
+                }
+
+                return is_array($decoded) ? $decoded : [];
+            },
+            set: function ($value) {
+                return is_string($value) ? $value : json_encode($value);
+            }
+        );
+    }
 
     /**
      * The "booted" method of the model.

@@ -48,8 +48,10 @@ const dataSources = computed(() => {
                 const sourceStepId = match[1];
                 const sourceFieldName = match[2];
                 const sourceStep = props.allStepsBefore.find(s => String(s.id) === String(sourceStepId));
-                if (sourceStep?.step_type === 'AI_PROMPT') {
-                    const field = (sourceStep.step_config?.responseStructure || []).find(f => f.name === sourceFieldName);
+                const cleanFieldName = sourceFieldName.replace(/^parsed\./, '');
+                
+                if (sourceStep?.step_type === 'AI_PROMPT' || (sourceStep?.step_type === 'ACTION' && sourceStep?.step_config?.action_type === 'FETCH_API_DATA')) {
+                    const field = (sourceStep.step_config?.responseStructure || []).find(f => f.name === cleanFieldName);
                     if (isArrayOfObjects(field)) {
                         loopSchema = { name: 'Loop Item', columns: (field.schema || []) };
                     }
@@ -127,16 +129,7 @@ const dataSources = computed(() => {
                     
                     // Handle nested fields based on field type
                     if (Array.isArray(field.schema)) {
-                        if (isArrayOfObjects(field)) {
-                            // Array of Objects: show nested fields with array access notation
-                            field.schema.forEach(sub => {
-                                if (!sub?.name) return;
-                                fields.push({
-                                    label: `${indent}  - ${sub.name} (from array item)`,
-                                    value: `{{step_${step.id}.${currentPath}.${sub.name}}}`
-                                });
-                            });
-                        } else if (field.type === 'Object') {
+                        if (field.type === 'Object') {
                             // Regular Object: show nested fields with direct access
                             addFieldsRecursively(field.schema, currentPath, indentLevel + 1);
                         }
@@ -205,6 +198,59 @@ const dataSources = computed(() => {
             ];
             sources.push({
                 name: groupLabel,
+                fields,
+            });
+        }
+
+        // Include variables from Define Variable steps
+        if (step.step_type === 'DEFINE_VARIABLE' && Array.isArray(step.step_config?.variables)) {
+            const fields = step.step_config.variables
+                .filter(v => !!v.name)
+                .map(v => ({
+                    label: v.name,
+                    value: `{{step_${step.id}.${v.name}}}`
+                }));
+            if (fields.length > 0) {
+                sources.push({
+                    name: `Step ${index + 1}: Defined Variables`,
+                    fields,
+                });
+            }
+        }
+
+        // Include schema outputs from Fetch API Data (ActionStep)
+        if (step.step_type === 'ACTION' && step.step_config?.action_type === 'FETCH_API_DATA' && step.step_config?.responseStructure?.length > 0) {
+            const fields = [];
+            
+            const isArrayOfObjects = (field) => {
+                const t = String(field?.type || '').toLowerCase();
+                const it = String(field?.itemType || '').toLowerCase();
+                return t === 'array of objects' || (t === 'array' && it === 'object');
+            };
+
+            const addFieldsRecursively = (fieldsList, parentPath = '', indentLevel = 0) => {
+                (fieldsList || []).forEach(field => {
+                    if (!field?.name) return;
+                    
+                    const currentPath = parentPath ? `${parentPath}.${field.name}` : field.name;
+                    const indent = '  '.repeat(indentLevel);
+                    
+                    fields.push({
+                        label: `${indent}${field.name}`,
+                        value: `{{step_${step.id}.${currentPath}}}`
+                    });
+                    
+                    if (Array.isArray(field.schema)) {
+                        if (field.type === 'Object') {
+                            addFieldsRecursively(field.schema, currentPath, indentLevel + 1);
+                        }
+                    }
+                });
+            };
+            
+            addFieldsRecursively(step.step_config.responseStructure);
+            sources.push({
+                name: `Step ${index + 1}: API Response`,
                 fields,
             });
         }

@@ -7,9 +7,13 @@ use App\Models\WorkflowStep;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Str;
+use App\Services\WorkflowEngineService;
 
 class UpdateRecordStepHandler implements StepHandlerContract
 {
+    public function __construct(
+        protected ?WorkflowEngineService $engine = null
+    ) {}
     public function handle(array $context, WorkflowStep $step, ?ExecutionLog $execLog = null): array
     {
         $cfg = $step->step_config ?? [];
@@ -23,7 +27,10 @@ class UpdateRecordStepHandler implements StepHandlerContract
         if (! $class) {
             throw new \RuntimeException("Model {$modelName} not found");
         }
-        $id = $this->applyTemplate((string) $recordId, $context);
+        $idValue = $this->engine
+            ? $this->engine->getTemplatedValue((string) $recordId, $context)
+            : $this->applyTemplate((string) $recordId, $context);
+        $id = (string) $idValue;
         /** @var Model|null $model */
         $model = $class::query()->find($id);
         if (! $model) {
@@ -37,7 +44,9 @@ class UpdateRecordStepHandler implements StepHandlerContract
             if (! $key) {
                 continue;
             }
-            $resolved = $this->applyTemplate($val, $context);
+            $resolved = $this->engine 
+                ? $this->engine->getTemplatedValue($val, $context)
+                : $this->applyTemplate($val, $context);
             // Process special functions like NOW(), CURRENT_TIMESTAMP, etc.
             $resolved = $this->processFunctions($resolved);
             // Normalize morph type aliases like "client" to FQCN when saving *_type columns
@@ -98,43 +107,25 @@ class UpdateRecordStepHandler implements StepHandlerContract
             return $value;
         }
 
-        // If the entire string is a single variable, we can return complex types (like arrays)
         if (preg_match('/^\s*{{\s*([^}]+)\s*}}\s*$/', $value, $m)) {
             $path = trim($m[1]);
-
             return $this->getFromContextPath($ctx, $path);
         }
 
-        // Otherwise, we interpolate multiple variables into a string
         return preg_replace_callback('/{{\s*([^}]+)\s*}}/', function ($m) use ($ctx) {
             $path = trim($m[1]);
             $val = $this->getFromContextPath($ctx, $path);
-
-            if (is_scalar($val) || $val === null) {
-                return (string) $val;
-            }
-
-            // If we inject an array/object into a string, it must be JSON
-            return json_encode($val);
+            return is_scalar($val) || $val === null ? (string)$val : json_encode($val);
         }, $value);
     }
 
     protected function getFromContextPath(array $context, string $path)
     {
-        if (strpos($path, '.') === false) {
-            return \Illuminate\Support\Arr::get($context, $path);
-        }
-
-        // Try the direct path first
         $value = \Illuminate\Support\Arr::get($context, $path);
-
-        // If the direct path is null, try the '.parsed.' fallback
-        if ($value === null) {
+        if ($value === null && strpos($path, '.') !== false) {
             $parts = explode('.', $path, 2);
-            $fallbackPath = $parts[0].'.parsed.'.$parts[1];
-            $value = \Illuminate\Support\Arr::get($context, $fallbackPath);
+            $value = \Illuminate\Support\Arr::get($context, $parts[0].'.parsed.'.$parts[1]);
         }
-
         return $value;
     }
 

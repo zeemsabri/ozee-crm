@@ -219,6 +219,8 @@ class ConditionStepHandler implements StepHandlerContract
             'contains' => $this->contains($left, $right),
             'empty' => empty($left),
             'not_empty' => ! empty($left),
+            'is_null' => $left === null,
+            'is_not_null' => $left !== null,
             'truthy' => (bool) $left || (is_string($left) && $left !== '') || (is_numeric($left) && $left != 0),
             'today' => (function () use ($asCarbon, $left) {
                 $dt = $asCarbon($left);
