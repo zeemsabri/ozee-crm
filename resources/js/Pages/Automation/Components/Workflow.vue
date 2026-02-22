@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import draggable from 'vuedraggable';
 import TriggerStep from './Steps/TriggerStep.vue';
 import ConditionStep from './Steps/ConditionStep.vue';
 import ActionStep from './Steps/ActionStep.vue';
@@ -38,6 +39,44 @@ const stepComponentMap = {
 };
 
 const getStepComponent = (stepType) => stepComponentMap[stepType] || null;
+
+// Computed list used by vuedraggable with a setter that emits the reordered array.
+// This is the bridge between the prop (immutable from parent) and vuedraggable (needs to set).
+const draggableSteps = computed({
+    get() {
+        return props.steps;
+    },
+    set(newSteps) {
+        emit('update:steps', newSteps);
+    },
+});
+
+// Prevent Trigger/ScheduleTrigger steps from being moved.
+// Also prevent any step from being dropped at index 0 if position 0 is a trigger.
+function onMoveStep(evt) {
+    const { draggedContext, relatedContext } = evt;
+    const movedStep = draggedContext.element;
+    const targetIndex = draggedContext.futureIndex;
+
+    // Never allow dragging trigger steps
+    if (movedStep.step_type === 'TRIGGER' || movedStep.step_type === 'SCHEDULE_TRIGGER') {
+        return false;
+    }
+
+    // If the list contains a trigger at position 0, don't allow dropping before it
+    const steps = props.steps;
+    if (steps.length > 0) {
+        const firstStep = steps[0];
+        if (
+            (firstStep.step_type === 'TRIGGER' || firstStep.step_type === 'SCHEDULE_TRIGGER') &&
+            targetIndex === 0
+        ) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 function getLoopContextSchema(forEachStep) {
     const sourcePath = forEachStep.step_config?.sourceArray;
@@ -121,7 +160,7 @@ function handleDeleteStep(index) {
 
 <template>
     <div class="flex flex-col items-center w-full space-y-4">
-        <!-- NEW: Empty state for a blank canvas -->
+        <!-- Empty state for a blank canvas -->
         <div v-if="steps.length === 0" class="text-center p-8 border-2 border-dashed rounded-lg w-full max-w-md">
             <template v-if="allowTrigger">
                 <h3 class="text-lg font-semibold text-gray-700">Start your Automation</h3>
@@ -140,59 +179,78 @@ function handleDeleteStep(index) {
         </div>
 
         <template v-else>
-            <template v-for="(step, index) in steps" :key="step.id">
-                <div class="w-full flex flex-col items-center">
-                    <!-- Renders the main card for the current step -->
-                    <component
-                        :is="getStepComponent(step.step_type)"
-                        v-if="getStepComponent(step.step_type)"
-                        :step="step"
-                        :all-steps-before="[...fullContextSteps, ...steps.slice(0, index)]"
-                        :loop-context-schema="loopContextSchema"
-                        :onDelete="(!allowTrigger || index > 0) ? () => handleDeleteStep(index) : null"
-                        @update:step="handleUpdateStep(index, $event)"
-                    />
-
-                    <!-- Renders the nested branches for IF/ELSE -->
-                    <div v-if="step.step_type === 'CONDITION'" class="w-full flex mt-4 space-x-4">
-                        <div class="flex-1 bg-green-50/50 p-4 rounded-lg border border-green-200">
-                            <p class="text-center font-bold text-green-700 mb-4">IF YES</p>
-                            <Workflow
-                                :steps="step.if_true || []"
-                                @update:steps="handleUpdateStep(index, { ...step, if_true: $event })"
-                                :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
-                                :loop-context-schema="loopContextSchema"
-                                :allow-trigger="false"
-                            />
-                        </div>
-                        <div class="flex-1 bg-red-50/50 p-4 rounded-lg border border-red-200">
-                            <p class="text-center font-bold text-red-700 mb-4">IF NO</p>
-                            <Workflow
-                                :steps="step.if_false || []"
-                                @update:steps="handleUpdateStep(index, { ...step, if_false: $event })"
-                                :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
-                                :loop-context-schema="loopContextSchema"
-                                :allow-trigger="false"
-                            />
-                        </div>
-                    </div>
-
-                    <!-- Renders the nested container for FOR EACH -->
-                    <div v-if="step.step_type === 'FOR_EACH'" class="w-full mt-4 p-4 rounded-lg border border-purple-300 bg-purple-50/50">
-                        <p class="text-center font-bold text-purple-700 mb-4">DO THIS FOR EACH ITEM</p>
-                        <Workflow
-                            :steps="step.children || []"
-                            @update:steps="handleUpdateStep(index, { ...step, children: $event })"
-                            :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
-                            :loop-context-schema="getLoopContextSchema(step)"
-                            :allow-trigger="false"
+            <!--
+                vuedraggable wraps all reorderable steps.
+                - v-model uses our computed getter/setter to stay reactive.
+                - group="workflow" enables dragging steps across nested Workflow instances (into/out of conditions).
+                - handle=".drag-handle" restricts drag initiation to the grip icon only, preventing accidental drags from inputs/selects.
+                - item-key="id" helps Vue's vdom reconcile items correctly.
+                - :move="onMoveStep" enforces that triggers cannot be moved and steps can't be placed before a trigger.
+            -->
+            <draggable
+                v-model="draggableSteps"
+                group="workflow"
+                handle=".drag-handle"
+                item-key="id"
+                :move="onMoveStep"
+                class="flex flex-col items-center w-full space-y-4"
+                ghost-class="opacity-40"
+                drag-class="rotate-1 scale-105 shadow-xl"
+            >
+                <template #item="{ element: step, index }">
+                    <div :id="`step-card-${step.id}`" class="w-full flex flex-col items-center transition-all duration-300">
+                        <!-- Renders the main card for the current step -->
+                        <component
+                            :is="getStepComponent(step.step_type)"
+                            v-if="getStepComponent(step.step_type)"
+                            :step="step"
+                            :all-steps-before="[...fullContextSteps, ...steps.slice(0, index)]"
+                            :loop-context-schema="loopContextSchema"
+                            :onDelete="(!allowTrigger || index > 0) ? () => handleDeleteStep(index) : null"
+                            @update:step="handleUpdateStep(index, $event)"
                         />
-                    </div>
 
-                </div>
-                <!-- Renders the "+" button to add the NEXT step -->
-                <AddStepButton @select="(type) => handleAddStep(index + 1, type)" />
-            </template>
+                        <!-- Renders the nested branches for IF/ELSE -->
+                        <div v-if="step.step_type === 'CONDITION'" class="w-full flex mt-4 space-x-4">
+                            <div class="flex-1 bg-green-50/50 p-4 rounded-lg border border-green-200">
+                                <p class="text-center font-bold text-green-700 mb-4">IF YES</p>
+                                <Workflow
+                                    :steps="step.if_true || []"
+                                    @update:steps="handleUpdateStep(index, { ...step, if_true: $event })"
+                                    :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
+                                    :loop-context-schema="loopContextSchema"
+                                    :allow-trigger="false"
+                                />
+                            </div>
+                            <div class="flex-1 bg-red-50/50 p-4 rounded-lg border border-red-200">
+                                <p class="text-center font-bold text-red-700 mb-4">IF NO</p>
+                                <Workflow
+                                    :steps="step.if_false || []"
+                                    @update:steps="handleUpdateStep(index, { ...step, if_false: $event })"
+                                    :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
+                                    :loop-context-schema="loopContextSchema"
+                                    :allow-trigger="false"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Renders the nested container for FOR EACH -->
+                        <div v-if="step.step_type === 'FOR_EACH'" class="w-full mt-4 p-4 rounded-lg border border-purple-300 bg-purple-50/50">
+                            <p class="text-center font-bold text-purple-700 mb-4">DO THIS FOR EACH ITEM</p>
+                            <Workflow
+                                :steps="step.children || []"
+                                @update:steps="handleUpdateStep(index, { ...step, children: $event })"
+                                :full-context-steps="[...fullContextSteps, ...steps.slice(0, index + 1)]"
+                                :loop-context-schema="getLoopContextSchema(step)"
+                                :allow-trigger="false"
+                            />
+                        </div>
+
+                        <!-- Renders the "+" button to add the NEXT step -->
+                        <AddStepButton @select="(type) => handleAddStep(index + 1, type)" />
+                    </div>
+                </template>
+            </draggable>
         </template>
     </div>
 </template>

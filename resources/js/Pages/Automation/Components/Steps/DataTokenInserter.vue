@@ -70,24 +70,48 @@ const dataSources = computed(() => {
 
     // If we are inside a loop, this is the most relevant context. Add it first.
     if (loopSchema && Array.isArray(loopSchema.columns)) {
-        sources.push({
-            name: 'Current Loop Item (from For Each)',
-            fields: loopSchema.columns
-                .filter(col => !!(col && col.name))
-                .map(col => ({
+        const loopItemFields = [
+            // The complete object — useful for sending everything to an AI prompt
+            { label: '⬤ Entire loop item (full object)', value: '{{loop.item}}' },
+        ];
+
+        // Individual named fields
+        loopSchema.columns
+            .filter(col => !!(col && col.name))
+            .forEach(col => {
+                loopItemFields.push({
                     label: col.name,
                     value: `{{loop.item.${col.name}}}`
-                }))
-        });
-        // Also expose loop metadata
+                });
+            });
+
+        // Loop position metadata
+        loopItemFields.push(
+            { label: '— index', value: '{{loop.index}}' },
+            { label: '— is_first', value: '{{loop.is_first}}' },
+            { label: '— is_last', value: '{{loop.is_last}}' },
+        );
+
         sources.push({
-            name: 'Loop Details',
-            fields: [
-                { label: 'index', value: '{{loop.index}}' },
-                { label: 'is_first', value: '{{loop.is_first}}' },
-                { label: 'is_last', value: '{{loop.is_last}}' },
-            ]
+            name: 'Current Loop Item (from For Each)',
+            fields: loopItemFields,
         });
+    } else if (!loopSchema) {
+        // No schema known but we might still be inside a loop; expose generic loop tokens
+        // so users aren't left completely empty when the schema can't be inferred.
+        const genericLoopFields = [
+            { label: '⬤ Entire loop item (full object)', value: '{{loop.item}}' },
+            { label: '— index', value: '{{loop.index}}' },
+            { label: '— is_first', value: '{{loop.is_first}}' },
+            { label: '— is_last', value: '{{loop.is_last}}' },
+        ];
+        // Only add when the inserter is explicitly told it's inside a loop (loopContextSchema was passed but is empty)
+        if (props.loopContextSchema !== null) {
+            sources.push({
+                name: 'Current Loop Item (from For Each)',
+                fields: genericLoopFields,
+            });
+        }
     }
 
     const triggerStep = props.allStepsBefore.find(s => s.step_type === 'TRIGGER');

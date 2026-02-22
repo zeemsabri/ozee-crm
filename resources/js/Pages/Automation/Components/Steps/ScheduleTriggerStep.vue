@@ -3,7 +3,7 @@ import StepCard from './StepCard.vue';
 </script>
 
 <template>
-    <StepCard icon="⏰" title="Starts on a Schedule">
+    <StepCard icon="⏰" title="Starts on a Schedule" :disable-drag="true">
         <div class="text-sm text-gray-600">
             <p>This workflow is triggered by a schedule.</p>
             <p class="mt-2 text-xs">

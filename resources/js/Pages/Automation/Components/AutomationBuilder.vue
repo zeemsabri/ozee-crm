@@ -2,7 +2,10 @@
 import { ref, onMounted, computed } from 'vue';
 import { useWorkflowStore } from '../Store/workflowStore';
 import Workflow from './Workflow.vue';
+import WorkflowMinimap from './WorkflowMinimap.vue';
 import TriggerSelectionModal from './Steps/TriggerSelectionModal.vue';
+import RightSidebar from '@/Components/RightSidebar.vue';
+import { MapIcon } from 'lucide-vue-next';
 
 const props = defineProps({
     automationId: {
@@ -17,6 +20,7 @@ const store = useWorkflowStore();
 const workflowSteps = ref([]);
 const workflowName = ref('');
 const showTriggerModal = ref(false);
+const showMinimap = ref(false);
 
 onMounted(async () => {
     // Ensure the automation schema is loaded for both Event and Schedule flows
@@ -153,6 +157,24 @@ async function saveAndActivate() {
         store.showAlert("Save Failed", "Could not save the automation.");
     }
 }
+
+/** Scroll the main canvas to a step card by its ID */
+function jumpToStep(stepId) {
+    showMinimap.value = false;
+    // Allow the sidebar close transition to start, then scroll
+    setTimeout(() => {
+        const el = document.getElementById(`step-card-${stepId}`);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Briefly highlight it
+            el.classList.add('ring-2', 'ring-indigo-500', 'ring-offset-2');
+            setTimeout(() => el.classList.remove('ring-2', 'ring-indigo-500', 'ring-offset-2'), 1500);
+        }
+    }, 200);
+}
+
+/** Total step count (flat) used for the badge on the toggle button */
+const totalStepCount = computed(() => flattenSteps(workflowSteps.value).length);
 </script>
 
 <template>
@@ -168,7 +190,7 @@ async function saveAndActivate() {
                     placeholder="Untitled Automation"
                     class="text-xl font-bold text-gray-800 focus:outline-none bg-transparent w-full"
                 />
-                <div class="flex space-x-2">
+                <div class="flex space-x-2 flex-shrink-0">
                     <button
                         @click="$emit('back')"
                         class="inline-flex items-center gap-x-2 rounded-md px-3.5 py-2 text-sm font-semibold shadow-sm bg-white text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
@@ -201,6 +223,50 @@ async function saveAndActivate() {
                 @close="showTriggerModal = false"
                 @select="handleTriggerSelect"
             />
+
+            <!-- Floating Minimap Toggle Button -->
+            <button
+                v-if="workflowSteps.length > 0"
+                @click="showMinimap = true"
+                class="fixed bottom-8 right-8 z-30 flex items-center gap-2 rounded-full bg-indigo-600 text-white px-4 py-2.5 shadow-lg hover:bg-indigo-700 transition-all text-sm font-semibold group"
+                title="Open Workflow Map"
+            >
+                <MapIcon class="h-4 w-4" />
+                <span>Workflow Map</span>
+                <span class="ml-1 bg-indigo-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {{ totalStepCount }}
+                </span>
+            </button>
+
+            <!-- Minimap Sidebar using RightSidebar -->
+            <RightSidebar
+                v-model:show="showMinimap"
+                title="Workflow Map"
+                :initial-width="28"
+                :min-width="20"
+                :max-width="50"
+            >
+                <template #content>
+                    <div class="space-y-3">
+                        <!-- Header hint -->
+                        <p class="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                            💡 Click any step to jump to it on the canvas. Drag the left edge of this panel to resize.
+                        </p>
+
+                        <!-- Step count summary -->
+                        <div class="flex items-center gap-2 text-xs text-gray-600 font-medium">
+                            <span class="bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5 text-xs font-bold">{{ totalStepCount }}</span>
+                            steps total
+                        </div>
+
+                        <!-- The minimap tree -->
+                        <WorkflowMinimap
+                            :steps="workflowSteps"
+                            @jump="jumpToStep"
+                        />
+                    </div>
+                </template>
+            </RightSidebar>
         </template>
     </div>
 </template>

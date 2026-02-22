@@ -74,7 +74,7 @@ const isUnsupportedModel = computed(() => selectedModel.value && availableEvents
 </script>
 
 <template>
-    <StepCard icon="⚡" title="1. When this happens... (Trigger)">
+    <StepCard icon="⚡" title="1. When this happens... (Trigger)" :disable-drag="true">
         <div class="flex items-center flex-wrap gap-2 text-md">
             <span class="font-semibold text-gray-700">When a</span>
 
