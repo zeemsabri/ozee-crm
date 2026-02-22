@@ -27,7 +27,7 @@ class AiPromptStepHandler implements StepHandlerContract
         }
 
         $promptData = $this->gatherPromptData($context, $cfg);
-        Log::info(json_encode($promptData));
+//        Log::info(json_encode($promptData));
 
         // --- REPLACEMENT ---
         // Instead of calling the service directly, dispatch the async job.
