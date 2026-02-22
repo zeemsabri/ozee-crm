@@ -895,6 +895,51 @@ const latestBlockActivity = computed(() => {
                 </div>
             </div>
 
+            <!-- External Source Info (BugHerd) -->
+            <div v-if="task.additional_info?.bugherd_info" class="p-4 bg-white rounded-lg shadow-sm">
+                <h5 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">BugHerd Details</h5>
+                <div class="space-y-3 text-sm">
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                        <span class="text-gray-600 font-medium w-1/3">Requester:</span>
+                        <span class="text-gray-800 text-right flex-1 break-words">
+                            {{ task.additional_info.bugherd_info.requester?.display_name || task.additional_info.bugherd_info.requester_email || 'Unknown' }}
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-2" v-if="task.additional_info.bugherd_info.requester_os || task.additional_info.bugherd_info.requester_browser">
+                        <span class="text-gray-600 font-medium w-1/3">Environment:</span>
+                        <span class="text-gray-800 text-right flex-1 break-words">
+                            {{ task.additional_info.bugherd_info.requester_os }} / {{ task.additional_info.bugherd_info.requester_browser }}
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-2" v-if="task.additional_info.bugherd_info.url">
+                        <span class="text-gray-600 font-medium w-24">Page URL:</span>
+                        <div class="flex-1 text-right overflow-hidden overflow-ellipsis whitespace-nowrap ml-2">
+                            <a :href="task.additional_info.bugherd_info.url" target="_blank" class="text-indigo-600 hover:text-indigo-800" :title="task.additional_info.bugherd_info.url">
+                                {{ task.additional_info.bugherd_info.url }}
+                            </a>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-2" v-if="task.additional_info.bugherd_info.secret_link">
+                        <span class="text-gray-600 font-medium w-1/3">Bug Link:</span>
+                        <div class="flex-1 text-right">
+                            <a :href="task.additional_info.bugherd_info.secret_link" target="_blank" class="text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1">
+                                View Original
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                                    <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div v-if="task.additional_info.bugherd_info.screenshot_url" class="pt-2">
+                        <span class="text-gray-600 font-medium block mb-2">Screenshot:</span>
+                        <a :href="task.additional_info.bugherd_info.screenshot_url" target="_blank" class="block border border-gray-200 rounded-lg overflow-hidden hover:opacity-90 transition-opacity max-w-sm mx-auto shadow-sm">
+                            <img :src="task.additional_info.bugherd_info.screenshot_url" alt="BugHerd Screenshot" class="w-full h-auto object-cover" />
+                        </a>
+                    </div>
+                </div>
+            </div>
+
             <!-- Task Files -->
             <div class="bg-white p-4 rounded-lg shadow-sm">
                 <div class="mb-4 border-b pb-3 flex flex-col gap-3">

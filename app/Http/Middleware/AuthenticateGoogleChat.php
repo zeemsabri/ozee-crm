@@ -51,8 +51,6 @@ class AuthenticateGoogleChat
 
             } catch (\Exception $e) {
 
-                dd($e->getMessage());
-
                 return redirect()->route('google.redirect')->with('error', 'Google session expired. Please log in again.');
             }
         }

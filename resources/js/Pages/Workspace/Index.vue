@@ -9,9 +9,18 @@ import Sidebar from '@/Pages/Workspace/components/Sidebar.vue';
 import KanbanBoard from '@/Components/KanbanBoard.vue';
 import BlockReasonModal from '@/Components/BlockReasonModal.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import DailyWorkLog from '@/Pages/Workspace/components/DailyWorkLog.vue';
 import { usePermissions, usePermissionStore } from '@/Directives/permissions.js';
 import * as taskState from '@/Utils/taskState.js';
 import { openTaskDetailSidebar } from '@/Utils/sidebar';
+
+// Active view: 'projects' | 'kanban' | 'daily'
+const activeView = ref(localStorage.getItem('workspace_view') || 'projects');
+watch(activeView, (v) => { try { localStorage.setItem('workspace_view', v); } catch (_) {} });
+// Legacy kanbanView boolean – keep in sync so existing logic still works
+const kanbanView = ref(activeView.value === 'kanban');
+watch(kanbanView, (v) => { activeView.value = v ? 'kanban' : 'projects'; });
+watch(activeView, (v) => { kanbanView.value = v === 'kanban'; });
 
 // Mock data to simulate fetching from a backend
 const projects = ref([
@@ -166,9 +175,7 @@ function handleUpdateNotes(newNotes) {
     localStorage.setItem('my_dashboard_notes', newNotes);
 }
 
-// Kanban toggle
-const kanbanView = ref(localStorage.getItem('workspace_kanban_view') === '1');
-
+// (kanbanView is now derived from activeView above — legacy localStorage key kept for compat)
 watch(kanbanView, (v) => {
     try { localStorage.setItem('workspace_kanban_view', v ? '1' : '0'); } catch (e) {}
 });
@@ -400,71 +407,79 @@ watch(projectId, async (pid) => {
     if (kanbanView.value && assigneeId.value === '__all__') {
         const baseParams = {};
         if (pid) baseParams.project_id = pid;
+        kanbanPage.value = 1;
         await fetchAllUsersScopedTasks(baseParams);
     }
 });
 
-const fetchAssignedTasksAll = async () => {
-    const userId = usePage().props.auth?.user?.id;
-    if (!userId) return;
-    loadingAssignedTasks.value = true;
-    tasksError.value = '';
-    try {
-        const { data } = await window.axios.get('/api/tasks', { params: { assigned_to_user_id: userId } });
-        assignedTasks.value = Array.isArray(data) ? data : [];
-    } catch (e) {
-        console.error('Failed to load assigned tasks for kanban', e);
-        tasksError.value = 'Failed to load tasks';
-        assignedTasks.value = [];
-    } finally {
-        loadingAssignedTasks.value = false;
-    }
-};
+const kanbanPage = ref(1);
+const kanbanLastPage = ref(1);
 
-const fetchTasksWithParams = async (params) => {
+const fetchTasksWithParams = async (params, append = false) => {
     loadingAssignedTasks.value = true;
     tasksError.value = '';
     try {
+        // Inject search if not already present
+        if (searchText.value && !params.search) {
+            params.search = searchText.value;
+        }
+        params.page = kanbanPage.value;
+        if (!params.per_page) params.per_page = 100; // default kanban page size
+
         const { data } = await window.axios.get('/api/tasks', { params });
-        assignedTasks.value = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+        const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+        
+        if (append) {
+            // Check for duplicates
+            const existingIds = new Set(assignedTasks.value.map(t => t.id));
+            const newTasks = list.filter(t => !existingIds.has(t.id));
+            assignedTasks.value = [...assignedTasks.value, ...newTasks];
+        } else {
+            assignedTasks.value = list;
+        }
+
+        if (!Array.isArray(data) && data.last_page) {
+            kanbanLastPage.value = data.last_page;
+            kanbanPage.value = data.current_page;
+        } else {
+            kanbanLastPage.value = 1;
+        }
     } catch (e) {
         console.error('Failed to load tasks', e);
         tasksError.value = 'Failed to load tasks';
-        assignedTasks.value = [];
+        if (!append) assignedTasks.value = [];
     } finally {
         loadingAssignedTasks.value = false;
     }
 };
 
+const fetchAssignedTasksAll = async (append = false) => {
+    const userId = usePage().props.auth?.user?.id;
+    if (!userId) return;
+    await fetchTasksWithParams({ assigned_to_user_id: userId, per_page: 100 }, append);
+};
+
 // Fetch only due (including overdue) tasks and today's completed tasks for All Users
-const fetchAllUsersScopedTasks = async (baseParams = {}) => {
-    loadingAssignedTasks.value = true;
-    tasksError.value = '';
-    try {
-        const todayStr = new Date().toISOString().slice(0,10);
-        let params = { ...baseParams, per_page: 500, statuses: 'To Do,In Progress,Paused,Blocked,Done', due_until: todayStr };
-        
-        // If user doesn't have view_all_user permission and no specific project is selected,
-        // we need to limit to their accessible projects
-        if (!canDo('view_all_user').value && !baseParams.project_id) {
-            const accessibleProjectIds = projectOptions.value
-                .map(p => p.value)
-                .filter(v => v !== null);
-            if (accessibleProjectIds.length > 0) {
-                params.project_ids = accessibleProjectIds.join(',');
-            }
-        }
-        
-        const res = await window.axios.get('/api/tasks', { params });
-        const list = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.data) ? res.data.data : []);
-        assignedTasks.value = list;
-    } catch (e) {
-        console.error('Failed to load scoped All Users tasks', e);
-        tasksError.value = 'Failed to load tasks';
-        assignedTasks.value = [];
-    } finally {
-        loadingAssignedTasks.value = false;
+const fetchAllUsersScopedTasks = async (baseParams = {}, append = false) => {
+    const todayStr = new Date().toISOString().slice(0,10);
+    // Remove due_until constraint if search is active so we find all tasks matching search
+    let params = { ...baseParams, per_page: 100, statuses: 'To Do,In Progress,Paused,Blocked,Done' };
+    if (!searchText.value) {
+        params.due_until = todayStr;
     }
+    
+    // If user doesn't have view_all_user permission and no specific project is selected,
+    // we need to limit to their accessible projects
+    if (!canDo('view_all_user').value && !baseParams.project_id) {
+        const accessibleProjectIds = projectOptions.value
+            .map(p => p.value)
+            .filter(v => v !== null);
+        if (accessibleProjectIds.length > 0) {
+            params.project_ids = accessibleProjectIds.join(',');
+        }
+    }
+    
+    await fetchTasksWithParams(params, append);
 };
 
 watch(kanbanView, (on) => {
@@ -476,32 +491,58 @@ watch(kanbanView, (on) => {
 
 }, { immediate: true });
 
-// Re-fetch tasks when assignee selection changes
-watch(assigneeId, async (v) => {
+// Trigger backend re-fetch if certain filters change
+const fetchKanbanWithCurrentFilters = async (append = false) => {
     if (!kanbanView.value) return;
     const currentUserId = usePage().props.auth?.user?.id;
-    // Build scoped params
     const baseParams = {};
     if (projectId.value) baseParams.project_id = projectId.value;
     
-    if (v === '__all__') {
-        // All users can now use 'All Users' filter, but tasks are scoped to their accessible projects
-        await fetchAllUsersScopedTasks(baseParams);
-    } else if (v) {
-        await fetchTasksWithParams({ ...baseParams, assigned_to_user_id: v, per_page: 500 });
+    if (assigneeId.value === '__all__') {
+        await fetchAllUsersScopedTasks(baseParams, append);
+    } else if (assigneeId.value) {
+        await fetchTasksWithParams({ ...baseParams, assigned_to_user_id: assigneeId.value, per_page: 100 }, append);
     } else {
-        if (currentUserId) await fetchTasksWithParams({ ...baseParams, assigned_to_user_id: currentUserId, per_page: 500 });
+        if (currentUserId) await fetchTasksWithParams({ ...baseParams, assigned_to_user_id: currentUserId, per_page: 100 }, append);
     }
+}
+
+// Re-fetch tasks when assignee selection changes
+watch(assigneeId, async (v) => {
+    kanbanPage.value = 1;
+    await fetchKanbanWithCurrentFilters();
+});
+
+// Load more
+const loadMoreKanbanTasks = async () => {
+    if (kanbanPage.value >= kanbanLastPage.value) return;
+    kanbanPage.value++;
+    await fetchKanbanWithCurrentFilters(true);
+};
+
+let searchTimeout = null;
+watch(searchText, (v) => {
+    if (!kanbanView.value) return;
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(async () => {
+        kanbanPage.value = 1;
+        await fetchKanbanWithCurrentFilters();
+    }, 400); // 400ms debounce
 });
 
 const filteredAssignedTasks = computed(() => {
+    // Only apply text search frontend filtering if not using backend search
+    // Since we now use backend search, just rely on it primarily.
+    // We can keep the local filter for items already fetched to make it responsive immediately.
     const q = (searchText.value || '').toLowerCase().trim();
     const result = (assignedTasks.value || []).filter(t => {
         // Search by name/milestone/project
+        // local fallback just in case
         const matchesSearch = !q ||
             String(t.name || t.title || '').toLowerCase().includes(q) ||
             String(t.milestone?.name || '').toLowerCase().includes(q) ||
-            String(t.project?.name || '').toLowerCase().includes(q);
+            String(t.project?.name || '').toLowerCase().includes(q) ||
+            String(t.description || '').toLowerCase().includes(q);
 
         // Project filter
         const pid = t.project?.id ?? t.milestone?.project_id ?? null;
@@ -730,26 +771,44 @@ onMounted(async () => {
 <template #header>
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
-                    <button
-                        type="button"
-                        class="px-3 py-1.5 rounded-md border text-sm transition
-                               border-gray-300 text-gray-700 hover:bg-gray-50
-                               data-[active=true]:bg-indigo-600 data-[active=true]:text-white data-[active=true]:border-indigo-600"
-                        :data-active="kanbanView ? 'true' : 'false'"
-                        @click="kanbanView = !kanbanView"
-                    >
-                        Kanban
-                    </button>
                     <h2 class="font-semibold text-xl text-gray-800 leading-tight">Workspace</h2>
+                    <!-- view switcher -->
+                    <div class="flex items-center rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                        <button
+                            type="button"
+                            class="px-3 py-1.5 text-sm transition font-medium"
+                            :class="activeView === 'projects' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                            @click="activeView = 'projects'"
+                        >Projects</button>
+                        <button
+                            type="button"
+                            class="px-3 py-1.5 text-sm transition font-medium border-l border-r border-gray-200"
+                            :class="activeView === 'kanban' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                            @click="activeView = 'kanban'"
+                        >Kanban</button>
+                        <button
+                            type="button"
+                            class="px-3 py-1.5 text-sm transition font-medium"
+                            :class="activeView === 'daily' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                            @click="activeView = 'daily'"
+                        >📋 Daily Log</button>
+                    </div>
                 </div>
             </div>
         </template>
 
 <div class="py-10">
-            <div :class="kanbanView ? 'max-w-none w-full px-4 sm:px-6 lg:px-8' : 'max-w-7xl mx-auto sm:px-6 lg:px-8'">
+            <div :class="activeView === 'kanban' ? 'max-w-none w-full px-4 sm:px-6 lg:px-8' : 'max-w-7xl mx-auto sm:px-6 lg:px-8'">
+
+                <!-- ── Daily Work Log view ── -->
+                <div v-if="activeView === 'daily'" class="max-w-3xl mx-auto">
+                    <DailyWorkLog />
+                </div>
+
+                <template v-else>
                 <div class="mb-6">
                     <!-- Filters component emits 'update:filter' to change the active filter -->
-                    <Filters v-if="!kanbanView" @update:filter="activeFilter = $event" :active-filter="activeFilter" :search="searchTerm" @update:search="searchTerm = $event" :pending-filter="pendingFilter" @update:pending="pendingFilter = $event" />
+                    <Filters v-if="activeView === 'projects'" @update:filter="activeFilter = $event" :active-filter="activeFilter" :search="searchTerm" @update:search="searchTerm = $event" :pending-filter="pendingFilter" @update:pending="pendingFilter = $event" />
                 </div>
 
                 <div v-if="!kanbanView" class="flex flex-col lg:flex-row gap-8">
@@ -929,7 +988,14 @@ onMounted(async () => {
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.487 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11.75 13a.75.75 0 01-1.5 0v-2.25a.75.75 0 011.5 0V13zm-1.5-7.5a.75.75 0 011.5 0v1.5a.75.75 0 01-1.5 0V5.5z" clip-rule="evenodd"/></svg>
             </div>
 
-            <div class="text-sm font-medium text-gray-800 truncate">{{ item.name || item.title || 'Task' }}</div>
+            <div class="flex items-start gap-1">
+                <div class="text-sm font-medium text-gray-800 truncate flex-1">{{ item.name || item.title || 'Task' }}</div>
+                <div v-if="item.source && item.source !== 'local'" class="text-indigo-500 mt-0.5 flex-shrink-0" :title="`External Task: ${item.source}`">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                </div>
+            </div>
             <div class="text-xs text-gray-500 truncate" v-if="item.milestone?.name">{{ item.milestone.name }}</div>
             <div class="text-xs text-gray-500 truncate">{{ item.project?.name || item.milestone?.project?.name }}</div>
             <div class="text-xs text-gray-500 truncate" v-if="!assigneeId || assigneeId === '__all__'">{{ item.assigned_to?.name }}</div>
@@ -946,7 +1012,18 @@ onMounted(async () => {
     @close="showBlockReason = false"
     @confirm="confirmWorkspaceBlock"
 />
+
+<div v-if="kanbanPage < kanbanLastPage" class="mt-6 flex justify-center">
+    <button 
+        @click="loadMoreKanbanTasks" 
+        :disabled="loadingAssignedTasks"
+        class="px-5 py-2.5 rounded-md border border-gray-300 bg-white text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all"
+    >
+        {{ loadingAssignedTasks ? 'Loading...' : 'Load More Tasks' }}
+    </button>
+</div>
                 </div>
+                </template><!-- end v-else (not daily) -->
             </div>
         </div>
     </AuthenticatedLayout>

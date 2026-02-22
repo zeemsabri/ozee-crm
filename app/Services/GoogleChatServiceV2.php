@@ -57,7 +57,6 @@ class GoogleChatServiceV2
             // You can also explicitly set the API endpoint if needed, though usually not required
             // 'apiEndpoint' => 'chat.googleapis.com:443',
         ]);
-        dd('hit');
     }
 
     /**
