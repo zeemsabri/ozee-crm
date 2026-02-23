@@ -259,6 +259,10 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
             ->middleware(['permission:manage_projects'])
             ->name('productivity.index');
 
+        Route::get('/productivity-projects', [\App\Http\Controllers\Api\ProjectProductivityReportController::class, 'render'])
+            ->middleware(['permission:manage_projects'])
+            ->name('productivity-projects.index');
+
         // Activity Report
         Route::get('/activity-report', [\App\Http\Controllers\Admin\ActivityReportController::class, 'index'])
             ->middleware(['permission:manage_projects'])

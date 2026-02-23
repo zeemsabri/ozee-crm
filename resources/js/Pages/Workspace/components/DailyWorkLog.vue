@@ -1,9 +1,19 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import { usePage } from '@inertiajs/vue3';
+import { usePermissions } from '@/Directives/permissions.js';
 import * as taskState from '@/Utils/taskState.js';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
+import TaskNoteModal from '@/Components/ProjectTasks/TaskNoteModal.vue';
+import { openTaskDetailSidebar } from '@/Utils/sidebar';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const formatDate = (d) => d.toISOString().slice(0, 10);
+const formatDate = (d) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
 const parseLocal = (dateStr) => {
     const [y, m, day] = dateStr.split('-');
     return new Date(y, m - 1, day);
@@ -21,11 +31,18 @@ const viewDate = ref(todayStr);
 const dailyItems = ref([]);
 const availableTasks = ref([]);
 const historyData = ref({});
+const users = ref([]);
+const selectedUserId = ref(usePage().props.auth.user.id);
+
+const { canDo } = usePermissions();
+const canViewOthers = computed(() => canDo('view_all_projects').value);
 
 const loadingLog = ref(false);
 const loadingPool = ref(false);
 const savingOrder = ref(false);
 const busyTaskIds = ref(new Set()); // tasks currently mid-API call
+const showNoteModal = ref(false);
+const taskToNote = ref(null);
 
 const searchPool = ref('');
 const showHistory = ref(false);
@@ -174,7 +191,12 @@ const handlePrimary = (item) => {
 const loadDailyLog = async () => {
     loadingLog.value = true;
     try {
-        const { data } = await window.axios.get('/api/daily-tasks', { params: { date: viewDate.value } });
+        const { data } = await window.axios.get('/api/daily-tasks', { 
+            params: { 
+                date: viewDate.value,
+                user_id: selectedUserId.value
+            } 
+        });
         dailyItems.value = Array.isArray(data) ? data : [];
     } catch (e) {
         console.error('Failed to load daily log', e);
@@ -183,7 +205,27 @@ const loadDailyLog = async () => {
     }
 };
 
+const loadUsers = async () => {
+    if (!canViewOthers.value) return;
+    try {
+        const { data } = await window.axios.get('/api/users');
+        users.value = (Array.isArray(data) ? data : []).map(u => ({
+            value: u.id,
+            label: u.name
+        }));
+    } catch (e) {
+        console.error('Failed to load users', e);
+    }
+};
+
 const loadAvailablePool = async () => {
+    // If viewing someone else's log, we don't necessarily show our task pool for adding
+    // but the request said "should be able to see daily log of other users".
+    // Usually adding tasks is for yourself.
+    if (selectedUserId.value !== usePage().props.auth.user.id) {
+        availableTasks.value = [];
+        return;
+    }
     loadingPool.value = true;
     try {
         const { data } = await window.axios.get('/api/tasks', {
@@ -199,7 +241,12 @@ const loadAvailablePool = async () => {
 
 const loadHistory = async () => {
     try {
-        const { data } = await window.axios.get('/api/daily-tasks/history', { params: { days: 14 } });
+        const { data } = await window.axios.get('/api/daily-tasks/history', { 
+            params: { 
+                days: 14,
+                user_id: selectedUserId.value
+            } 
+        });
         historyData.value = data || {};
     } catch (e) {
         console.error('Failed to load history', e);
@@ -253,6 +300,16 @@ const removeFromLog = async (item) => {
     } catch (e) {
         console.error('Failed to remove from log', e);
     }
+};
+
+const openSidebar = (task) => {
+    if (!task) return;
+    openTaskDetailSidebar(task.id, task.milestone?.project_id, []);
+};
+
+const openNoteModal = (task) => {
+    taskToNote.value = task;
+    showNoteModal.value = true;
 };
 
 // ─── Drag & Drop ──────────────────────────────────────────────────────────────
@@ -315,8 +372,15 @@ const dismissTips = () => {
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 onMounted(async () => {
+    await loadUsers();
     await loadDailyLog();
     await loadAvailablePool();
+});
+
+watch(selectedUserId, async () => {
+    await loadDailyLog();
+    await loadAvailablePool();
+    if (showHistory.value) await loadHistory();
 });
 
 watch(viewDate, async () => {
@@ -409,6 +473,15 @@ const addSelected = () => {
                     <div v-else class="chip chip-past">Past</div>
                 </div>
                 <button class="nav-btn" @click="goToDate(1)" title="Next day">›</button>
+            </div>
+
+            <div v-if="canViewOthers" class="dwl-user-switcher">
+                <SelectDropdown
+                    id="dwl-user-select"
+                    v-model="selectedUserId"
+                    :options="users"
+                    placeholder="Viewing log for..."
+                />
             </div>
 
             <div class="dwl-header-right">
@@ -528,7 +601,11 @@ const addSelected = () => {
 
                     <!-- Task info -->
                     <div class="task-info">
-                        <div class="task-name" :class="{ 'line-through': isFinished(item) }">
+                        <div 
+                            class="task-name cursor-pointer hover:text-indigo-600 transition-colors" 
+                            :class="{ 'line-through': isFinished(item) }"
+                            @click="openSidebar(item.task)"
+                        >
                             {{ item.task?.name }}
                         </div>
                         <div class="task-meta">
@@ -601,8 +678,17 @@ const addSelected = () => {
                                 </svg>
                             </button>
 
-                            <!-- Remove from log -->
-                            <button class="btn-icon remove-btn" title="Remove from today's log" @click="removeFromLog(item)">✕</button>
+                             <!-- Add Note -->
+                             <button
+                                 class="btn-icon note-btn"
+                                 title="Add Note"
+                                 @click="openNoteModal(item.task)"
+                             >
+                                 <span style="font-size: 14px;">📝</span>
+                             </button>
+
+                             <!-- Remove from log -->
+                             <button class="btn-icon remove-btn" title="Remove from today's log" @click="removeFromLog(item)">✕</button>
                         </template>
                     </div>
                 </li>
@@ -675,6 +761,17 @@ const addSelected = () => {
             </div>
         </transition>
 
+        <!-- ══════════════════════════════════════════════════════════════════ -->
+        <!--  TASK NOTE MODAL                                                   -->
+        <!-- ══════════════════════════════════════════════════════════════════ -->
+        <TaskNoteModal
+            v-if="showNoteModal"
+            :show="showNoteModal"
+            :task-for-note="taskToNote"
+            @close="showNoteModal = false; taskToNote = null"
+            @note-added="loadDailyLog"
+        />
+
     </div>
 </template>
 
@@ -743,6 +840,7 @@ const addSelected = () => {
 .chip-today  { background: #6366f1; color: #fff; }
 .chip-future { background: #e0f2fe; color: #0369a1; }
 .chip-past   { background: #f1f5f9; color: #64748b; }
+.dwl-user-switcher { min-width: 200px; }
 .dwl-header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .progress-pills { display: flex; gap: 6px; }
 .pill { padding: 3px 10px; border-radius: 999px; font-size: .7rem; font-weight: 600; }
@@ -786,6 +884,7 @@ const addSelected = () => {
     transition: background .15s;
 }
 .push-btn:hover   { background: #fef3c7; border-color: #fcd34d; color: #78350f; }
+.note-btn:hover   { background: #f5f3ff; border-color: #c7d2fe; }
 .remove-btn:hover { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
 
 /* ── Picker ── */

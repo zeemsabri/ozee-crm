@@ -412,6 +412,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('productivity/report', [\App\Http\Controllers\Api\ProductivityReportController::class, 'index'])
         ->middleware('permission:manage_projects');
 
+    Route::get('productivity/project-report', [\App\Http\Controllers\Api\ProjectProductivityReportController::class, 'index'])
+        ->middleware('permission:manage_projects');
+
     // Activity Report API
     Route::get('activity-report', [\App\Http\Controllers\Api\ActivityReportController::class, 'index'])
         ->middleware('permission:manage_projects');
