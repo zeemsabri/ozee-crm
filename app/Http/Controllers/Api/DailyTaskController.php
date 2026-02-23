@@ -20,7 +20,8 @@ class DailyTaskController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = Auth::user();
-        $date = $request->query('date', Carbon::today()->toDateString());
+        $tz = $user->timezone ?? config('app.timezone', 'UTC');
+        $date = $request->query('date', Carbon::today($tz)->toDateString());
         $targetUserId = $request->query('user_id', $user->id);
 
         // Security: only allowed to see others if super-admin or has view_all_projects permission
@@ -54,8 +55,10 @@ class DailyTaskController extends Controller
     public function history(Request $request): JsonResponse
     {
         $user = Auth::user();
+        $tz = $user->timezone ?? config('app.timezone', 'UTC');
+        $todayStr = $request->query('today', Carbon::today($tz)->toDateString());
         $days = (int) $request->query('days', 30);
-        $since = Carbon::today()->subDays($days)->toDateString();
+        $since = Carbon::parse($todayStr)->subDays($days)->toDateString();
         $targetUserId = $request->query('user_id', $user->id);
 
         // Security
@@ -67,7 +70,7 @@ class DailyTaskController extends Controller
 
         $rows = DailyTask::with(['task:id,name,status,priority,milestone_id', 'task.milestone:id,name,project_id', 'task.milestone.project:id,name'])
             ->forUser($targetUserId)
-            ->where('date', '<', Carbon::today()->toDateString())
+            ->where('date', '<', $todayStr)
             ->where('date', '>=', $since)
             ->orderByDesc('date')
             ->ordered()
@@ -91,7 +94,8 @@ class DailyTaskController extends Controller
         ]);
 
         $user = Auth::user();
-        $date = $request->input('date', Carbon::today()->toDateString());
+        $tz = $user->timezone ?? config('app.timezone', 'UTC');
+        $date = $request->input('date', Carbon::today($tz)->toDateString());
 
         // Determine next order value
         $nextOrder = DailyTask::forUser($user->id)->forDate($date)->max('order') ?? -1;
