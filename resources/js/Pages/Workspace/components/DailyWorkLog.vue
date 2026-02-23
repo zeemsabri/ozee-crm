@@ -245,7 +245,7 @@ const loadHistory = async () => {
             params: { 
                 days: 14,
                 user_id: selectedUserId.value,
-                today: formatDate(new Date())
+                today: viewDate.value
             } 
         });
         historyData.value = data || {};
