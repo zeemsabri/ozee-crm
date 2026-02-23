@@ -21,6 +21,14 @@ class DailyTaskController extends Controller
     {
         $user = Auth::user();
         $date = $request->query('date', Carbon::today()->toDateString());
+        $targetUserId = $request->query('user_id', $user->id);
+
+        // Security: only allowed to see others if super-admin or has view_all_projects permission
+        if ((int) $targetUserId !== $user->id) {
+            if (!$user->isSuperAdmin() && !$user->hasPermission('view_all_projects')) {
+                return response()->json(['message' => 'Forbidden'], 403);
+            }
+        }
 
         $dailyTasks = DailyTask::with([
             'task' => function ($q) {
@@ -31,7 +39,7 @@ class DailyTaskController extends Controller
                 ->with(['milestone:id,name,project_id', 'milestone.project:id,name']);
             }
         ])
-        ->forUser($user->id)
+        ->forUser($targetUserId)
         ->forDate($date)
         ->ordered()
         ->get();
@@ -48,9 +56,17 @@ class DailyTaskController extends Controller
         $user = Auth::user();
         $days = (int) $request->query('days', 30);
         $since = Carbon::today()->subDays($days)->toDateString();
+        $targetUserId = $request->query('user_id', $user->id);
+
+        // Security
+        if ((int) $targetUserId !== $user->id) {
+            if (!$user->isSuperAdmin() && !$user->hasPermission('view_all_projects')) {
+                return response()->json(['message' => 'Forbidden'], 403);
+            }
+        }
 
         $rows = DailyTask::with(['task:id,name,status,priority,milestone_id', 'task.milestone:id,name,project_id', 'task.milestone.project:id,name'])
-            ->forUser($user->id)
+            ->forUser($targetUserId)
             ->where('date', '<', Carbon::today()->toDateString())
             ->where('date', '>=', $since)
             ->orderByDesc('date')
