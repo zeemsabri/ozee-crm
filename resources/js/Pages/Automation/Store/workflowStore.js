@@ -267,33 +267,51 @@ export const useWorkflowStore = defineStore('workflow', {
                     steps.forEach(s => {
                         const parentId = s.step_config?._parent_id;
                         const branch = s.step_config?._branch;
+
+                        // Step has a parent that exists in the map — try to nest it.
                         if (parentId && byId.has(String(parentId))) {
                             const parent = byId.get(String(parentId));
-                            if (parent && parent.step_type === 'CONDITION' && branch) {
-                                const target = String(branch).toLowerCase() === 'no' ? parent.no_steps : parent.yes_steps;
+
+                            // CONDITION parent: place into yes_steps or no_steps based on branch.
+                            if (parent && parent.step_type === 'CONDITION') {
+                                const branchLower = String(branch ?? 'yes').toLowerCase();
+                                const target = branchLower === 'no' ? parent.no_steps : parent.yes_steps;
                                 target.push(s);
                                 return;
                             }
-                            if (parent && parent.step_type === 'FOR_EACH' && (branch === null || branch === undefined || branch === '')) {
+
+                            // FOR_EACH parent: any branch value (null, empty, or even 'children') → children.
+                            if (parent && parent.step_type === 'FOR_EACH') {
                                 parent.children.push(s);
                                 return;
                             }
+
+                            // Parent exists but is not a container type (e.g. data corruption).
+                            // Do NOT promote to top-level; skip to avoid breaking the workflow.
+                            return;
                         }
+
+                        // No parent (or parent not found) → top-level step.
                         topLevel.push(s);
                     });
 
+                    // Recursive sort so deeply-nested branches (CONDITION inside FOR_EACH, etc.) are ordered correctly.
                     const sortByOrder = (arr) => arr.sort((a, b) => (a.step_order ?? 0) - (b.step_order ?? 0));
+                    const sortRecursive = (arr) => {
+                        sortByOrder(arr);
+                        arr.forEach(s => {
+                            if (s.step_type === 'CONDITION') {
+                                sortRecursive(s.yes_steps);
+                                sortRecursive(s.no_steps);
+                            }
+                            if (s.step_type === 'FOR_EACH') {
+                                sortRecursive(s.children);
+                            }
+                        });
+                    };
 
-                    steps.forEach(s => {
-                        if (s.step_type === 'CONDITION') {
-                            sortByOrder(s.yes_steps);
-                            sortByOrder(s.no_steps);
-                        }
-                        if (s.step_type === 'FOR_EACH') {
-                            sortByOrder(s.children);
-                        }
-                    });
-                    wf.steps = sortByOrder(topLevel);
+                    sortRecursive(topLevel);
+                    wf.steps = topLevel;
                 };
 
                 if (workflowData && typeof workflowData === 'object' && Array.isArray(workflowData.steps)) {

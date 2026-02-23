@@ -44,4 +44,18 @@ class WorkflowStep extends Model
             ->where('step_config->_branch', null)
             ->orderBy('step_order');
     }
+
+    public function yes_steps()
+    {
+        return $this->hasMany(WorkflowStep::class, 'step_config->_parent_id')
+            ->where('step_config->_branch', 'yes')
+            ->orderBy('step_order');
+    }
+
+    public function no_steps()
+    {
+        return $this->hasMany(WorkflowStep::class, 'step_config->_parent_id')
+            ->where('step_config->_branch', 'no')
+            ->orderBy('step_order');
+    }
 }

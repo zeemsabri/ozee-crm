@@ -27,7 +27,12 @@ const transformationTypes = [
 </script>
 
 <template>
-    <StepCard icon="✂️" title="Transform Content" :onDelete="() => emit('delete')">
+    <StepCard 
+        icon="✂️" 
+        :title="props.step.name || 'Transform Content'" 
+        :onDelete="() => emit('delete')"
+        @update:title="newName => emit('update:step', { ...props.step, name: newName })"
+    >
         <div class="space-y-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700">Choose a transformation</label>

@@ -175,59 +175,81 @@ const availableFields = computed(() => {
 
     // 3. Previous Step Outputs
     props.allStepsBefore.forEach((s, index) => {
-        if (s.step_type === 'AI_PROMPT' && s.step_config?.responseStructure?.length > 0) {
-            // Helper function to check if field is Array of Objects
-            const isArrayOfObjects = (field) => {
-                const t = String(field?.type || '').toLowerCase();
-                const it = String(field?.itemType || '').toLowerCase();
-                return t === 'array of objects' || (t === 'array' && it === 'object');
-            };
+        const stepNameLabel = s.name || `Step ${index + 1}`;
+        let typeAbbr = s.step_type.split('_').pop().toLowerCase();
+        if (s.step_type === 'AI_PROMPT') typeAbbr = 'AI';
+        else if (s.step_type === 'FETCH_RECORDS') typeAbbr = 'Fetch';
+        else if (s.step_type === 'ACTION' && s.step_config?.action_type === 'FETCH_API_DATA') typeAbbr = 'API';
+        const baseLabel = `${stepNameLabel} (${typeAbbr})`;
 
-            // Recursive function to add fields and their nested children
-            const addFieldsRecursively = (fieldsList, parentPath = '', indentLevel = 0) => {
-                (fieldsList || []).forEach(field => {
-                    if (!field?.name) return;
+        // Helper function to check if field is a List/Array
+        const isListType = (field) => {
+            const t = String(field?.type || '').toLowerCase();
+            return t === 'array of objects' || t === 'array' || t === 'collection';
+        };
 
-                    const currentPath = parentPath ? `${parentPath}.${field.name}` : field.name;
-                    const indent = '  '.repeat(indentLevel);
+        // Recursive function to add fields and their nested children
+        const addFieldsRecursively = (fieldsList, parentPath = '', indentLevel = 0) => {
+            (fieldsList || []).forEach(field => {
+                if (!field?.name) return;
 
-                    // Always add the current field
-                    fields.push({
-                        value: `step_${s.id}.${currentPath}`,
-                        name: `step_${s.id}.${currentPath}`,
-                        label: `Step ${index + 1} (AI): ${indent}${field.name}`,
-                        type: field.type,
-                        group: `Step ${index + 1}: ${s.name}`,
-                        allowed_values: field.allowed_values || null,
-                    });
+                const currentPath = parentPath ? `${parentPath}.${field.name}` : field.name;
+                const indent = '  '.repeat(indentLevel);
 
-                    // Handle nested fields based on field type
-                    if (Array.isArray(field.schema)) {
-                        if (isArrayOfObjects(field)) {
-                            // Array of Objects: show nested fields with array access notation
-                            field.schema.forEach(sub => {
-                                if (!sub?.name) return;
-                                fields.push({
-                                    value: `step_${s.id}.${currentPath}.${sub.name}`,
-                                    name: `step_${s.id}.${currentPath}.${sub.name}`,
-                                    label: `Step ${index + 1} (AI): ${indent}  - ${sub.name} (from array)`,
-                                    type: sub.type || 'Text',
-                                    group: `Step ${index + 1}: ${s.name}`,
-                                    allowed_values: sub.allowed_values || null,
-                                });
-                            });
-                        } else if (field.type === 'Object') {
-                            // Regular Object: show nested fields with direct access
-                            addFieldsRecursively(field.schema, currentPath, indentLevel + 1);
-                        }
-                    }
+                // Always add the current field
+                fields.push({
+                    value: `step_${s.id}.${currentPath}`,
+                    name: `step_${s.id}.${currentPath}`,
+                    label: `${baseLabel}: ${indent}${field.name}`,
+                    type: field.type,
+                    group: `${stepNameLabel}: ${s.name || s.step_type}`,
+                    allowed_values: field.allowed_values || null,
                 });
-            };
 
+                // Handle nested fields based on field type
+                if (Array.isArray(field.schema)) {
+                    if (isListType(field)) {
+                        // Array: show count
+                        fields.push({
+                            value: `step_${s.id}.${currentPath}.count`,
+                            name: `step_${s.id}.${currentPath}.count`,
+                            label: `${baseLabel}: ${indent}${field.name} (Count)`,
+                            type: 'Number',
+                            group: `${stepNameLabel}: ${s.name || s.step_type}`,
+                        });
+                        
+                        // Array of Objects: show nested fields with array access notation
+                        field.schema.forEach(sub => {
+                            if (!sub?.name) return;
+                            fields.push({
+                                value: `step_${s.id}.${currentPath}.${sub.name}`,
+                                name: `step_${s.id}.${currentPath}.${sub.name}`,
+                                label: `${baseLabel}: ${indent}  - ${sub.name} (from array)`,
+                                type: sub.type || 'Text',
+                                group: `${stepNameLabel}: ${s.name || s.step_type}`,
+                                allowed_values: sub.allowed_values || null,
+                            });
+                        });
+                    } else if (field.type === 'Object') {
+                        // Regular Object: show nested fields with direct access
+                        addFieldsRecursively(field.schema, currentPath, indentLevel + 1);
+                    }
+                }
+            });
+        };
+
+        if ((s.step_type === 'AI_PROMPT' || (s.step_type === 'ACTION' && s.step_config?.action_type === 'FETCH_API_DATA')) && s.step_config?.responseStructure?.length > 0) {
             addFieldsRecursively(s.step_config.responseStructure);
         }
+        
         if (s.step_type === 'FETCH_RECORDS') {
-            fields.push({ value: `step_${s.id}.count`, name: `step_${s.id}.count`, label: `Step ${index + 1} (Fetch): Count`, type: 'Number', group: `Step ${index + 1}: ${s.name}`});
+            fields.push({ 
+                value: `step_${s.id}.count`, 
+                name: `step_${s.id}.count`, 
+                label: `${s.name || (s.step_config?.model ? `${s.step_config.model}` : `Step ${index + 1}`)} (Fetch): Count`, 
+                type: 'Number', 
+                group: `${stepNameLabel}: ${s.name || s.step_type}`
+            });
         }
     });
 
@@ -333,6 +355,7 @@ const operatorSets = {
     'json': [ { value: '==', label: 'is' }, { value: '!=', label: 'is not' }, { value: 'contains', label: 'contains' }, { value: 'not_empty', label: 'is not empty' }, { value: 'empty', label: 'is empty' }, { value: 'is_null', label: 'is null' }, { value: 'is_not_null', label: 'is not null' } ],
     'jsonb': [ { value: '==', label: 'is' }, { value: '!=', label: 'is not' }, { value: 'contains', label: 'contains' }, { value: 'not_empty', label: 'is not empty' }, { value: 'empty', label: 'is empty' }, { value: 'is_null', label: 'is null' }, { value: 'is_not_null', label: 'is not null' } ],
     'Array': [ { value: '==', label: 'is' }, { value: '!=', label: 'is not' }, { value: 'contains', label: 'contains' }, { value: 'not_empty', label: 'is not empty' }, { value: 'empty', label: 'is empty' }, { value: 'is_null', label: 'is null' }, { value: 'is_not_null', label: 'is not null' } ],
+    'Array of Objects': [ { value: '==', label: 'is' }, { value: '!=', label: 'is not' }, { value: 'contains', label: 'contains' }, { value: 'not_empty', label: 'is not empty' }, { value: 'empty', label: 'is empty' }, { value: 'is_null', label: 'is null' }, { value: 'is_not_null', label: 'is not null' } ],
     'True/False': [ { value: '==', label: 'is' }, { value: '!=', label: 'is not' } ],
     'Number': [ { value: '==', label: 'equals' }, { value: '!=', label: 'does not equal' }, { value: '>', label: 'is greater than' }, { value: '<', label: 'is less than' }, { value: '>=', label: 'is greater than or equal to' }, { value: '<=', label: 'is less than or equal to' } ],
     'Date': [ { value: '==', label: 'is on' }, { value: '>', label: 'is after' }, { value: '<', label: 'is before' }, { value: 'in_past', label: 'is in the past' }, { value: 'in_future', label: 'is in the future' }, { value: 'today', label: 'is today' } ],
@@ -376,7 +399,12 @@ function getInputType(fieldPath) {
 </script>
 
 <template>
-    <StepCard icon="🔀" title="If/Else Condition" :onDelete="() => emit('delete')">
+    <StepCard 
+        icon="🔀" 
+        :title="props.step.name || 'If/Else Condition'" 
+        :onDelete="() => emit('delete')"
+        @update:title="newName => emit('update:step', { ...props.step, name: newName })"
+    >
         <div class="flex flex-col space-y-3 text-md p-2 bg-gray-50 rounded-md">
             <!-- AND/OR Logic Toggle -->
             <div class="flex items-center gap-2 bg-gray-100 p-1 rounded-md">

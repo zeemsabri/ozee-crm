@@ -49,7 +49,12 @@ function insertToken(index, token) {
 </script>
 
 <template>
-    <StepCard icon="📝" title="Define Variables" :onDelete="onDelete">
+    <StepCard 
+        icon="📝" 
+        :title="props.step.name || 'Define Variables'" 
+        :onDelete="onDelete"
+        @update:title="newName => emit('update:step', { ...props.step, name: newName })"
+    >
         <div class="space-y-4 p-2">
             <p class="text-sm text-gray-500">
                 Extract data into named variables for use in later steps.

@@ -30,14 +30,14 @@ function humanize(name) {
 const dataSources = computed(() => {
     const sources = [];
 
+    // Helper function to check if field is a List/Array
+    const isListType = (field) => {
+        const t = String(field?.type || '').toLowerCase();
+        return t === 'array of objects' || t === 'array' || t === 'collection';
+    };
+
     // Try to get loop schema either from prop or infer it from nearest FOR_EACH
     let loopSchema = props.loopContextSchema;
-
-    const isArrayOfObjects = (field) => {
-        const t = String(field?.type || '').toLowerCase();
-        const it = String(field?.itemType || '').toLowerCase();
-        return t === 'array of objects' || (t === 'array' && it === 'object');
-    };
 
     if (!loopSchema && props.inferLoopFromNearest) {
         const forEach = [...props.allStepsBefore].reverse().find(s => s.step_type === 'FOR_EACH' && s.step_config?.sourceArray);
@@ -52,7 +52,7 @@ const dataSources = computed(() => {
                 
                 if (sourceStep?.step_type === 'AI_PROMPT' || (sourceStep?.step_type === 'ACTION' && sourceStep?.step_config?.action_type === 'FETCH_API_DATA')) {
                     const field = (sourceStep.step_config?.responseStructure || []).find(f => f.name === cleanFieldName);
-                    if (isArrayOfObjects(field)) {
+                    if (isListType(field)) {
                         loopSchema = { name: 'Loop Item', columns: (field.schema || []) };
                     }
                 }
@@ -96,22 +96,18 @@ const dataSources = computed(() => {
             name: 'Current Loop Item (from For Each)',
             fields: loopItemFields,
         });
-    } else if (!loopSchema) {
+    } else if (!loopSchema && props.loopContextSchema !== null) {
         // No schema known but we might still be inside a loop; expose generic loop tokens
-        // so users aren't left completely empty when the schema can't be inferred.
         const genericLoopFields = [
             { label: '⬤ Entire loop item (full object)', value: '{{loop.item}}' },
             { label: '— index', value: '{{loop.index}}' },
             { label: '— is_first', value: '{{loop.is_first}}' },
             { label: '— is_last', value: '{{loop.is_last}}' },
         ];
-        // Only add when the inserter is explicitly told it's inside a loop (loopContextSchema was passed but is empty)
-        if (props.loopContextSchema !== null) {
-            sources.push({
-                name: 'Current Loop Item (from For Each)',
-                fields: genericLoopFields,
-            });
-        }
+        sources.push({
+            name: 'Current Loop Item (from For Each)',
+            fields: genericLoopFields,
+        });
     }
 
     const triggerStep = props.allStepsBefore.find(s => s.step_type === 'TRIGGER');
@@ -134,51 +130,54 @@ const dataSources = computed(() => {
     }
 
     props.allStepsBefore.forEach((step, index) => {
-        if (step.step_type === 'AI_PROMPT' && step.step_config?.responseStructure?.length > 0) {
-            // Include top-level fields and their nested sub-fields
-            const fields = [];
-            
-            const addFieldsRecursively = (fieldsList, parentPath = '', indentLevel = 0) => {
-                (fieldsList || []).forEach(field => {
-                    if (!field?.name) return;
-                    
-                    const currentPath = parentPath ? `${parentPath}.${field.name}` : field.name;
-                    const indent = '  '.repeat(indentLevel);
-                    
-                    // Always include the current field
-                    fields.push({
-                        label: `${indent}${field.name}`,
-                        value: `{{step_${step.id}.${currentPath}}}`
-                    });
-                    
-                    // Handle nested fields based on field type
-                    if (Array.isArray(field.schema)) {
-                        if (field.type === 'Object') {
-                            // Regular Object: show nested fields with direct access
-                            addFieldsRecursively(field.schema, currentPath, indentLevel + 1);
-                        }
-                    }
+        const stepNameLabel = step.name || `Step ${index + 1}`;
+        let stepTypeAbbr = step.step_type.split('_').pop().toLowerCase();
+        if (step.step_type === 'AI_PROMPT') stepTypeAbbr = 'AI';
+        else if (step.step_type === 'FETCH_RECORDS') stepTypeAbbr = 'Fetch';
+        else if (step.step_type === 'ACTION' && step.step_config?.action_type === 'FETCH_API_DATA') stepTypeAbbr = 'API';
+        const baseLabel = `${stepNameLabel} (${stepTypeAbbr})`;
+
+        // Reusable recursive field collection
+        const collectFields = (fieldsList, targetArr, parentPath = '', indentLevel = 0) => {
+            (fieldsList || []).forEach(field => {
+                if (!field?.name) return;
+                const currentPath = parentPath ? `${parentPath}.${field.name}` : field.name;
+                const indent = '  '.repeat(indentLevel);
+                
+                targetArr.push({
+                    label: `${indent}${field.name}`,
+                    value: `{{step_${step.id}.${currentPath}}}`
                 });
-            };
-            
-            addFieldsRecursively(step.step_config.responseStructure);
+                
+                if (Array.isArray(field.schema)) {
+                    if (isListType(field)) {
+                        targetArr.push({
+                            label: `${indent}${field.name} (Count)`,
+                            value: `{{step_${step.id}.${currentPath}.count}}`
+                        });
+                    } else if (field.type === 'Object') {
+                        collectFields(field.schema, targetArr, currentPath, indentLevel + 1);
+                    }
+                }
+            });
+        };
+
+        if ((step.step_type === 'AI_PROMPT' || (step.step_type === 'ACTION' && step.step_config?.action_type === 'FETCH_API_DATA')) && step.step_config?.responseStructure?.length > 0) {
+            const fields = [];
+            collectFields(step.step_config.responseStructure, fields);
             sources.push({
-                name: `Step ${index + 1}: AI Response`,
+                name: `${baseLabel}: Response`,
                 fields,
             });
         }
 
-        // Include outputs from Fetch Records steps
         if (step.step_type === 'FETCH_RECORDS') {
             const fields = [
                 { label: 'records (array)', value: `{{step_${step.id}.records}}` },
                 { label: 'count', value: `{{step_${step.id}.count}}` },
             ];
-            const modelName = step.step_config && step.step_config.model ? step.step_config.model : null;
-            const groupLabel = `Step ${index + 1}: Fetch Records` + (modelName ? ` — ${modelName}` : '');
-
-            // If this Fetch step is configured to return a single record, expose its fields
-            if (step.step_config && step.step_config.single && modelName) {
+            const modelName = step.step_config?.model;
+            if (step.step_config?.single && modelName) {
                 const model = automationSchema.value.find(m => m.name === modelName);
                 if (model) {
                     (model.columns || []).forEach(col => {
@@ -189,94 +188,42 @@ const dataSources = computed(() => {
                         }
                     });
                 }
-                // Also expose the whole record object (useful for JSON serialization)
                 fields.push({ label: 'record (object)', value: `{{step_${step.id}.record}}` });
             }
-
             sources.push({
-                name: groupLabel,
+                name: `${baseLabel}` + (modelName ? ` — ${modelName}` : ''),
                 fields,
             });
         }
 
-        // Include outputs from Transform Content steps
         if (step.step_type === 'TRANSFORM_CONTENT') {
-            const fields = [
-                { label: 'cleaned_body', value: `{{step_${step.id}.cleaned_body}}` },
-                { label: 'result', value: `{{step_${step.id}.result}}` },
-            ];
             sources.push({
-                name: `Step ${index + 1}: Transformed Content`,
-                fields,
+                name: `${baseLabel}: Output`,
+                fields: [
+                    { label: 'cleaned_body', value: `{{step_${step.id}.cleaned_body}}` },
+                    { label: 'result', value: `{{step_${step.id}.result}}` },
+                ],
             });
         }
 
-        // Include outputs from Create Record actions
-        if (step.step_type === 'ACTION' && step.step_config && step.step_config.action_type === 'CREATE_RECORD') {
+        if (step.step_type === 'ACTION' && step.step_config?.action_type === 'CREATE_RECORD') {
             const modelName = step.step_config.target_model || '';
-            const groupLabel = `Step ${index + 1}: Create Record` + (modelName ? ` — ${modelName}` : '');
-            const fields = [
-                { label: 'new_record_id', value: `{{step_${step.id}.new_record_id}}` },
-                // legacy id for backward compatibility
-                { label: 'id (legacy)', value: `{{step_${step.id}.id}}` },
-            ];
             sources.push({
-                name: groupLabel,
-                fields,
+                name: `${baseLabel}: Create Record` + (modelName ? ` — ${modelName}` : ''),
+                fields: [
+                    { label: 'new_record_id', value: `{{step_${step.id}.new_record_id}}` },
+                    { label: 'id (legacy)', value: `{{step_${step.id}.id}}` },
+                ],
             });
         }
 
-        // Include variables from Define Variable steps
         if (step.step_type === 'DEFINE_VARIABLE' && Array.isArray(step.step_config?.variables)) {
             const fields = step.step_config.variables
                 .filter(v => !!v.name)
-                .map(v => ({
-                    label: v.name,
-                    value: `{{step_${step.id}.${v.name}}}`
-                }));
+                .map(v => ({ label: v.name, value: `{{step_${step.id}.${v.name}}}` }));
             if (fields.length > 0) {
-                sources.push({
-                    name: `Step ${index + 1}: Defined Variables`,
-                    fields,
-                });
+                sources.push({ name: `${baseLabel}: Variables`, fields });
             }
-        }
-
-        // Include schema outputs from Fetch API Data (ActionStep)
-        if (step.step_type === 'ACTION' && step.step_config?.action_type === 'FETCH_API_DATA' && step.step_config?.responseStructure?.length > 0) {
-            const fields = [];
-            
-            const isArrayOfObjects = (field) => {
-                const t = String(field?.type || '').toLowerCase();
-                const it = String(field?.itemType || '').toLowerCase();
-                return t === 'array of objects' || (t === 'array' && it === 'object');
-            };
-
-            const addFieldsRecursively = (fieldsList, parentPath = '', indentLevel = 0) => {
-                (fieldsList || []).forEach(field => {
-                    if (!field?.name) return;
-                    
-                    const currentPath = parentPath ? `${parentPath}.${field.name}` : field.name;
-                    const indent = '  '.repeat(indentLevel);
-                    
-                    fields.push({
-                        label: `${indent}${field.name}`,
-                        value: `{{step_${step.id}.${currentPath}}}`
-                    });
-                    
-                    if (Array.isArray(field.schema)) {
-                        if (field.type === 'Object') {
-                            addFieldsRecursively(field.schema, currentPath, indentLevel + 1);
-                        }
-                    }
-                });
-            };
-            
-            addFieldsRecursively(step.step_config.responseStructure);
-            sources.push({
-                name: `Step ${index + 1}: API Response`,
-                fields,
-            });
         }
     });
 
