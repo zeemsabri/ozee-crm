@@ -244,7 +244,8 @@ const loadHistory = async () => {
         const { data } = await window.axios.get('/api/daily-tasks/history', { 
             params: { 
                 days: 14,
-                user_id: selectedUserId.value
+                user_id: selectedUserId.value,
+                today: formatDate(new Date())
             } 
         });
         historyData.value = data || {};
