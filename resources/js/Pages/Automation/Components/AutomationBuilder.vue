@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { useWorkflowStore } from '../Store/workflowStore';
-import Workflow from './Workflow.vue';
+import VueFlowCanvas from './VueFlowCanvas.vue';
 import WorkflowMinimap from './WorkflowMinimap.vue';
 import TriggerSelectionModal from './Steps/TriggerSelectionModal.vue';
 import RightSidebar from '@/Components/RightSidebar.vue';
@@ -82,23 +82,29 @@ const isReadyForSave = computed(() => {
 const flattenSteps = (steps, parentId = null, branch = null) => {
     let flatList = [];
     steps.forEach((step, index) => {
-        const stepData = { ...step };
-        const if_true = stepData.if_true;
-        const if_false = stepData.if_false;
-        const children = stepData.children;
+        // Create a deep copy of the step to avoid modifying the original during flattening
+        const stepData = JSON.parse(JSON.stringify(step));
+        
+        // Extract children arrays before deleting
+        const if_true = stepData.if_true || [];
+        const if_false = stepData.if_false || [];
+        const children = stepData.children || [];
+        
+        // Remove nested arrays from horizontal flat data
         delete stepData.if_true;
         delete stepData.if_false;
         delete stepData.children;
 
         stepData.step_order = index + 1;
+        
+        // Ensure step_config exists and update parent/branch metadata explicitly
+        stepData.step_config = stepData.step_config || {};
+        stepData.step_config._parent_id = parentId;
+        stepData.step_config._branch = branch;
+
         // Ensure delay_minutes is explicitly preserved (defaults to 0 if not set)
         if (stepData.delay_minutes === undefined || stepData.delay_minutes === null) {
             stepData.delay_minutes = 0;
-        }
-        if (parentId) {
-            stepData.step_config = stepData.step_config || {};
-            stepData.step_config._parent_id = parentId;
-            stepData.step_config._branch = branch; // null for FOR_EACH children
         }
 
         flatList.push(stepData);
@@ -106,14 +112,14 @@ const flattenSteps = (steps, parentId = null, branch = null) => {
         if (step.step_type === 'CONDITION') {
             flatList = [
                 ...flatList,
-                ...flattenSteps(if_true || [], step.id, 'yes'),
-                ...flattenSteps(if_false || [], step.id, 'no')
+                ...flattenSteps(if_true, step.id, 'yes'),
+                ...flattenSteps(if_false, step.id, 'no')
             ];
         }
         if (step.step_type === 'FOR_EACH') {
             flatList = [
                 ...flatList,
-                ...flattenSteps(children || [], step.id, null)
+                ...flattenSteps(children, step.id, null)
             ];
         }
     });
@@ -206,15 +212,14 @@ const totalStepCount = computed(() => flattenSteps(workflowSteps.value).length);
                     </button>
                 </div>
             </div>
-            <div class="p-2 sm:p-6 pb-40 overflow-x-auto">
-                <div class="inline-block min-w-max">
-                    <Workflow
+            <div class="p-2 sm:p-6 pb-40">
+                <div class="w-full h-[calc(100vh-200px)] min-h-[600px]">
+                    <VueFlowCanvas
                         :steps="workflowSteps"
                         @update:steps="workflowSteps = $event"
                         @add-trigger="showTriggerModal = true"
                     />
-                    <!-- Bottom spacer to ensure dropdowns/menus near the end remain visible -->
-                    <div class="h-60"></div>
+                    <div class="h-20"></div>
                 </div>
             </div>
 

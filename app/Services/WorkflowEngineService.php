@@ -17,6 +17,7 @@ use App\Services\StepHandlers\SyncRelationshipStepHandler;
 use App\Services\StepHandlers\TransformContentStepHandler;
 use App\Services\StepHandlers\DefineVariableStepHandler;
 use App\Services\StepHandlers\UpdateRecordStepHandler;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -627,62 +628,82 @@ class WorkflowEngineService
         }, $value);
     }
 
-    // This function should replace the existing getFromContextPath method
-    // in your App\Services\WorkflowEngineService.php file.
-
-    protected function getFromContextPath(array $context, string $path)
+    /**
+     * Retrieves a value from the workflow context based on a dot or colon separated path.
+     * Supports:
+     * - Direct path access (e.g., "trigger.project.name")
+     * - Automatic fallback to ".parsed" for step outputs (e.g., "step_1.tasks" -> "step_1.parsed.tasks")
+     * - Fallback to searching inside the "steps" array (e.g., "step_1" -> "steps.1")
+     * - Virtual properties (e.g., "array.count", "array.length")
+     */
+    public function getFromContextPath(array $context, string $path)
     {
         if ($path === '') {
             return null;
         }
 
-        // Use the original logic to split the path by either a dot or a colon.
-        $originalParts = preg_split('/\.|\:/', $path);
+        // Normalize separators: handle both dots and colons
+        $path = str_replace(':', '.', $path);
 
-        // --- Attempt 1: Try the original path exactly as the old function did ---
-        $value = $context;
-        $isFound = true;
-        foreach ($originalParts as $part) {
-            if (is_array($value) && array_key_exists($part, $value)) {
-                $value = $value[$part];
-            } else {
-                $isFound = false;
-                break;
-            }
-        }
-
-        // If the original path was valid, return the value immediately.
-        if ($isFound) {
+        // --- 1. Attempt direct resolution ---
+        $value = Arr::get($context, $path);
+        if ($value !== null) {
             return $value;
         }
 
-        // --- Attempt 2: If not found, try the fallback path with ".parsed" ---
-        if (count($originalParts) > 1) {
-            // Construct the fallback parts, e.g., ['step_115', 'parsed', 'remove_after']
-            $fallbackParts = array_merge(
-                [$originalParts[0]],
-                ['parsed'],
-                array_slice($originalParts, 1)
-            );
+        // --- 2. Handle virtual properties (.count, .length) recursively ---
+        if (str_ends_with($path, '.count') || str_ends_with($path, '.length')) {
+            $lastIndex = strrpos($path, '.');
+            $parentPath = substr($path, 0, $lastIndex);
+            $parentValue = $this->getFromContextPath($context, $parentPath);
 
-            $fallbackValue = $context;
-            $isFallbackFound = true;
-            foreach ($fallbackParts as $part) {
-                if (is_array($fallbackValue) && array_key_exists($part, $fallbackValue)) {
-                    $fallbackValue = $fallbackValue[$part];
-                } else {
-                    $isFallbackFound = false;
-                    break;
-                }
-            }
-
-            if ($isFallbackFound) {
-                return $fallbackValue;
+            if (is_array($parentValue) || $parentValue instanceof \Countable) {
+                return count($parentValue);
             }
         }
 
-        // If neither the original nor the fallback path worked, return null.
+        // --- 3. Handle step output fallbacks (step_X -> steps.X.parsed) ---
+        if (str_starts_with($path, 'step_')) {
+            $parts = explode('.', $path);
+            $stepId = str_replace('step_', '', $parts[0]);
+            $remainingPath = implode('.', array_slice($parts, 1));
+
+            // Candidate paths to check in order of preference
+            $candidates = [];
+
+            if ($remainingPath !== '') {
+                // Try step_X.parsed.REMAINING
+                if (!str_starts_with($remainingPath, 'parsed.')) {
+                    $candidates[] = "step_{$stepId}.parsed.{$remainingPath}";
+                }
+                // Try steps.X.REMAINING
+                $candidates[] = "steps.{$stepId}.{$remainingPath}";
+                // Try steps.X.parsed.REMAINING
+                if (!str_starts_with($remainingPath, 'parsed.')) {
+                    $candidates[] = "steps.{$stepId}.parsed.{$remainingPath}";
+                }
+            } else {
+                // Just the step itself
+                $candidates[] = "steps.{$stepId}";
+                $candidates[] = "steps.{$stepId}.parsed";
+            }
+
+            foreach ($candidates as $candidate) {
+                $val = Arr::get($context, $candidate);
+                if ($val !== null) {
+                    return $val;
+                }
+            }
+        }
+
         return null;
+    }
+
+    protected function resolvePath(array $data, array $parts)
+    {
+        // This helper is no longer strictly needed by the new getFromContextPath but 
+        // we'll keep a similar logic if needed for internal walking.
+        return Arr::get($data, implode('.', $parts));
     }
 
     /**

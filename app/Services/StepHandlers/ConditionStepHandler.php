@@ -25,10 +25,17 @@ class ConditionStepHandler implements StepHandlerContract
         $rules = $cfg['rules'] ?? $step->condition_rules ?? [];
         $result = $this->evaluateRules($rules, $logic, $context);
 
-        $branch = $result ? 'yes_steps' : 'no_steps';
-        $children = $step->$branch ?? [];
+        // Primary path: use the Eloquent yes_steps / no_steps relations.
+        // These are defined on WorkflowStep and query via step_config->_parent_id + _branch.
+        if ($result) {
+            $children = $step->yes_steps()->get()->all();
+        } else {
+            $children = $step->no_steps()->get()->all();
+        }
 
-        if (! is_array($children) || count($children) === 0) {
+        // Fallback: if the Eloquent relations returned nothing, scan all workflow steps manually.
+        // This handles edge cases where JSON querying behaves unexpectedly on some DB drivers.
+        if (empty($children)) {
             $all = $step->workflow->steps()->orderBy('step_order')->get();
             $children = [];
             foreach ($all as $cand) {
@@ -89,10 +96,13 @@ class ConditionStepHandler implements StepHandlerContract
                 $rightVal = $this->normalizeMorphType($rightVal);
             }
 
-            $results[] = $this->compareAny($leftVal, $op, $rightVal);
+            $ruleResult = $this->compareAny($leftVal, $op, $rightVal);
+            
+            $results[] = $ruleResult;
         }
 
-        return $logic === 'OR' ? in_array(true, $results, true) : ! in_array(false, $results, true);
+        $finalResult = $logic === 'OR' ? in_array(true, $results, true) : ! in_array(false, $results, true);
+        return $finalResult;
     }
 
     protected function resolveSide(array $side, array $ctx)
@@ -113,23 +123,7 @@ class ConditionStepHandler implements StepHandlerContract
 
     protected function getFromContextPath(array $context, string $path)
     {
-        $value = Arr::get($context, $path);
-        if ($value !== null) {
-            return $value;
-        }
-
-        if (str_starts_with($path, 'step_')) {
-            $parts = explode('.', $path, 2);
-            if (count($parts) > 1) {
-                $fallbackPath = $parts[0].'.parsed.'.$parts[1];
-                $value = Arr::get($context, $fallbackPath);
-                if ($value !== null) {
-                    return $value;
-                }
-            }
-        }
-
-        return null;
+        return $this->engine->getFromContextPath($context, $path);
     }
 
     protected function applyTemplate($value, array $ctx)

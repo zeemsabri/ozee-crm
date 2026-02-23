@@ -379,7 +379,12 @@ function updateDelayMinutes(val) {
 </script>
 
 <template>
-    <StepCard icon="⚙️" title="Perform an Action" :onDelete="() => emit('delete')">
+    <StepCard 
+        icon="⚙️" 
+        :title="props.step.name || 'Perform an Action'" 
+        :onDelete="() => emit('delete')"
+        @update:title="newName => emit('update:step', { ...props.step, name: newName })"
+    >
         <select
             :value="actionConfig.action_type || ''"
             @change="handleActionTypeChange($event.target.value)"

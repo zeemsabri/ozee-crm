@@ -28,7 +28,12 @@ function clearSource() {
 </script>
 
 <template>
-    <StepCard icon="🔄" title="For Each Loop" :onDelete="() => emit('delete')">
+    <StepCard 
+        icon="🔄" 
+        :title="props.step.name || 'For Each Loop'" 
+        :onDelete="() => emit('delete')"
+        @update:title="newName => emit('update:step', { ...props.step, name: newName })"
+    >
         <div>
             <label class="block text-xs font-medium text-gray-600 mb-2">Loop over this data</label>
             <div class="flex items-center gap-2">

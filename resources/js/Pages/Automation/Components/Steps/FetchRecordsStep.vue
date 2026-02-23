@@ -156,7 +156,12 @@ const relationshipsSummary = computed(() => {
 </script>
 
 <template>
-    <StepCard icon="🔍" title="Fetch Records" :onDelete="() => emit('delete')">
+    <StepCard 
+        icon="🔍" 
+        :title="props.step.name || 'Fetch Records'" 
+        :onDelete="() => emit('delete')"
+        @update:title="newName => emit('update:step', { ...props.step, name: newName })"
+    >
         <div class="space-y-3">
             <div>
                 <label class="block text-xs font-medium text-gray-600 mb-1">Find records from</label>

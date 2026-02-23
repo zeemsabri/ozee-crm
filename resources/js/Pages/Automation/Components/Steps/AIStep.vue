@@ -469,7 +469,12 @@ function handleFreeTextInsert(token) {
 </script>
 
 <template>
-    <StepCard icon="🧠" title="Analyze with AI" :onDelete="() => emit('delete')">
+    <StepCard 
+        icon="🧠" 
+        :title="props.step.name || 'Analyze with AI'" 
+        :onDelete="() => emit('delete')"
+        @update:title="newName => emit('update:step', { ...props.step, name: newName })"
+    >
         <div class="mb-3">
             <label class="block text-sm font-medium text-gray-700">Prompt</label>
             <div class="flex gap-2 mt-1 items-center">
