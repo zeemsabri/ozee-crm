@@ -17,6 +17,7 @@ const reportData = ref([]);
 const projectsList = ref([]);
 const loading = ref(false);
 const exportSuccess = ref(false);
+const exportProjectSuccess = ref({});
 
 const selectedProjectIds = ref([]);
 const dateStart = ref('');
@@ -140,6 +141,36 @@ const exportForAI = () => {
     });
 };
 
+const exportSingleProjectForAI = (project, event) => {
+    if (event) event.stopPropagation();
+    
+    const cleanData = {
+        projectName: project.name,
+        status: project.status,
+        notes: project.project_notes?.filter(n => !n.type || n.type === 'general' || n.type === 'note').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
+        standups: project.project_notes?.filter(n => n.type === 'standup').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
+        meetingMinutes: project.project_notes?.filter(n => n.type === 'meeting_minutes').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
+        tasksTodo: project.tasks?.filter(t => t.status !== 'Done').map(t => ({ name: t.name, description: t.description, assignee: t.assigned_to, dueDate: t.due_date, status: t.status })),
+        tasksDone: project.tasks?.filter(t => t.status === 'Done').map(t => ({ name: t.name, description: t.description, assignee: t.assigned_to, finishedAt: t.updated_at })),
+        communications: project.emails?.map(e => ({ subject: e.subject, sender: e.sender, type: e.type, date: e.created_at, aiContext: e.contexts?.[0]?.summary }))
+    };
+    
+    const jsonString = JSON.stringify(cleanData, null, 2);
+    navigator.clipboard.writeText(jsonString).then(() => {
+        exportProjectSuccess.value[project.id] = true;
+        setTimeout(() => exportProjectSuccess.value[project.id] = false, 3000);
+    }).catch(err => {
+        console.error('Failed to copy text: ', err);
+        const element = document.createElement('a');
+        element.setAttribute('href', 'data:text/json;charset=utf-8,' + encodeURIComponent(jsonString));
+        element.setAttribute('download', `project_${project.id}_activity.json`);
+        element.style.display = 'none';
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+    });
+};
+
 onMounted(() => {
     // Set default dates
     const now = new Date();
@@ -246,6 +277,9 @@ const getNotesByType = (notes, typeStr) => {
                             </div>
                         </div>
                         <div class="flex items-center gap-6">
+                            <button @click="exportSingleProjectForAI(project, $event)" class="print:hidden border border-indigo-200 hover:bg-indigo-50 text-indigo-600 rounded-md px-3 py-1.5 text-[11px] font-bold uppercase flex items-center shadow-sm transition">
+                                <SparklesIcon class="h-3 w-3 mr-1" /> {{ exportProjectSuccess[project.id] ? 'Copied!' : 'Export JSON' }}
+                            </button>
                             <component :is="expandedProjects[project.id] ? ChevronUpIcon : ChevronDownIcon" class="h-5 w-5 text-gray-400 print:hidden" />
                         </div>
                     </div>
