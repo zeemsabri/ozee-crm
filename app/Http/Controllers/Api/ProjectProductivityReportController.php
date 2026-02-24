@@ -82,13 +82,23 @@ class ProjectProductivityReportController extends Controller
                 'id' => $project->id,
                 'name' => $project->name,
                 'status' => $project->status,
-                'project_notes' => $projectNotes,
+                'project_notes' => $projectNotes->map(function($note) {
+                    return [
+                        'id' => $note->id,
+                        'content' => $note->content,
+                        'type' => $note->type,
+                        'creator_name' => $note->creator?->name ?? 'System',
+                        'created_at' => $note->created_at,
+                    ];
+                }),
                 'tasks' => $tasks->map(function($task) {
                     return [
                         'id' => $task->id,
                         'name' => $task->name,
+                        'description' => $task->description,
                         'status' => $task->status,
                         'assigned_to' => $task->assignedTo?->name,
+                        'due_date' => $task->due_date,
                         'milestone' => $task->milestone?->name,
                         'notes' => $task->notes,
                         'updated_at' => $task->updated_at,
