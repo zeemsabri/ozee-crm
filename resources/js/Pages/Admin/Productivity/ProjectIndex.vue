@@ -7,8 +7,9 @@ import RightSidebar from '@/Components/RightSidebar.vue';
 import {
     BriefcaseIcon, CalendarIcon, ClockIcon, ChevronDownIcon, ChevronUpIcon,
     PrinterIcon, ChatBubbleLeftRightIcon, EnvelopeIcon, DocumentTextIcon,
-    SparklesIcon, UserIcon, ArrowPathIcon, CheckCircleIcon,
-    HandRaisedIcon, BoltIcon, MagnifyingGlassIcon
+    SparklesIcon, UserIcon, ArrowPathIcon, ClipboardDocumentIcon,
+    CheckCircleIcon, HandRaisedIcon, DocumentDuplicateIcon, BoltIcon,
+    MagnifyingGlassIcon, FunnelIcon
 } from '@heroicons/vue/24/outline';
 
 import TaskDetailSidebar from '@/Components/ProjectTasks/TaskDetailSidebar.vue';
@@ -27,6 +28,7 @@ const highlightDate = ref('');
 // UI State
 const expandedProjects = ref({});
 const activeTabs = ref({});
+const projectUserFilters = ref({}); // { projectId: 'userName' }
 const showTaskDetailSidebar = ref(false);
 const selectedTaskId = ref(null);
 const selectedProjectId = ref(null);
@@ -41,8 +43,6 @@ const setTab = (projectId, tabName) => {
     activeTabs.value[projectId] = tabName;
 };
 
-// --- LOGIC FOR HIGHLIGHTED SUMMARY ---
-
 const isHighlighted = (dateString) => {
     if (!highlightDate.value || !dateString) return false;
     const highlight = highlightDate.value.split('T')[0];
@@ -50,39 +50,23 @@ const isHighlighted = (dateString) => {
     return highlight === target;
 };
 
-// This aggregates everything from the highlightDate and groups it by User
+// --- USER-CENTRIC SUMMARY LOGIC ---
 const highlightedActivityByUser = computed(() => {
     const userMap = {};
-
     const getOrCreateUser = (name) => {
-        const userName = name || 'Unassigned/System';
+        const userName = name || 'Unassigned';
         if (!userMap[userName]) {
-            userMap[userName] = {
-                tasksDone: [],
-                tasksUpdated: [],
-                notes: [],
-                standups: [],
-                meetings: [],
-                emails: []
-            };
+            userMap[userName] = { tasksDone: [], standups: [], meetings: [], emails: [], notes: [] };
         }
         return userMap[userName];
     };
 
     reportData.value.forEach(project => {
-        // 1. Process Tasks
         project.tasks?.forEach(task => {
-            if (isHighlighted(task.updated_at)) {
-                const user = getOrCreateUser(task.assigned_to);
-                if (task.status === 'Done') {
-                    user.tasksDone.push({ ...task, projectName: project.name });
-                } else {
-                    user.tasksUpdated.push({ ...task, projectName: project.name });
-                }
+            if (isHighlighted(task.updated_at) && task.status === 'Done') {
+                getOrCreateUser(task.assigned_to).tasksDone.push({ ...task, projectName: project.name });
             }
         });
-
-        // 2. Process Notes/Standups/Meetings
         project.project_notes?.forEach(note => {
             if (isHighlighted(note.created_at)) {
                 const user = getOrCreateUser(note.creator_name);
@@ -91,36 +75,41 @@ const highlightedActivityByUser = computed(() => {
                 else user.notes.push({ ...note, projectName: project.name });
             }
         });
-
-        // 3. Process Emails
         project.emails?.forEach(email => {
             if (isHighlighted(email.created_at)) {
-                const user = getOrCreateUser(email.sender);
-                user.emails.push({ ...email, projectName: project.name });
+                getOrCreateUser(email.sender).emails.push({ ...email, projectName: project.name });
             }
         });
     });
-
     return userMap;
 });
 
 const activeUsersCount = computed(() => Object.keys(highlightedActivityByUser.value).length);
 
-// --- SIDEBAR & FETCH ---
+// --- PROJECT DATA HELPERS ---
+const getProjectUsers = (project) => {
+    const users = new Set();
+    project.tasks?.forEach(t => t.assigned_to && users.add(t.assigned_to));
+    project.project_notes?.forEach(n => n.creator_name && users.add(n.creator_name));
+    project.emails?.forEach(e => e.sender && users.add(e.sender));
+    return Array.from(users).sort();
+};
 
+const filterBySelectedUser = (items, projectId, userKey) => {
+    const filter = projectUserFilters.value[projectId];
+    if (!filter || filter === 'all') return items;
+    return items.filter(item => (item[userKey] === filter));
+};
+
+// --- ACTIONS & EXPORTS ---
 const openTaskDetail = async (task) => {
     if (!task || !task.id) return;
     selectedTaskId.value = task.id;
     selectedProjectId.value = task.project_id || 0;
-
-    if (selectedProjectId.value) {
-        try {
-            const res = await window.axios.get(`/api/projects/${selectedProjectId.value}/sections/clients-users`);
-            taskDetailProjectUsers.value = res.data.users || [];
-        } catch (e) {
-            console.error('Failed to fetch project users', e);
-        }
-    }
+    try {
+        const res = await window.axios.get(`/api/projects/${selectedProjectId.value}/sections/clients-users`);
+        taskDetailProjectUsers.value = res.data.users || [];
+    } catch (e) { console.error(e); }
     showTaskDetailSidebar.value = true;
 };
 
@@ -128,51 +117,65 @@ const fetchReport = async () => {
     loading.value = true;
     try {
         const res = await window.axios.get('/api/productivity/project-report', {
-            params: {
-                project_ids: selectedProjectIds.value.join(','),
-                date_start: dateStart.value,
-                date_end: dateEnd.value,
-            }
+            params: { project_ids: selectedProjectIds.value.join(','), date_start: dateStart.value, date_end: dateEnd.value }
         });
         reportData.value = res.data.reportData;
         projectsList.value = res.data.projects;
-
         reportData.value.forEach(p => {
             if (p.has_activity) {
                 expandedProjects.value[p.id] = true;
                 activeTabs.value[p.id] = 'todo';
             }
         });
-    } catch (e) {
-        console.error(e);
-    } finally {
-        loading.value = false;
-    }
+    } catch (e) { console.error(e); } finally { loading.value = false; }
+};
+
+const exportForAI = () => {
+    const cleanData = reportData.value.map(p => ({
+        projectName: p.name, status: p.status,
+        notes: p.project_notes?.filter(n => !n.type || n.type === 'note').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
+        standups: p.project_notes?.filter(n => n.type === 'standup').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
+        meetingMinutes: p.project_notes?.filter(n => n.type === 'meeting_minutes').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
+        tasksTodo: p.tasks?.filter(t => t.status !== 'Done').map(t => ({ name: t.name, assignee: t.assigned_to, status: t.status })),
+        tasksDone: p.tasks?.filter(t => t.status === 'Done').map(t => ({ name: t.name, assignee: t.assigned_to, finishedAt: t.updated_at })),
+        communications: p.emails?.map(e => ({ subject: e.subject, sender: e.sender, date: e.created_at, aiContext: e.contexts?.[0]?.summary }))
+    }));
+    navigator.clipboard.writeText(JSON.stringify(cleanData, null, 2)).then(() => {
+        exportSuccess.value = true;
+        setTimeout(() => exportSuccess.value = false, 3000);
+    });
+};
+
+const exportSingleProjectForAI = (project, event) => {
+    if (event) event.stopPropagation();
+    const cleanData = {
+        projectName: project.name, status: project.status,
+        notes: project.project_notes?.filter(n => !n.type || n.type === 'note').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
+        standups: project.project_notes?.filter(n => n.type === 'standup').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
+        meetingMinutes: project.project_notes?.filter(n => n.type === 'meeting_minutes').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
+        tasksTodo: project.tasks?.filter(t => t.status !== 'Done').map(t => ({ name: t.name, assignee: t.assigned_to })),
+        tasksDone: project.tasks?.filter(t => t.status === 'Done').map(t => ({ name: t.name, assignee: t.assigned_to })),
+        communications: project.emails?.map(e => ({ subject: e.subject, aiContext: e.contexts?.[0]?.summary }))
+    };
+    navigator.clipboard.writeText(JSON.stringify(cleanData, null, 2)).then(() => {
+        exportProjectSuccess.value[project.id] = true;
+        setTimeout(() => exportProjectSuccess.value[project.id] = false, 3000);
+    });
 };
 
 const formatDate = (dateStr) => {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+    return new Date(dateStr).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
 
 onMounted(() => {
     const now = new Date();
-    // Default highlight to yesterday if it's early morning, or today
     highlightDate.value = now.toISOString().split('T')[0];
-
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     dateStart.value = start.toISOString().split('T')[0];
     dateEnd.value = now.toISOString().split('T')[0];
-
     fetchReport();
 });
-
-const getNotesByType = (notes, typeStr) => {
-    if (!notes) return [];
-    if (typeStr === 'note') return notes.filter(n => !n.type || n.type === 'note' || n.type === 'general');
-    return notes.filter(n => n.type === typeStr);
-};
 
 </script>
 
@@ -183,14 +186,16 @@ const getNotesByType = (notes, typeStr) => {
             <div class="flex justify-between items-center print:hidden">
                 <div>
                     <h2 class="font-black text-2xl text-gray-900 tracking-tight">Morning Briefing</h2>
-                    <p class="text-sm text-gray-500 font-medium">Daily productivity & action point generator</p>
+                    <p class="text-sm text-gray-500 font-medium">Daily action point & productivity generator</p>
                 </div>
                 <div class="flex gap-3">
-                    <button @click="fetchReport" :disabled="loading" class="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-sm transition disabled:opacity-50">
-                        <ArrowPathIcon class="h-4 w-4 mr-2" :class="{'animate-spin': loading}" />
-                        Refresh Data
+                    <button @click="exportForAI" class="flex items-center px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-sm font-bold hover:shadow-lg transition">
+                        <SparklesIcon class="h-4 w-4 mr-2" /> {{ exportSuccess ? 'Copied JSON!' : 'AI Export (Global)' }}
                     </button>
-                    <button @click="window.print()" class="flex items-center px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm transition">
+                    <button @click="fetchReport" :disabled="loading" class="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition disabled:opacity-50">
+                        <ArrowPathIcon class="h-4 w-4 mr-2" :class="{'animate-spin': loading}" /> Refresh
+                    </button>
+                    <button @click="window.print()" class="flex items-center px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition">
                         <PrinterIcon class="h-4 w-4 mr-2" /> PDF
                     </button>
                 </div>
@@ -200,107 +205,65 @@ const getNotesByType = (notes, typeStr) => {
         <div class="py-6 bg-gray-50 min-h-screen print:bg-white print:py-0">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
-                <!-- 1. CRITICAL FILTERS & NAV -->
+                <!-- 1. FILTERS -->
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 print:hidden">
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
                         <div class="md:col-span-1">
-                            <label class="text-[10px] font-black text-indigo-600 uppercase mb-2 block flex items-center gap-1">
-                                <SparklesIcon class="h-3 w-3" /> Focus Date (Yesterday/Today)
-                            </label>
-                            <input type="date" v-model="highlightDate" class="w-full rounded-xl border-indigo-200 bg-indigo-50 text-indigo-900 font-bold text-sm focus:ring-indigo-500 shadow-inner" />
+                            <label class="text-[10px] font-black text-indigo-600 uppercase mb-2 block flex items-center gap-1"><SparklesIcon class="h-3 w-3" /> Focus Date</label>
+                            <input type="date" v-model="highlightDate" class="w-full rounded-xl border-indigo-200 bg-indigo-50 text-indigo-900 font-bold text-sm focus:ring-indigo-500" />
                         </div>
                         <div class="md:col-span-2">
-                            <label class="text-[10px] font-bold text-gray-400 uppercase mb-2 block tracking-widest">Filter Project Scope</label>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase mb-2 block tracking-widest">Selected Projects</label>
                             <MultiSelectDropdown v-model="selectedProjectIds" :options="projectsList" :is-multi="true" placeholder="Analyze All Projects" />
                         </div>
                         <div class="flex bg-gray-100 p-1 rounded-xl">
-                            <button @click="viewMode = 'summary'" :class="viewMode === 'summary' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'" class="flex-1 py-1.5 px-3 rounded-lg text-xs font-black uppercase transition">Summary</button>
-                            <button @click="viewMode = 'projects'" :class="viewMode === 'projects' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'" class="flex-1 py-1.5 px-3 rounded-lg text-xs font-black uppercase transition">Projects</button>
+                            <button @click="viewMode = 'summary'" :class="viewMode === 'summary' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'" class="flex-1 py-1.5 rounded-lg text-xs font-black uppercase transition">User Summary</button>
+                            <button @click="viewMode = 'projects'" :class="viewMode === 'projects' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'" class="flex-1 py-1.5 rounded-lg text-xs font-black uppercase transition">Portfolio View</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- 2. THE COMMAND CENTER (HIGHLIGHTED ACTIVITY BY USER) -->
-                <section v-if="viewMode === 'summary' || activeUsersCount > 0" class="space-y-4">
+                <!-- 2. USER SUMMARY (THE MORNING BRIEFING) -->
+                <section v-show="viewMode === 'summary'" class="animate-in fade-in duration-500 space-y-6">
                     <div class="flex items-center justify-between px-2">
-                        <h3 class="text-lg font-black text-gray-800 flex items-center gap-2">
-                            <BoltIcon class="h-5 w-5 text-amber-500" />
-                            Activity Snapshot: {{ highlightDate }}
-                        </h3>
-                        <span class="text-xs font-bold text-gray-400 uppercase tracking-widest">{{ activeUsersCount }} Contributors</span>
+                        <h3 class="text-lg font-black text-gray-800 flex items-center gap-2"><BoltIcon class="h-5 w-5 text-amber-500" /> Daily Activity Stream</h3>
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-widest">{{ activeUsersCount }} Contributors on {{ highlightDate }}</span>
                     </div>
 
-                    <div v-if="activeUsersCount === 0" class="bg-white p-10 rounded-3xl border-2 border-dashed border-gray-200 text-center">
-                        <MagnifyingGlassIcon class="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                        <p class="text-gray-500 font-bold text-lg">No activity recorded for this specific date.</p>
-                        <p class="text-sm text-gray-400">Try selecting a different date or refreshing the data.</p>
+                    <div v-if="activeUsersCount === 0" class="bg-white p-16 rounded-[2.5rem] border-2 border-dashed border-gray-200 text-center">
+                        <MagnifyingGlassIcon class="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                        <p class="text-gray-600 font-bold text-xl">No specific logs found for this focus date.</p>
+                        <p class="text-sm text-gray-400 mt-1">Try selecting a different date or checking the detailed portfolio view.</p>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div v-for="(data, userName) in highlightedActivityByUser" :key="userName"
-                             class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col transition hover:shadow-md">
-
-                            <!-- User Header -->
-                            <div class="p-5 bg-gray-50/50 border-b border-gray-100 flex items-center gap-3">
-                                <div class="h-10 w-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-black shadow-sm">
-                                    {{ userName.substring(0,2).toUpperCase() }}
-                                </div>
+                        <div v-for="(data, userName) in highlightedActivityByUser" :key="userName" class="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden flex flex-col transition hover:shadow-lg">
+                            <div class="p-6 bg-gray-50/50 border-b border-gray-100 flex items-center gap-4">
+                                <div class="h-12 w-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-sm">{{ userName.substring(0,2).toUpperCase() }}</div>
                                 <div>
-                                    <h4 class="font-black text-gray-900 leading-tight">{{ userName }}</h4>
-                                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-tighter">Daily Output</p>
+                                    <h4 class="font-black text-gray-900 leading-tight text-lg">{{ userName }}</h4>
+                                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-tighter">Daily Impact</p>
                                 </div>
                             </div>
-
-                            <div class="p-5 space-y-6 flex-1">
-                                <!-- Standups First (The "Plan") -->
+                            <div class="p-6 space-y-6 flex-1">
                                 <div v-if="data.standups.length > 0">
-                                    <h5 class="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-1">
-                                        <HandRaisedIcon class="h-3 w-3" /> Standup Log
-                                    </h5>
-                                    <div v-for="s in data.standups" :key="s.id" class="text-xs text-gray-600 bg-orange-50/50 p-3 rounded-xl border border-orange-100 mb-2 italic">
-                                        {{ s.content }}
-                                        <p class="text-[9px] font-black mt-2 text-orange-400">{{ s.projectName }}</p>
-                                    </div>
+                                    <h5 class="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-1"><HandRaisedIcon class="h-3 w-3" /> Standup Context</h5>
+                                    <div v-for="s in data.standups" :key="s.id" class="text-xs text-gray-600 bg-orange-50/50 p-4 rounded-2xl border border-orange-100 mb-2 italic">"{{ s.content }}" <p class="text-[9px] font-black mt-2 text-orange-400 uppercase">{{ s.projectName }}</p></div>
                                 </div>
-
-                                <!-- Tasks Done -->
                                 <div v-if="data.tasksDone.length > 0">
-                                    <h5 class="text-[10px] font-black text-green-600 uppercase tracking-widest mb-3 flex items-center gap-1">
-                                        <CheckCircleIcon class="h-3 w-3" /> Completed
-                                    </h5>
+                                    <h5 class="text-[10px] font-black text-green-600 uppercase tracking-widest mb-3 flex items-center gap-1"><CheckCircleIcon class="h-3 w-3" /> Accomplishments</h5>
                                     <ul class="space-y-2">
-                                        <li v-for="t in data.tasksDone" :key="t.id" class="group">
-                                            <div class="flex items-start gap-2">
-                                                <div class="mt-1 h-1.5 w-1.5 rounded-full bg-green-500"></div>
-                                                <div>
-                                                    <p class="text-xs font-bold text-gray-800 group-hover:text-indigo-600 cursor-pointer" @click="openTaskDetail(t)">{{ t.name }}</p>
-                                                    <p class="text-[9px] text-gray-400 font-bold uppercase tracking-tight">{{ t.projectName }}</p>
-                                                </div>
-                                            </div>
+                                        <li v-for="t in data.tasksDone" :key="t.id" @click="openTaskDetail(t)" class="p-3 bg-green-50/30 rounded-xl border border-green-100 cursor-pointer hover:bg-white transition">
+                                            <p class="text-xs font-bold text-gray-800">{{ t.name }}</p>
+                                            <p class="text-[9px] text-gray-400 font-bold uppercase tracking-tight">{{ t.projectName }}</p>
                                         </li>
                                     </ul>
                                 </div>
-
-                                <!-- Emails & Comms -->
                                 <div v-if="data.emails.length > 0">
-                                    <h5 class="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-3 flex items-center gap-1">
-                                        <EnvelopeIcon class="h-3 w-3" /> Communications
-                                    </h5>
-                                    <ul class="space-y-2">
-                                        <li v-for="e in data.emails" :key="e.id" class="bg-purple-50 p-2 rounded-lg border border-purple-100">
-                                            <p class="text-xs font-bold text-gray-800 truncate">{{ e.subject }}</p>
-                                            <p class="text-[9px] text-purple-400 font-black uppercase">{{ e.projectName }}</p>
-                                        </li>
-                                    </ul>
-                                </div>
-
-                                <!-- Minutes/Notes -->
-                                <div v-if="data.meetings.length > 0">
-                                    <h5 class="text-[10px] font-black text-teal-600 uppercase tracking-widest mb-3 flex items-center gap-1">
-                                        <UserIcon class="h-3 w-3" /> Drafted Minutes
-                                    </h5>
-                                    <div v-for="m in data.meetings" :key="m.id" class="text-[11px] text-gray-600 border-l-2 border-teal-200 pl-3 py-1">
-                                        {{ m.content.substring(0, 100) }}...
+                                    <h5 class="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-3 flex items-center gap-1"><EnvelopeIcon class="h-3 w-3" /> Communications</h5>
+                                    <div v-for="e in data.emails" :key="e.id" class="p-3 bg-purple-50/30 rounded-xl border border-purple-100 mb-2">
+                                        <p class="text-xs font-bold text-gray-800 truncate">{{ e.subject }}</p>
+                                        <p class="text-[9px] text-purple-400 font-black uppercase">{{ e.projectName }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -308,60 +271,139 @@ const getNotesByType = (notes, typeStr) => {
                     </div>
                 </section>
 
-                <hr v-if="viewMode === 'projects'" class="border-gray-200 my-10" />
+                <!-- 3. PROJECT-BY-PROJECT DEEP DIVE -->
+                <section v-show="viewMode === 'projects'" class="animate-in fade-in duration-500 space-y-6">
+                    <div class="flex items-center justify-between px-2">
+                        <h3 class="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">Portfolio Deep Dive</h3>
+                    </div>
 
-                <!-- 3. DETAILED PROJECT VIEW (REDUCED PRIORITY) -->
-                <div v-if="viewMode === 'projects'" class="space-y-6">
-                    <h3 class="text-sm font-black text-gray-400 uppercase tracking-[0.2em] px-2">Deep Dive by Project</h3>
-                    <div v-for="project in reportData" :key="project.id" class="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+                    <div v-for="project in reportData" :key="project.id" class="bg-white rounded-[2rem] border border-gray-200 shadow-sm overflow-hidden mb-8 transition hover:shadow-md">
                         <!-- Project Header -->
-                        <div @click="toggleProjectExpand(project.id)" class="p-6 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition">
-                            <div class="flex items-center space-x-4">
-                                <div class="h-10 w-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
-                                    <BriefcaseIcon class="h-6 w-6" />
-                                </div>
+                        <div @click="toggleProjectExpand(project.id)" class="p-6 flex flex-col md:flex-row md:items-center justify-between cursor-pointer hover:bg-gray-50 transition gap-4">
+                            <div class="flex items-center space-x-5">
+                                <div class="h-14 w-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-inner"><BriefcaseIcon class="h-8 w-8" /></div>
                                 <div>
-                                    <h4 class="font-black text-lg text-gray-900">{{ project.name }}</h4>
-                                    <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-gray-100 text-gray-600">{{ project.status }}</span>
-                                </div>
-                            </div>
-                            <component :is="expandedProjects[project.id] ? ChevronUpIcon : ChevronDownIcon" class="h-5 w-5 text-gray-400" />
-                        </div>
-
-                        <!-- Content (Same as previous but simplified) -->
-                        <div v-show="expandedProjects[project.id]" class="border-t border-gray-100 bg-gray-50/20">
-                            <div class="flex border-b border-gray-100 bg-white px-4">
-                                <button @click="setTab(project.id, 'todo')" :class="activeTabs[project.id] === 'todo' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-400'" class="py-3 px-4 border-b-2 text-[10px] font-black uppercase tracking-widest">Active Tasks</button>
-                                <button @click="setTab(project.id, 'notes')" :class="activeTabs[project.id] === 'notes' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-400'" class="py-3 px-4 border-b-2 text-[10px] font-black uppercase tracking-widest">Notes</button>
-                                <button @click="setTab(project.id, 'emails')" :class="activeTabs[project.id] === 'emails' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-400'" class="py-3 px-4 border-b-2 text-[10px] font-black uppercase tracking-widest">Emails</button>
-                            </div>
-                            <div class="p-6">
-                                <div v-show="activeTabs[project.id] === 'todo'" class="space-y-3">
-                                    <div v-for="task in project.tasks?.filter(t => t.status !== 'Done')" :key="task.id" @click="openTaskDetail(task)" class="bg-white p-4 rounded-xl border border-gray-100 cursor-pointer hover:border-indigo-200 transition">
-                                        <p class="font-bold text-gray-900 text-sm">{{ task.name }}</p>
-                                        <p class="text-[10px] text-gray-400 mt-1 uppercase font-bold">{{ task.assigned_to }} • {{ task.status }}</p>
+                                    <h4 class="font-black text-xl text-gray-900 leading-none">{{ project.name }}</h4>
+                                    <div class="flex items-center gap-3 mt-2">
+                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-600">{{ project.status }}</span>
+                                        <span v-if="project.has_activity" class="flex items-center text-[10px] text-indigo-500 font-bold uppercase"><div class="h-1.5 w-1.5 bg-indigo-500 rounded-full mr-1.5 animate-pulse"></div> Recent Activity</span>
                                     </div>
                                 </div>
-                                <div v-show="activeTabs[project.id] === 'notes'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div v-for="note in project.project_notes" :key="note.id" class="bg-white p-4 rounded-xl border border-gray-100 text-xs leading-relaxed text-gray-600">
-                                        "{{ note.content }}"
-                                        <div class="mt-2 text-[9px] font-black text-indigo-500 uppercase">{{ note.creator_name }} • {{ note.type }}</div>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <button @click="exportSingleProjectForAI(project, $event)" class="px-4 py-2 border border-indigo-200 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-50 transition flex items-center gap-2">
+                                    <SparklesIcon class="h-3.5 w-3.5" /> {{ exportProjectSuccess[project.id] ? 'Copied!' : 'Export JSON' }}
+                                </button>
+                                <component :is="expandedProjects[project.id] ? ChevronUpIcon : ChevronDownIcon" class="h-6 w-6 text-gray-300" />
+                            </div>
+                        </div>
+
+                        <!-- Project View -->
+                        <div v-show="expandedProjects[project.id]" class="border-t border-gray-100 bg-gray-50/10">
+                            <!-- In-Project User Filter -->
+                            <div class="px-8 py-4 bg-white border-b border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                                <div class="flex items-center gap-3 w-full md:w-auto">
+                                    <FunnelIcon class="h-4 w-4 text-gray-400" />
+                                    <select v-model="projectUserFilters[project.id]" class="rounded-xl border-gray-200 text-xs font-bold text-gray-600 focus:ring-indigo-500 py-1.5 pr-8 pl-3">
+                                        <option value="all">Show All Contributors</option>
+                                        <option v-for="user in getProjectUsers(project)" :key="user" :value="user">{{ user }}</option>
+                                    </select>
+                                </div>
+                                <nav class="flex space-x-1 p-1 bg-gray-100 rounded-xl overflow-x-auto scrollbar-hide">
+                                    <button v-for="tab in ['todo', 'done', 'notes', 'standups', 'meetings', 'emails']" :key="tab" @click="setTab(project.id, tab)"
+                                            :class="activeTabs[project.id] === tab ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'"
+                                            class="py-1.5 px-4 rounded-lg text-[10px] font-black uppercase transition whitespace-nowrap">{{ tab }}</button>
+                                </nav>
+                            </div>
+
+                            <div class="p-8">
+                                <!-- TODO TAB -->
+                                <div v-show="activeTabs[project.id] === 'todo'" class="space-y-4">
+                                    <div v-for="task in filterBySelectedUser(project.tasks?.filter(t => t.status !== 'Done'), project.id, 'assigned_to')" :key="task.id"
+                                         @click="openTaskDetail(task)"
+                                         class="group p-5 bg-white border rounded-[1.5rem] cursor-pointer hover:border-indigo-400 transition"
+                                         :class="isHighlighted(task.updated_at) ? 'border-indigo-300 ring-2 ring-indigo-50 shadow-md' : 'border-gray-100'">
+                                        <div class="flex justify-between items-start">
+                                            <div>
+                                                <h6 class="font-black text-gray-900 group-hover:text-indigo-600 transition">{{ task.name }}</h6>
+                                                <div class="flex items-center gap-4 mt-2">
+                                                    <span class="text-[10px] font-bold text-gray-400 flex items-center gap-1 uppercase tracking-tighter"><UserIcon class="h-3 w-3" /> {{ task.assigned_to || 'Unassigned' }}</span>
+                                                    <span class="text-[10px] font-bold text-gray-400 flex items-center gap-1 uppercase tracking-tighter"><CalendarIcon class="h-3 w-3" /> {{ task.due_date || 'No Date' }}</span>
+                                                </div>
+                                            </div>
+                                            <span class="bg-amber-50 text-amber-600 px-2 py-1 rounded-lg text-[10px] font-black uppercase">{{ task.status }}</span>
+                                        </div>
+                                        <div v-if="task.description" class="mt-4 p-4 bg-gray-50 rounded-2xl text-xs text-gray-600 whitespace-pre-wrap border border-gray-100">{{ task.description }}</div>
+                                    </div>
+                                    <p v-if="!project.tasks?.length" class="text-center text-gray-400 text-xs italic">No active tasks found.</p>
+                                </div>
+
+                                <!-- DONE TAB -->
+                                <div v-show="activeTabs[project.id] === 'done'" class="space-y-4">
+                                    <div v-for="task in filterBySelectedUser(project.tasks?.filter(t => t.status === 'Done'), project.id, 'assigned_to')" :key="task.id"
+                                         class="p-5 bg-white border border-gray-100 rounded-[1.5rem]" :class="isHighlighted(task.updated_at) ? 'ring-2 ring-green-100 border-green-200' : ''">
+                                        <div class="flex items-start gap-4">
+                                            <CheckCircleIcon class="h-6 w-6 text-green-500 mt-1" />
+                                            <div>
+                                                <h6 class="font-black text-gray-900">{{ task.name }}</h6>
+                                                <p class="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-tighter">{{ task.assigned_to }} • Done {{ formatDate(task.updated_at) }}</p>
+                                                <div v-if="task.description" class="mt-3 p-3 bg-gray-50 rounded-xl text-xs text-gray-500 border border-gray-100">{{ task.description }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- NOTES, STANDUPS, MEETINGS (GROUPED BY RENDERER) -->
+                                <div v-show="['notes', 'standups', 'meetings'].includes(activeTabs[project.id])" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div v-for="note in filterBySelectedUser(project.project_notes?.filter(n => (activeTabs[project.id] === 'notes' && (!n.type || n.type === 'note')) || (activeTabs[project.id] === 'standups' && n.type === 'standup') || (activeTabs[project.id] === 'meetings' && n.type === 'meeting_minutes')), project.id, 'creator_name')" :key="note.id"
+                                         class="p-6 bg-white border border-gray-100 rounded-[2rem] shadow-sm flex flex-col relative" :class="isHighlighted(note.created_at) ? 'ring-2 ring-indigo-50 border-indigo-200' : ''">
+                                        <div v-if="isHighlighted(note.created_at)" class="absolute -top-2 -right-2 bg-indigo-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded-full shadow-lg">New Log</div>
+                                        <div class="text-sm text-gray-700 leading-relaxed mb-6 whitespace-pre-wrap italic">"{{ note.content }}"</div>
+                                        <div class="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
+                                            <div class="flex items-center gap-2">
+                                                <div class="h-8 w-8 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] font-black">{{ note.creator_name?.substring(0,2) }}</div>
+                                                <span class="text-xs font-bold text-gray-600">{{ note.creator_name }}</span>
+                                            </div>
+                                            <span class="text-[10px] text-gray-400 font-bold">{{ formatDate(note.created_at) }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- EMAILS -->
+                                <div v-show="activeTabs[project.id] === 'emails'" class="space-y-6">
+                                    <div v-for="email in filterBySelectedUser(project.emails, project.id, 'sender')" :key="email.id"
+                                         class="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm" :class="isHighlighted(email.created_at) ? 'ring-2 ring-purple-100 border-purple-200' : ''">
+                                        <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
+                                            <div class="flex items-center gap-4">
+                                                <div :class="email.type === 'Received' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'" class="p-3 rounded-2xl shadow-inner"><EnvelopeIcon class="h-6 w-6" /></div>
+                                                <div>
+                                                    <h6 class="font-black text-gray-900 text-lg leading-none">{{ email.subject }}</h6>
+                                                    <p class="text-[10px] font-bold text-gray-400 uppercase mt-2 tracking-widest">{{ email.type }} • {{ email.sender }}</p>
+                                                </div>
+                                            </div>
+                                            <span class="text-[11px] font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-xl">{{ formatDate(email.created_at) }}</span>
+                                        </div>
+                                        <div v-if="email.contexts?.length" class="space-y-4">
+                                            <div v-for="ctx in email.contexts" :key="ctx.id" class="p-5 bg-purple-50/50 rounded-[1.5rem] border border-purple-100">
+                                                <div class="flex items-center gap-2 mb-3 text-purple-600"><SparklesIcon class="h-4 w-4" /><span class="text-[10px] font-black uppercase tracking-widest">AI Summary</span></div>
+                                                <p class="text-sm text-gray-700 leading-relaxed font-medium">{{ ctx.summary }}</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-
+                </section>
             </div>
         </div>
 
-        <RightSidebar v-model:show="showTaskDetailSidebar" title="Task Review" :initialWidth="40">
+        <!-- Task Sidebar -->
+        <RightSidebar v-model:show="showTaskDetailSidebar" title="Morning Review Detail" :initialWidth="40">
             <template #content>
                 <TaskDetailSidebar v-if="selectedTaskId" :task-id="selectedTaskId" :project-id="selectedProjectId" :project-users="taskDetailProjectUsers" @close="showTaskDetailSidebar = false" />
             </template>
         </RightSidebar>
-
     </AuthenticatedLayout>
 </template>
 
@@ -369,6 +411,9 @@ const getNotesByType = (notes, typeStr) => {
 @media print {
     .print\:hidden { display: none !important; }
     .bg-gray-50 { background: white !important; }
-    .shadow-sm, .rounded-3xl { box-shadow: none !important; border: 1px solid #eee !important; }
+    .shadow-sm, .rounded-xl, .rounded-\[2rem\], .rounded-\[2\.5rem\] { box-shadow: none !important; border: 1px solid #eee !important; border-radius: 1rem !important; }
 }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.animate-in { animation: fadeIn 0.4s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>
