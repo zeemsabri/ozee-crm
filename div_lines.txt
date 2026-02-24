@@ -1,0 +1,164 @@
+217:            <div class="flex justify-between items-center print:hidden">
+218:                <div>
+221:                </div>
+222:                <div class="flex gap-3">
+232:                </div>
+233:            </div>
+236:        <div class="py-6 bg-gray-50 min-h-screen print:bg-white print:py-0">
+237:            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+240:                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 print:hidden">
+241:                    <div class="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
+242:                        <div class="md:col-span-2">
+245:                        </div>
+246:                        <div>
+249:                        </div>
+250:                        <div>
+253:                        </div>
+254:                        <div>
+257:                        </div>
+258:                    </div>
+259:                    <div class="mt-6 flex bg-gray-100 p-1 rounded-xl w-full max-w-md mx-auto">
+262:                    </div>
+263:                </div>
+267:                    <div class="flex items-center justify-between px-2">
+270:                    </div>
+272:                    <div v-if="activeUsersCount === 0" class="bg-white p-16 rounded-[2.5rem] border-2 border-dashed border-gray-200 text-center">
+276:                    </div>
+278:                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+279:                        <div v-for="(data, userName) in highlightedActivityByUser" :key="userName" class="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden flex flex-col transition hover:shadow-lg">
+280:                            <div class="p-6 bg-gray-50/50 border-b border-gray-100 flex items-center gap-4">
+281:                                <div class="h-12 w-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-sm">{{ userName.substring(0,2).toUpperCase() }}</div>
+282:                                <div>
+285:                                </div>
+286:                            </div>
+287:                            <div class="p-6 space-y-6 flex-1">
+288:                                <div v-if="data.standups.length > 0">
+290:                                    <div v-for="s in data.standups" :key="s.id" class="text-xs text-gray-600 bg-orange-50/50 p-4 rounded-2xl border border-orange-100 mb-2 italic">"{{ s.content }}" <p class="text-[9px] font-black mt-2 text-orange-400 uppercase">{{ s.projectName }}</p></div>
+291:                                </div>
+292:                                <div v-if="data.tasksDone.length > 0">
+300:                                </div>
+301:                                <div v-if="data.emails.length > 0">
+303:                                    <div v-for="e in data.emails" :key="e.id" class="p-3 bg-purple-50/30 rounded-xl border border-purple-100 mb-2">
+306:                                    </div>
+307:                                </div>
+308:                            </div>
+309:                        </div>
+310:                    </div>
+315:                    <div class="flex items-center justify-between px-2">
+317:                    </div>
+319:                    <div v-for="project in reportData" :key="project.id" class="bg-white rounded-[2rem] border border-gray-200 shadow-sm overflow-hidden mb-8 transition hover:shadow-md">
+321:                        <div @click="toggleProjectExpand(project.id)" class="p-6 flex flex-col md:flex-row md:items-center justify-between cursor-pointer hover:bg-gray-50 transition gap-4">
+322:                            <div class="flex items-center space-x-5">
+323:                                <div class="h-14 w-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-inner"><BriefcaseIcon class="h-8 w-8" /></div>
+324:                                <div>
+326:                                    <div class="flex items-center gap-3 mt-2">
+328:                                        <span v-if="project.has_activity" class="flex items-center text-[10px] text-indigo-500 font-bold uppercase"><div class="h-1.5 w-1.5 bg-indigo-500 rounded-full mr-1.5 animate-pulse"></div> Recent Activity</span>
+329:                                    </div>
+330:                                </div>
+331:                            </div>
+332:                            <div class="flex items-center gap-3">
+337:                            </div>
+338:                        </div>
+341:                        <div v-show="expandedProjects[project.id]" class="border-t border-gray-100 bg-gray-50/10">
+343:                            <div class="px-8 py-4 bg-white border-b border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4">
+344:                                <div class="flex items-center gap-3 w-full md:w-auto">
+350:                                </div>
+356:                            </div>
+358:                            <div class="p-8">
+360:                                <div v-show="activeTabs[project.id] === 'today'" class="space-y-6">
+361:                                    <div v-if="getHighlightedItems(project.tasks?.filter(t => t.status !== 'Done'), 'updated_at').length || getHighlightedItems(project.tasks?.filter(t => t.status === 'Done'), 'updated_at').length || getHighlightedItems(project.project_notes, 'created_at').length || getHighlightedItems(project.emails, 'created_at').length" class="space-y-6">
+363:                                        <div v-if="getHighlightedItems(project.tasks?.filter(t => t.status !== 'Done'), 'updated_at').length" class="space-y-3">
+365:                                            <div v-for="task in getHighlightedItems(project.tasks?.filter(t => t.status !== 'Done'), 'updated_at')" :key="task.id" @click="openTaskDetail(task)" class="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl cursor-pointer hover:bg-white transition">
+366:                                                <div class="flex justify-between items-start">
+369:                                                </div>
+370:                                            </div>
+371:                                        </div>
+373:                                        <div v-if="getHighlightedItems(project.tasks?.filter(t => t.status === 'Done'), 'updated_at').length" class="space-y-3">
+375:                                            <div v-for="task in getHighlightedItems(project.tasks?.filter(t => t.status === 'Done'), 'updated_at')" :key="task.id" @click="openTaskDetail(task)" class="p-4 bg-green-50/50 border border-green-100 rounded-xl">
+376:                                                <div class="flex items-center gap-3">
+380:                                                </div>
+381:                                            </div>
+382:                                        </div>
+385:                                        <div v-if="getHighlightedItems(project.project_notes, 'created_at').length" class="space-y-3">
+387:                                            <div v-for="note in getHighlightedItems(project.project_notes, 'created_at')" :key="note.id" class="p-4 bg-gray-50 border border-gray-100 rounded-xl">
+389:                                                <div class="text-sm text-gray-700 italic mb-3">"{{ note.content }}"</div>
+390:                                                <div class="flex items-center gap-2 text-[10px] font-bold text-gray-500"><UserIcon class="h-3 w-3" /> {{ note.creator_name }}</div>
+391:                                            </div>
+392:                                        </div>
+395:                                        <div v-if="getHighlightedItems(project.emails, 'created_at').length" class="space-y-3">
+397:                                            <div v-for="email in getHighlightedItems(project.emails, 'created_at')" :key="email.id" class="p-4 bg-purple-50/30 border border-purple-100 rounded-xl flex items-center justify-between">
+400:                                            </div>
+401:                                        </div>
+402:                                    </div>
+403:                                    <div v-else class="text-center py-8">
+405:                                    </div>
+406:                                </div>
+409:                                <div v-show="activeTabs[project.id] === 'todo'" class="space-y-8">
+410:                                    <div v-for="(group, title) in {'Highlighted (Focus Date)': getHighlightedItems(filterBySelectedUser(project.tasks?.filter(t => t.status !== 'Done'), project.id, 'assigned_to'), 'updated_at'), 'Archive': getArchivedItems(filterBySelectedUser(project.tasks?.filter(t => t.status !== 'Done'), project.id, 'assigned_to'), 'updated_at')}" :key="title">
+411:                                        <div v-if="group.length > 0" class="space-y-4">
+413:                                            <div v-for="task in group" :key="task.id"
+417:                                        <div class="flex justify-between items-start">
+418:                                            <div>
+420:                                                <div class="flex items-center gap-4 mt-2">
+423:                                                </div>
+424:                                            </div>
+426:                                        </div>
+427:                                        <div v-if="task.description" class="mt-4 p-4 bg-gray-50 rounded-2xl text-xs text-gray-600 whitespace-pre-wrap border border-gray-100">{{ task.description }}</div>
+428:                                    </div>
+429:                                        </div>
+430:                                    </div>
+432:                                </div>
+435:                                <div v-show="activeTabs[project.id] === 'done'" class="space-y-8">
+436:                                    <div v-for="(group, title) in {'Highlighted (Focus Date)': getHighlightedItems(filterBySelectedUser(project.tasks?.filter(t => t.status === 'Done'), project.id, 'assigned_to'), 'updated_at'), 'Archive': getArchivedItems(filterBySelectedUser(project.tasks?.filter(t => t.status === 'Done'), project.id, 'assigned_to'), 'updated_at')}" :key="title">
+437:                                        <div v-if="group.length > 0" class="space-y-4">
+439:                                            <div v-for="task in group" :key="task.id"
+441:                                                <div class="flex items-start gap-4">
+443:                                                    <div>
+446:                                                        <div v-if="task.description" class="mt-3 p-3 bg-gray-50 rounded-xl text-xs text-gray-500 border border-gray-100">{{ task.description }}</div>
+447:                                                    </div>
+448:                                                </div>
+449:                                            </div>
+450:                                        </div>
+451:                                    </div>
+453:                                </div>
+456:                                <div v-show="['notes', 'standups', 'meetings'].includes(activeTabs[project.id])" class="space-y-8">
+457:                                    <div v-for="(group, title) in {'Highlighted (Focus Date)': getHighlightedItems(filterBySelectedUser(project.project_notes?.filter(n => (activeTabs[project.id] === 'notes' && (!n.type || n.type === 'note')) || (activeTabs[project.id] === 'standups' && n.type === 'standup') || (activeTabs[project.id] === 'meetings' && n.type === 'meeting_minutes')), project.id, 'creator_name'), 'created_at'), 'Archive': getArchivedItems(filterBySelectedUser(project.project_notes?.filter(n => (activeTabs[project.id] === 'notes' && (!n.type || n.type === 'note')) || (activeTabs[project.id] === 'standups' && n.type === 'standup') || (activeTabs[project.id] === 'meetings' && n.type === 'meeting_minutes')), project.id, 'creator_name'), 'created_at')}" :key="title">
+458:                                        <div v-if="group.length > 0">
+460:                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+461:                                                <div v-for="note in group" :key="note.id"
+463:                                        <div v-if="isHighlighted(note.created_at)" class="absolute -top-2 -right-2 bg-indigo-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded-full shadow-lg">New Log</div>
+464:                                        <div class="text-sm text-gray-700 leading-relaxed mb-6 whitespace-pre-wrap italic">"{{ note.content }}"</div>
+465:                                        <div class="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
+466:                                            <div class="flex items-center gap-2">
+467:                                                <div class="h-8 w-8 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] font-black">{{ note.creator_name?.substring(0,2) }}</div>
+469:                                            </div>
+471:                                        </div>
+472:                                            </div>
+473:                                        </div>
+474:                                    </div>
+475:                                    </div>
+476:                                </div>
+479:                                <div v-show="activeTabs[project.id] === 'emails'" class="space-y-8">
+480:                                    <div v-for="(group, title) in {'Highlighted (Focus Date)': getHighlightedItems(filterBySelectedUser(project.emails, project.id, 'sender'), 'created_at'), 'Archive': getArchivedItems(filterBySelectedUser(project.emails, project.id, 'sender'), 'created_at')}" :key="title">
+481:                                        <div v-if="group.length > 0" class="space-y-6">
+483:                                            <div v-for="email in group" :key="email.id"
+485:                                        <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
+486:                                            <div class="flex items-center gap-4">
+487:                                                <div :class="email.type === 'Received' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'" class="p-3 rounded-2xl shadow-inner"><EnvelopeIcon class="h-6 w-6" /></div>
+488:                                                <div>
+491:                                                </div>
+492:                                            </div>
+494:                                        </div>
+495:                                        <div v-if="email.contexts?.length" class="space-y-4">
+496:                                            <div v-for="ctx in email.contexts" :key="ctx.id" class="p-5 bg-purple-50/50 rounded-[1.5rem] border border-purple-100">
+497:                                                <div class="flex items-center gap-2 mb-3 text-purple-600"><SparklesIcon class="h-4 w-4" /><span class="text-[10px] font-black uppercase tracking-widest">AI Summary</span></div>
+499:                                            </div>
+500:                                        </div>
+501:                                    </div>
+502:                                </div>
+503:                                    </div>
+504:                            </div>
+505:                        </div>
+506:                    </div>
+508:            </div>
+509:        </div>
