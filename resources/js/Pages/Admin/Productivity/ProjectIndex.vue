@@ -498,13 +498,13 @@ onMounted(() => {
                                                 <p class="text-sm text-gray-700 leading-relaxed font-medium">{{ ctx.summary }}</p>
                                             </div>
                                         </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
                 </section>
             </div>
         </div>
