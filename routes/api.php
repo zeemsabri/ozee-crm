@@ -428,6 +428,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Apply ProcessTags middleware to store and update methods
     Route::post('tasks/bulk', [TaskController::class, 'bulk']);
+    Route::post('tasks/bulk-workspace', [TaskController::class, 'bulkWorkspace']);
+    Route::post('tasks/quick', [TaskController::class, 'quickStore']);
     Route::apiResource('tasks', TaskController::class)->middleware(['process.tags']);
     Route::post('tasks/{task}/notes', [TaskController::class, 'addNote']);
     Route::patch('tasks/{task}/complete', [TaskController::class, 'markAsCompleted']);

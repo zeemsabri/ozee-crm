@@ -377,6 +377,94 @@ class TaskController extends Controller
     }
 
     /**
+     * Store a newly created task rapidly with defaults from the Kanban board.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function quickStore(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'status' => 'required|string',
+            'project_id' => 'required|exists:projects,id',
+        ]);
+
+        $project = \App\Models\Project::findOrFail($validated['project_id']);
+        $supportMilestone = $project->supportMilestone();
+        $taskType = \App\Models\TaskType::firstOrCreate(['name' => 'New']);
+
+        // Coerce and soft-validate status via value dictionary
+        $statusVal = $validated['status'];
+        $enum = TaskStatus::tryFrom($statusVal) ?? TaskStatus::tryFrom(ucwords(strtolower((string) $statusVal)));
+        if ($enum) {
+            $statusVal = $enum->value;
+        }
+        app(\App\Services\ValueSetValidator::class)->validate('Task', 'status', $statusVal);
+
+        $task = Task::create([
+            'name' => $validated['name'],
+            'status' => $statusVal,
+            'milestone_id' => $supportMilestone->id,
+            'assigned_to_user_id' => Auth::id(),
+            'due_date' => \Carbon\Carbon::today(),
+            'priority' => 'medium',
+            'task_type_id' => $taskType->id,
+        ]);
+
+        // Load relationships to match standard return shape
+        $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags']);
+
+        return response()->json($task, 201);
+    }
+
+    /**
+     * Create multiple tasks from Workspace reference.
+     * Expects payload: { tasks: [ { name, description?, due_date?, priority?, project_id, assigned_to_user_id?, milestone_id? } ] }
+     */
+    public function bulkWorkspace(Request $request)
+    {
+        $validated = $request->validate([
+            'tasks' => 'required|array|min:1',
+            'tasks.*.name' => 'required|string|max:255',
+            'tasks.*.description' => 'nullable|string',
+            'tasks.*.due_date' => 'nullable|date',
+            'tasks.*.priority' => 'nullable|string',
+            'tasks.*.assigned_to_user_id' => 'nullable|integer|exists:users,id',
+            'tasks.*.milestone_id' => 'nullable|integer|exists:milestones,id',
+            'tasks.*.project_id' => 'required|integer|exists:projects,id',
+        ]);
+
+        $created = [];
+        $defaultTaskType = TaskType::firstOrCreate(['name' => 'New']);
+
+        foreach ($validated['tasks'] as $item) {
+            $projectId = $item['project_id'];
+            $project = \App\Models\Project::findOrFail($projectId);
+            
+            $milestoneId = $item['milestone_id'] ?? null;
+            if (!$milestoneId) {
+                $milestoneId = $project->supportMilestone()->id;
+            }
+
+            $task = Task::create([
+                'name' => $item['name'],
+                'description' => $item['description'] ?? null,
+                'due_date' => $item['due_date'] ?? null,
+                'priority' => $item['priority'] ?? 'medium',
+                'status' => TaskStatus::ToDo->value,
+                'task_type_id' => $defaultTaskType->id,
+                'milestone_id' => $milestoneId,
+                'assigned_to_user_id' => $item['assigned_to_user_id'] ?? Auth::id(),
+            ]);
+
+            $task->load(['assignedTo', 'taskType', 'milestone.project']);
+            $created[] = $task;
+        }
+
+        return response()->json(['tasks' => $created], 201);
+    }
+
+    /**
      * Display the specified resource.
      *
      * @return \Illuminate\Http\JsonResponse
@@ -540,6 +628,13 @@ class TaskController extends Controller
 
         // Load relationships
         $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks']);
+
+        // Sync with DailyTask
+        \App\Models\DailyTask::where('task_id', $task->id)
+            ->where('user_id', Auth::id())
+            ->where('date', \Carbon\Carbon::today()->toDateString())
+            ->where('status', '!=', \App\Models\DailyTask::STATUS_COMPLETED)
+            ->update(['status' => \App\Models\DailyTask::STATUS_COMPLETED]);
 
         return response()->json($task);
     }
@@ -723,6 +818,12 @@ class TaskController extends Controller
 
         // Load relationships
         $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks']);
+
+        // Sync with DailyTask - set back to pending if it was completed today
+        \App\Models\DailyTask::where('task_id', $task->id)
+            ->where('user_id', Auth::id())
+            ->where('date', \Carbon\Carbon::today()->toDateString())
+            ->update(['status' => \App\Models\DailyTask::STATUS_PENDING]);
 
         return response()->json($task);
     }

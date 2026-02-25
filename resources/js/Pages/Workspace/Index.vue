@@ -7,6 +7,8 @@ import Filters from '@/Pages/Workspace/components/Filters.vue';
 import ProjectCards from '@/Pages/Workspace/components/ProjectCards.vue';
 import Sidebar from '@/Pages/Workspace/components/Sidebar.vue';
 import KanbanBoard from '@/Components/KanbanBoard.vue';
+import CreateTaskModal from '@/Components/ProjectTasks/CreateTaskModal.vue';
+import WorkspaceBulkTaskModal from '@/Components/WorkspaceBulkTaskModal.vue';
 import BlockReasonModal from '@/Components/BlockReasonModal.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import DailyWorkLog from '@/Pages/Workspace/components/DailyWorkLog.vue';
@@ -175,7 +177,7 @@ function handleUpdateNotes(newNotes) {
     localStorage.setItem('my_dashboard_notes', newNotes);
 }
 
-// (kanbanView is now derived from activeView above — legacy localStorage key kept for compat)
+// (kanbanView is now derived from activeView above – legacy localStorage key kept for compat)
 watch(kanbanView, (v) => {
     try { localStorage.setItem('workspace_kanban_view', v ? '1' : '0'); } catch (e) {}
 });
@@ -210,6 +212,7 @@ const visibleKanbanColumns = computed(() => kanbanColumns.filter(c => visibleCol
 
 // Assigned tasks for Kanban
 const assignedTasks = ref([]);
+const tasksInDailyLog = ref(new Set());
 const loadingAssignedTasks = ref(false);
 const tasksError = ref('');
 
@@ -221,7 +224,6 @@ const projectId = ref(null);
 const assigneeId = ref(null);
 const priority = ref(''); // '', 'low','medium','high'
 const milestoneId = ref(null);
-const showTaskFilters = ref(false);
 
 // Dropdown options loaded from API
 const projectOptions = ref([]);
@@ -370,6 +372,7 @@ const loadProjectMilestones = async (pid) => {
 onMounted(async () => {
     try { await permissionStore.fetchGlobalPermissions(); } catch (_) {}
     await loadProjects();
+    await fetchTodayDailyLogTasks();
     // Users: Always use accessible projects approach to respect user project access
     // but ensure All Users filter is available to everyone
     if (canDo('view_all_user').value) {
@@ -411,6 +414,27 @@ watch(projectId, async (pid) => {
         await fetchAllUsersScopedTasks(baseParams);
     }
 });
+
+const fetchTodayDailyLogTasks = async () => {
+    try {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const { data } = await window.axios.get('/api/daily-tasks', { params: { date: todayStr } });
+        tasksInDailyLog.value = new Set(data.map(d => d.task_id));
+    } catch (e) {
+        console.error('Failed to fetch today daily log tasks', e);
+    }
+};
+
+const addTaskToDailyLog = async (task) => {
+    try {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        await window.axios.post('/api/daily-tasks', { task_ids: [task.id], date: todayStr });
+        tasksInDailyLog.value.add(task.id);
+        // Toast notification if available, or just visual update is enough per plan
+    } catch (e) {
+        console.error('Failed to add task to daily log', e);
+    }
+};
 
 const kanbanPage = ref(1);
 const kanbanLastPage = ref(1);
@@ -650,6 +674,28 @@ const itemsByColumn = computed(() => {
     return init;
 });
 
+// Task creation state
+const showCreateTaskModal = ref(false);
+const showBulkTaskModal = ref(false);
+
+const openCreateTaskModal = () => {
+    showCreateTaskModal.value = true;
+};
+
+const openBulkTaskModal = () => {
+    showBulkTaskModal.value = true;
+    showCreateTaskModal.value = false;
+};
+
+const handleSwitchToBulk = () => {
+    showCreateTaskModal.value = false;
+    showBulkTaskModal.value = true;
+};
+
+const handleTaskSaved = () => {
+    fetchAssignedTasksAll();
+};
+
 // Block reason modal state for workspace-level actions
 const showBlockReason = ref(false);
 const taskPendingBlock = ref(null);
@@ -742,12 +788,36 @@ const handleKanbanDrop = async ({ data, to }) => {
                 updated = await taskState.reviseTask(prev);
                 break;
             default:
-                throw new Error('Unsupported transition');
+                 // Default to simple update if no specific transition action defined
+                 updated = (await window.axios.put(`/api/tasks/${data.id}`, { status: to })).data;
         }
         updateTaskInList(updated);
     } catch (e) {
+        console.error('Failed to update task status', e);
         // Roll back
         updateTaskInList(prev);
+    }
+};
+
+const handleKanbanAddTask = async ({ columnKey, taskName }) => {
+    try {
+        const response = await window.axios.post('/api/tasks/quick', {
+            name: taskName,
+            status: columnKey,
+            project_id: projectId.value
+        });
+        
+        if (response.data && response.data.id) {
+            // Push directly to assignedTasks so it shows up in Kanban instantly
+            assignedTasks.value.push(response.data);
+        }
+    } catch (e) {
+        console.error('Failed to quick add task', e);
+        if (e.response && e.response.data && e.response.data.message) {
+            alert(`Error: ${e.response.data.message}`);
+        } else {
+            alert('Failed to quickly add task.');
+        }
     }
 };
 
@@ -851,23 +921,25 @@ onMounted(async () => {
                     </div>
                 </div>
             </div>
-            <button type="button" class="px-3 py-1.5 text-sm border rounded-md bg-white hover:bg-gray-50" @click="showTaskFilters = !showTaskFilters">
-                {{ showTaskFilters ? 'Hide Filters' : 'Show Filters' }}
-            </button>
             <button
-                v-if="showTaskFilters"
                 type="button"
-                class="px-3 py-1.5 text-sm border rounded-md bg-white hover:bg-gray-50"
+                class="px-3 py-1.5 text-sm border rounded-md bg-white hover:bg-gray-50 text-red-500"
                 @click="clearAllFilters"
                 title="Clear all filters"
             >
-                Clear All
+                Reset Filters
+            </button>
+            <button type="button" class="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 shadow-sm" @click="openCreateTaskModal">
+                Add Task
+            </button>
+            <button type="button" class="px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100" @click="openBulkTaskModal">
+                Bulk Tasks
             </button>
         </div>
     </div>
 
-    <!-- Filters row -->
-    <div v-if="showTaskFilters" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-3">
+    <!-- Filters row (Always Visible) -->
+    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-3 py-2 border-b border-gray-100">
         <!-- Search -->
         <div class="relative">
             <input
@@ -969,7 +1041,10 @@ onMounted(async () => {
     :columns="visibleKanbanColumns"
     :items-by-column="itemsByColumn"
     :loading="loadingAssignedTasks"
+    :is-add-task-disabled="!projectId"
+    add-task-disabled-tooltip="Action Required: Please select a Project from the filters above before adding a card."
     @drop="handleKanbanDrop"
+    @add-task="handleKanbanAddTask"
 >
     <template #item="{ item, columnKey }">
         <div
@@ -999,9 +1074,44 @@ onMounted(async () => {
             <div class="text-xs text-gray-500 truncate" v-if="item.milestone?.name">{{ item.milestone.name }}</div>
             <div class="text-xs text-gray-500 truncate">{{ item.project?.name || item.milestone?.project?.name }}</div>
             <div class="text-xs text-gray-500 truncate" v-if="!assigneeId || assigneeId === '__all__'">{{ item.assigned_to?.name }}</div>
+
+            <!-- Add to Daily Log Action -->
+            <div class="mt-2 pt-2 border-t border-gray-100 flex justify-end">
+                <button
+                    v-if="!tasksInDailyLog.has(item.id) && item.status !== 'Done' && item.status !== 'Archived'"
+                    type="button"
+                    @click.stop="addTaskToDailyLog(item)"
+                    class="flex items-center gap-1 text-[10px] font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                    </svg>
+                    Daily Log
+                </button>
+                <div v-else-if="tasksInDailyLog.has(item.id)" class="flex items-center gap-1 text-[10px] font-medium text-green-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                    In Log
+                </div>
+            </div>
         </div>
     </template>
 </KanbanBoard>
+
+<CreateTaskModal
+    :show="showCreateTaskModal"
+    :project-id="projectId"
+    @close="showCreateTaskModal = false"
+    @saved="handleTaskSaved"
+    @switch-to-bulk="handleSwitchToBulk"
+/>
+
+<WorkspaceBulkTaskModal
+    :show="showBulkTaskModal"
+    @close="showBulkTaskModal = false"
+    @tasks-submitted="handleTaskSaved"
+/>
 
 <!-- Block reason modal for workspace-level blocking -->
 <BlockReasonModal

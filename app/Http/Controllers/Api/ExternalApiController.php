@@ -214,9 +214,20 @@ class ExternalApiController extends Controller
                 break;
         }
 
+        $updatedTask = $task->fresh(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks']);
+
+        // Sync with DailyTask (Today)
+        if (in_array($statusAction, ['complete', 'stop', 'revise'])) {
+             $dailyStatus = ($statusAction === 'revise') ? \App\Models\DailyTask::STATUS_PENDING : \App\Models\DailyTask::STATUS_COMPLETED;
+             \App\Models\DailyTask::where('task_id', $task->id)
+                ->where('user_id', Auth::id())
+                ->where('date', \Carbon\Carbon::today()->toDateString())
+                ->update(['status' => $dailyStatus]);
+        }
+
         return response()->json([
             'message' => 'Task status successfully updated to ' . $task->status->value,
-            'task' => $task->fresh(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks'])
+            'task' => $updatedTask
         ]);
     }
 }

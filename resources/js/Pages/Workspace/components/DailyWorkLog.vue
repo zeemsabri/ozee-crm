@@ -45,6 +45,7 @@ const showNoteModal = ref(false);
 const taskToNote = ref(null);
 
 const searchPool = ref('');
+const projectFilter = ref(null);
 const showHistory = ref(false);
 const showTaskPicker = ref(false);
 const showTips = ref(localStorage.getItem('dwl_tips_dismissed') !== '1');
@@ -65,6 +66,10 @@ const filteredPool = computed(() => {
     const existingIds = new Set(dailyItems.value.map(d => d.task_id));
     return availableTasks.value.filter(t => {
         if (existingIds.has(t.id)) return false;
+        
+        // Project filter
+        if (projectFilter.value && t.milestone?.project_id !== projectFilter.value) return false;
+
         const done = t.status === 'Done' || t.status === 'Archived';
         if (done) return false;
         if (!q) return true;
@@ -79,6 +84,17 @@ const filteredPool = computed(() => {
 const pendingCount   = computed(() => dailyItems.value.filter(d => d.status === 'pending').length);
 const completedCount = computed(() => dailyItems.value.filter(d => d.status === 'completed').length);
 const pushedCount    = computed(() => dailyItems.value.filter(d => d.status === 'pushed_to_next_day').length);
+
+const projectOptions = computed(() => {
+    const projects = new Map();
+    availableTasks.value.forEach(t => {
+        const p = t.milestone?.project;
+        if (p && !projects.has(p.id)) {
+            projects.set(p.id, { value: p.id, label: p.name });
+        }
+    });
+    return [{ value: null, label: 'All Projects' }, ...Array.from(projects.values())];
+});
 
 const historyDays = computed(() =>
     Object.entries(historyData.value).sort(([a], [b]) => b.localeCompare(a))
@@ -507,7 +523,16 @@ const addSelected = () => {
         <transition name="slide-down">
             <div v-if="showTaskPicker" class="task-picker">
                 <div class="picker-header">
-                    <input v-model="searchPool" class="picker-search" placeholder="Search your tasks…" autofocus />
+                    <div class="flex-1 flex gap-2">
+                        <input v-model="searchPool" class="picker-search" placeholder="Search your tasks…" autofocus />
+                        <div class="w-48">
+                            <SelectDropdown
+                                v-model="projectFilter"
+                                :options="projectOptions"
+                                placeholder="Filter by project"
+                            />
+                        </div>
+                    </div>
                     <span class="picker-hint">Click to select, then Add</span>
                     <button class="btn-primary btn-sm" :disabled="selectedPoolIds.size === 0" @click="addSelected">
                         Add{{ selectedPoolIds.size > 0 ? ` (${selectedPoolIds.size})` : '' }}
