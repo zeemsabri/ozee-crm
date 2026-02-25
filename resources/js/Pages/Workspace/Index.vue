@@ -21,7 +21,13 @@ const activeView = ref(localStorage.getItem('workspace_view') || 'projects');
 watch(activeView, (v) => { try { localStorage.setItem('workspace_view', v); } catch (_) {} });
 // Legacy kanbanView boolean – keep in sync so existing logic still works
 const kanbanView = ref(activeView.value === 'kanban');
-watch(kanbanView, (v) => { activeView.value = v ? 'kanban' : 'projects'; });
+watch(kanbanView, (on) => {
+    if (on) {
+        activeView.value = 'kanban';
+    } else if (activeView.value === 'kanban') {
+        activeView.value = 'projects';
+    }
+});
 watch(activeView, (v) => { kanbanView.value = v === 'kanban'; });
 
 // Mock data to simulate fetching from a backend
