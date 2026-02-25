@@ -1,8 +1,11 @@
 <script setup>
 import { ref, watch } from 'vue';
 import draggable from 'vuedraggable';
+import Modal from '@/Components/Modal.vue';
 import TextInput from '@/Components/TextInput.vue';
+import TextareaInput from '@/Components/TextareaInput.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { InformationCircleIcon, TrashIcon } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
@@ -18,6 +21,8 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue']);
 
 const localItems = ref([...props.modelValue]);
+const showBulkPasteModal = ref(false);
+const bulkPasteContent = ref('');
 
 // Helper: shallow equality for arrays of primitives (strings)
 const arraysEqual = (a, b) => {
@@ -59,6 +64,26 @@ const addTextItem = () => {
 
 const addLinkItem = () => {
   localItems.value.push('(Label)[]');
+};
+
+const handleBulkPaste = () => {
+    if (!bulkPasteContent.value) return;
+
+    const lines = bulkPasteContent.value
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+    if (lines.length > 0) {
+        localItems.value.push(...lines);
+    }
+
+    closeBulkPasteModal();
+};
+
+const closeBulkPasteModal = () => {
+    bulkPasteContent.value = '';
+    showBulkPasteModal.value = false;
 };
 
 const confirmAndRemove = (index) => {
@@ -105,6 +130,9 @@ const convertToText = (index) => {
         </PrimaryButton>
         <PrimaryButton v-if="allowLinks" type="button" @click="addLinkItem">
           Add link
+        </PrimaryButton>
+        <PrimaryButton type="button" @click="showBulkPasteModal = true">
+          Bulk paste
         </PrimaryButton>
       </div>
       <div v-if="allowLinks" class="flex items-start text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
@@ -169,5 +197,30 @@ const convertToText = (index) => {
         </div>
       </template>
     </draggable>
+
+    <Modal :show="showBulkPasteModal" @close="closeBulkPasteModal" max-width="lg">
+      <div class="p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">
+          Bulk Paste Items
+        </h3>
+        <p class="text-sm text-gray-600 mb-4">
+          Paste your multi-line message below. Each line will be added as a separate text item.
+        </p>
+        <TextareaInput
+          v-model="bulkPasteContent"
+          class="w-full h-48"
+          placeholder="Paste your text here..."
+          autofocus
+        />
+        <div class="mt-6 flex justify-end gap-3">
+          <SecondaryButton @click="closeBulkPasteModal">
+            Cancel
+          </SecondaryButton>
+          <PrimaryButton @click="handleBulkPaste">
+            Add Lines
+          </PrimaryButton>
+        </div>
+      </div>
+    </Modal>
   </div>
 </template>
