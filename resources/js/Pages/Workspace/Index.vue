@@ -417,8 +417,8 @@ watch(projectId, async (pid) => {
 
 const fetchTodayDailyLogTasks = async () => {
     try {
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const { data } = await window.axios.get('/api/daily-tasks', { params: { date: todayStr } });
+        // Remove explicit date so server defaults to user's timezone 'today'
+        const { data } = await window.axios.get('/api/daily-tasks');
         tasksInDailyLog.value = new Set(data.map(d => d.task_id));
     } catch (e) {
         console.error('Failed to fetch today daily log tasks', e);
@@ -427,8 +427,8 @@ const fetchTodayDailyLogTasks = async () => {
 
 const addTaskToDailyLog = async (task) => {
     try {
-        const todayStr = new Date().toISOString().slice(0, 10);
-        await window.axios.post('/api/daily-tasks', { task_ids: [task.id], date: todayStr });
+        // Remove explicit date so server defaults to user's timezone 'today'
+        await window.axios.post('/api/daily-tasks', { task_ids: [task.id] });
         tasksInDailyLog.value.add(task.id);
         // Toast notification if available, or just visual update is enough per plan
     } catch (e) {
