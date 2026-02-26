@@ -82,7 +82,7 @@ watch(() => props.data, () => {
 </script>
 
 <template>
-    <div class="h-64 w-full">
+    <div class="relative h-full w-full min-h-[inherit]">
         <canvas ref="chartRef" :id="chartId"></canvas>
     </div>
 </template>
