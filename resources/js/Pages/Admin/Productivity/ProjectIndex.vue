@@ -13,6 +13,7 @@ import {
 } from '@heroicons/vue/24/outline';
 
 import TaskDetailSidebar from '@/Components/ProjectTasks/TaskDetailSidebar.vue';
+import MentionInput from '@/Components/ProjectTasks/MentionInput.vue';
 
 const reportData = ref([]);
 const projectsList = ref([]);
@@ -50,13 +51,124 @@ const isHighlighted = (dateString) => {
     return highlight === target;
 };
 
+const isDueToday = (task) => {
+    if (!highlightDate.value || !task.due_date) return false;
+    const highlight = highlightDate.value.split('T')[0];
+    return task.due_date === highlight;
+};
+
+const formatNoteContent = (content) => {
+    if (!content) return '';
+    // Simple markdown-ish bolding and line breaks
+    return content
+        .replace(/\*\*(.*?)\*\*/g, '<strong class="font-black text-gray-900">$1</strong>')
+        .replace(/\n/g, '<br/>');
+};
+
+const dailySummaries = ref({}); // { projectId: content }
+const savingSummary = ref({}); // { projectId: boolean }
+const actionPointContent = ref({}); // { projectId: string }
+const savingActionPoint = ref({}); // { projectId: boolean }
+const actionPointMentions = ref({}); // { projectId: User object }
+
+const addActionPoint = async (project) => {
+    const content = actionPointContent.value[project.id];
+    if (!content) return;
+    
+    savingActionPoint.value[project.id] = true;
+    try {
+        const actionPoints = project.data?.action_points || [];
+        const mentionedUser = actionPointMentions.value[project.id];
+        
+        const newPoint = {
+            id: Date.now(),
+            content: content,
+            date: highlightDate.value,
+            user_id: mentionedUser ? mentionedUser.id : null,
+            user_name: mentionedUser ? mentionedUser.name : null,
+            done: false,
+            created_at: new Date().toISOString()
+        };
+        
+        const updatedActionPoints = [...actionPoints, newPoint];
+        await window.axios.put(`/api/projects/${project.id}/update-data`, {
+            key: 'action_points',
+            value: updatedActionPoints
+        });
+        
+        actionPointContent.value[project.id] = '';
+        actionPointMentions.value[project.id] = null;
+        project.data = { ...(project.data || {}), action_points: updatedActionPoints };
+    } catch (e) {
+        console.error(e);
+    } finally {
+        savingActionPoint.value[project.id] = false;
+    }
+};
+
+const setUserMention = (project, user) => {
+    actionPointMentions.value[project.id] = user;
+};
+
+const toggleActionPoint = async (project, pointId) => {
+    try {
+        const actionPoints = [...(project.data?.action_points || [])];
+        const pointIndex = actionPoints.findIndex(p => p.id === pointId);
+        if (pointIndex === -1) return;
+        
+        actionPoints[pointIndex].done = !actionPoints[pointIndex].done;
+        
+        await window.axios.put(`/api/projects/${project.id}/update-data`, {
+            key: 'action_points',
+            value: actionPoints
+        });
+        
+        project.data.action_points = actionPoints;
+    } catch (e) {
+        console.error(e);
+    }
+};
+
+const deleteActionPoint = async (project, pointId) => {
+    if (!confirm('Are you sure you want to delete this action point?')) return;
+    try {
+        const actionPoints = (project.data?.action_points || []).filter(p => p.id !== pointId);
+        
+        await window.axios.put(`/api/projects/${project.id}/update-data`, {
+            key: 'action_points',
+            value: actionPoints
+        });
+        
+        project.data.action_points = actionPoints;
+    } catch (e) {
+        console.error(e);
+    }
+};
+
+const saveDailySummary = async (projectId) => {
+    if (!dailySummaries.value[projectId]) return;
+    savingSummary.value[projectId] = true;
+    try {
+        await window.axios.post(`/api/projects/${projectId}/notes`, {
+            notes: [{ content: dailySummaries.value[projectId] }],
+            type: 'daily_summary'
+        });
+        dailySummaries.value[projectId] = '';
+        fetchReport();
+    } catch (e) {
+        console.error(e);
+    } finally {
+        savingSummary.value[projectId] = false;
+    }
+};
+
 // --- USER-CENTRIC SUMMARY LOGIC ---
 const highlightedActivityByUser = computed(() => {
     const userMap = {};
     const getOrCreateUser = (name) => {
         const userName = name || 'Unassigned';
         if (!userMap[userName]) {
-            userMap[userName] = { tasksDone: [], standups: [], meetings: [], emails: [], notes: [] };
+            userMap[userName] = { tasksDone: [], standups: [], meetings: [], emails: [], notes: [], dailySummaries: [] };
         }
         return userMap[userName];
     };
@@ -72,6 +184,7 @@ const highlightedActivityByUser = computed(() => {
                 const user = getOrCreateUser(note.creator_name);
                 if (note.type === 'standup') user.standups.push({ ...note, projectName: project.name });
                 else if (note.type === 'meeting_minutes') user.meetings.push({ ...note, projectName: project.name });
+                else if (note.type === 'daily_summary') user.dailySummaries.push({ ...note, projectName: project.name });
                 else user.notes.push({ ...note, projectName: project.name });
             }
         });
@@ -147,16 +260,19 @@ const exportForAI = () => {
             notes: getHighlightedItems(p.project_notes?.filter(n => !n.type || n.type === 'note'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
             standups: getHighlightedItems(p.project_notes?.filter(n => n.type === 'standup'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
             meetingMinutes: getHighlightedItems(p.project_notes?.filter(n => n.type === 'meeting_minutes'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
-            tasksTodo: getHighlightedItems(p.tasks?.filter(t => t.status !== 'Done'), 'updated_at').map(t => ({ name: t.name, assignee: t.assigned_to, status: t.status })),
-            tasksDone: getHighlightedItems(p.tasks?.filter(t => t.status === 'Done'), 'updated_at').map(t => ({ name: t.name, assignee: t.assigned_to, finishedAt: t.updated_at })),
-            communications: getHighlightedItems(p.emails, 'created_at').map(e => ({ subject: e.subject, sender: e.sender, date: e.created_at, aiContext: e.contexts?.[0]?.summary }))
+            dailySummary: getHighlightedItems(p.project_notes?.filter(n => n.type === 'daily_summary'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
+            tasksTodo: getHighlightedItems(p.tasks?.filter(t => t.status !== 'Done'), 'updated_at').map(t => ({ name: t.name, description: t.description, assignee: t.assigned_to, status: t.status, latestNotes: t.notes?.[0]?.content })),
+            tasksDone: getHighlightedItems(p.tasks?.filter(t => t.status === 'Done'), 'updated_at').map(t => ({ name: t.name, description: t.description, assignee: t.assigned_to, finishedAt: t.updated_at, latestNotes: t.notes?.[0]?.content })),
+            tasksDueToday: p.tasks?.filter(t => isDueToday(t)).map(t => ({ name: t.name, description: t.description, assignee: t.assigned_to, status: t.status })),
+            communications: getHighlightedItems(p.emails, 'created_at').map(e => ({ subject: e.subject, sender: e.sender, date: e.created_at, aiContext: e.contexts?.[0]?.summary })),
+            actionPoints: (p.data?.action_points || []).filter(ap => isHighlighted(ap.date)).map(ap => ({ content: ap.content, done: ap.done }))
         },
         archivedActivity: {
             notes: getArchivedItems(p.project_notes?.filter(n => !n.type || n.type === 'note'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
             standups: getArchivedItems(p.project_notes?.filter(n => n.type === 'standup'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
             meetingMinutes: getArchivedItems(p.project_notes?.filter(n => n.type === 'meeting_minutes'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
-            tasksTodo: getArchivedItems(p.tasks?.filter(t => t.status !== 'Done'), 'updated_at').map(t => ({ name: t.name, assignee: t.assigned_to, status: t.status })),
-            tasksDone: getArchivedItems(p.tasks?.filter(t => t.status === 'Done'), 'updated_at').map(t => ({ name: t.name, assignee: t.assigned_to, finishedAt: t.updated_at })),
+            tasksTodo: getArchivedItems(p.tasks?.filter(t => t.status !== 'Done'), 'updated_at').map(t => ({ name: t.name, description: t.description, assignee: t.assigned_to, status: t.status, latestNotes: t.notes?.[0]?.content })),
+            tasksDone: getArchivedItems(p.tasks?.filter(t => t.status === 'Done'), 'updated_at').map(t => ({ name: t.name, description: t.description, assignee: t.assigned_to, finishedAt: t.updated_at, latestNotes: t.notes?.[0]?.content })),
             communications: getArchivedItems(p.emails, 'created_at').map(e => ({ subject: e.subject, sender: e.sender, date: e.created_at, aiContext: e.contexts?.[0]?.summary }))
         }
     }));
@@ -175,16 +291,19 @@ const exportSingleProjectForAI = (project, event) => {
             notes: getHighlightedItems(project.project_notes?.filter(n => !n.type || n.type === 'note'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
             standups: getHighlightedItems(project.project_notes?.filter(n => n.type === 'standup'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
             meetingMinutes: getHighlightedItems(project.project_notes?.filter(n => n.type === 'meeting_minutes'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
-            tasksTodo: getHighlightedItems(project.tasks?.filter(t => t.status !== 'Done'), 'updated_at').map(t => ({ name: t.name, assignee: t.assigned_to })),
-            tasksDone: getHighlightedItems(project.tasks?.filter(t => t.status === 'Done'), 'updated_at').map(t => ({ name: t.name, assignee: t.assigned_to })),
-            communications: getHighlightedItems(project.emails, 'created_at').map(e => ({ subject: e.subject, aiContext: e.contexts?.[0]?.summary }))
+            dailySummary: getHighlightedItems(project.project_notes?.filter(n => n.type === 'daily_summary'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
+            tasksTodo: getHighlightedItems(project.tasks?.filter(t => t.status !== 'Done'), 'updated_at').map(t => ({ name: t.name, description: t.description, assignee: t.assigned_to, latestNotes: t.notes?.[0]?.content })),
+            tasksDone: getHighlightedItems(project.tasks?.filter(t => t.status === 'Done'), 'updated_at').map(t => ({ name: t.name, description: t.description, assignee: t.assigned_to, latestNotes: t.notes?.[0]?.content })),
+            tasksDueToday: project.tasks?.filter(t => isDueToday(t)).map(t => ({ name: t.name, description: t.description, assignee: t.assigned_to, status: t.status })),
+            communications: getHighlightedItems(project.emails, 'created_at').map(e => ({ subject: e.subject, aiContext: e.contexts?.[0]?.summary })),
+            actionPoints: (project.data?.action_points || []).filter(ap => isHighlighted(ap.date)).map(ap => ({ content: ap.content, done: ap.done }))
         },
         archivedActivity: {
             notes: getArchivedItems(project.project_notes?.filter(n => !n.type || n.type === 'note'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
             standups: getArchivedItems(project.project_notes?.filter(n => n.type === 'standup'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
             meetingMinutes: getArchivedItems(project.project_notes?.filter(n => n.type === 'meeting_minutes'), 'created_at').map(n => ({ author: n.creator_name, content: n.content, date: n.created_at })),
-            tasksTodo: getArchivedItems(project.tasks?.filter(t => t.status !== 'Done'), 'updated_at').map(t => ({ name: t.name, assignee: t.assigned_to })),
-            tasksDone: getArchivedItems(project.tasks?.filter(t => t.status === 'Done'), 'updated_at').map(t => ({ name: t.name, assignee: t.assigned_to })),
+            tasksTodo: getArchivedItems(project.tasks?.filter(t => t.status !== 'Done'), 'updated_at').map(t => ({ name: t.name, description: t.description, assignee: t.assigned_to })),
+            tasksDone: getArchivedItems(project.tasks?.filter(t => t.status === 'Done'), 'updated_at').map(t => ({ name: t.name, description: t.description, assignee: t.assigned_to })),
             communications: getArchivedItems(project.emails, 'created_at').map(e => ({ subject: e.subject, aiContext: e.contexts?.[0]?.summary }))
         }
     };
@@ -285,24 +404,40 @@ onMounted(() => {
                                 </div>
                             </div>
                             <div class="p-6 space-y-6 flex-1">
+                                <div v-if="data.dailySummaries.length > 0">
+                                    <h5 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-3 flex items-center gap-1"><SparklesIcon class="h-3 w-3" /> Daily Impact Summary</h5>
+                                    <div v-for="s in data.dailySummaries" :key="s.id" class="text-xs text-indigo-700 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 mb-2 font-medium" v-html="formatNoteContent(s.content)"></div>
+                                </div>
                                 <div v-if="data.standups.length > 0">
                                     <h5 class="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-1"><HandRaisedIcon class="h-3 w-3" /> Standup Context</h5>
-                                    <div v-for="s in data.standups" :key="s.id" class="text-xs text-gray-600 bg-orange-50/50 p-4 rounded-2xl border border-orange-100 mb-2 italic">"{{ s.content }}" <p class="text-[9px] font-black mt-2 text-orange-400 uppercase">{{ s.projectName }}</p></div>
+                                    <div v-for="s in data.standups" :key="s.id" class="text-xs text-gray-600 bg-orange-50/50 p-4 rounded-2xl border border-orange-100 mb-2 italic">
+                                        "{{ s.content }}"
+                                        <p class="text-[9px] font-black mt-2 text-orange-400 uppercase">{{ s.projectName }}</p>
+                                    </div>
                                 </div>
                                 <div v-if="data.tasksDone.length > 0">
                                     <h5 class="text-[10px] font-black text-green-600 uppercase tracking-widest mb-3 flex items-center gap-1"><CheckCircleIcon class="h-3 w-3" /> Accomplishments</h5>
                                     <ul class="space-y-2">
                                         <li v-for="t in data.tasksDone" :key="t.id" @click="openTaskDetail(t)" class="p-3 bg-green-50/30 rounded-xl border border-green-100 cursor-pointer hover:bg-white transition">
                                             <p class="text-xs font-bold text-gray-800">{{ t.name }}</p>
+                                            <p v-if="t.description" class="text-[10px] text-gray-400 line-clamp-1 mb-1">{{ t.description }}</p>
                                             <p class="text-[9px] text-gray-400 font-bold uppercase tracking-tight">{{ t.projectName }}</p>
                                         </li>
                                     </ul>
+                                </div>
+                                <div v-if="data.notes.length > 0">
+                                    <h5 class="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-3 flex items-center gap-1"><DocumentTextIcon class="h-3 w-3" /> Field Notes & Updates</h5>
+                                    <div v-for="n in data.notes" :key="n.id" class="p-3 bg-blue-50/30 rounded-xl border border-blue-100 mb-2">
+                                        <div class="text-xs text-gray-700 mb-2" v-html="formatNoteContent(n.content)"></div>
+                                        <p class="text-[9px] text-blue-400 font-black uppercase">{{ n.projectName }}</p>
+                                    </div>
                                 </div>
                                 <div v-if="data.emails.length > 0">
                                     <h5 class="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-3 flex items-center gap-1"><EnvelopeIcon class="h-3 w-3" /> Communications</h5>
                                     <div v-for="e in data.emails" :key="e.id" class="p-3 bg-purple-50/30 rounded-xl border border-purple-100 mb-2">
                                         <p class="text-xs font-bold text-gray-800 truncate">{{ e.subject }}</p>
-                                        <p class="text-[9px] text-purple-400 font-black uppercase">{{ e.projectName }}</p>
+                                        <p v-if="e.contexts?.[0]?.summary" class="text-[10px] text-purple-600 italic mt-1 font-medium line-clamp-2">AI Context: {{ e.contexts[0].summary }}</p>
+                                        <p class="text-[9px] text-purple-400 font-black uppercase mt-1">{{ e.projectName }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -349,33 +484,124 @@ onMounted(() => {
                                     </select>
                                 </div>
                                 <nav class="flex space-x-1 p-1 bg-gray-100 rounded-xl overflow-x-auto scrollbar-hide">
-                                    <button v-for="tab in ['today', 'todo', 'done', 'notes', 'standups', 'meetings', 'emails']" :key="tab" @click="setTab(project.id, tab)"
+                                    <button v-for="tab in ['today', 'todo', 'done', 'notes', 'standups', 'meetings', 'summary', 'emails']" :key="tab" @click="setTab(project.id, tab)"
                                             :class="activeTabs[project.id] === tab ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'"
-                                            class="py-1.5 px-4 rounded-lg text-[10px] font-black uppercase transition whitespace-nowrap">{{ tab }}</button>
+                                            class="py-1.5 px-4 rounded-lg text-[10px] font-black uppercase transition whitespace-nowrap">
+                                        {{ tab }}
+                                        <span v-if="tab === 'today' && project.tasks?.filter(t => isDueToday(t)).length" class="ml-1 px-1.5 py-0.5 bg-indigo-500 text-white rounded-md text-[8px]">{{ project.tasks?.filter(t => isDueToday(t)).length }}</span>
+                                    </button>
                                 </nav>
                             </div>
 
                             <div class="p-8">
                                 <!-- TODAY TAB (NEW) -->
                                 <div v-show="activeTabs[project.id] === 'today'" class="space-y-6">
-                                    <div v-if="getHighlightedItems(project.tasks?.filter(t => t.status !== 'Done'), 'updated_at').length || getHighlightedItems(project.tasks?.filter(t => t.status === 'Done'), 'updated_at').length || getHighlightedItems(project.project_notes, 'created_at').length || getHighlightedItems(project.emails, 'created_at').length" class="space-y-6">
-                                        <!-- Highlighted Tasks -->
-                                        <div v-if="getHighlightedItems(project.tasks?.filter(t => t.status !== 'Done'), 'updated_at').length" class="space-y-3">
-                                            <h5 class="text-[10px] font-black tracking-widest text-indigo-500 uppercase flex items-center gap-1"><SparklesIcon class="h-3 w-3" /> Focus Tasks (Todo)</h5>
-                                            <div v-for="task in getHighlightedItems(project.tasks?.filter(t => t.status !== 'Done'), 'updated_at')" :key="task.id" @click="openTaskDetail(task)" class="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl cursor-pointer hover:bg-white transition">
+                                    <!-- ACTION POINTS (NEW) -->
+                                    <div class="space-y-4">
+                                        <div class="flex items-center justify-between">
+                                            <h5 class="text-[10px] font-black tracking-widest text-indigo-600 uppercase flex items-center gap-1"><ClipboardDocumentIcon class="h-3 w-3" /> Quick Action Points</h5>
+                                            <span class="text-[9px] font-bold text-gray-400">Save notes for AI task creation</span>
+                                        </div>
+                                        
+                                        <div class="flex gap-2">
+                                            <MentionInput 
+                                                :project-id="project.id"
+                                                v-model="actionPointContent[project.id]"
+                                                @submit="addActionPoint(project)"
+                                                @user-selected="setUserMention(project, $event)"
+                                                placeholder="Add quick action point (type @ for users)..."
+                                            />
+                                            <button 
+                                                @click="addActionPoint(project)" 
+                                                :disabled="savingActionPoint[project.id] || !actionPointContent[project.id]"
+                                                class="bg-indigo-600 text-white rounded-xl px-4 py-2 font-black text-xs hover:bg-indigo-700 transition flex items-center gap-2 h-10 disabled:opacity-50"
+                                            >
+                                                <SparklesIcon class="h-3.5 w-3.5" /> {{ savingActionPoint[project.id] ? 'Saving...' : 'Add' }}
+                                            </button>
+                                        </div>
+
+                                        <div v-if="(project.data?.action_points || []).filter(p => isHighlighted(p.date)).length" class="space-y-2">
+                                            <div v-for="point in (project.data?.action_points || []).filter(p => isHighlighted(p.date))" :key="point.id" class="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl group hover:shadow-sm transition">
+                                                <input 
+                                                    type="checkbox" 
+                                                    :checked="point.done" 
+                                                    @change="toggleActionPoint(project, point.id)" 
+                                                    class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300" 
+                                                />
+                                                <div class="flex-1 min-w-0">
+                                                    <span :class="{'line-through text-gray-400': point.done, 'text-gray-700': !point.done}" class="text-xs font-bold block truncate">{{ point.content }}</span>
+                                                    <span v-if="point.user_name" class="text-[9px] font-black text-indigo-500 uppercase flex items-center gap-1 mt-0.5"><UserIcon class="h-2.5 w-2.5" /> Mentioned: {{ point.user_name }}</span>
+                                                </div>
+                                                <button @click="deleteActionPoint(project, point.id)" class="text-gray-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100">
+                                                    <ArrowPathIcon class="h-3.5 w-3.5 stroke-2" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Yesterday's pending action points -->
+                                        <div v-if="(project.data?.action_points || []).filter(p => !isHighlighted(p.date) && !p.done).length" class="mt-4 pt-4 border-t border-dashed border-gray-100">
+                                            <h6 class="text-[9px] font-black text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-1">Yesterday's Pending</h6>
+                                            <div class="space-y-2 opacity-75">
+                                                <div v-for="point in (project.data?.action_points || []).filter(p => !isHighlighted(p.date) && !p.done)" :key="point.id" class="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        :checked="point.done" 
+                                                        @change="toggleActionPoint(project, point.id)" 
+                                                        class="h-4 w-4 rounded text-indigo-600 border-gray-300" 
+                                                    />
+                                                    <div class="flex-1 min-w-0">
+                                                        <span class="text-xs font-medium text-gray-600 block truncate">{{ point.content }}</span>
+                                                        <span v-if="point.user_name" class="text-[8px] font-black text-indigo-400 uppercase flex items-center gap-0.5 mt-0.5"><UserIcon class="h-2 w-2" /> {{ point.user_name }}</span>
+                                                    </div>
+                                                    <span class="text-[8px] font-black text-gray-300 ml-auto uppercase">{{ point.date }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="project.tasks?.filter(t => isDueToday(t)).length || getHighlightedItems(project.tasks?.filter(t => t.status !== 'Done'), 'updated_at').length || getHighlightedItems(project.tasks?.filter(t => t.status === 'Done'), 'updated_at').length || getHighlightedItems(project.project_notes, 'created_at').length || getHighlightedItems(project.emails, 'created_at').length" class="space-y-6">
+                                        
+                                        <!-- DUE TODAY -->
+                                        <div v-if="project.tasks?.filter(t => isDueToday(t)).length" class="space-y-3">
+                                            <h5 class="text-[10px] font-black tracking-widest text-red-500 uppercase flex items-center gap-1"><ClockIcon class="h-3 w-3" /> Due Today (Deadline)</h5>
+                                            <div v-for="task in project.tasks?.filter(t => isDueToday(t))" :key="task.id" @click="openTaskDetail(task)" class="p-4 bg-red-50/50 border border-red-100 rounded-xl cursor-pointer hover:bg-white transition">
                                                 <div class="flex justify-between items-start">
-                                                    <h6 class="font-bold text-gray-900">{{ task.name }}</h6>
+                                                    <div>
+                                                        <h6 class="font-bold text-gray-900">{{ task.name }}</h6>
+                                                        <div v-if="task.description" class="mt-2 text-[11px] text-gray-500 line-clamp-2">{{ task.description }}</div>
+                                                    </div>
                                                     <span class="text-[10px] font-bold text-gray-500 flex items-center gap-1"><UserIcon class="h-3 w-3" /> {{ task.assigned_to || 'Unassigned' }}</span>
                                                 </div>
                                             </div>
                                         </div>
 
+                                        <!-- Highlighted Tasks (Todo) -->
+                                        <div v-if="getHighlightedItems(project.tasks?.filter(t => t.status !== 'Done'), 'updated_at').length" class="space-y-3">
+                                            <h5 class="text-[10px] font-black tracking-widest text-indigo-500 uppercase flex items-center gap-1"><SparklesIcon class="h-3 w-3" /> Focus Tasks (Active Today)</h5>
+                                            <div v-for="task in getHighlightedItems(project.tasks?.filter(t => t.status !== 'Done'), 'updated_at')" :key="task.id" @click="openTaskDetail(task)" class="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl cursor-pointer hover:bg-white transition">
+                                                <div class="flex justify-between items-start">
+                                                    <div class="flex-1">
+                                                        <h6 class="font-bold text-gray-900">{{ task.name }}</h6>
+                                                        <div v-if="task.description" class="mt-2 text-[11px] text-gray-500 line-clamp-2">{{ task.description }}</div>
+                                                        <div v-if="task.notes?.length" class="mt-3 p-2 bg-white/50 rounded-lg border border-indigo-50 text-[10px] italic text-gray-600">
+                                                            "{{ task.notes[0].content }}"
+                                                        </div>
+                                                    </div>
+                                                    <span class="text-[10px] font-bold text-gray-500 flex items-center gap-1 ml-4"><UserIcon class="h-3 w-3" /> {{ task.assigned_to || 'Unassigned' }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Accomplished Today -->
                                         <div v-if="getHighlightedItems(project.tasks?.filter(t => t.status === 'Done'), 'updated_at').length" class="space-y-3">
                                             <h5 class="text-[10px] font-black tracking-widest text-green-500 uppercase flex items-center gap-1"><CheckCircleIcon class="h-3 w-3" /> Accomplished Today</h5>
                                             <div v-for="task in getHighlightedItems(project.tasks?.filter(t => t.status === 'Done'), 'updated_at')" :key="task.id" @click="openTaskDetail(task)" class="p-4 bg-green-50/50 border border-green-100 rounded-xl">
-                                                <div class="flex items-center gap-3">
-                                                    <CheckCircleIcon class="h-5 w-5 text-green-500" />
-                                                    <h6 class="font-bold text-gray-900 text-sm">{{ task.name }}</h6>
+                                                <div class="flex items-start gap-3">
+                                                    <CheckCircleIcon class="h-5 w-5 text-green-500 mt-0.5" />
+                                                    <div class="flex-1">
+                                                        <h6 class="font-bold text-gray-900 text-sm">{{ task.name }}</h6>
+                                                        <div v-if="task.description" class="mt-1 text-[11px] text-gray-500">{{ task.description }}</div>
+                                                    </div>
                                                     <span class="ml-auto text-[10px] text-gray-400 font-bold uppercase">{{ task.assigned_to }}</span>
                                                 </div>
                                             </div>
@@ -386,7 +612,7 @@ onMounted(() => {
                                             <h5 class="text-[10px] font-black tracking-widest text-blue-500 uppercase flex items-center gap-1"><DocumentTextIcon class="h-3 w-3" /> Today's Logs</h5>
                                             <div v-for="note in getHighlightedItems(project.project_notes, 'created_at')" :key="note.id" class="p-4 bg-gray-50 border border-gray-100 rounded-xl">
                                                 <span class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2 block">{{ note.type || 'Note' }}</span>
-                                                <div class="text-sm text-gray-700 italic mb-3">"{{ note.content }}"</div>
+                                                <div class="text-sm text-gray-700 italic mb-3 whitespace-pre-wrap" v-html="formatNoteContent(note.content)"></div>
                                                 <div class="flex items-center gap-2 text-[10px] font-bold text-gray-500"><UserIcon class="h-3 w-3" /> {{ note.creator_name }}</div>
                                             </div>
                                         </div>
@@ -394,9 +620,14 @@ onMounted(() => {
                                         <!-- Highlighted Emails -->
                                         <div v-if="getHighlightedItems(project.emails, 'created_at').length" class="space-y-3">
                                             <h5 class="text-[10px] font-black tracking-widest text-purple-500 uppercase flex items-center gap-1"><EnvelopeIcon class="h-3 w-3" /> Today's Comms</h5>
-                                            <div v-for="email in getHighlightedItems(project.emails, 'created_at')" :key="email.id" class="p-4 bg-purple-50/30 border border-purple-100 rounded-xl flex items-center justify-between">
-                                                <p class="text-sm font-bold text-gray-800">{{ email.subject }}</p>
-                                                <p class="text-[10px] text-gray-500 font-bold uppercase">{{ email.sender }}</p>
+                                            <div v-for="email in getHighlightedItems(project.emails, 'created_at')" :key="email.id" class="p-4 bg-purple-50/30 border border-purple-100 rounded-xl">
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <p class="text-sm font-bold text-gray-800">{{ email.subject }}</p>
+                                                    <p class="text-[10px] text-gray-500 font-bold uppercase">{{ email.sender }}</p>
+                                                </div>
+                                                <div v-if="email.contexts?.length" class="p-3 bg-white/60 rounded-lg border border-purple-50 text-[11px] text-purple-700 font-medium">
+                                                    <SparklesIcon class="h-3 w-3 inline mr-1" /> {{ email.contexts[0].summary }}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -452,16 +683,16 @@ onMounted(() => {
                                     <p v-if="!project.tasks?.filter(t => t.status === 'Done').length" class="text-center text-gray-400 text-xs italic">No done tasks found.</p>
                                 </div>
 
-                                <!-- NOTES, STANDUPS, MEETINGS (GROUPED BY RENDERER) -->
-                                <div v-show="['notes', 'standups', 'meetings'].includes(activeTabs[project.id])" class="space-y-8">
-                                    <div v-for="(group, title) in {'Highlighted (Focus Date)': getHighlightedItems(filterBySelectedUser(project.project_notes?.filter(n => (activeTabs[project.id] === 'notes' && (!n.type || n.type === 'note')) || (activeTabs[project.id] === 'standups' && n.type === 'standup') || (activeTabs[project.id] === 'meetings' && n.type === 'meeting_minutes')), project.id, 'creator_name'), 'created_at'), 'Archive': getArchivedItems(filterBySelectedUser(project.project_notes?.filter(n => (activeTabs[project.id] === 'notes' && (!n.type || n.type === 'note')) || (activeTabs[project.id] === 'standups' && n.type === 'standup') || (activeTabs[project.id] === 'meetings' && n.type === 'meeting_minutes')), project.id, 'creator_name'), 'created_at')}" :key="title">
+                                <!-- NOTES, STANDUPS, MEETINGS, SUMMARY (GROUPED BY RENDERER) -->
+                                <div v-show="['notes', 'standups', 'meetings', 'summary'].includes(activeTabs[project.id])" class="space-y-8">
+                                    <div v-for="(group, title) in {'Highlighted (Focus Date)': getHighlightedItems(filterBySelectedUser(project.project_notes?.filter(n => (activeTabs[project.id] === 'notes' && (!n.type || n.type === 'note')) || (activeTabs[project.id] === 'standups' && n.type === 'standup') || (activeTabs[project.id] === 'meetings' && n.type === 'meeting_minutes') || (activeTabs[project.id] === 'summary' && n.type === 'daily_summary')), project.id, 'creator_name'), 'created_at'), 'Archive': getArchivedItems(filterBySelectedUser(project.project_notes?.filter(n => (activeTabs[project.id] === 'notes' && (!n.type || n.type === 'note')) || (activeTabs[project.id] === 'standups' && n.type === 'standup') || (activeTabs[project.id] === 'meetings' && n.type === 'meeting_minutes') || (activeTabs[project.id] === 'summary' && n.type === 'daily_summary')), project.id, 'creator_name'), 'created_at')}" :key="title">
                                         <div v-if="group.length > 0">
                                             <h5 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 border-b border-gray-100 pb-2">{{ title }}</h5>
                                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div v-for="note in group" :key="note.id"
-                                         class="p-6 bg-white border border-gray-100 rounded-[2rem] shadow-sm flex flex-col relative" :class="isHighlighted(note.created_at) ? 'ring-2 ring-indigo-50 border-indigo-200' : ''">
+                                          class="p-6 bg-white border border-gray-100 rounded-[2rem] shadow-sm flex flex-col relative" :class="isHighlighted(note.created_at) ? 'ring-2 ring-indigo-50 border-indigo-200' : ''">
                                         <div v-if="isHighlighted(note.created_at)" class="absolute -top-2 -right-2 bg-indigo-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded-full shadow-lg">New Log</div>
-                                        <div class="text-sm text-gray-700 leading-relaxed mb-6 whitespace-pre-wrap italic">"{{ note.content }}"</div>
+                                        <div class="text-sm text-gray-700 leading-relaxed mb-6 whitespace-pre-wrap" v-html="formatNoteContent(note.content)"></div>
                                         <div class="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
                                             <div class="flex items-center gap-2">
                                                 <div class="h-8 w-8 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] font-black">{{ note.creator_name?.substring(0,2) }}</div>
@@ -472,6 +703,18 @@ onMounted(() => {
                                             </div>
                                         </div>
                                     </div>
+                                    </div>
+
+                                    <!-- Add Summary Input (only in summary tab) -->
+                                    <div v-if="activeTabs[project.id] === 'summary'" class="mt-8 bg-indigo-50/30 p-8 rounded-[2rem] border border-indigo-100">
+                                        <h5 class="text-sm font-black text-indigo-900 mb-4 flex items-center gap-2"><SparklesIcon class="h-5 w-5" /> Daily Impact Summary</h5>
+                                        <p class="text-xs text-indigo-600 mb-4 font-medium italic">Summarize the overall progress, blockers, and next steps for today.</p>
+                                        <textarea v-model="dailySummaries[project.id]" rows="4" class="w-full rounded-2xl border-indigo-100 focus:ring-indigo-500 text-sm p-4 placeholder:text-indigo-200" placeholder="Paste your AI-generated summary or write one manually..."></textarea>
+                                        <div class="flex justify-end mt-4">
+                                            <button @click="saveDailySummary(project.id)" :disabled="savingSummary[project.id] || !dailySummaries[project.id]" class="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700 transition disabled:opacity-50">
+                                                {{ savingSummary[project.id] ? 'Saving...' : 'Post Summary' }}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
 

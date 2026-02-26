@@ -62,6 +62,7 @@ class ProjectProductivityReportController extends Controller
                 })
                 ->where(function($q) use ($startDate, $endDate) {
                     $q->whereBetween('updated_at', [$startDate, $endDate])
+                      ->orWhereBetween('due_date', [$startDate->toDateString(), $endDate->toDateString()])
                       ->orWhereHas('notes', function($nq) use ($startDate, $endDate) {
                           $nq->whereBetween('created_at', [$startDate, $endDate]);
                       });
@@ -91,7 +92,7 @@ class ProjectProductivityReportController extends Controller
                         'created_at' => $note->created_at,
                     ];
                 }),
-                'tasks' => $tasks->map(function($task) {
+                'tasks' => $tasks->map(function($task) use ($project) {
                     return [
                         'id' => $task->id,
                         'name' => $task->name,
@@ -100,7 +101,15 @@ class ProjectProductivityReportController extends Controller
                         'assigned_to' => $task->assignedTo?->name,
                         'due_date' => $task->due_date,
                         'milestone' => $task->milestone?->name,
-                        'notes' => $task->notes,
+                        'project_id' => $project->id, // Added project_id
+                        'notes' => $task->notes->map(function($note) {
+                            return [
+                                'id' => $note->id,
+                                'content' => $note->content,
+                                'creator_name' => $note->creator?->name ?? 'System',
+                                'created_at' => $note->created_at,
+                            ];
+                        }),
                         'updated_at' => $task->updated_at,
                     ];
                 }),
@@ -115,6 +124,7 @@ class ProjectProductivityReportController extends Controller
                         'contexts' => $email->contexts,
                     ];
                 }),
+                'data' => $project->data,
                 'has_activity' => $projectNotes->isNotEmpty() || $tasks->isNotEmpty() || $emails->isNotEmpty()
             ];
         });

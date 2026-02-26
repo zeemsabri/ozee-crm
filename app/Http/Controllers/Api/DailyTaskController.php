@@ -37,7 +37,7 @@ class DailyTaskController extends Controller
                     'id', 'name', 'description', 'status', 'priority',
                     'due_date', 'milestone_id', 'assigned_to_user_id',
                 ])
-                ->with(['milestone:id,name,project_id', 'milestone.project:id,name']);
+                ->with(['milestone:id,name,project_id', 'milestone.project:id,name', 'notes.creator']);
             }
         ])
         ->forUser($targetUserId)
@@ -74,7 +74,7 @@ class DailyTaskController extends Controller
             ->with([
                 'task' => function ($q) {
                     $q->select(['id', 'name', 'status', 'priority', 'milestone_id'])
-                      ->with(['milestone:id,name,project_id', 'milestone.project:id,name']);
+                      ->with(['milestone:id,name,project_id', 'milestone.project:id,name', 'notes.creator']);
                 }
             ])
             ->orderByDesc('date')
@@ -119,7 +119,7 @@ class DailyTaskController extends Controller
                 ['user_id' => $user->id, 'task_id' => $taskId, 'date' => $date],
                 ['order' => $nextOrder, 'status' => DailyTask::STATUS_PENDING]
             );
-            $dt->load(['task:id,name,description,status,priority,due_date,milestone_id', 'task.milestone:id,name,project_id', 'task.milestone.project:id,name']);
+            $dt->load(['task:id,name,description,status,priority,due_date,milestone_id', 'task.milestone:id,name,project_id', 'task.milestone.project:id,name', 'task.notes.creator']);
             $created[] = $dt;
         }
 

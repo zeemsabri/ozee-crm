@@ -541,11 +541,13 @@ class ProjectActionController extends Controller
         $validated = $request->validate([
             'notes' => 'required|array',
             'notes.*.content' => 'required|string',
+            'type' => 'nullable|string'
         ]);
 
+        $type = $validated['type'] ?? 'note';
         $notes = [];
         foreach ($validated['notes'] as $note) {
-            $createdNote = ProjectNote::createAndNotify($project, $note['content'], ['type' => 'note']);
+            $createdNote = ProjectNote::createAndNotify($project, $note['content'], ['type' => $type]);
             $notes[] = $createdNote;
         }
 
@@ -1543,6 +1545,32 @@ class ProjectActionController extends Controller
 
             return response()->json(['message' => 'Failed to add comment.'], 500);
         }
+    }
+
+    /**
+     * Update generic project data (JSON column).
+     */
+    public function updateProjectData(Request $request, Project $project)
+    {
+        $user = Auth::user();
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $validated = $request->validate([
+            'key' => 'required|string',
+            'value' => 'required',
+        ]);
+
+        $currentData = $project->data ?? [];
+        $currentData[$validated['key']] = $validated['value'];
+        $project->data = $currentData;
+        $project->save();
+
+        return response()->json([
+            'message' => 'Project data updated successfully',
+            'data' => $project->data,
+        ]);
     }
 
     /**
