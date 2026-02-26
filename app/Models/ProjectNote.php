@@ -80,8 +80,7 @@ class ProjectNote extends Model
 
     const GENERAL = 'general';
 
-    const COMMENT = 'comment';
-
+    const DAILY_SUMMARY = 'daily_summary';
     const MEETING_MINUTES = 'meeting_minutes';
 
     const TYPES = [
@@ -89,6 +88,7 @@ class ProjectNote extends Model
         self::KUDOS,
         self::GENERAL,
         self::MEETING_MINUTES,
+        self::DAILY_SUMMARY,
     ];
 
     protected $fillable = [

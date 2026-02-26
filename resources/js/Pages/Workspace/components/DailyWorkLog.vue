@@ -659,6 +659,16 @@ const addSelected = () => {
                             </span>
                         </div>
 
+                        <!-- Task Description (NEW) -->
+                        <div v-if="item.task?.description" class="mt-2 text-[11px] text-gray-500 line-clamp-2">
+                            {{ item.task.description }}
+                        </div>
+
+                        <!-- Latest Task Note (NEW) -->
+                        <div v-if="item.task?.notes?.length" class="mt-2 p-2 bg-indigo-50/50 rounded-lg border border-indigo-100/50 text-[10px] text-gray-600 italic">
+                            <span class="font-bold text-indigo-400 not-italic mr-1">Latest Update:</span> "{{ item.task.notes[0].content }}"
+                        </div>
+
                         <!-- Contextual status hint -->
                         <div v-if="item.status !== 'completed' && item.status !== 'pushed_to_next_day'" class="status-hint">
                             <template v-if="taskStatus(item) === 'To Do'">

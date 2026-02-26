@@ -53,6 +53,7 @@ class Project extends Model
         'last_email_sent',
         'last_email_received',
         'integrations',
+        'data',
     ];
 
     protected $casts = [
@@ -65,6 +66,7 @@ class Project extends Model
         'last_email_sent' => 'datetime',
         'last_email_received' => 'datetime',
         'integrations' => 'array',
+        'data' => 'array',
     ];
 
     protected $hidden = [

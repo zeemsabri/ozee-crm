@@ -252,6 +252,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Action Routes
     Route::post('projects', [ProjectActionController::class, 'store']);
     Route::put('projects/{project}', [ProjectActionController::class, 'update']);
+    Route::put('projects/{project}/update-data', [ProjectActionController::class, 'updateProjectData'])->name('projects.update-data');
     Route::delete('projects/{project}', [ProjectActionController::class, 'destroy']);
     Route::post('projects/{project}/attach-users', [ProjectActionController::class, 'attachUsers'])->name('projects.attach-users');
     Route::post('projects/{project}/detach-users', [ProjectActionController::class, 'detachUsers'])->name('projects.detach-users');
