@@ -62,11 +62,33 @@ class ActivityReportController extends Controller
             ->first();
 
         // Chart Data: Domain Distribution (Top 10)
-        $domainDist = UserActivity::select('domain', DB::raw('SUM(duration) as value'))
+        $domainDist = UserActivity::select(
+                'domain', 
+                DB::raw('SUM(duration) as value'),
+                DB::raw("SUM(CASE WHEN idle_state = 'active' THEN duration ELSE 0 END) as active_duration"),
+                DB::raw("SUM(CASE WHEN idle_state != 'active' THEN duration ELSE 0 END) as idle_duration")
+            )
             ->when(!empty($userIds), fn($q) => $q->whereIn('user_id', $userIds))
             ->when($dateStart, fn($q) => $q->where('recorded_at', '>=', Carbon::parse($dateStart, $viewerTimezone)->startOfDay()->setTimezone('UTC')))
             ->when($dateEnd, fn($q) => $q->where('recorded_at', '<=', Carbon::parse($dateEnd, $viewerTimezone)->endOfDay()->setTimezone('UTC')))
             ->groupBy('domain')
+            ->orderByDesc('value')
+            ->limit(10)
+            ->get();
+
+        // Chart Data: Page Title Distribution (Top 10)
+        $titleDist = UserActivity::select(
+                'title', 
+                DB::raw('SUM(duration) as value'),
+                DB::raw("SUM(CASE WHEN idle_state = 'active' THEN duration ELSE 0 END) as active_duration"),
+                DB::raw("SUM(CASE WHEN idle_state != 'active' THEN duration ELSE 0 END) as idle_duration")
+            )
+            ->when(!empty($userIds), fn($q) => $q->whereIn('user_id', $userIds))
+            ->when($dateStart, fn($q) => $q->where('recorded_at', '>=', Carbon::parse($dateStart, $viewerTimezone)->startOfDay()->setTimezone('UTC')))
+            ->when($dateEnd, fn($q) => $q->where('recorded_at', '<=', Carbon::parse($dateEnd, $viewerTimezone)->endOfDay()->setTimezone('UTC')))
+            ->whereNotNull('title')
+            ->where('title', '!=', '')
+            ->groupBy('title')
             ->orderByDesc('value')
             ->limit(10)
             ->get();
@@ -102,7 +124,15 @@ class ActivityReportController extends Controller
             'charts' => [
                 'domain_dist' => $domainDist->map(fn($d) => [
                     'label' => $d->domain,
-                    'value' => round($d->value / 60) // in minutes
+                    'value' => round($d->value / 60), // in minutes
+                    'active' => round($d->active_duration / 60),
+                    'idle' => round($d->idle_duration / 60),
+                ]),
+                'title_dist' => $titleDist->map(fn($d) => [
+                    'label' => $d->title,
+                    'value' => round($d->value / 60), // in minutes
+                    'active' => round($d->active_duration / 60),
+                    'idle' => round($d->idle_duration / 60),
                 ]),
                 'hourly_trend' => $hourlyData,
                 'category_breakdown' => $categoryBreakdown,
@@ -156,7 +186,12 @@ class ActivityReportController extends Controller
      */
     private function getCategoryBreakdown($userIds, $dateStart, $dateEnd, $viewerTimezone)
     {
-        $query = UserActivity::select('category', DB::raw('SUM(duration) as total_duration'))
+        $query = UserActivity::select(
+                'category', 
+                DB::raw('SUM(duration) as total_duration'),
+                DB::raw("SUM(CASE WHEN idle_state = 'active' THEN duration ELSE 0 END) as active_duration"),
+                DB::raw("SUM(CASE WHEN idle_state != 'active' THEN duration ELSE 0 END) as idle_duration")
+            )
             ->when(!empty($userIds), fn($q) => $q->whereIn('user_id', $userIds))
             ->when($dateStart, fn($q) => $q->where('recorded_at', '>=', Carbon::parse($dateStart, $viewerTimezone)->startOfDay()->setTimezone('UTC')))
             ->when($dateEnd, fn($q) => $q->where('recorded_at', '<=', Carbon::parse($dateEnd, $viewerTimezone)->endOfDay()->setTimezone('UTC')))
@@ -165,17 +200,19 @@ class ActivityReportController extends Controller
             ->orderByDesc('total_duration')
             ->get();
 
-        $total = $query->sum('total_duration');
+        $totalActive = $query->sum('active_duration');
         $categories = config('activity_categories.categories', []);
 
-        return $query->map(function($item) use ($total, $categories) {
+        return $query->map(function($item) use ($totalActive, $categories) {
             $categoryConfig = $categories[$item->category] ?? [];
             return [
                 'category' => $item->category,
                 'label' => $categoryConfig['label'] ?? ucfirst($item->category),
                 'color' => $categoryConfig['color'] ?? '#6b7280',
                 'duration' => round($item->total_duration / 60), // minutes
-                'percentage' => $total > 0 ? round(($item->total_duration / $total) * 100, 1) : 0,
+                'active_duration' => round($item->active_duration / 60),
+                'idle_duration' => round($item->idle_duration / 60),
+                'percentage' => $totalActive > 0 ? round(($item->active_duration / $totalActive) * 100, 1) : 0,
             ];
         });
     }
@@ -190,7 +227,8 @@ class ActivityReportController extends Controller
         $totalActiveTime = $activities->where('idle_state', 'active')->sum('duration');
         $totalIdleTime = $activities->where('idle_state', '!=', 'active')->sum('duration');
         
-        $categoryTimes = $activities->groupBy('category')->map(fn($group) => $group->sum('duration'));
+        $activeActivities = $activities->where('idle_state', 'active');
+        $categoryTimes = $activeActivities->groupBy('category')->map(fn($group) => $group->sum('duration'));
         
         $weightedScore = 0;
         $totalWeightedTime = 0;
@@ -203,9 +241,11 @@ class ActivityReportController extends Controller
         
         $productivityScore = $totalWeightedTime > 0 ? round(($weightedScore / $totalWeightedTime) * 100) : 0;
         
-        $socialMediaTime = $categoryTimes['social_media'] ?? 0;
-        $productiveTime = ($categoryTimes['productive'] ?? 0) + ($categoryTimes['development'] ?? 0);
-        $unproductiveTime = ($categoryTimes['unproductive'] ?? 0) + $socialMediaTime;
+        // Use full activities for specific category sums if needed for labels, 
+        // but for unproductive/productive calculation we stick to active if that's the goal.
+        $socialMediaTime = $activeActivities->where('category', 'social_media')->sum('duration');
+        $productiveTime = $activeActivities->whereIn('category', ['productive', 'development'])->sum('duration');
+        $unproductiveTime = $activeActivities->where('category', 'unproductive')->sum('duration') + $socialMediaTime;
         
         return [
             'score' => $productivityScore,

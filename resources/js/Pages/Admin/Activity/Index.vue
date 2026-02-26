@@ -33,6 +33,7 @@ const productivity = ref({
 });
 const charts = ref({
     domain_dist: [],
+    title_dist: [],
     hourly_trend: [],
     category_breakdown: [],
     idle_breakdown: []
@@ -40,6 +41,52 @@ const charts = ref({
 const users = ref([]);
 const loading = ref(false);
 const openCategoryDropdown = ref(null);
+
+const categoryChartMode = ref('total');
+const domainChartMode = ref('total');
+const titleChartMode = ref('total');
+
+const categoryChartData = computed(() => {
+    return {
+        labels: charts.value.category_breakdown.map(d => d.label),
+        datasets: [{
+            data: charts.value.category_breakdown.map(d => {
+                if (categoryChartMode.value === 'active') return d.active_duration;
+                if (categoryChartMode.value === 'idle') return d.idle_duration;
+                return d.duration;
+            }),
+            backgroundColor: charts.value.category_breakdown.map(d => d.color)
+        }]
+    };
+});
+
+const domainChartData = computed(() => {
+    return {
+        labels: charts.value.domain_dist.map(d => d.label),
+        datasets: [{
+            data: charts.value.domain_dist.map(d => {
+                if (domainChartMode.value === 'active') return d.active;
+                if (domainChartMode.value === 'idle') return d.idle;
+                return d.value;
+            }),
+            backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#f43f5e', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316']
+        }]
+    };
+});
+
+const titleChartData = computed(() => {
+    return {
+        labels: charts.value.title_dist.map(d => d.label),
+        datasets: [{
+            data: charts.value.title_dist.map(d => {
+                if (titleChartMode.value === 'active') return d.active;
+                if (titleChartMode.value === 'idle') return d.idle;
+                return d.value;
+            }),
+            backgroundColor: ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6']
+        }]
+    };
+});
 
 const categoryOptions = [
     { value: 'productive', label: 'Productive' },
@@ -53,6 +100,9 @@ const categoryOptions = [
 const selectedUserIds = ref([]);
 const dateStart = ref(new Date().toISOString().split('T')[0]);
 const dateEnd = ref(new Date().toISOString().split('T')[0]);
+
+// Helper for unique chart component IDs
+const getChartId = (prefix) => `${prefix}-${Math.random().toString(36).substr(2, 9)}`;
 
 const fetchReport = async () => {
     loading.value = true;
@@ -136,6 +186,22 @@ onUnmounted(() => {
 
 </script>
 
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #cbd5e1;
+}
+</style>
+
 <template>
     <Head title="Activity Report" />
 
@@ -148,7 +214,7 @@ onUnmounted(() => {
         </template>
 
         <div class="py-8 bg-gray-50 min-h-screen">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+            <div class="max-w-[1600px] mx-auto sm:px-6 lg:px-8 space-y-6">
                 
                 <!-- Filter Panel -->
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -244,91 +310,185 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <!-- Charts Section -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Category Breakdown -->
-                    <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                        <h3 class="text-sm font-bold text-gray-900 mb-6 flex items-center">
-                            <ArrowTrendingUpIcon class="h-4 w-4 mr-2 text-green-600" /> Productivity Breakdown
-                        </h3>
-                        <div class="h-[300px]">
-                             <ChartComponent :data="{
-                                labels: charts.category_breakdown.map(d => d.label),
-                                datasets: [{
-                                    data: charts.category_breakdown.map(d => d.duration),
-                                    backgroundColor: charts.category_breakdown.map(d => d.color)
-                                }]
-                             }" type="pie" height="300" />
-                        </div>
-                        <div class="mt-4 space-y-2">
-                            <div v-for="cat in charts.category_breakdown" :key="cat.category" class="flex items-center justify-between text-xs">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: cat.color }"></div>
-                                    <span class="font-medium">{{ cat.label }}</span>
+                <!-- Dashboard Layout: Grid of Productivity Insights -->
+                <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-stretch">
+                    
+                    <!-- Left Column: Core Productivity Breakdown (Pie Charts) -->
+                    <div class="xl:col-span-4 flex flex-col">
+                        <!-- Category Breakdown -->
+                        <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col flex-grow">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-sm font-bold text-gray-900 flex items-center">
+                                    <ArrowTrendingUpIcon class="h-4 w-4 mr-2 text-green-600" /> Categories
+                                </h3>
+                                <div class="flex space-x-1 bg-gray-100 p-0.5 rounded-lg">
+                                    <button v-for="mode in ['total', 'active', 'idle']" :key="mode" @click="categoryChartMode = mode"
+                                        :class="categoryChartMode === mode ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                                        class="px-2 py-0.5 text-[9px] font-bold uppercase rounded transition-all">
+                                        {{ mode }}
+                                    </button>
                                 </div>
-                                <span class="text-gray-600">{{ cat.duration }} mins ({{ cat.percentage }}%)</span>
+                            </div>
+                            <!-- Chart Area -->
+                            <div class="h-[250px] relative flex items-center justify-center">
+                                 <ChartComponent :data="categoryChartData" type="pie" :options="{ plugins: { legend: { display: false } } }" />
+                            </div>
+                            <!-- Custom Legend List -->
+                            <div class="mt-6 space-y-3 border-t border-gray-50 pt-6">
+                                <div v-for="cat in charts.category_breakdown" :key="cat.category" class="flex items-center justify-between group">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-3 h-3 rounded-full flex-shrink-0" :style="{ backgroundColor: cat.color }"></div>
+                                        <div class="flex flex-col">
+                                            <span class="text-xs font-bold text-gray-800">{{ cat.label }}</span>
+                                            <span class="text-[9px] text-gray-400 font-medium uppercase tracking-tighter">
+                                                {{ cat.active_duration }}m active • {{ cat.idle_duration }}m idle
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-xs font-black text-gray-900">{{ cat.duration }}m</div>
+                                        <div class="text-[9px] text-indigo-500 font-bold uppercase tracking-tight">{{ cat.percentage }}%</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Idle vs Active Timeline -->
-                    <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                        <h3 class="text-sm font-bold text-gray-900 mb-6 flex items-center">
-                            <CalendarIcon class="h-4 w-4 mr-2 text-blue-600" /> Idle vs Active Timeline
-                        </h3>
-                        <div class="h-[300px]">
-                            <ChartComponent :data="{
-                                labels: charts.idle_breakdown.map(d => d.hour),
-                                datasets: [
-                                    {
-                                        label: 'Active',
-                                        data: charts.idle_breakdown.map(d => d.active),
-                                        backgroundColor: '#10b981',
-                                        borderRadius: 4
-                                    },
-                                    {
-                                        label: 'Idle',
-                                        data: charts.idle_breakdown.map(d => d.idle),
-                                        backgroundColor: '#f59e0b',
-                                        borderRadius: 4
-                                    }
-                                ]
-                            }" type="bar" height="300" y-label="Minutes" :options="{ scales: { x: { stacked: true }, y: { stacked: true } } }" />
+                    <!-- Middle/Right Column: Timeline & Usage Lists -->
+                    <div class="xl:col-span-8 flex flex-col gap-6">
+                        <!-- Top Row: Timeline -->
+                        <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-full">
+                            <h3 class="text-sm font-bold text-gray-900 mb-6 flex items-center">
+                                <CalendarIcon class="h-4 w-4 mr-2 text-blue-600" /> Productivity Timeline (Hourly)
+                            </h3>
+                            <div class="h-[200px]">
+                                <ChartComponent :data="{
+                                    labels: charts.idle_breakdown.map(d => d.hour),
+                                    datasets: [
+                                        {
+                                            label: 'Active',
+                                            data: charts.idle_breakdown.map(d => d.active),
+                                            backgroundColor: '#10b981',
+                                            borderRadius: 4
+                                        },
+                                        {
+                                            label: 'Idle',
+                                            data: charts.idle_breakdown.map(d => d.idle),
+                                            backgroundColor: '#f59e0b',
+                                            borderRadius: 4
+                                        }
+                                    ]
+                                }" type="bar" :options="{ plugins: { legend: { display: false } }, scales: { x: { stacked: true }, y: { stacked: true, grid: { display: false } } } }" />
+                            </div>
+                            <!-- Small Legend -->
+                            <div class="mt-4 flex items-center justify-center gap-6">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2.5 h-2.5 rounded-full bg-[#10b981]"></div>
+                                    <span class="text-[10px] font-bold text-gray-500 uppercase">Active Time</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2.5 h-2.5 rounded-full bg-[#f59e0b]"></div>
+                                    <span class="text-[10px] font-bold text-gray-500 uppercase">Idle Time</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Row: Dynamic Lists (Domains & Titles) -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                             <!-- Domains Card -->
+                            <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col h-[400px]">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-sm font-bold text-gray-900 flex items-center">
+                                        <GlobeAltIcon class="h-4 w-4 mr-2 text-indigo-600" /> Top Domains
+                                    </h3>
+                                    <div class="flex space-x-1 bg-gray-100 p-0.5 rounded-lg">
+                                        <button v-for="mode in ['total', 'active', 'idle']" :key="mode" @click="domainChartMode = mode"
+                                            :class="domainChartMode === mode ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                                            class="px-2 py-0.5 text-[9px] font-bold uppercase rounded transition-all">
+                                            {{ mode }}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="h-[140px] relative flex items-center justify-center shrink-0 mb-4">
+                                    <ChartComponent :data="domainChartData" type="pie" :options="{ plugins: { legend: { display: false } } }" />
+                                </div>
+                                <div class="flex-grow overflow-y-auto pr-2 custom-scrollbar">
+                                    <div v-for="dom in charts.domain_dist" :key="dom.label" class="flex items-center justify-between p-2.5 rounded-lg hover:bg-gray-50 group border border-transparent hover:border-gray-100 transition-all mb-1">
+                                        <div class="flex items-center gap-2 overflow-hidden">
+                                            <div class="h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0"></div>
+                                            <span class="text-[11px] font-bold text-gray-700 truncate" :title="dom.label">{{ dom.label }}</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 pl-2">
+                                            <div class="text-[11px] font-black text-gray-900 tabular-nums">
+                                                {{ domainChartMode === 'active' ? dom.active : domainChartMode === 'idle' ? dom.idle : dom.value }}m
+                                            </div>
+                                            <div class="h-8 w-1 bg-gray-100 rounded-full overflow-hidden">
+                                                <div class="bg-indigo-500 w-full" :style="{ height: (dom.value / (stats.total_minutes || 1) * 100) + '%' }"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Page Titles Card -->
+                            <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col h-[400px]">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-sm font-bold text-gray-900 flex items-center">
+                                        <ListBulletIcon class="h-4 w-4 mr-2 text-purple-600" /> Page View Details
+                                    </h3>
+                                    <div class="flex space-x-1 bg-gray-100 p-0.5 rounded-lg">
+                                        <button v-for="mode in ['total', 'active', 'idle']" :key="mode" @click="titleChartMode = mode"
+                                            :class="titleChartMode === mode ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                                            class="px-2 py-0.5 text-[9px] font-bold uppercase rounded transition-all">
+                                            {{ mode }}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="h-[140px] relative flex items-center justify-center shrink-0 mb-4">
+                                    <ChartComponent :data="titleChartData" type="pie" :options="{ plugins: { legend: { display: false } } }" />
+                                </div>
+                                <div class="flex-grow overflow-y-auto pr-2 custom-scrollbar">
+                                    <div v-for="title in charts.title_dist" :key="title.label" class="flex items-center justify-between p-2.5 rounded-lg hover:bg-gray-50 group border border-transparent hover:border-gray-100 transition-all mb-1">
+                                        <div class="flex items-center gap-2 overflow-hidden">
+                                            <div class="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0"></div>
+                                            <span class="text-[11px] font-bold text-gray-700 truncate" :title="title.label">{{ title.label }}</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 pl-2">
+                                            <div class="text-[11px] font-black text-gray-900 tabular-nums">
+                                                {{ titleChartMode === 'active' ? title.active : titleChartMode === 'idle' ? title.idle : title.value }}m
+                                            </div>
+                                            <div class="h-8 w-1 bg-gray-100 rounded-full overflow-hidden">
+                                                <div class="bg-purple-500 w-full" :style="{ height: (title.value / (stats.total_minutes || 1) * 100) + '%' }"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Domain Distribution -->
-                    <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                        <h3 class="text-sm font-bold text-gray-900 mb-6 flex items-center">
-                            <GlobeAltIcon class="h-4 w-4 mr-2 text-indigo-600" /> Time Spent by Domain (Minutes)
+                <!-- Secondary Trend Analysis (Full Width) -->
+                <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-sm font-bold text-gray-900 flex items-center">
+                            <ClockIcon class="h-4 w-4 mr-2 text-indigo-600" /> Intensity Heatmap (Active Minutes)
                         </h3>
-                        <div class="h-[300px]">
-                             <ChartComponent :data="{
-                                labels: charts.domain_dist.map(d => d.label),
-                                datasets: [{
-                                    data: charts.domain_dist.map(d => d.value),
-                                    backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#f43f5e', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316']
-                                }]
-                             }" type="pie" height="300" />
-                        </div>
                     </div>
-
-                    <!-- Hourly Trend -->
-                    <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                        <h3 class="text-sm font-bold text-gray-900 mb-6 flex items-center">
-                            <CalendarIcon class="h-4 w-4 mr-2 text-blue-600" /> Activity Timeline (Minutes Active)
-                        </h3>
-                        <div class="h-[300px]">
-                            <ChartComponent :data="{
-                                labels: charts.hourly_trend.map(d => d.label),
-                                datasets: [{
-                                    label: 'Minutes Active',
-                                    data: charts.hourly_trend.map(d => d.value),
-                                    backgroundColor: '#3b82f6',
-                                    borderRadius: 4
-                                }]
-                            }" type="bar" height="300" y-label="Minutes" />
-                        </div>
+                    <div class="h-[150px] relative">
+                        <ChartComponent :data="{
+                            labels: charts.hourly_trend.map(d => d.label),
+                            datasets: [{
+                                label: 'Activity',
+                                data: charts.hourly_trend.map(d => d.value),
+                                backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                                borderColor: 'rgba(99, 102, 241, 0.8)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: 2,
+                            }]
+                        }" type="line" :options="{ plugins: { legend: { display: false } }, scales: { y: { display: false }, x: { grid: { display: false } } } }" />
                     </div>
                 </div>
 
