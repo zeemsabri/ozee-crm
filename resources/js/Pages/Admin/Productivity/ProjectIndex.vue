@@ -709,7 +709,12 @@ onMounted(() => {
                                     <div v-if="activeTabs[project.id] === 'summary'" class="mt-8 bg-indigo-50/30 p-8 rounded-[2rem] border border-indigo-100">
                                         <h5 class="text-sm font-black text-indigo-900 mb-4 flex items-center gap-2"><SparklesIcon class="h-5 w-5" /> Daily Impact Summary</h5>
                                         <p class="text-xs text-indigo-600 mb-4 font-medium italic">Summarize the overall progress, blockers, and next steps for today.</p>
-                                        <textarea v-model="dailySummaries[project.id]" rows="4" class="w-full rounded-2xl border-indigo-100 focus:ring-indigo-500 text-sm p-4 placeholder:text-indigo-200" placeholder="Paste your AI-generated summary or write one manually..."></textarea>
+                                        <MentionInput 
+                                            :project-id="project.id"
+                                            v-model="dailySummaries[project.id]"
+                                            type="textarea"
+                                            placeholder="Paste your AI-generated summary or write one manually (type @ for users)..."
+                                        />
                                         <div class="flex justify-end mt-4">
                                             <button @click="saveDailySummary(project.id)" :disabled="savingSummary[project.id] || !dailySummaries[project.id]" class="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700 transition disabled:opacity-50">
                                                 {{ savingSummary[project.id] ? 'Saving...' : 'Post Summary' }}
