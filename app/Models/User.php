@@ -697,4 +697,9 @@ class User extends Authenticatable
         $this->update(['api_key' => $key]);
         return $key;
     }
+
+    public function productivities()
+    {
+        return $this->hasMany(UserProductivity::class);
+    }
 }
