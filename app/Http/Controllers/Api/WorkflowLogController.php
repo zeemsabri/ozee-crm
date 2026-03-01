@@ -13,8 +13,8 @@ class WorkflowLogController extends Controller
      */
     public function index(Request $request, Workflow $workflow)
     {
-        $perPage = (int) $request->get('per_page', 20);
-        $perPage = max(1, min($perPage, 100));
+        $perPage = (int) $request->get('per_page', 50);
+        $perPage = max(1, min($perPage, 200));
 
         $query = $workflow->logs()->with('step')
             ->orderByDesc('id');

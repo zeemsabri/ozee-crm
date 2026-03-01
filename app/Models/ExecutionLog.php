@@ -13,6 +13,7 @@ class ExecutionLog extends Model
 
     protected $fillable = [
         'workflow_id',
+        'execution_id',
         'step_id',
         'triggering_object_id',
         'parent_execution_log_id',

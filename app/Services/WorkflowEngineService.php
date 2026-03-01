@@ -100,8 +100,16 @@ class WorkflowEngineService
         if (! isset($context['trigger'])) {
             $context['trigger'] = $context;
         }
+
+        // Ensure we have an execution_id for grouping logs
+        if (empty($context['_execution_id'])) {
+            $context['_execution_id'] = (string) \Illuminate\Support\Str::uuid();
+        }
+        $executionId = $context['_execution_id'];
+
         $results = [
             'workflow_id' => $workflow->id,
+            'execution_id' => $executionId,
             'steps' => [],
         ];
 
@@ -139,6 +147,7 @@ class WorkflowEngineService
             if (($step->delay_minutes ?? 0) > 0) {
                 $execLog = ExecutionLog::create([
                     'workflow_id' => $workflow->id,
+                    'execution_id' => $executionId,
                     'step_id' => $step->id,
                     'parent_execution_log_id' => $parentLog?->id,
                     'status' => 'scheduled',
@@ -157,15 +166,14 @@ class WorkflowEngineService
             }
 
             $start = microtime(true);
-            $logData = [
+            $execLog = ExecutionLog::create([
                 'workflow_id' => $workflow->id,
+                'execution_id' => $executionId,
                 'step_id' => $step->id,
                 'parent_execution_log_id' => $parentLog?->id,
                 'status' => 'started',
                 'input_context' => $context,
-            ];
-
-            $execLog = ExecutionLog::create($logData);
+            ]);
             //
             try {
                 $handler = $this->resolveHandler($step);
@@ -249,8 +257,16 @@ class WorkflowEngineService
         if (! isset($context['trigger'])) {
             $context['trigger'] = $context;
         }
+
+        // Ensure we have an execution_id for grouping logs
+        if (empty($context['_execution_id'])) {
+            $context['_execution_id'] = (string) \Illuminate\Support\Str::uuid();
+        }
+        $executionId = $context['_execution_id'];
+
         $results = [
             'workflow_id' => $workflow->id,
+            'execution_id' => $executionId,
             'resumed_from_step_id' => $startStepId,
             'steps' => [],
         ];
@@ -306,6 +322,7 @@ class WorkflowEngineService
             if (! $isFirstStepAfterResume && ($step->delay_minutes ?? 0) > 0) {
                 ExecutionLog::create([
                     'workflow_id' => $workflow->id,
+                    'execution_id' => $executionId,
                     'step_id' => $step->id,
                     'parent_execution_log_id' => $parentLog?->id,
                     'status' => 'scheduled',
@@ -328,6 +345,7 @@ class WorkflowEngineService
             $start = microtime(true);
             $execLog = ExecutionLog::create([
                 'workflow_id' => $workflow->id,
+                'execution_id' => $executionId,
                 'step_id' => $step->id,
                 'parent_execution_log_id' => $parentLog?->id,
                 'status' => 'started',
@@ -477,6 +495,10 @@ class WorkflowEngineService
         if (! isset($context['trigger'])) {
             $context['trigger'] = $context;
         }
+
+        // Use the existing execution_id from context
+        $executionId = $context['_execution_id'] ?? null;
+
         $results = [];
 
         // Normalize iterable to an indexed list so we can compute remaining siblings deterministically
@@ -516,6 +538,7 @@ class WorkflowEngineService
             if (! $justResumedToThisStep && ($step->delay_minutes ?? 0) > 0) {
                 $execLog = ExecutionLog::create([
                     'workflow_id' => $workflow->id,
+                    'execution_id' => $executionId,
                     'step_id' => $step->id,
                     'parent_execution_log_id' => $parentLog?->id,
                     'status' => 'scheduled',
@@ -536,6 +559,7 @@ class WorkflowEngineService
             $start = microtime(true);
             $execLog = ExecutionLog::create([
                 'workflow_id' => $workflow->id,
+                'execution_id' => $executionId,
                 'step_id' => $step->id,
                 'parent_execution_log_id' => $parentLog?->id,
                 'status' => 'started',
