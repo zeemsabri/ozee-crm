@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Models\Task;
 use App\Models\UserActivity;
 use App\Models\UserProductivity;
 use App\Models\UserAvailability;
@@ -20,14 +21,16 @@ class ProductivityReportService
     {
         $date = Carbon::parse($date)->format('Y-m-d');
 
-        // 1. Fetch Raw Data
-        $activities = UserActivity::where('user_id', $user->id)
+        // 1. Fetch Raw Data with Eager Loading
+        $activities = UserActivity::with('task')
+            ->where('user_id', $user->id)
             ->whereDate('recorded_at', $date)
             ->orderBy('recorded_at', 'asc')
             ->get();
 
         $systemLogs = Activity::where('causer_id', $user->id)
-            ->where('subject_type', 'App\\Models\\Task')
+            ->where('causer_type', $user->getMorphClass())
+            ->where('subject_type', (new \App\Models\Task)->getMorphClass())
             ->whereDate('created_at', $date)
             ->orderBy('created_at', 'asc')
             ->get();
@@ -45,9 +48,9 @@ class ProductivityReportService
         // 4. Calculate Aggregate Stats
         $stats = [
             'promised_minutes' => $this->calculatePromisedMinutes($availability),
-            'actual_online_minutes' => $this->calculateOnlineMinutes($activities),
-            'active_minutes' => $activities->where('idle_state', 'active')->sum('duration') / 60,
-            'idle_minutes' => $activities->where('idle_state', 'idle')->sum('duration') / 60,
+            'actual_online_minutes' => round($activities->sum('duration') / 60, 2),
+            'active_minutes' => round($activities->where('idle_state', 'active')->sum('duration') / 60, 2),
+            'idle_minutes' => round($activities->where('idle_state', 'idle')->sum('duration') / 60, 2),
             'first_seen' => $activities->first()?->recorded_at?->toTimeString(),
             'last_seen' => $activities->last()?->recorded_at?->toTimeString(),
             'context_switches' => $this->calculateContextSwitches($activities),
@@ -83,14 +86,19 @@ class ProductivityReportService
         foreach ($tasks as $taskId => $taskActivities) {
             if (!$taskId) continue;
 
-            $task = $taskActivities->first()->task; // Assuming relationship exists
+            $task = $taskActivities->first()->task;
 
             $grouped[] = [
                 'task_id' => $taskId,
                 'name' => $task?->name ?? 'Unlinked Task',
-                'active_mins' => $taskActivities->where('idle_state', 'active')->sum('duration') / 60,
-                'idle_mins' => $taskActivities->where('idle_state', 'idle')->sum('duration') / 60,
-                'top_urls' => $taskActivities->groupBy('domain')->map(fn($g) => $g->first()->domain)->take(5),
+                'active_mins' => round($taskActivities->where('idle_state', 'active')->sum('duration') / 60, 2),
+                'idle_mins' => round($taskActivities->where('idle_state', 'idle')->sum('duration') / 60, 2),
+                'top_domains' => $taskActivities->groupBy('domain')
+                    ->map(fn($g) => $g->sum('duration'))
+                    ->sortDesc()
+                    ->take(5)
+                    ->keys()
+                    ->toArray(),
                 'system_events' => $logs->where('subject_id', $taskId)->map(fn($l) => [
                     'event' => $l->description,
                     'time' => $l->created_at->toTimeString()
@@ -127,19 +135,6 @@ class ProductivityReportService
     }
 
     /**
-     * Calculates the total minutes between the first and last recorded activity.
-     */
-    private function calculateOnlineMinutes($activities)
-    {
-        if ($activities->isEmpty()) return 0;
-
-        $first = Carbon::parse($activities->first()->recorded_at);
-        $last = Carbon::parse($activities->last()->recorded_at);
-
-        return $first->diffInMinutes($last);
-    }
-
-    /**
      * Sums up the duration of all promised time slots for the day.
      */
     private function calculatePromisedMinutes($availability)
@@ -149,7 +144,8 @@ class ProductivityReportService
         }
 
         $totalMinutes = 0;
-        $slots = is_array($availability->time_slots) ? $availability->time_slots : json_decode($availability->time_slots, true);
+        // time_slots is already cast to array in UserAvailability model
+        $slots = $availability->time_slots;
 
         foreach ($slots as $slot) {
             if (isset($slot['start']) && isset($slot['end'])) {
