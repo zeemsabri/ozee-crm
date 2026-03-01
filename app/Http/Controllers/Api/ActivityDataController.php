@@ -38,6 +38,7 @@ class ActivityDataController extends Controller
 
         if ($user) {
             $activityData = $payload['data'] ?? [];
+            $taskId = $activityData['taskId'] ?? null;
             $url = $activityData['url'] ?? '';
             $domain = parse_url($url, PHP_URL_HOST) ?? 'unknown';
             $now = isset($payload['timestamp']) ? Carbon::parse($payload['timestamp']) : now();
@@ -58,6 +59,7 @@ class ActivityDataController extends Controller
             $shouldMerge = $lastActivity &&
                            $lastActivity->domain === $domain &&
                            $lastActivity->idle_state === $idleState &&
+                           $lastActivity->task_id == $taskId &&
                            $now->diffInSeconds($lastActivity->last_heartbeat_at) <= $mergingThreshold;
 
             if ($shouldMerge) {
@@ -74,6 +76,7 @@ class ActivityDataController extends Controller
                 // CREATE: Start a new session row
                 UserActivity::create([
                     'user_id' => $user->id,
+                    'task_id' => $taskId,
                     'domain' => $domain,
                     'url' => $url,
                     'title' => $activityData['title'] ?? null,

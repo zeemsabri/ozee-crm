@@ -9,35 +9,35 @@
             <div
                 v-for="notification in visibleNotifications"
                 :key="notification.id"
-                class="bg-white rounded-lg shadow-lg p-3 flex items-start space-x-3 border border-gray-200 transition-opacity duration-300 opacity-60 hover:opacity-100"
+                class="bg-white rounded-lg shadow-lg p-3 flex items-start space-x-3 border border-gray-200 transition-opacity duration-300 opacity-90 hover:opacity-100"
             >
                 <!-- Content section -->
                 <div class="flex-1 min-w-0">
                     <!-- Title, Project Name -->
                     <div class="flex items-start justify-between gap-2 mb-1">
                         <div class="flex-1 min-w-0">
-                            <h3 v-if="notification.title" class="text-base font-semibold text-gray-800 truncate">
+                            <h3 v-if="notification.title" class="text-xs font-semibold text-gray-800 truncate">
                                 {{ notification.title }}
                             </h3>
-                            <p v-if="notification.project_name" class="text-xs text-gray-500">
+                            <p v-if="notification.project_name" class="text-[10px] text-gray-500">
                                 {{ notification.project_name }}
                             </p>
                         </div>
                     </div>
 
                     <!-- Description -->
-                    <p v-if="notification.message" class="text-xs text-gray-600 mb-2">
+                    <p v-if="notification.message" class="text-[11px] text-gray-600 mb-2 leading-tight">
                         {{ notification.message }}
                     </p>
 
                     <!-- Due date and action button -->
                     <div class="flex items-center justify-between mt-2">
-                        <div v-if="notification.due_date" class="text-xs text-gray-500 font-medium">
+                        <div v-if="notification.due_date" class="text-[10px] text-gray-500 font-medium">
                             Due: {{ formatDate(notification.due_date) }}
                         </div>
                         <button
                             @click="handleButtonClick(notification)"
-                            class="px-2.5 py-1 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors duration-200 shadow"
+                            class="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-medium rounded-md hover:bg-blue-700 transition-colors duration-200 shadow"
                         >
                             {{ notification.button_label || "View" }}
                         </button>
@@ -48,8 +48,8 @@
 
         <!-- Minimize / Show Button -->
         <div class="flex justify-end w-full max-w-xs" v-if="visibleNotifications.length > 0">
-            <button @click="toggleMinimize" class="bg-white/80 backdrop-blur-sm text-gray-600 hover:text-gray-900 text-xs font-bold py-1 px-3 rounded-full shadow-md transition-all duration-300">
-                <span v-if="isMinimized">Show ({{ formattedCountdown }})</span>
+            <button @click="toggleMinimize" class="bg-white/80 backdrop-blur-sm text-gray-600 hover:text-gray-900 text-[10px] font-bold py-1 px-3 rounded-full shadow-md transition-all duration-300">
+                <span v-if="isMinimized">Show ({{ visibleNotifications.length }})</span>
                 <span v-else>Minimize</span>
             </button>
         </div>
@@ -57,7 +57,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { openTaskDetailSidebar } from '@/Utils/sidebar';
 import {
     notificationSidebarState,
@@ -73,28 +73,19 @@ const props = defineProps({
     }
 });
 
-// --- STATE (Minimize functionality only) ---
+// --- STATE ---
 const isMinimized = ref(false);
-const minimizeTimer = ref(null);
-const minimizeCountdown = ref(0);
-const countdownInterval = ref(null);
-const STORAGE_KEY = 'notification_minimized_state';
+const isWindowFocused = ref(true);
+const notificationTimers = ref(new Map()); // id -> seconds remaining
+const AUTO_DISMISS_SECONDS = 120; // 2 minutes
 
 // --- COMPUTED ---
 const maxVisible = 3;
 
-// This component now reads directly from the global state.
-// It only shows notifications that are flagged as a new push.
 const visibleNotifications = computed(() => {
     return notificationSidebarState.value.notifications
         .filter(n => n.isNewPush)
         .slice(0, maxVisible);
-});
-
-const formattedCountdown = computed(() => {
-    const minutes = Math.floor(minimizeCountdown.value / 60);
-    const seconds = minimizeCountdown.value % 60;
-    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 });
 
 // --- METHODS ---
@@ -113,46 +104,10 @@ const getProjectIdFromUrl = (url) => {
 
 const toggleMinimize = () => {
     isMinimized.value = !isMinimized.value;
-
-    clearTimeout(minimizeTimer.value);
-    clearInterval(countdownInterval.value);
-
-    if (isMinimized.value) {
-        // Calculate expiry time (5 minutes from now)
-        const expiryTime = Date.now() + 300000;
-
-        // Store minimized state and expiry time in localStorage
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-            isMinimized: true,
-            expiryTime: expiryTime
-        }));
-
-        minimizeTimer.value = setTimeout(() => {
-            isMinimized.value = false;
-            clearInterval(countdownInterval.value);
-            // Clear localStorage when timer expires
-            localStorage.removeItem(STORAGE_KEY);
-        }, 300000); // 5 minutes
-
-        minimizeCountdown.value = 300;
-        countdownInterval.value = setInterval(() => {
-            if (minimizeCountdown.value > 0) {
-                minimizeCountdown.value--;
-            } else {
-                clearInterval(countdownInterval.value);
-            }
-        }, 1000);
-    } else {
-        // Clear localStorage when notifications are shown again
-        localStorage.removeItem(STORAGE_KEY);
-    }
 };
 
 const handleButtonClick = async (notification) => {
-    // Mark the toast as "seen" to remove it from the push container view.
     markToastAsSeen(notification.id);
-
-    // Mark as read in the database
     await markNotificationAndRefetch(notification.view_id);
 
     const taskId = notification.task_id || getTaskIdFromUrl(notification.url);
@@ -160,62 +115,74 @@ const handleButtonClick = async (notification) => {
 
     if (taskId && projectId) {
         openTaskDetailSidebar(taskId, projectId);
-    } else {
-        console.warn('Could not open task sidebar. Falling back to redirecting.');
-        if (notification.url) {
-            window.location.href = notification.url;
-        }
+    } else if (notification.url) {
+        window.location.href = notification.url;
     }
 };
 
-// --- LIFECYCLE ---
-onMounted(() => {
-    // Check if we have a stored minimized state
-    const storedState = localStorage.getItem(STORAGE_KEY);
+// --- AUTO DISMISS LOGIC ---
 
-    if (storedState) {
-        try {
-            const { isMinimized: storedMinimized, expiryTime } = JSON.parse(storedState);
+const updateFocus = () => {
+    isWindowFocused.value = document.hasFocus();
+};
 
-            // Calculate remaining time
-            const now = Date.now();
-            const remainingTime = expiryTime - now;
+let tickInterval = null;
 
-            // Only restore if the timer hasn't expired
-            if (remainingTime > 0) {
-                isMinimized.value = storedMinimized;
+const startTicker = () => {
+    tickInterval = setInterval(() => {
+        if (!isWindowFocused.value) return;
 
-                // Convert remaining milliseconds to seconds for the countdown
-                minimizeCountdown.value = Math.floor(remainingTime / 1000);
-
-                // Set up the timer to show notifications again when the time expires
-                minimizeTimer.value = setTimeout(() => {
-                    isMinimized.value = false;
-                    clearInterval(countdownInterval.value);
-                    localStorage.removeItem(STORAGE_KEY);
-                }, remainingTime);
-
-                // Set up the countdown interval
-                countdownInterval.value = setInterval(() => {
-                    if (minimizeCountdown.value > 0) {
-                        minimizeCountdown.value--;
-                    } else {
-                        clearInterval(countdownInterval.value);
-                    }
-                }, 1000);
+        for (const [id, remaining] of notificationTimers.value.entries()) {
+            if (remaining <= 1) {
+                markToastAsSeen(id);
+                notificationTimers.value.delete(id);
             } else {
-                // Timer has expired, remove from localStorage
-                localStorage.removeItem(STORAGE_KEY);
+                notificationTimers.value.set(id, remaining - 1);
             }
-        } catch (error) {
-            console.error('Error restoring notification minimized state:', error);
-            localStorage.removeItem(STORAGE_KEY);
+        }
+    }, 1000);
+};
+
+// Watch for new notifications to initialize their timers
+watch(visibleNotifications, (newNotifications) => {
+    // If we have new notifications, automatically un-minimize to show them
+    if (newNotifications.length > 0 && isMinimized.value) {
+        // Only un-minimize if there's a *new* addition
+        const currentIdsInTimers = Array.from(notificationTimers.value.keys());
+        const hasNewAddition = newNotifications.some(n => !currentIdsInTimers.includes(n.id));
+        if (hasNewAddition) {
+            isMinimized.value = false;
         }
     }
+
+    // Initialize timers for new notifications
+    newNotifications.forEach(n => {
+        if (!notificationTimers.value.has(n.id)) {
+            notificationTimers.value.set(n.id, AUTO_DISMISS_SECONDS);
+        }
+    });
+
+    // Clean up timers for notifications that are no longer visible
+    const visibleIds = new Set(newNotifications.map(n => n.id));
+    for (const [id] of notificationTimers.value) {
+        if (!visibleIds.has(id)) {
+            notificationTimers.value.delete(id);
+        }
+    }
+}, { deep: true, immediate: true });
+
+// --- LIFECYCLE ---
+onMounted(() => {
+    window.addEventListener('focus', updateFocus);
+    window.addEventListener('blur', updateFocus);
+    updateFocus();
+    startTicker();
 });
 
 onUnmounted(() => {
-    clearTimeout(minimizeTimer.value);
-    clearInterval(countdownInterval.value);
+    window.removeEventListener('focus', updateFocus);
+    window.removeEventListener('blur', updateFocus);
+    if (tickInterval) clearInterval(tickInterval);
 });
 </script>
+
