@@ -420,6 +420,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('productivity/project-report', [\App\Http\Controllers\Api\ProjectProductivityReportController::class, 'index'])
         ->middleware('permission:manage_projects');
 
+    // User Productivity Snapshots API
+    Route::get('productivity/snapshots', [\App\Http\Controllers\Api\UserProductivityController::class, 'index'])
+        ->middleware('permission:manage_projects');
+    Route::post('productivity/snapshots', [\App\Http\Controllers\Api\UserProductivityController::class, 'store'])
+        ->middleware('permission:manage_projects');
+    Route::get('productivity/snapshots/{userProductivity}', [\App\Http\Controllers\Api\UserProductivityController::class, 'show'])
+        ->middleware('permission:manage_projects');
+    Route::delete('productivity/snapshots/{userProductivity}', [\App\Http\Controllers\Api\UserProductivityController::class, 'destroy'])
+        ->middleware('permission:manage_projects');
+
     // Activity Report API
     Route::get('activity-report', [\App\Http\Controllers\Api\ActivityReportController::class, 'index'])
         ->middleware('permission:manage_projects');
