@@ -1,297 +1,457 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Team Activity Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Activity Hub 2.0 | Admin Management</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+    <style type="text/tailwindcss">
+        :root {
+            --zinc-50: #fafafa;
+            --zinc-100: #f4f4f5;
+            --zinc-200: #e4e4e7;
+            --zinc-800: #27272a;
+            --zinc-900: #18181b;
+            --indigo-600: #4f46e5;
+            --emerald-500: #10b981;
+            --rose-500: #f43f5e;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--zinc-50);
+            color: var(--zinc-900);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03);
+        }
+        .timeline-barcode {
+            display: grid;
+            grid-template-columns: repeat(144, 1fr);
+            gap: 1px;
+            height: 28px;
+        }
+        .heartbeat {
+            width: 100%;
+            height: 100%;
+            border-radius: 1px;
+            transition: all 0.1s;
+        }
+        .heartbeat:hover {
+            transform: scaleY(1.4);
+            z-index: 20;
+            cursor: pointer;
+        }
+        /* Visual overlay for user_availabilities schedule */
+        .availability-overlay {
+            position: absolute;
+            height: 100%;
+            background: rgba(79, 70, 229, 0.035);
+            border-left: 2px dashed rgba(79, 70, 229, 0.1);
+            border-right: 2px dashed rgba(79, 70, 229, 0.1);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .conflict-marker {
+            position: absolute;
+            top: -4px;
+            width: 8px;
+            height: 8px;
+            background: var(--rose-500);
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 8px rgba(244, 63, 94, 0.3);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 10px; }
+
+        .ai-glow {
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+    </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased p-6">
+<body class="min-h-screen pb-20">
 
-<div class="max-w-7xl mx-auto space-y-6">
+<!-- Navigation -->
+<nav class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-zinc-200 px-8 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-6">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-zinc-900 rounded-xl flex items-center justify-center text-white shadow-lg">
+                <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+            </div>
+            <span class="text-zinc-900 font-black text-lg tracking-tight">HUB 2.0</span>
+        </div>
+        <div class="h-6 w-[1px] bg-zinc-200"></div>
+        <div class="hidden md:flex items-center gap-6">
+            <a class="text-sm font-bold text-indigo-600" href="#">Activity Hub</a>
+            <a class="text-sm font-semibold text-zinc-500 hover:text-zinc-900" href="#">Domain Governance</a>
+        </div>
+    </div>
+    <div class="flex items-center gap-4">
+        <div class="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shadow-md">
+            AD
+        </div>
+    </div>
+</nav>
 
-    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+<!-- Filter Controls (Admin Level) -->
+<section class="bg-white border-b border-zinc-200 px-8 py-5 shadow-sm">
+    <div class="max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+        <div class="md:col-span-2">
+            <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-2 block">Team Members</label>
+            <div class="flex flex-wrap gap-2 p-2.5 border border-zinc-200 rounded-2xl bg-zinc-50/50">
+                <span class="bg-white border border-zinc-200 text-zinc-700 px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm">
+                    Usama Saeed <i data-lucide="x" class="w-3.5 h-3.5 text-zinc-400 cursor-pointer hover:text-rose-500"></i>
+                </span>
+                <button class="text-indigo-600 text-xs font-bold px-2 py-1">+ Add Member</button>
+            </div>
+        </div>
         <div>
-            <h1 class="text-2xl font-bold text-slate-900">Activity Dashboard</h1>
-            <p class="text-sm text-slate-500">Productivity telemetry & reporting</p>
+            <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-2 block">Reporting Period</label>
+            <div class="flex items-center gap-3 border border-zinc-200 rounded-2xl px-4 py-2.5 bg-zinc-50/50 cursor-pointer hover:bg-zinc-100 transition-all">
+                <i data-lucide="calendar" class="w-4 h-4 text-zinc-400"></i>
+                <span class="text-xs font-bold text-zinc-700">Today, Feb 28, 2026</span>
+                <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 ml-auto"></i>
+            </div>
+        </div>
+        <button class="bg-zinc-900 text-white h-[46px] rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-zinc-200 hover:bg-zinc-800 active:scale-95 transition-all">
+            Refresh Insights
+        </button>
+    </div>
+</section>
+
+<main class="max-w-[1600px] mx-auto p-8 space-y-8">
+
+    <!-- AI Intelligence Summary -->
+    <section class="ai-glow bg-white p-6 rounded-[2.5rem] flex items-center gap-6">
+        <div class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-100 shrink-0">
+            <i data-lucide="sparkles" class="w-7 h-7"></i>
+        </div>
+        <div class="flex-1">
+            <h2 class="text-sm font-black text-indigo-600 uppercase tracking-widest mb-1">AI Process Analysis</h2>
+            <p class="text-sm text-zinc-600 leading-relaxed font-medium">
+                Alex started <span class="text-zinc-900 font-bold">14 minutes late</span> today. While overall engagement is high (84%), we identified a
+                <span class="text-rose-500 font-bold">45-minute delay</span> on the "Wix Redesign" task caused by heavy reliance on video tutorials.
+                <span class="text-indigo-600 font-bold underline decoration-indigo-200 cursor-pointer">View full bottleneck report</span>.
+            </p>
+        </div>
+    </section>
+
+    <!-- Simple KPIs for Admin Staff -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Punctuality -->
+        <div class="glass-card p-6 rounded-3xl border border-white">
+            <div class="flex justify-between items-start mb-4">
+                <div class="p-2.5 bg-blue-50 text-blue-600 rounded-2xl"><i data-lucide="alarm-clock" class="w-5 h-5"></i></div>
+                <span class="text-[9px] font-black text-rose-500 bg-rose-50 px-2 py-1 rounded-lg border border-rose-100">LATE START</span>
+            </div>
+            <h3 class="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Punctuality Adherence</h3>
+            <div class="text-3xl font-black text-zinc-900 mt-1">92%</div>
+            <p class="text-[10px] text-zinc-400 mt-2 font-medium italic">Target: 100% (Started at 9:14 AM)</p>
         </div>
 
-        <div class="flex flex-wrap gap-4 items-center">
-            <select id="userFilter" class="bg-slate-50 border border-slate-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
-                <option value="all">All Users</option>
-                <option value="1">Zee Sa</option>
-                <option value="2">Jane Doe</option>
-            </select>
+        <!-- Hours Gap -->
+        <div class="glass-card p-6 rounded-3xl border border-white">
+            <div class="flex justify-between items-start mb-4">
+                <div class="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl"><i data-lucide="clock-9" class="w-5 h-5"></i></div>
+                <span class="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">HOURS GAP</span>
+            </div>
+            <h3 class="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Promised vs. Actual</h3>
+            <div class="text-3xl font-black text-zinc-900 mt-1">-45m <span class="text-xs text-zinc-400 font-medium">unfilled</span></div>
+            <p class="text-[10px] text-zinc-400 mt-2 font-medium italic">8h Promised vs. 7.25h Worked</p>
+        </div>
 
-            <input type="date" id="dateFilter" class="bg-slate-50 border border-slate-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+        <!-- Working Intensity -->
+        <div class="glass-card p-6 rounded-3xl border border-white">
+            <div class="flex justify-between items-start mb-4">
+                <div class="p-2.5 bg-emerald-50 text-emerald-600 rounded-2xl"><i data-lucide="gauge" class="w-5 h-5"></i></div>
+                <span class="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">OPTIMAL</span>
+            </div>
+            <h3 class="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Active Engagement</h3>
+            <div class="text-3xl font-black text-zinc-900 mt-1">84% <span class="text-xs text-zinc-400 font-medium">focused</span></div>
+            <p class="text-[10px] text-zinc-400 mt-2 font-medium italic">Only 16% of work time was idle gaps.</p>
+        </div>
 
-            <button onclick="applyFilters()" class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-sm px-5 py-2.5 transition">
-                Filter
+        <!-- Context Shifts -->
+        <div class="glass-card p-6 rounded-3xl border border-white">
+            <div class="flex justify-between items-start mb-4">
+                <div class="p-2.5 bg-purple-50 text-purple-600 rounded-2xl"><i data-lucide="split" class="w-5 h-5"></i></div>
+                <span class="text-[9px] font-black text-zinc-500 bg-zinc-50 px-2 py-1 rounded-lg border border-zinc-100">STABLE</span>
+            </div>
+            <h3 class="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Interruption Frequency</h3>
+            <div class="text-3xl font-black text-zinc-900 mt-1">4.2 <span class="text-xs text-zinc-400 font-medium">tasks/hr</span></div>
+            <p class="text-[10px] text-zinc-400 mt-2 font-medium italic">Healthy context switching levels.</p>
+        </div>
+    </section>
+
+    <!-- Diagnostic Timeline -->
+    <section class="glass-card rounded-[2.5rem] p-10 border border-white relative overflow-hidden">
+        <div class="flex justify-between items-end mb-12">
+            <div>
+                <h2 class="text-2xl font-black text-zinc-900 tracking-tight">Daily Presence Check</h2>
+                <p class="text-sm text-zinc-400 font-medium">Visualization of <span class="text-indigo-600 font-bold">Promised Hours</span> against <span class="text-emerald-500 font-bold">Actual Work Heartbeats</span>.</p>
+            </div>
+            <div class="flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                <div class="flex items-center gap-2"><div class="w-3 h-3 bg-indigo-50 border border-indigo-100/30 rounded-sm"></div> Promised Block</div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 bg-emerald-500 rounded-sm shadow-sm"></div> Active Work</div>
+                <div class="flex items-center gap-2 text-rose-500"><div class="w-3 h-3 rounded-full border-2 border-rose-500 bg-white shadow-sm"></div> Gap/Late</div>
+            </div>
+        </div>
+
+        <div class="relative pt-12 pb-8">
+            <div class="availability-overlay rounded-2xl" style="left: 10%; width: 75%;"></div>
+
+            <div class="absolute top-0 left-0 right-0 flex justify-between text-[10px] font-black text-zinc-300 uppercase tracking-tighter border-b border-zinc-100 pb-2">
+                <span>08:00 AM</span>
+                <span>10:00 AM</span>
+                <span>12:00 PM</span>
+                <span>02:00 PM</span>
+                <span>04:00 PM</span>
+                <span>06:00 PM</span>
+            </div>
+
+            <div class="space-y-8 relative z-10 pt-4">
+                <div class="relative h-12 flex items-center group">
+                    <span class="absolute -left-28 text-[9px] font-black text-zinc-400 uppercase tracking-tighter">Current Task</span>
+                    <div class="w-full h-8 bg-white/40 backdrop-blur-sm rounded-xl border border-zinc-100 flex items-center relative overflow-hidden shadow-inner">
+                        <div class="h-6 bg-zinc-900 top-1 absolute rounded-lg px-3 flex items-center shadow-lg" style="left: 12%; width: 25%;">
+                            <span class="text-[8px] text-white font-black truncate uppercase tracking-tighter">#TX-4920: Wix Studio Redesign</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="relative h-12 flex items-center group">
+                    <span class="absolute -left-28 text-[9px] font-black text-zinc-400 uppercase tracking-tighter">Live Activity</span>
+                    <div class="timeline-barcode w-full bg-white p-1 rounded-xl border border-zinc-100 shadow-sm">
+                        <div id="barcode-container" class="contents"></div>
+                    </div>
+                    <!-- Gap Identifiers -->
+                    <div class="conflict-marker" style="left: 10.5%;" title="Delayed Start: 14 minutes gap from schedule."></div>
+                    <div class="conflict-marker" style="left: 33%;" title="Unassigned Activity: Work found without task ID."></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="grid grid-cols-12 gap-8">
+        <!-- Accuracy Inbox: Functional Categorization UI -->
+        <div class="col-span-12 lg:col-span-4 glass-card rounded-[2.5rem] p-8 border border-white flex flex-col">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h2 class="text-xl font-black text-zinc-900 tracking-tight">Accuracy Inbox</h2>
+                    <p class="text-xs text-zinc-400 font-medium">Categorize work tools to refine daily scores.</p>
+                </div>
+                <div class="bg-rose-100 text-rose-600 text-[10px] font-black px-2 py-1 rounded-lg">4 PENDING</div>
+            </div>
+
+            <div class="flex-1 space-y-4 overflow-y-auto max-h-[400px] custom-scrollbar pr-2">
+                <!-- Action Item -->
+                <div class="p-5 bg-white rounded-3xl border border-zinc-100 shadow-sm space-y-4 hover:border-indigo-200 transition-all">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-black text-zinc-800">dev-v2.wix-plugins.net</p>
+                            <p class="text-[10px] text-zinc-400 font-bold uppercase mt-1 tracking-tighter">Duration: 1h 12m</p>
+                        </div>
+                        <i data-lucide="info" class="w-4 h-4 text-zinc-300"></i>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2">
+                        <button class="py-2 rounded-xl text-[9px] font-black uppercase bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 transition-colors">Work</button>
+                        <button class="py-2 rounded-xl text-[9px] font-black uppercase bg-zinc-50 text-zinc-400 border border-zinc-100 hover:bg-zinc-100 transition-colors">Neutral</button>
+                        <button class="py-2 rounded-xl text-[9px] font-black uppercase bg-rose-50 text-rose-500 border border-rose-100 hover:bg-rose-100 transition-colors">Social</button>
+                    </div>
+
+                    <label class="flex items-center gap-2 cursor-pointer group">
+                        <input type="checkbox" class="w-3.5 h-3.5 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 transition-all">
+                        <span class="text-[9px] font-bold text-zinc-400 group-hover:text-zinc-600 uppercase tracking-widest transition-colors">Apply to all instances</span>
+                    </label>
+                </div>
+            </div>
+
+            <button class="mt-6 w-full py-3.5 bg-zinc-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 transition-all shadow-xl shadow-zinc-200 active:scale-95">
+                Bulk Update Domains
             </button>
         </div>
-    </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <h3 class="text-sm font-medium text-slate-500 mb-1">Total Active Time</h3>
-            <p class="text-3xl font-bold text-blue-600" id="kpiTime">0 hrs 0 mins</p>
-            <p class="text-xs text-slate-400 mt-2">Calculated from event intervals</p>
-        </div>
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <h3 class="text-sm font-medium text-slate-500 mb-1">Top Domain (By Time)</h3>
-            <p class="text-3xl font-bold text-slate-800" id="kpiDomain">-</p>
-            <p class="text-xs text-slate-400 mt-2" id="kpiDomainTime">0 mins</p>
-        </div>
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <h3 class="text-sm font-medium text-slate-500 mb-1">Total Events Logged</h3>
-            <p class="text-3xl font-bold text-slate-800" id="kpiEvents">0</p>
-            <p class="text-xs text-slate-400 mt-2">Raw telemetry points</p>
-        </div>
-    </div>
+        <!-- Task Table with Evidence Logs -->
+        <div class="col-span-12 lg:col-span-8 glass-card rounded-[2.5rem] border border-white overflow-hidden">
+            <div class="px-8 py-6 border-b border-zinc-100 flex justify-between items-center bg-white/50">
+                <div>
+                    <h2 class="text-xl font-black text-zinc-900 tracking-tight">Active Task Analysis</h2>
+                    <p class="text-xs text-zinc-400 font-medium">Verify task durations with raw activity evidence.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button class="px-4 py-2 bg-zinc-100 text-zinc-600 text-[10px] font-black rounded-xl uppercase tracking-widest border border-zinc-200">Export Detailed Logs</button>
+                </div>
+            </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <h3 class="text-lg font-semibold text-slate-800 mb-4">Time Spent by Domain (Minutes)</h3>
-            <div class="relative h-64 w-full">
-                <canvas id="domainChart"></canvas>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                    <tr class="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-400 border-b border-zinc-50 bg-zinc-50/50">
+                        <th class="px-8 py-5">Task Objective</th>
+                        <th class="px-8 py-5">Time Spent</th>
+                        <th class="px-8 py-5">Work Fidelity</th>
+                        <th class="px-8 py-5">Idle friction</th>
+                        <th class="px-8 py-5 text-right">Action</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-50">
+                    <!-- Task Row 1 -->
+                    <tr onclick="toggleTask('task-1')" class="group hover:bg-zinc-50/80 cursor-pointer transition-all">
+                        <td class="px-8 py-6">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+                                    <i data-lucide="layout" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <div class="font-black text-zinc-700">Wix Redesign</div>
+                                    <div class="text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">Project: Hairdresser AU</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-8 py-6 font-mono font-bold text-zinc-600">04h 22m</td>
+                        <td class="px-8 py-6">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-black text-emerald-600 w-8">84%</span>
+                                <div class="flex-1 h-1.5 w-20 bg-zinc-100 rounded-full overflow-hidden">
+                                    <div class="h-full bg-emerald-500 w-[84%]" style="box-shadow: 0 0 10px rgba(16,185,129,0.3)"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-8 py-6">
+                            <span class="text-xs font-black text-rose-500">16% Gap</span>
+                        </td>
+                        <td class="px-8 py-6 text-right">
+                            <i data-lucide="chevron-down" id="chevron-task-1" class="w-5 h-5 text-zinc-300 transition-transform"></i>
+                        </td>
+                    </tr>
+                    <!-- Task Evidence Drill-down -->
+                    <tr id="details-task-1" class="hidden bg-zinc-50/50">
+                        <td colspan="5" class="px-8 py-10">
+                            <div class="grid grid-cols-12 gap-8">
+                                <!-- URL Activity (user_activities) -->
+                                <div class="col-span-12 xl:col-span-7 space-y-4">
+                                    <h4 class="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                                        <i data-lucide="globe" class="w-3.5 h-3.5"></i> Task Web Activity (Heartbeats)
+                                    </h4>
+                                    <div class="bg-white rounded-3xl border border-zinc-200 overflow-hidden shadow-sm">
+                                        <table class="w-full text-xs text-left">
+                                            <thead class="bg-zinc-50/80 border-b border-zinc-100">
+                                            <tr class="text-zinc-400 font-bold">
+                                                <th class="px-4 py-3">Time</th>
+                                                <th class="px-4 py-3">Active Tool / URL</th>
+                                                <th class="px-4 py-3">Duration</th>
+                                                <th class="px-4 py-3 text-right">Category</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-zinc-50">
+                                            <tr class="hover:bg-zinc-50/50">
+                                                <td class="px-4 py-3 font-mono text-zinc-400">14:16 PM</td>
+                                                <td class="px-4 py-3">
+                                                    <div class="font-bold text-zinc-700">editor.wix.com</div>
+                                                    <div class="text-[9px] text-zinc-400 truncate w-48">Wix Studio | Portfolio Site Builder</div>
+                                                </td>
+                                                <td class="px-4 py-3 font-mono font-bold text-emerald-600">5m 0s</td>
+                                                <td class="px-4 py-3 text-right"><span class="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase">Work</span></td>
+                                            </tr>
+                                            <tr class="bg-rose-50/30">
+                                                <td class="px-4 py-3 font-mono text-zinc-400">14:21 PM</td>
+                                                <td class="px-4 py-3 italic font-bold text-rose-600">Idle / No Activity</td>
+                                                <td class="px-4 py-3 font-mono font-bold text-rose-500">12m 40s</td>
+                                                <td class="px-4 py-3 text-right"><span class="bg-rose-50 text-rose-500 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase">Gap</span></td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <!-- System Events (activity_log) -->
+                                <div class="col-span-12 xl:col-span-5 space-y-4">
+                                    <h4 class="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                                        <i data-lucide="history" class="w-3.5 h-3.5"></i> Task Control Log (System)
+                                    </h4>
+                                    <div class="space-y-6 pl-4 border-l-2 border-zinc-200 ml-2">
+                                        <div class="relative pl-8">
+                                            <div class="absolute -left-[33px] top-0 w-4 h-4 bg-indigo-600 rounded-full border-4 border-white shadow-sm"></div>
+                                            <p class="text-xs font-black text-zinc-800 uppercase tracking-tighter">Task Started</p>
+                                            <p class="text-[10px] text-zinc-400 font-medium">14:16:05 — Manual Trigger by User</p>
+                                        </div>
+                                        <div class="relative pl-8">
+                                            <div class="absolute -left-[33px] top-0 w-4 h-4 bg-zinc-200 rounded-full border-4 border-white shadow-sm"></div>
+                                            <p class="text-xs font-black text-zinc-600 uppercase tracking-tighter">Task Paused (Auto)</p>
+                                            <p class="text-[10px] text-zinc-400 font-medium">15:40:00 — System idle > 10m detection</p>
+                                        </div>
+                                    </div>
+
+                                    <!-- AI Bottleneck Insight for this Task -->
+                                    <div class="mt-8 p-5 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-3xl border border-indigo-100/50">
+                                        <div class="flex items-center gap-3 mb-3">
+                                            <i data-lucide="lightbulb" class="w-4 h-4 text-indigo-600"></i>
+                                            <span class="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">Bottleneck Detected</span>
+                                        </div>
+                                        <p class="text-xs font-medium text-zinc-600 leading-relaxed">
+                                            Alex spent 35% of this task duration on <span class="text-indigo-600 font-bold">Wix Community Forums</span>. This indicates a technical blocker with "Studio API" specifically. Delivery delay estimate: <span class="text-rose-500 font-bold">+2.5 hours</span>.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <h3 class="text-lg font-semibold text-slate-800 mb-4">Activity Timeline (Minutes per Hour)</h3>
-            <div class="relative h-64 w-full">
-                <canvas id="timelineChart"></canvas>
-            </div>
-        </div>
     </div>
-
-    <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-        <div class="p-6 border-b border-slate-100">
-            <h3 class="text-lg font-semibold text-slate-800">Activity Log & Durations</h3>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left text-slate-500">
-                <thead class="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-100">
-                <tr>
-                    <th scope="col" class="px-6 py-3">Time</th>
-                    <th scope="col" class="px-6 py-3">User</th>
-                    <th scope="col" class="px-6 py-3">Domain</th>
-                    <th scope="col" class="px-6 py-3">Page Title</th>
-                    <th scope="col" class="px-6 py-3">Duration</th>
-                </tr>
-                </thead>
-                <tbody id="tableBody">
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-</div>
+</main>
 
 <script>
-    // MOCK DATA
-    const rawMockData = [
-        { id: 1, user_id: 1, user_name: "Zee Sa", domain: "gemini.google.com", title: "Google Gemini", url: "https://gemini.google.com/app", hostname: "Zeeshans-Computer.local", recorded_at: "2026-02-16T13:00:00Z" },
-        { id: 2, user_id: 1, user_name: "Zee Sa", domain: "gemini.google.com", title: "Google Gemini", url: "https://gemini.google.com/app", hostname: "Zeeshans-Computer.local", recorded_at: "2026-02-16T13:05:30Z" },
-        { id: 3, user_id: 1, user_name: "Zee Sa", domain: "github.com", title: "ActivityWatch/activitywatch", url: "https://github.com/ActivityWatch", hostname: "Zeeshans-Computer.local", recorded_at: "2026-02-16T13:07:00Z" },
-        { id: 4, user_id: 1, user_name: "Zee Sa", domain: "github.com", title: "ActivityWatch/activitywatch", url: "https://github.com/ActivityWatch", hostname: "Zeeshans-Computer.local", recorded_at: "2026-02-16T13:10:00Z" },
+    lucide.createIcons();
 
-        // Jane's data
-        { id: 6, user_id: 2, user_name: "Jane Doe", domain: "figma.com", title: "Dashboard UI - Figma", url: "https://figma.com/file/123", hostname: "Janes-MacBook.local", recorded_at: "2026-02-16T09:05:00Z" },
-        { id: 7, user_id: 2, user_name: "Jane Doe", domain: "figma.com", title: "Dashboard UI - Figma", url: "https://figma.com/file/123", hostname: "Janes-MacBook.local", recorded_at: "2026-02-16T09:25:00Z" },
-        { id: 8, user_id: 2, user_name: "Jane Doe", domain: "stackoverflow.com", title: "How to parse JSON in PHP", url: "https://stackoverflow.com", hostname: "Janes-MacBook.local", recorded_at: "2026-02-16T09:30:00Z" },
-    ];
+    function generateTimeline() {
+        const container = document.getElementById('barcode-container');
+        if (!container) return;
 
-    let domainChartInstance = null;
-    let timelineChartInstance = null;
+        // Simulate 144 blocks (10-min blocks for a 24h view)
+        for (let i = 0; i < 144; i++) {
+            const div = document.createElement('div');
+            div.className = 'heartbeat';
+            const rand = Math.random();
+            let color = 'bg-zinc-100';
 
-    // --- DATA PROCESSING ENGINE ---
-    function calculateDurations(data) {
-        // 1. Group by user because we can't calculate time difference between different users
-        const usersData = {};
-        data.forEach(row => {
-            if (!usersData[row.user_id]) usersData[row.user_id] = [];
-            usersData[row.user_id].push({...row});
-        });
-
-        const processedData = [];
-        const IDLE_TIMEOUT_SECONDS = 5 * 60; // 5 Minutes max idle cutoff
-        const DEFAULT_HEARTBEAT_SECONDS = 60; // Standard 1 min heartbeat
-
-        // 2. Process each user's timeline chronologically
-        Object.values(usersData).forEach(userEvents => {
-            // Sort chronologically (Oldest to Newest)
-            userEvents.sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
-
-            for (let i = 0; i < userEvents.length; i++) {
-                let currentEvent = userEvents[i];
-                let durationSeconds = DEFAULT_HEARTBEAT_SECONDS;
-
-                // If there is a "next" event, calculate the time difference
-                if (i + 1 < userEvents.length) {
-                    const nextEvent = userEvents[i + 1];
-                    const diffMs = new Date(nextEvent.recorded_at) - new Date(currentEvent.recorded_at);
-                    const diffSeconds = Math.floor(diffMs / 1000);
-
-                    // If the gap is huge (user went to lunch), cap it.
-                    // Otherwise, use the exact time difference.
-                    if (diffSeconds < IDLE_TIMEOUT_SECONDS && diffSeconds > 0) {
-                        durationSeconds = diffSeconds;
-                    }
-                }
-
-                currentEvent.duration_seconds = durationSeconds;
-                processedData.push(currentEvent);
+            // Working hours simulation
+            if ((i > 16 && i < 45) || (i > 55 && i < 118)) {
+                if (rand > 0.4) color = 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]';
+                else if (rand > 0.2) color = 'bg-amber-400 opacity-80';
+            } else if (i >= 45 && i <= 55) {
+                color = 'bg-zinc-200 opacity-40'; // Break
             }
-        });
 
-        return processedData;
+            div.classList.add(...color.split(' '));
+            container.appendChild(div);
+        }
     }
 
-    // Helper to format seconds nicely (e.g., "5m 30s")
-    function formatDuration(totalSeconds) {
-        const m = Math.floor(totalSeconds / 60);
-        const s = totalSeconds % 60;
-        if (m === 0) return `${s}s`;
-        return `${m}m ${s}s`;
+    function toggleTask(id) {
+        const details = document.getElementById('details-' + id);
+        const chevron = document.getElementById('chevron-' + id);
+        details.classList.toggle('hidden');
+        if (!details.classList.contains('hidden')) {
+            chevron.style.transform = 'rotate(180deg)';
+        } else {
+            chevron.style.transform = 'rotate(0deg)';
+        }
     }
 
-    function applyFilters() {
-        const userId = document.getElementById('userFilter').value;
-        const dateStr = document.getElementById('dateFilter').value;
-
-        // First, calculate durations on the raw dataset so math is correct
-        let processedData = calculateDurations(rawMockData);
-
-        // Then, apply the UI filters
-        let filteredData = processedData.filter(row => {
-            let userMatch = userId === 'all' || row.user_id.toString() === userId;
-            let dateMatch = true;
-
-            if (dateStr) {
-                const rowDate = new Date(row.recorded_at).toISOString().split('T')[0];
-                dateMatch = rowDate === dateStr;
-            }
-            return userMatch && dateMatch;
-        });
-
-        updateDashboard(filteredData);
+    function toggleAdminModal() {
+        console.log("Goverance settings opened.");
     }
 
-    function updateDashboard(data) {
-        updateKPIs(data);
-        updateTable(data);
-        updateCharts(data);
-    }
-
-    function updateKPIs(data) {
-        // Sum all duration_seconds
-        const totalSeconds = data.reduce((sum, row) => sum + row.duration_seconds, 0);
-        const hrs = Math.floor(totalSeconds / 3600);
-        const mins = Math.floor((totalSeconds % 3600) / 60);
-        document.getElementById('kpiTime').innerText = `${hrs} hrs ${mins} mins`;
-
-        document.getElementById('kpiEvents').innerText = data.length;
-
-        // Calculate Top Domain By Time Spent (not event count)
-        const domainTime = {};
-        let topDomain = "-";
-        let maxSeconds = 0;
-
-        data.forEach(row => {
-            domainTime[row.domain] = (domainTime[row.domain] || 0) + row.duration_seconds;
-            if (domainTime[row.domain] > maxSeconds) {
-                maxSeconds = domainTime[row.domain];
-                topDomain = row.domain;
-            }
-        });
-
-        document.getElementById('kpiDomain').innerText = topDomain;
-        document.getElementById('kpiDomainTime').innerText = formatDuration(maxSeconds) + " total";
-    }
-
-    function updateTable(data) {
-        const tbody = document.getElementById('tableBody');
-        tbody.innerHTML = '';
-
-        // Sort newest first for the table view
-        const sortedData = [...data].sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
-
-        sortedData.forEach(row => {
-            const time = new Date(row.recorded_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const tr = document.createElement('tr');
-            tr.className = "bg-white border-b border-slate-50 hover:bg-slate-50";
-            tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">${time}</td>
-                    <td class="px-6 py-4 font-medium text-slate-900">${row.user_name}</td>
-                    <td class="px-6 py-4"><span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">${row.domain}</span></td>
-                    <td class="px-6 py-4 truncate max-w-xs" title="${row.title}">${row.title}</td>
-                    <td class="px-6 py-4 text-emerald-600 font-semibold">${formatDuration(row.duration_seconds)}</td>
-                `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    function updateCharts(data) {
-        const domainTime = {};
-        const hourlyTime = Array(24).fill(0);
-
-        data.forEach(row => {
-            // Aggregate Time by Domain (in minutes)
-            domainTime[row.domain] = (domainTime[row.domain] || 0) + (row.duration_seconds / 60);
-
-            // Aggregate Time by Hour (in minutes)
-            const hour = new Date(row.recorded_at).getHours();
-            hourlyTime[hour] += (row.duration_seconds / 60);
-        });
-
-        // Round minutes for cleaner charts
-        Object.keys(domainTime).forEach(k => domainTime[k] = Math.round(domainTime[k]));
-        const roundedHourlyTime = hourlyTime.map(min => Math.round(min));
-
-        if(domainChartInstance) domainChartInstance.destroy();
-        if(timelineChartInstance) timelineChartInstance.destroy();
-
-        // Render Domain Doughnut Chart
-        const ctxDomain = document.getElementById('domainChart').getContext('2d');
-        domainChartInstance = new Chart(ctxDomain, {
-            type: 'doughnut',
-            data: {
-                labels: Object.keys(domainTime),
-                datasets: [{
-                    data: Object.values(domainTime),
-                    backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#6366f1', '#ec4899'],
-                    borderWidth: 0
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
-        });
-
-        // Render Timeline Bar Chart
-        const ctxTimeline = document.getElementById('timelineChart').getContext('2d');
-        timelineChartInstance = new Chart(ctxTimeline, {
-            type: 'bar',
-            data: {
-                labels: ['12am','1am','2am','3am','4am','5am','6am','7am','8am','9am','10am','11am','12pm','1pm','2pm','3pm','4pm','5pm','6pm','7pm','8pm','9pm','10pm','11pm'],
-                datasets: [{
-                    label: 'Minutes Active',
-                    data: roundedHourlyTime,
-                    backgroundColor: '#3b82f6',
-                    borderRadius: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { y: { beginAtZero: true } }
-            }
-        });
-    }
-
-    window.onload = () => {
-        document.getElementById('dateFilter').value = '2026-02-16';
-        applyFilters();
-    };
+    window.onload = generateTimeline;
 </script>
 </body>
 </html>
