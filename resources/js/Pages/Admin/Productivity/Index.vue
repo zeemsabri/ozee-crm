@@ -1,645 +1,484 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
+import axios from 'axios';
+import moment from 'moment';
 import MultiSelectDropdown from '@/Components/MultiSelectDropdown.vue';
-import ChartComponent from '@/Components/ChartComponent.vue';
-import RightSidebar from '@/Components/RightSidebar.vue';
 import {
-    UserIcon, CalendarIcon, ClockIcon, ExclamationTriangleIcon, ChevronDownIcon, ChevronUpIcon,
-    PrinterIcon, CheckCircleIcon, QuestionMarkCircleIcon, PlusIcon, XMarkIcon,
-    ArrowTrendingUpIcon, BriefcaseIcon, CheckBadgeIcon, ChartBarIcon
-} from '@heroicons/vue/24/outline';
+    LayoutDashboardIcon, SparklesIcon, AlarmClockIcon, Clock9Icon, GaugeIcon, SplitIcon,
+    CalendarIcon, ChevronDownIcon, XIcon, GlobeIcon, HistoryIcon, LightbulbIcon, PlusIcon, InfoIcon
+} from 'lucide-vue-next';
 
-import TaskDetailSidebar from '@/Components/ProjectTasks/TaskDetailSidebar.vue';
-import EffortEstimationGuide from '@/Components/EffortEstimationGuide.vue';
-
-const reportData = ref([]);
-const charts = ref({});
-const users = ref([]);
-const projects = ref([]);
-const loading = ref(false);
+// From props (provided by Admin controller)
+const props = defineProps({
+    users: {
+        type: Array,
+        default: () => []
+    }
+});
 
 const selectedUserIds = ref([]);
-const dateStart = ref('');
-const dateEnd = ref('');
+const selectedDate = ref(moment().format('YYYY-MM-DD'));
+const reports = ref([]);
+const loading = ref(false);
 
-// --- Restored UI State ---
-const expandedUsers = ref({});
-const expandedTasks = ref({});
-const showManualDialog = ref(false);
-const manualEntryForm = ref({
-    user_id: null,
-    user_name: '',
-    name: '',
-    project_id: '',
-    hours: '',
-    date: ''
+const activeReportIndex = ref(0);
+
+const activeReport = computed(() => {
+    if (reports.value.length === 0) return null;
+    return reports.value[activeReportIndex.value] || null;
 });
 
-const showTaskDetailSidebar = ref(false);
-const selectedTaskId = ref(null);
-const selectedProjectId = ref(null);
-const taskDetailProjectUsers = ref([]);
-const showEffortHelp = ref(false);
+const activeUser = computed(() => {
+    if (!activeReport.value) return null;
+    return activeReport.value.user;
+});
 
-// Teleported Checklist Tooltip State
-const hoveredChecklistTask = ref(null);
-const checklistTooltipCoords = ref({ top: 0, left: 0 });
-const showChecklistTooltip = ref(false);
-
-const handleChecklistHover = (task, event) => {
-    if (!task.subtasks?.length) return;
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    hoveredChecklistTask.value = task;
-
-    // Position tooltip above the element by default
-    checklistTooltipCoords.value = {
-        top: rect.top + window.scrollY,
-        left: rect.left + rect.width / 2 + window.scrollX
-    };
-    showChecklistTooltip.value = true;
-};
-
-const hideChecklistTooltip = () => {
-    showChecklistTooltip.value = false;
-};
-
-// --- Navigation & UI Handlers ---
-const toggleUserExpand = (userId) => {
-    expandedUsers.value[userId] = !expandedUsers.value[userId];
-};
-
-const toggleTaskExpand = (taskId) => {
-    expandedTasks.value[taskId] = !expandedTasks.value[taskId];
-};
-
-const openTaskDetail = async (task) => {
-    if (!task || !task.task_id) return;
-    selectedTaskId.value = task.task_id;
-    selectedProjectId.value = task.project_id || 0;
-
-    // Fetch project users for the sidebar
-    if (selectedProjectId.value) {
-        try {
-            const res = await window.axios.get(`/api/projects/${selectedProjectId.value}/sections/clients-users`);
-            taskDetailProjectUsers.value = res.data.users || [];
-        } catch (e) {
-            console.error('Failed to fetch project users', e);
-        }
-    }
-
-    showTaskDetailSidebar.value = true;
-};
-
-const openManualEntry = (userReport) => {
-    manualEntryForm.value = {
-        user_id: userReport.user_id,
-        user_name: userReport.user_name,
-        name: '',
-        project_id: '',
-        hours: '',
-        date: new Date().toISOString().split('T')[0]
-    };
-    showManualDialog.value = true;
-};
-
-const closeManualEntry = () => {
-    showManualDialog.value = false;
-};
-
-const submitManualEntry = async () => {
-    if (!manualEntryForm.value.name || !manualEntryForm.value.hours) return;
-    try {
-        await window.axios.post('/api/tasks/manual-effort', {
-            name: manualEntryForm.value.name,
-            assigned_to_user_id: manualEntryForm.value.user_id,
-            project_id: manualEntryForm.value.project_id || null,
-            manual_effort_override: parseFloat(manualEntryForm.value.hours),
-            date: manualEntryForm.value.date
-        });
-        showManualDialog.value = false;
-        fetchReport();
-    } catch (e) {
-        console.error('Failed to create manual entry', e);
-    }
-};
-
-const handleTaskUpdated = (updatedTask) => {
-    for (let userReport of reportData.value) {
-        const index = userReport.tasks.findIndex(t => t.task_id === updatedTask.id);
-        if (index !== -1) {
-            const t = userReport.tasks[index];
-            t.task_name = updatedTask.name;
-            t.effort = updatedTask.effort;
-            t.priority = updatedTask.priority;
-            t.status = updatedTask.status?.value || updatedTask.status;
-            t.due_date = updatedTask.due_date;
-            t.subtasks = updatedTask.subtasks || [];
-
-            // Recalculate checklist string
-            if (t.subtasks.length > 0) {
-                const total = t.subtasks.length;
-                const done = t.subtasks.filter(s => s.status === 'done').length;
-                t.checklist = `${done}/${total}`;
-            }
-            break;
-        }
-    }
-};
-
-const getChecklistTooltip = (task) => {
-    if (!task.subtasks?.length) return 'No items';
-    return task.subtasks.map(s => `${s.status === 'done' ? '✅' : '⬜'} ${s.name}`).join('\n');
-};
-
-// --- Live Reactive Calculations (KPIs & Insights) ---
+const formatTime = (timeStr) => {
+    if(!timeStr) return '--:--';
+    const split = timeStr.split(':');
+    return `${split[0]}:${split[1]}`;
+}
 
 const stats = computed(() => {
-    let totalHrs = 0;
-    let totalEffort = 0;
-    let completedCount = 0;
-    let lateCount = 0;
-
-    reportData.value.forEach(u => {
-        totalHrs += parseFloat(u.total_hours || 0);
-        u.tasks.forEach(t => {
-            totalEffort += parseInt(t.effort || 0);
-            if (t.status === 'Done') completedCount++;
-            if (t.is_late) lateCount++;
-        });
-    });
-
-    return {
-        totalHours: totalHrs.toFixed(1),
-        velocity: totalEffort,
-        completed: completedCount,
-        late: lateCount
-    };
+    if (!activeReport.value) return null;
+    return activeReport.value.stats_json || {};
 });
 
-const dailyInsights = computed(() => {
-    const daily = {};
-
-    reportData.value.forEach(u => {
-        u.tasks.forEach(t => {
-            // Aggregate Points by Due Date if completed
-            const pointDate = t.due_date || 'N/A';
-            if (t.status === 'Done') {
-                if (!daily[pointDate]) daily[pointDate] = { hours: 0, points: 0 };
-                daily[pointDate].points += parseInt(t.effort || 0);
-            }
-
-            // Aggregate Hours by Activity logs
-            (t.sessions || []).forEach(s => {
-                const date = (s.start || '').split(' ')[0];
-                if (date) {
-                    if (!daily[date]) daily[date] = { hours: 0, points: 0 };
-                    daily[date].hours += (parseFloat(s.duration_seconds || 0) / 3600);
-                }
-            });
-
-            // Handle specific manual overrides if no logs exist
-            if (t.manual_effort_override && (!t.sessions || t.sessions.length === 0)) {
-                const date = t.due_date || 'Manual';
-                if (!daily[date]) daily[date] = { hours: 0, points: 0 };
-                daily[date].hours += parseFloat(t.manual_effort_override);
-            }
-        });
-    });
-
-    return Object.keys(daily).sort().reverse().map(date => {
-        const item = daily[date];
-        const efficiency = item.hours > 0 ? (item.points / item.hours).toFixed(1) : 0;
-        return { date, ...item, efficiency };
-    });
+const tasks = computed(() => {
+    if (!activeReport.value) return [];
+    return activeReport.value.tasks_json || [];
 });
 
-// --- Data Fetching & Persistence ---
+const timelineSlots = computed(() => {
+    if (!activeReport.value) return Array(144).fill(0);
+    return activeReport.value.timeline_json || Array(144).fill(0);
+});
 
-const fetchReport = async () => {
+async function fetchReports() {
     loading.value = true;
     try {
-        const res = await window.axios.get('/api/productivity/report', {
-            params: {
-                user_ids: selectedUserIds.value.join(','),
-                date_start: dateStart.value,
-                date_end: dateEnd.value,
-            }
-        });
-        reportData.value = res.data.reportData.details;
-        charts.value = res.data.reportData.charts;
-        users.value = res.data.users;
-        projects.value = res.data.projects;
+        const params = new URLSearchParams();
+        selectedUserIds.value.forEach(id => params.append('user_ids[]', id));
+        params.append('date', selectedDate.value);
+        params.append('all', '1');
 
-        if (reportData.value.length === 1) {
-            expandedUsers.value[reportData.value[0].user_id] = true;
-        }
+        const { data } = await axios.get('/api/productivity/snapshots', { params });
+        reports.value = data;
+        activeReportIndex.value = 0; // reset
     } catch (e) {
         console.error(e);
+        window.toast?.error('Failed to load reports');
     } finally {
         loading.value = false;
     }
-};
+}
 
-const handleMetaUpdate = async (task, user, field, value) => {
-    // 1. Instant Local Update (Re-calcs totals and KPIs immediately)
-    if (field === 'manual_effort_override') {
-        const hours = value === '' || value === null ? null : parseFloat(value);
-        task.manual_effort_override = hours;
-
-        // Update task duration for UI displays
-        if (hours !== null && !isNaN(hours)) {
-            task.used_seconds = hours * 3600;
-        } else {
-            task.used_seconds = task.total_seconds || 0;
-        }
-
-        // Recalculate user total hours locally
-        let totalSecs = 0;
-        user.tasks.forEach(t => {
-            totalSecs += parseFloat(t.used_seconds || 0);
-        });
-        user.total_seconds = totalSecs;
-        user.total_hours = (totalSecs / 3600).toFixed(2);
-    } else {
-        task[field] = value;
-    }
-
-    // 2. Background API Call
+async function recreateReport() {
+    if (!activeUser.value) return;
+    loading.value = true;
     try {
-        await window.axios.post(`/api/tasks/${task.task_id}/productivity-meta`, {
-            [field]: value
+        const { data } = await axios.post('/api/productivity/snapshots', {
+            user_id: activeUser.value.id,
+            date: selectedDate.value,
+            recreate: true
         });
+        window.toast?.success('Report regenerated successfully!');
+        await fetchReports();
     } catch (e) {
-        console.error("Persistence failed", e);
+        console.error(e);
+        window.toast?.error('Failed to regenerate report');
+    } finally {
+        loading.value = false;
     }
+}
+
+async function deleteReport() {
+    if (!activeReport.value) return;
+    if (!confirm('Are you sure you want to delete this snapshot?')) return;
+    loading.value = true;
+    try {
+        await axios.delete(`/api/productivity/snapshots/${activeReport.value.id}`);
+        window.toast?.success('Report deleted successfully!');
+        await fetchReports();
+    } catch (e) {
+        console.error(e);
+        window.toast?.error('Failed to delete report');
+    } finally {
+        loading.value = false;
+    }
+}
+
+async function generateNewReportForSelected() {
+    if(selectedUserIds.value.length === 0) {
+        alert("Please select a user to generate a report.");
+        return;
+    }
+    const userId = selectedUserIds.value[0]; // Just generate for the first selected for now
+    loading.value = true;
+    try {
+        const { data } = await axios.post('/api/productivity/snapshots', {
+            user_id: userId,
+            date: selectedDate.value,
+        });
+        window.toast?.success('Report generated successfully!');
+        await fetchReports();
+    } catch (e) {
+        if(e.response?.status === 422) {
+             alert(e.response.data.message);
+        } else {
+             window.toast?.error('Failed to generate report');
+        }
+    } finally {
+        loading.value = false;
+    }
+}
+
+const expandedTasks = ref({});
+const toggleTask = (taskId) => {
+    expandedTasks.value[taskId] = !expandedTasks.value[taskId];
 };
 
-const formatDuration = (sec) => {
-    if (sec === null || sec === undefined) return '0h';
-    const h = Math.floor(Math.abs(sec) / 3600);
-    const m = Math.floor((Math.abs(sec) % 3600) / 60);
-    return `${h}h ${m}m`;
+onMounted(() => {
+    // If we have users but none selected, select the first one to start
+    if (props.users && props.users.length > 0) {
+        selectedUserIds.value = [props.users[0].value];
+    }
+    fetchReports();
+});
+
+const timelineColors = (slotData) => {
+    if (slotData === 1) return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)] z-10 scale-y-[1.4] hover:scale-y-[1.6]';
+    if (slotData === 2) return 'bg-amber-400 opacity-80 z-10 scale-y-[1.1] hover:scale-y-[1.3]';
+    return 'bg-zinc-100 hover:scale-y-[1.2]'; // 0 or offline
 };
 
-onMounted(() => fetchReport());
-const printReport = () => window.print();
-
+const getTimelineLabel = (index) => {
+    const totalMinutes = index * 10;
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+};
 </script>
 
 <template>
-    <Head title="Productivity Dashboard" />
+    <Head title="Activity Hub 2.0" />
     <AuthenticatedLayout>
-        <template #header>
-            <div class="flex justify-between items-center print:hidden">
-                <h2 class="font-bold text-2xl text-gray-900 tracking-tight">Productivity Dashboard</h2>
-                <button @click="printReport" class="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition">
-                    <PrinterIcon class="h-4 w-4 mr-2" /> Export PDF
+    <div class="min-h-screen pb-20 font-sans text-zinc-900 bg-zinc-50">
+        <!-- Filter Controls (Admin Level) -->
+        <section class="bg-white border-b border-zinc-200 px-8 py-5 shadow-sm">
+            <div class="max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
+                <div class="md:col-span-5 relative z-50">
+                    <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-2 block">Team Members</label>
+                    <MultiSelectDropdown v-model="selectedUserIds" :options="props.users" :is-multi="true" placeholder="Select members" />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-2 block">Reporting Date</label>
+                    <div class="flex items-center gap-3 border border-zinc-200 rounded-2xl px-4 py-2 bg-zinc-50/50">
+                        <CalendarIcon class="w-4 h-4 text-zinc-400" />
+                        <input type="date" v-model="selectedDate" class="bg-transparent border-none text-xs font-bold text-zinc-700 focus:ring-0 p-0 w-full" />
+                    </div>
+                </div>
+                <div class="md:col-span-4 flex gap-3 h-[42px]">
+                    <button @click="fetchReports" :disabled="loading" class="flex-1 bg-zinc-900 text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-zinc-200 hover:bg-zinc-800 active:scale-95 transition-all disabled:opacity-50">
+                        {{ loading ? 'Loading...' : 'Refresh Insights' }}
+                    </button>
+                    <button @click="generateNewReportForSelected" :disabled="loading" class="flex-1 bg-indigo-600 text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50">
+                       Generate Report
+                    </button>
+                </div>
+            </div>
+            
+            <!-- User Tabs (if multiple reports loaded) -->
+             <div v-if="reports.length > 1" class="max-w-[1600px] mx-auto mt-6 flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                 <button 
+                    v-for="(r, idx) in reports" :key="r.id"
+                    @click="activeReportIndex = idx"
+                    :class="activeReportIndex === idx ? 'bg-indigo-50 border-indigo-200 text-indigo-700 ring-2 ring-indigo-500/20' : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'"
+                    class="px-4 py-2 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap"
+                 >
+                    <img v-if="r.user?.avatar_url" :src="r.user.avatar_url" class="w-5 h-5 rounded-full" />
+                    {{ r.user?.name }}
+                 </button>
+             </div>
+        </section>
+
+        <main class="max-w-[1600px] mx-auto p-8 space-y-8" v-if="activeReport">
+            
+            <!-- Snapshot Header Actions -->
+            <div class="flex justify-between items-center bg-white/85 backdrop-blur-md p-5 rounded-[2.5rem] border border-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)]">
+                <div class="flex items-center gap-4 pl-2">
+                    <img v-if="activeUser?.avatar_url" :src="activeUser.avatar_url" class="w-12 h-12 rounded-2xl shadow-md border border-zinc-100" />
+                    <div>
+                        <h1 class="text-sm font-black text-zinc-900 tracking-tight">{{ activeUser?.name }}</h1>
+                        <p class="text-xs text-zinc-500 font-medium">Snapshot Date: <span class="text-zinc-700 font-bold">{{ selectedDate }}</span></p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 pr-2">
+                     <button @click="recreateReport" :disabled="loading" class="text-xs font-bold text-zinc-600 border border-zinc-200 bg-white px-4 py-2.5 rounded-xl hover:bg-zinc-50 disabled:opacity-50 transition-all">
+                         Regenerate Data
+                     </button>
+                     <button @click="deleteReport" :disabled="loading" class="text-xs font-bold text-rose-600 border border-rose-200 bg-rose-50 px-4 py-2.5 rounded-xl hover:bg-rose-100 disabled:opacity-50 transition-all">
+                         Delete Snapshot
+                     </button>
+                </div>
+            </div>
+
+            <!-- AI Intelligence Summary (Placeholder) -->
+            <section class="shadow-[0_0_20px_rgba(99,102,241,0.1)] border border-indigo-500/20 bg-white p-6 rounded-[2.5rem] flex items-center gap-6 relative overflow-hidden">
+                <div class="absolute inset-0 bg-gradient-to-r from-indigo-50/50 to-purple-50/50 pointer-events-none"></div>
+                <div class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 shrink-0 relative z-10">
+                    <SparklesIcon class="w-7 h-7" />
+                </div>
+                <div class="flex-1 relative z-10">
+                    <h2 class="text-sm font-black text-indigo-600 uppercase tracking-widest mb-1">AI Intelligence Summary</h2>
+                    <p class="text-sm text-zinc-600 leading-relaxed font-medium">
+                        Based on the generated heartbeat logs, {{ activeUser?.name }} recorded <span class="text-zinc-900 font-bold bg-zinc-100 px-1.5 py-0.5 rounded">{{ stats?.actual_online_minutes }}m online duration</span>.
+                        Comprehensive AI bottleneck detection and workflow friction insights are currently generating and will be available in subsequent platform updates.
+                    </p>
+                </div>
+            </section>
+
+            <!-- Simple KPIs for Admin Staff -->
+            <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Punctuality -->
+                <div class="bg-white/85 backdrop-blur-md p-6 rounded-3xl border border-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)]">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="p-2.5 bg-blue-50 text-blue-600 rounded-2xl"><AlarmClockIcon class="w-5 h-5" /></div>
+                        <span class="text-[9px] font-black text-rose-500 bg-rose-50 px-2 py-1 rounded-lg border border-rose-100">FIRST SEEN</span>
+                    </div>
+                    <h3 class="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Punctuality Adherence</h3>
+                    <div class="text-3xl font-black text-zinc-900 mt-1">{{ formatTime(stats?.first_seen) }}</div>
+                    <p class="text-[10px] text-zinc-400 mt-2 font-medium italic">First recorded heartbeat</p>
+                </div>
+
+                <!-- Hours Gap -->
+                <div class="bg-white/85 backdrop-blur-md p-6 rounded-3xl border border-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)]">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl"><Clock9Icon class="w-5 h-5" /></div>
+                        <span class="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">HOURS GAP</span>
+                    </div>
+                    <h3 class="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Promised vs. Actual</h3>
+                    <div class="text-3xl font-black text-zinc-900 mt-1 flex items-baseline gap-2">
+                        {{ Math.round((stats?.actual_online_minutes || 0) / 60 * 10) / 10 }}h 
+                        <span class="text-xs text-zinc-400 font-medium">/ {{ Math.round((stats?.promised_minutes || 0) / 60 * 10) / 10 }}h slot</span>
+                    </div>
+                    <p class="text-[10px] text-zinc-400 mt-2 font-medium italic">Recorded time vs allocated slots</p>
+                </div>
+
+                <!-- Working Intensity -->
+                <div class="bg-white/85 backdrop-blur-md p-6 rounded-3xl border border-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)]">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="p-2.5 bg-emerald-50 text-emerald-600 rounded-2xl"><GaugeIcon class="w-5 h-5" /></div>
+                        <span class="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">OPTIMAL</span>
+                    </div>
+                    <h3 class="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Active Engagement</h3>
+                    <div class="text-3xl font-black text-zinc-900 mt-1">
+                        {{ stats?.actual_online_minutes > 0 ? Math.round((stats?.active_minutes / stats?.actual_online_minutes) * 100) : 0 }}% 
+                        <span class="text-xs text-zinc-400 font-medium">focused</span>
+                    </div>
+                    <p class="text-[10px] text-zinc-400 mt-2 font-medium italic">Active time vs total idle ratio</p>
+                </div>
+
+                <!-- Context Shifts -->
+                <div class="bg-white/85 backdrop-blur-md p-6 rounded-3xl border border-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)]">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="p-2.5 bg-purple-50 text-purple-600 rounded-2xl"><SplitIcon class="w-5 h-5" /></div>
+                        <span class="text-[9px] font-black text-zinc-500 bg-zinc-50 px-2 py-1 rounded-lg border border-zinc-100">STABLE</span>
+                    </div>
+                    <h3 class="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Context Switches</h3>
+                    <div class="text-3xl font-black text-zinc-900 mt-1">{{ stats?.context_switches }} <span class="text-xs text-zinc-400 font-medium">shifts</span></div>
+                    <p class="text-[10px] text-zinc-400 mt-2 font-medium italic">Application/domain changes</p>
+                </div>
+            </section>
+
+            <!-- Diagnostic Timeline -->
+            <section class="bg-white/85 backdrop-blur-md rounded-[2.5rem] p-10 border border-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] relative overflow-hidden">
+                <div class="flex justify-between items-end mb-12">
+                    <div>
+                        <h2 class="text-2xl font-black text-zinc-900 tracking-tight">Daily Presence Barcode</h2>
+                        <p class="text-sm text-zinc-400 font-medium">A 24-hour visual distribution of <span class="text-emerald-500 font-bold">Active Heartbeats</span> vs <span class="text-amber-500 font-bold">Idle State</span>.</p>
+                    </div>
+                    <div class="flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                        <div class="flex items-center gap-2"><div class="w-3 h-3 bg-emerald-500 rounded-sm shadow-sm"></div> Active Work</div>
+                        <div class="flex items-center gap-2 text-amber-500"><div class="w-3 h-3 rounded-sm border bg-amber-400 shadow-sm"></div> Idle Break</div>
+                        <div class="flex items-center gap-2 text-zinc-300"><div class="w-3 h-3 rounded-sm border bg-zinc-100 shadow-sm"></div> Offline</div>
+                    </div>
+                </div>
+
+                <div class="relative pt-12 pb-8">
+                    <!-- Placeholder Availability overlay - in a real app this would map to actual times -->
+                    <div class="absolute inset-y-0 bg-indigo-600/[0.035] border-x-2 border-dashed border-indigo-600/10 pointer-events-none rounded-2xl z-0" style="left: 10%; width: 75%;"></div>
+
+                    <div class="absolute top-0 left-0 right-0 flex justify-between text-[10px] font-black text-zinc-300 uppercase tracking-tighter border-b border-zinc-100 pb-2">
+                        <span>00:00</span>
+                        <span>04:00</span>
+                        <span>08:00</span>
+                        <span>12:00</span>
+                        <span>16:00</span>
+                        <span>20:00</span>
+                        <span>24:00</span>
+                    </div>
+
+                    <div class="space-y-8 relative z-10 pt-4">
+                        <div class="relative h-12 flex items-center group">
+                            <span class="absolute md:-left-28 -left-0 -top-4 md:top-auto text-[9px] font-black text-zinc-400 uppercase tracking-tighter">Live Activity</span>
+                            
+                            <!-- Heartbeat Barcode (144 items) -->
+                            <div class="grid grid-cols-[repeat(144,minmax(0,1fr))] gap-[1px] h-8 w-full bg-white p-[2px] rounded-xl border border-zinc-200 shadow-sm">
+                                <template v-for="(slotData, idx) in timelineSlots" :key="'slot-'+idx">
+                                    <div 
+                                        :class="['w-full h-full rounded-[1px] transition-all cursor-pointer relative group/slot flex flex-col justify-end', timelineColors(slotData)]"
+                                    >
+                                        <div class="invisible group-hover/slot:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-zinc-900 border border-zinc-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg z-50 whitespace-nowrap pointer-events-none shadow-xl">
+                                            {{ getTimelineLabel(idx) }} - {{ getTimelineLabel(idx+1) }} : {{ slotData === 1 ? 'Active Track' : (slotData === 2 ? 'Idle State' : 'No Signal') }}
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Task Table with Evidence Logs -->
+            <div class="bg-white/85 backdrop-blur-md rounded-[2.5rem] border border-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] overflow-hidden">
+                <div class="px-8 py-6 border-b border-zinc-100 flex justify-between items-center bg-white/50">
+                    <div>
+                        <h2 class="text-xl font-black text-zinc-900 tracking-tight">Active Task Analysis</h2>
+                        <p class="text-xs text-zinc-400 font-medium">Verify task durations with raw activity evidence grouped by issue.</p>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                        <tr class="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-400 border-b border-zinc-50 bg-zinc-50/50">
+                            <th class="px-8 py-5">Task Objective</th>
+                            <th class="px-8 py-5">Total Tracked</th>
+                            <th class="px-8 py-5">Work Fidelity</th>
+                            <th class="px-8 py-5">Idle Extent</th>
+                            <th class="px-8 py-5 text-right w-20">Log</th>
+                        </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-50">
+                        
+                        <template v-for="task in tasks" :key="'tsk-'+task.task_id">
+                            <tr @click="toggleTask(task.task_id)" class="group hover:bg-zinc-50/80 cursor-pointer transition-all">
+                                <td class="px-8 py-6">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100 shrink-0">
+                                            <LayoutDashboardIcon class="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <div class="font-black text-zinc-700">{{ task.name }}</div>
+                                            <div class="text-[10px] font-bold text-zinc-400 uppercase tracking-tighter mt-0.5">ID: {{ task.task_id }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-8 py-6 font-mono font-bold text-zinc-600">
+                                   {{ Math.round(task.active_mins + task.idle_mins) }} m
+                                </td>
+                                <td class="px-8 py-6">
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-xs font-black text-emerald-600 w-8">
+                                            {{ Math.round((task.active_mins / (task.active_mins + task.idle_mins || 1)) * 100) }}%
+                                        </span>
+                                        <div class="flex-1 h-2 w-20 bg-zinc-100 rounded-full overflow-hidden border border-zinc-200 shadow-inner">
+                                            <div class="h-full bg-emerald-500 transition-all shadow-[0_0_10px_rgba(16,185,129,0.3)]" :style="{ width: ((task.active_mins / (task.active_mins + task.idle_mins || 1)) * 100) + '%' }"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-8 py-6">
+                                    <span class="text-xs font-black text-amber-500 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
+                                        {{ Math.round((task.idle_mins / (task.active_mins + task.idle_mins || 1)) * 100) }}% Interrupted
+                                    </span>
+                                </td>
+                                <td class="px-8 py-6 text-right">
+                                    <ChevronDownIcon :class="['w-5 h-5 text-zinc-300 transition-transform inline-block', expandedTasks[task.task_id] ? 'rotate-180 text-zinc-600' : 'rotate-0']" />
+                                </td>
+                            </tr>
+                            
+                            <!-- Task Evidence Drill-down Rows -->
+                            <tr v-if="expandedTasks[task.task_id]" class="bg-zinc-50/70 border-t-0">
+                                <td colspan="5" class="px-8 py-10 shadow-inner">
+                                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                                        <!-- URL Activity / Top Domains -->
+                                        <div class="space-y-4">
+                                            <h4 class="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                                                <GlobeIcon class="w-3.5 h-3.5" /> High-Intensity Platforms Used
+                                            </h4>
+                                            <div class="bg-white rounded-[1.5rem] border border-zinc-200 overflow-hidden shadow-sm p-4">
+                                                <div v-if="!task.top_domains?.length" class="text-xs italic text-zinc-500 text-center py-4">No specific platform data recorded.</div>
+                                                <ul v-else class="space-y-3">
+                                                    <li v-for="(domain, dIdx) in task.top_domains" :key="dIdx" class="flex justify-between items-center text-xs px-2 py-1 hover:bg-zinc-50 rounded-lg">
+                                                        <span class="font-bold text-zinc-700 font-mono">{{ domain }}</span>
+                                                        <span class="bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded border border-zinc-200 text-[9px] font-black uppercase">Active Source</span>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+
+                                        <!-- System Events -->
+                                        <div class="space-y-4">
+                                            <h4 class="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                                                <HistoryIcon class="w-3.5 h-3.5" /> System Lifecycle Events
+                                            </h4>
+                                            
+                                            <div v-if="!task.system_events?.length" class="text-xs italic text-zinc-500 bg-white p-6 rounded-[1.5rem] border text-center shadow-sm">
+                                                No spatie system events tracked for this task.
+                                            </div>
+                                            <div v-else class="space-y-6 pt-2 pl-4 border-l-2 border-zinc-200 ml-2">
+                                                 <div v-for="(log, lIdx) in task.system_events" :key="lIdx" class="relative pl-8">
+                                                    <div class="absolute -left-[25px] top-0.5 w-3 h-3 bg-zinc-400 rounded-full border-2 border-white shadow-sm ring-1 ring-zinc-200"></div>
+                                                    <p class="text-[11px] font-black text-zinc-800 uppercase tracking-tighter">{{ log.event }}</p>
+                                                    <p class="text-[10px] text-zinc-400 font-bold mt-0.5">{{ log.time }}</p>
+                                                </div>
+                                            </div>
+                                            
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+                        
+                        <tr v-if="tasks.length === 0">
+                            <td colspan="5" class="px-8 py-12 text-center text-zinc-500 italic text-sm">
+                                <div class="w-16 h-16 bg-zinc-100 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-zinc-200 shadow-inner">
+                                    <LayoutDashboardIcon class="w-6 h-6 text-zinc-300" />
+                                </div>
+                                No task-specific tracking data recorded for this period.
+                            </td>
+                        </tr>
+
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+        </main>
+        
+        <main class="max-w-[1600px] mx-auto p-8 pt-12" v-else-if="reports.length === 0 && !loading">
+            <div class="bg-white/85 backdrop-blur-md p-16 rounded-[2.5rem] text-center border shadow-sm border-white">
+                <div class="w-20 h-20 bg-zinc-50 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border border-zinc-200 shadow-inner">
+                    <HistoryIcon class="h-8 w-8 text-zinc-300" />
+                </div>
+                <h3 class="font-black text-zinc-900 text-xl tracking-tight">Data Not Processed</h3>
+                <p class="text-zinc-500 text-sm mt-2 mb-8 max-w-sm mx-auto font-medium">No productivity snapshot is currently compiled for the selected date and personnel.</p>
+                <button @click="generateNewReportForSelected" :disabled="loading" class="bg-zinc-900 text-white font-bold py-3.5 px-8 text-xs uppercase tracking-widest rounded-2xl hover:bg-zinc-800 active:scale-95 transition-all shadow-xl shadow-zinc-200">
+                    Compile New Snapshot
                 </button>
             </div>
-        </template>
-
-        <div class="py-8 bg-gray-50 min-h-screen print:bg-white print:py-0">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-
-                <!-- Filter Panel -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 print:hidden">
-                    <div class="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
-                        <div class="col-span-2">
-                            <label class="text-xs font-bold text-gray-500 uppercase mb-2 block">Team Members</label>
-                            <MultiSelectDropdown v-model="selectedUserIds" :options="users" :is-multi="true" placeholder="Search team members..." />
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-gray-500 uppercase mb-2 block">Range Start</label>
-                            <input type="date" v-model="dateStart" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500" />
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-gray-500 uppercase mb-2 block">Range End</label>
-                            <input type="date" v-model="dateEnd" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500" />
-                        </div>
-                        <button @click="fetchReport" :disabled="loading" class="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">
-                            {{ loading ? 'Generating...' : 'Refresh Report' }}
-                        </button>
-                    </div>
-                </div>
-
-                <!-- KPI Scorecards -->
-                <div v-if="reportData.length" class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                        <div class="flex items-center justify-between mb-2">
-                            <ClockIcon class="h-6 w-6 text-indigo-500" />
-                            <span class="text-xs font-bold text-gray-400">Total Hours</span>
-                        </div>
-                        <div class="text-3xl font-black text-gray-900">{{ stats.totalHours }}h</div>
-                    </div>
-                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                        <div class="flex items-center justify-between mb-2">
-                            <ArrowTrendingUpIcon class="h-6 w-6 text-green-500" />
-                            <span class="text-xs font-bold text-gray-400">Total Velocity</span>
-                        </div>
-                        <div class="text-3xl font-black text-gray-900">{{ stats.velocity }} pts</div>
-                    </div>
-                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                        <div class="flex items-center justify-between mb-2">
-                            <CheckBadgeIcon class="h-6 w-6 text-blue-500" />
-                            <span class="text-xs font-bold text-gray-400">Tasks Completed</span>
-                        </div>
-                        <div class="text-3xl font-black text-gray-900">{{ stats.completed }}</div>
-                    </div>
-                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                        <div class="flex items-center justify-between mb-2">
-                            <ExclamationTriangleIcon class="h-6 w-6 text-red-500" />
-                            <span class="text-xs font-bold text-gray-400">Overdue Items</span>
-                        </div>
-                        <div class="text-3xl font-black text-red-600">{{ stats.late }}</div>
-                    </div>
-                </div>
-
-                <!-- Chart Grid -->
-                <div v-if="charts.daily_trend" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div class="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                        <h3 class="text-sm font-bold text-gray-900 mb-6 flex items-center justify-between">
-                            <div class="flex items-center">
-                                <ArrowTrendingUpIcon class="h-4 w-4 mr-2 text-indigo-600" /> Activity vs Output Trend
-                            </div>
-                            <div class="flex gap-4 text-[10px] font-bold uppercase tracking-wider">
-                                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-indigo-500"></span> Hours</span>
-                                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> Points</span>
-                            </div>
-                        </h3>
-                        <ChartComponent :data="charts.daily_trend" type="line" height="250" />
-                    </div>
-                    <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                        <h3 class="text-sm font-bold text-gray-900 mb-6 flex items-center">
-                            <BriefcaseIcon class="h-4 w-4 mr-2 text-green-600" /> Project Load
-                        </h3>
-                        <ChartComponent :data="charts.project_dist" type="pie" height="250" />
-                    </div>
-                </div>
-
-                <!-- Daily Performance Table -->
-                <div v-if="dailyInsights.length" class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/30">
-                        <h3 class="text-sm font-bold text-gray-900 flex items-center">
-                            <ChartBarIcon class="h-4 w-4 mr-2 text-indigo-600" /> Daily Productivity Breakdown
-                        </h3>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm text-left">
-                            <thead class="bg-gray-50/50 text-[10px] uppercase font-bold text-gray-500 tracking-wider">
-                            <tr>
-                                <th class="px-6 py-3">Date</th>
-                                <th class="px-6 py-3 text-right">Hours Logged</th>
-                                <th class="px-6 py-3 text-right">Points Done</th>
-                                <th class="px-6 py-3 text-right">Efficiency (Pts/Hr)</th>
-                                <th class="px-6 py-3 w-1/3">Velocity Meter</th>
-                            </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100">
-                            <tr v-for="day in dailyInsights" :key="day.date" class="hover:bg-gray-50/50">
-                                <td class="px-6 py-4 font-bold text-gray-900">{{ day.date }}</td>
-                                <td class="px-6 py-4 text-right font-mono">{{ day.hours.toFixed(1) }}h</td>
-                                <td class="px-6 py-4 text-right">
-                                    <span class="px-2 py-1 rounded bg-green-50 text-green-700 font-bold text-xs">{{ day.points }} pts</span>
-                                </td>
-                                <td class="px-6 py-4 text-right font-black" :class="day.efficiency > 2 ? 'text-green-600' : 'text-gray-500'">
-                                    {{ day.efficiency }}
-                                </td>
-                                <td class="px-6 py-4">
-                                    <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                        <div class="bg-indigo-500 h-full rounded-full transition-all duration-500" :style="{ width: Math.min(day.points * 10, 100) + '%' }"></div>
-                                    </div>
-                                </td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Detailed Breakdown per User -->
-                <div v-for="user in reportData" :key="user.user_id" class="bg-white rounded-xl border border-gray-200 shadow-sm">
-                    <div
-                        @click="toggleUserExpand(user.user_id)"
-                        class="p-6 flex items-center justify-between bg-gray-50/50 cursor-pointer hover:bg-gray-100 transition print:cursor-default rounded-t-xl relative z-10"
-                    >
-                        <div class="flex items-center space-x-4">
-                            <img :src="user.avatar" class="h-12 w-12 rounded-full border-2 border-white shadow-sm" />
-                            <div>
-                                <h4 class="font-bold text-gray-900">{{ user.user_name }}</h4>
-                                <p class="text-xs text-gray-500 uppercase tracking-widest font-bold">{{ user.tasks.length }} Tasks Managed</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-6">
-                            <button
-                                @click.stop="openManualEntry(user)"
-                                class="p-2 rounded-full hover:bg-white text-gray-400 hover:text-indigo-600 transition print:hidden"
-                                title="Add Manual Activity"
-                            >
-                                <PlusIcon class="h-5 w-5" />
-                            </button>
-                            <div class="text-right">
-                                <div class="text-2xl font-black text-indigo-600">{{ user.total_hours }} hrs</div>
-                                <p class="text-[10px] text-gray-400 font-bold uppercase">Total Charged</p>
-                            </div>
-                            <component :is="expandedUsers[user.user_id] ? ChevronUpIcon : ChevronDownIcon" class="h-5 w-5 text-gray-400 print:hidden" />
-                        </div>
-                    </div>
-
-                    <div v-show="expandedUsers[user.user_id]" class="p-0 overflow-x-auto border-t border-gray-100 rounded-b-xl relative z-20">
-                        <table class="w-full text-sm text-left">
-                            <thead class="bg-gray-50 text-gray-400 text-[10px] uppercase font-bold tracking-wider">
-                            <tr>
-                                <th class="px-4 py-3 w-8"></th>
-                                <th class="px-4 py-3">Task Detail</th>
-                                <th class="px-4 py-3">Status / Due</th>
-                                <th class="px-4 py-3 text-center">Checklist</th>
-                                <th class="px-4 py-3 text-right">
-                                    <div class="flex items-center justify-end gap-1">
-                                        Effort
-                                        <QuestionMarkCircleIcon class="h-3 w-3 cursor-pointer" @click="showEffortHelp = true" />
-                                    </div>
-                                </th>
-                                <th class="px-4 py-3 text-right">Manual (Hrs)</th>
-                                <th class="px-4 py-3 text-right">Total Time</th>
-                            </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200">
-                            <template v-for="task in user.tasks" :key="task.task_id">
-                                <tr class="hover:bg-indigo-50/30 transition">
-                                    <td class="px-4 py-4 cursor-pointer text-gray-300 hover:text-indigo-600" @click="toggleTaskExpand(task.task_id)">
-                                        <component :is="expandedTasks[task.task_id] ? ChevronUpIcon : ChevronDownIcon" class="h-4 w-4" />
-                                    </td>
-                                    <td class="px-4 py-4">
-                                        <div
-                                            @click="openTaskDetail(task)"
-                                            class="font-bold text-gray-900 mb-0.5 cursor-pointer hover:text-indigo-600 hover:underline transition print:no-underline"
-                                        >
-                                            {{ task.task_name }}
-                                        </div>
-                                        <div class="text-[10px] text-indigo-500 font-bold uppercase">{{ task.project_name }}</div>
-                                    </td>
-                                    <td class="px-4 py-4">
-                                        <div class="flex flex-col gap-1">
-                                                <span :class="{
-                                                    'bg-green-100 text-green-700': task.status === 'Done',
-                                                    'bg-yellow-100 text-yellow-700': task.status === 'In Progress',
-                                                    'bg-gray-100 text-gray-600': task.status === 'To Do'
-                                                }" class="px-2 py-0.5 rounded text-[9px] font-black uppercase w-fit">
-                                                    {{ task.status }}
-                                                </span>
-                                            <div class="flex items-center gap-1" :class="task.is_late ? 'text-red-500' : 'text-gray-400'">
-                                                <CalendarIcon class="h-3 w-3" />
-                                                <span class="text-[10px] font-bold">{{ task.due_date || 'No Date' }}</span>
-                                                <span v-if="task.is_late" class="text-[8px] font-black uppercase bg-red-100 px-1 rounded">Late</span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-4 text-center">
-                                        <div class="inline-block relative">
-                                            <span
-                                                class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 cursor-pointer hover:bg-gray-200 transition"
-                                                @mouseenter="handleChecklistHover(task, $event)"
-                                                @mouseleave="hideChecklistTooltip"
-                                            >
-                                                <CheckCircleIcon class="h-3 w-3 mr-1" />
-                                                {{ task.checklist || '0/0' }}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-4 text-right">
-                                        <input type="number" v-model="task.effort" @change="handleMetaUpdate(task, user, 'effort', task.effort)" class="w-16 text-right border-0 bg-transparent focus:ring-1 focus:ring-indigo-200 rounded text-xs font-bold" />
-                                    </td>
-                                    <td class="px-4 py-4 text-right">
-                                        <input type="number" step="0.5" v-model="task.manual_effort_override" @change="handleMetaUpdate(task, user, 'manual_effort_override', task.manual_effort_override)" class="w-16 text-right border-0 bg-transparent focus:ring-1 focus:ring-indigo-200 rounded text-xs font-bold" />
-                                    </td>
-                                    <td class="px-4 py-4 text-right font-black text-gray-900">
-                                        {{ formatDuration(task.used_seconds) }}
-                                    </td>
-                                </tr>
-                                <!-- Activity Log Expanded Row -->
-                                <tr v-if="expandedTasks[task.task_id]" class="bg-gray-50/50">
-                                    <td colspan="7" class="px-12 py-4">
-                                        <div class="text-[10px] font-black text-gray-400 uppercase mb-3 tracking-widest">Activity Session Logs</div>
-                                        <div v-if="task.sessions?.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                            <div v-for="(session, idx) in task.sessions" :key="idx" class="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
-                                                <div>
-                                                    <div class="text-[9px] font-bold text-gray-400 uppercase">{{ session.type === 'ongoing' ? 'Running' : 'Recorded' }}</div>
-                                                    <div class="text-[11px] font-mono text-gray-600">{{ (session.start || '').split(' ')[1] }} - {{ session.end === 'Now' ? 'Now' : (session.end || '').split(' ')[1] }}</div>
-                                                </div>
-                                                <div class="text-xs font-black text-indigo-600">
-                                                    {{ formatDuration(session.duration_seconds) }}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div v-else class="text-xs text-gray-400 italic">No activity logs tracked for this specific period.</div>
-                                    </td>
-                                </tr>
-                            </template>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right Sidebars -->
-        <RightSidebar v-model:show="showEffortHelp" title="Effort Estimation Guide" :initialWidth="30">
-            <template #content><EffortEstimationGuide /></template>
-        </RightSidebar>
-
-        <RightSidebar v-model:show="showTaskDetailSidebar" title="Task Details" :initialWidth="45">
-            <template #content>
-                <TaskDetailSidebar
-                    v-if="selectedTaskId"
-                    :task-id="selectedTaskId"
-                    :project-id="selectedProjectId"
-                    :project-users="taskDetailProjectUsers"
-                    @close="showTaskDetailSidebar = false"
-                    @task-updated="handleTaskUpdated"
-                />
-            </template>
-        </RightSidebar>
-
-        <!-- Manual Entry Dialog -->
-        <div v-if="showManualDialog" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" @click="closeManualEntry"></div>
-            <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transition-all transform scale-100">
-                <div class="p-6 border-b border-gray-100 flex justify-between items-center">
-                    <h3 class="text-lg font-bold text-gray-900">Add Manual Activity</h3>
-                    <button @click="closeManualEntry" class="text-gray-400 hover:text-gray-600"><XMarkIcon class="h-6 w-6" /></button>
-                </div>
-                <form @submit.prevent="submitManualEntry" class="p-6 space-y-4">
-                    <p class="text-sm text-gray-500">Manual entry for: <span class="font-bold text-indigo-600">{{ manualEntryForm.user_name }}</span></p>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Task Title</label>
-                        <input type="text" v-model="manualEntryForm.name" required class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 text-sm" placeholder="Work description..." />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Project Link</label>
-                        <select v-model="manualEntryForm.project_id" class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 text-sm">
-                            <option value="">General / Internal</option>
-                            <option v-for="p in projects" :key="p.value" :value="p.value">{{ p.label }}</option>
-                        </select>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
-                            <input type="date" v-model="manualEntryForm.date" required class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 text-sm" />
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Hours Logged</label>
-                            <input type="number" step="0.1" v-model="manualEntryForm.hours" required class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 text-sm" placeholder="e.g. 1.5" />
-                        </div>
-                    </div>
-                    <div class="pt-4 flex gap-3">
-                        <button type="submit" class="flex-1 bg-indigo-600 text-white font-bold py-2.5 rounded-xl hover:bg-indigo-700 transition">Save Log</button>
-                        <button type="button" @click="closeManualEntry" class="px-6 py-2.5 border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition">Cancel</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Global Teleported Checklist Tooltip -->
-        <Teleport to="body">
-            <div
-                v-if="showChecklistTooltip && hoveredChecklistTask"
-                class="fixed z-[9999] w-64 bg-slate-900 text-white text-[11px] rounded-xl shadow-2xl p-4 border border-slate-700 pointer-events-none"
-                :style="{
-                    top: (checklistTooltipCoords.top - 10) + 'px',
-                    left: checklistTooltipCoords.left + 'px',
-                    transform: 'translate(-50%, -100%)'
-                }"
-            >
-                <div
-                    class="mb-3 font-black border-b border-slate-700 pb-2 uppercase tracking-tighter text-indigo-300 flex items-center justify-between">
-                    <span>Activity Checklist</span>
-                    <span class="text-[9px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">{{
-                            hoveredChecklistTask.checklist
-                        }}</span>
-                </div>
-                <div class="max-h-60 overflow-y-auto space-y-2 custom-scrollbar pr-1">
-                    <div v-for="(st, idx) in hoveredChecklistTask.subtasks" :key="idx"
-                         class="flex items-start gap-3 text-left">
-                        <span class="shrink-0 mt-0.5 text-xs">{{ st.status === 'done' ? '✅' : '⬜' }}</span>
-                        <span class="leading-snug" :class="{'text-slate-400 line-through': st.status === 'done'}">
-                            {{ st.name }}
-                        </span>
-                    </div>
-                </div>
-                <!-- Arrow -->
-                <div class="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900"></div>
-            </div>
-        </Teleport>
+        </main>
+        
+    </div>
     </AuthenticatedLayout>
 </template>
 
 <style scoped>
-@media print {
-    .print\:hidden { display: none !important; }
-    body { background: white; }
-    .max-w-7xl { max-width: 100% !important; width: 100% !important; padding: 0 !important; }
-    .shadow-sm, .rounded-xl { border: 1px solid #e5e7eb !important; shadow: none !important; }
-}
+/* Scoped overrides if needed */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 10px; }
 </style>
