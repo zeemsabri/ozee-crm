@@ -81,11 +81,33 @@ class ExternalApiController extends Controller
 
         $milestoneIds = $project->milestones()->pluck('id')->toArray();
         $tasks = Task::whereIn('milestone_id', $milestoneIds)
-            ->with(['assignedTo', 'taskType', 'milestone', 'tags', 'subtasks'])
+            ->where('assigned_to_user_id', '=', $user->id)
+            ->whereNotIn('status', ['Done', 'Archived'])
             ->orderBy('due_date', 'asc')
-            ->get();
+            ->get(['id', 'name', 'description', 'status', 'due_date', 'priority', 'milestone_id', 'task_type_id', 'assigned_to_user_id']);
 
         return response()->json($tasks);
+    }
+
+    /**
+     * Fetch full details of a specific task.
+     *
+     * @param Task $task
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getTaskDetails(Task $task)
+    {
+        $user = Auth::user();
+
+        // Authorization check (via project)
+        $project = $task->milestone->project;
+        if (!$user->isSuperAdmin() && !$user->isManager() && !$user->projects->contains($project->id)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $task->load(['assignedTo', 'taskType', 'files', 'milestone.project', 'tags', 'subtasks', 'notes.creator']);
+
+        return response()->json($task);
     }
 
     /**
@@ -150,6 +172,10 @@ class ExternalApiController extends Controller
                         'status' => 'error'
                     ], 422);
                 }
+                if ($currentStatus === TaskStatus::Blocked) {
+                    $task->block_reason = null;
+                    $task->previous_status = null;
+                }
                 $validator->validate('Task', 'status', TaskStatus::InProgress->value);
                 $task->status = TaskStatus::InProgress;
                 $task->save();
@@ -174,7 +200,9 @@ class ExternalApiController extends Controller
                         'status' => 'error'
                     ], 422);
                 }
-                $task->previous_status = $currentStatus->value;
+                if ($currentStatus !== TaskStatus::Blocked) {
+                    $task->previous_status = $currentStatus->value;
+                }
                 $validator->validate('Task', 'status', TaskStatus::Blocked->value);
                 $task->status = TaskStatus::Blocked;
                 $task->block_reason = $validated['reason'];
@@ -228,6 +256,87 @@ class ExternalApiController extends Controller
         return response()->json([
             'message' => 'Task status successfully updated to ' . $task->status->value,
             'task' => $updatedTask
+        ]);
+    }
+
+    /**
+     * Fetch all notes for a specific task.
+     *
+     * @param Task $task
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getTaskNotes(Task $task)
+    {
+        $user = Auth::user();
+
+        // Authorization check (via project)
+        $project = $task->milestone->project;
+        if (!$user->isSuperAdmin() && !$user->isManager() && !$user->projects->contains($project->id)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $notes = $task->notes()
+            ->with('creator')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($notes);
+    }
+
+    /**
+     * Add a note to a specific task.
+     *
+     * @param Request $request
+     * @param Task $task
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function addTaskNote(Request $request, Task $task)
+    {
+        $user = Auth::user();
+
+        // Authorization check (via project)
+        $project = $task->milestone->project;
+        if (!$user->isSuperAdmin() && !$user->isManager() && !$user->projects->contains($project->id)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'note' => 'required|string',
+        ]);
+
+        $result = $task->addNote($validated['note'], $user);
+
+        if ($result) {
+            return response()->json([
+                'message' => 'Note added successfully',
+                'result' => $result
+            ]);
+        } else {
+            return response()->json(['message' => 'Failed to add note'], 500);
+        }
+    }
+
+    /**
+     * Get the total time spent on a specific task.
+     *
+     * @param Task $task
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getTaskTimeSpent(Task $task)
+    {
+        $user = Auth::user();
+
+        // Authorization check (via project)
+        $project = $task->milestone->project;
+        if (!$user->isSuperAdmin() && !$user->isManager() && !$user->projects->contains($project->id)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        return response()->json([
+            'task_id' => $task->id,
+            'task_name' => $task->name,
+            'total_time_spent_seconds' => $task->total_time_spent,
+            'formatted_time_spent' => $task->formatted_time_spent,
         ]);
     }
 }

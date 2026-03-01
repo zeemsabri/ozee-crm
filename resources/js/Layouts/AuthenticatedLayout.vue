@@ -192,11 +192,11 @@ onBeforeUnmount(() => {
 
             <KudoModal :show="openKudoModal" @close="openKudoModal = false" @submitted="openKudoModal = false" />
 
-            <MeetingMinutesModal 
-                :show="openMeetingMinutesModal" 
+            <MeetingMinutesModal
+                :show="openMeetingMinutesModal"
                 :projects="allProjectsForSidebar"
-                @close="openMeetingMinutesModal = false" 
-                @minutes-added="openMeetingMinutesModal = false" 
+                @close="openMeetingMinutesModal = false"
+                @minutes-added="openMeetingMinutesModal = false"
             />
         </div>
 

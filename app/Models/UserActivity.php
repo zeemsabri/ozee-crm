@@ -8,6 +8,7 @@ class UserActivity extends Model
 {
     protected $fillable = [
         'user_id',
+        'task_id',
         'domain',
         'url',
         'title',
@@ -29,6 +30,7 @@ class UserActivity extends Model
         'is_audible' => 'boolean',
         'tab_count' => 'integer',
         'duration' => 'integer',
+        'task_id' => 'integer',
         'recorded_at' => 'datetime',
         'last_heartbeat_at' => 'datetime',
     ];
@@ -36,5 +38,10 @@ class UserActivity extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function task()
+    {
+        return $this->belongsTo(Task::class);
     }
 }

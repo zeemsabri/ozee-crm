@@ -25,7 +25,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
 {
     use HasFactory, HasUserTimezone, LogsActivity, SoftDeletes, Taggable;
 
-    protected $appends = ['creator_name'];
+    protected $appends = ['creator_name', 'total_time_spent', 'formatted_time_spent'];
 
     // Task status constants (aliases maintained for backward compatibility)
     /** @deprecated use App\Enums\TaskStatus::ToDo */
@@ -389,6 +389,110 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
             // For now, if no creator, it remains unset, allowing database to handle nullability.
         });
 
+        static::saved(function (Task $task) {
+            $isStatusChanged = $task->wasRecentlyCreated || $task->wasChanged('status');
+
+            if ($isStatusChanged) {
+                $statusEnum = $task->status instanceof \App\Enums\TaskStatus ? $task->status : \App\Enums\TaskStatus::tryFrom((string) $task->status);
+                
+                if ($statusEnum === \App\Enums\TaskStatus::InProgress) {
+                    if ($task->assigned_to_user_id) {
+                        $otherTasks = static::where('assigned_to_user_id', $task->assigned_to_user_id)
+                            ->where('status', \App\Enums\TaskStatus::InProgress->value)
+                            ->where('id', '!=', $task->id)
+                            ->get();
+
+                        foreach ($otherTasks as $otherTask) {
+                            $otherTask->status = \App\Enums\TaskStatus::Paused;
+                            $otherTask->save();
+                        }
+                    }
+                }
+            }
+        });
+
+    }
+
+    /**
+     * Accessor for total time spent on this task in seconds.
+     *
+     * @return int
+     */
+    public function getTotalTimeSpentAttribute(): int
+    {
+        return $this->calculateTotalTimeSpent();
+    }
+
+    /**
+     * Accessor for formatted total time spent (HH:MM:SS).
+     *
+     * @return string
+     */
+    public function getFormattedTimeSpentAttribute(): string
+    {
+        $seconds = $this->calculateTotalTimeSpent();
+        $hours = floor($seconds / 3600);
+        $minutes = floor(($seconds / 60) % 60);
+        $seconds = $seconds % 60;
+
+        return sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
+    }
+
+    /**
+     * Calculate total time spent on this task in seconds based on activity log status changes.
+     *
+     * @return int Total seconds spent
+     */
+    public function calculateTotalTimeSpent(): int
+    {
+        // Fetch activities for this task where status was changed or model was created
+        $activities = Activity::forSubject($this)
+            ->where(function ($query) {
+                $query->where('description', 'created')
+                    ->orWhere('properties->attributes->status', '!=', null);
+            })
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        $totalSeconds = 0;
+        $startTime = null;
+
+        foreach ($activities as $activity) {
+            $properties = $activity->properties;
+            $status = null;
+
+            if ($activity->description === 'created') {
+                $status = $properties['attributes']['status'] ?? null;
+            } else {
+                $status = $properties['attributes']['status'] ?? null;
+            }
+
+            if (!$status) {
+                continue;
+            }
+
+            // Normalize status value
+            $statusValue = is_object($status) && isset($status->value) ? $status->value : (string) $status;
+            $timestamp = $activity->created_at;
+
+            if ($statusValue === TaskStatus::InProgress->value) {
+                if ($startTime === null) {
+                    $startTime = $timestamp;
+                }
+            } else {
+                if ($startTime !== null) {
+                    $totalSeconds += $timestamp->diffInSeconds($startTime);
+                    $startTime = null;
+                }
+            }
+        }
+
+        // If task is currently in progress, add time since the last start until now
+        if ($startTime !== null && ($this->status instanceof TaskStatus ? $this->status->value : (string) $this->status) === TaskStatus::InProgress->value) {
+            $totalSeconds += now()->diffInSeconds($startTime);
+        }
+
+        return $totalSeconds;
     }
 
     /**
@@ -926,6 +1030,11 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
     public function files()
     {
         return $this->morphMany(\App\Models\FileAttachment::class, 'fileable');
+    }
+
+    public function userActivities()
+    {
+        return $this->hasMany(\App\Models\UserActivity::class);
     }
 
     public function assignee()
