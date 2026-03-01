@@ -52,7 +52,7 @@ export const useWorkflowStore = defineStore('workflow', {
             workflow: null,
             items: [],
             meta: null,
-            params: { per_page: 20, page: 1, status: null, step_id: null },
+            params: { per_page: 50, page: 1, status: null, step_id: null },
         },
     }),
     actions: {
@@ -157,7 +157,7 @@ export const useWorkflowStore = defineStore('workflow', {
         async goToLogsPage(page) {
             if (!this.logsModal.workflow) return;
             this.logsModal.params.page = page;
-            await this.fetchWorkflowLogs(this.logsModal.workflow.id, {page});
+            await this.fetchWorkflowLogs(this.logsModal.workflow.id, { page });
 
         },
 
@@ -180,7 +180,7 @@ export const useWorkflowStore = defineStore('workflow', {
                     this.automationSchema = [];
                     this.campaigns = [];
                 }
-            } catch(error) {
+            } catch (error) {
                 console.error("Failed to fetch automation schema:", error);
                 this.automationSchema = [];
                 this.campaigns = [];
@@ -512,7 +512,7 @@ export const useWorkflowStore = defineStore('workflow', {
                         await this.fetchWorkflow(stepToSave.workflow_id);
                     }
                 }
-            } catch(error) {
+            } catch (error) {
                 console.error('Failed to save step:', error);
                 this.showAlert("Failed to save step.", "An error occurred while saving the step.");
             }
