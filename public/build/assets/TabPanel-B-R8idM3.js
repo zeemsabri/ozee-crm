@@ -1,0 +1,1 @@
+import{i as t,K as o,o as s,c as l,Y as r}from"./app-uPy8Yanj.js";const i={__name:"TabPanel",props:{active:{type:Boolean,default:!1}},setup(e){return(a,c)=>t((s(),l("div",null,[r(a.$slots,"default")],512)),[[o,e.active]])}};export{i as default};
