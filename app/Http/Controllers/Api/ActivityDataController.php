@@ -26,15 +26,15 @@ class ActivityDataController extends Controller
         $random = rand(100000, 999999);
         $fileName = "activity_logs/data_{$timestamp}_{$random}.json";
 
-        Storage::disk('local')->put($fileName, json_encode([
-            'timestamp' => now()->toDateTimeString(),
-            'ip' => $request->ip(),
-            'method' => $request->method(),
-            'headers' => $request->headers->all(),
-            'payload' => $payload,
-            'user_id' => $user?->id,
-            'user_name' => $user?->name,
-        ], JSON_PRETTY_PRINT));
+//        Storage::disk('local')->put($fileName, json_encode([
+//            'timestamp' => now()->toDateTimeString(),
+//            'ip' => $request->ip(),
+//            'method' => $request->method(),
+//            'headers' => $request->headers->all(),
+//            'payload' => $payload,
+//            'user_id' => $user?->id,
+//            'user_name' => $user?->name,
+//        ], JSON_PRETTY_PRINT));
 
         if ($user) {
             $activityData = $payload['data'] ?? [];
