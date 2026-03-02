@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\Lead;
 use App\Models\ProjectNote;
 use App\Models\User;
+use App\Models\UserProductivity;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request; // Ensure this is imported
 use Illuminate\Support\Facades\DB;
@@ -31,6 +32,7 @@ class AutomationSchemaController extends Controller
             ProjectNote::class,
             Campaign::class,
             Lead::class,
+            UserProductivity::class
             //            User::class
         ];
 
@@ -229,6 +231,10 @@ class AutomationSchemaController extends Controller
             ],
             'ProjectNote' => [
                 ['value' => 'received', 'label' => 'is received'],
+                ['value' => 'created', 'label' => 'is created'],
+                ['value' => 'updated', 'label' => 'is updated'],
+            ],
+            'UserProductivity' => [
                 ['value' => 'created', 'label' => 'is created'],
                 ['value' => 'updated', 'label' => 'is updated'],
             ],

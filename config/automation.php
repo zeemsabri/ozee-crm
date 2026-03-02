@@ -15,7 +15,7 @@ return [
     'models' => [
         // If empty, all models are allowed (except those in deny).
         // Example: ['Lead', 'Task']
-        'allow' => ['Task', 'Project', 'Email', 'Campaign', 'Lead', 'User', 'ProjectNote'],
+        'allow' => ['Task', 'Project', 'Email', 'Campaign', 'Lead', 'User', 'ProjectNote', 'UserProductivity'],
         // Models that will never trigger automations
         'deny' => ['ExecutionLog'],
     ],
