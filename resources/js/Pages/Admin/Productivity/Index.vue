@@ -22,7 +22,7 @@ const selectedUserIds = ref([]);
 const selectedDate = ref(moment().format('YYYY-MM-DD'));
 const reports = ref([]);
 const loading = ref(false);
-
+const pollingInterval = ref(null);
 const activeReportIndex = ref(0);
 
 const activeReport = computed(() => {
@@ -56,8 +56,116 @@ const timelineSlots = computed(() => {
     return activeReport.value.timeline_json || Array(144).fill(0);
 });
 
-async function fetchReports() {
-    loading.value = true;
+const aiReport = computed(() => {
+    if (!activeReport.value || !activeReport.value.ai_report_json) return null;
+    let raw = activeReport.value.ai_report_json;
+
+    // Direct object or array
+    if (typeof raw === 'object' && raw !== null) return raw;
+
+    if (typeof raw !== 'string') return null;
+
+    // Helper to cleanup unquoted text JSON failure from AI
+    const repairSloppyJson = (jsonString) => {
+        let text = jsonString.trim();
+        
+        // Handle double-encoded strings: "{\"key\": \"val\"}"
+        if (text.startsWith('"') && text.endsWith('"') && text.includes('\\"')) {
+            try {
+                text = JSON.parse(text); 
+            } catch(e) {}
+        }
+
+        // 1. Try standard parse first
+        try {
+            return JSON.parse(text);
+        } catch (e) {}
+
+        // 2. Heuristic: Logic to handle unquoted values with commas
+        const keys = [
+            'headline', 'attendance_summary', 'focus_rating', 'engagement_narrative', 
+            'accuracy_tip', 'improvement_suggestions', 'task_deep_dives', 'status'
+        ];
+
+        // We want to find the positions of all keys in the string
+        let keyPositions = [];
+        keys.forEach(key => {
+            const pattern = new RegExp(`"${key}"\\s*:`, 'g');
+            let match;
+            while ((match = pattern.exec(text)) !== null) {
+                keyPositions.push({ key, start: match.index, end: pattern.lastIndex });
+            }
+        });
+
+        // Sort by start position
+        keyPositions.sort((a, b) => a.start - b.start);
+
+        if (keyPositions.length === 0) return null;
+
+        const result = {};
+        for (let i = 0; i < keyPositions.length; i++) {
+            const current = keyPositions[i];
+            const next = keyPositions[i + 1];
+            
+            let valStart = current.end;
+            let valEnd = next ? next.start : text.lastIndexOf('}');
+            
+            let value = text.substring(valStart, valEnd).trim();
+            
+            // Clean up trailing commas
+            if (value.endsWith(',')) value = value.slice(0, -1).trim();
+            
+            // If it's already quoted, just parse it
+            if (value.startsWith('"') && value.endsWith('"')) {
+                try {
+                    result[current.key] = JSON.parse(value);
+                } catch(e) {
+                    result[current.key] = value.slice(1, -1);
+                }
+            } 
+            // If it's an array/object start, try to parse it
+            else if (value.startsWith('[') || value.startsWith('{')) {
+                try {
+                    result[current.key] = JSON.parse(value);
+                } catch(e) {
+                    // If nested unquoted array, this is harder, but let's try a simple fix
+                    result[current.key] = value; 
+                }
+            }
+            else {
+                // Unquoted string value - this was our main bug!
+                result[current.key] = value;
+            }
+        }
+        
+        return Object.keys(result).length > 0 ? result : null;
+    };
+
+    const repaired = repairSloppyJson(raw);
+    
+    // Normalize arrays
+    if (repaired) {
+        if (typeof repaired.improvement_suggestions === 'string') {
+            repaired.improvement_suggestions = repaired.improvement_suggestions
+                .replace(/^\[|\]$/g, '')
+                .split('","')
+                .map(s => s.replace(/^"|"$/g, '').trim());
+        }
+        if (typeof repaired.task_deep_dives === 'string') {
+            try {
+                // If it was captured as a string but looks like JSON, try one last parse
+                repaired.task_deep_dives = JSON.parse(repaired.task_deep_dives);
+            } catch(e) {}
+        }
+    }
+    
+    return repaired;
+});
+
+const isProcessing = computed(() => activeReport.value?.status === 'pending');
+
+async function fetchReports(silent = false) {
+    if (!silent) loading.value = true;
     try {
         const params = new URLSearchParams();
         selectedUserIds.value.forEach(id => params.append('user_ids[]', id));
@@ -65,15 +173,45 @@ async function fetchReports() {
         params.append('all', '1');
 
         const { data } = await axios.get('/api/productivity/snapshots', { params });
+        
+        // Preserve index if we are just polling
+        const prevId = activeReport.value?.id;
         reports.value = data;
-        activeReportIndex.value = 0; // reset
+        
+        if (prevId) {
+            const newIndex = data.findIndex(r => r.id === prevId);
+            if (newIndex !== -1) activeReportIndex.value = newIndex;
+        }
     } catch (e) {
         console.error(e);
-        window.toast?.error('Failed to load reports');
+        if (!silent) window.toast?.error('Failed to load reports');
     } finally {
-        loading.value = false;
+        if (!silent) loading.value = false;
     }
 }
+
+const startPolling = () => {
+    if (pollingInterval.value) return;
+    pollingInterval.value = setInterval(() => {
+        if (isProcessing.value) {
+            fetchReports(true);
+        } else {
+            stopPolling();
+        }
+    }, 15000);
+};
+
+const stopPolling = () => {
+    if (pollingInterval.value) {
+        clearInterval(pollingInterval.value);
+        pollingInterval.value = null;
+    }
+};
+
+watch(isProcessing, (processing) => {
+    if (processing) startPolling();
+    else stopPolling();
+});
 
 async function recreateReport() {
     if (!activeUser.value) return;
@@ -101,6 +239,7 @@ async function deleteReport() {
     try {
         await axios.delete(`/api/productivity/snapshots/${activeReport.value.id}`);
         window.toast?.success('Report deleted successfully!');
+        reports.value = []; // Clear current view
         await fetchReports();
     } catch (e) {
         console.error(e);
@@ -115,14 +254,14 @@ async function generateNewReportForSelected() {
         alert("Please select a user to generate a report.");
         return;
     }
-    const userId = selectedUserIds.value[0]; // Just generate for the first selected for now
+    const userId = selectedUserIds.value[0]; 
     loading.value = true;
     try {
         const { data } = await axios.post('/api/productivity/snapshots', {
             user_id: userId,
             date: selectedDate.value,
         });
-        window.toast?.success('Report generated successfully!');
+        window.toast?.success('Report generation started!');
         await fetchReports();
     } catch (e) {
         if(e.response?.status === 422) {
@@ -141,17 +280,19 @@ const toggleTask = (taskId) => {
 };
 
 onMounted(() => {
-    // If we have users but none selected, select the first one to start
     if (props.users && props.users.length > 0) {
         selectedUserIds.value = [props.users[0].value];
     }
     fetchReports();
 });
 
+import { onUnmounted } from 'vue';
+onUnmounted(() => stopPolling());
+
 const timelineColors = (slotData) => {
     if (slotData === 1) return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)] z-10 scale-y-[1.4] hover:scale-y-[1.6]';
     if (slotData === 2) return 'bg-amber-400 opacity-80 z-10 scale-y-[1.1] hover:scale-y-[1.3]';
-    return 'bg-zinc-100 hover:scale-y-[1.2]'; // 0 or offline
+    return 'bg-zinc-100 hover:scale-y-[1.2]';
 };
 
 const getTimelineLabel = (index) => {
@@ -159,6 +300,12 @@ const getTimelineLabel = (index) => {
     const h = Math.floor(totalMinutes / 60);
     const m = totalMinutes % 60;
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+};
+
+const getTaskAnalysis = (taskId) => {
+    if (!aiReport.value || !aiReport.value.task_deep_dives) return null;
+    const taskDeepDive = aiReport.value.task_deep_dives.find(d => d.task_id == taskId);
+    return taskDeepDive ? taskDeepDive.analysis : null;
 };
 </script>
 
@@ -225,18 +372,54 @@ const getTimelineLabel = (index) => {
                 </div>
             </div>
 
-            <!-- AI Intelligence Summary (Placeholder) -->
+            <!-- AI Intelligence Summary -->
             <section class="shadow-[0_0_20px_rgba(99,102,241,0.1)] border border-indigo-500/20 bg-white p-6 rounded-[2.5rem] flex items-center gap-6 relative overflow-hidden">
                 <div class="absolute inset-0 bg-gradient-to-r from-indigo-50/50 to-purple-50/50 pointer-events-none"></div>
-                <div class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 shrink-0 relative z-10">
-                    <SparklesIcon class="w-7 h-7" />
+                
+                <div v-if="isProcessing && !aiReport" class="flex-1 flex items-center gap-4 relative z-10 py-2">
+                    <div class="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+                    <div>
+                        <h2 class="text-sm font-black text-indigo-600 uppercase tracking-widest mb-1">AI Generating Analysis...</h2>
+                        <p class="text-xs text-zinc-500 font-medium italic">Our AI is currently auditing heartbeat logs and context switches. This usually takes 30-60 seconds.</p>
+                    </div>
                 </div>
-                <div class="flex-1 relative z-10">
-                    <h2 class="text-sm font-black text-indigo-600 uppercase tracking-widest mb-1">AI Intelligence Summary</h2>
-                    <p class="text-sm text-zinc-600 leading-relaxed font-medium">
-                        Based on the generated heartbeat logs, {{ activeUser?.name }} recorded <span class="text-zinc-900 font-bold bg-zinc-100 px-1.5 py-0.5 rounded">{{ stats?.actual_online_minutes }}m online duration</span>.
-                        Comprehensive AI bottleneck detection and workflow friction insights are currently generating and will be available in subsequent platform updates.
-                    </p>
+
+                <template v-else-if="aiReport">
+                    <div class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 shrink-0 relative z-10 transition-transform hover:scale-105">
+                        <SparklesIcon class="w-7 h-7" />
+                    </div>
+                    <div class="flex-1 relative z-10">
+                        <div class="flex justify-between items-start">
+                            <h2 class="text-sm font-black text-indigo-600 uppercase tracking-widest mb-1">AI Intelligence Summary</h2>
+                            <span class="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 uppercase tracking-widest">{{ aiReport.focus_rating }}</span>
+                        </div>
+                        <p class="text-sm text-zinc-900 font-black leading-tight mb-2 pr-10">"{{ aiReport.headline }}"</p>
+                        <p class="text-sm text-zinc-600 leading-relaxed font-medium mb-4">
+                            {{ aiReport.engagement_narrative }}
+                        </p>
+                        
+                        <div v-if="aiReport.improvement_suggestions?.length" class="mt-4 pt-4 border-t border-zinc-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div v-for="(tip, tIdx) in aiReport.improvement_suggestions" :key="'tip-'+tIdx" class="flex items-start gap-2 group">
+                                <LightbulbIcon class="w-4 h-4 text-amber-500 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                                <p class="text-[11px] text-zinc-500 font-semibold leading-normal">{{ tip }}</p>
+                            </div>
+                        </div>
+
+                        <div v-if="aiReport.accuracy_tip" class="mt-4 flex items-center gap-2 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-100 w-fit">
+                            <InfoIcon class="w-3.5 h-3.5 text-emerald-600" />
+                            <span class="text-[10px] font-black text-emerald-700 uppercase tracking-tight">{{ aiReport.accuracy_tip }}</span>
+                        </div>
+                    </div>
+                </template>
+
+                <div v-else class="flex-1 relative z-10 flex items-center gap-4">
+                     <div class="w-12 h-12 bg-zinc-100 rounded-xl flex items-center justify-center text-zinc-400">
+                        <InfoIcon class="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h2 class="text-sm font-black text-zinc-400 uppercase tracking-widest mb-1">AI Analysis Unavailable</h2>
+                        <p class="text-xs text-zinc-500 font-medium">Comprehensive AI narratives are generated automatically. If you don't see one, try regenerating the report.</p>
+                    </div>
                 </div>
             </section>
 
@@ -404,8 +587,22 @@ const getTimelineLabel = (index) => {
                             <!-- Task Evidence Drill-down Rows -->
                             <tr v-if="expandedTasks[task.task_id]" class="bg-zinc-50/70 border-t-0">
                                 <td colspan="5" class="px-8 py-10 shadow-inner">
-                                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                                        <!-- URL Activity / Top Domains -->
+                                    <div class="space-y-10">
+                                        <!-- AI Task Analysis -->
+                                        <div v-if="getTaskAnalysis(task.task_id)" class="bg-indigo-50/50 border border-indigo-100 p-6 rounded-[2rem] relative overflow-hidden">
+                                            <div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+                                                <SparklesIcon class="w-16 h-16 text-indigo-600" />
+                                            </div>
+                                            <h4 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2 mb-3">
+                                                <SparklesIcon class="w-3.5 h-3.5" /> AI Diagnostic Analysis
+                                            </h4>
+                                            <p class="text-sm text-zinc-700 leading-relaxed font-medium relative z-10">
+                                                {{ getTaskAnalysis(task.task_id) }}
+                                            </p>
+                                        </div>
+
+                                        <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                                            <!-- URL Activity / Top Domains -->
                                         <div class="space-y-4">
                                             <h4 class="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-4">
                                                 <GlobeIcon class="w-3.5 h-3.5" /> High-Intensity Platforms Used
@@ -438,6 +635,7 @@ const getTimelineLabel = (index) => {
                                                 </div>
                                             </div>
                                             
+                                        </div>
                                         </div>
                                     </div>
                                 </td>
