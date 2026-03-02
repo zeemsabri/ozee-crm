@@ -65,6 +65,32 @@ class ExternalApiController extends Controller
     }
 
     /**
+     * Fetch all tasks assigned to the authenticated user across all projects.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getUserTasks()
+    {
+        $user = Auth::user();
+
+        $tasks = Task::where('assigned_to_user_id', $user->id)
+            ->whereNotNull('milestone_id')
+            ->with(['milestone', 'milestone.project', 'tags'])
+            ->where('status', '!=', TaskStatus::Archived)
+            ->where(function ($query) {
+                $query->where('status', '!=', TaskStatus::Done)
+                    ->orWhere(function ($q) {
+                        $q->where('status', TaskStatus::Done)
+                            ->where('actual_completion_date', '>=', now()->subDays(7)->startOfDay());
+                    });
+            })
+            ->orderBy('due_date', 'asc')
+            ->get(['id', 'name', 'description', 'status', 'due_date', 'priority', 'milestone_id', 'task_type_id', 'assigned_to_user_id']);
+
+        return response()->json($tasks);
+    }
+
+    /**
      * Fetch all tasks in a project.
      *
      * @param Project $project
@@ -122,7 +148,13 @@ class ExternalApiController extends Controller
         $user = Auth::user();
 
         // Authorization check (via project)
-        $project = $task->milestone->project;
+        $project = $task->milestone?->project;
+        if(!$project) {
+            return response()->json([
+                'message' => 'Task can\'t be progressed because it doesn\'t belong to any milesone',
+                'status' => 'error'
+            ], 422);
+        }
         if (!$user->isSuperAdmin() && !$user->isManager() && !$user->projects->contains($project->id)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -270,7 +302,10 @@ class ExternalApiController extends Controller
         $user = Auth::user();
 
         // Authorization check (via project)
-        $project = $task->milestone->project;
+        $project = $task->milestone?->project;
+        if(!$project) {
+            return response()->json([]);
+        }
         if (!$user->isSuperAdmin() && !$user->isManager() && !$user->projects->contains($project->id)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }

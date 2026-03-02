@@ -5,8 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\UserActivity;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class ActivityDataController extends Controller
 {
@@ -18,85 +19,116 @@ class ActivityDataController extends Controller
      */
     public function store(Request $request)
     {
-        $payload = $request->input('payload', $request->all());
         $user = $request->user();
+        $raw = $request->all();
 
-        // Save to JSON for inspection (Debug mode)
-        $timestamp = now()->format('Y-m-d_H-i-s');
-        $random = rand(100000, 999999);
-        $fileName = "activity_logs/data_{$timestamp}_{$random}.json";
+        // Detect batch mode: either { events: [...] } or a direct array [...]
+        $payloads = null;
+        if (isset($raw['events']) && is_array($raw['events'])) {
+            $payloads = $raw['events'];
+        } elseif (isset($raw[0]) || (is_array($raw) && array_is_list($raw) && count($raw) > 0)) {
+            $payloads = $raw;
+        }
 
-//        Storage::disk('local')->put($fileName, json_encode([
-//            'timestamp' => now()->toDateTimeString(),
-//            'ip' => $request->ip(),
-//            'method' => $request->method(),
-//            'headers' => $request->headers->all(),
-//            'payload' => $payload,
-//            'user_id' => $user?->id,
-//            'user_name' => $user?->name,
-//        ], JSON_PRETTY_PRINT));
+        if ($payloads !== null) {
+            // ── BATCH MODE ──────────────────────────────────────────────────────────
+            // Process each item in order. We thread $lastActivity through the loop so
+            // we only do ONE initial DB query per batch instead of N queries.
+            if ($user && count($payloads) > 0) {
+                $lastActivity = UserActivity::where('user_id', $user->id)
+                    ->latest('last_heartbeat_at')
+                    ->latest('id')
+                    ->first();
+
+                foreach ($payloads as $payload) {
+                    $lastActivity = $this->processPayload($payload, $user, $lastActivity);
+                }
+            }
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Batch data received and saved.',
+                'count'   => count($payloads),
+            ]);
+        }
+
+        // ── SINGLE MODE ─────────────────────────────────────────────────────────────
+        $payload = $request->input('payload', $raw);
 
         if ($user) {
-            $activityData = $payload['data'] ?? [];
-            $taskId = $activityData['taskId'] ?? null;
-            $url = $activityData['url'] ?? '';
-            $domain = parse_url($url, PHP_URL_HOST) ?? 'unknown';
-            $now = isset($payload['timestamp']) ? Carbon::parse($payload['timestamp']) : now();
-            $durationReported = (int) ($payload['duration'] ?? 0);
-            $idleState = $payload['idleState'] ?? 'unknown';
-            $category = $this->categorizeDomain($domain, $user->id);
-
-            // Session Merging Threshold: 2 minutes (120 seconds)
-            // If the last activity was for the same domain, same idle state,
-            // and happened within this threshold, we append the duration.
-            $mergingThreshold = 120;
-
             $lastActivity = UserActivity::where('user_id', $user->id)
                 ->latest('last_heartbeat_at')
                 ->latest('id')
                 ->first();
 
-            $shouldMerge = $lastActivity &&
-                           $lastActivity->domain === $domain &&
-                           $lastActivity->idle_state === $idleState &&
-                           $lastActivity->task_id == $taskId &&
-                           $now->diffInSeconds($lastActivity->last_heartbeat_at) <= $mergingThreshold;
-
-            if ($shouldMerge) {
-                // UPDATE: Absorb the new duration into the existing row
-                $lastActivity->update([
-                    'last_heartbeat_at' => $now,
-                    'duration' => $lastActivity->duration + $durationReported,
-                    // Keep the title/url updated to the latest state
-                    'title' => $activityData['title'] ?? $lastActivity->title,
-                    'url' => $url ?: $lastActivity->url,
-                    'tab_count' => $activityData['tabCount'] ?? $lastActivity->tab_count,
-                ]);
-            } else {
-                // CREATE: Start a new session row
-                UserActivity::create([
-                    'user_id' => $user->id,
-                    'task_id' => $taskId,
-                    'domain' => $domain,
-                    'url' => $url,
-                    'title' => $activityData['title'] ?? null,
-                    'is_incognito' => $activityData['incognito'] ?? false,
-                    'is_audible' => $activityData['audible'] ?? false,
-                    'tab_count' => $activityData['tabCount'] ?? 0,
-                    'hostname' => $payload['hostname'] ?? null,
-                    'browser' => $payload['browser'] ?? null,
-                    'recorded_at' => $now,
-                    'last_heartbeat_at' => $now,
-                    'duration' => $durationReported,
-                    'idle_state' => $idleState,
-                    'category' => $category,
-                ]);
-            }
+            $this->processPayload($payload, $user, $lastActivity);
         }
 
         return response()->json([
-            'status' => 'success',
-            'message' => 'Data received and saved.'
+            'status'  => 'success',
+            'message' => 'Data received and saved.',
+        ]);
+    }
+
+    /**
+     * Process a single activity payload for the given user.
+     * Returns the activity record that was created or updated (useful for batch chaining).
+     *
+     * @param  array                        $payload
+     * @param  \App\Models\User             $user
+     * @param  \App\Models\UserActivity|null $lastActivity
+     * @return \App\Models\UserActivity|null
+     */
+    private function processPayload(array $payload, $user, ?UserActivity $lastActivity): ?UserActivity
+    {
+        $activityData    = $payload['data'] ?? [];
+        $taskId          = $activityData['taskId'] ?? null;
+        $url             = $activityData['url'] ?? '';
+        $domain          = parse_url($url, PHP_URL_HOST) ?? 'unknown';
+        $now             = isset($payload['timestamp']) ? Carbon::parse($payload['timestamp']) : now();
+        $durationReported = (int) ($payload['duration'] ?? 0);
+        $idleState       = $payload['idleState'] ?? 'unknown';
+        $category        = $this->categorizeDomain($domain, $user->id);
+
+        // Session Merging Threshold: 2 minutes (120 seconds)
+        $mergingThreshold = 120;
+
+        $shouldMerge = $lastActivity &&
+                       $lastActivity->domain === $domain &&
+                       $lastActivity->idle_state === $idleState &&
+                       $lastActivity->task_id == $taskId &&
+                       $now->diffInSeconds($lastActivity->last_heartbeat_at) <= $mergingThreshold;
+
+        if ($shouldMerge) {
+            // UPDATE: Absorb the new duration into the existing row
+            $lastActivity->update([
+                'last_heartbeat_at' => $now,
+                'duration'          => $lastActivity->duration + $durationReported,
+                'title'             => $activityData['title'] ?? $lastActivity->title,
+                'url'               => $url ?: $lastActivity->url,
+                'tab_count'         => $activityData['tabCount'] ?? $lastActivity->tab_count,
+            ]);
+
+            return $lastActivity;
+        }
+
+        // CREATE: Start a new session row
+        return UserActivity::create([
+            'user_id'          => $user->id,
+            'task_id'          => $taskId,
+            'domain'           => $domain,
+            'url'              => $url,
+            'title'            => $activityData['title'] ?? null,
+            'is_incognito'     => $activityData['incognito'] ?? false,
+            'is_audible'       => $activityData['audible'] ?? false,
+            'tab_count'        => $activityData['tabCount'] ?? 0,
+            'hostname'         => $payload['hostname'] ?? null,
+            'browser'          => $payload['browser'] ?? null,
+            'recorded_at'      => $now,
+            'last_heartbeat_at' => $now,
+            'duration'         => $durationReported,
+            'idle_state'       => $idleState,
+            'category'         => $category,
         ]);
     }
 
@@ -134,7 +166,7 @@ class ActivityDataController extends Controller
      * @param  int  $userId
      * @return string
      */
-    private function categorizeDomain(string $domain, int $userId = null): string
+    private function categorizeDomain(string $domain, int|null $userId = null): string
     {
         $categories = config('activity_categories.categories', []);
         $defaultCategory = config('activity_categories.default_category', 'neutral');
