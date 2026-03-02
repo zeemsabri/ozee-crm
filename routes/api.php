@@ -92,18 +92,19 @@ Route::middleware(['client.throttle'])->group(function () {
 Route::post('/client-api/verify', [MagicLinkController::class, 'verifyClient']);
 Route::post('/client-api/setup-pin', [MagicLinkController::class, 'setupPin']);
 
-//Route::middleware('auth.apikey')->group(function () {
-//    Route::post('/activityData', [ActivityDataController::class, 'store']);
-//
-//    // External API routes
-//    Route::get('/activity/projects', [\App\Http\Controllers\Api\ExternalApiController::class, 'getProjects']);
-//    Route::get('/activity/projects/{project}/tasks', [\App\Http\Controllers\Api\ExternalApiController::class, 'getProjectTasks']);
-//    Route::get('/activity/tasks/{task}', [\App\Http\Controllers\Api\ExternalApiController::class, 'getTaskDetails']);
-//    Route::post('/activity/tasks/{task}/status', [\App\Http\Controllers\Api\ExternalApiController::class, 'updateTaskStatus']);
-//    Route::get('/activity/tasks/{task}/notes', [\App\Http\Controllers\Api\ExternalApiController::class, 'getTaskNotes']);
-//    Route::post('/activity/tasks/{task}/notes', [\App\Http\Controllers\Api\ExternalApiController::class, 'addTaskNote']);
-//    Route::get('/activity/tasks/{task}/time', [\App\Http\Controllers\Api\ExternalApiController::class, 'getTaskTimeSpent']);
-//});
+Route::middleware('auth.apikey')->group(function () {
+    Route::post('/activityData', [ActivityDataController::class, 'store']);
+
+    // External API routes
+    Route::get('/activity/projects', [\App\Http\Controllers\Api\ExternalApiController::class, 'getProjects']);
+    Route::get('/activity/projects/{project}/tasks', [\App\Http\Controllers\Api\ExternalApiController::class, 'getProjectTasks']);
+    Route::get('/activity/tasks', [\App\Http\Controllers\Api\ExternalApiController::class, 'getUserTasks']);
+    Route::get('/activity/tasks/{task}', [\App\Http\Controllers\Api\ExternalApiController::class, 'getTaskDetails']);
+    Route::post('/activity/tasks/{task}/status', [\App\Http\Controllers\Api\ExternalApiController::class, 'updateTaskStatus']);
+    Route::get('/activity/tasks/{task}/notes', [\App\Http\Controllers\Api\ExternalApiController::class, 'getTaskNotes']);
+    Route::post('/activity/tasks/{task}/notes', [\App\Http\Controllers\Api\ExternalApiController::class, 'addTaskNote']);
+    Route::get('/activity/tasks/{task}/time', [\App\Http\Controllers\Api\ExternalApiController::class, 'getTaskTimeSpent']);
+});
 
 Route::get('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
 Route::post('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
