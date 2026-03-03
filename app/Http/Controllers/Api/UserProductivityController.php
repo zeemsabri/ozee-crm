@@ -115,8 +115,9 @@ class UserProductivityController extends Controller
      */
     public function getYesterdayReport()
     {
-        $userId = auth()->id();
-        $yesterday = Carbon::yesterday();
+        $user = auth()->user();
+        $timezone = $user->timezone ?? config('app.timezone');
+        $yesterday = Carbon::yesterday($timezone);
         $yesterdayStr = $yesterday->toDateString();
 
         // 1. Fetch the snapshot for yesterday
@@ -159,10 +160,11 @@ class UserProductivityController extends Controller
             'feedback' => 'required|string|max:1000',
         ]);
 
-        $userId = auth()->id();
-        $yesterdayStr = Carbon::yesterday()->toDateString();
+        $user = auth()->user();
+        $timezone = $user->timezone ?? config('app.timezone');
+        $yesterdayStr = Carbon::yesterday($timezone)->toDateString();
 
-        $productivity = UserProductivity::where('user_id', $userId)
+        $productivity = UserProductivity::where('user_id', $user->id)
             ->where('date', $yesterdayStr)
             ->first();
 
