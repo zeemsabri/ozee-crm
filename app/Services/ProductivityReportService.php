@@ -118,6 +118,9 @@ class ProductivityReportService
 
         foreach ($activities as $activity) {
             $time = Carbon::parse($activity->recorded_at);
+            if ($user->timezone) {
+                $time->setTimezone($user->timezone);
+            }
             // Calculate index (0-143) based on 10-minute intervals
             $index = (int)(($time->hour * 60 + $time->minute) / 10);
 
@@ -148,9 +151,9 @@ class ProductivityReportService
         $slots = $availability->time_slots;
 
         foreach ($slots as $slot) {
-            if (isset($slot['start']) && isset($slot['end'])) {
-                $start = Carbon::parse($slot['start']);
-                $end = Carbon::parse($slot['end']);
+            if (isset($slot['start_time']) && isset($slot['end_time'])) {
+                $start = Carbon::parse($slot['start_time']);
+                $end = Carbon::parse($slot['end_time']);
                 $totalMinutes += $start->diffInMinutes($end);
             }
         }

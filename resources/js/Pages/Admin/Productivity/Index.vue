@@ -4,10 +4,11 @@ import { Head, router } from '@inertiajs/vue3';
 import { ref, onMounted, computed, watch } from 'vue';
 import axios from 'axios';
 import moment from 'moment';
-import MultiSelectDropdown from '@/Components/MultiSelectDropdown.vue';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 import {
     LayoutDashboardIcon, SparklesIcon, AlarmClockIcon, Clock9Icon, GaugeIcon, SplitIcon,
-    CalendarIcon, ChevronDownIcon, XIcon, GlobeIcon, HistoryIcon, LightbulbIcon, PlusIcon, InfoIcon
+    CalendarIcon, ChevronDownIcon, XIcon, GlobeIcon, HistoryIcon, LightbulbIcon, PlusIcon, InfoIcon,
+    MessageSquareIcon, SendIcon, SaveIcon, UserIcon, ShieldCheckIcon
 } from 'lucide-vue-next';
 
 // From props (provided by Admin controller)
@@ -18,8 +19,8 @@ const props = defineProps({
     }
 });
 
-const selectedUserIds = ref([]);
-const selectedDate = ref(moment().format('YYYY-MM-DD'));
+const selectedUserId = ref(null);
+const selectedDate = ref(moment().subtract(1, 'days').format('YYYY-MM-DD'));
 const reports = ref([]);
 const loading = ref(false);
 const pollingInterval = ref(null);
@@ -55,6 +56,71 @@ const timelineSlots = computed(() => {
     if (!activeReport.value) return Array(144).fill(0);
     return activeReport.value.timeline_json || Array(144).fill(0);
 });
+
+const availabilityRegions = computed(() => {
+    if (!activeReport.value || !activeReport.value.availability || !activeReport.value.availability.time_slots) return [];
+    
+    return activeReport.value.availability.time_slots.map(slot => {
+        const startParts = slot.start_time.split(':');
+        const endParts = slot.end_time.split(':');
+        
+        const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
+        const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+        
+        const left = (startMinutes / 1440) * 100;
+        const width = ((endMinutes - startMinutes) / 1440) * 100;
+        
+        return { left: `${left}%`, width: `${width}%` };
+    });
+});
+
+const feedbackData = computed(() => {
+    return activeReport.value?.feedback_json || {};
+});
+
+const adminFeedback = ref('');
+const taskFeedback = ref({});
+
+watch(() => activeReport.value?.id, (newId, oldId) => {
+    if (activeReport.value && newId !== oldId) {
+        adminFeedback.value = '';
+        taskFeedback.value = {};
+    }
+}, { immediate: true });
+
+async function saveAdminFeedback() {
+    if (!activeReport.value || !adminFeedback.value.trim()) return;
+    loading.value = true;
+    try {
+        const { data } = await axios.post(`/api/productivity/snapshots/${activeReport.value.id}/feedback`, {
+            admin_feedback: adminFeedback.value,
+        });
+        activeReport.value.feedback_json = data.feedback;
+        adminFeedback.value = ''; // Reset after log
+        window.toast?.success('Audit log added');
+    } catch (e) {
+        console.error(e);
+        window.toast?.error('Failed to save feedback');
+    } finally {
+        loading.value = false;
+    }
+}
+
+async function saveSingleTaskFeedback(taskId) {
+    if (!activeReport.value || !taskFeedback.value[taskId]?.trim()) return;
+    try {
+        const payload = {
+            task_feedback: { [taskId]: taskFeedback.value[taskId] }
+        };
+        const { data } = await axios.post(`/api/productivity/snapshots/${activeReport.value.id}/feedback`, payload);
+        activeReport.value.feedback_json = data.feedback;
+        taskFeedback.value[taskId] = ''; // Reset this task's input
+        window.toast?.success('Task audit log added');
+    } catch (e) {
+        console.error(e);
+        window.toast?.error('Failed to save task feedback');
+    }
+}
 
 const aiReport = computed(() => {
     if (!activeReport.value || !activeReport.value.ai_report_json) return null;
@@ -165,10 +231,11 @@ const aiReport = computed(() => {
 const isProcessing = computed(() => activeReport.value?.status === 'pending');
 
 async function fetchReports(silent = false) {
+    if (!selectedUserId.value) return;
     if (!silent) loading.value = true;
     try {
         const params = new URLSearchParams();
-        selectedUserIds.value.forEach(id => params.append('user_ids[]', id));
+        params.append('user_ids[]', selectedUserId.value);
         params.append('date', selectedDate.value);
         params.append('all', '1');
 
@@ -250,11 +317,11 @@ async function deleteReport() {
 }
 
 async function generateNewReportForSelected() {
-    if(selectedUserIds.value.length === 0) {
+    if(!selectedUserId.value) {
         alert("Please select a user to generate a report.");
         return;
     }
-    const userId = selectedUserIds.value[0]; 
+    const userId = selectedUserId.value; 
     loading.value = true;
     try {
         const { data } = await axios.post('/api/productivity/snapshots', {
@@ -280,10 +347,7 @@ const toggleTask = (taskId) => {
 };
 
 onMounted(() => {
-    if (props.users && props.users.length > 0) {
-        selectedUserIds.value = [props.users[0].value];
-    }
-    fetchReports();
+    // No default user selection as requested
 });
 
 import { onUnmounted } from 'vue';
@@ -317,8 +381,8 @@ const getTaskAnalysis = (taskId) => {
         <section class="bg-white border-b border-zinc-200 px-8 py-5 shadow-sm">
             <div class="max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
                 <div class="md:col-span-5 relative z-50">
-                    <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-2 block">Team Members</label>
-                    <MultiSelectDropdown v-model="selectedUserIds" :options="props.users" :is-multi="true" placeholder="Select members" />
+                    <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-2 block">Team Member</label>
+                    <SelectDropdown v-model="selectedUserId" :options="props.users" placeholder="Select a team member" @change="fetchReports" />
                 </div>
                 <div class="md:col-span-3">
                     <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-2 block">Reporting Date</label>
@@ -491,8 +555,15 @@ const getTaskAnalysis = (taskId) => {
                 </div>
 
                 <div class="relative pt-12 pb-8">
-                    <!-- Placeholder Availability overlay - in a real app this would map to actual times -->
-                    <div class="absolute inset-y-0 bg-indigo-600/[0.035] border-x-2 border-dashed border-indigo-600/10 pointer-events-none rounded-2xl z-0" style="left: 10%; width: 75%;"></div>
+                    <!-- Availability overlay -->
+                    <template v-if="availabilityRegions.length">
+                        <div 
+                            v-for="(region, rIdx) in availabilityRegions" :key="'avail-'+rIdx"
+                            class="absolute inset-y-0 bg-indigo-600/[0.04] border-x border-dashed border-indigo-600/10 pointer-events-none rounded-sm z-0" 
+                            :style="{ left: region.left, width: region.width }"
+                        ></div>
+                    </template>
+                    <div v-else class="absolute inset-y-0 bg-rose-50/30 border-x-2 border-dashed border-rose-200/20 pointer-events-none rounded-2xl z-0" style="left: 0; width: 100%;"></div>
 
                     <div class="absolute top-0 left-0 right-0 flex justify-between text-[10px] font-black text-zinc-300 uppercase tracking-tighter border-b border-zinc-100 pb-2">
                         <span>00:00</span>
@@ -526,7 +597,65 @@ const getTaskAnalysis = (taskId) => {
                 </div>
             </section>
 
-            <!-- Task Table with Evidence Logs -->
+            <!-- Feedback Section -->
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- User Feedback -->
+                <div class="bg-white/85 backdrop-blur-md rounded-[2.5rem] p-8 border border-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)]">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="p-2 bg-zinc-100 rounded-xl">
+                            <UserIcon class="w-5 h-5 text-zinc-600" />
+                        </div>
+                        <h2 class="text-sm font-black text-zinc-900 uppercase tracking-widest">Self Feedback</h2>
+                    </div>
+                    
+                    <div v-if="feedbackData.user_feedback" class="space-y-4">
+                        <div class="bg-zinc-50 rounded-2xl p-5 border border-zinc-100">
+                             <p class="text-sm text-zinc-700 font-medium italic leading-relaxed">
+                                "{{ feedbackData.user_feedback }}"
+                             </p>
+                        </div>
+                        <div class="flex items-center gap-2 text-[10px] font-bold text-zinc-400 uppercase tracking-tight">
+                            <Clock9Icon class="w-3 h-3" />
+                            Submitted At: {{ feedbackData.user_feedback_at }}
+                        </div>
+                    </div>
+                    <div v-else class="text-center py-10">
+                        <MessageSquareIcon class="w-10 h-10 text-zinc-100 mx-auto mb-3" />
+                        <p class="text-xs text-zinc-400 font-medium italic">No feedback submitted by the user yet.</p>
+                    </div>
+                </div>
+
+                <!-- Admin/Staff Feedback -->
+                <div class="bg-white/85 backdrop-blur-md rounded-[2.5rem] p-8 border border-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] border-indigo-100 shadow-indigo-50/20">
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-indigo-50 rounded-xl">
+                                <ShieldCheckIcon class="w-5 h-5 text-indigo-600" />
+                            </div>
+                            <h2 class="text-sm font-black text-indigo-600 uppercase tracking-widest">Team Audit Feedback</h2>
+                        </div>
+                        <button @click="saveAdminFeedback" :disabled="loading" class="text-[10px] bg-indigo-600 text-white font-black px-4 py-2 rounded-xl uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-2">
+                            <SaveIcon class="w-3 h-3" /> Save Audit
+                        </button>
+                    </div>
+
+                    <div v-if="feedbackData.admin_feedbacks?.length" class="mb-6 space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        <div v-for="(log, lIdx) in feedbackData.admin_feedbacks" :key="'admin-log-'+lIdx" class="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-100/50 relative group">
+                            <p class="text-[11px] text-zinc-700 font-medium leading-relaxed mb-2">{{ log.comment }}</p>
+                            <div class="flex justify-between items-center text-[8px] font-black text-indigo-400 uppercase tracking-widest">
+                                <span>{{ log.by_name }}</span>
+                                <span>{{ log.at }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <textarea 
+                        v-model="adminFeedback"
+                        placeholder="Add professional notes, observations, or guidance for this report..."
+                        class="w-full h-24 bg-zinc-50 border-zinc-200 rounded-2xl text-xs font-medium text-zinc-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 p-4 transition-all placeholder:text-zinc-400"
+                    ></textarea>
+                </div>
+            </section>
             <div class="bg-white/85 backdrop-blur-md rounded-[2.5rem] border border-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] overflow-hidden">
                 <div class="px-8 py-6 border-b border-zinc-100 flex justify-between items-center bg-white/50">
                     <div>
@@ -599,6 +728,34 @@ const getTaskAnalysis = (taskId) => {
                                             <p class="text-sm text-zinc-700 leading-relaxed font-medium relative z-10">
                                                 {{ getTaskAnalysis(task.task_id) }}
                                             </p>
+                                        </div>
+
+                                        <!-- Admin Task Feedback -->
+                                        <div class="bg-white rounded-[2rem] border border-zinc-200 p-6 shadow-sm">
+                                            <div class="flex justify-between items-center mb-4">
+                                                <h4 class="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                                                    <MessageSquareIcon class="w-3.5 h-3.5" /> Staff Task Evaluation
+                                                </h4>
+                                                <button @click="saveSingleTaskFeedback(task.task_id)" class="text-[9px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1.5 hover:text-indigo-800">
+                                                    <SaveIcon class="w-3 h-3" /> Update Task Note
+                                                </button>
+                                            </div>
+
+                                            <div v-if="feedbackData.task_feedbacks?.[task.task_id]?.length" class="mb-4 space-y-3">
+                                                <div v-for="(log, tlIdx) in feedbackData.task_feedbacks[task.task_id]" :key="'tasklog-'+tlIdx" class="bg-zinc-50 border border-zinc-100 rounded-xl p-3">
+                                                    <p class="text-[10px] text-zinc-600 font-medium mb-1.5">{{ log.comment }}</p>
+                                                    <div class="flex justify-between items-center text-[7px] font-black text-zinc-400 uppercase tracking-widest">
+                                                        <span>{{ log.by_name }}</span>
+                                                        <span>{{ log.at }}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <textarea 
+                                                v-model="taskFeedback[task.task_id]"
+                                                placeholder="Add notes specifically about this task's fidelity or execution..."
+                                                class="w-full h-16 bg-white border-zinc-200 rounded-xl text-[11px] font-medium text-zinc-700 focus:ring-1 focus:ring-indigo-500/30 p-3 transition-all placeholder:text-zinc-300"
+                                            ></textarea>
                                         </div>
 
                                         <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
