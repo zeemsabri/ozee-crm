@@ -43,7 +43,7 @@ class ProductivityReportService
         $tasksData = $this->prepareTaskData($activities, $systemLogs);
 
         // 3. Prepare Timeline Barcode (Generating 144 blocks of 10-mins)
-        $timeline = $this->prepareTimelineBarcode($activities, $availability);
+        $timeline = $this->prepareTimelineBarcode($activities, $availability, $user);
 
         // 4. Calculate Aggregate Stats
         $stats = [
@@ -112,7 +112,7 @@ class ProductivityReportService
      * Maps activity timestamps into an array of 144 integers (10-min resolution).
      * 0: Offline, 1: Active, 2: Idle/Neutral
      */
-    private function prepareTimelineBarcode($activities, $availability)
+    private function prepareTimelineBarcode($activities, $availability, $user)
     {
         $barcode = array_fill(0, 144, 0);
 
