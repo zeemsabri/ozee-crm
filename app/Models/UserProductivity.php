@@ -69,7 +69,8 @@ class UserProductivity extends Model
         // HEURISTIC: Find known keys and extract values between them
         $keys = [
             'headline', 'attendance_summary', 'focus_rating', 'engagement_narrative', 
-            'accuracy_tip', 'improvement_suggestions', 'task_deep_dives', 'status'
+            'accuracy_tip', 'improvement_suggestions', 'task_deep_dives', 'status',
+            'user_report', 'user_question'
         ];
         
         $keyPositions = [];
