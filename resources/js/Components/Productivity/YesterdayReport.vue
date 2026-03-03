@@ -15,6 +15,7 @@ const props = defineProps({
 });
 
 const report = ref(null);
+const userQuestion = ref('How was your day?');
 const humanDate = ref('');
 const userFeedback = ref('');
 const isSavingFeedback = ref(false);
@@ -41,6 +42,7 @@ const checkCache = () => {
             const yesterday = getYesterdayDate();
             if (data.date === yesterday && data.user_report) {
                 report.value = data.user_report;
+                userQuestion.value = data.user_question || 'How was your day?';
                 humanDate.value = data.human_date;
                 userFeedback.value = data.user_feedback || '';
                 feedbackSaved.value = !!data.user_feedback; // Should be true if there is a report
@@ -58,6 +60,7 @@ const saveToCache = (payload) => {
     localStorage.setItem(CACHE_KEY, JSON.stringify({
         date: yesterday,
         user_report: payload.user_report,
+        user_question: payload.user_question,
         human_date: payload.human_date,
         user_feedback: payload.user_feedback,
         feedback_saved: !!payload.user_feedback,
@@ -108,12 +111,14 @@ const fetchReport = async () => {
         const response = await axios.get('/api/productivity/yesterday-report');
         if (response.data && response.data.user_report) {
             report.value = response.data.user_report;
+            userQuestion.value = response.data.user_question || 'How was your day?';
             humanDate.value = response.data.human_date;
             userFeedback.value = response.data.user_feedback || '';
             feedbackSaved.value = !!response.data.user_feedback;
             
             saveToCache({
                 user_report: report.value,
+                user_question: userQuestion.value,
                 human_date: humanDate.value,
                 user_feedback: userFeedback.value,
                 feedback_saved: feedbackSaved.value
@@ -150,6 +155,7 @@ const submitFeedback = async () => {
         // Update cache
         saveToCache({
             user_report: report.value,
+            user_question: userQuestion.value,
             human_date: humanDate.value,
             user_feedback: userFeedback.value,
             feedback_saved: true
@@ -215,7 +221,7 @@ onBeforeUnmount(() => {
                 <!-- Dynamic Inline Feedback Section -->
                 <div class="mt-4 pt-4 border-t border-indigo-100">
                     <div v-if="!feedbackSaved || isEditing">
-                        <InputLabel for="dashboard_feedback" value="How was your day? (Optional Feedback)" class="text-indigo-700 font-semibold mb-2" />
+                        <InputLabel for="dashboard_feedback" :value="userQuestion" class="text-indigo-700 font-semibold mb-2" />
                         <div class="flex space-x-2">
                             <TextareaInput
                                 id="dashboard_feedback"
@@ -313,7 +319,7 @@ onBeforeUnmount(() => {
                         <svg class="h-5 w-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                         </svg>
-                        <h3 class="text-indigo-900 font-bold">How was your day?</h3>
+                        <h3 class="text-indigo-900 font-bold">{{ userQuestion }}</h3>
                     </div>
                     
                     <div v-if="!feedbackSaved || isEditing">
