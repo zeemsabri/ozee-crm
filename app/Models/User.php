@@ -49,6 +49,8 @@ class User extends Authenticatable
         'checklist',
         'notes',
         'api_key',
+        'is_online',
+        'online_data',
     ];
 
     /**
@@ -75,6 +77,8 @@ class User extends Authenticatable
         'last_login_at' => 'datetime',
         'checklist' => 'array',
         'notes' => 'array',
+        'is_online' => 'boolean',
+        'online_data' => 'array',
     ];
 
     protected $with = ['role', 'categories']; // Always load the role relationship
@@ -701,5 +705,42 @@ class User extends Authenticatable
     public function productivities()
     {
         return $this->hasMany(UserProductivity::class);
+    }
+
+    /**
+     * Get the currently active task for the user.
+     * 
+     * @return \Illuminate\Database\Eloquent\Relations\HasOne
+     */
+    public function activeTask()
+    {
+        return $this->hasOne(Task::class, 'assigned_to_user_id')
+            ->where('status', \App\Enums\TaskStatus::InProgress->value);
+    }
+
+    /**
+     * Retrieve the online/offline activity logs for the user within a date range.
+     *
+     * @param string|null $startDate
+     * @param string|null $endDate
+     * @return \Illuminate\Support\Collection
+     */
+    public function onlineActivityLogs(?string $startDate = null, ?string $endDate = null)
+    {
+        $userTimezone = $this->timezone ?? config('app.timezone', 'UTC');
+        $query = \Spatie\Activitylog\Models\Activity::forSubject($this)
+            ->where('log_name', 'online_status');
+
+        if ($startDate) {
+            $startUtc = \Carbon\Carbon::parse($startDate, $userTimezone)->startOfDay()->setTimezone('UTC');
+            $query->where('created_at', '>=', $startUtc);
+        }
+
+        if ($endDate) {
+            $endUtc = \Carbon\Carbon::parse($endDate, $userTimezone)->endOfDay()->setTimezone('UTC');
+            $query->where('created_at', '<=', $endUtc);
+        }
+
+        return $query->latest()->get();
     }
 }
