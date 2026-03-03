@@ -140,6 +140,7 @@ const createCategory = async () => {
                                 <DropdownLink v-permission="'manage_projects'" :href="route('admin.productivity.index')" :active="route().current('admin.productivity.index')" class="!px-2 !py-1.5">Productivity Report</DropdownLink>
                                 <DropdownLink v-permission="'manage_projects'" :href="route('admin.productivity-projects.index')" :active="route().current('admin.productivity-projects.index')" class="!px-2 !py-1.5">Project Activity Report</DropdownLink>
                                 <DropdownLink v-permission="'manage_projects'" :href="route('admin.activity-report.index')" :active="route().current('admin.activity-report.index')" class="!px-2 !py-1.5">Activity Report</DropdownLink>
+                                <DropdownLink v-permission="'manage_projects'" :href="route('admin.live-status.index')" :active="route().current('admin.live-status.index')" class="!px-2 !py-1.5">User Live Status</DropdownLink>
                             </div>
                         </div>
 

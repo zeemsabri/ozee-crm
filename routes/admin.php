@@ -51,5 +51,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/monthly-budgets/{monthlyBudget}', [MonthlyBudgetController::class, 'destroy'])
             ->middleware(['permission:manage_monthly_budgets'])
             ->name('admin.monthly-budgets.destroy');
+
+        // Live Status routes
+        Route::get('/live-status', [\App\Http\Controllers\Admin\LiveStatusController::class, 'index'])
+            ->name('admin.live-status.index');
+        Route::get('/live-status/{user}/logs', [\App\Http\Controllers\Admin\LiveStatusController::class, 'logs'])
+            ->name('admin.live-status.logs');
     });
 });

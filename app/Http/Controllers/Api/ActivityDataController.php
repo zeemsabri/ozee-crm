@@ -45,7 +45,7 @@ class ActivityDataController extends Controller
     {
         $user = $request->user();
         $raw = $request->all();
-        Log::info('Received activity data', ['data' => $raw]);
+//        Log::info('Received activity data', ['data' => $raw]);
 
         // Detect batch mode: either { events: [...] } or a direct array [...]
         $payloads = null;
@@ -107,6 +107,29 @@ class ActivityDataController extends Controller
     private function processPayload(array $payload, $user, ?UserActivity $lastActivity): ?UserActivity
     {
         $activityData    = $payload['data'] ?? [];
+        $type            = $activityData['type'] ?? 'heartbeat';
+
+        if ($type === 'session_pulse') {
+            $sessionStatus = $activityData['sessionStatus'] ?? 'inactive';
+            $isNowOnline   = ($sessionStatus === 'active');
+
+            if ($user->is_online !== $isNowOnline) {
+                $user->update([
+                    'is_online' => $isNowOnline,
+                    'online_data' => array_merge($user->online_data ?? [], [
+                        'last_status_change' => now()->toIso8601String()
+                    ])
+                ]);
+
+                // Use Spatie Activity Log for status changes
+                activity('online_status')
+                    ->performedOn($user)
+                    ->withProperties(['status' => $isNowOnline ? 'online' : 'offline', 'data' => $activityData])
+                    ->log("User went " . ($isNowOnline ? 'online' : 'offline'));
+            }
+            return null; // session_pulse doesn't write to UserActivity table
+        }
+
         $taskId          = $this->getValidatedTaskId($activityData['taskId'] ?? null);
         $url             = $activityData['url'] ?? '';
         $domain          = parse_url($url, PHP_URL_HOST) ?? 'unknown';
