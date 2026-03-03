@@ -138,12 +138,14 @@ class UserProductivityController extends Controller
         // 3. Extract the user-facing report
         $aiData = $productivity->ai_report_json;
         $userReport = $aiData['user_report'] ?? null;
-
+        $userQuestion = $aiData['user_question'] ?? 'How was your day?';
+        
         // Get existing feedback if any
         $feedback = $productivity->feedback_json ?? [];
 
         return response()->json([
             'user_report' => $userReport,
+            'user_question' => $userQuestion,
             'date' => $yesterdayStr,
             'human_date' => $yesterday->format('F jS, Y'),
             'status' => $productivity->status,
