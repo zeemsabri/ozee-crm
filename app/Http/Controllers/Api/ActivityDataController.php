@@ -11,6 +11,30 @@ use Illuminate\Support\Facades\Storage;
 
 class ActivityDataController extends Controller
 {
+    private $taskIdChecked = [];
+
+    /**
+     * Validate Task ID existence and return it or null if invalid.
+     *
+     * @param mixed $taskId
+     * @return int|null
+     */
+    private function getValidatedTaskId($taskId)
+    {
+        if (empty($taskId) || !is_numeric($taskId)) {
+            return null;
+        }
+
+        if (isset($this->taskIdChecked[$taskId])) {
+            return $this->taskIdChecked[$taskId] ? (int) $taskId : null;
+        }
+
+        $exists = \App\Models\Task::where('id', $taskId)->exists();
+        $this->taskIdChecked[$taskId] = $exists;
+
+        return $exists ? (int) $taskId : null;
+    }
+
     /**
      * Store activity data in a JSON file and database for reporting.
      *
@@ -21,6 +45,7 @@ class ActivityDataController extends Controller
     {
         $user = $request->user();
         $raw = $request->all();
+        Log::info('Received activity data', ['data' => $raw]);
 
         // Detect batch mode: either { events: [...] } or a direct array [...]
         $payloads = null;
@@ -82,11 +107,11 @@ class ActivityDataController extends Controller
     private function processPayload(array $payload, $user, ?UserActivity $lastActivity): ?UserActivity
     {
         $activityData    = $payload['data'] ?? [];
-        $taskId          = $activityData['taskId'] ?? null;
+        $taskId          = $this->getValidatedTaskId($activityData['taskId'] ?? null);
         $url             = $activityData['url'] ?? '';
         $domain          = parse_url($url, PHP_URL_HOST) ?? 'unknown';
         $now             = isset($payload['timestamp']) ? Carbon::parse($payload['timestamp']) : now();
-        $durationReported = (int) ($payload['duration'] ?? 0);
+        $durationReported = max(0, (int) ($payload['duration'] ?? 0));
         $idleState       = $payload['idleState'] ?? 'unknown';
         $category        = $this->categorizeDomain($domain, $user->id);
 
