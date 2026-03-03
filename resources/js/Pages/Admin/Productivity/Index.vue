@@ -24,6 +24,7 @@ const selectedDate = ref(moment().subtract(1, 'days').format('YYYY-MM-DD'));
 const reports = ref([]);
 const loading = ref(false);
 const pollingInterval = ref(null);
+const isChecking = ref(false);
 const activeReportIndex = ref(0);
 
 const activeReport = computed(() => {
@@ -53,22 +54,26 @@ const tasks = computed(() => {
 });
 
 const timelineSlots = computed(() => {
-    if (!activeReport.value) return Array(144).fill(0);
-    return activeReport.value.timeline_json || Array(144).fill(0);
+    if (!activeReport.value || !activeReport.value.timeline_json) return Array(144).fill(0);
+    return activeReport.value.timeline_json;
 });
 
 const availabilityRegions = computed(() => {
-    if (!activeReport.value || !activeReport.value.availability || !activeReport.value.availability.time_slots) return [];
+    if (!activeReport.value || !activeReport.value.availability || !Array.isArray(activeReport.value.availability.time_slots)) return [];
     
     return activeReport.value.availability.time_slots.map(slot => {
-        const startParts = slot.start_time.split(':');
-        const endParts = slot.end_time.split(':');
+        if (!slot?.start_time || !slot?.end_time) return { left: '0%', width: '0%' };
+        
+        const startParts = String(slot.start_time).split(':');
+        const endParts = String(slot.end_time).split(':');
+        
+        if (startParts.length < 2 || endParts.length < 2) return { left: '0%', width: '0%' };
         
         const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
         const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
         
         const left = (startMinutes / 1440) * 100;
-        const width = ((endMinutes - startMinutes) / 1440) * 100;
+        const width = Math.max(0, ((endMinutes - startMinutes) / 1440) * 100);
         
         return { left: `${left}%`, width: `${width}%` };
     });
@@ -126,8 +131,16 @@ const aiReport = computed(() => {
     if (!activeReport.value || !activeReport.value.ai_report_json) return null;
     let raw = activeReport.value.ai_report_json;
 
-    // Direct object or array
-    if (typeof raw === 'object' && raw !== null) return raw;
+    // Check if it's empty or invalid
+    if (typeof raw === 'object' && raw !== null) {
+        if (Array.isArray(raw) && raw.length === 0) return null;
+        if (!Array.isArray(raw) && Object.keys(raw).length === 0) return null;
+        
+        // If it is an object but doesn't have the expected keys, it might be partial or invalid
+        if (!Array.isArray(raw) && !raw.headline && !raw.engagement_narrative) return null;
+
+        return raw;
+    }
 
     if (typeof raw !== 'string') return null;
 
@@ -228,11 +241,22 @@ const aiReport = computed(() => {
     return repaired;
 });
 
-const isProcessing = computed(() => activeReport.value?.status === 'pending');
+const isProcessing = computed(() => {
+    if (!activeReport.value) return false;
+    
+    // Check if aiReport computed returns null (which means no valid data yet)
+    if (aiReport.value) return false;
+    
+    return activeReport.value.status === 'pending';
+});
 
 async function fetchReports(silent = false) {
-    if (!selectedUserId.value) return;
+    if (!selectedUserId.value) {
+        reports.value = [];
+        return;
+    }
     if (!silent) loading.value = true;
+    else isChecking.value = true;
     try {
         const params = new URLSearchParams();
         params.append('user_ids[]', selectedUserId.value);
@@ -241,19 +265,41 @@ async function fetchReports(silent = false) {
 
         const { data } = await axios.get('/api/productivity/snapshots', { params });
         
+        // Normalize: handle Arrays, Paginator objects { data: [] }, and single objects
+        let normalizedData = [];
+        if (Array.isArray(data)) {
+            normalizedData = data;
+        } else if (data && typeof data === 'object') {
+            if (Array.isArray(data.data)) {
+                // It's a paginator
+                normalizedData = data.data;
+            } else if (data.id) {
+                // It's a single model object
+                normalizedData = [data];
+            } else {
+                normalizedData = [];
+            }
+        }
+        
         // Preserve index if we are just polling
         const prevId = activeReport.value?.id;
-        reports.value = data;
+        reports.value = normalizedData;
         
         if (prevId) {
-            const newIndex = data.findIndex(r => r.id === prevId);
+            const newIndex = normalizedData.findIndex(r => r && r.id === prevId);
             if (newIndex !== -1) activeReportIndex.value = newIndex;
+            else activeReportIndex.value = 0;
+        } else {
+            activeReportIndex.value = 0;
         }
     } catch (e) {
-        console.error(e);
+        console.error("Fetch reports error:", e);
         if (!silent) window.toast?.error('Failed to load reports');
     } finally {
         if (!silent) loading.value = false;
+        setTimeout(() => {
+            isChecking.value = false;
+        }, 800);
     }
 }
 
@@ -265,7 +311,7 @@ const startPolling = () => {
         } else {
             stopPolling();
         }
-    }, 15000);
+    }, 10000);
 };
 
 const stopPolling = () => {
@@ -278,7 +324,7 @@ const stopPolling = () => {
 watch(isProcessing, (processing) => {
     if (processing) startPolling();
     else stopPolling();
-});
+}, { immediate: true });
 
 async function recreateReport() {
     if (!activeUser.value) return;
@@ -440,11 +486,18 @@ const getTaskAnalysis = (taskId) => {
             <section class="shadow-[0_0_20px_rgba(99,102,241,0.1)] border border-indigo-500/20 bg-white p-6 rounded-[2.5rem] flex items-center gap-6 relative overflow-hidden">
                 <div class="absolute inset-0 bg-gradient-to-r from-indigo-50/50 to-purple-50/50 pointer-events-none"></div>
                 
-                <div v-if="isProcessing && !aiReport" class="flex-1 flex items-center gap-4 relative z-10 py-2">
-                    <div class="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-                    <div>
-                        <h2 class="text-sm font-black text-indigo-600 uppercase tracking-widest mb-1">AI Generating Analysis...</h2>
-                        <p class="text-xs text-zinc-500 font-medium italic">Our AI is currently auditing heartbeat logs and context switches. This usually takes 30-60 seconds.</p>
+                <div v-if="isProcessing && !aiReport" class="flex-1 flex items-center justify-between gap-4 relative z-10 py-2">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+                        <div>
+                            <h2 class="text-sm font-black text-indigo-600 uppercase tracking-widest mb-1">AI Generating Analysis...</h2>
+                            <p class="text-xs text-zinc-500 font-medium italic">Our AI is currently auditing heartbeat logs and context switches. This usually takes 30-60 seconds.</p>
+                        </div>
+                    </div>
+                    
+                    <div v-if="isChecking" class="flex items-center gap-2 bg-indigo-600/10 px-4 py-2 rounded-2xl border border-indigo-200/50 animate-pulse">
+                        <SparklesIcon class="w-3.5 h-3.5 text-indigo-600 animate-bounce" />
+                        <span class="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Checking for Data...</span>
                     </div>
                 </div>
 
@@ -454,7 +507,13 @@ const getTaskAnalysis = (taskId) => {
                     </div>
                     <div class="flex-1 relative z-10">
                         <div class="flex justify-between items-start">
-                            <h2 class="text-sm font-black text-indigo-600 uppercase tracking-widest mb-1">AI Intelligence Summary</h2>
+                            <div class="flex flex-col">
+                                <h2 class="text-sm font-black text-indigo-600 uppercase tracking-widest mb-1">AI Intelligence Summary</h2>
+                                <div v-if="isChecking" class="flex items-center gap-1.5 text-emerald-600 animate-pulse mt-[-4px] mb-1">
+                                    <div class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+                                    <span class="text-[9px] font-bold uppercase tracking-widest">Syncing New Data...</span>
+                                </div>
+                            </div>
                             <span class="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 uppercase tracking-widest">{{ aiReport.focus_rating }}</span>
                         </div>
                         <p class="text-sm text-zinc-900 font-black leading-tight mb-2 pr-10">"{{ aiReport.headline }}"</p>
@@ -815,7 +874,25 @@ const getTaskAnalysis = (taskId) => {
             
         </main>
         
-        <main class="max-w-[1600px] mx-auto p-8 pt-12" v-else-if="reports.length === 0 && !loading">
+        <main class="max-w-[1600px] mx-auto p-8 pt-12" v-else-if="loading && reports.length === 0">
+            <div class="bg-white/85 backdrop-blur-md p-16 rounded-[2.5rem] text-center border shadow-sm border-white">
+                <div class="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mx-auto mb-6"></div>
+                <h3 class="font-black text-zinc-900 text-xl tracking-tight">Accessing Insight Vault...</h3>
+                <p class="text-zinc-500 text-sm mt-2 font-medium italic">We are compiling activity logs and availability data. Please wait.</p>
+            </div>
+        </main>
+        
+        <main class="max-w-[1600px] mx-auto p-8 pt-12" v-else-if="!selectedUserId">
+            <div class="bg-white/85 backdrop-blur-md p-16 rounded-[2.5rem] text-center border shadow-sm border-white">
+                <div class="w-20 h-20 bg-indigo-50 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border border-indigo-200 shadow-inner">
+                    <UserIcon class="h-8 w-8 text-indigo-400" />
+                </div>
+                <h3 class="font-black text-zinc-900 text-xl tracking-tight">Personnel Audit Required</h3>
+                <p class="text-zinc-500 text-sm mt-2 mb-8 max-w-sm mx-auto font-medium">Please select a team member from the dropdown above to begin the productivity evaluation.</p>
+            </div>
+        </main>
+        
+        <main class="max-w-[1600px] mx-auto p-8 pt-12" v-else-if="reports.length === 0">
             <div class="bg-white/85 backdrop-blur-md p-16 rounded-[2.5rem] text-center border shadow-sm border-white">
                 <div class="w-20 h-20 bg-zinc-50 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border border-zinc-200 shadow-inner">
                     <HistoryIcon class="h-8 w-8 text-zinc-300" />

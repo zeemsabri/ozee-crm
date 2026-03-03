@@ -49,6 +49,11 @@ class UserProductivityController extends Controller
                 ->first();
         });
 
+        // If requesting a single user and snapshot, return object instead of array
+        if (($request->has('user_id') || (isset($userIds) && count($userIds) === 1)) && $snapshots->count() === 1) {
+            return response()->json($snapshots->first());
+        }
+
         return response()->json($snapshots);
     }
 
