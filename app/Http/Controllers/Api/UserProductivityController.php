@@ -121,7 +121,7 @@ class UserProductivityController extends Controller
         $yesterdayStr = $yesterday->toDateString();
 
         // 1. Fetch the snapshot for yesterday
-        $productivity = UserProductivity::where('user_id', $userId)
+        $productivity = UserProductivity::where('user_id', $user->id)
             ->where('date', $yesterdayStr)
             ->first();
 
@@ -138,7 +138,7 @@ class UserProductivityController extends Controller
         // 3. Extract the user-facing report
         $aiData = $productivity->ai_report_json;
         $userReport = $aiData['user_report'] ?? null;
-        
+
         // Get existing feedback if any
         $feedback = $productivity->feedback_json ?? [];
 
@@ -196,7 +196,7 @@ class UserProductivityController extends Controller
         ]);
 
         $feedback = $userProductivity->feedback_json ?? [];
-        
+
         if ($request->filled('admin_feedback')) {
             $adminLogs = $feedback['admin_feedbacks'] ?? [];
             $adminLogs[] = [
@@ -206,7 +206,7 @@ class UserProductivityController extends Controller
                 'by_name' => auth()->user()->name,
             ];
             $feedback['admin_feedbacks'] = $adminLogs;
-            
+
             // Keep legacy field for compatibility if needed
             $feedback['admin_feedback'] = $v['admin_feedback'];
             $feedback['admin_feedback_at'] = now()->toDateTimeString();
@@ -217,10 +217,10 @@ class UserProductivityController extends Controller
             $taskLogs = $feedback['task_feedbacks'] ?? [];
             $legacyTaskFeedback = $feedback['task_feedback'] ?? [];
             if (!is_array($legacyTaskFeedback)) $legacyTaskFeedback = [];
-            
+
             foreach ($v['task_feedback'] as $taskId => $comment) {
                 if (empty($comment)) continue;
-                
+
                 $logsForTask = $taskLogs[$taskId] ?? [];
                 $logsForTask[] = [
                     'comment' => $comment,
@@ -229,7 +229,7 @@ class UserProductivityController extends Controller
                     'by_name' => auth()->user()->name,
                 ];
                 $taskLogs[$taskId] = $logsForTask;
-                
+
                 // Keep legacy field for compatibility
                 $legacyTaskFeedback[$taskId] = $comment;
             }
