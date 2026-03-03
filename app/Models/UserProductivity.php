@@ -14,6 +14,7 @@ class UserProductivity extends Model
         'timeline_json',
         'ai_report_json',
         'accuracy_json',
+        'feedback_json',
         'status',
     ];
 
@@ -24,6 +25,7 @@ class UserProductivity extends Model
         'timeline_json' => 'array',
         'ai_report_json' => 'array',
         'accuracy_json' => 'array',
+        'feedback_json' => 'array',
     ];
 
     public function user()

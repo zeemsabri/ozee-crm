@@ -22,6 +22,7 @@ import NoticeboardModal from "@/Components/Notices/NoticeboardModal.vue";
 import { useNotices } from '@/Utils/useNotices.js';
 import PromptOrchestrator from '@/Components/Prompts/PromptOrchestrator.vue';
 import MeetingMinutesModal from '@/Components/MeetingMinutesModal.vue';
+import YesterdayReport from '@/Components/Productivity/YesterdayReport.vue';
 
 const showingNavigationDropdown = ref(false);
 const openCreateTaskModel = ref(false);
@@ -215,5 +216,8 @@ onBeforeUnmount(() => {
 
         <!-- Global Prompt Orchestrator for user-data prompts (e.g., timezone) -->
         <PromptOrchestrator />
+        
+        <!-- Yesterday's Productivity Report Modal (shows once per day) -->
+        <YesterdayReport mode="modal" />
     </div>
 </template>

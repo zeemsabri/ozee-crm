@@ -430,6 +430,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:manage_projects');
     Route::delete('productivity/snapshots/{userProductivity}', [\App\Http\Controllers\Api\UserProductivityController::class, 'destroy'])
         ->middleware('permission:manage_projects');
+    Route::post('productivity/snapshots/{userProductivity}/feedback', [\App\Http\Controllers\Api\UserProductivityController::class, 'updateFeedback'])
+        ->middleware('permission:manage_projects');
 
     // Activity Report API
     Route::get('activity-report', [\App\Http\Controllers\Api\ActivityReportController::class, 'index'])
@@ -491,6 +493,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('availabilities', AvailabilityController::class);
     Route::post('availabilities/batch', [AvailabilityController::class, 'batch']);
     Route::get('weekly-availabilities', [AvailabilityController::class, 'getWeeklyAvailabilities']);
+    Route::get('productivity/yesterday-report', [\App\Http\Controllers\Api\UserProductivityController::class, 'getYesterdayReport']);
+    Route::post('productivity/yesterday-feedback', [\App\Http\Controllers\Api\UserProductivityController::class, 'saveYesterdayFeedback']);
     Route::get('availability-prompt', [AvailabilityController::class, 'shouldShowPrompt']);
 
     // Bonus Configuration Management Routes

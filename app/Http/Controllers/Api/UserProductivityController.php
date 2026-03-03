@@ -42,6 +42,13 @@ class UserProductivityController extends Controller
             $snapshots = $query->orderBy('date', 'desc')->paginate(50);
         }
 
+        // Add availability to each snapshot
+        $snapshots->each(function ($snapshot) {
+            $snapshot->availability = \App\Models\UserAvailability::where('user_id', $snapshot->user_id)
+                ->whereDate('date', $snapshot->date)
+                ->first();
+        });
+
         return response()->json($snapshots);
     }
 
@@ -95,6 +102,140 @@ class UserProductivityController extends Controller
 
         return response()->json([
             'message' => 'Report deleted successfully.'
+        ]);
+    }
+
+    /**
+     * Get yesterday's AI report for the authenticated user.
+     */
+    public function getYesterdayReport()
+    {
+        $userId = auth()->id();
+        $yesterday = Carbon::yesterday();
+        $yesterdayStr = $yesterday->toDateString();
+
+        // 1. Fetch the snapshot for yesterday
+        $productivity = UserProductivity::where('user_id', $userId)
+            ->where('date', $yesterdayStr)
+            ->first();
+
+        // 2. If no report exists yet (e.g., job hasn't run or user didn't work)
+        if (!$productivity || !$productivity->ai_report_json) {
+            return response()->json([
+                'user_report' => null,
+                'date' => $yesterdayStr,
+                'human_date' => $yesterday->format('F jS, Y'),
+                'status' => 'not_found'
+            ]);
+        }
+
+        // 3. Extract the user-facing report
+        $aiData = $productivity->ai_report_json;
+        $userReport = $aiData['user_report'] ?? null;
+        
+        // Get existing feedback if any
+        $feedback = $productivity->feedback_json ?? [];
+
+        return response()->json([
+            'user_report' => $userReport,
+            'date' => $yesterdayStr,
+            'human_date' => $yesterday->format('F jS, Y'),
+            'status' => $productivity->status,
+            'user_feedback' => $feedback['user_feedback'] ?? ''
+        ]);
+    }
+
+    /**
+     * Save user feedback for yesterday's productivity.
+     */
+    public function saveYesterdayFeedback(Request $request)
+    {
+        $request->validate([
+            'feedback' => 'required|string|max:1000',
+        ]);
+
+        $userId = auth()->id();
+        $yesterdayStr = Carbon::yesterday()->toDateString();
+
+        $productivity = UserProductivity::where('user_id', $userId)
+            ->where('date', $yesterdayStr)
+            ->first();
+
+        if (!$productivity) {
+            return response()->json(['message' => 'Productivity record not found for yesterday.'], 404);
+        }
+
+        $feedback = $productivity->feedback_json ?? [];
+        $feedback['user_feedback'] = $request->feedback;
+        $feedback['user_feedback_at'] = now()->toDateTimeString();
+
+        $productivity->feedback_json = $feedback;
+        $productivity->save();
+
+        return response()->json([
+            'message' => 'Feedback saved successfully.',
+            'user_feedback' => $request->feedback
+        ]);
+    }
+
+    /**
+     * Update admin feedback for a productivity snapshot.
+     */
+    public function updateFeedback(Request $request, UserProductivity $userProductivity)
+    {
+        $v = $request->validate([
+            'admin_feedback' => 'nullable|string',
+            'task_feedback' => 'nullable|array',
+        ]);
+
+        $feedback = $userProductivity->feedback_json ?? [];
+        
+        if ($request->filled('admin_feedback')) {
+            $adminLogs = $feedback['admin_feedbacks'] ?? [];
+            $adminLogs[] = [
+                'comment' => $v['admin_feedback'],
+                'at' => now()->toDateTimeString(),
+                'by_id' => auth()->id(),
+                'by_name' => auth()->user()->name,
+            ];
+            $feedback['admin_feedbacks'] = $adminLogs;
+            
+            // Keep legacy field for compatibility if needed
+            $feedback['admin_feedback'] = $v['admin_feedback'];
+            $feedback['admin_feedback_at'] = now()->toDateTimeString();
+            $feedback['admin_feedback_by_name'] = auth()->user()->name;
+        }
+
+        if ($request->has('task_feedback') && is_array($v['task_feedback'])) {
+            $taskLogs = $feedback['task_feedbacks'] ?? [];
+            $legacyTaskFeedback = $feedback['task_feedback'] ?? [];
+            if (!is_array($legacyTaskFeedback)) $legacyTaskFeedback = [];
+            
+            foreach ($v['task_feedback'] as $taskId => $comment) {
+                if (empty($comment)) continue;
+                
+                $logsForTask = $taskLogs[$taskId] ?? [];
+                $logsForTask[] = [
+                    'comment' => $comment,
+                    'at' => now()->toDateTimeString(),
+                    'by_id' => auth()->id(),
+                    'by_name' => auth()->user()->name,
+                ];
+                $taskLogs[$taskId] = $logsForTask;
+                
+                // Keep legacy field for compatibility
+                $legacyTaskFeedback[$taskId] = $comment;
+            }
+            $feedback['task_feedbacks'] = $taskLogs;
+            $feedback['task_feedback'] = $legacyTaskFeedback;
+        }
+
+        $userProductivity->feedback_json = $feedback;
+        $userProductivity->save();
+
+        return response()->json([
+            'message' => 'Feedback updated successfully.',
+            'feedback' => $feedback
         ]);
     }
 }

@@ -10,6 +10,7 @@ import GoogleStandupModal from '@/Components/GoogleAccount/GoogleStandupModal.vu
 import TaskNotificationPrompt from '@/Components/TaskNotificationPrompt.vue';
 import AvailabilityPrompt from '@/Components/Availability/AvailabilityPrompt.vue';
 import GoogleAccountPrompt from '@/Components/GoogleAccount/GoogleAccountPrompt.vue';
+import YesterdayReport from '@/Components/Productivity/YesterdayReport.vue';
 import * as taskState from '@/Utils/taskState.js';
 
 // Import Dashboard Components
@@ -150,6 +151,9 @@ const handleViewMeetingsAndScroll = () => {
     <AuthenticatedLayout>
         <div class="py-12">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                <!-- Yesterday's Productivity Insight -->
+                <YesterdayReport mode="inline" />
+
                 <!-- Task Notification Prompt -->
                 <TaskNotificationPrompt
                     :overdue-tasks="overdueTasksCount"
