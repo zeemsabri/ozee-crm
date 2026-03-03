@@ -163,7 +163,8 @@ const aiReport = computed(() => {
         // 2. Heuristic: Logic to handle unquoted values with commas
         const keys = [
             'headline', 'attendance_summary', 'focus_rating', 'engagement_narrative', 
-            'accuracy_tip', 'improvement_suggestions', 'task_deep_dives', 'status'
+            'accuracy_tip', 'improvement_suggestions', 'task_deep_dives', 'status',
+            'user_report', 'user_question'
         ];
 
         // We want to find the positions of all keys in the string
@@ -667,13 +668,23 @@ const getTaskAnalysis = (taskId) => {
                         <h2 class="text-sm font-black text-zinc-900 uppercase tracking-widest">Self Feedback</h2>
                     </div>
                     
-                    <div v-if="feedbackData.user_feedback" class="space-y-4">
-                        <div class="bg-zinc-50 rounded-2xl p-5 border border-zinc-100">
+                    <div v-if="feedbackData.user_feedback || aiReport?.user_question" class="space-y-4">
+                        <div v-if="aiReport?.user_question" class="bg-indigo-50/30 rounded-2xl p-4 border border-indigo-100/50">
+                            <h4 class="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                                <SparklesIcon class="w-3 h-3" /> Question Asked
+                            </h4>
+                            <p class="text-[11px] text-zinc-600 font-semibold italic">
+                                {{ aiReport.user_question }}
+                            </p>
+                        </div>
+
+                        <div v-if="feedbackData.user_feedback" class="bg-zinc-50 rounded-2xl p-5 border border-zinc-100">
+                            <h4 class="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Member Response</h4>
                              <p class="text-sm text-zinc-700 font-medium italic leading-relaxed">
                                 "{{ feedbackData.user_feedback }}"
                              </p>
                         </div>
-                        <div class="flex items-center gap-2 text-[10px] font-bold text-zinc-400 uppercase tracking-tight">
+                        <div v-if="feedbackData.user_feedback_at" class="flex items-center gap-2 text-[10px] font-bold text-zinc-400 uppercase tracking-tight">
                             <Clock9Icon class="w-3 h-3" />
                             Submitted At: {{ feedbackData.user_feedback_at }}
                         </div>
