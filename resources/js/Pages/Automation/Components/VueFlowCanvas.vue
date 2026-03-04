@@ -26,7 +26,7 @@ const emit = defineEmits(['update:steps', 'add-trigger']);
 const store = useWorkflowStore();
 const automationSchema = computed(() => store.automationSchema || []);
 
-const { onConnect, addEdges, removeEdges, nodes, edges, setNodes, setEdges, fitView, onNodeDragStop, findNode } = useVueFlow();
+const { onConnect, addEdges, removeEdges, nodes, edges, setNodes, setEdges, fitView, onNodeDragStop, findNode, project, dimensions, viewport } = useVueFlow();
 
 const nodeTypes = {
     workflow: WorkflowNode,
@@ -272,6 +272,12 @@ function handleAddStep(type, parentId = null, branch = null) {
     if (type === 'FOR_EACH') { newStep.children = []; }
 
     if (!parentId) {
+        // Compute the center of the current viewport in flow coordinates so the
+        // new node always appears where the user is looking, regardless of pan/zoom.
+        const centerX = dimensions.value.width / 2;
+        const centerY = dimensions.value.height / 2;
+        const flowPos = project({ x: centerX, y: centerY });
+        newStep.step_config = { position: flowPos };
         emit('update:steps', [...props.steps, newStep]);
     } else {
         const addNested = (steps) => {
@@ -302,7 +308,7 @@ onMounted(() => { setTimeout(() => fitView(), 100); });
         <VueFlow :nodes="nodes" :edges="edges" :node-types="nodeTypes" :min-zoom="0.2" :max-zoom="4" fit-view-on-init>
             <Background pattern-color="#aaa" :gap="16" />
             <Controls />
-            <div class="absolute top-4 left-4 z-50 flex items-center space-x-4 bg-white p-2 rounded-full shadow-lg border">
+            <div class="nodrag nopan absolute top-4 left-4 z-50 flex items-center space-x-4 bg-white p-2 rounded-full shadow-lg border">
                 <span class="text-xs font-bold text-gray-500 ml-4">ADD STEP:</span>
                 <AddStepButton @select="(type) => handleAddStep(type)" />
             </div>
