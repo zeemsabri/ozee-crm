@@ -239,7 +239,7 @@ watch(() => props.steps, (newSteps) => {
 
 function findAndReplaceStep(steps, targetId, newData) {
     return steps.map(s => {
-        if (s.id === targetId) return newData;
+        if (String(s.id) === String(targetId)) return newData;
         const copy = { ...s };
         if (copy.if_true) copy.if_true = findAndReplaceStep(copy.if_true, targetId, newData);
         if (copy.if_false) copy.if_false = findAndReplaceStep(copy.if_false, targetId, newData);
@@ -253,7 +253,7 @@ function handleUpdateStep(id, newData) {
 }
 
 function findAndDeleteStep(steps, targetId) {
-    return steps.filter(s => s.id !== targetId).map(s => {
+    return steps.filter(s => String(s.id) !== String(targetId)).map(s => {
         const copy = { ...s };
         if (copy.if_true) copy.if_true = findAndDeleteStep(copy.if_true, targetId);
         if (copy.if_false) copy.if_false = findAndDeleteStep(copy.if_false, targetId);
@@ -282,7 +282,7 @@ function handleAddStep(type, parentId = null, branch = null) {
     } else {
         const addNested = (steps) => {
             return steps.map(s => {
-                if (s.id === parentId) {
+                if (String(s.id) === String(parentId)) {
                     const copy = { ...s };
                     if (branch === 'yes') copy.if_true = [...(copy.if_true || []), newStep];
                     else if (branch === 'no') copy.if_false = [...(copy.if_false || []), newStep];
