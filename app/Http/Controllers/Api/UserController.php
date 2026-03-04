@@ -122,6 +122,7 @@ class UserController extends Controller
                 'user_type' => 'required|string|in:employee,contractor,admin',
                 'category_ids' => 'nullable|array',
                 'category_ids.*' => 'integer|exists:categories,id',
+                'extension_mandatory' => 'nullable|boolean',
             ]);
 
             // Enforce additional role restrictions based on the current user's role.
@@ -147,6 +148,7 @@ class UserController extends Controller
                 'role_id' => $role->id, // Use role_id instead of role
                 'timezone' => $request->input('timezone'),
                 'user_type' => $request->input('user_type'),
+                'extension_mandatory' => $request->boolean('extension_mandatory'),
             ]);
 
             if ($request->has('category_ids')) {
@@ -208,6 +210,7 @@ class UserController extends Controller
                 'user_type' => 'required|string|in:employee,contractor,admin',
                 'category_ids' => 'nullable|array',
                 'category_ids.*' => 'integer|exists:categories,id',
+                'extension_mandatory' => 'nullable|boolean',
             ]);
 
             $currentUser = Auth::user();
@@ -241,7 +244,10 @@ class UserController extends Controller
             }
 
             // Prepare data for update
-            $userData = $request->only(['name', 'email', 'timezone', 'user_type']);
+            $userData = $request->only(['name', 'email', 'timezone', 'user_type', 'extension_mandatory']);
+            if ($request->has('extension_mandatory')) {
+                $userData['extension_mandatory'] = $request->boolean('extension_mandatory');
+            }
             if (isset($validated['password'])) {
                 $userData['password'] = Hash::make($validated['password']); // Hash new password if provided
             }

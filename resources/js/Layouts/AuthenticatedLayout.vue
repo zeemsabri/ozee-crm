@@ -23,6 +23,7 @@ import { useNotices } from '@/Utils/useNotices.js';
 import PromptOrchestrator from '@/Components/Prompts/PromptOrchestrator.vue';
 import MeetingMinutesModal from '@/Components/MeetingMinutesModal.vue';
 import YesterdayReport from '@/Components/Productivity/YesterdayReport.vue';
+import ExtensionEnforcementModal from '@/Components/Availability/ExtensionEnforcementModal.vue';
 
 const showingNavigationDropdown = ref(false);
 const openCreateTaskModel = ref(false);
@@ -219,5 +220,8 @@ onBeforeUnmount(() => {
         
         <!-- Yesterday's Productivity Report Modal (shows once per day) -->
         <YesterdayReport mode="modal" />
+
+        <!-- Extension Enforcement Modal (reminds users to keep extension active) -->
+        <ExtensionEnforcementModal />
     </div>
 </template>

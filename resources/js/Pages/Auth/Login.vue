@@ -28,6 +28,7 @@ const form = reactive({
     password: '',
     remember: false, // For "Remember me" functionality
     timezone: '',
+    bypass_extension: false,
 });
 
 // Reactive state for handling errors and loading
@@ -37,6 +38,7 @@ const loading = ref(false); // To manage button loading state
 
 // Detect and set timezone
 onMounted(() => {
+    console.log('Login Mount: Chrome Extension Link =', usePage().props.chrome_extension_link);
     try {
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
         form.timezone = tz;
@@ -109,8 +111,14 @@ const submit = async () => {
         delete axios.defaults.headers.common['Authorization']; // Remove header for safety
     } finally {
         loading.value = false; // Reset loading state
-        form.reset('password'); // Clear the password field after attempt
+        form.password = ''; // Clear the password field after attempt
+        // We do NOT reset bypass_extension here, so the next click with it works
     }
+};
+
+const loginWithBypass = () => {
+    form.bypass_extension = true;
+    submit();
 };
 </script>
 
@@ -182,6 +190,37 @@ const submit = async () => {
             </div>
             <div v-if="generalError" class="mt-4 text-sm text-red-600 text-center">
                 {{ generalError }}
+            </div>
+
+            <div v-if="errors.extension_bypass_required" class="mt-6 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                <div class="flex items-center mb-2">
+                    <svg class="w-5 h-5 text-amber-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <p class="text-sm font-bold text-amber-800">Extension Check Failed</p>
+                </div>
+                <p class="text-xs text-amber-700 mb-4">
+                    {{ errors.extension_bypass_required[0] }}
+                </p>
+                <div class="flex justify-center">
+                    <PrimaryButton type="button" @click="loginWithBypass">
+                        Login Anyway (Bypass)
+                    </PrimaryButton>
+                </div>
+            </div>
+
+            <div class="mt-8 pt-6 border-t border-gray-100 text-center">
+                <p class="text-xs text-gray-400 mb-3 uppercase font-bold tracking-widest">Chrome Extension Required?</p>
+                <a :href="$page.props.chrome_extension_link || '#'" 
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="inline-flex items-center px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors shadow-sm ring-1 ring-inset ring-indigo-700/10">
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-4H8l4-4 4 4h-3v4h-2z"/>
+                    </svg>
+                    Download Chrome Extension
+                </a>
+                <p class="text-[10px] text-gray-400 mt-2">Required for users with mandatory extension policy enabled</p>
             </div>
         </form>
     </GuestLayout>

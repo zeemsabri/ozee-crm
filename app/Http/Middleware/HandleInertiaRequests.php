@@ -72,6 +72,7 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $user,
             ],
+            'chrome_extension_link' => config('services.chrome_extension'),
         ];
     }
 }

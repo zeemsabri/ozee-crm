@@ -58,4 +58,6 @@ return [
         'api_key' => env('BUG_HERD_API_KEY'),
     ],
 
+    'chrome_extension' => env('CHROME_EXTENSION'),
+
 ];

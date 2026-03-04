@@ -132,6 +132,8 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
 
+    Route::get('/me/status', [UserProfileController::class, 'status']);
+
     // Centralized options endpoint
     Route::get('options/{key}', [OptionsController::class, 'show']);
 

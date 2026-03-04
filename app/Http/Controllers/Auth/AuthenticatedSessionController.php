@@ -37,6 +37,32 @@ class AuthenticatedSessionController extends Controller
 
         // Load the user's role with permissions to ensure they're available immediately after login
         $user = $request->user();
+
+        // Check for extension mandatory enforcement
+        if ($user->extension_mandatory && !$user->is_online) {
+            // Check if user has bypass permission
+            if ($user->hasPermission('by_pass_extension')) {
+                // If they haven't confirmed the bypass yet, show warning
+                if (!$request->boolean('bypass_extension')) {
+                    Auth::guard('web')->logout();
+                    $request->session()->invalidate();
+                    $request->session()->regenerateToken();
+
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'extension_bypass_required' => 'You are currently offline. As an administrator, you can bypass this check, but your activity will not be tracked.',
+                    ]);
+                }
+            } else {
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'email' => 'Access denied. You must be online via the Chrome extension to log in.',
+                ]);
+            }
+        }
+
         $user->load(['role.permissions']);
 
         // Update user's timezone (if provided) and last login timestamp
@@ -75,6 +101,34 @@ class AuthenticatedSessionController extends Controller
 
         // Load the user's role with permissions to ensure they're available immediately after login
         $user = $request->user();
+
+        // Check for extension mandatory enforcement
+        if ($user->extension_mandatory && !$user->is_online) {
+            // Check if user has bypass permission
+            if ($user->hasPermission('by_pass_extension')) {
+                // If they haven't confirmed the bypass yet, show warning
+                if (!$request->boolean('bypass_extension')) {
+                    Auth::guard('web')->logout();
+                    $request->session()->invalidate();
+                    $request->session()->regenerateToken();
+
+                    return response()->json([
+                        'message' => 'Extension bypass required',
+                        'errors' => ['extension_bypass_required' => ['You are currently offline. As an administrator, you can bypass this check, but your activity will not be tracked.']]
+                    ], 422);
+                }
+            } else {
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return response()->json([
+                    'message' => 'Access denied. You must be online via the Chrome extension to log in.',
+                    'errors' => ['email' => ['Access denied. You must be online via the Chrome extension to log in.']]
+                ], 422);
+            }
+        }
+
         $user->load(['role.permissions']);
 
         // Update user's timezone (if provided) and last login timestamp
