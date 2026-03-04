@@ -261,10 +261,24 @@ class ProjectNote extends Model
             // Resolve or create Task Type
             $taskType = TaskType::firstOrCreate(['name' => 'New']);
 
+            $creator = $this->creator;
+            $creatorName = $creator->name ?? 'Unknown';
+            $description = "Comment from {$creatorName}:\n\n{$this->content}";
+
+            if ($this->noteable_type === Wireframe::class) {
+                $description .= "\n\n🔗 Wireframe: " . ($this->noteable?->name ?? 'Wireframe');
+            } elseif ($this->noteable_type === Deliverable::class) {
+                $description .= "\n\n🔗 Deliverable: " . ($this->noteable?->title ?? 'Deliverable');
+            }
+
+            if ($this->context) {
+                $description .= "\n📍 Context: " . $this->context;
+            }
+
             // Create Task with Kanban-style defaults
             $task = Task::create([
                 'name' => Str::limit($this->content, 50),
-                'description' => $this->content,
+                'description' => $description,
                 'project_id' => $project->id,
                 'milestone_id' => $milestone->id,
                 'assigned_to_user_id' => $assigneeId,
