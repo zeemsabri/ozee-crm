@@ -83,12 +83,15 @@ class ProjectNote extends Model
     const DAILY_SUMMARY = 'daily_summary';
     const MEETING_MINUTES = 'meeting_minutes';
 
+    const COMMENT = 'comment';
+
     const TYPES = [
         self::STANDUP,
         self::KUDOS,
         self::GENERAL,
         self::MEETING_MINUTES,
         self::DAILY_SUMMARY,
+        self::COMMENT
     ];
 
     protected $fillable = [
