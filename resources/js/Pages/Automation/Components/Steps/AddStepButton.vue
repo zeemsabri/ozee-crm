@@ -28,7 +28,7 @@ function closeMenu() {
 </script>
 
 <template>
-    <div class="relative h-8">
+    <div class="nodrag nopan relative h-8">
         <!-- Vertical line connecting steps -->
         <div class="h-full w-0.5 bg-gray-200 absolute left-1/2 -translate-x-1/2"></div>
 
