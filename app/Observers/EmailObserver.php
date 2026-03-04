@@ -2,6 +2,8 @@
 
 namespace App\Observers;
 
+use App\Enums\EmailStatus;
+use App\Enums\EmailType;
 use App\Helpers\PermissionHelper;
 use App\Models\Email;
 use App\Models\Lead;
@@ -55,7 +57,7 @@ class EmailObserver
         // --- SCENARIO 1: AI has flagged an email for manual approval ---
         // The status changes from 'draft' to 'pending_approval'.
         if ($newStatus === Email::STATUS_PENDING_APPROVAL && $originalStatus === Email::STATUS_DRAFT) {
-            $this->notifyAdminsForApproval($email, $projectId);
+//            $this->notifyAdminsForApproval($email, $projectId);
         }
 
         // --- SCENARIO 2: An email has been successfully sent ---
@@ -63,13 +65,13 @@ class EmailObserver
             // ** REFINED LOGIC **
             // Only send the "Email Approved" notification if it was MANUALLY approved.
             // If the AI auto-approved it (draft -> sent), no notification is needed.
-            if ($originalStatus === Email::STATUS_PENDING_APPROVAL) {
-                $this->notifyUsersOfSentEmail($email, $projectId);
+            if ($originalStatus === EmailStatus::PendingApproval) {
+//                $this->notifyUsersOfSentEmail($email, $projectId);
             }
 
             // Always mark any outstanding approval notifications as read.
             // This handles the case where one admin approves it before another sees the task.
-            $this->markApprovalNotificationsAsRead($email, $projectId);
+//            $this->markApprovalNotificationsAsRead($email, $projectId);
             $this->updateProjectAndLeadTimestamps($email);
         }
     }
@@ -79,7 +81,7 @@ class EmailObserver
      */
     private function notifyAdminsForApproval(Email $email, int $projectId): void
     {
-        $permission = $email->type === Email::TYPE_RECEIVED ? Email::APPROVE_RECEIVED_EMAILS_PERMISSION : Email::APPROVE_SENT_EMAIL_PERMISSION;
+        $permission = $email->type === EmailType::Received ? Email::APPROVE_RECEIVED_EMAILS_PERMISSION : Email::APPROVE_SENT_EMAIL_PERMISSION;
         $usersToNotify = PermissionHelper::getAllUsersWithPermission($permission, $projectId);
 
         foreach ($usersToNotify as $user) {
@@ -92,7 +94,7 @@ class EmailObserver
      */
     private function notifyUsersOfSentEmail(Email $email, int $projectId): void
     {
-        $approverPermission = $email->type === Email::TYPE_RECEIVED ? Email::APPROVE_RECEIVED_EMAILS_PERMISSION : Email::APPROVE_SENT_EMAIL_PERMISSION;
+        $approverPermission = $email->type === EmailType::Received ? Email::APPROVE_RECEIVED_EMAILS_PERMISSION : Email::APPROVE_SENT_EMAIL_PERMISSION;
 
         // Get users with approval power
         $usersWithApprovalPermission = PermissionHelper::getAllUsersWithPermission($approverPermission, $projectId);
@@ -119,7 +121,7 @@ class EmailObserver
      */
     private function markApprovalNotificationsAsRead(Email $email, int $projectId): void
     {
-        $permission = $email->type === Email::TYPE_RECEIVED ? Email::APPROVE_RECEIVED_EMAILS_PERMISSION : Email::APPROVE_SENT_EMAIL_PERMISSION;
+        $permission = $email->type === EmailType::Received ? Email::APPROVE_RECEIVED_EMAILS_PERMISSION : Email::APPROVE_SENT_EMAIL_PERMISSION;
         $usersWhoReceivedNotification = PermissionHelper::getAllUsersWithPermission($permission, $projectId);
 
         foreach ($usersWhoReceivedNotification as $user) {
@@ -136,7 +138,7 @@ class EmailObserver
      */
     private function updateProjectAndLeadTimestamps(Email $email): void
     {
-        if ($email->type === Email::TYPE_SENT) {
+        if ($email->type === EmailType::Sent) {
             // Update project's last_email_sent timestamp
             optional($email->conversation)->project?->update(['last_email_sent' => now()]);
 

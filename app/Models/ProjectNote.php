@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ProjectNote extends Model
 {
@@ -44,30 +46,6 @@ class ProjectNote extends Model
 
         /** @var ProjectNote $createdNote */
         $createdNote = static::create($attributes);
-
-        // Try sending to Google Chat if space available
-        if ($project->google_chat_id) {
-            try {
-                $user = Auth::user();
-                $prefix = '📝';
-                if ($type === 'standup') {
-                    $prefix = '🏃‍♂️';
-                }
-                if ($type === 'milestone') {
-                    $prefix = '📌';
-                }
-                $messageText = "$prefix *{$user?->name}*: ".$content;
-                $chatService = app(\App\Services\GoogleChatService::class);
-                $response = $chatService->sendMessage($project->google_chat_id, $messageText);
-                $createdNote->chat_message_id = $response['name'] ?? null;
-                $createdNote->save();
-            } catch (\Exception $e) {
-                \Log::error('Failed to send note to Google Chat', [
-                    'project_id' => $project->id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
 
         return $createdNote;
     }
@@ -142,18 +120,34 @@ class ProjectNote extends Model
                 }
             }
 
+            // Ensure project_id is set from noteable if missing
+            if (!$note->project_id && $note->noteable_id && $note->noteable_type) {
+                $noteable = $note->noteable;
+                if ($noteable && isset($noteable->project_id)) {
+                    $note->project_id = $noteable->project_id;
+                }
+            }
+
             // Fallback: If no creator is identified, you might want to log, throw an error,
             // or assign a default (e.g., an 'admin' user or null if nullable).
             // For now, if no creator, it remains unset, allowing database to handle nullability.
 
         });
 
-        // Dispatch the standup event after the note has been created so it has a persisted ID
+        // Post-creation logic
         static::created(function (ProjectNote $note) {
-            // Only dispatch for standup notes (listener also guards, but this avoids unnecessary jobs)
+            // 1. Dispatch the standup event for points calculation
             if ($note->type === self::STANDUP && $note->creator_type === User::class) {
                 StandupSubmittedEvent::dispatch($note);
             }
+
+            // 2. Automated Task Creation for Comments
+            if ($note->type === self::COMMENT) {
+                $note->createTaskFromComment();
+            }
+
+            // 3. Google Chat Push Notification
+            $note->pushToGoogleChat();
         });
 
     }
@@ -245,5 +239,108 @@ class ProjectNote extends Model
     public function contexts()
     {
         return $this->morphMany(Context::class, 'referencable');
+    }
+
+    /**
+     * Automatically create a task from this comment.
+     */
+    public function createTaskFromComment()
+    {
+        try {
+            $project = $this->project;
+            if (!$project) {
+                return null;
+            }
+
+            // Identify Support Milestone
+            $milestone = $project->supportMilestone();
+
+            // Identify Assignee: PM otherwise Admin
+            $assigneeId = $project->project_manager_id ?? $project->project_admin_id;
+
+            // Resolve or create Task Type
+            $taskType = TaskType::firstOrCreate(['name' => 'New']);
+
+            // Create Task with Kanban-style defaults
+            $task = Task::create([
+                'name' => Str::limit($this->content, 50),
+                'description' => $this->content,
+                'project_id' => $project->id,
+                'milestone_id' => $milestone->id,
+                'assigned_to_user_id' => $assigneeId,
+                'due_date' => now()->startOfDay(),
+                'status' => \App\Enums\TaskStatus::ToDo,
+                'priority' => 'medium',
+                'task_type_id' => $taskType->id,
+                'creator_id' => $this->creator_id,
+                'creator_type' => $this->creator_type,
+                'source' => 'wireframe', // Specifically requested by user
+                'source_id' => $this->id,
+            ]);
+
+            return $task;
+        } catch (\Exception $e) {
+            Log::error('Failed to create task from ProjectNote comment', [
+                'note_id' => $this->id,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Push the note content to Google Chat if configured.
+     */
+    public function pushToGoogleChat()
+    {
+        if ($this->chat_message_id) {
+            return; // Already pushed
+        }
+
+        $project = $this->project;
+        if (!$project || !$project->google_chat_id) {
+            return;
+        }
+
+        try {
+            $chatService = app(\App\Services\GoogleChatService::class);
+            $user = $this->creator;
+            $userName = $user->name ?? 'System';
+
+            $prefix = '📝';
+            $messageText = "";
+
+            if ($this->type === self::STANDUP) {
+                // Formatting similar to ProjectActionController::addStandup
+                $prefix = '🏃‍♂️';
+                // Note: content for standup is already formatted in ProjectActionController or here?
+                // If it's from the web, it's already formatted.
+                $messageText = "$prefix *Daily Standup from {$userName} - ".date('F j, Y')."*\n\n" . $this->content;
+            } else {
+                if ($this->type === self::COMMENT) {
+                    $prefix = '💬';
+                } elseif ($this->type === 'milestone') {
+                    $prefix = '📌';
+                }
+                $messageText = "$prefix *{$userName}*: " . $this->content;
+                
+                if ($this->noteable_type === Wireframe::class) {
+                    $messageText .= "\n\n🔗 *Wireframe*: " . ($this->noteable?->name ?? 'Wireframe');
+                }
+            }
+
+            $response = $chatService->sendMessage($project->google_chat_id, $messageText);
+            
+            // Save chat_message_id silently to avoid triggering events again
+            $this->newQuery()->where('id', $this->id)->update([
+                'chat_message_id' => $response['name'] ?? null
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to push ProjectNote to Google Chat', [
+                'note_id' => $this->id,
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 }

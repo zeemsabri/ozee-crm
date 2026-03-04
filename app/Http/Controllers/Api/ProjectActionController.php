@@ -752,23 +752,6 @@ class ProjectActionController extends Controller
             'type' => 'standup',
         ]);
 
-        if ($project->google_chat_id) {
-            try {
-                $messageText = "🏃‍♂️ *Daily Standup from {$user->name} - ".date('F j, Y')."*\n\n";
-                $messageText .= '💼 *Yesterday:* '.$validated['yesterday']."\n\n";
-                $messageText .= '📝 *Today:* '.$validated['today']."\n\n";
-                $messageText .= '🚧 *Blockers:* '.($validated['blockers'] ?? 'None');
-
-                $response = $this->googleChatService->sendMessage($project->google_chat_id, $messageText);
-
-                $note->chat_message_id = $response['name'] ?? null;
-                $note->save();
-
-            } catch (\Exception $e) {
-                Log::error('Failed to send standup notification to Google Chat space', ['project_id' => $project->id, 'space_name' => $project->google_chat_id, 'error' => $e->getMessage(), 'exception' => $e]);
-            }
-        }
-
         return response()->json(['success' => true, 'message' => 'Standup submitted successfully', 'note' => $note], 201);
     }
 
