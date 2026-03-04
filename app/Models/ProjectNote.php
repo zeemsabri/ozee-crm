@@ -272,7 +272,8 @@ class ProjectNote extends Model
             }
 
             if ($this->context) {
-                $description .= "\n📍 Context: " . $this->context;
+                $contextString = is_array($this->context) ? json_encode($this->context) : $this->context;
+                $description .= "\n📍 Context: " . $contextString;
             }
 
             // Create Task with Kanban-style defaults
