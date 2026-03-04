@@ -45,4 +45,18 @@ class UserProfileController extends Controller
             'user' => $user->only(['id', 'name', 'email', 'timezone']),
         ]);
     }
+
+    /**
+     * Get the current user's online status and extension settings.
+     */
+    public function status()
+    {
+        $user = Auth::user();
+        return response()->json([
+            'is_online' => (bool)$user->is_online,
+            'extension_mandatory' => (bool)$user->extension_mandatory,
+            'can_bypass' => (bool)$user->hasPermission('by_pass_extension'),
+            'last_activity' => $user->last_activity,
+        ]);
+    }
 }

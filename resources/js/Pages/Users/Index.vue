@@ -59,6 +59,7 @@ const userForm = reactive({
     user_type: 'contractor', // Default user type
     timezone: '',
     category_ids: [],
+    extension_mandatory: false,
 });
 
 // State for user being deleted
@@ -239,6 +240,7 @@ const openCreateModal = () => {
         userForm.timezone = '';
     }
     userForm.category_ids = [];
+    userForm.extension_mandatory = false;
     errors.value = {};
     generalError.value = '';
     showCreateModal.value = true;
@@ -287,6 +289,7 @@ const openEditModal = (userToEdit) => {
     }
     userForm.user_type = userToEdit.user_type || 'employee';
     userForm.category_ids = userToEdit.categories ? userToEdit.categories.map(c => c.id) : [];
+    userForm.extension_mandatory = !!userToEdit.extension_mandatory;
     userForm.password = '';
     userForm.password_confirmation = '';
     errors.value = {};
@@ -579,6 +582,13 @@ const getAvatarColor = (name) => {
                                             <p v-else class="text-xs text-gray-400 mt-1">No projects assigned.</p>
                                         </div>
 
+                                        <!-- Extension Mandatory Badge -->
+                                        <div v-if="userItem.extension_mandatory" class="mt-4">
+                                            <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold uppercase bg-red-100 text-red-700 ring-1 ring-inset ring-red-600/20">
+                                                Extension Mandatory
+                                            </span>
+                                        </div>
+
                                         <!-- API Key Display -->
                                         <div v-if="userItem.api_key" class="mt-3 p-2 bg-gray-50 rounded-lg border border-dashed border-gray-300">
                                             <p class="text-[10px] uppercase font-semibold text-gray-400 mb-1 flex items-center">
@@ -699,6 +709,13 @@ const getAvatarColor = (name) => {
                         <TextInput id="create_timezone" type="text" class="mt-1 block w-full" v-model="userForm.timezone" placeholder="e.g., America/New_York" />
                         <InputError :message="errors.timezone ? errors.timezone[0] : ''" class="mt-2" />
                     </div>
+                    <div class="mb-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" v-model="userForm.extension_mandatory" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
+                            <span class="ms-2 text-sm text-gray-600">Extension Usage Mandatory</span>
+                        </label>
+                        <p class="text-[10px] text-gray-400 mt-1">If enabled, the user will be forced to be online via the extension to login and stay active.</p>
+                    </div>
                     <div class="mt-6 flex justify-end">
                         <SecondaryButton @click="showCreateModal = false">Cancel</SecondaryButton>
                         <PrimaryButton class="ms-3" type="submit">Create User</PrimaryButton>
@@ -775,6 +792,13 @@ const getAvatarColor = (name) => {
                         <InputLabel for="edit_timezone" value="Timezone" />
                         <TextInput id="edit_timezone" type="text" class="mt-1 block w-full" v-model="userForm.timezone" placeholder="e.g., Europe/London" />
                         <InputError :message="errors.timezone ? errors.timezone[0] : ''" class="mt-2" />
+                    </div>
+                    <div class="mb-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" v-model="userForm.extension_mandatory" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
+                            <span class="ms-2 text-sm text-gray-600">Extension Usage Mandatory</span>
+                        </label>
+                        <p class="text-[10px] text-gray-400 mt-1">If enabled, the user will be forced to be online via the extension to login and stay active.</p>
                     </div>
                     <div class="mt-6 flex justify-end">
                         <SecondaryButton @click="showEditModal = false">Cancel</SecondaryButton>

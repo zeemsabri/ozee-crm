@@ -51,6 +51,7 @@ class User extends Authenticatable
         'api_key',
         'is_online',
         'online_data',
+        'extension_mandatory',
     ];
 
     /**
@@ -79,6 +80,7 @@ class User extends Authenticatable
         'notes' => 'array',
         'is_online' => 'boolean',
         'online_data' => 'array',
+        'extension_mandatory' => 'boolean',
     ];
 
     protected $with = ['role', 'categories']; // Always load the role relationship
