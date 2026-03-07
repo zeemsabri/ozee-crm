@@ -682,6 +682,10 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         return Inertia::render('Automation/Index');
     })->name('automation.page')->middleware('permission:manage_projects');
 
+    Route::get('/automations/v2', function () {
+        return Inertia::render('AutomationsV2/Index');
+    })->name('automations.v2')->middleware('permission:manage_projects');
+
     // Prompts Management Page
     // Moved outside the group to avoid any unexpected group-level middleware edge cases
     // (we'll re-declare it below with explicit middleware)

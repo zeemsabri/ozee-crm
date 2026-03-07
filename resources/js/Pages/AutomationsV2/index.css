@@ -1,0 +1,56 @@
+/* 
+  Automations V2 Design System 
+  Custom styles for the premium Look & Feel
+*/
+
+.v2-input {
+    @apply w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm transition-all duration-200;
+}
+.v2-input:focus {
+    @apply outline-none ring-2 ring-indigo-500/20 border-indigo-500 shadow-sm;
+}
+.v2-input::placeholder {
+    @apply text-gray-300;
+}
+
+.v2-select {
+    @apply w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm appearance-none cursor-pointer transition-all duration-200;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
+}
+.v2-select:focus {
+    @apply outline-none ring-2 ring-indigo-500/20 border-indigo-500 shadow-sm;
+}
+
+.field-label {
+    @apply block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1;
+}
+
+.v2-btn-primary {
+    @apply flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/20 hover:scale-[1.02] active:scale-95 transition-all;
+}
+
+.v2-btn-secondary {
+    @apply flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 active:scale-95 transition-all;
+}
+
+.v2-btn-outline {
+    @apply flex items-center justify-center gap-1.5 px-3 py-1.5 border border-indigo-200 bg-white text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-50 transition-all;
+}
+
+/* Glassmorphism utility */
+.glass {
+    @apply bg-white/70 backdrop-blur-md border border-white/20;
+}
+
+/* Animations */
+.animate-in {
+    animation: slideIn 0.3s ease-out forwards;
+}
+
+@keyframes slideIn {
+    from { transform: translateY(10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}

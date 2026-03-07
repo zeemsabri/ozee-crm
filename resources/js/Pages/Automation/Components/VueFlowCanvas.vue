@@ -26,7 +26,7 @@ const emit = defineEmits(['update:steps', 'add-trigger']);
 const store = useWorkflowStore();
 const automationSchema = computed(() => store.automationSchema || []);
 
-const { onConnect, addEdges, removeEdges, nodes, edges, setNodes, setEdges, fitView, onNodeDragStop, findNode, project, dimensions, viewport } = useVueFlow();
+const { onConnect, addEdges, removeEdges, nodes, edges, setNodes, setEdges, fitView, onNodeDragStop, findNode, project, dimensions, viewport, onEdgesChange } = useVueFlow();
 
 const nodeTypes = {
     workflow: WorkflowNode,
@@ -143,6 +143,39 @@ onNodeDragStop(({ node }) => {
         });
     };
     emit('update:steps', updatePosition([...props.steps]));
+});
+
+onEdgesChange((changes) => {
+    // Only listen to edge removals that aren't system-triggered
+    const removals = changes.filter(c => c.type === 'remove');
+    if (!removals.length) return;
+
+    let newSteps = [...props.steps];
+    let needsUpdate = false;
+
+    removals.forEach(removal => {
+        // Edge IDs are structured as: `e-{sourceId}-step-{targetId}` or `e-step-{sourceId}-step-{targetId}`
+        // We can parse the target step ID directly from the removal event ID.
+        // The target is always prefixed by '-step-' at the end of the edge ID.
+        const match = removal.id.match(/-step-([^-\s]+)$/);
+        if (!match) return;
+
+        const targetId = match[1];
+        
+        // Remove the target step from its current deep location
+        const { steps: stepsWithoutTarget, removed } = removeStepFromHierarchy(newSteps, targetId);
+        
+        if (removed) {
+            newSteps = stepsWithoutTarget;
+            // Promote to root-level step so it isn't deleted, just detached
+            newSteps.push(removed);
+            needsUpdate = true;
+        }
+    });
+
+    if (needsUpdate) {
+        emit('update:steps', newSteps);
+    }
 });
 
 // --- Helpers ---
