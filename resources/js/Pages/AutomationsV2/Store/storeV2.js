@@ -406,6 +406,22 @@ function normalizeFromServer(steps) {
     return steps.map(s => {
         if (!s) return s;
         s.step_config = s.step_config || {};
+
+        // Normalize triggers that might have objects instead of strings
+        if (s.step_type === 'TRIGGER' || s.step_type === 'SCHEDULE_TRIGGER') {
+            if (s.step_config.event && typeof s.step_config.event === 'object') {
+                s.step_config.event = s.step_config.event.value;
+            }
+            // Fix trigger_event if it contains "[object Object]"
+            if (typeof s.step_config.trigger_event === 'string' && s.step_config.trigger_event.includes('[object Object]')) {
+                const model = s.step_config.model;
+                const event = s.step_config.event;
+                if (model && event) {
+                    s.step_config.trigger_event = `${model.toLowerCase()}.${event}`;
+                }
+            }
+        }
+
         if (s.step_type === 'TRIGGER' && s.step_config.trigger_event === 'schedule.run') {
             s.step_type = 'SCHEDULE_TRIGGER';
         }

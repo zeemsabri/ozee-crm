@@ -37,6 +37,7 @@ const configComponent = computed(() => {
         case 'AI_PROMPT':
             return AIConfig;
         case 'TRANSFORM':
+        case 'TRANSFORM_CONTENT':
         case 'DEFINE_VARIABLE':
             return TransformConfig;
         default:

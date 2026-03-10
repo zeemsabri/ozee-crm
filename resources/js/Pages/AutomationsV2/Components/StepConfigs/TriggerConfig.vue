@@ -38,21 +38,27 @@ const selectedModel = computed({
 
 const selectedEvent = computed({
     get: () => {
-        if (props.step.step_config?.event) return props.step.step_config.event;
+        let ev = props.step.step_config?.event;
+        if (ev && typeof ev === 'object') ev = ev.value;
+        if (ev) return ev;
+
         const te = props.step.step_config?.trigger_event;
-        if (te && te.includes('.')) {
+        if (te && typeof te === 'string' && te.includes('.')) {
             return te.split('.')[1];
         }
         return null;
     },
     set: (ev) => {
         const model = selectedModel.value;
+        // Ensure ev is a string if it's an object
+        const val = (ev && typeof ev === 'object') ? ev.value : ev;
+
         emit('update:step', {
             ...props.step,
             step_config: {
                 ...props.step.step_config,
-                event: ev,
-                trigger_event: model && ev ? `${model.toLowerCase()}.${ev}` : null,
+                event: val,
+                trigger_event: model && val ? `${model.toLowerCase()}.${val}` : null,
             },
         });
     },
@@ -122,7 +128,9 @@ const scheduleCron = computed({
                 <label class="field-label">Triggers on</label>
                 <select :value="selectedEvent" @change="selectedEvent = $event.target.value" class="v2-select">
                     <option value="">— Select event —</option>
-                    <option v-for="ev in events" :key="ev" :value="ev">{{ ev }}</option>
+                    <option v-for="ev in events" :key="ev.value || ev" :value="ev.value || ev">
+                        {{ ev.label || ev }}
+                    </option>
                 </select>
             </div>
 
@@ -131,8 +139,9 @@ const scheduleCron = computed({
             </div>
 
             <div v-if="step.step_config?.trigger_event" class="rounded-xl bg-violet-50 border border-violet-200 px-3 py-2 text-xs font-mono text-violet-700">
-                trigger_event: {{ step.step_config.trigger_event }}
+                trigger_event: {{ typeof step.step_config.trigger_event === 'object' ? step.step_config.trigger_event.value : step.step_config.trigger_event }}
             </div>
+
         </div>
     </template>
 </template>
