@@ -14,7 +14,8 @@ import {
     TrashIcon, 
     EllipsisHorizontalIcon,
     BoltIcon,
-    ClockIcon
+    ClockIcon,
+    ClipboardDocumentListIcon
 } from '@heroicons/vue/24/outline';
 import { BoltIcon as BoltIconSolid } from '@heroicons/vue/24/solid';
 
@@ -126,6 +127,13 @@ function getTriggerIcon(wf) {
                         Updated {{ formatDate(wf.updated_at) }}
                     </div>
                     <div class="flex items-center gap-2">
+                        <button 
+                            @click="store.openLogs(wf.id)"
+                            title="View Execution Logs"
+                            class="p-2 rounded-lg hover:bg-white hover:shadow-sm text-indigo-400 hover:text-indigo-600 transition"
+                        >
+                            <ClipboardDocumentListIcon class="w-5 h-5" />
+                        </button>
                         <button 
                             @click="store.toggleActive(wf)"
                             :title="wf.is_active ? 'Deactivate' : 'Activate'"

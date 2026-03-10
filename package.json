@@ -49,6 +49,7 @@
         "splitpanes": "^3.2.0",
         "swiper": "^11.1.10",
         "vue-cal": "^4.10.2",
+        "vue-json-pretty": "^2.6.0",
         "vue-multiselect": "^3.2.0",
         "vue-router": "^4.5.1",
         "vue-toast-notification": "^3.1.3",
