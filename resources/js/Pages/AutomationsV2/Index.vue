@@ -9,6 +9,7 @@ import { Head } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Hub from './Components/Hub.vue';
 import Builder from './Components/Builder.vue';
+import WorkflowLogsModalV2 from './Components/WorkflowLogsModalV2.vue';
 import { useAutomationsV2Store } from './Store/storeV2';
 
 import './index.css'; // Import the design system
@@ -59,6 +60,9 @@ function goBack() {
                     <Builder @back="goBack" />
                 </div>
             </Transition>
+
+            <!-- Global V2 Modals -->
+            <WorkflowLogsModalV2 />
         </div>
     </AuthenticatedLayout>
 </template>
