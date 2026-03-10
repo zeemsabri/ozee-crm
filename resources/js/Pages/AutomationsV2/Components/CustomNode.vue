@@ -57,8 +57,12 @@ const summary = computed(() => {
         case 'TRANSFORM':
         case 'TRANSFORM_CONTENT':
             return c.type?.replace(/_/g, ' ') || 'Not configured';
-        case 'DEFINE_VARIABLE':
-            return c.variable_name || 'Not configured';
+        case 'DEFINE_VARIABLE': {
+            const vars = Array.isArray(c.variables) ? c.variables : (c.variable_name ? [{ name: c.variable_name }] : []);
+            if (vars.length > 1) return `${vars.length} variables defined`;
+            const name = vars[0]?.name;
+            return name ? `Var: ${name}` : 'Not configured';
+        }
         default:
             return '';
     }

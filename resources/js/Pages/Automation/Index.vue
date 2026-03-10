@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
+import { Link } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useWorkflowStore } from './Store/workflowStore';
 import * as api from './Api/automationApi';
@@ -157,6 +158,22 @@ async function handleFileChange(event) {
     <!-- The main content area will now dynamically switch between the hub and the builder -->
     <div class="p-4 sm:p-6 lg:p-8 font-sans">
       <template v-if="view === 'hub'">
+        
+        <!-- V2 Promotion Banner -->
+        <div class="mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg p-6 text-white flex flex-col sm:flex-row items-center justify-between gap-4 relative overflow-hidden">
+             <!-- Decorative background graphic -->
+             <div class="absolute -right-20 -top-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+             <div class="relative z-10 w-full xl:w-2/3">
+                 <h2 class="text-2xl font-extrabold tracking-tight mb-1">Try the new Automation Studio V2 🚀</h2>
+                 <p class="text-indigo-100 font-medium">We've completely redesigned the automation experience. Enjoy a premium drag-and-drop canvas, smarter dynamic data selection, and much faster performance.</p>
+             </div>
+             <div class="relative z-10 whitespace-nowrap">
+                 <Link href="/automations/v2" class="inline-flex items-center gap-2 px-6 py-2.5 bg-white text-indigo-600 hover:bg-indigo-50 text-sm font-bold rounded-xl shadow-sm transition-all hover:scale-105 active:scale-95">
+                     Open V2 Studio
+                 </Link>
+             </div>
+        </div>
+
         <!-- Import/Export Toolbar -->
         <div class="mb-4 p-3 border rounded bg-white/70 flex flex-col sm:flex-row gap-2 sm:items-center">
           <div class="flex-1 flex items-center gap-2">
