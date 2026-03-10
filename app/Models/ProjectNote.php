@@ -141,10 +141,10 @@ class ProjectNote extends Model
                 StandupSubmittedEvent::dispatch($note);
             }
 
-            // 2. Automated Task Creation for Comments
-            if ($note->type === self::COMMENT) {
-                $note->createTaskFromComment();
-            }
+//            // 2. Automated Task Creation for Comments
+//            if ($note->type === self::COMMENT) {
+//                $note->createTaskFromComment();
+//            }
 
             // 3. Google Chat Push Notification
             $note->pushToGoogleChat();
@@ -338,14 +338,14 @@ class ProjectNote extends Model
                     $prefix = '📌';
                 }
                 $messageText = "$prefix *{$userName}*: " . $this->content;
-                
+
                 if ($this->noteable_type === Wireframe::class) {
                     $messageText .= "\n\n🔗 *Wireframe*: " . ($this->noteable?->name ?? 'Wireframe');
                 }
             }
 
             $response = $chatService->sendMessage($project->google_chat_id, $messageText);
-            
+
             // Save chat_message_id silently to avoid triggering events again
             $this->newQuery()->where('id', $this->id)->update([
                 'chat_message_id' => $response['name'] ?? null
