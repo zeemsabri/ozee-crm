@@ -3,10 +3,11 @@
  * FetchRecordsConfig.vue
  * Configuration panel for FETCH_RECORDS step type.
  */
-import { computed, ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useAutomationsV2Store } from '../../Store/storeV2';
-import { PlusIcon, TrashIcon, MagnifyingGlassIcon } from '@heroicons/vue/24/solid';
-import DataTokenInserter from '../DataTokenInserter.vue';
+import { PlusIcon, TrashIcon, CubeIcon, ChevronRightIcon } from '@heroicons/vue/24/solid';
+import TokenInputField from '../TokenInputField.vue';
+import ModelPickerModalV2 from './ModelPickerModalV2.vue';
 
 const props = defineProps({
     step:           { type: Object, required: true },
@@ -16,12 +17,21 @@ const emit = defineEmits(['update:step']);
 const store = useAutomationsV2Store();
 const schema = computed(() => store.automationSchema || []);
 
+const showPicker = ref(false);
+
 const config = computed({
     get: () => props.step.step_config || { conditions: [], single: true },
     set: (v) => emit('update:step', { ...props.step, step_config: v }),
 });
 
 function set(key, val) { config.value = { ...config.value, [key]: val }; }
+
+function selectModel(m) {
+    if (config.value.model !== m) {
+        config.value = { ...config.value, model: m, conditions: [] };
+    }
+    showPicker.value = false;
+}
 
 const modelOptions = computed(() => schema.value.map(m => ({ label: m.name, value: m.name })));
 
@@ -54,12 +64,6 @@ function updateCondition(i, key, val) {
     set('conditions', c);
 }
 
-function insertToken(i, token) {
-    const c = [...(config.value.conditions || [])];
-    c[i] = { ...c[i], value: (c[i].value || '') + token };
-    set('conditions', c);
-}
-
 const OPERATORS = [
     { value: '==', label: 'equals' },
     { value: '!=', label: 'not equals' },
@@ -77,11 +81,31 @@ const OPERATORS = [
     <div class="space-y-4">
         <div>
             <label class="field-label">Fetch records from model</label>
-            <select :value="config.model" @change="set('model', $event.target.value)" class="v2-select">
-                <option value="" disabled>— Select model —</option>
-                <option v-for="m in modelOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
-            </select>
+            <button 
+                @click="showPicker = true" 
+                class="w-full flex items-center justify-between p-3.5 bg-white border-2 rounded-2xl transition-all group"
+                :class="config.model ? 'border-slate-100 hover:border-indigo-200' : 'border-dashed border-slate-200 hover:border-slate-300'"
+            >
+                <div class="flex items-center gap-3.5">
+                    <div class="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center group-hover:bg-indigo-50 transition-colors">
+                        <CubeIcon class="w-5 h-5" :class="config.model ? 'text-indigo-500' : 'text-slate-300'" />
+                    </div>
+                    <div class="text-left">
+                        <p class="text-sm font-black text-slate-800 leading-none">{{ config.model || 'Select a model' }}</p>
+                        <p class="text-[11px] text-slate-400 mt-1.5 font-bold uppercase tracking-wider">{{ config.model ? 'Click to change source' : 'Choose the data source' }}</p>
+                    </div>
+                </div>
+                <ChevronRightIcon class="w-5 h-5 text-slate-300 group-hover:text-indigo-400 transition-all" />
+            </button>
         </div>
+
+        <ModelPickerModalV2 
+            :show="showPicker"
+            :schema="schema"
+            :selected-model="config.model"
+            @close="showPicker = false"
+            @select="selectModel"
+        />
 
         <div v-if="config.model">
             <div class="flex items-center justify-between mb-2">
@@ -106,8 +130,11 @@ const OPERATORS = [
                     </div>
 
                     <div v-if="cond.operator !== 'is_null' && cond.operator !== 'is_not_null'" class="flex gap-2">
-                        <input :value="cond.value" @input="updateCondition(idx, 'value', $event.target.value)" class="v2-input flex-1 !py-1 text-xs" placeholder="Value or {{token}}" />
-                        <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken(idx, $event)" />
+                        <TokenInputField 
+                            v-model="cond.value" 
+                            :all-steps-before="allStepsBefore" 
+                            placeholder="Value or {{token}}" 
+                        />
                     </div>
                 </div>
             </div>

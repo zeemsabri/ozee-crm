@@ -9,6 +9,7 @@ import { useAutomationsV2Store } from '../../Store/storeV2';
 import { PlusIcon, TrashIcon, ClockIcon } from '@heroicons/vue/24/solid';
 import axios from 'axios';
 import DataTokenInserter from '../DataTokenInserter.vue';
+import TokenInputField from '../TokenInputField.vue';
 
 const props = defineProps({
     step:           { type: Object, required: true },
@@ -36,9 +37,6 @@ const config = computed({
 
 function set(key, val) { config.value = { ...config.value, [key]: val }; }
 function setType(t)    { config.value = { action_type: t }; }
-
-// Token inserter helper
-function insertToken(field, token) { set(field, (config.value[field] || '') + token); }
 
 // --- Model helpers ---
 const modelOptions = computed(() => schema.value.map(m => ({ label: m.name, value: m.name })));
@@ -69,11 +67,6 @@ function updateField(i, key, val) {
     const f = [...(config.value.fields || [])];
     f[i] = { ...f[i], [key]: val };
     if (key === 'column') delete f[i].field; // remove legacy key if changing
-    set('fields', f);
-}
-function insertFieldToken(i, token) {
-    const f = [...(config.value.fields || [])];
-    f[i] = { ...f[i], value: (f[i].value || '') + token };
     set('fields', f);
 }
 
@@ -146,19 +139,21 @@ function updateApiField(id, key, val, parent = null) {
         <template v-if="config.action_type === 'SEND_EMAIL'">
             <div v-for="field in ['to', 'subject']" :key="field">
                 <label class="field-label capitalize">{{ field }}</label>
-                <div class="flex gap-2">
-                    <input :value="config[field] || ''" @input="set(field, $event.target.value)" class="v2-input flex-1" :placeholder="`e.g. {{trigger.email.${field}}}`" />
-                    <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken(field, $event)" />
-                </div>
+                <TokenInputField 
+                    v-model="config[field]" 
+                    :all-steps-before="allStepsBefore" 
+                    :placeholder="`e.g. {{trigger.email.${field}}}`" 
+                />
             </div>
             <div>
                 <label class="field-label">Body</label>
-                <div class="relative">
-                    <textarea rows="5" :value="config.body || ''" @input="set('body', $event.target.value)" class="v2-input w-full resize-none" />
-                    <div class="absolute top-2 right-2">
-                        <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('body', $event)" />
-                    </div>
-                </div>
+                <TokenInputField 
+                    v-model="config.body" 
+                    :all-steps-before="allStepsBefore" 
+                    textarea 
+                    :rows="6" 
+                    placeholder="Write your email body here..." 
+                />
             </div>
         </template>
 
@@ -166,16 +161,18 @@ function updateApiField(id, key, val, parent = null) {
         <template v-if="config.action_type === 'PROCESS_EMAIL'">
             <div>
                 <label class="field-label">Email ID</label>
-                <div class="flex gap-2">
-                    <input :value="config.email_id || ''" @input="set('email_id', $event.target.value)" class="v2-input flex-1" placeholder="e.g. {{email.id}}" />
-                    <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('email_id', $event)" />
-                </div>
+                <TokenInputField 
+                    v-model="config.email_id" 
+                    :all-steps-before="allStepsBefore" 
+                    placeholder="e.g. {{email.id}}" 
+                />
             </div>
             <div>
                 <label class="field-label">Queue (optional)</label>
                 <input :value="config.on_queue || ''" @input="set('on_queue', $event.target.value)" class="v2-input" placeholder="e.g. emails" />
             </div>
         </template>
+
 
         <!-- ---- CREATE / UPDATE RECORD ---- -->
         <template v-if="config.action_type === 'CREATE_RECORD' || config.action_type === 'UPDATE_RECORD'">
@@ -189,10 +186,11 @@ function updateApiField(id, key, val, parent = null) {
             <template v-if="config.action_type === 'UPDATE_RECORD'">
                 <div>
                     <label class="field-label">Record ID</label>
-                    <div class="flex gap-2">
-                        <input :value="config.record_id || ''" @input="set('record_id', $event.target.value)" class="v2-input flex-1" placeholder="e.g. {{trigger.task.id}}" />
-                        <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('record_id', $event)" />
-                    </div>
+                    <TokenInputField 
+                        v-model="config.record_id" 
+                        :all-steps-before="allStepsBefore" 
+                        placeholder="e.g. {{trigger.task.id}}" 
+                    />
                 </div>
             </template>
             <div v-if="config.target_model">
@@ -214,9 +212,12 @@ function updateApiField(id, key, val, parent = null) {
                                 </select>
                             </template>
                             <template v-else>
-                                <input :value="field.value || ''" @input="updateField(idx, 'value', $event.target.value)" class="v2-input flex-1" placeholder="Value…" />
+                                <TokenInputField 
+                                    v-model="field.value" 
+                                    :all-steps-before="allStepsBefore" 
+                                    placeholder="Value…" 
+                                />
                             </template>
-                            <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertFieldToken(idx, $event)" />
                         </div>
                     </div>
                     <button @click="addField" class="v2-btn-outline w-full"><PlusIcon class="w-4 h-4" /> Add Field</button>
@@ -235,10 +236,11 @@ function updateApiField(id, key, val, parent = null) {
             </div>
             <div>
                 <label class="field-label">Record ID</label>
-                <div class="flex gap-2">
-                    <input :value="config.record_id || ''" @input="set('record_id', $event.target.value)" class="v2-input flex-1" placeholder="e.g. {{trigger.task.id}}" />
-                    <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('record_id', $event)" />
-                </div>
+                <TokenInputField 
+                    v-model="config.record_id" 
+                    :all-steps-before="allStepsBefore" 
+                    placeholder="e.g. {{trigger.task.id}}" 
+                />
             </div>
             <div v-if="selectedModelObj">
                 <label class="field-label">Relationship</label>
@@ -257,10 +259,11 @@ function updateApiField(id, key, val, parent = null) {
                     <option value="detach">Detach (remove)</option>
                 </select>
                 <label class="field-label mt-2">Related IDs</label>
-                <div class="flex gap-2">
-                    <input :value="config.related_ids || ''" @input="set('related_ids', $event.target.value)" class="v2-input flex-1" placeholder="e.g. {{step_1.ids}} or 1,2,3" />
-                    <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('related_ids', $event)" />
-                </div>
+                <TokenInputField 
+                    v-model="config.related_ids" 
+                    :all-steps-before="allStepsBefore" 
+                    placeholder="e.g. {{step_1.ids}} or 1,2,3" 
+                />
             </div>
         </template>
 
@@ -268,10 +271,11 @@ function updateApiField(id, key, val, parent = null) {
         <template v-if="config.action_type === 'FETCH_API_DATA'">
             <div>
                 <label class="field-label">API URL</label>
-                <div class="flex gap-2">
-                    <input :value="config.api_url || ''" @input="set('api_url', $event.target.value)" class="v2-input flex-1" placeholder="https://api.example.com/v1/..." />
-                    <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('api_url', $event)" />
-                </div>
+                <TokenInputField 
+                    v-model="config.api_url" 
+                    :all-steps-before="allStepsBefore" 
+                    placeholder="https://api.example.com/v1/..." 
+                />
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
@@ -289,10 +293,11 @@ function updateApiField(id, key, val, parent = null) {
             </div>
             <div v-if="config.api_auth_type === 'BEARER'">
                 <label class="field-label">Bearer Token</label>
-                <div class="flex gap-2">
-                    <input :value="config.api_auth_token || ''" @input="set('api_auth_token', $event.target.value)" class="v2-input flex-1" placeholder="Token…" />
-                    <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('api_auth_token', $event)" />
-                </div>
+                <TokenInputField 
+                    v-model="config.api_auth_token" 
+                    :all-steps-before="allStepsBefore" 
+                    placeholder="Token…" 
+                />
             </div>
             <div v-if="config.api_auth_type === 'BASIC'" class="grid grid-cols-2 gap-3">
                 <div>
@@ -311,22 +316,24 @@ function updateApiField(id, key, val, parent = null) {
                 </div>
                 <div>
                     <label class="field-label">Header Value</label>
-                    <div class="flex gap-2">
-                        <input :value="config.api_auth_header_value || ''" @input="set('api_auth_header_value', $event.target.value)" class="v2-input flex-1" />
-                        <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('api_auth_header_value', $event)" />
-                    </div>
+                    <TokenInputField 
+                        v-model="config.api_auth_header_value" 
+                        :all-steps-before="allStepsBefore" 
+                    />
                 </div>
             </div>
             <div>
                 <label class="field-label">Payload / Params (JSON)</label>
-                <div class="relative">
-                    <textarea rows="4" :value="config.api_payload || ''" @input="set('api_payload', $event.target.value)" class="v2-input w-full font-mono text-xs resize-none" placeholder='{"key": "{{trigger.value}}"}' />
-                    <div class="absolute top-2 right-2">
-                        <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('api_payload', $event)" />
-                    </div>
-                </div>
+                <TokenInputField 
+                    v-model="config.api_payload" 
+                    :all-steps-before="allStepsBefore" 
+                    textarea 
+                    :rows="4" 
+                    placeholder='{"key": "{{trigger.value}}"}' 
+                />
                 <p class="text-[11px] text-gray-400 mt-1">For GET/DELETE → query params. For POST/PUT/PATCH → JSON body.</p>
             </div>
+
             <div>
                 <label class="field-label">Response Data Key (optional)</label>
                 <input :value="config.api_response_key || ''" @input="set('api_response_key', $event.target.value)" class="v2-input" placeholder="e.g. data.items" />
@@ -368,10 +375,11 @@ function updateApiField(id, key, val, parent = null) {
             </div>
             <div>
                 <label class="field-label">Milestone ID (optional override)</label>
-                <div class="flex gap-2">
-                    <input :value="config.milestone_id || ''" @input="set('milestone_id', $event.target.value)" class="v2-input flex-1" placeholder="Leave blank to auto-detect from trigger" />
-                    <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken('milestone_id', $event)" />
-                </div>
+                <TokenInputField 
+                    v-model="config.milestone_id" 
+                    :all-steps-before="allStepsBefore" 
+                    placeholder="Leave blank to auto-detect from trigger" 
+                />
             </div>
         </template>
     </div>

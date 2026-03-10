@@ -6,6 +6,7 @@
 import { computed } from 'vue';
 import { useAutomationsV2Store } from '../../Store/storeV2';
 import DataTokenInserter from '../DataTokenInserter.vue';
+import TokenInputField from '../TokenInputField.vue';
 
 const props = defineProps({
     step:           { type: Object, required: true },
@@ -17,10 +18,6 @@ const config = computed({
     get: () => props.step.step_config || { sourceArray: '' },
     set: (v) => emit('update:step', { ...props.step, step_config: v }),
 });
-
-function insertToken(token) {
-    config.value = { ...config.value, sourceArray: token };
-}
 </script>
 
 <template>
@@ -33,18 +30,15 @@ function insertToken(token) {
 
         <div>
             <label class="field-label">Array to loop over</label>
-            <div class="flex gap-2">
-                <input 
-                    readonly
-                    :value="config.sourceArray" 
-                    placeholder="Click the '+' to select an array..."
-                    class="v2-input flex-1 bg-gray-50 border-dashed cursor-default" 
-                />
-                <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertToken" />
-            </div>
+            <TokenInputField 
+                v-model="config.sourceArray" 
+                :all-steps-before="allStepsBefore" 
+                placeholder="Click the '+' to select an array..." 
+            />
             <p class="text-[10px] text-gray-400 mt-2 italic px-1">
                 Inside the loop body, you can access the current item using the **Current Loop Item** data source.
             </p>
         </div>
+
     </div>
 </template>

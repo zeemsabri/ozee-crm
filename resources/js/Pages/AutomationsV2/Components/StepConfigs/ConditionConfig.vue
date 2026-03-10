@@ -7,6 +7,7 @@ import { computed, ref, watch } from 'vue';
 import { useAutomationsV2Store } from '../../Store/storeV2';
 import { PlusIcon, TrashIcon } from '@heroicons/vue/24/solid';
 import DataTokenInserter from '../DataTokenInserter.vue';
+import TokenInputField from '../TokenInputField.vue';
 
 const props = defineProps({
     step:           { type: Object, required: true },
@@ -70,15 +71,6 @@ const mappedRules = computed(() => {
     });
 });
 
-function insertLeftToken(i, token) {
-    const current = mappedRules.value[i].leftStr || '';
-    updateRule(i, 'left', parseTokenString(current + token));
-}
-
-function insertRightToken(i, token) {
-    const current = mappedRules.value[i].rightStr || '';
-    updateRule(i, 'right', parseTokenString(current + token));
-}
 
 const OPERATORS = [
     { value: '==',           label: 'equals' },
@@ -117,11 +109,13 @@ const OPERATORS = [
 
                 <!-- Left side -->
                 <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Input</label>
-                        <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertLeftToken(idx, $event)" />
-                    </div>
-                    <input :value="rule.leftStr" @input="updateRule(idx, 'left', parseTokenString($event.target.value))" class="v2-input !py-1.5" placeholder="e.g. {{trigger.status}}" />
+                    <label class="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Input</label>
+                    <TokenInputField 
+                        :model-value="rule.leftStr" 
+                        @update:modelValue="updateRule(idx, 'left', parseTokenString($event))"
+                        :all-steps-before="allStepsBefore" 
+                        placeholder="e.g. {{trigger.status}}" 
+                    />
                 </div>
 
                 <!-- Operator -->
@@ -133,12 +127,15 @@ const OPERATORS = [
 
                 <!-- Right side -->
                 <div v-if="rule.operator !== 'is_null' && rule.operator !== 'is_not_null'">
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Compare With</label>
-                        <DataTokenInserter :all-steps-before="allStepsBefore" @insert="insertRightToken(idx, $event)" />
-                    </div>
-                    <input :value="rule.rightStr" @input="updateRule(idx, 'right', parseTokenString($event.target.value))" class="v2-input !py-1.5" placeholder="Value or {{token}}" />
+                    <label class="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Compare With</label>
+                    <TokenInputField 
+                        :model-value="rule.rightStr" 
+                        @update:modelValue="updateRule(idx, 'right', parseTokenString($event))"
+                        :all-steps-before="allStepsBefore" 
+                        placeholder="Value or {{token}}" 
+                    />
                 </div>
+
             </div>
 
             <button @click="addRule" class="v2-btn-outline w-full py-2 border-dashed">

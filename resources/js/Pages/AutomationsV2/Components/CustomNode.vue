@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { Handle, Position } from '@vue-flow/core';
 import { useAutomationsV2Store } from '../Store/storeV2';
 import {
@@ -28,6 +28,7 @@ const TYPE_CONFIG = {
     FOR_EACH:         { label: 'For Each Loop',     color: 'from-indigo-500 to-blue-600',  icon: ArrowPathIcon,           ring: 'ring-indigo-400' },
     AI_PROMPT:        { label: 'AI Prompt',         color: 'from-pink-500 to-rose-600',    icon: SparklesIcon,            ring: 'ring-pink-400'   },
     TRANSFORM:        { label: 'Transform',         color: 'from-slate-500 to-gray-600',   icon: CodeBracketIcon,         ring: 'ring-slate-400'  },
+    TRANSFORM_CONTENT:{ label: 'Transform',         color: 'from-slate-500 to-gray-600',   icon: CodeBracketIcon,         ring: 'ring-slate-400'  },
     DEFINE_VARIABLE:  { label: 'Define Variable',   color: 'from-slate-500 to-gray-600',   icon: CodeBracketIcon,         ring: 'ring-slate-400'  },
 };
 
@@ -38,8 +39,11 @@ const summary = computed(() => {
     const c = s?.step_config || {};
     switch (s?.step_type) {
         case 'TRIGGER':
-        case 'SCHEDULE_TRIGGER':
-            return c.trigger_event || c.model ? `${c.model || ''} → ${c.event || c.trigger_event || ''}` : 'Not configured';
+        case 'SCHEDULE_TRIGGER': {
+            const ev = typeof c.event === 'object' ? (c.event.label || c.event.value) : c.event;
+            const te = typeof c.trigger_event === 'object' ? (c.trigger_event.label || c.trigger_event.value) : c.trigger_event;
+            return c.trigger_event || c.model ? `${c.model || ''} → ${ev || te || ''}` : 'Not configured';
+        }
         case 'ACTION':
             return c.action_type?.replace(/_/g, ' ') || 'Select an action';
         case 'CONDITION':
@@ -51,6 +55,8 @@ const summary = computed(() => {
         case 'AI_PROMPT':
             return c.promptRef?.name ? `Prompt: ${c.promptRef.name}` : 'No prompt selected';
         case 'TRANSFORM':
+        case 'TRANSFORM_CONTENT':
+            return c.type?.replace(/_/g, ' ') || 'Not configured';
         case 'DEFINE_VARIABLE':
             return c.variable_name || 'Not configured';
         default:
@@ -78,6 +84,7 @@ function deleteNode(e) {
 function addStepAfter(type, branch) {
     store.addStep(type, props.id.replace('step-', ''), branch || null);
 }
+
 </script>
 
 <template>
@@ -138,6 +145,7 @@ function addStepAfter(type, branch) {
                 ↻ LOOP BODY
             </div>
         </div>
+
 
         <!-- ===== VUE FLOW HANDLES ===== -->
 

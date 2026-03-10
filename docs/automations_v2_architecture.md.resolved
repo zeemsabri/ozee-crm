@@ -1,0 +1,89 @@
+# Automations V2 Architecture
+
+This document explains the core structure, components, and state management logic that power the new `/automations/v2` module.
+
+---
+
+## 🏗 High-Level Overview
+
+The **Automations V2** interface is an interactive drag-and-drop workflow builder. It uses a modern split-view mechanism that toggles between a "Hub" (dashboard of existing workflows) and a "Builder" (a visual canvas to construct logic).
+
+Under the hood, it leverages **Vue Flow** to render node graphs, **Pinia** to manage global configuration and canvas state, and Tailwind CSS for the design system.
+
+The core data structure is a "Nested Tree" of steps (representing `if/else` logic flow, `loops`, etc.), which is transformed dynamically into "Flat Edges & Nodes" on the fly for Vue Flow to render properly.
+
+---
+
+## 📂 Directory Structure
+
+```text
+resources/js/Pages/AutomationsV2/
+├── Index.vue                   // Main entry point. Handles switching between Hub & Builder.
+├── index.css                   // Design system variables & custom CSS overrides.
+├── Store/
+│   └── storeV2.js              // Pinia store for robust state & tree logic management.
+├── Api/
+│   └── automationApi.js        // API service methods to communicate with the Laravel backend.
+└── Components/
+    ├── Hub.vue                 // Dashboard listing all workflows (edit/delete/activate).
+    ├── Builder.vue             // Main layout shell containing Header, Sidebars, and Canvas.
+    ├── Canvas.vue              // The Vue Flow graph wrapper logic.
+    ├── CustomNode.vue          // Rendering logic and UI for the blocks placed on the Canvas.
+    ├── PropertiesSidebar.vue   // Sliding right panel handling forms for the selected node.
+    ├── DataTokenInserter.vue   // Special component for injecting {{ variable }} tokens.
+    └── StepConfigs/            // Forms for individually configuring step types.
+        ├── ActionConfig.vue
+        ├── ConditionConfig.vue
+        ├── TriggerConfig.vue
+        └── ...
+```
+
+---
+
+## 🧩 Components Explained
+
+### 1. [Index.vue](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Index.vue)
+The root wrapping component. It's relatively simple: it uses a Vue `<Transition>` element to swap the interface between [Hub.vue](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Components/Hub.vue) and [Builder.vue](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Components/Builder.vue) depending on user action, while fetching the initial backend schemas into Pinia.
+
+### 2. [Components/Hub.vue](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Components/Hub.vue)
+The dashboard interface. Lists all workflows and holds buttons to jump into the `Builder`. Typically contains lists with toggle actions like enable/disable workflow execution or edit/delete. 
+
+### 3. [Components/Builder.vue](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Components/Builder.vue)  
+The visual container for editing a workflow. It structurally contains three major areas:
+*   **Top Bar:** Displays the automation name and Save functionality.
+*   **Left Sidebar (Library):** Renders draggable node templates that users can grab to instantiate into the canvas.
+*   **Center Workspace:** Renders the `<Canvas>` where visual flow happens.
+*   **Right Workspace:** Renders the `<PropertiesSidebar>`.
+
+### 4. [Components/Canvas.vue](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Components/Canvas.vue)
+The brain of the Vue Flow integration. It consumes the `store.workflowSteps` reactive tree and mathematically builds nodes and sequential edges.
+*   **Tree Resolution:** Recursively traverses ([buildElements](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Components/Canvas.vue#36-126)) the nested workflow logic (including TRUE/FALSE branches and Loop Bodies) to figure out X/Y coordinates and edge connections mapping.
+*   **Re-parenting:** Whenever a user manually drags connection lines (`onConnect`), it intercepts Vue Flow's natural edge mechanism, rips the target out of its current place in the tree, and injects it recursively into the new source tree node.
+*   **Unlinked Handling:** If an edge is deleted or dropped dynamically, nodes are placed back into the root plane layout in an `is_unlinked` mode, allowing them to remain visually free-floating until manually joined or processed.
+
+### 5. [Components/CustomNode.vue](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Components/CustomNode.vue)
+The custom node type defined for Vue Flow. Instead of default boxes, this controls the visual flair depending on the step types (e.g. Amber If/Else blocks vs Emerald Action blocks vs Violet Event blocks).
+Contains distinct `<Handle>` elements that facilitate connections—including specialized placement handles for `isCondition` (split 25%/75% at bottom for visual symmetry) or loop branching.
+
+### 6. [Components/PropertiesSidebar.vue](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Components/PropertiesSidebar.vue)
+A reactive sidebar rendering configuration details dynamically based on the active node. If a block in `store.selectedNodeId` exists, it instantiates the corresponding configuration component from the `StepConfigs` directory depending on `step_type`.
+
+### 7. `StepConfigs/*.vue`
+Individual view forms mapped one-on-one to logical steps.
+*   **ActionConfig**: Setting up generic actions or REST API calls.
+*   **ConditionConfig**: Query builders dictating criteria (e.g., if Name == Bob).
+*   **TriggerConfig**: Event listening bindings (e.g., Listen to User Created).
+
+### 8. [Components/DataTokenInserter.vue](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Components/DataTokenInserter.vue)
+A utility input modifier that enables inserting dynamic contextual pipeline tokens variables (like `trigger.name`) seamlessly via a visual dropdown instead of manually typing variables in curly braces.
+
+---
+
+## 🛠 State Management ([storeV2.js](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Store/storeV2.js))
+
+The `useAutomationsV2Store` Pinia store is critical as it acts as the **single source of truth** dictating both the logical JSON of the Automation, and the visual geometry.
+
+**Key Concepts:**
+1.  **State Trees:** The app operates on a nested tree architecture: Node arrays contain objects, which heavily nest into `if_true` or `if_false` parameters under condition blocks.
+2.  **Flatten / Expand:** Backends prefer flat lists linked via metadata. The store contains powerful mapping functions ([flattenSteps](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Store/storeV2.js#10-48) / [rebuildTree](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Store/storeV2.js#49-105)) to safely collapse the tree to a single sequential payload over API, appending parent [id](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Store/storeV2.js#335-339) mappings and branch indicators, and restoring them symmetrically on [loadWorkflow()](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Store/storeV2.js#211-253).
+3.  **Cross-component reactivity:** If a Form in `ActionConfig` edits a parameter inside reactive [selectedStep](file:///Users/zeeshansabri/laravel/email-approval-app/resources/js/Pages/AutomationsV2/Store/storeV2.js#138-142), Vue instantly propagates that change reflecting a summary description onto the `CustomNode` block living isolated inside the `<VueFlow>` instance layout simultaneously.
