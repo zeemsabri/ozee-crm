@@ -55,17 +55,68 @@ const availableSources = computed(() => {
              sources.push({ id: `step_${s.id}`, label: `AI: ${s.name}`, icon: CpuChipIcon, fields: s.step_config.responseStructure.map(f => f.name) });
         } else if (s.step_type === 'FETCH_API_DATA' && s.step_config?.responseStructure) {
              sources.push({ id: `step_${s.id}`, label: `API: ${s.name}`, icon: CpuChipIcon, fields: s.step_config.responseStructure.map(f => f.name) });
-        } else if (s.step_type === 'DEFINE_VARIABLE' || s.step_type === 'TRANSFORM') {
-             if (s.step_config?.variable_name) {
-                 sources.push({ id: `step_${s.id}`, label: `Var: ${s.name}`, icon: VariableIcon, fields: [s.step_config.variable_name] });
-             }
+        } else if (s.step_type === 'DEFINE_VARIABLE') {
+            // Support v1 `variables` array format AND legacy `variable_name` key
+            const vars = Array.isArray(s.step_config?.variables)
+                ? s.step_config.variables
+                : (s.step_config?.variable_name ? [{ name: s.step_config.variable_name }] : []);
+            if (vars.length) {
+                sources.push({ id: `step_${s.id}`, label: `Var: ${s.name}`, icon: VariableIcon, fields: vars.map(v => v.name).filter(Boolean) });
+            }
+        } else if (s.step_type === 'TRANSFORM' || s.step_type === 'TRANSFORM_CONTENT') {
+            sources.push({ id: `step_${s.id}`, label: `Transform: ${s.name}`, icon: VariableIcon, fields: ['result'] });
         }
     });
 
-    // 3. Loop Context
+    // 3. Loop Context — expand loop.item into actual model fields
     const nearestLoop = [...props.allStepsBefore].reverse().find(s => s.step_type === 'FOR_EACH');
     if (nearestLoop) {
-        sources.push({ id: 'loop', label: 'Current Loop Item', icon: ArrowPathIcon, fields: ['item', 'index', 'key'] });
+        const loopFields = ['index', 'key'];
+        let loopModelSchema = null;
+
+        // Strategy 1: parse sourceArray token to find the source FETCH_RECORDS step
+        const sourceArray = nearestLoop.step_config?.sourceArray || '';
+        const stepMatch = sourceArray.match(/step_(\d+)/);
+        if (stepMatch) {
+            const referencedStepId = stepMatch[1];
+            const referencedStep = props.allStepsBefore.find(s => String(s.id) === referencedStepId);
+            const modelName = referencedStep?.step_config?.model;
+            if (modelName) {
+                loopModelSchema = schema.value.find(m =>
+                    m.name === modelName ||
+                    m.full_class === modelName ||
+                    (m.full_class || '').endsWith('\\' + modelName)
+                );
+            }
+        }
+
+        // Strategy 2: fall back to the nearest FETCH_RECORDS step before the loop
+        if (!loopModelSchema) {
+            const fetchStep = [...props.allStepsBefore]
+                .reverse()
+                .find(s => s.step_type === 'FETCH_RECORDS' && s.step_config?.model);
+            if (fetchStep) {
+                const modelName = fetchStep.step_config.model;
+                loopModelSchema = schema.value.find(m =>
+                    m.name === modelName ||
+                    m.full_class === modelName ||
+                    (m.full_class || '').endsWith('\\' + modelName)
+                );
+            }
+        }
+
+        if (loopModelSchema?.columns?.length) {
+            // Expand loop.item.fieldName for each column
+            loopModelSchema.columns.forEach(c => {
+                const colName = typeof c === 'string' ? c : c.name;
+                loopFields.push(`item.${colName}`);
+            });
+        } else {
+            // Fallback: generic item reference
+            loopFields.push('item');
+        }
+
+        sources.push({ id: 'loop', label: 'Current Loop Item', icon: ArrowPathIcon, fields: loopFields });
     }
 
     // 4. Related Data (with.*)

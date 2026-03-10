@@ -119,12 +119,15 @@ const OPERATORS = [
                         <TrashIcon class="w-3 h-3" />
                     </button>
 
-                    <div class="flex gap-2">
-                        <select :value="cond.column" @change="updateCondition(idx, 'column', $event.target.value)" class="v2-select flex-1 !py-1 text-xs">
-                            <option value="" disabled>Field…</option>
-                            <option v-for="col in columns" :key="col.name" :value="col.name">{{ col.label }}</option>
-                        </select>
-                        <select :value="cond.operator" @change="updateCondition(idx, 'operator', $event.target.value)" class="v2-select w-28 !py-1 text-xs text-center font-bold text-indigo-600">
+                    <!-- Column selector: full width so selected value is always visible -->
+                    <select :value="cond.column" @change="updateCondition(idx, 'column', $event.target.value)" class="v2-select w-full !py-1.5 text-xs">
+                        <option value="" disabled>Select field…</option>
+                        <option v-for="col in columns" :key="col.name" :value="col.name">{{ col.label }}</option>
+                    </select>
+
+                    <!-- Operator row -->
+                    <div class="flex gap-2 items-center">
+                        <select :value="cond.operator" @change="updateCondition(idx, 'operator', $event.target.value)" class="v2-select flex-1 !py-1 text-xs font-bold text-indigo-600">
                              <option v-for="op in OPERATORS" :key="op.value" :value="op.value">{{ op.label }}</option>
                         </select>
                     </div>

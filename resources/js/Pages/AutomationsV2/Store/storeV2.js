@@ -446,6 +446,7 @@ function defaultNameFor(type) {
         FOR_EACH: 'For Each',
         AI_PROMPT: 'AI Prompt',
         TRANSFORM: 'Transform',
+        TRANSFORM_CONTENT: 'Transform Content',
         DEFINE_VARIABLE: 'Define Variable',
     };
     return map[type] || type.replace(/_/g, ' ');

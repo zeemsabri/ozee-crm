@@ -9,7 +9,8 @@ import {
     ScissorsIcon, 
     ArrowsRightLeftIcon, 
     TrashIcon,
-    CommandLineIcon
+    CommandLineIcon,
+    PlusIcon
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
@@ -30,6 +31,35 @@ function set(key, val) {
     config.value = { ...config.value, [key]: val }; 
 }
 
+// ---- DEFINE_VARIABLE: support v1 `variables` array format ----
+// The backend stores variables as: { variables: [{name, value}] }
+// The old UI used: { variable_name, value } — we normalise on read
+const variables = computed(() => {
+    const c = config.value;
+    // v1 format: variables array
+    if (Array.isArray(c.variables) && c.variables.length) return c.variables;
+    // v2 legacy format: variable_name / value keys
+    if (c.variable_name !== undefined || c.value !== undefined) {
+        return [{ name: c.variable_name || '', value: c.value || '' }];
+    }
+    return [{ name: '', value: '' }];
+});
+
+function updateVariable(idx, key, val) {
+    const updated = variables.value.map((v, i) => i === idx ? { ...v, [key]: val } : v);
+    // Always write back in the v1 array format
+    config.value = { ...config.value, variables: updated };
+}
+
+function addVariable() {
+    config.value = { ...config.value, variables: [...variables.value, { name: '', value: '' }] };
+}
+
+function removeVariable(idx) {
+    config.value = { ...config.value, variables: variables.value.filter((_, i) => i !== idx) };
+}
+// ---- end DEFINE_VARIABLE helpers ----
+
 const transformationTypes = [
     { value: 'remove_after_marker', label: 'Remove After Marker', desc: 'Truncate text after a specific string.', icon: ScissorsIcon },
     { value: 'find_and_replace',    label: 'Find & Replace',      desc: 'Swap specific text strings.',         icon: ArrowsRightLeftIcon },
@@ -48,33 +78,52 @@ const selectedType = computed(() => transformationTypes.find(t => t.value === co
             <div class="rounded-xl bg-indigo-50/50 border border-indigo-100 px-4 py-3 flex items-start gap-3 animate-in">
                 <CommandLineIcon class="w-5 h-5 text-indigo-500 mt-0.5" />
                 <div>
-                    <p class="text-[11px] font-bold text-indigo-700 uppercase tracking-widest leading-none">Global Variable</p>
-                    <p class="text-xs text-indigo-600/70 mt-1 font-medium">Define a value to use in later steps.</p>
+                    <p class="text-[11px] font-bold text-indigo-700 uppercase tracking-widest leading-none">Define Variables</p>
+                    <p class="text-xs text-indigo-600/70 mt-1 font-medium">Store values to reuse in later steps.</p>
                 </div>
             </div>
 
-            <div class="space-y-4">
-                <div>
-                    <label class="field-label">Variable Name</label>
-                    <input 
-                        :value="config.variable_name" 
-                        @input="set('variable_name', $event.target.value.replace(/\s+/g, '_').toLowerCase())"
-                        placeholder="e.g. lead_score"
-                        class="v2-input font-mono !text-xs" 
-                    />
-                    <p class="text-[10px] text-gray-400 mt-1.5 italic font-medium px-1">Lowercase and underscores only.</p>
+            <div class="space-y-3">
+                <div 
+                    v-for="(variable, idx) in variables" 
+                    :key="idx"
+                    class="p-3 bg-gray-50 rounded-xl border border-gray-100 space-y-3 relative group"
+                >
+                    <button 
+                        v-if="variables.length > 1"
+                        @click="removeVariable(idx)"
+                        class="absolute -top-2 -right-2 w-5 h-5 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 shadow-sm opacity-0 group-hover:opacity-100 transition"
+                    >
+                        <TrashIcon class="w-3 h-3" />
+                    </button>
+
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Variable Name</label>
+                        <input 
+                            :value="variable.name" 
+                            @input="updateVariable(idx, 'name', $event.target.value.replace(/\s+/g, '_').toLowerCase())"
+                            placeholder="e.g. project_id"
+                            class="v2-input font-mono !text-xs" 
+                        />
+                        <p class="text-[10px] text-gray-400 mt-1 italic font-medium px-1">Access later as <code class="bg-gray-100 px-1 rounded" v-text="'{{step_X.' + (variable.name || 'name') + '}}'"></code></p>
+                    </div>
+
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Value / Formula</label>
+                        <TokenInputField 
+                            :model-value="variable.value" 
+                            @update:modelValue="updateVariable(idx, 'value', $event)"
+                            :all-steps-before="allStepsBefore" 
+                            textarea 
+                            :rows="2" 
+                            placeholder="Static text or dynamic token..." 
+                        />
+                    </div>
                 </div>
 
-                <div>
-                    <label class="field-label">Value / Formula</label>
-                    <TokenInputField 
-                        v-model="config.value" 
-                        :all-steps-before="allStepsBefore" 
-                        textarea 
-                        :rows="3" 
-                        placeholder="Static text or dynamic tokens..." 
-                    />
-                </div>
+                <button @click="addVariable" class="v2-btn-outline w-full py-2 border-dashed">
+                    <PlusIcon class="w-4 h-4" /> Add Variable
+                </button>
             </div>
         </template>
 
