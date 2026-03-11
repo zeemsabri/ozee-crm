@@ -47,10 +47,13 @@ class Notifications extends JsonResource
             'url' => $data['url'] ?? null,
             'view_id' => $data['view_id'] ?? null,
             'count' => $data['count'] ?? 1,
-            'updates' => $data['updates'] ?? [],
+            'updates' => $data['history'] ?? [], // Map history to updates for frontend
+            'tasks' => $data['tasks'] ?? [],
+            'source_id' => $data['source_id'] ?? null,
+            'source_type' => $data['source_type'] ?? null,
             'group_key' => $data['group_key'] ?? null,
             'last_updated_at' => $data['last_updated_at'] ?? null,
-            'type' => $this->type,
+            'type' => $data['type'] ?? $this->type,
             'isRead' => (bool) $this->read_at,
             'created_at' => $this->created_at->toDateTimeString(),
         ];

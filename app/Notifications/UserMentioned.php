@@ -38,12 +38,21 @@ class UserMentioned extends Notification implements ShouldQueue
              $projectName = $this->sourceModel->noteable->project->name;
         }
 
+        $taskId = null;
+        if ($this->sourceModel instanceof \App\Models\ProjectNote && $this->sourceModel->noteable_type === 'App\Models\Task') {
+            $taskId = $this->sourceModel->noteable_id;
+        }
+
         return [
             'view_id' => Str::uuid()->toString(),
             'title' => 'New mention in ' . $projectName,
             'message' => $this->mentionedByUser->name . ' mentioned you: "' . Str::limit($cleanMessage, 100) . '"',
             'project_id' => $this->sourceModel->project_id ?? null,
+            'task_id' => $taskId,
+            'source_id' => $this->sourceModel->id,
+            'source_type' => class_basename($this->sourceModel),
             'url' => '#', 
+            'type' => 'user_mentioned',
         ];
     }
 }

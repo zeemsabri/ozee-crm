@@ -10,9 +10,9 @@ trait GroupableNotification
      * @param mixed $notifiable
      * @param string $groupKey
      * @param array $data
-     * @return array
+     * @return array|null
      */
-    protected function groupInDatabase($notifiable, string $groupKey, array $data)
+    protected function groupInDatabase($notifiable, string $groupKey, array $data): ?array
     {
         // 1. Look for an existing, UNREAD notification with this key
         $existing = $notifiable->unreadNotifications()
@@ -21,34 +21,65 @@ trait GroupableNotification
 
         if ($existing) {
             // 2. If it exists, UPDATE it instead of creating a new one
-            $currentData = $existing->data;
-            $currentCount = $currentData['count'] ?? 1;
-            $updates = $currentData['updates'] ?? [];
-            
-            // Capture the current data as an update before overwriting it
-            $capturedUpdate = $currentData;
-            $capturedUpdate['created_at'] = $existing->created_at->toDateTimeString();
-            unset($capturedUpdate['updates']); // Remove nested updates to keep it flat
-            $updates[] = $capturedUpdate;
+            $currentData = is_string($existing->data) ? json_decode($existing->data, true) : (array) $existing->data;
+            if (!is_array($currentData)) $currentData = [];
 
-            $existing->update([
-                'data' => array_merge($currentData, $data, [
-                    'count' => $currentCount + 1,
-                    'updates' => array_slice($updates, -10), // Store up to 10 previous updates
-                    'last_updated_at' => now()->toDateTimeString(),
-                ]),
-                'created_at' => now(), // Bump to the top
-            ]);
+            $currentCount = $currentData['count'] ?? 1;
+            $history = $currentData['history'] ?? [];
+            if (!is_array($history)) $history = [];
             
-            // Return empty to prevent Laravel from creating a new row if we're using database channel
-            // Note: This relies on the calling notification returning [] for toDatabase()
-            return [];
+            // Capture the current summary into history
+            $entry = $currentData;
+            $entry['created_at'] = $existing->created_at ? $existing->created_at->toDateTimeString() : now()->toDateTimeString();
+            unset($entry['history']); // Keep it flat
+            $history[] = $entry;
+
+            // Maintain a specifically requested "tasks" array
+            $tasks = $currentData['tasks'] ?? [];
+            if (isset($data['task_id'])) {
+                $tasks[] = [
+                    'id' => $data['task_id'],
+                    'name' => $data['task_name'] ?? $data['title'] ?? 'Task',
+                    'url' => $data['url'] ?? '#',
+                ];
+            }
+
+            // Prepare the new data set
+            $newData = array_merge($currentData, $data, [
+                'count' => $currentCount + 1,
+                'history' => array_slice($history, -10),
+                'tasks' => $tasks,
+                'last_updated_at' => now()->toDateTimeString(),
+                'group_key' => $groupKey,
+            ]);
+
+            // Save back using raw SQL
+            \Illuminate\Support\Facades\DB::table('notifications')
+                ->where('id', $existing->id)
+                ->update([
+                    'data' => json_encode($newData),
+                    'created_at' => now(), // Move to top
+                    'updated_at' => now(),
+                    'read_at' => null,
+                ]);
+            
+            return null; // Return null to signal it was already handled/grouped
         }
 
         // 3. If no unread notification exists, create a fresh one
+        $tasks = [];
+        if (isset($data['task_id'])) {
+            $tasks[] = [
+                'id' => $data['task_id'],
+                'name' => $data['task_name'] ?? $data['title'] ?? 'Task',
+                'url' => $data['url'] ?? '#',
+            ];
+        }
+
         return array_merge($data, [
             'group_key' => $groupKey,
             'count' => 1,
+            'tasks' => $tasks,
             'last_updated_at' => now()->toDateTimeString(),
         ]);
     }
