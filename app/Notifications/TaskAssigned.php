@@ -8,12 +8,13 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
+use App\Notifications\Traits\GroupableNotification;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
 
 class TaskAssigned extends Notification implements ShouldBroadcast, ShouldQueue
 {
-    use Queueable;
+    use Queueable, GroupableNotification;
 
     protected $task;
 
@@ -27,10 +28,10 @@ class TaskAssigned extends Notification implements ShouldBroadcast, ShouldQueue
     public function __construct(Task $task)
     {
         $this->task = $task;
-        $this->setPaylaod();
+        $this->setPayload();
     }
 
-    private function setPaylaod()
+    private function setPayload()
     {
         $this->payload = $this->getPayload();
 
@@ -80,14 +81,19 @@ class TaskAssigned extends Notification implements ShouldBroadcast, ShouldQueue
     public function getPayload()
     {
         $project = $this->task->milestone?->project ?? null;
+        $projectId = $project?->id ?? 0;
         $projectName = $project?->name ?? null;
+
+        // Use a stable view_id based on the project grouping to ensure consistency
+        // when multiple notifications are merged into one database row.
+        $view_id = $projectId ? substr(md5("task_assigned_project_{$projectId}"), 0, 8) : Str::random(7);
 
         return [
             'title' => $this->task->name,
-            'view_id' => Str::random(7),
+            'view_id' => $view_id,
             'project_name' => $projectName,
             'message' => 'You have been assigned a new task: '.$this->task->name,
-            'project_id' => $this->task->milestong?->project_id,
+            'project_id' => $project?->id,
             'description' => $this->task->description,
             'task_type' => $this->task->type,
             'priority' => 'low',
@@ -119,5 +125,23 @@ class TaskAssigned extends Notification implements ShouldBroadcast, ShouldQueue
     public function toArray($notifiable)
     {
         return $this->payload;
+    }
+
+    /**
+     * Get the database representation of the notification.
+     *
+     * @param  mixed  $notifiable
+     * @return array
+     */
+    public function toDatabase($notifiable)
+    {
+        $project = $this->task->milestone?->project ?? null;
+        $projectId = $project?->id ?? 0;
+        $groupKey = "task_assigned_project_{$projectId}";
+
+        $data = $this->payload;
+        $data['type'] = 'task_assigned';
+
+        return $this->groupInDatabase($notifiable, $groupKey, $data);
     }
 }

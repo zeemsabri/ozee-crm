@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\BugReportController;
 use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Api\CategorySetController;
+use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\Client\SeoReportController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\ClientDashboard\ProjectClientAction;
@@ -165,6 +166,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Notifications Routes
     // Other routes...
     Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
     Route::post('/notifications/{viewId}/read', [NotificationController::class, 'markAsReadByViewId']);
     Route::delete('/notifications/{notificationId}', [NotificationController::class, 'destroy']);
 
@@ -255,6 +257,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('projects/{project}/clients', [ProjectReadController::class, 'getProjectClients']);
     Route::get('projects/{project}/google-chat-members', [ProjectReadController::class, 'getGoogleChatMembers']);
     Route::get('projects/{project}/contract-details', [ProjectReadController::class, 'getContractDetails']);
+
+    // Chat Routes
+    Route::get('projects/{project}/chat', [ChatController::class, 'index']);
+    Route::post('projects/{project}/chat', [ChatController::class, 'store']);
 
     // Action Routes
     Route::post('projects', [ProjectActionController::class, 'store']);

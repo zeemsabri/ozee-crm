@@ -189,3 +189,16 @@ export const markToastAsSeen = (notificationId) => {
         removeIdFromLocalStorage(notification.view_id);
     }
 };
+
+/**
+ * Marks all notifications as read and re-fetches the list.
+ */
+export const markAllNotificationsAsRead = async () => {
+    try {
+        await window.axios.post('/api/notifications/read-all');
+        localStorage.removeItem(PUSH_IDS_KEY);
+        await fetchNotificationsFromDatabase();
+    } catch (error) {
+        console.error('Failed to mark all notifications as read:', error);
+    }
+};

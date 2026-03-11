@@ -14,6 +14,7 @@ import {
 
 import TaskDetailSidebar from '@/Components/ProjectTasks/TaskDetailSidebar.vue';
 import MentionInput from '@/Components/ProjectTasks/MentionInput.vue';
+import { formatMentions } from '@/Utils/mentions';
 
 const reportData = ref([]);
 const projectsList = ref([]);
@@ -59,8 +60,11 @@ const isDueToday = (task) => {
 
 const formatNoteContent = (content) => {
     if (!content) return '';
+    // Use formatMentions first, then our custom formatting
+    let formatted = formatMentions(content);
+    
     // Simple markdown-ish bolding and line breaks
-    return content
+    return formatted
         .replace(/\*\*(.*?)\*\*/g, '<strong class="font-black text-gray-900">$1</strong>')
         .replace(/\n/g, '<br/>');
 };
@@ -529,7 +533,7 @@ onMounted(() => {
                                                     class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300" 
                                                 />
                                                 <div class="flex-1 min-w-0">
-                                                    <span :class="{'line-through text-gray-400': point.done, 'text-gray-700': !point.done}" class="text-xs font-bold block truncate">{{ point.content }}</span>
+                                                    <span :class="{'line-through text-gray-400': point.done, 'text-gray-700': !point.done}" class="text-xs font-bold block truncate" v-html="formatMentions(point.content)"></span>
                                                     <span v-if="point.user_name" class="text-[9px] font-black text-indigo-500 uppercase flex items-center gap-1 mt-0.5"><UserIcon class="h-2.5 w-2.5" /> Mentioned: {{ point.user_name }}</span>
                                                 </div>
                                                 <button @click="deleteActionPoint(project, point.id)" class="text-gray-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100">
