@@ -69,25 +69,47 @@ export const addOrUpdateNotification = (notification, fromPush = false) => {
         return;
     }
 
-    const exists = notificationSidebarState.value.notifications.some(
+    const existingIndex = notificationSidebarState.value.notifications.findIndex(
         (n) => n.view_id === notification.view_id
     );
 
-    if (!exists) {
+    if (existingIndex === -1) {
         if (fromPush) {
             const currentPushIds = getNewPushIds();
             setNewPushIds([...currentPushIds, notification.view_id]);
         }
-        const newNotification = markRaw({
+        // IMPORTANT: Avoid using markRaw so properties remain reactive
+        // Doing this allows updates to works like a charm.
+        const newNotification = {
             ...notification,
             id: crypto.randomUUID(),
             isNewPush: fromPush,
             isRead: false,
-        });
+        };
         if (fromPush) {
             notificationSidebarState.value.notifications.unshift(newNotification);
         } else {
             notificationSidebarState.value.notifications.push(newNotification);
+        }
+    } else {
+        // Notification already exists (e.g., grouped by view_id).
+        // Update it with the newly arrived data and show push again.
+        const existingId = notificationSidebarState.value.notifications[existingIndex].id;
+        
+        const updatedNotification = {
+            ...notificationSidebarState.value.notifications[existingIndex],
+            ...notification, // apply new data
+            isNewPush: fromPush, // trigger the toast again
+            isRead: false
+        };
+        
+        notificationSidebarState.value.notifications[existingIndex] = updatedNotification;
+
+        if (fromPush) {
+            const currentPushIds = getNewPushIds();
+            if (!currentPushIds.includes(notification.view_id)) {
+                setNewPushIds([...currentPushIds, notification.view_id]);
+            }
         }
     }
 };
@@ -183,10 +205,14 @@ export const markNotificationAndRefetch = async (viewId) => {
  * Marks a toast as "seen" so it is removed from the push container.
  */
 export const markToastAsSeen = (notificationId) => {
-    const notification = notificationSidebarState.value.notifications.find(n => n.id === notificationId);
-    if (notification) {
-        notification.isNewPush = false;
-        removeIdFromLocalStorage(notification.view_id);
+    const index = notificationSidebarState.value.notifications.findIndex(n => n.id === notificationId);
+    if (index !== -1) {
+        // Replace the object to ensure Vue reactivity triggers (especially if previously marked raw)
+        notificationSidebarState.value.notifications[index] = {
+            ...notificationSidebarState.value.notifications[index],
+            isNewPush: false
+        };
+        removeIdFromLocalStorage(notificationSidebarState.value.notifications[index].view_id);
     }
 };
 
