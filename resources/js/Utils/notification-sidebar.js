@@ -58,12 +58,12 @@ export const addOrUpdateNotification = (notification, fromPush = false) => {
 
         const exists = notificationSidebarState.value.notifications.some(n => n.view_id === notification.view_id);
         if (!exists) {
-            const newNotification = markRaw({
+            const newNotification = {
                 ...notification,
                 id: crypto.randomUUID(),
                 isNewPush: false,
                 isRead: false,
-            });
+            };
             notificationSidebarState.value.notifications.unshift(newNotification);
         }
         return;
@@ -156,12 +156,12 @@ export const fetchNotificationsFromDatabase = async () => {
 
         notificationSidebarState.value.notifications = finalNotifications.map(dbNotification => {
             const isNew = combinedPushIds.includes(dbNotification.view_id);
-            return markRaw({
+            return {
                 ...dbNotification,
                 id: crypto.randomUUID(),
                 isNewPush: isNew,
-                isRead: dbNotification.isRead, // <-- CHANGED THIS LINE
-            });
+                isRead: dbNotification.isRead,
+            };
         });
 
     } catch (error) {
