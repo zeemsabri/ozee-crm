@@ -1,19 +1,7 @@
 <template>
     <div class="fixed bottom-4 right-4 z-[9999] flex flex-col items-end space-y-2 pointer-events-none" v-if="!sidebarIsOpen">
-        <!-- Grouped Inactive Notification Bubble -->
-        <transition name="toast-fade">
-            <div
-                v-if="!isWindowFocused && pendingNotificationsCount > 0"
-                class="bg-blue-600 text-white rounded-full shadow-lg px-4 py-2 flex items-center space-x-2 border border-blue-500 cursor-pointer hover:bg-blue-700 transition pointer-events-auto"
-                @click="openSidebarAndClear"
-            >
-                <BellRing class="w-4 h-4 animate-pulse" />
-                <span class="text-xs font-semibold">You missed {{ pendingNotificationsCount }} new updates</span>
-            </div>
-        </transition>
-
         <!-- Container for active individual toasts -->
-        <div class="notification-list w-full max-w-sm space-y-2" v-if="(isWindowFocused || pendingNotificationsCount === 0)">
+        <div class="notification-list w-full max-w-sm space-y-2" v-if="visibleNotifications.length > 0">
             <transition-group name="toast-fade">
                 <div
                     v-for="notification in visibleNotifications"
@@ -166,11 +154,8 @@ const allPendingPushes = computed(() => {
 
 // If focused, show up to maxVisible. If blurred, we hide them to show the bubble instead.
 const visibleNotifications = computed(() => {
-    if (!isWindowFocused.value) return [];
     return allPendingPushes.value.slice(0, maxVisible);
 });
-
-const pendingNotificationsCount = computed(() => allPendingPushes.value.length);
 
 // --- METHODS ---
 
