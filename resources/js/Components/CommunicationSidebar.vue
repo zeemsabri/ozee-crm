@@ -27,8 +27,10 @@ import {
     notificationSidebarState, 
     closeNotificationsSidebar,
     markNotificationAndRefetch,
-    markAllNotificationsAsRead
+    markToastAsSeen
 } from '@/Utils/notification-sidebar';
+import { pushSuccess } from '@/Utils/notification';
+import { formatDate } from '@/Utils/notification';
 import { formatMentions } from '@/Utils/mentions';
 import MentionInput from '@/Components/ProjectTasks/MentionInput.vue';
 
@@ -377,6 +379,20 @@ const subscribeToProject = (projectId) => {
                         ...unreadByProject.value,
                         [projectId]: (unreadByProject.value[projectId] ?? 0) + 1,
                     };
+
+                    // Trigger a push notification toast for background projects
+                    const project = projects.value.find(p => p.id === projectId);
+                    pushSuccess({
+                        // Fake a view_id unique to the message so it shows up in the toast container
+                        view_id: `chat_${incoming.id}`, 
+                        title: incoming.user || 'New Message',
+                        project_name: project?.name || 'Team Chat',
+                        project_id: projectId,
+                        message: incoming.message,
+                        type: 'chat_message',
+                        isNewPush: true,
+                        isRead: false
+                    });
                 }
             }
         });
