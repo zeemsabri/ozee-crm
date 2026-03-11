@@ -413,12 +413,30 @@ const unsubscribeAll = () => {
     subscribedProjectIds.value = new Set();
 };
 
+const handleOpenProjectChat = async (event) => {
+    const { projectId } = event.detail;
+    notificationSidebarState.value.show = true;
+    activeTab.value = 'chat';
+    
+    if (!projects.value.length) {
+        await fetchProjects();
+    }
+    
+    const project = projects.value.find(p => p.id == projectId);
+    if (project) {
+        activeProject.value = project;
+        fetchChatMessages();
+    }
+};
+
 onMounted(() => {
     fetchProjects();
+    window.addEventListener('open-project-chat', handleOpenProjectChat);
 });
 
 onUnmounted(() => {
     unsubscribeAll();
+    window.removeEventListener('open-project-chat', handleOpenProjectChat);
 });
 
 const closeSidebar = () => {
