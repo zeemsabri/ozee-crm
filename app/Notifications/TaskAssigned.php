@@ -38,6 +38,8 @@ class TaskAssigned extends Notification implements ShouldBroadcast, ShouldQueue
         return $this;
     }
 
+    protected ?array $databaseData = null;
+
     /**
      * Get the notification's delivery channels.
      *
@@ -46,7 +48,22 @@ class TaskAssigned extends Notification implements ShouldBroadcast, ShouldQueue
      */
     public function via($notifiable)
     {
-        // Add 'broadcast' to the array of channels
+        $project = $this->task->milestone?->project ?? null;
+        $projectId = $project?->id ?? 0;
+        $groupKey = "task_assigned_project_{$projectId}";
+
+        $data = $this->payload;
+        $data['type'] = 'task_assigned';
+
+        // Call our specialized grouping logic
+        $this->databaseData = $this->groupInDatabase($notifiable, $groupKey, $data);
+
+        // If databaseData is null, it means groupInDatabase already updated an existing record.
+        // In this case, we skip the 'database' channel to avoid creating a new (empty) row.
+        if ($this->databaseData === null) {
+            return ['broadcast'];
+        }
+
         return ['database', 'broadcast'];
     }
 
@@ -135,13 +152,6 @@ class TaskAssigned extends Notification implements ShouldBroadcast, ShouldQueue
      */
     public function toDatabase($notifiable)
     {
-        $project = $this->task->milestone?->project ?? null;
-        $projectId = $project?->id ?? 0;
-        $groupKey = "task_assigned_project_{$projectId}";
-
-        $data = $this->payload;
-        $data['type'] = 'task_assigned';
-
-        return $this->groupInDatabase($notifiable, $groupKey, $data);
+        return $this->databaseData ?: [];
     }
 }

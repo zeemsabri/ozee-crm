@@ -14,10 +14,21 @@ class ChatMessage extends Model
     protected $fillable = [
         'project_id',
         'user_id',
+        'parent_id',
         'message',
         'type',
         'meta_data',
     ];
+
+    public function parent()
+    {
+        return $this->belongsTo(ChatMessage::class, 'parent_id');
+    }
+
+    public function replies()
+    {
+        return $this->hasMany(ChatMessage::class, 'parent_id');
+    }
 
     protected $casts = [
         'meta_data' => 'array',
