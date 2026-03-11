@@ -3,6 +3,7 @@ import { reactive, watch, computed } from 'vue';
 import BaseFormModal from '@/Components/BaseFormModal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
+import MentionInput from '@/Components/ProjectTasks/MentionInput.vue';
 
 const props = defineProps({
     show: Boolean,
@@ -18,6 +19,7 @@ const noteForm = reactive({
 // Computed properties for BaseFormModal
 const modalTitle = computed(() => `Add Note to Task: "${props.taskForNote?.name}"`);
 const apiEndpoint = computed(() => `/api/tasks/${props.taskForNote?.id}/notes`);
+const projectId = computed(() => props.taskForNote?.milestone?.project_id || 1); // Fallback to avoid errors
 const httpMethod = 'post';
 const submitButtonText = 'Add Note';
 const successMessage = 'Note added successfully!';
@@ -64,13 +66,15 @@ const closeModal = () => {
 
                 <div class="mb-4">
                     <InputLabel for="task-note-content" value="Note Content" />
-                    <textarea
+                    <MentionInput
                         id="task-note-content"
                         v-model="noteForm.note"
-                        class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full h-32"
-                        placeholder="Enter your note..."
+                        :project-id="projectId"
+                        type="textarea"
+                        placeholder="Enter your note or @mention someone..."
+                        class="mt-1 block w-full"
                         required
-                    ></textarea>
+                    />
                     <InputError :message="errors.note ? errors.note[0] : ''" class="mt-2" />
                 </div>
             </div>

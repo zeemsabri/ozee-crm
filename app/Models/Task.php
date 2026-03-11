@@ -860,6 +860,9 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
             'type' => 'note',
             'project_id' => $projectId,
         ]);
+        
+        // Parse mentions
+        (new \App\Services\MentionService())->parseAndNotify($note, $projectNote);
 
         // Try to send to Google Chat if possible
         try {

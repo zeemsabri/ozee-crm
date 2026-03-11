@@ -34,6 +34,11 @@ const inputRef = ref(null);
 const mentionStartIndex = ref(-1);
 
 const fetchMembers = async () => {
+    if (!props.projectId) {
+        members.value = [];
+        return;
+    }
+    
     try {
         const response = await window.axios.get(`/api/projects/${props.projectId}/sections/meeting-attendees`);
         // Combine users and clients as suggestable members
@@ -44,6 +49,14 @@ const fetchMembers = async () => {
         console.error('Failed to fetch project members for mentions:', e);
     }
 };
+
+watch(() => props.projectId, () => {
+    fetchMembers();
+}, { immediate: true });
+
+onMounted(() => {
+    // Already handled by immediate watch
+});
 
 const onInput = (e) => {
     emit('update:modelValue', text.value);
@@ -76,7 +89,7 @@ const selectMember = (member) => {
     const beforeMention = text.value.slice(0, mentionStartIndex.value);
     const afterMention = text.value.slice(inputRef.value.selectionStart);
     
-    text.value = `${beforeMention}@${member.name} ${afterMention}`;
+    text.value = `${beforeMention}@{${member.id}:${member.name}} ${afterMention}`;
     showSuggestions.value = false;
     emit('update:modelValue', text.value);
     emit('user-selected', member);
@@ -130,7 +143,7 @@ defineExpose({
             @keydown.esc="showSuggestions = false"
             @blur="setTimeout(() => showSuggestions = false, 200)"
             :placeholder="placeholder"
-            class="w-full rounded-2xl border-indigo-100 focus:ring-indigo-500 text-sm p-4 min-h-[120px] placeholder:text-indigo-200"
+            class="w-full rounded-2xl border-indigo-100 focus:ring-indigo-500 text-sm p-4 min-h-[60px] max-h-[150px] placeholder:text-indigo-200"
         ></textarea>
         <input 
             v-else

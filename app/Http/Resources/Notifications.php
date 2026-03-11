@@ -46,8 +46,13 @@ class Notifications extends JsonResource
             'due_date' => $data['due_date'] ?? null,
             'url' => $data['url'] ?? null,
             'view_id' => $data['view_id'] ?? null,
+            'count' => $data['count'] ?? 1,
+            'updates' => $data['updates'] ?? [],
+            'group_key' => $data['group_key'] ?? null,
+            'last_updated_at' => $data['last_updated_at'] ?? null,
             'type' => $this->type,
             'isRead' => (bool) $this->read_at,
+            'created_at' => $this->created_at->toDateTimeString(),
         ];
     }
 }

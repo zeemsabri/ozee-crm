@@ -7,7 +7,7 @@ import { usePage, router } from '@inertiajs/vue3';
 import { setStandardNotificationContainer, setNoticeFetcher } from '@/Utils/notification';
 import CreateTaskModal from "@/Components/ProjectTasks/CreateTaskModal.vue";
 import CreateResourceForm from "@/Components/ShareableResource/CreateForm.vue";
-import NotificationsSidebar from '@/Components/NotificationsSidebar.vue';
+import CommunicationSidebar from '@/Components/CommunicationSidebar.vue';
 import KudoModal from '@/Components/Kudos/KudoModal.vue';
 import {
     openNotificationsSidebar,
@@ -208,7 +208,7 @@ onBeforeUnmount(() => {
             @task-deleted="handleTaskDeleted"
         />
 
-        <NotificationsSidebar />
+        <CommunicationSidebar />
 
         <!-- The NoticeboardModal now uses the composable's state and functions -->
         <NoticeboardModal :show="showNoticeModal"
