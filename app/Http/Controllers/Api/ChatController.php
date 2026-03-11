@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\ChatMessageSent;
 use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
 use App\Models\Email;
@@ -178,6 +179,10 @@ class ChatController extends Controller
             'interactable_type' => ChatMessage::class,
             'interaction_type' => 'read',
         ]);
+
+        // Broadcast to all project members via Reverb so the message appears
+        // in real-time for everyone without a page refresh.
+        ChatMessageSent::dispatch($message->load(['user', 'parent.user']));
 
         return response()->json($message->load('user'));
     }

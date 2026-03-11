@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import {
     Bell,
     MessageSquare,
@@ -58,6 +58,7 @@ const loadingMore = ref(false);
 const hasMore = ref(true);
 const unreadByProject = ref({}); // { [projectId]: count }
 const projectSearch = ref('');
+const subscribedProjectIds = ref(new Set()); // tracks all subscribed channel IDs
 
 const user = computed(() => usePage().props.auth.user);
 const notifications = computed(() => notificationSidebarState.value.notifications);
@@ -102,6 +103,8 @@ const fetchProjects = async () => {
             fetchChatMessages();
         }
         fetchUnreadCounts();
+        // Subscribe to ALL projects so background badge counts update live
+        subscribeToAllProjects();
     } catch (error) {
         console.error('Error fetching projects:', error);
     }
@@ -336,8 +339,70 @@ const getIconForType = (type) => {
     return Bell;
 };
 
+// ---------------------------------------------------------------------------
+// Real-time: subscribe to project private channels via Reverb
+// ---------------------------------------------------------------------------
+
+/**
+ * Subscribe to a single project channel.
+ * The same handler is reused for all projects, routing by projectId captured
+ * in the closure — active project gets messages appended, background projects
+ * get their unread badge incremented.
+ */
+const subscribeToProject = (projectId) => {
+    if (!window.Echo || !projectId) return;
+    if (subscribedProjectIds.value.has(projectId)) return; // already subscribed
+
+    subscribedProjectIds.value.add(projectId);
+
+    window.Echo.private(`project.${projectId}`)
+        .listen('.ChatMessageSent', (data) => {
+            const incoming = data.messagePayload;
+            if (!incoming) return;
+
+            // Annotate is_me client-side per subscriber
+            incoming.is_me = incoming.sender_id === user.value?.id;
+
+            if (activeProject.value?.id === projectId) {
+                // Active project: append if sent by someone else
+                // (the sender already added it optimistically)
+                if (!incoming.is_me) {
+                    chatMessages.value.push(incoming);
+                    scrollToBottom();
+                }
+            } else {
+                // Background project: bump the unread badge
+                if (!incoming.is_me) {
+                    unreadByProject.value = {
+                        ...unreadByProject.value,
+                        [projectId]: (unreadByProject.value[projectId] ?? 0) + 1,
+                    };
+                }
+            }
+        });
+};
+
+/** Subscribe to every project the user has access to. */
+const subscribeToAllProjects = () => {
+    if (!window.Echo) return;
+    projects.value.forEach(p => subscribeToProject(p.id));
+};
+
+/** Leave all subscribed channels (called on unmount). */
+const unsubscribeAll = () => {
+    if (!window.Echo) return;
+    subscribedProjectIds.value.forEach(id => {
+        window.Echo.leave(`project.${id}`);
+    });
+    subscribedProjectIds.value = new Set();
+};
+
 onMounted(() => {
     fetchProjects();
+});
+
+onUnmounted(() => {
+    unsubscribeAll();
 });
 
 const closeSidebar = () => {
