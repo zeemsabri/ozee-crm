@@ -193,6 +193,15 @@ export const closeNotificationsSidebar = () => {
  */
 export const markNotificationAndRefetch = async (viewId) => {
     try {
+        if (String(viewId).startsWith('chat_')) {
+            // This is a local-only chat push notification, not in the DB
+            notificationSidebarState.value.notifications = notificationSidebarState.value.notifications.filter(
+                n => n.view_id !== viewId
+            );
+            removeIdFromLocalStorage(viewId);
+            return;
+        }
+
         await window.axios.post(`/api/notifications/${viewId}/read`);
         removeIdFromLocalStorage(viewId);
         await fetchNotificationsFromDatabase();

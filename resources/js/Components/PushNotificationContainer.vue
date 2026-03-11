@@ -178,6 +178,12 @@ const handleBodyClick = async (notification) => {
     markToastAsSeen(notification.id);
     await markNotificationAndRefetch(notification.view_id);
 
+    if (notification.type === 'chat_message' && notification.project_id) {
+        openNotificationsSidebar();
+        window.dispatchEvent(new CustomEvent('open-project-chat', { detail: { projectId: notification.project_id } }));
+        return;
+    }
+
     const taskId = notification.task_id || getTaskIdFromUrl(notification.url);
     const projectId = notification.project_id || getProjectIdFromUrl(notification.url);
 
@@ -205,7 +211,7 @@ const openSidebarAndClear = () => {
 const isTypeMatch = (notification, type) => {
     const rawType = notification.type || '';
     if (type === 'task') return rawType === 'task_assigned' || rawType.includes('TaskAssigned');
-    if (type === 'mention') return rawType === 'user_mentioned' || rawType.includes('UserMentioned');
+    if (type === 'mention') return rawType === 'user_mentioned' || rawType.includes('UserMentioned') || rawType === 'chat_message';
     return false;
 };
 
