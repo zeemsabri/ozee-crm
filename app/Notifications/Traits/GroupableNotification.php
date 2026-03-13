@@ -40,6 +40,7 @@ trait GroupableNotification
                 $tasks[] = [
                     'id' => $data['task_id'],
                     'name' => $data['task_name'] ?? $data['title'] ?? 'Task',
+                    'task_number' => $data['task_number'] ?? null,
                     'url' => $data['url'] ?? '#',
                 ];
             }
@@ -72,6 +73,7 @@ trait GroupableNotification
             $tasks[] = [
                 'id' => $data['task_id'],
                 'name' => $data['task_name'] ?? $data['title'] ?? 'Task',
+                'task_number' => $data['task_number'] ?? null,
                 'url' => $data['url'] ?? '#',
             ];
         }

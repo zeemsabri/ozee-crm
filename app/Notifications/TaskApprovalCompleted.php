@@ -66,6 +66,7 @@ class TaskApprovalCompleted extends Notification implements ShouldBroadcast, Sho
             'task_type' => $this->task->type,
             'priority' => $this->task->priority ?? 'medium',
             'task_id' => $this->task->id,
+            'task_number' => $this->task->task_number,
             'task_name' => $this->task->name,
             'button_label' => 'View Task',
             'due_date' => $this->task->due_date ? $this->task->due_date->format('Y-m-d') : null,

@@ -13,6 +13,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    projectId: {
+        type: Number,
+        default: null,
+    },
 });
 
 const emit = defineEmits(['close', 'tasks-submitted']);
@@ -99,6 +103,9 @@ watch(() => defaults.project_id, async (val) => {
 watch(() => props.show, (val) => {
     if (val) {
         fetchProjects();
+        if (props.projectId) {
+            defaults.project_id = props.projectId;
+        }
     } else {
         tasks.splice(0, tasks.length);
         currentTaskName.value = '';
@@ -152,13 +159,8 @@ const isSubmitDisabled = computed(() => {
     return tasks.length === 0 || !defaults.project_id || tasks.some(t => !t.name.trim());
 });
 
-const handleSubmit = (close) => {
-    messageBox.value = { show: true, text: 'Tasks created successfully!', type: 'success' };
-    setTimeout(() => {
-        messageBox.value.show = false;
-        emit('tasks-submitted');
-        close();
-    }, 1500);
+const handleSubmit = () => {
+    emit('tasks-submitted');
 };
 </script>
 
@@ -170,6 +172,8 @@ const handleSubmit = (close) => {
         http-method="post"
         :form-data="{}"
         :format-data-for-api="formatDataForApi"
+        :submit-disabled="isSubmitDisabled"
+        :submit-button-text="`Create ${tasks.length} Tasks`"
         @close="$emit('close')"
         @submitted="handleSubmit"
     >
@@ -328,17 +332,6 @@ const handleSubmit = (close) => {
             </div>
         </div>
 
-        <template #footer="{ close }">
-            <div class="flex justify-end space-x-3">
-                <SecondaryButton @click="close">Cancel</SecondaryButton>
-                <PrimaryButton
-                    @click="$emit('submit')"
-                    :disabled="isSubmitDisabled"
-                    :class="{ 'opacity-50 cursor-not-allowed': isSubmitDisabled }"
-                >
-                    Create {{ tasks.length }} Tasks
-                </PrimaryButton>
-            </div>
-        </template>
+
     </BaseFormModal>
 </template>

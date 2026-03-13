@@ -26,10 +26,12 @@ class UserMentioned extends Notification implements ShouldQueue
     public function toArray($notifiable)
     {
         $content = $this->sourceModel->message ?? $this->sourceModel->content ?? '';
-        $cleanMessage = preg_replace('/@\{(\d+):([^}]+)\}/', '@$2', $content);
+        // Clean both @{id:name} and #{id:task_number}
+        $cleanMessage = preg_replace('/[@#]\{(\d+):([^}]+)\}/', '$2', $content);
         
         // Handle project relationship if exists
         $projectName = 'Chat';
+        $taskNumber = null;
         if (isset($this->sourceModel->project)) {
             $projectName = $this->sourceModel->project->name;
         } elseif (method_exists($this->sourceModel, 'project') && $this->sourceModel->project) {
@@ -41,6 +43,9 @@ class UserMentioned extends Notification implements ShouldQueue
         $taskId = null;
         if ($this->sourceModel instanceof \App\Models\ProjectNote && $this->sourceModel->noteable_type === 'App\Models\Task') {
             $taskId = $this->sourceModel->noteable_id;
+            if ($this->sourceModel->noteable) {
+                $taskNumber = $this->sourceModel->noteable->task_number;
+            }
         }
 
         return [
@@ -49,6 +54,7 @@ class UserMentioned extends Notification implements ShouldQueue
             'message' => $this->mentionedByUser->name . ' mentioned you: "' . Str::limit($cleanMessage, 100) . '"',
             'project_id' => $this->sourceModel->project_id ?? null,
             'task_id' => $taskId,
+            'task_number' => $taskNumber,
             'source_id' => $this->sourceModel->id,
             'source_type' => class_basename($this->sourceModel),
             'url' => '#', 

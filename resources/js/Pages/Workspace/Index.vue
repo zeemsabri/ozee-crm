@@ -1118,6 +1118,7 @@ onMounted(async () => {
 
 <WorkspaceBulkTaskModal
     :show="showBulkTaskModal"
+    :project-id="projectId"
     @close="showBulkTaskModal = false"
     @tasks-submitted="handleTaskSaved"
 />
