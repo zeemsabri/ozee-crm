@@ -61,6 +61,10 @@ use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\NotificationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\TelegramWebhookController;
+
+Route::post('/telegram/wh', [TelegramWebhookController::class, 'handle']);
+Route::post('/telegram/test-telegram', [TelegramWebhookController::class, 'send']);
 
 Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
 // Public Authentication Routes (NO auth:sanctum middleware)

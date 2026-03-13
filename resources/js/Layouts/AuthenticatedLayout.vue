@@ -6,6 +6,7 @@ import AvailabilityBlocker from '@/Components/Availability/AvailabilityBlocker.v
 import { usePage, router } from '@inertiajs/vue3';
 import { setStandardNotificationContainer, setNoticeFetcher } from '@/Utils/notification';
 import CreateTaskModal from "@/Components/ProjectTasks/CreateTaskModal.vue";
+import WorkspaceBulkTaskModal from "@/Components/WorkspaceBulkTaskModal.vue";
 import CreateResourceForm from "@/Components/ShareableResource/CreateForm.vue";
 import CommunicationSidebar from '@/Components/CommunicationSidebar.vue';
 import KudoModal from '@/Components/Kudos/KudoModal.vue';
@@ -27,6 +28,7 @@ import ExtensionEnforcementModal from '@/Components/Availability/ExtensionEnforc
 
 const showingNavigationDropdown = ref(false);
 const openCreateTaskModel = ref(false);
+const openBulkTaskModel = ref(false);
 const addResource = ref(false);
 const openKudoModal = ref(false);
 const openMeetingMinutesModal = ref(false);
@@ -117,6 +119,11 @@ const handleNoticeLinkClick = (notice) => {
     window.location.href = `/notices/${notice.id}/redirect`;
 };
 
+const handleSwitchToBulkFromGlobal = () => {
+    openCreateTaskModel.value = false;
+    openBulkTaskModel.value = true;
+};
+
 onMounted(() => {
     setAxiosAuthHeader();
     // Set the standard notification container to the new component instance
@@ -186,7 +193,19 @@ onBeforeUnmount(() => {
                 <slot />
             </main>
 
-            <CreateTaskModal :show="openCreateTaskModel" @close="openCreateTaskModel = false" @saved="openCreateTaskModel = false" />
+            <CreateTaskModal 
+                :show="openCreateTaskModel" 
+                @close="openCreateTaskModel = false" 
+                @saved="openCreateTaskModel = false" 
+                @switch-to-bulk="handleSwitchToBulkFromGlobal" 
+            />
+
+            <WorkspaceBulkTaskModal
+                :show="openBulkTaskModel"
+                :project-id="activeProjectId ? Number(activeProjectId) : null"
+                @close="openBulkTaskModel = false"
+                @tasks-submitted="openBulkTaskModel = false"
+            />
             <CreateResourceForm
                 api-endpoint="/api/shareable-resources"
                 :show="addResource"
