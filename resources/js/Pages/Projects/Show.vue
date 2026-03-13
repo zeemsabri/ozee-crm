@@ -26,6 +26,7 @@ import UserTransactionsModal from '@/Components/ProjectFinancials/UserTransactio
 
 import ComposeEmailModal from '@/Components/ProjectsEmails/ComponseEmailModal.vue';
 import CreateTaskModal from '@/Components/ProjectTasks/CreateTaskModal.vue';
+import WorkspaceBulkTaskModal from '@/Components/WorkspaceBulkTaskModal.vue';
 import SeoReportTab from '@/Components/ProjectsSeoReports/SeoReportTab.vue';
 import CreateSeoReportModal from "@/Components/ProjectsSeoReports/CreateSeoReportModal.vue";
 
@@ -77,6 +78,7 @@ const showUserTransactionsModal = ref(false);
 const showComposeEmailModal = ref(false);
 
 const showGlobalCreateTaskModal = ref(false);
+const showBulkTaskModal = ref(false);
 const showCreateSeoReportModal = ref(false);
 const selectedSeoReportInitialData = ref(null);
 
@@ -330,6 +332,11 @@ const openGlobalCreateTaskModal = () => {
 const handleGlobalCreateTaskSaved = () => {
     showGlobalCreateTaskModal.value = false;
     fetchProjectData();
+};
+
+const handleSwitchToBulk = () => {
+    showGlobalCreateTaskModal.value = false;
+    showBulkTaskModal.value = true;
 };
 
 const openCreateSeoReportModal = (initialData = null) => {
@@ -745,6 +752,14 @@ onMounted(async () => {
             :project-id="projectId"
             @close="showGlobalCreateTaskModal = false"
             @saved="handleGlobalCreateTaskSaved"
+            @switch-to-bulk="handleSwitchToBulk"
+        />
+
+        <WorkspaceBulkTaskModal
+            :show="showBulkTaskModal"
+            :project-id="projectId"
+            @close="showBulkTaskModal = false"
+            @tasks-submitted="handleGlobalCreateTaskSaved"
         />
 
         <CreateSeoReportModal

@@ -24,7 +24,7 @@ const props = defineProps({
     },
 });
 
-const emit = defineEmits(['close', 'saved']);
+const emit = defineEmits(['close', 'saved', 'switch-to-bulk']);
 
 const taskForm = reactive({
     name: '',

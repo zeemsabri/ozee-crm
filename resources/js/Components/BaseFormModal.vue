@@ -49,6 +49,10 @@ const props = defineProps({
     showFooter: {
         type: Boolean,
         default: true
+    },
+    submitDisabled: {
+        type: Boolean,
+        default: false
     }
 });
 
@@ -173,8 +177,8 @@ const close = () => {
                     </SecondaryButton>
                     <PrimaryButton
                         type="submit"
-                        :disabled="isSubmitting"
-                        :class="{ 'opacity-75 cursor-not-allowed': isSubmitting }"
+                        :disabled="isSubmitting || submitDisabled"
+                        :class="{ 'opacity-75 cursor-not-allowed': isSubmitting || submitDisabled }"
                     >
                         {{ isSubmitting ? 'Submitting...' : submitButtonText }}
                     </PrimaryButton>

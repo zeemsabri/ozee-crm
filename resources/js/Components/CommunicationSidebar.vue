@@ -147,6 +147,14 @@ const scrollToMessage = (messageId) => {
     }
 };
 
+const handleChatClick = (event) => {
+    const taskMention = event.target.closest('.task-mention');
+    if (taskMention && activeProject.value) {
+        const taskId = taskMention.getAttribute('data-task-id');
+        openTaskDetailSidebar(taskId, activeProject.value.id);
+    }
+};
+
 const fetchChatMessages = async (isLoadMore = false) => {
     if (!activeProject.value || (isLoadMore && (!hasMore.value || loadingMore.value))) return;
     
@@ -516,10 +524,13 @@ const closeSidebar = () => {
                             </div>
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center justify-between mb-1">
-                                    <p class="text-sm font-semibold text-slate-900 truncate">{{ notification.title }}</p>
+                                    <p class="text-sm font-semibold text-slate-900 truncate">
+                                        <span v-if="notification.task_number" class="text-indigo-600 mr-1">#{{ notification.task_number }}</span>
+                                        {{ notification.title }}
+                                    </p>
                                     <span class="text-xs text-slate-400 whitespace-nowrap ml-2"><Clock class="w-3 h-3 inline mr-1" />{{ notification.created_at }}</span>
                                 </div>
-                                <p class="text-sm text-slate-600">{{ notification.message }}</p>
+                                <p class="text-sm text-slate-600" v-html="formatMessage(notification.message)"></p>
                                 
                                 <div v-if="notification.count > 1" class="mt-2 text-left">
                                     <button @click.stop="toggleGroup(notification.id)" class="text-xs font-medium text-emerald-600 flex items-center bg-emerald-50 px-2 py-1 rounded hover:bg-emerald-100 transition-colors">
@@ -534,7 +545,10 @@ const closeSidebar = () => {
                                             class="group/task cursor-pointer"
                                             @click.stop="notification.project_id && handleNotificationClick({ task_id: task.id, project_id: notification.project_id, view_id: notification.view_id })">
                                             <div class="flex items-center justify-between mb-0.5">
-                                                <p class="text-[13px] font-medium text-slate-700 group-hover/task:text-blue-600 transition-colors">{{ task.name }}</p>
+                                                <p class="text-[13px] font-medium text-slate-700 group-hover/task:text-blue-600 transition-colors">
+                                                    <span v-if="task.task_number" class="text-indigo-600 mr-1">#{{ task.task_number }}</span>
+                                                    {{ task.name }}
+                                                </p>
                                                 <CheckCircle2 class="w-3 h-3 text-slate-300 group-hover/task:text-emerald-500" />
                                             </div>
                                         </div>
@@ -660,7 +674,7 @@ const closeSidebar = () => {
                 </div>
 
                 <!-- Messages -->
-                <div ref="chatContainer" @scroll="handleScroll" class="flex-1 overflow-y-auto p-5 space-y-6">
+                <div ref="chatContainer" @scroll="handleScroll" @click="handleChatClick" class="flex-1 overflow-y-auto p-5 space-y-6">
                     <!-- Loading Spinner for older messages -->
                     <div v-if="loadingMore" class="flex justify-center py-2">
                         <div class="animate-spin rounded-full h-4 w-4 border-2 border-indigo-500 border-t-transparent"></div>
