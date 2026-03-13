@@ -314,7 +314,10 @@ const isToday = (date) => {
                     @click="viewTaskDetails(task)"
                 >
                     <div class="flex justify-between items-start mb-2">
-                        <h4 class="text-lg font-semibold text-gray-900 pr-10">{{ task.name }}</h4>
+                        <h4 class="text-lg font-semibold text-gray-900 pr-10">
+                            <span class="text-indigo-600 font-bold mr-1">#{{ task.task_number }}</span>
+                            {{ task.name }}
+                        </h4>
                         <div class="absolute top-6 right-6">
                             <span
                                 class="px-2 py-1 rounded-full text-xs font-medium"
@@ -457,7 +460,10 @@ const isToday = (date) => {
                         }"
                         @click="viewTaskDetails(task)"
                     >
-                        <td class="px-4 py-3 text-sm text-gray-900">{{ task.name }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">
+                            <span class="text-indigo-600 font-bold mr-1">#{{ task.task_number }}</span>
+                            {{ task.name }}
+                        </td>
                         <td class="px-4 py-3 text-sm text-gray-700">
                                 <span
                                     class="px-2 py-1 rounded-full text-xs font-medium"
@@ -599,6 +605,7 @@ const isToday = (date) => {
                             @click.stop="viewTaskDetails(task)"
                             :title="task.name"
                         >
+                            <span class="font-bold mr-1">#{{ task.task_number }}</span>
                             {{ task.name }}
                         </div>
                     </div>
@@ -632,7 +639,10 @@ const isToday = (date) => {
                         @click="viewTaskDetails(task)"
                     >
                         <div class="flex justify-between items-start mb-2">
-                            <h4 class="text-lg font-semibold text-gray-400 line-through pr-10">{{ task.name }}</h4>
+                            <h4 class="text-lg font-semibold text-gray-400 line-through pr-10">
+                                <span class="text-indigo-400 font-bold mr-1">#{{ task.task_number }}</span>
+                                {{ task.name }}
+                            </h4>
                             <div class="absolute top-6 right-6">
                                 <span
                                     class="px-2 py-1 rounded-full text-xs font-medium"
@@ -706,7 +716,10 @@ const isToday = (date) => {
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                         <tr v-for="task in filteredCompletedTasks" :key="task.id" class="hover:bg-gray-50 transition-colors group" @click="viewTaskDetails(task)">
-                            <td class="px-4 py-3 text-sm text-gray-900 line-through">{{ task.name }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900 line-through">
+                                <span class="text-indigo-600 font-bold mr-1">#{{ task.task_number }}</span>
+                                {{ task.name }}
+                            </td>
                             <td class="px-4 py-3 text-sm text-gray-700">
                                 <span
                                     class="px-2 py-1 rounded-full text-xs font-medium"

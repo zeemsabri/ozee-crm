@@ -25,7 +25,7 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
 {
     use HasFactory, HasUserTimezone, LogsActivity, SoftDeletes, Taggable;
 
-    protected $appends = ['creator_name', 'total_time_spent', 'formatted_time_spent'];
+    protected $appends = ['creator_name', 'total_time_spent', 'formatted_time_spent', 'task_number'];
 
     // Task status constants (aliases maintained for backward compatibility)
     /** @deprecated use App\Enums\TaskStatus::ToDo */
@@ -411,6 +411,16 @@ class Task extends Model implements \App\Contracts\CreatableViaWorkflow
             }
         });
 
+    }
+
+    /**
+     * Accessor for task number (OZ + id).
+     *
+     * @return string
+     */
+    public function getTaskNumberAttribute(): string
+    {
+        return 'OZ' . $this->id;
     }
 
     /**

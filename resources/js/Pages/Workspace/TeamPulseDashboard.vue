@@ -749,7 +749,7 @@ const resetFilters = () => {
                                                     <div v-if="note.taskId" class="mt-3">
                                                         <a href="#" class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-gray-50 border border-gray-200 text-[11px] font-medium text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-colors">
                                                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
-                                                            Task #{{ note.taskId }}
+                                                            Task #OZ{{ note.taskId }}
                                                         </a>
                                                     </div>
                                                 </div>
@@ -793,7 +793,7 @@ const resetFilters = () => {
                                     <div v-if="note.taskId" class="mt-4 pl-10 ml-3">
                                         <a href="#" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-200 text-xs text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-colors">
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
-                                            Linked to Task #{{ note.taskId }}
+                                            Linked to Task #OZ{{ note.taskId }}
                                         </a>
                                     </div>
                                 </div>

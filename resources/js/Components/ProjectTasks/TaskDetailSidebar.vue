@@ -567,7 +567,10 @@ const latestBlockActivity = computed(() => {
         <div v-else-if="task" class="space-y-6">
             <!-- Task Overview -->
             <div class="bg-gray-50 p-4 rounded-lg shadow-sm">
-                <h4 class="text-xl font-bold text-gray-900 mb-2">{{ task.name }}</h4>
+                <h4 class="text-xl font-bold text-gray-900 mb-2">
+                    <span class="text-indigo-600 font-extrabold mr-1">#{{ task.task_number }}</span>
+                    {{ task.name }}
+                </h4>
                 <div class="flex flex-wrap items-center gap-y-1 gap-x-2 text-sm text-gray-600 mb-4">
                     <span class="px-2 py-1 rounded-full text-xs font-medium" :class="taskStatusClass">
                         {{ task.status }}
