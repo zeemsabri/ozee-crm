@@ -1070,7 +1070,10 @@ onMounted(async () => {
             </div>
 
             <div class="flex items-start gap-1">
-                <div class="text-sm font-medium text-gray-800 truncate flex-1">{{ item.name || item.title || 'Task' }}</div>
+                <div class="text-sm font-medium text-gray-800 truncate flex-1">
+                    <span class="text-indigo-600 font-bold mr-1">#{{ item.task_number }}</span>
+                    {{ item.name || item.title || 'Task' }}
+                </div>
                 <div v-if="item.source && item.source !== 'local'" class="text-indigo-500 mt-0.5 flex-shrink-0" :title="`External Task: ${item.source}`">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
