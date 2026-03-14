@@ -1,0 +1,40 @@
+{
+    "update_id": 632524924,
+    "message": {
+        "message_id": 19,
+        "from": {
+            "id": 5087832895,
+            "is_bot": false,
+            "first_name": "Zeeshan",
+            "last_name": "Sabri",
+            "language_code": "en"
+        },
+        "chat": {
+            "id": -5213473326,
+            "title": "Demo Project",
+            "type": "group",
+            "all_members_are_administrators": false,
+            "accepted_gift_types": {
+                "unlimited_gifts": false,
+                "limited_gifts": false,
+                "unique_gifts": false,
+                "premium_subscription": false,
+                "gifts_from_channels": false
+            }
+        },
+        "date": 1773395223,
+        "text": "@OZee_Web_Bot \/client DId you check the wireframe?",
+        "entities": [
+            {
+                "offset": 0,
+                "length": 13,
+                "type": "mention"
+            },
+            {
+                "offset": 14,
+                "length": 7,
+                "type": "bot_command"
+            }
+        ]
+    }
+}

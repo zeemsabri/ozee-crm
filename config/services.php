@@ -60,4 +60,8 @@ return [
 
     'chrome_extension' => env('CHROME_EXTENSION'),
 
+    'telegram'  =>  [
+        'bot_token' =>  env('TELEGRAM_TOKEN')
+    ]
+
 ];

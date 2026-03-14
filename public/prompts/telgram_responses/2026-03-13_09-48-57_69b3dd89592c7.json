@@ -1,0 +1,83 @@
+{
+    "update_id": 632524928,
+    "callback_query": {
+        "id": "3405331818007742322",
+        "from": {
+            "id": 5087832895,
+            "is_bot": false,
+            "first_name": "Zeeshan",
+            "last_name": "Sabri",
+            "language_code": "en"
+        },
+        "message": {
+            "message_id": 15,
+            "from": {
+                "id": 8590115985,
+                "is_bot": true,
+                "first_name": "OZee",
+                "username": "OZee_Web_Bot"
+            },
+            "chat": {
+                "id": -5213473326,
+                "title": "Demo Project",
+                "type": "group",
+                "all_members_are_administrators": false,
+                "accepted_gift_types": {
+                    "unlimited_gifts": false,
+                    "limited_gifts": false,
+                    "unique_gifts": false,
+                    "premium_subscription": false,
+                    "gifts_from_channels": false
+                }
+            },
+            "date": 1773354977,
+            "photo": [
+                {
+                    "file_id": "AgACAgQAAxkDAAMPabM_4cy_-eeYAAF-LrJc0U4bYx5_AAI_DWsb0DacURQKEZbV9GNmAQADAgADcwADOgQ",
+                    "file_unique_id": "AQADPw1rG9A2nFF4",
+                    "file_size": 1707,
+                    "width": 90,
+                    "height": 60
+                },
+                {
+                    "file_id": "AgACAgQAAxkDAAMPabM_4cy_-eeYAAF-LrJc0U4bYx5_AAI_DWsb0DacURQKEZbV9GNmAQADAgADbQADOgQ",
+                    "file_unique_id": "AQADPw1rG9A2nFFy",
+                    "file_size": 19838,
+                    "width": 320,
+                    "height": 213
+                },
+                {
+                    "file_id": "AgACAgQAAxkDAAMPabM_4cy_-eeYAAF-LrJc0U4bYx5_AAI_DWsb0DacURQKEZbV9GNmAQADAgADeAADOgQ",
+                    "file_unique_id": "AQADPw1rG9A2nFF9",
+                    "file_size": 64417,
+                    "width": 800,
+                    "height": 533
+                }
+            ],
+            "caption": "\ud83c\udfa8 New Wireframes Ready\n\nHey team, the new dashboard layouts are ready for review.",
+            "caption_entities": [
+                {
+                    "offset": 3,
+                    "length": 20,
+                    "type": "bold"
+                }
+            ],
+            "reply_markup": {
+                "inline_keyboard": [
+                    [
+                        {
+                            "text": "\ud83d\udcbb Open in CRM",
+                            "url": "https:\/\/your-local-crm.test\/projects\/123"
+                        },
+                        {
+                            "text": "\u2705 Approve",
+                            "callback_data": "action_approve_task_123"
+                        }
+                    ]
+                ]
+            }
+        },
+        "chat_instance": "-8316221501040745231",
+        "data": "action_approve_task_123"
+    }
+}

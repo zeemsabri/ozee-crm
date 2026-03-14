@@ -65,6 +65,8 @@ use App\Http\Controllers\Api\TelegramWebhookController;
 
 Route::post('/telegram/wh', [TelegramWebhookController::class, 'handle']);
 Route::post('/telegram/test-telegram', [TelegramWebhookController::class, 'send']);
+Route::post('/telegram/test-topic', [TelegramWebhookController::class, 'createTopic']);
+Route::post('/telegram/message-thread', [TelegramWebhookController::class, 'sendThreadMessage']);
 
 Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
 // Public Authentication Routes (NO auth:sanctum middleware)
