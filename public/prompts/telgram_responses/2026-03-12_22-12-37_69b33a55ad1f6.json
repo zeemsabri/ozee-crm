@@ -1,0 +1,44 @@
+{
+    "update_id": 632524914,
+    "my_chat_member": {
+        "chat": {
+            "id": -5213473326,
+            "title": "Demo Project",
+            "type": "group",
+            "all_members_are_administrators": false,
+            "accepted_gift_types": {
+                "unlimited_gifts": false,
+                "limited_gifts": false,
+                "unique_gifts": false,
+                "premium_subscription": false,
+                "gifts_from_channels": false
+            }
+        },
+        "from": {
+            "id": 5087832895,
+            "is_bot": false,
+            "first_name": "Zeeshan",
+            "last_name": "Sabri",
+            "language_code": "en"
+        },
+        "date": 1773353557,
+        "old_chat_member": {
+            "user": {
+                "id": 8590115985,
+                "is_bot": true,
+                "first_name": "OZee",
+                "username": "OZee_Web_Bot"
+            },
+            "status": "left"
+        },
+        "new_chat_member": {
+            "user": {
+                "id": 8590115985,
+                "is_bot": true,
+                "first_name": "OZee",
+                "username": "OZee_Web_Bot"
+            },
+            "status": "member"
+        }
+    }
+}
