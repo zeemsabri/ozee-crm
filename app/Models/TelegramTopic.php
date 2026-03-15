@@ -19,6 +19,11 @@ class TelegramTopic extends Model
         'is_private',
     ];
 
+    protected $casts = [
+        'type' => \App\Enums\TelegramTopicType::class,
+        'is_private' => 'boolean',
+    ];
+
     /**
      * Get the parent topicable model (Project, Task, Milestone, etc.).
      */

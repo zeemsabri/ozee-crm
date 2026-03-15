@@ -22,7 +22,32 @@ class ChatController extends Controller
         $userId = Auth::id();
 
         // Fetch Chat Messages with read receipts
+        $topicId = $request->input('topic_id');
+        $isGeneralTopic = false;
+        
+        if ($topicId) {
+            $topic = \App\Models\TelegramTopic::find($topicId);
+            $isGeneralTopic = ($topic && $topic->type === \App\Enums\TelegramTopicType::GENERAL);
+        } else {
+            // If no topic_id provided, assume we want to see general or all? 
+            // The sidebar usually always has a topic selected now.
+            $isGeneralTopic = true; 
+        }
+        
         $messagesQuery = ChatMessage::where('project_id', $project->id)
+            ->when($topicId, function($q) use ($topicId, $isGeneralTopic) {
+                if ($isGeneralTopic) {
+                    $q->where(function($sub) use ($topicId) {
+                        $sub->where('telegram_topic_id', $topicId)
+                           ->orWhereNull('telegram_topic_id');
+                    });
+                } else {
+                    $q->where('telegram_topic_id', $topicId);
+                }
+            }, function($q) {
+                // If no topic_id, we can choose to show all or just general. 
+                // Let's show all for now if explicitly no topic requested.
+            })
             ->with([
                 'user',
                 'parent.user',
@@ -39,33 +64,36 @@ class ChatController extends Controller
 
         $messages = $messagesQuery->get();
 
-        // Fetch Emails related to project (via conversation)
-        $emailsQuery = Email::whereHas('conversation', function ($q) use ($project) {
-            $q->where('project_id', $project->id);
-        })
-            ->with(['contexts' => function ($q) {
-                $q->select('id', 'summary', 'referencable_id', 'referencable_type');
-            }])
-            ->orderBy('created_at', 'desc')
-            ->limit($limit);
+        // Fetch Emails related to project (via conversation) - Only for General or when no topic is selected
+        $emails = collect();
+        if ($isGeneralTopic) {
+            $emailsQuery = Email::whereHas('conversation', function ($q) use ($project) {
+                $q->where('project_id', $project->id);
+            })
+                ->with(['contexts' => function ($q) {
+                    $q->select('id', 'summary', 'referencable_id', 'referencable_type');
+                }])
+                ->orderBy('created_at', 'desc')
+                ->limit($limit);
 
-        if ($before) {
-            $emailsQuery->where('created_at', '<', $before);
+            if ($before) {
+                $emailsQuery->where('created_at', '<', $before);
+            }
+
+            $emails = $emailsQuery->get()->map(function ($email) {
+                return [
+                    'id'         => 'email_' . $email->id,
+                    'type'       => 'email',
+                    'user'       => $email->sender_name ?? 'Client',
+                    'initials'   => 'AC',
+                    'color'      => 'bg-slate-700',
+                    'summary'    => $email->contexts->first()?->summary ?? Str::limit($email->body, 100),
+                    'direction'  => $email->type === 'received' ? 'inbound' : 'outbound',
+                    'time'       => $email->created_at->diffForHumans(),
+                    'created_at' => $email->created_at->toDateTimeString(),
+                ];
+            });
         }
-
-        $emails = $emailsQuery->get()->map(function ($email) {
-            return [
-                'id'         => 'email_' . $email->id,
-                'type'       => 'email',
-                'user'       => $email->sender_name ?? 'Client',
-                'initials'   => 'AC',
-                'color'      => 'bg-slate-700',
-                'summary'    => $email->contexts->first()?->summary ?? Str::limit($email->body, 100),
-                'direction'  => $email->type === 'received' ? 'inbound' : 'outbound',
-                'time'       => $email->created_at->diffForHumans(),
-                'created_at' => $email->created_at->toDateTimeString(),
-            ];
-        });
 
         $formattedMessages = $messages->map(function ($msg) use ($userId) {
             $reads = $msg->interactions->map(fn ($i) => [
@@ -75,11 +103,11 @@ class ChatController extends Controller
 
             return [
                 'id'         => $msg->id,
-                'type'       => 'text',
-                'user'       => $msg->user?->name ?? 'System',
+                'type'       => $msg->source === 'telegram' ? 'telegram' : 'text',
+                'user'       => $msg->user?->name ?? ($msg->meta_data['telegram_from']['first_name'] ?? 'Telegram User'),
                 'user_id'    => $msg->user_id,
-                'initials'   => strtoupper(substr($msg->user?->name ?? 'S', 0, 2)),
-                'color'      => 'bg-indigo-600',
+                'initials'   => strtoupper(substr($msg->user?->name ?? ($msg->meta_data['telegram_from']['first_name'] ?? 'T'), 0, 2)),
+                'color'      => $msg->source === 'telegram' ? 'bg-sky-500' : 'bg-indigo-600',
                 'message'    => $msg->message,
                 'parent'     => $msg->parent ? [
                     'id'      => $msg->parent->id,
@@ -90,6 +118,7 @@ class ChatController extends Controller
                 'time'       => $msg->created_at->diffForHumans(),
                 'created_at' => $msg->created_at->toDateTimeString(),
                 'is_me'      => $msg->user_id === $userId,
+                'source'     => $msg->source,
             ];
         });
 
@@ -150,14 +179,17 @@ class ChatController extends Controller
         $request->validate([
             'message'   => 'required|string',
             'parent_id' => 'nullable|integer|exists:chat_messages,id',
+            'telegram_topic_id' => 'nullable|integer|exists:telegram_topics,id',
         ]);
 
         $message = ChatMessage::create([
-            'project_id' => $project->id,
-            'user_id'    => Auth::id(),
-            'parent_id'  => $request->parent_id,
-            'message'    => $request->message,
-            'type'       => 'text',
+            'project_id'        => $project->id,
+            'user_id'           => Auth::id(),
+            'parent_id'         => $request->parent_id,
+            'telegram_topic_id' => $request->telegram_topic_id,
+            'message'           => $request->message,
+            'type'              => 'text',
+            'source'            => 'crm',
         ]);
 
         // Parse mentions using the MentionService
@@ -170,6 +202,14 @@ class ChatController extends Controller
                     'mentioned_user_ids' => $mentionedUserIds,
                 ]),
             ]);
+        }
+
+        // Sync with Telegram if applicable
+        if ($request->telegram_topic_id && $project->telegram_group_id) {
+            $topic = \App\Models\TelegramTopic::find($request->telegram_topic_id);
+            if ($topic) {
+                app(\App\Services\TelegramService::class)->sendMessageToTopic($topic, $request->message);
+            }
         }
 
         // Mark sender's own message as read immediately

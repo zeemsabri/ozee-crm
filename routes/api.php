@@ -270,6 +270,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('projects/{project}/chat/mark-read', [ChatController::class, 'markRead']);
     Route::get('chat/unread-counts', [ChatController::class, 'unreadCounts']);
 
+    // Telegram Topic Routes
+    Route::get('projects/{project}/topics', [\App\Http\Controllers\Api\TelegramTopicController::class, 'index']);
+    Route::post('projects/{project}/topics', [\App\Http\Controllers\Api\TelegramTopicController::class, 'store']);
+
     // Action Routes
     Route::post('projects', [ProjectActionController::class, 'store']);
     Route::put('projects/{project}', [ProjectActionController::class, 'update']);
@@ -296,6 +300,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('projects/{project}/expendable-budget', [ProjectActionController::class, 'updateExpendableBudget']);
     Route::post('projects/{project}/archive', [ProjectActionController::class, 'archive']);
     Route::patch('projects/{project}/assign-leads', [ProjectActionController::class, 'assignLeads'])->middleware('permission:manage_projects');
+    Route::post('projects/{project}/generate-telegram-code', [ProjectActionController::class, 'generateTelegramLinkCode']);
     Route::post('projects/{project}/expendables', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'store']);
     Route::put('projects/{project}/expendables/{expendable}', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'update']);
     Route::post('projects/{project}/expendables/{expendable}/accept', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'accept']);

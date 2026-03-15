@@ -16,8 +16,12 @@ class TelegramTopicController extends Controller
      */
     public function index(Request $request, Project $project)
     {
+        // Ensure the local "General" topic exists
+        app(\App\Services\TelegramService::class)->ensureGeneralTopicExists($project);
+
         $topics = TelegramTopic::where('project_id', $project->id)
-            ->latest()
+            ->orderByRaw("CASE WHEN type = 'general' THEN 0 ELSE 1 END")
+            ->orderBy('created_at', 'desc')
             ->get();
 
         return response()->json($topics);
@@ -35,52 +39,22 @@ class TelegramTopicController extends Controller
             'is_private' => 'nullable|boolean',
         ]);
 
-        $token = config('services.telegram.bot_token');
-        $chatId = $project->telegram_group_id; 
+        $telegramService = app(\App\Services\TelegramService::class);
+        $type = $request->type ? (\App\Enums\TelegramTopicType::tryFrom($request->type) ?? \App\Enums\TelegramTopicType::CUSTOM) : \App\Enums\TelegramTopicType::CUSTOM;
 
-        // If no telegram group ID exists on project, we just create it locally for CRM use for now
-        $threadId = null;
+        $result = $telegramService->createTopic($project, $request->name, $type);
 
-        if ($chatId && $token) {
-            try {
-                // Create Topic in Telegram
-                $topicResponse = Http::post("https://api.telegram.org/bot{$token}/createForumTopic", [
-                    'chat_id' => $chatId,
-                    'name' => $request->name,
-                ]);
-
-                if ($topicResponse->successful()) {
-                    $topicData = $topicResponse->json();
-                    if (isset($topicData['result']['message_thread_id'])) {
-                        $threadId = $topicData['result']['message_thread_id'];
-
-                        // Optional: Send initial welcome text to the thread
-                        Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
-                            'chat_id' => $chatId,
-                            'message_thread_id' => $threadId,
-                            'text' => "🚀 Topic '{$request->name}' created via CRM.",
-                        ]);
-                    }
-                } else {
-                    Log::error('Failed to create Telegram forum topic: ' . $topicResponse->body());
-                    return response()->json(['error' => 'Failed to create Telegram topic.'], 400);
-                }
-            } catch (\Exception $e) {
-                Log::error('Exception creating Telegram forum topic: ' . $e->getMessage());
-                // We could choose to proceed and create it locally even if telegram fails, 
-                // but usually the user wants it synced. Let's return error.
-                return response()->json(['error' => 'Could not connect to Telegram API.'], 500);
-            }
+        if ($result === 'not_a_forum_error') {
+            return response()->json([
+                'error' => 'Topics feature is not enabled in this Telegram group.',
+                'instructions' => 'Please go to Group Info > Edit and toggle "Topics" to ON. This is required for threaded discussions.'
+            ], 422);
         }
 
-        $topic = TelegramTopic::create([
-            'project_id' => $project->id,
-            'name' => $request->name,
-            'telegram_thread_id' => $threadId,
-            'type' => $request->type ?? 'general',
-            'is_private' => $request->is_private ?? false,
-        ]);
+        if (!$result) {
+            return response()->json(['error' => 'Failed to create Telegram topic. Ensure the group is linked and the bot is an administrator.'], 400);
+        }
 
-        return response()->json($topic);
+        return response()->json($result);
     }
 }

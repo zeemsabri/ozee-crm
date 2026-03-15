@@ -38,6 +38,7 @@ class User extends Authenticatable
         'name',
         'email',
         'chat_name',
+        'telegram_chat_id',
         'password',
         'google_id',
         'google_access_token',

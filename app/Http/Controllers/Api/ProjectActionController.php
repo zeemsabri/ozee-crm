@@ -1818,4 +1818,20 @@ class ProjectActionController extends Controller
 
         return response()->json(['success' => true, 'message' => 'Meeting minutes submitted successfully', 'note' => $note], 201);
     }
+
+    public function generateTelegramLinkCode(Project $project)
+    {
+        $this->authorize('update', $project);
+
+        $code = strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 8));
+
+        $project->update([
+            'telegram_link_code' => $code,
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'code' => $code,
+        ]);
+    }
 }

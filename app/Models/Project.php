@@ -31,6 +31,9 @@ class Project extends Model
         'preferred_keywords',
         'reporting_sites',
         'google_chat_id',
+        'telegram_group_id',
+        'telegram_group_name',
+        'telegram_link_code',
         'client_id',
         'project_manager_id',
         'project_admin_id',
@@ -130,6 +133,11 @@ class Project extends Model
     public function conversations()
     {
         return $this->hasMany(Conversation::class);
+    }
+
+    public function telegramTopics()
+    {
+        return $this->hasMany(TelegramTopic::class);
     }
 
     public function transactions()

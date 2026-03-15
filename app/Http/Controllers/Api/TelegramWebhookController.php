@@ -19,63 +19,138 @@ class TelegramWebhookController extends Controller
     public function handle(Request $request)
     {
         try {
-            // Get the payload
             $payload = $request->all();
 
-            // Create a filename based on timestamp
-            $filename = 'telegram/webhooks/' . now()->format('Y-m-d_H-i-s') . '_' . uniqid() . '.json';
-
             // Store the JSON payload for debugging
+            $filename = 'telegram/webhooks/' . now()->format('Y-m-d_H-i-s') . '_' . uniqid() . '.json';
             Storage::disk('local')->put($filename, json_encode($payload, JSON_PRETTY_PRINT));
             Log::info("Telegram webhook captured and saved to {$filename}");
 
-            // Safely extract the text and chat ID from the payload
-            // The ?? null ensures it doesn't crash if the message is an image/file instead of text
-            $text = $payload['message']['text'] ?? null;
-            $telegramId = $payload['message']['chat']['id'] ?? null;
+            $message = $payload['message'] ?? ($payload['edited_message'] ?? null);
+            if (!$message) {
+                return response()->json(['status' => 'ok']);
+            }
 
-            // Check if we received text and it matches the /start command
-            if ($text === '/start' && $telegramId) {
+            $text = $message['text'] ?? null;
+            $chatId = $message['chat']['id'] ?? null;
 
-                $token = config('services.telegram.bot_token'); // Ensure your token is in config/services.php
+            if (!$chatId) {
+                return response()->json(['status' => 'ok']);
+            }
 
-                Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
-                    'chat_id' => $telegramId,
-                    'text' => "Welcome to Acme CRM! Use the menu below to navigate.",
-                    'reply_markup' => json_encode([
-                        'keyboard' => [
-                            // Row 1
-                            [
-                                ['text' => '📁 Chaya Villa'],
-                                ['text' => '📁 SL Conveyancing']
-                            ],
-                            // Row 2
-                            [
-                                ['text' => '❓ Help'],
-                                ['text' => '👤 Request Call']
-                            ]
-                        ],
-                        'resize_keyboard' => true, // Makes the buttons smaller and neater
-                        'is_persistent' => true,   // Keeps the menu always visible!
-                    ])
-                ]);
+            // Check if this chat is already linked to a project
+            $project = \App\Models\Project::where('telegram_group_id', $chatId)->first();
+
+            if (!$project) {
+                // Not linked. Check for link command: /link #CODE
+                if ($text && preg_match('/^\/link\s+#([a-zA-Z0-9]+)$/', $text, $matches)) {
+                    $code = $matches[1];
+                    $projectToLink = \App\Models\Project::where('telegram_link_code', $code)->first();
+
+                    if ($projectToLink) {
+                        $chatName = $message['chat']['title'] ?? ($message['chat']['username'] ?? 'Telegram Group');
+                        $projectToLink->update([
+                            'telegram_group_id' => $chatId,
+                            'telegram_group_name' => $chatName,
+                            'telegram_link_code' => null, // Clear code after use
+                        ]);
+
+                        $this->sendMessage($chatId, "✅ Success! This group (*{$chatName}*) is now linked to project: *{$projectToLink->name}*");
+                        
+                        $telegramService = app(\App\Services\TelegramService::class);
+                        // Ensure General topic exists locally
+                        $telegramService->ensureGeneralTopicExists($projectToLink);
+                        // Create default topics in Telegram
+                        $telegramService->createDefaultTopics($projectToLink);
+
+                        return response()->json(['status' => 'ok']);
+                    } else {
+                        $this->sendMessage($chatId, "❌ Invalid link code. Please generate a new code from the project settings.");
+                        return response()->json(['status' => 'ok']);
+                    }
+                }
 
                 return response()->json(['status' => 'ok']);
             }
 
+            // If already linked, handle commands
+            if ($text === '/start') {
+                $this->sendMenu($chatId, $project);
+                return response()->json(['status' => 'ok']);
+            }
+
+            // Handle message recording
+            $threadId = $message['message_thread_id'] ?? null;
+            $telegramService = app(\App\Services\TelegramService::class);
+            $generalTopic = $telegramService->ensureGeneralTopicExists($project);
+            
+            $targetTopicId = $generalTopic->id;
+            
+            if ($threadId) {
+                $topic = \App\Models\TelegramTopic::where('project_id', $project->id)
+                    ->where('telegram_thread_id', $threadId)
+                    ->first();
+                if ($topic) {
+                    $targetTopicId = $topic->id;
+                }
+            }
+
+            if ($text) {
+                $chatMsg = \App\Models\ChatMessage::create([
+                    'project_id' => $project->id,
+                    'telegram_topic_id' => $targetTopicId,
+                    'telegram_message_id' => $message['message_id'],
+                    'message' => $text,
+                    'source' => 'telegram',
+                    'type' => 'text',
+                    'meta_data' => [
+                        'telegram_from' => $message['from'] ?? null,
+                    ]
+                ]);
+
+                // Broadcast
+                \App\Events\ChatMessageSent::dispatch($chatMsg->load(['user', 'parent.user']));
+            }
+
             return response()->json([
                 'status' => 'success',
-                'message' => 'Webhook captured successfully',
+                'message' => 'Webhook processed successfully',
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error("Failed to capture Telegram webhook: " . $e->getMessage());
-
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to capture webhook',
-            ], 500);
+            Log::error("Failed to process Telegram webhook: " . $e->getMessage());
+            return response()->json(['status' => 'error'], 500);
         }
+    }
+
+    private function sendMessage($chatId, $text)
+    {
+        $token = config('services.telegram.bot_token');
+        return Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+            'chat_id' => $chatId,
+            'text' => $text,
+            'parse_mode' => 'Markdown',
+        ]);
+    }
+
+    private function sendMenu($chatId, $project)
+    {
+        $token = config('services.telegram.bot_token');
+        return Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+            'chat_id' => $chatId,
+            'text' => "Welcome! This group is linked to *{$project->name}*.\nUse the menu below to navigate.",
+            'parse_mode' => 'Markdown',
+            'reply_markup' => json_encode([
+                'keyboard' => [
+                    [
+                        ['text' => '📁 View Project'],
+                        ['text' => '❓ Help']
+                    ],
+                ],
+                'resize_keyboard' => true,
+                'is_persistent' => true,
+            ])
+        ]);
     }
 
     public function send()
