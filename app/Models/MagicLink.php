@@ -19,6 +19,12 @@ class MagicLink extends Model
         'temp_pin_expires_at',
         'expires_at',
         'used',
+        'whitelist',
+        'max_uses',
+        'uses_count',
+        'type',
+        'label',
+        'last_used_at',
     ];
 
     /**
@@ -30,6 +36,10 @@ class MagicLink extends Model
         'expires_at' => 'datetime',
         'temp_pin_expires_at' => 'datetime',
         'used' => 'boolean',
+        'whitelist' => 'array',
+        'max_uses' => 'integer',
+        'uses_count' => 'integer',
+        'last_used_at' => 'datetime',
     ];
 
     /**
@@ -47,6 +57,10 @@ class MagicLink extends Model
      */
     public function hasExpired()
     {
+        if ($this->expires_at === null) {
+            return false;
+        }
+
         return $this->expires_at->isPast();
     }
 
