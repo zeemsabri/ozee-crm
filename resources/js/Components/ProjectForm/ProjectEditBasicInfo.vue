@@ -6,7 +6,7 @@ import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import TagInput from '@/Components/TagInput.vue';
-import {success, error, handleLaravelError} from '@/Utils/notification';
+import {success, error, handleLaravelError, info} from '@/Utils/notification';
 import TimezoneSelect from "@/Components/TimezoneSelect.vue";
 import ProjectTypeInput from "@/Components/ProjectTypeInput.vue";
 import { fetchProjectSectionData } from '@/Components/ProjectForm/useProjectData'; // Import the data fetching utility
@@ -68,6 +68,9 @@ const localProjectForm = reactive({
     timezone: null,
     project_tier_id: null,
     profit_margin_percentage: null,
+    telegram_group_id: '',
+    telegram_group_name: '',
+    telegram_link_code: '',
     integrations: {}
 });
 
@@ -211,6 +214,9 @@ const submitBasicInfo = async () => {
                 timezone: response.data.timezone || localProjectForm.timezone,
                 project_tier_id: response.data.project_tier_id || localProjectForm.project_tier_id,
                 profit_margin_percentage: response.data.profit_margin_percentage || localProjectForm.profit_margin_percentage,
+                telegram_group_id: response.data.telegram_group_id || localProjectForm.telegram_group_id,
+                telegram_group_name: response.data.telegram_group_name || localProjectForm.telegram_group_name,
+                telegram_link_code: response.data.telegram_link_code || localProjectForm.telegram_link_code,
                 integrations: response.data.integrations || {}
             });
         }
@@ -258,6 +264,9 @@ const fetchBasicInfoData = async () => {
                 timezone: data.timezone || null,
                 project_tier_id: data.project_tier_id || null,
                 profit_margin_percentage: data.profit_margin_percentage || null,
+                telegram_group_id: data.telegram_group_id || '',
+                telegram_group_name: data.telegram_group_name || '',
+                telegram_link_code: data.telegram_link_code || '',
                 integrations: data.integrations || {}
             });
         }
@@ -265,6 +274,25 @@ const fetchBasicInfoData = async () => {
         error('Failed to load basic project information.');
     } finally {
         isLoadingLocal.value = false;
+    }
+};
+
+const generateTelegramCode = async () => {
+    try {
+        const response = await window.axios.post(`/api/projects/${props.projectId}/generate-telegram-code`);
+        localProjectForm.telegram_link_code = response.data.code;
+        success('Telegram link code generated successfully!');
+    } catch (err) {
+        error('Failed to generate Telegram link code.');
+    }
+};
+
+const refreshStatus = async () => {
+    await fetchBasicInfoData();
+    if (localProjectForm.telegram_group_id) {
+        success('Telegram linkage status updated!');
+    } else {
+        info('Telegram is not yet linked. Send the /link command from your group.');
     }
 };
 
@@ -496,6 +524,79 @@ onMounted(() => {
                     Loading BugHerd projects...
                 </div>
                 <InputError :message="errors['integrations.bugherd_project_id'] ? errors['integrations.bugherd_project_id'][0] : ''" class="mt-2" />
+            </div>
+            
+            <!-- Telegram Integration -->
+            <div class="col-span-1 md:col-span-2 mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                    <svg class="h-6 w-6 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.53-1.39.52-.46-.01-1.33-.26-1.98-.48-.8-.27-1.43-.42-1.37-.89.03-.25.38-.51 1.07-.78 4.2-1.82 7.01-3.02 8.42-3.58 4.02-1.61 4.85-1.89 5.39-1.89.12 0 .38.03.55.17.14.12.18.28.19.45.02.07.02.15.01.23z"/>
+                    </svg>
+                    Telegram Integration
+                </h3>
+                
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="flex-1">
+                        <div v-if="localProjectForm.telegram_group_id" class="flex flex-col gap-2 text-green-700 bg-green-50 px-4 py-3 rounded-md border border-green-200">
+                            <div class="flex items-center font-semibold">
+                                <svg class="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                                Linked to Telegram Group
+                            </div>
+                            <div class="ml-7">
+                                <div class="text-sm">Group Name: <span class="font-bold">{{ localProjectForm.telegram_group_name || 'N/A' }}</span></div>
+                                <div class="text-xs mt-1 text-green-600 opacity-75">ID: <span class="font-mono">{{ localProjectForm.telegram_group_id }}</span></div>
+                            </div>
+                        </div>
+                        <div v-else class="text-gray-600 flex items-center px-4 py-3">
+                            <svg class="h-5 w-5 mr-2 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                            </svg>
+                            Not currently linked to a Telegram group.
+                        </div>
+
+                        <div v-if="localProjectForm.telegram_link_code" class="mt-4 p-3 bg-indigo-50 rounded-md border border-indigo-200">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <span class="text-xs font-semibold text-indigo-800 uppercase tracking-wider">Link Code</span>
+                                    <div class="text-2xl font-bold text-indigo-900 font-mono tracking-widest mt-1">#{{ localProjectForm.telegram_link_code }}</div>
+                                </div>
+                                <div class="bg-indigo-100 p-2 rounded-full">
+                                    <svg class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <p class="text-sm text-indigo-700 mt-2">
+                                Send <code class="bg-indigo-200 px-1 py-0.5 rounded">/link #{{ localProjectForm.telegram_link_code }}</code> in your Telegram group to link it with this project.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-shrink-0 flex flex-col gap-2">
+                        <PrimaryButton 
+                            type="button" 
+                            @click="generateTelegramCode" 
+                            :disabled="isSavingLocal || isSaving"
+                            class="bg-indigo-600 hover:bg-indigo-700 w-full justify-center"
+                        >
+                            {{ localProjectForm.telegram_link_code ? 'Regenerate Code' : 'Generate Link Code' }}
+                        </PrimaryButton>
+
+                        <button 
+                            type="button"
+                            @click="refreshStatus"
+                            :disabled="isLoadingLocal"
+                            class="inline-flex items-center justify-center px-4 py-2 border border-blue-600 text-sm font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                        >
+                            <svg :class="{'animate-spin': isLoadingLocal}" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Refresh Status
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 

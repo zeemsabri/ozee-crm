@@ -14,8 +14,12 @@ class ChatMessage extends Model
     protected $fillable = [
         'project_id',
         'user_id',
+        'client_id',
+        'telegram_topic_id',
         'parent_id',
+        'telegram_message_id',
         'message',
+        'source',
         'type',
         'meta_data',
     ];
@@ -42,6 +46,16 @@ class ChatMessage extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function client()
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    public function telegramTopic()
+    {
+        return $this->belongsTo(TelegramTopic::class);
     }
 
     public function interactions()

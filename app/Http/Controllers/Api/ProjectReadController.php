@@ -79,6 +79,9 @@ class ProjectReadController extends Controller
 
         $this->authorize('view', $project);
 
+        // Ensure General topic exists for this project (local tracker)
+        app(\App\Services\TelegramService::class)->ensureGeneralTopicExists($project);
+
         // Create a filtered project object based on user permissions
         $filteredProject = [
             'id' => $project->id,
@@ -93,6 +96,9 @@ class ProjectReadController extends Controller
             'project_type' => $project->project_type,
             'source' => $project->source,
             'google_drive_link' => $project->google_drive_link,
+            'telegram_group_id' => $project->telegram_group_id,
+            'telegram_group_name' => $project->telegram_group_name,
+            'telegram_link_code' => $project->telegram_link_code,
         ];
 
         if ($this->canViewClientContacts($user, $project)) {
@@ -227,6 +233,9 @@ class ProjectReadController extends Controller
             })->values()->all(),
             'timezone' => $project->timezone,
             'project_tier_id' => $project->project_tier_id,
+            'telegram_group_id' => $project->telegram_group_id,
+            'telegram_group_name' => $project->telegram_group_name,
+            'telegram_link_code' => $project->telegram_link_code,
         ]);
     }
 

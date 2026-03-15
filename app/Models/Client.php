@@ -15,6 +15,8 @@ class Client extends Model
         'name',
         'email',
         'phone',
+        'telegram_chat_id',
+        'active_telegram_project_id',
         'address',
         'notes',
         'timezone',
@@ -51,6 +53,11 @@ class Client extends Model
     public function projects()
     {
         return $this->belongsToMany(Project::class, 'project_client')->withPivot('role_id');
+    }
+
+    public function activeTelegramProject()
+    {
+        return $this->belongsTo(Project::class, 'active_telegram_project_id');
     }
 
     public function conversations()
