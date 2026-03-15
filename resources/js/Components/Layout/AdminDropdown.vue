@@ -176,6 +176,8 @@ const createCategory = async () => {
                             <div class="space-y-1">
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.roles.index')" class="!px-2 !py-1.5">Manage Roles</DropdownLink>
                                 <DropdownLink v-permission="'assign_permissions'" :href="route('admin.permissions.index')" class="!px-2 !py-1.5">Manage Permissions</DropdownLink>
+                                <DropdownLink v-permission="'manage_roles'" :href="route('admin.external-tokens.index')" :active="route().current('admin.external-tokens.index')" class="!px-2 !py-1.5">External Tokens</DropdownLink>
+                                <DropdownLink v-permission="'manage_roles'" :href="route('admin.stripe-configurations.index')" :active="route().current('admin.stripe-configurations.index')" class="!px-2 !py-1.5">Stripe Configuration</DropdownLink>
                                 <DropdownLink v-permission="'manage_monthly_budgets'" href="/admin/monthly-budgets" class="!px-2 !py-1.5">Monthly Budgets</DropdownLink>
                                 <DropdownLink v-permission="'view_monthly_budgets'" href="/admin/bonus-calculator" class="!px-2 !py-1.5">Bonus Calculator</DropdownLink>
                             </div>
