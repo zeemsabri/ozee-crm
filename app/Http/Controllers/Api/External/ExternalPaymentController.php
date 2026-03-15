@@ -45,7 +45,7 @@ class ExternalPaymentController extends Controller
             $activity = activity('stripe_payment')
                 ->withProperties([
                     'app_id' => $config->app_id,
-                    'status' => 'succeeded',
+                    'status' => 'pending',
                     'line_items' => $request->line_items,
                     'metadata' => $request->metadata ?? [],
                 ])
@@ -115,7 +115,7 @@ class ExternalPaymentController extends Controller
                 'success' => true,
                 'data' => [
                     'id' => $activity->id,
-                    'status' => 'succeeded',
+                    'status' => $activity->getExtraProperty('status'),
                     'completed_at' => $activity->getExtraProperty('completed_at'),
                     'session_id' => $activity->getExtraProperty('session_id'),
                 ]
