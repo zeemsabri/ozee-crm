@@ -57,5 +57,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('admin.live-status.index');
         Route::get('/live-status/{user}/logs', [\App\Http\Controllers\Admin\LiveStatusController::class, 'logs'])
             ->name('admin.live-status.logs');
+
+        // External Tokens management routes
+        Route::get('/external-tokens', [\App\Http\Controllers\Admin\ExternalTokenController::class, 'index'])
+            ->name('admin.external-tokens.index');
+        Route::post('/external-tokens', [\App\Http\Controllers\Admin\ExternalTokenController::class, 'store'])
+            ->name('admin.external-tokens.store');
+        Route::delete('/external-tokens/{magicLink}', [\App\Http\Controllers\Admin\ExternalTokenController::class, 'destroy'])
+            ->name('admin.external-tokens.destroy');
+
+        // Stripe Configuration routes
+        Route::get('/stripe-configurations', [\App\Http\Controllers\Admin\StripeConfigurationController::class, 'index'])
+            ->name('admin.stripe-configurations.index');
+        Route::post('/stripe-configurations', [\App\Http\Controllers\Admin\StripeConfigurationController::class, 'store'])
+            ->name('admin.stripe-configurations.store');
+        Route::put('/stripe-configurations/{stripeConfiguration}', [\App\Http\Controllers\Admin\StripeConfigurationController::class, 'update'])
+            ->name('admin.stripe-configurations.update');
+        Route::delete('/stripe-configurations/{stripeConfiguration}', [\App\Http\Controllers\Admin\StripeConfigurationController::class, 'destroy'])
+            ->name('admin.stripe-configurations.destroy');
     });
 });

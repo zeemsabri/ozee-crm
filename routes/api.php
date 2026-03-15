@@ -59,7 +59,9 @@ use App\Http\Controllers\Api\ActivityDataController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\NotificationController;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 
 Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
 // Public Authentication Routes (NO auth:sanctum middleware)
@@ -704,3 +706,13 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
     Route::post('switch-project', [MagicLinkController::class, 'switchProject']);
 
 });
+
+// === External API Routes (Protected by External Magic Link Token) ===
+Route::prefix('external')->middleware(['auth.magiclink.external'])->group(function () {
+    Route::post('/payment/create-session', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'createSession']);
+    Route::get('/payment/status/{activityId}', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'getStatus']);
+});
+
+// Public webhook route (must exclude from CSRF if using web middleware, but it's in api.php)
+Route::post('/external/stripe/webhook/{app_id}', [\App\Http\Controllers\Api\External\StripeWebhookController::class, 'handle']);
+
