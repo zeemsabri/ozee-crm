@@ -31,8 +31,11 @@ class NoticeBoardController extends Controller
             'visible_to_client' => 'sometimes|boolean',
             'channels' => 'required|array|min:1',
             'channels.*' => 'in:push,email,silent',
+            'recipient_type' => 'sometimes|string|in:users,clients',
             'user_ids' => 'sometimes|array',
             'user_ids.*' => 'integer|exists:users,id',
+            'client_ids' => 'sometimes|array',
+            'client_ids.*' => 'integer|exists:clients,id',
             'project_id' => 'sometimes|integer|exists:projects,id',
             'file' => 'sometimes|file|max:25600', // up to 25MB
         ]);
@@ -61,15 +64,25 @@ class NoticeBoardController extends Controller
 
         // Determine recipients
         $recipients = collect();
-        if (! empty($validated['user_ids'])) {
-            $recipients = User::whereNull('deleted_at')->whereIn('id', $validated['user_ids'])->get();
-        } elseif (! empty($validated['project_id'])) {
-            $project = Project::with(['users' => function ($q) {
-                $q->whereNull('users.deleted_at');
-            }])->find($validated['project_id']);
-            $recipients = $project ? $project->users : collect();
+        $recipientType = $validated['recipient_type'] ?? 'users';
+        
+        if ($recipientType === 'clients') {
+            if (! empty($validated['client_ids'])) {
+                $recipients = \App\Models\Client::whereIn('id', $validated['client_ids'])->get();
+            } else {
+                $recipients = \App\Models\Client::all();
+            }
         } else {
-            $recipients = User::whereNull('deleted_at')->get();
+            if (! empty($validated['user_ids'])) {
+                $recipients = User::whereNull('deleted_at')->whereIn('id', $validated['user_ids'])->get();
+            } elseif (! empty($validated['project_id'])) {
+                $project = Project::with(['users' => function ($q) {
+                    $q->whereNull('users.deleted_at');
+                }])->find($validated['project_id']);
+                $recipients = $project ? $project->users : collect();
+            } else {
+                $recipients = User::whereNull('deleted_at')->get();
+            }
         }
 
         // Map requested channels to Laravel channels
@@ -85,10 +98,22 @@ class NoticeBoardController extends Controller
             ->values()
             ->all();
 
-        array_push($laravelChannels, 'database');
+        if ($recipientType === 'clients') {
+            // Clients don't have a notifications table or a broadcast channel.
+            // They can only receive email notifications.
+            $laravelChannels = in_array('mail', $laravelChannels) ? ['mail'] : [];
+            if (empty($laravelChannels)) {
+                return response()->json(['message' => 'No valid channels for client notifications. Please enable the Email channel.'], 422);
+            }
+        } else {
+            // Always ensure DB channel is included for internal users
+            if (! in_array('database', $laravelChannels)) {
+                $laravelChannels[] = 'database';
+            }
+        }
 
-        foreach ($recipients as $user) {
-            $user->notify(new NoticeCreated($notice, $laravelChannels));
+        foreach ($recipients as $recipient) {
+            $recipient->notify(new NoticeCreated($notice, $laravelChannels));
         }
 
         return response()->json(['message' => 'Notice created and notifications sent', 'notice' => $notice, 'recipients' => $recipients->pluck('id')], 201);

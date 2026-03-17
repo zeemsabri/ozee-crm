@@ -1,11 +1,13 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import MultiSelectDropdown from '@/Components/MultiSelectDropdown.vue';
+import Modal from '@/Components/Modal.vue';
+import TextInput from '@/Components/TextInput.vue';
 
 // Heroicons imports
 import { BellAlertIcon, MegaphoneIcon, ArrowTopRightOnSquareIcon, CheckBadgeIcon, XMarkIcon, ExclamationTriangleIcon, MegaphoneIcon as SolidMegaphoneIcon } from '@heroicons/vue/24/solid';
@@ -21,7 +23,9 @@ const form = ref({
     type: 'General',
     visible_to_client: false,
     channels: ['push'],
+    recipient_type: 'users',
     user_ids: [],
+    client_ids: [],
     project_id: null,
     file: null,
 });
@@ -34,6 +38,7 @@ const message = ref('');
 
 const allUsers = ref([]);
 const allProjects = ref([]);
+const allClients = ref([]);
 
 const selectedTypeFilter = ref('');
 const notices = ref([]);
@@ -43,22 +48,97 @@ const authUser = computed(() => usePage().props.auth.user);
 
 const loadUsersAndProjects = async () => {
     try {
-        const [usersRes, projectsRes] = await Promise.all([
+        const [usersRes, projectsRes, clientsRes] = await Promise.all([
             axios.get('/api/users', { params: { per_page: 200 } }),
             axios.get('/api/projects-simplified'),
+            axios.get('/api/clients', { params: { per_page: 500 } }),
         ]);
-        // Normalize users list (supports both paginated and plain arrays)
+        // Normalize list data
         const usersData = usersRes.data?.data ?? usersRes.data;
         allUsers.value = Array.isArray(usersData) ? usersData : [];
         allProjects.value = Array.isArray(projectsRes.data) ? projectsRes.data : [];
+        const clientsData = clientsRes.data?.data ?? clientsRes.data;
+        allClients.value = Array.isArray(clientsData) ? clientsData : [];
     } catch (e) {
-        console.error('Failed to load users or projects', e);
+        console.error('Failed to load users, projects, or clients', e);
         allUsers.value = [];
         allProjects.value = [];
+        allClients.value = [];
     }
 };
 
-const submit = async () => {
+const showConfirmModal = ref(false);
+const confirmType = ref('');
+const confirmText = ref('');
+const confirmError = ref('');
+
+const countdown = ref(0);
+const submitTimer = ref(null);
+const isCountingDown = ref(false);
+
+onBeforeUnmount(() => {
+    if (submitTimer.value) clearInterval(submitTimer.value);
+});
+
+const confirmAndSubmit = () => {
+    if (confirmText.value !== 'I understand') {
+        confirmError.value = 'Please type exactly "I understand" to confirm.';
+        return;
+    }
+    showConfirmModal.value = false;
+    confirmText.value = '';
+    confirmError.value = '';
+    startSubmitTimer();
+};
+
+const cancelSubmit = () => {
+    if (submitTimer.value) {
+        clearInterval(submitTimer.value);
+        submitTimer.value = null;
+    }
+    isCountingDown.value = false;
+    countdown.value = 0;
+    saving.value = false;
+    message.value = 'Submission cancelled.';
+};
+
+const startSubmitTimer = () => {
+    isCountingDown.value = true;
+    countdown.value = 30; // 30 seconds
+    saving.value = true;
+    
+    submitTimer.value = setInterval(() => {
+        countdown.value--;
+        if (countdown.value <= 1) { // Send at 1 left, so it doesn't linger
+            clearInterval(submitTimer.value);
+            submitTimer.value = null;
+            isCountingDown.value = false;
+            executeSubmit();
+        }
+    }, 1000);
+};
+
+const submit = () => {
+    if (form.value.recipient_type === 'users' && !form.value.project_id && (!form.value.user_ids || form.value.user_ids.length === 0)) {
+        confirmType.value = 'massUsers';
+        showConfirmModal.value = true;
+        confirmText.value = '';
+        confirmError.value = '';
+        return;
+    }
+    
+    if (form.value.recipient_type === 'clients') {
+        confirmType.value = 'clients';
+        showConfirmModal.value = true;
+        confirmText.value = '';
+        confirmError.value = '';
+        return;
+    }
+    
+    startSubmitTimer();
+};
+
+const executeSubmit = async () => {
     errors.value = {};
     message.value = '';
     try {
@@ -73,23 +153,37 @@ const submit = async () => {
             if (form.value.url) fd.append('url', form.value.url);
             fd.append('type', form.value.type);
             fd.append('visible_to_client', form.value.visible_to_client ? '1' : '0');
+            fd.append('recipient_type', form.value.recipient_type);
             // channels[] for arrays
             (form.value.channels || []).forEach(ch => fd.append('channels[]', ch));
-            (form.value.user_ids || []).forEach(uid => fd.append('user_ids[]', uid));
-            if (form.value.project_id) fd.append('project_id', form.value.project_id);
+            
+            if (form.value.recipient_type === 'users') {
+                (form.value.user_ids || []).forEach(uid => fd.append('user_ids[]', uid));
+                if (form.value.project_id) fd.append('project_id', form.value.project_id);
+            } else {
+                (form.value.client_ids || []).forEach(cid => fd.append('client_ids[]', cid));
+            }
+            
             fd.append('file', form.value.file);
             payload = fd;
             config.headers = { 'Content-Type': 'multipart/form-data' };
         } else {
             // JSON when no file
             payload = { ...form.value };
-            if (!payload.project_id) delete payload.project_id;
-            if (!payload.user_ids || payload.user_ids.length === 0) delete payload.user_ids;
+            if (payload.recipient_type === 'users') {
+                delete payload.client_ids;
+                if (!payload.project_id) delete payload.project_id;
+                if (!payload.user_ids || payload.user_ids.length === 0) delete payload.user_ids;
+            } else {
+                delete payload.project_id;
+                delete payload.user_ids;
+                if (!payload.client_ids || payload.client_ids.length === 0) delete payload.client_ids;
+            }
             delete payload.file;
         }
         await axios.post('/api/notices', payload, config);
         message.value = 'Notice created and notifications sent.';
-        form.value = { title: '', description: '', url: '', type: 'General', visible_to_client: false, channels: ['push'], user_ids: [], project_id: null, file: null };
+        form.value = { title: '', description: '', url: '', type: 'General', visible_to_client: false, channels: ['push'], recipient_type: 'users', user_ids: [], client_ids: [], project_id: null, file: null };
         // Refresh list tab if open
         if (activeTab.value === 'list') await loadNotices();
     } catch (e) {
@@ -164,6 +258,13 @@ const getUserOptions = computed(() => {
     return allUsers.value.map(user => ({
         value: user.id,
         label: `${user.name} (${user.email})`
+    }));
+});
+
+const getClientOptions = computed(() => {
+    return allClients.value.map(client => ({
+        value: client.id,
+        label: `${client.name} (${client.email || 'No email'})`
     }));
 });
 
@@ -250,24 +351,38 @@ onMounted(async () => {
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Notification Channels</label>
                             <div class="flex flex-wrap gap-4">
-                                <label class="inline-flex items-center gap-2 cursor-pointer transition-transform duration-100 hover:scale-105">
-                                    <input type="checkbox" value="push" v-model="form.channels" class="h-5 w-5 rounded-lg border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                                <label class="inline-flex items-center gap-2 cursor-pointer transition-transform duration-100 hover:scale-105" :class="form.recipient_type === 'clients' ? 'opacity-40 cursor-not-allowed' : ''">
+                                    <input type="checkbox" value="push" v-model="form.channels" class="h-5 w-5 rounded-lg border-gray-300 text-indigo-600 focus:ring-indigo-500" :disabled="form.recipient_type === 'clients'" />
                                     <span class="text-gray-700">Push</span>
                                 </label>
                                 <label class="inline-flex items-center gap-2 cursor-pointer transition-transform duration-100 hover:scale-105">
                                     <input type="checkbox" value="email" v-model="form.channels" class="h-5 w-5 rounded-lg border-gray-300 text-indigo-600 focus:ring-indigo-500" />
                                     <span class="text-gray-700">Email</span>
                                 </label>
-<!--                                <label class="inline-flex items-center gap-2 cursor-pointer transition-transform duration-100 hover:scale-105">-->
-<!--                                    <input type="checkbox" value="silent" v-model="form.channels" class="h-5 w-5 rounded-lg border-gray-300 text-indigo-600 focus:ring-indigo-500" />-->
-<!--                                    <span class="text-gray-700">Silent (DB)</span>-->
-<!--                                </label>-->
                             </div>
+                            <p v-if="form.recipient_type === 'clients'" class="mt-1 text-xs text-amber-600 font-medium">
+                                ⚠️ Clients can only receive <strong>Email</strong> notifications. Push channel is not available for clients. Make sure Email is checked.
+                            </p>
                             <div v-if="errors.channels" class="text-red-600 text-sm mt-1">{{ errors.channels[0] }}</div>
                         </div>
 
-                        <!-- Recipients -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Recipient Type Toggle -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Notice Target</label>
+                            <div class="flex items-center space-x-6">
+                                <label class="flex items-center cursor-pointer">
+                                    <input type="radio" v-model="form.recipient_type" value="users" class="form-radio h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300">
+                                    <span class="ml-2 text-gray-700">Team (Users / Projects)</span>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <input type="radio" v-model="form.recipient_type" value="clients" class="form-radio h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300">
+                                    <span class="ml-2 text-gray-700">Clients</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Recipients Selection -->
+                        <div v-show="form.recipient_type === 'users'" class="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Select Users (optional)</label>
                                 <MultiSelectDropdown
@@ -290,18 +405,40 @@ onMounted(async () => {
                             </div>
                         </div>
 
-                        <div class="mt-6">
-                            <PrimaryButton @click="submit" :disabled="saving">
-                <span v-if="saving" class="flex items-center">
-                  <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving...
-                </span>
+                        <div v-show="form.recipient_type === 'clients'" class="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                            <label class="block text-sm font-medium text-gray-700">Select Clients (optional)</label>
+                            <MultiSelectDropdown
+                                :options="getClientOptions"
+                                :is-multi="true"
+                                v-model="form.client_ids"
+                                placeholder="Select clients to notify..."
+                            />
+                            <p class="text-xs text-gray-500 mt-1">If no clients are selected, notice will be sent to <strong>ALL</strong> clients.</p>
+                            <div v-if="errors['client_ids.*']" class="text-red-600 text-sm">{{ errors['client_ids.*'][0] }}</div>
+                        </div>
+
+                        <div class="mt-6 flex items-center space-x-4">
+                            <PrimaryButton @click="submit" :disabled="saving" v-if="!isCountingDown">
+                                <span v-if="saving" class="flex items-center">
+                                  <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  Saving...
+                                </span>
                                 <span v-else>Create Notice</span>
                             </PrimaryButton>
+                            
+                            <div v-if="isCountingDown" class="flex items-center space-x-3 text-red-600 font-bold px-4 py-2 bg-red-100 rounded-xl shadow-sm border border-red-200">
+                                <svg class="animate-spin -ml-1 h-5 w-5 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Sending in {{ countdown }}s...
+                                <button type="button" @click="cancelSubmit" class="ml-4 text-sm underline hover:text-red-800">Cancel</button>
+                            </div>
                         </div>
+
                     </div>
 
                     <!-- Existing Notices List -->
@@ -374,5 +511,60 @@ onMounted(async () => {
                 </div>
             </div>
         </div>
+
+        <!-- Confirmation Modal -->
+        <Modal :show="showConfirmModal" @close="showConfirmModal = false" maxWidth="md">
+            <div class="p-6">
+                <!-- Modal for Sending to Everyone (Users) -->
+                <template v-if="confirmType === 'massUsers'">
+                    <h2 class="text-lg font-medium text-gray-900 flex items-center gap-2">
+                        <ExclamationTriangleIcon class="w-6 h-6 text-red-500" />
+                        Confirm Mass Notification
+                    </h2>
+
+                    <p class="mt-4 text-sm text-gray-600">
+                        You have not selected any specific users or projects. This means your notice will be sent to <strong>ALL USERS</strong> in the system.
+                    </p>
+                </template>
+
+                <!-- Modal for Sending to Clients -->
+                <template v-else-if="confirmType === 'clients'">
+                    <h2 class="text-lg font-medium text-gray-900 flex items-center gap-2">
+                        <ExclamationTriangleIcon class="w-6 h-6 text-red-500" />
+                        Confirm Client Notification
+                    </h2>
+
+                    <p class="mt-4 text-sm text-gray-600">
+                        Please double check the email content. Once confirmed, this <strong>cannot be stopped</strong>. This option should <strong>NOT</strong> be used for project-related emails (use Inbox for those). It should only be used for sending <strong>company-wide information</strong> to clients.
+                    </p>
+                    
+                    <p class="mt-2 text-sm text-gray-600" v-if="!form.client_ids.length">
+                        <strong>Warning:</strong> No specific clients selected. This will go to <strong>ALL CLIENTS</strong> in the system.
+                    </p>
+                </template>
+
+                <p class="mt-4 text-sm text-gray-600">
+                    To proceed, please type <strong>I understand</strong> below.
+                </p>
+
+                <div class="mt-4">
+                    <TextInput
+                        v-model="confirmText"
+                        type="text"
+                        class="mt-1 block w-full"
+                        placeholder="I understand"
+                        @keyup.enter="confirmAndSubmit"
+                    />
+                    <div v-if="confirmError" class="mt-2 text-sm text-red-600">
+                        {{ confirmError }}
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <SecondaryButton @click="showConfirmModal = false">Cancel</SecondaryButton>
+                    <PrimaryButton @click="confirmAndSubmit" class="bg-red-600 hover:bg-red-700">Confirm & Begin Sending</PrimaryButton>
+                </div>
+            </div>
+        </Modal>
     </AuthenticatedLayout>
 </template>

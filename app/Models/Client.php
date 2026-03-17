@@ -6,10 +6,11 @@ use App\Models\Traits\HasCategories;
 use App\Models\Traits\Taggable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Notifications\Notifiable;
 
 class Client extends Model
 {
-    use HasCategories, HasFactory, Taggable;
+    use HasCategories, HasFactory, Taggable, Notifiable;
 
     protected $fillable = [
         'name',
@@ -25,7 +26,7 @@ class Client extends Model
     ];
 
     protected $hidden = [
-        'email', 'phone', 'address', 'pin',
+        'phone', 'address', 'pin',
     ];
 
     // Add a boot method to handle dynamic hiding
@@ -48,6 +49,15 @@ class Client extends Model
         }
 
         return $this;
+    }
+
+    /**
+     * Route notifications for the mail channel.
+     * Needed because Notifiable uses ->email, and we want to make sure it always works.
+     */
+    public function routeNotificationForMail(): string
+    {
+        return $this->getRawOriginal('email') ?? $this->attributes['email'] ?? '';
     }
 
     public function projects()
