@@ -39,7 +39,9 @@ class NoticeCreated extends Notification implements ShouldBroadcast, ShouldQueue
             ? $notifiable->routeNotificationForMail()
             : $notifiable->email;
 
-        return (new NoticeMail($this->notice, $notifiable->name, $email))
+        $isClient = $notifiable instanceof \App\Models\Client;
+
+        return (new NoticeMail($this->notice, $notifiable->name, $email, $isClient))
             ->to($email);
     }
 

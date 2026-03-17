@@ -79,7 +79,7 @@
         <h1>{{ $notice->title }}</h1>
     </div>
     <div class="content-body">
-        <p>As-Salamu Alaykum {{ $name ?? 'User' }},</p>
+        <p>{{ $greeting ?? 'As-Salamu Alaykum' }} {{ $name ?? 'there' }},</p>
         {!! nl2br($notice->description) !!}
         @if ($notice->url)
             <p>
