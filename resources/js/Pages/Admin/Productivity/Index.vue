@@ -805,13 +805,13 @@ const getTaskAnalysis = (taskId) => {
                                     <div class="space-y-10">
                                         <!-- Task Information -->
                                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                            <!-- Task Notes -->
+                                            <!-- Task description -->
                                             <div class="bg-white border border-zinc-200 p-6 rounded-[2rem] shadow-sm">
                                                 <h4 class="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-3">
-                                                    <HistoryIcon class="w-3.5 h-3.5" /> Task Notes / Instructions
+                                                    <InfoIcon class="w-3.5 h-3.5" /> Task Description / Instructions
                                                 </h4>
-                                                <p class="text-sm text-zinc-600 leading-relaxed font-medium whitespace-pre-wrap">
-                                                    {{ task.description || 'No detailed notes provided for this task.' }}
+                                                <p class="text-sm text-zinc-600 leading-relaxed font-medium whitespace-pre-wrap font-sans">
+                                                    {{ task.description || 'No detailed instructions provided for this task.' }}
                                                 </p>
                                             </div>
 
@@ -827,6 +827,28 @@ const getTaskAnalysis = (taskId) => {
                                                     <div>
                                                         <div class="font-black text-zinc-700">{{ task.project_name }}</div>
                                                         <div class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Active Project</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Task Activity Notes -->
+                                        <div v-if="task.notes && task.notes.length > 0" class="bg-white border border-zinc-200 p-6 rounded-[2rem] shadow-sm">
+                                            <h4 class="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-5">
+                                                <MessageSquareIcon class="w-3.5 h-3.5" /> Task Activity Notes
+                                            </h4>
+                                            <div class="space-y-6">
+                                                <div v-for="(note, nIdx) in task.notes" :key="nIdx" class="flex gap-4 group">
+                                                    <div class="flex-shrink-0 w-8 h-8 rounded-xl bg-zinc-50 border border-zinc-100 flex items-center justify-center text-[10px] font-black text-zinc-400">
+                                                        {{ note.user.substring(0, 2).toUpperCase() }}
+                                                    </div>
+                                                    <div class="flex-1">
+                                                        <div class="flex items-center gap-3 mb-1">
+                                                            <div class="text-[11px] font-black text-zinc-800 uppercase tracking-tight">{{ note.user }}</div>
+                                                            <div class="w-1 h-1 rounded-full bg-zinc-200"></div>
+                                                            <div class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{{ note.time }}</div>
+                                                        </div>
+                                                        <p class="text-[13px] text-zinc-600 font-medium leading-relaxed">{{ note.content }}</p>
                                                     </div>
                                                 </div>
                                             </div>

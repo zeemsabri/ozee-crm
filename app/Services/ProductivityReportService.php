@@ -22,7 +22,7 @@ class ProductivityReportService
         $date = Carbon::parse($date)->format('Y-m-d');
 
         // 1. Fetch Raw Data with Eager Loading
-        $activities = UserActivity::with(['task.milestone.project'])
+        $activities = UserActivity::with(['task.milestone.project', 'task.notes.creator'])
             ->where('user_id', $user->id)
             ->whereDate('recorded_at', $date)
             ->orderBy('recorded_at', 'asc')
@@ -92,7 +92,12 @@ class ProductivityReportService
                 'name' => $task?->name ?? 'Unlinked Activity',
                 'project_name' => $task?->milestone?->project?->name ?? 'N/A',
                 'project_id' => $task?->milestone?->project_id,
-                'description' => $task?->description ?? 'No notes available',
+                'description' => $task?->description ?? 'No instructions available',
+                'notes' => $task?->notes->map(fn($n) => [
+                    'content' => $n->content,
+                    'time' => $n->created_at->format('H:i'),
+                    'user' => $n->creator_name
+                ]),
                 'active_mins' => round($taskActivities->where('idle_state', 'active')->sum('duration') / 60, 2),
                 'idle_mins' => round($taskActivities->where('idle_state', 'idle')->sum('duration') / 60, 2),
                 'top_domains' => $taskActivities->groupBy('domain')
