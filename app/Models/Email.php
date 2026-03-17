@@ -53,7 +53,7 @@ class Email extends Model
     const TEMPLATE_AI_LEAD_OUTREACH = 'ai_lead_outreach_template';
 
     protected $appends = [
-        'can_approve', 'can_open',
+        'can_approve', 'can_open', 'email_number'
     ];
 
     protected static function booted()
@@ -294,5 +294,15 @@ class Email extends Model
                 'ui' => 'morph_type',
             ],
         ];
+    }
+
+    /**
+     * Accessor for task number (OZ + id).
+     *
+     * @return string
+     */
+    public function getEmailNumberAttribute(): string
+    {
+        return 'OZE' . $this->id;
     }
 }

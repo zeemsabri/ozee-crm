@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { openTaskDetailSidebar } from '@/Utils/sidebar';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, onMounted, computed, watch } from 'vue';
 import axios from 'axios';
@@ -756,7 +757,22 @@ const getTaskAnalysis = (taskId) => {
                                         </div>
                                         <div>
                                             <div class="font-black text-zinc-700">{{ task.name }}</div>
-                                            <div class="text-[10px] font-bold text-zinc-400 uppercase tracking-tighter mt-0.5">ID: {{ task.task_id }}</div>
+                                            <div class="flex items-center gap-2 mt-0.5">
+                                                <div 
+                                                    v-if="task.task_id" 
+                                                    @click.stop="openTaskDetailSidebar(task.task_id, task.project_id)" 
+                                                    class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-tighter cursor-pointer hover:underline"
+                                                >
+                                                    #{{ task.task_number || task.task_id }}
+                                                </div>
+                                                <div v-else class="text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">
+                                                    UNLINKED
+                                                </div>
+                                                <div class="text-[9px] font-black text-zinc-300 uppercase tracking-widest">•</div>
+                                                <div class="text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">
+                                                    {{ task.project_name }}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
@@ -787,6 +803,35 @@ const getTaskAnalysis = (taskId) => {
                             <tr v-if="expandedTasks[task.task_id]" class="bg-zinc-50/70 border-t-0">
                                 <td colspan="5" class="px-8 py-10 shadow-inner">
                                     <div class="space-y-10">
+                                        <!-- Task Information -->
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            <!-- Task Notes -->
+                                            <div class="bg-white border border-zinc-200 p-6 rounded-[2rem] shadow-sm">
+                                                <h4 class="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-3">
+                                                    <HistoryIcon class="w-3.5 h-3.5" /> Task Notes / Instructions
+                                                </h4>
+                                                <p class="text-sm text-zinc-600 leading-relaxed font-medium whitespace-pre-wrap">
+                                                    {{ task.description || 'No detailed notes provided for this task.' }}
+                                                </p>
+                                            </div>
+
+                                            <!-- Project Context -->
+                                            <div class="bg-white border border-zinc-200 p-6 rounded-[2rem] shadow-sm">
+                                                <h4 class="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-3">
+                                                    <GlobeIcon class="w-3.5 h-3.5" /> Project Context
+                                                </h4>
+                                                <div class="flex items-center gap-3">
+                                                    <div class="w-10 h-10 bg-zinc-50 rounded-xl flex items-center justify-center border border-zinc-100">
+                                                        <GlobeIcon class="w-5 h-5 text-zinc-400" />
+                                                    </div>
+                                                    <div>
+                                                        <div class="font-black text-zinc-700">{{ task.project_name }}</div>
+                                                        <div class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Active Project</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         <!-- AI Task Analysis -->
                                         <div v-if="getTaskAnalysis(task.task_id)" class="bg-indigo-50/50 border border-indigo-100 p-6 rounded-[2rem] relative overflow-hidden">
                                             <div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">

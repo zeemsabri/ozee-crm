@@ -22,7 +22,7 @@ class ProductivityReportService
         $date = Carbon::parse($date)->format('Y-m-d');
 
         // 1. Fetch Raw Data with Eager Loading
-        $activities = UserActivity::with('task')
+        $activities = UserActivity::with(['task.milestone.project'])
             ->where('user_id', $user->id)
             ->whereDate('recorded_at', $date)
             ->orderBy('recorded_at', 'asc')
@@ -84,17 +84,19 @@ class ProductivityReportService
         $tasks = $activities->groupBy('task_id');
 
         foreach ($tasks as $taskId => $taskActivities) {
-            if (!$taskId) continue;
-
             $task = $taskActivities->first()->task;
 
             $grouped[] = [
                 'task_id' => $taskId,
-                'name' => $task?->name ?? 'Unlinked Task',
+                'task_number' => $task?->task_number,
+                'name' => $task?->name ?? 'Unlinked Activity',
+                'project_name' => $task?->milestone?->project?->name ?? 'N/A',
+                'project_id' => $task?->milestone?->project_id,
+                'description' => $task?->description ?? 'No notes available',
                 'active_mins' => round($taskActivities->where('idle_state', 'active')->sum('duration') / 60, 2),
                 'idle_mins' => round($taskActivities->where('idle_state', 'idle')->sum('duration') / 60, 2),
                 'top_domains' => $taskActivities->groupBy('domain')
-                    ->map(fn($g) => $g->sum('duration'))
+                    ->map(fn($g) => $g->sum('duration')) // duration is already in seconds, will be converted in prepareTaskData? No, sum is duration.
                     ->sortDesc()
                     ->take(5)
                     ->keys()
