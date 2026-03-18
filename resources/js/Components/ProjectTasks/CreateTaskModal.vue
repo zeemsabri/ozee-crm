@@ -213,7 +213,7 @@ const fetchAssociatedData = async (projectId) => {
         const [usersRes, typesRes, milestonesRes] = await Promise.all([
             window.axios.get(`/api/projects/${projectId}/users`),
             window.axios.get('/api/task-types'),
-            window.axios.get(`/api/projects/${projectId}/milestones`),
+                window.axios.get(`/api/projects/${projectId}/milestones?noTasks=true`),
         ]);
         projectUsers.value = usersRes.data.map(user => ({ value: user.id, label: user.name }));
         taskTypes.value = typesRes.data.map(type => ({ value: type.id, label: type.name }));

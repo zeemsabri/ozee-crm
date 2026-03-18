@@ -32,8 +32,13 @@ class MilestoneController extends Controller
             $projectId = $request->route('project')->id ?? $request->route('project');
         }
 
+        $query = Milestone::query();
         // Start with a base query
-        $query = Milestone::with(['tasks']);
+
+        //By default it's added for every milestone fetch and if not required then send params noTasks = true in get api
+        if(empty($request->query('noTasks')) || $request->query('noTasks') === false) {
+            $query->with(['tasks']);
+        }
 
         // Apply filters if provided
         if ($projectId) {
