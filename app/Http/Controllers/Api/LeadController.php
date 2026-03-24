@@ -171,7 +171,17 @@ class LeadController extends Controller
                 // Require at least one of first_name or last_name
                 'first_name' => 'nullable|required_without:last_name|string|max:255',
                 'last_name' => 'nullable|required_without:first_name|string|max:255',
-                'email' => 'nullable|email|max:255|unique:leads,email',
+                'email' => [
+                    'nullable',
+                    'email',
+                    'max:255',
+                    function ($attribute, $value, $fail) {
+                        $existing = Lead::where('email', $value)->first();
+                        if ($existing) {
+                            $fail("The email has already been taken. Lead Number: {$existing->lead_number}");
+                        }
+                    },
+                ],
                 'phone' => 'nullable|string|max:50',
                 'company' => 'nullable|string|max:255',
                 'title' => 'nullable|string|max:255',

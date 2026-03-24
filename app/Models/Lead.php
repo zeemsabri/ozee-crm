@@ -67,7 +67,7 @@ class Lead extends Model
     ];
 
     protected $appends = [
-        'full_name', 'name',
+        'full_name', 'name', 'lead_number',
     ];
 
     // Relationships
@@ -184,5 +184,10 @@ class Lead extends Model
                 $q->orWhereJsonContains('metadata->additional_campaign_ids', $cid);
             }
         });
+    }
+
+    public function getLeadNumberAttribute()
+    {
+        return 'OZ' . $this->id;
     }
 }

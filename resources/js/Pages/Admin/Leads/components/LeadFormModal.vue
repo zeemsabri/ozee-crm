@@ -213,7 +213,12 @@ const onSave = async () => {
 <template>
   <Modal :show="props.show" @close="emit('close')">
     <div class="p-6">
-      <h3 class="text-lg font-semibold mb-4">{{ form.id ? 'Edit Lead' : 'Create Lead' }}</h3>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold">{{ form.id ? 'Edit Lead' : 'Create Lead' }}</h3>
+        <span v-if="form.id && props.lead?.lead_number" class="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
+          {{ props.lead.lead_number }}
+        </span>
+      </div>
 
       <!-- Tabs -->
       <div class="mb-4 border-b border-gray-200">
