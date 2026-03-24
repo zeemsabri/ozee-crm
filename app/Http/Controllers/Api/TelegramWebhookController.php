@@ -56,7 +56,7 @@ class TelegramWebhookController extends Controller
                         ]);
 
                         $this->sendMessage($chatId, "✅ Success! This group (*{$chatName}*) is now linked to project: *{$projectToLink->name}*");
-                        
+
                         $telegramService = app(\App\Services\TelegramService::class);
                         // Ensure General topic exists locally
                         $telegramService->ensureGeneralTopicExists($projectToLink);
@@ -83,9 +83,9 @@ class TelegramWebhookController extends Controller
             $threadId = $message['message_thread_id'] ?? null;
             $telegramService = app(\App\Services\TelegramService::class);
             $generalTopic = $telegramService->ensureGeneralTopicExists($project);
-            
+
             $targetTopicId = $generalTopic->id;
-            
+
             if ($threadId) {
                 $topic = \App\Models\TelegramTopic::where('project_id', $project->id)
                     ->where('telegram_thread_id', $threadId)
@@ -109,7 +109,7 @@ class TelegramWebhookController extends Controller
                 ]);
 
                 // Broadcast
-                \App\Events\ChatMessageSent::dispatch($chatMsg->load(['user', 'parent.user']));
+//                \App\Events\ChatMessageSent::dispatch($chatMsg->load(['user', 'parent.user']));
             }
 
             return response()->json([
