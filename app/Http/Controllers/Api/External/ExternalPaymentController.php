@@ -11,13 +11,41 @@ use Stripe\Stripe;
 use Stripe\Checkout\Session as StripeSession;
 use Spatie\Activitylog\Models\Activity;
 
+/**
+ * @group External API
+ *
+ * APIs for external systems to interact with our payment and activity tracking system.
+ */
 class ExternalPaymentController extends Controller
 {
     /**
-     * Create a payment session for external systems.
+     * Create Checkout Session
      *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * Create a new Stripe Checkout session for external application payment tracking.
+     *
+     * @bodyParam app_id string required The unique ID for the application. Example: app-123
+     * @bodyParam line_items array required List of items to be purchased. Example: [{"price_data": {"currency": "usd", "product_data": {"name": "Test Product"}, "unit_amount": 1000}, "quantity": 1}]
+     * @bodyParam success_url url required The URL to redirect to after successful payment. Example: https://example.com/success
+     * @bodyParam cancel_url url required The URL to redirect to after cancelled payment. Example: https://example.com/cancel
+     * @bodyParam mode string The payment mode (payment_mode, subscription, setup). Default: payment. Example: payment
+     * @bodyParam metadata object Extra metadata to store with the payment. Example: {"order_id": "123"}
+     * @bodyParam user object The user information.
+     * @bodyParam user.id string The ID of the user in the external system. Example: user-456
+     * @bodyParam user.name string The name of the user. Example: John Doe
+     * @bodyParam user.email string The email of the user. Example: john@example.com
+     * @bodyParam user.phone string The phone number of the user. Example: +123456789
+     *
+     * @response {
+     *  "success": true,
+     *  "message": "Payment session created.",
+     *  "data": {
+     *    "session_id": "cs_test_...",
+     *    "activity_id": 123,
+     *    "checkout_url": "https://checkout.stripe.com/pay/...",
+     *    "public_key": "pk_test_...",
+     *    "expires_at": "2024-01-01 12:00:00"
+     *  }
+     * }
      */
     public function createSession(Request $request)
     {
@@ -29,6 +57,11 @@ class ExternalPaymentController extends Controller
                 'success_url' => 'required|url',
                 'cancel_url' => 'required|url',
                 'mode' => 'sometimes|string|in:payment,subscription,setup',
+                'user' => 'sometimes|array',
+                'user.id' => 'sometimes|string',
+                'user.name' => 'sometimes|string',
+                'user.email' => 'sometimes|email',
+                'user.phone' => 'sometimes|string',
             ]);
 
             // Lookup the configuration
@@ -48,6 +81,7 @@ class ExternalPaymentController extends Controller
                     'status' => 'pending',
                     'line_items' => $request->line_items,
                     'metadata' => $request->metadata ?? [],
+                    'user' => $request->user ?? [],
                 ])
                 ->log("Stripe payment session initiated for {$config->app_name}");
 
@@ -68,6 +102,7 @@ class ExternalPaymentController extends Controller
                     'app_name' => $config->app_name,
                     'activity_id' => $activityId,
                 ]),
+                'customer_email' => $request->input('user.email'),
             ]);
 
             // Update activity with session ID
@@ -103,7 +138,25 @@ class ExternalPaymentController extends Controller
     }
 
         /**
-     * Check the status of a payment activity.
+     * Get Payment Status
+     *
+     * Retrieve the current status of a payment session by its activity ID.
+     *
+     * @urlParam activity_id integer required The activity ID returned by create-session. Example: 123
+     *
+     * @response {
+     *  "success": true,
+     *  "data": {
+     *    "id": 123,
+     *    "status": "completed",
+     *    "completed_at": "2024-01-01 12:05:00",
+     *    "session_id": "cs_test_..."
+     *  }
+     * }
+     * @response 404 {
+     *  "success": false,
+     *  "message": "Activity not found"
+     * }
      */
     public function getStatus($activityId)
     {

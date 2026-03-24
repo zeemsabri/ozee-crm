@@ -10,10 +10,27 @@ use Spatie\Activitylog\Models\Activity;
 use Stripe\Stripe;
 use Stripe\Webhook;
 
+/**
+ * @group External API
+ *
+ * APIs for external systems to interact with our payment and activity tracking system.
+ */
 class StripeWebhookController extends Controller
 {
     /**
-     * Handle incoming Stripe webhooks.
+     * Handle Stripe Webhook
+     *
+     * Receive and process Stripe webhook events (checkout.session.completed, etc.).
+     *
+     * @authentication
+     * @unauthenticated
+     *
+     * @urlParam app_id string required The unique ID for the application. Example: app-123
+     * @header Stripe-Signature string required The signature from Stripe for security verification.
+     *
+     * @response 200 {
+     *  "status": "success"
+     * }
      */
     public function handle(Request $request, $app_id)
     {
