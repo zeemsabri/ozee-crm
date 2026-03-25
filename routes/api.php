@@ -729,7 +729,9 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
 // === External API Routes (Protected by External Magic Link Token) ===
 Route::prefix('external')->middleware(['auth.magiclink.external'])->group(function () {
     Route::post('/payment/create-session', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'createSession']);
+    Route::post('/payment/create-price', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'createPrice']);
     Route::get('/payment/status/{activityId}', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'getStatus']);
+    Route::get('/activities/{appId}', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'getActivities']);
 });
 
 // Public webhook route (must exclude from CSRF if using web middleware, but it's in api.php)

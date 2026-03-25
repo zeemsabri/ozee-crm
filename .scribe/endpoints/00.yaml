@@ -17,7 +17,93 @@ endpoints:
       subgroup: ''
       subgroupDescription: ''
       title: 'Create Checkout Session'
-      description: 'Create a new Stripe Checkout session for external application payment tracking.'
+      description: |-
+        Create a new Stripe Checkout session for external application payment tracking.
+
+        ### Example Payload: Payment Mode
+        ```json
+        {
+            "app_id": "ifam-quiz-central",
+            "mode": "payment",
+            "line_items": [
+                {
+                    "price_data": {
+                        "currency": "aud",
+                        "product_data": {
+                            "name": "Quiz Enrollment",
+                            "description": "Year 6"
+                        },
+                        "unit_amount": 2500
+                    },
+                    "quantity": 1
+                }
+            ],
+            "success_url": "https://example.com/success",
+            "cancel_url": "https://example.com/cancel"
+        }
+        ```
+
+        ### Scenario 1: Lifetime Subscription (Unless Cancelled)
+        Standard recurring monthly billing that continues indefinitely.
+        ```json
+        {
+            "app_id": "app-123",
+            "mode": "subscription",
+            "line_items": [{ "price": "price_abc_123", "quantity": 1 }],
+            "success_url": "...", "cancel_url": "..."
+        }
+        ```
+
+        ### Scenario 2: Limited Subscription (3 Months)
+        To charge monthly but automatically cancel after 3 months, pass a Unix timestamp in `cancel_at`.
+        ```json
+        {
+            "app_id": "app-123",
+            "mode": "subscription",
+            "line_items": [{ "price": "price_abc_123", "quantity": 1 }],
+            "subscription_data": {
+                "cancel_at": 1711432800
+            },
+            "success_url": "...", "cancel_url": "..."
+        }
+        ```
+
+        ### Scenario 3: Total Amount in Installments (e.g., 4 Payments)
+        To divide a cost into 4 parts, use a monthly price and set `cancel_at` to the date of the 4th payment.
+        ```json
+        {
+            "app_id": "app-123",
+            "mode": "subscription",
+            "line_items": [{ "price": "price_25_per_month", "quantity": 1 }],
+            "subscription_data": {
+                "cancel_at": 1721887200
+            },
+            "success_url": "...", "cancel_url": "..."
+        }
+        ```
+
+        ### Scenario 4: Deposit + Remaining Installments
+        To charge $100 up front (deposit) and then $50/mo for 4 installments ($200 total), send two items:
+        a recurring price ($50/mo) and a one-time price ($100).
+        ```json
+        {
+            "app_id": "app-123",
+            "mode": "subscription",
+            "line_items": [
+                { "price": "price_50_per_month", "quantity": 1 },
+                {
+                    "price_data": {
+                        "currency": "aud",
+                        "product_data": { "name": "Enrollment Deposit" },
+                        "unit_amount": 10000
+                    },
+                    "quantity": 1
+                }
+            ],
+            "subscription_data": { "cancel_at": 1721887200 },
+            "success_url": "...", "cancel_url": "..."
+        }
+        ```
       authenticated: true
       deprecated: false
     headers:
@@ -43,15 +129,16 @@ endpoints:
       line_items:
         custom: []
         name: line_items
-        description: 'List of items to be purchased.'
-        required: true
+        description: "Required for 'payment' and 'subscription' modes. Not used for 'setup'. List of items to be purchased. Supports providing a Stripe Price ID (`price`) or defining one on the fly (`price_data`)."
+        required: false
         example:
           -
             price_data:
-              currency: usd
+              currency: aud
               product_data:
-                name: 'Test Product'
-              unit_amount: 1000
+                name: 'Quiz Enrollment: Moustafa'
+                description: 'IFAM Quiz 2026 - Year 6'
+              unit_amount: 2500
             quantity: 1
         type: 'string[]'
         enumValues: []
@@ -83,7 +170,7 @@ endpoints:
       mode:
         custom: []
         name: mode
-        description: 'The payment mode (payment_mode, subscription, setup). Default: payment.'
+        description: 'The payment mode (payment, subscription, setup). Default: payment. Different modes require different payloads.'
         required: false
         example: payment
         type: string
@@ -98,6 +185,30 @@ endpoints:
         required: false
         example:
           order_id: '123'
+        type: object
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      allow_promotion_codes:
+        custom: []
+        name: allow_promotion_codes
+        description: 'Whether to enable the promotion code field on the checkout page. Default: false.'
+        required: false
+        example: true
+        type: boolean
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      subscription_data:
+        custom: []
+        name: subscription_data
+        description: 'Options for subscription mode. Use `cancel_at` (Unix timestamp) to set an expiration date for installments.'
+        required: false
+        example:
+          trial_period_days: 7
+          cancel_at: 1711432800
         type: object
         enumValues: []
         exampleWasSpecified: true
@@ -163,16 +274,21 @@ endpoints:
       line_items:
         -
           price_data:
-            currency: usd
+            currency: aud
             product_data:
-              name: 'Test Product'
-            unit_amount: 1000
+              name: 'Quiz Enrollment: Moustafa'
+              description: 'IFAM Quiz 2026 - Year 6'
+            unit_amount: 2500
           quantity: 1
       success_url: 'https://example.com/success'
       cancel_url: 'https://example.com/cancel'
       mode: payment
       metadata:
         order_id: '123'
+      allow_promotion_codes: true
+      subscription_data:
+        trial_period_days: 7
+        cancel_at: 1711432800
       user:
         id: user-456
         name: 'John Doe'
@@ -193,6 +309,161 @@ endpoints:
              "checkout_url": "https://checkout.stripe.com/pay/...",
              "public_key": "pk_test_...",
              "expires_at": "2024-01-01 12:00:00"
+           }
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth:
+      - headers
+      - X-Magic-Token
+      - 6g43cv8PD1aE5beadkZfhV6
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - POST
+    uri: api/external/payment/create-price
+    metadata:
+      custom: []
+      groupName: 'External API'
+      groupDescription: |-
+
+        APIs for external systems to interact with our payment and activity tracking system.
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Create Price'
+      description: |-
+        Create a new Stripe Price (and optionally a Product) for use in subsequent payment sessions.
+
+         ### Example Payload: Subscription Mode
+         ```json
+         {
+             "app_id": "app-123",
+             "product_name": "Premium Subscription",
+             "product_id": "abc_123",
+             "currency": "aud",
+             "unit_amount": 1000,
+             "recurring_interval": "month",
+             "metadata": {
+                 "internal_id": 999
+             }
+         }
+         ```
+      authenticated: true
+      deprecated: false
+    headers:
+      X-Magic-Token: '{YOUR_MAGIC_TOKEN}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      app_id:
+        custom: []
+        name: app_id
+        description: 'The unique ID for the application.'
+        required: true
+        example: app-123
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      product_name:
+        custom: []
+        name: product_name
+        description: 'Required if product_id is not provided. The name of the product.'
+        required: false
+        example: 'Premium Subscription'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      product_id:
+        custom: []
+        name: product_id
+        description: 'Required if product_name is not provided. The ID of an existing Stripe Product.'
+        required: false
+        example: prod_123
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      currency:
+        custom: []
+        name: currency
+        description: 'The currency for the price. Default: aud.'
+        required: false
+        example: aud
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      unit_amount:
+        custom: []
+        name: unit_amount
+        description: 'The amount in cents.'
+        required: true
+        example: 1000
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      recurring_interval:
+        custom: []
+        name: recurring_interval
+        description: 'The interval for recurring payments (month, year, week, day).'
+        required: false
+        example: month
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      metadata:
+        custom: []
+        name: metadata
+        description: 'Extra metadata to store with the price.'
+        required: false
+        example:
+          internal_id: '999'
+        type: object
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      app_id: app-123
+      product_name: 'Premium Subscription'
+      product_id: prod_123
+      currency: aud
+      unit_amount: 1000
+      recurring_interval: month
+      metadata:
+        internal_id: '999'
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+           "success": true,
+           "message": "Price created successfully.",
+           "data": {
+             "price_id": "price_...",
+             "product_id": "prod_...",
+             "currency": "aud",
+             "unit_amount": 1000
            }
           }
         headers: []
@@ -280,6 +551,77 @@ endpoints:
           {
            "success": false,
            "message": "Activity not found"
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth:
+      - headers
+      - X-Magic-Token
+      - 6g43cv8PD1aE5beadkZfhV6
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: 'api/external/activities/{appId}'
+    metadata:
+      custom: []
+      groupName: 'External API'
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: |-
+        Get Activities for Application
+
+        Retrieve a list of payment activities associated with a specific application.
+      description: ''
+      authenticated: true
+      deprecated: false
+    headers:
+      X-Magic-Token: '{YOUR_MAGIC_TOKEN}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters:
+      appId:
+        custom: []
+        name: appId
+        description: 'The application ID.'
+        required: true
+        example: app-123
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanUrlParameters:
+      appId: app-123
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+           "success": true,
+           "data": [
+             {
+               "id": 123,
+               "description": "Stripe payment session initiated for Test App",
+               "properties": {
+                 "app_id": "app-123",
+                 "status": "pending",
+                 "user": {"id": "user-456", "name": "John Doe"}
+               },
+               "created_at": "2024-01-01 12:00:00"
+             }
+           ]
           }
         headers: []
         description: ''

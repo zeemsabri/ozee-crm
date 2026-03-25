@@ -74,8 +74,16 @@
                                                     <li class="tocify-item level-2" data-unique="external-api-POSTapi-external-payment-create-session">
                                 <a href="#external-api-POSTapi-external-payment-create-session">Create Checkout Session</a>
                             </li>
+                                                                                <li class="tocify-item level-2" data-unique="external-api-POSTapi-external-payment-create-price">
+                                <a href="#external-api-POSTapi-external-payment-create-price">Create Price</a>
+                            </li>
                                                                                 <li class="tocify-item level-2" data-unique="external-api-GETapi-external-payment-status--activityId-">
                                 <a href="#external-api-GETapi-external-payment-status--activityId-">Get Payment Status</a>
+                            </li>
+                                                                                <li class="tocify-item level-2" data-unique="external-api-GETapi-external-activities--appId-">
+                                <a href="#external-api-GETapi-external-activities--appId-">Get Activities for Application
+
+Retrieve a list of payment activities associated with a specific application.</a>
                             </li>
                                                                                 <li class="tocify-item level-2" data-unique="external-api-POSTapi-external-stripe-webhook--app_id-">
                                 <a href="#external-api-POSTapi-external-stripe-webhook--app_id-">Handle Stripe Webhook</a>
@@ -91,7 +99,7 @@
     </ul>
 
     <ul class="toc-footer" id="last-updated">
-        <li>Last updated: March 24, 2026</li>
+        <li>Last updated: March 25, 2026</li>
     </ul>
 </div>
 
@@ -124,6 +132,76 @@ You can switch the language used with the tabs at the top right (or from the nav
 </p>
 
 <p>Create a new Stripe Checkout session for external application payment tracking.</p>
+<h3>Example Payload: Payment Mode</h3>
+<pre><code class="language-json">{
+    "app_id": "ifam-quiz-central",
+    "mode": "payment",
+    "line_items": [
+        {
+            "price_data": {
+                "currency": "aud",
+                "product_data": {
+                    "name": "Quiz Enrollment",
+                    "description": "Year 6"
+                },
+                "unit_amount": 2500
+            },
+            "quantity": 1
+        }
+    ],
+    "success_url": "https://example.com/success",
+    "cancel_url": "https://example.com/cancel"
+}</code></pre>
+<h3>Scenario 1: Lifetime Subscription (Unless Cancelled)</h3>
+<p>Standard recurring monthly billing that continues indefinitely.</p>
+<pre><code class="language-json">{
+    "app_id": "app-123",
+    "mode": "subscription",
+    "line_items": [{ "price": "price_abc_123", "quantity": 1 }],
+    "success_url": "...", "cancel_url": "..."
+}</code></pre>
+<h3>Scenario 2: Limited Subscription (3 Months)</h3>
+<p>To charge monthly but automatically cancel after 3 months, pass a Unix timestamp in <code>cancel_at</code>.</p>
+<pre><code class="language-json">{
+    "app_id": "app-123",
+    "mode": "subscription",
+    "line_items": [{ "price": "price_abc_123", "quantity": 1 }],
+    "subscription_data": {
+        "cancel_at": 1711432800
+    },
+    "success_url": "...", "cancel_url": "..."
+}</code></pre>
+<h3>Scenario 3: Total Amount in Installments (e.g., 4 Payments)</h3>
+<p>To divide a cost into 4 parts, use a monthly price and set <code>cancel_at</code> to the date of the 4th payment.</p>
+<pre><code class="language-json">{
+    "app_id": "app-123",
+    "mode": "subscription",
+    "line_items": [{ "price": "price_25_per_month", "quantity": 1 }],
+    "subscription_data": {
+        "cancel_at": 1721887200
+    },
+    "success_url": "...", "cancel_url": "..."
+}</code></pre>
+<h3>Scenario 4: Deposit + Remaining Installments</h3>
+<p>To charge $100 up front (deposit) and then $50/mo for 4 installments ($200 total), send two items:
+a recurring price ($50/mo) and a one-time price ($100).</p>
+<pre><code class="language-json">{
+    "app_id": "app-123",
+    "mode": "subscription",
+    "line_items": [
+        { "price": "price_50_per_month", "quantity": 1 },
+        {
+            "price_data": {
+                "currency": "aud",
+                "product_data": { "name": "Enrollment Deposit" },
+                "unit_amount": 10000
+            },
+            "quantity": 1
+        }
+    ],
+    "subscription_data": { "cancel_at": 1721887200 },
+    "success_url": "...", "cancel_url": "..."
+}</code></pre>
 
 <span id="example-requests-POSTapi-external-payment-create-session">
 <blockquote>Example request:</blockquote>
@@ -140,11 +218,12 @@ You can switch the language used with the tabs at the top right (or from the nav
     \"line_items\": [
         {
             \"price_data\": {
-                \"currency\": \"usd\",
+                \"currency\": \"aud\",
                 \"product_data\": {
-                    \"name\": \"Test Product\"
+                    \"name\": \"Quiz Enrollment: Moustafa\",
+                    \"description\": \"IFAM Quiz 2026 - Year 6\"
                 },
-                \"unit_amount\": 1000
+                \"unit_amount\": 2500
             },
             \"quantity\": 1
         }
@@ -154,6 +233,11 @@ You can switch the language used with the tabs at the top right (or from the nav
     \"mode\": \"payment\",
     \"metadata\": {
         \"order_id\": \"123\"
+    },
+    \"allow_promotion_codes\": true,
+    \"subscription_data\": {
+        \"trial_period_days\": 7,
+        \"cancel_at\": 1711432800
     },
     \"user\": {
         \"id\": \"user-456\",
@@ -181,11 +265,12 @@ let body = {
     "line_items": [
         {
             "price_data": {
-                "currency": "usd",
+                "currency": "aud",
                 "product_data": {
-                    "name": "Test Product"
+                    "name": "Quiz Enrollment: Moustafa",
+                    "description": "IFAM Quiz 2026 - Year 6"
                 },
-                "unit_amount": 1000
+                "unit_amount": 2500
             },
             "quantity": 1
         }
@@ -195,6 +280,11 @@ let body = {
     "mode": "payment",
     "metadata": {
         "order_id": "123"
+    },
+    "allow_promotion_codes": true,
+    "subscription_data": {
+        "trial_period_days": 7,
+        "cancel_at": 1711432800
     },
     "user": {
         "id": "user-456",
@@ -330,7 +420,7 @@ You can check the Dev Tools console for debugging information.</code></pre>
                 <div style=" padding-left: 28px;  clear: unset;">
             <b style="line-height: 2;"><code>line_items</code></b>&nbsp;&nbsp;
 <small>string[]</small>&nbsp;
- &nbsp;
+<i>optional</i> &nbsp;
  &nbsp;
                 <input type="text" style="display: none"
                               name="line_items[0]"                data-endpoint="POSTapi-external-payment-create-session"
@@ -339,7 +429,7 @@ You can check the Dev Tools console for debugging information.</code></pre>
                name="line_items[1]"                data-endpoint="POSTapi-external-payment-create-session"
                data-component="body">
     <br>
-<p>List of items to be purchased.</p>
+<p>Required for 'payment' and 'subscription' modes. Not used for 'setup'. List of items to be purchased. Supports providing a Stripe Price ID (<code>price</code>) or defining one on the fly (<code>price_data</code>).</p>
         </div>
                 <div style=" padding-left: 28px;  clear: unset;">
             <b style="line-height: 2;"><code>success_url</code></b>&nbsp;&nbsp;
@@ -375,7 +465,7 @@ You can check the Dev Tools console for debugging information.</code></pre>
                value="payment"
                data-component="body">
     <br>
-<p>The payment mode (payment_mode, subscription, setup). Default: payment. Example: <code>payment</code></p>
+<p>The payment mode (payment, subscription, setup). Default: payment. Different modes require different payloads. Example: <code>payment</code></p>
         </div>
                 <div style=" padding-left: 28px;  clear: unset;">
             <b style="line-height: 2;"><code>metadata</code></b>&nbsp;&nbsp;
@@ -388,6 +478,40 @@ You can check the Dev Tools console for debugging information.</code></pre>
                data-component="body">
     <br>
 <p>Extra metadata to store with the payment.</p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>allow_promotion_codes</code></b>&nbsp;&nbsp;
+<small>boolean</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <label data-endpoint="POSTapi-external-payment-create-session" style="display: none">
+            <input type="radio" name="allow_promotion_codes"
+                   value="true"
+                   data-endpoint="POSTapi-external-payment-create-session"
+                   data-component="body"             >
+            <code>true</code>
+        </label>
+        <label data-endpoint="POSTapi-external-payment-create-session" style="display: none">
+            <input type="radio" name="allow_promotion_codes"
+                   value="false"
+                   data-endpoint="POSTapi-external-payment-create-session"
+                   data-component="body"             >
+            <code>false</code>
+        </label>
+    <br>
+<p>Whether to enable the promotion code field on the checkout page. Default: false. Example: <code>true</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>subscription_data</code></b>&nbsp;&nbsp;
+<small>object</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="subscription_data"                data-endpoint="POSTapi-external-payment-create-session"
+               value=""
+               data-component="body">
+    <br>
+<p>Options for subscription mode. Use <code>cancel_at</code> (Unix timestamp) to set an expiration date for installments.</p>
         </div>
                 <div style=" padding-left: 28px;  clear: unset;">
         <details>
@@ -448,6 +572,269 @@ You can check the Dev Tools console for debugging information.</code></pre>
 <p>The phone number of the user. Example: <code>+123456789</code></p>
                     </div>
                                     </details>
+        </div>
+        </form>
+
+                    <h2 id="external-api-POSTapi-external-payment-create-price">Create Price</h2>
+
+<p>
+<small class="badge badge-darkred">requires authentication</small>
+</p>
+
+<p>Create a new Stripe Price (and optionally a Product) for use in subsequent payment sessions.</p>
+<h3>Example Payload: Subscription Mode</h3>
+<pre><code class="language-json"> {
+     "app_id": "app-123",
+     "product_name": "Premium Subscription",
+     "product_id": "abc_123",
+     "currency": "aud",
+     "unit_amount": 1000,
+     "recurring_interval": "month",
+     "metadata": {
+         "internal_id": 999
+     }
+ }</code></pre>
+
+<span id="example-requests-POSTapi-external-payment-create-price">
+<blockquote>Example request:</blockquote>
+
+
+<div class="bash-example">
+    <pre><code class="language-bash">curl --request POST \
+    "http://localhost:8000/api/external/payment/create-price" \
+    --header "X-Magic-Token: {YOUR_MAGIC_TOKEN}" \
+    --header "Content-Type: application/json" \
+    --header "Accept: application/json" \
+    --data "{
+    \"app_id\": \"app-123\",
+    \"product_name\": \"Premium Subscription\",
+    \"product_id\": \"prod_123\",
+    \"currency\": \"aud\",
+    \"unit_amount\": 1000,
+    \"recurring_interval\": \"month\",
+    \"metadata\": {
+        \"internal_id\": \"999\"
+    }
+}"
+</code></pre></div>
+
+
+<div class="javascript-example">
+    <pre><code class="language-javascript">const url = new URL(
+    "http://localhost:8000/api/external/payment/create-price"
+);
+
+const headers = {
+    "X-Magic-Token": "{YOUR_MAGIC_TOKEN}",
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+};
+
+let body = {
+    "app_id": "app-123",
+    "product_name": "Premium Subscription",
+    "product_id": "prod_123",
+    "currency": "aud",
+    "unit_amount": 1000,
+    "recurring_interval": "month",
+    "metadata": {
+        "internal_id": "999"
+    }
+};
+
+fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+}).then(response =&gt; response.json());</code></pre></div>
+
+</span>
+
+<span id="example-responses-POSTapi-external-payment-create-price">
+            <blockquote>
+            <p>Example response (200):</p>
+        </blockquote>
+                <pre>
+
+<code class="language-json" style="max-height: 300px;">{
+    &quot;success&quot;: true,
+    &quot;message&quot;: &quot;Price created successfully.&quot;,
+    &quot;data&quot;: {
+        &quot;price_id&quot;: &quot;price_...&quot;,
+        &quot;product_id&quot;: &quot;prod_...&quot;,
+        &quot;currency&quot;: &quot;aud&quot;,
+        &quot;unit_amount&quot;: 1000
+    }
+}</code>
+ </pre>
+    </span>
+<span id="execution-results-POSTapi-external-payment-create-price" hidden>
+    <blockquote>Received response<span
+                id="execution-response-status-POSTapi-external-payment-create-price"></span>:
+    </blockquote>
+    <pre class="json"><code id="execution-response-content-POSTapi-external-payment-create-price"
+      data-empty-response-text="<Empty response>" style="max-height: 400px;"></code></pre>
+</span>
+<span id="execution-error-POSTapi-external-payment-create-price" hidden>
+    <blockquote>Request failed with error:</blockquote>
+    <pre><code id="execution-error-message-POSTapi-external-payment-create-price">
+
+Tip: Check that you&#039;re properly connected to the network.
+If you&#039;re a maintainer of ths API, verify that your API is running and you&#039;ve enabled CORS.
+You can check the Dev Tools console for debugging information.</code></pre>
+</span>
+<form id="form-POSTapi-external-payment-create-price" data-method="POST"
+      data-path="api/external/payment/create-price"
+      data-authed="1"
+      data-hasfiles="0"
+      data-isarraybody="0"
+      autocomplete="off"
+      onsubmit="event.preventDefault(); executeTryOut('POSTapi-external-payment-create-price', this);">
+    <h3>
+        Request&nbsp;&nbsp;&nbsp;
+                    <button type="button"
+                    style="background-color: #8fbcd4; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-tryout-POSTapi-external-payment-create-price"
+                    onclick="tryItOut('POSTapi-external-payment-create-price');">Try it out ⚡
+            </button>
+            <button type="button"
+                    style="background-color: #c97a7e; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-canceltryout-POSTapi-external-payment-create-price"
+                    onclick="cancelTryOut('POSTapi-external-payment-create-price');" hidden>Cancel 🛑
+            </button>&nbsp;&nbsp;
+            <button type="submit"
+                    style="background-color: #6ac174; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-executetryout-POSTapi-external-payment-create-price"
+                    data-initial-text="Send Request 💥"
+                    data-loading-text="⏱ Sending..."
+                    hidden>Send Request 💥
+            </button>
+            </h3>
+            <p>
+            <small class="badge badge-black">POST</small>
+            <b><code>api/external/payment/create-price</code></b>
+        </p>
+                <h4 class="fancy-heading-panel"><b>Headers</b></h4>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>X-Magic-Token</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="X-Magic-Token" class="auth-value"               data-endpoint="POSTapi-external-payment-create-price"
+               value="{YOUR_MAGIC_TOKEN}"
+               data-component="header">
+    <br>
+<p>Example: <code>{YOUR_MAGIC_TOKEN}</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Content-Type</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Content-Type"                data-endpoint="POSTapi-external-payment-create-price"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Accept</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Accept"                data-endpoint="POSTapi-external-payment-create-price"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                                <h4 class="fancy-heading-panel"><b>Body Parameters</b></h4>
+        <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>app_id</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="app_id"                data-endpoint="POSTapi-external-payment-create-price"
+               value="app-123"
+               data-component="body">
+    <br>
+<p>The unique ID for the application. Example: <code>app-123</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>product_name</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="product_name"                data-endpoint="POSTapi-external-payment-create-price"
+               value="Premium Subscription"
+               data-component="body">
+    <br>
+<p>Required if product_id is not provided. The name of the product. Example: <code>Premium Subscription</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>product_id</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="product_id"                data-endpoint="POSTapi-external-payment-create-price"
+               value="prod_123"
+               data-component="body">
+    <br>
+<p>Required if product_name is not provided. The ID of an existing Stripe Product. Example: <code>prod_123</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>currency</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="currency"                data-endpoint="POSTapi-external-payment-create-price"
+               value="aud"
+               data-component="body">
+    <br>
+<p>The currency for the price. Default: aud. Example: <code>aud</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>unit_amount</code></b>&nbsp;&nbsp;
+<small>integer</small>&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="number" style="display: none"
+               step="any"               name="unit_amount"                data-endpoint="POSTapi-external-payment-create-price"
+               value="1000"
+               data-component="body">
+    <br>
+<p>The amount in cents. Example: <code>1000</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>recurring_interval</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="recurring_interval"                data-endpoint="POSTapi-external-payment-create-price"
+               value="month"
+               data-component="body">
+    <br>
+<p>The interval for recurring payments (month, year, week, day). Example: <code>month</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>metadata</code></b>&nbsp;&nbsp;
+<small>object</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="metadata"                data-endpoint="POSTapi-external-payment-create-price"
+               value=""
+               data-component="body">
+    <br>
+<p>Extra metadata to store with the price.</p>
         </div>
         </form>
 
@@ -624,6 +1011,171 @@ You can check the Dev Tools console for debugging information.</code></pre>
                data-component="url">
     <br>
 <p>The activity ID returned by create-session. Example: <code>123</code></p>
+            </div>
+                    </form>
+
+                    <h2 id="external-api-GETapi-external-activities--appId-">Get Activities for Application
+
+Retrieve a list of payment activities associated with a specific application.</h2>
+
+<p>
+<small class="badge badge-darkred">requires authentication</small>
+</p>
+
+
+
+<span id="example-requests-GETapi-external-activities--appId-">
+<blockquote>Example request:</blockquote>
+
+
+<div class="bash-example">
+    <pre><code class="language-bash">curl --request GET \
+    --get "http://localhost:8000/api/external/activities/app-123" \
+    --header "X-Magic-Token: {YOUR_MAGIC_TOKEN}" \
+    --header "Content-Type: application/json" \
+    --header "Accept: application/json"</code></pre></div>
+
+
+<div class="javascript-example">
+    <pre><code class="language-javascript">const url = new URL(
+    "http://localhost:8000/api/external/activities/app-123"
+);
+
+const headers = {
+    "X-Magic-Token": "{YOUR_MAGIC_TOKEN}",
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+};
+
+
+fetch(url, {
+    method: "GET",
+    headers,
+}).then(response =&gt; response.json());</code></pre></div>
+
+</span>
+
+<span id="example-responses-GETapi-external-activities--appId-">
+            <blockquote>
+            <p>Example response (200):</p>
+        </blockquote>
+                <pre>
+
+<code class="language-json" style="max-height: 300px;">{
+    &quot;success&quot;: true,
+    &quot;data&quot;: [
+        {
+            &quot;id&quot;: 123,
+            &quot;description&quot;: &quot;Stripe payment session initiated for Test App&quot;,
+            &quot;properties&quot;: {
+                &quot;app_id&quot;: &quot;app-123&quot;,
+                &quot;status&quot;: &quot;pending&quot;,
+                &quot;user&quot;: {
+                    &quot;id&quot;: &quot;user-456&quot;,
+                    &quot;name&quot;: &quot;John Doe&quot;
+                }
+            },
+            &quot;created_at&quot;: &quot;2024-01-01 12:00:00&quot;
+        }
+    ]
+}</code>
+ </pre>
+    </span>
+<span id="execution-results-GETapi-external-activities--appId-" hidden>
+    <blockquote>Received response<span
+                id="execution-response-status-GETapi-external-activities--appId-"></span>:
+    </blockquote>
+    <pre class="json"><code id="execution-response-content-GETapi-external-activities--appId-"
+      data-empty-response-text="<Empty response>" style="max-height: 400px;"></code></pre>
+</span>
+<span id="execution-error-GETapi-external-activities--appId-" hidden>
+    <blockquote>Request failed with error:</blockquote>
+    <pre><code id="execution-error-message-GETapi-external-activities--appId-">
+
+Tip: Check that you&#039;re properly connected to the network.
+If you&#039;re a maintainer of ths API, verify that your API is running and you&#039;ve enabled CORS.
+You can check the Dev Tools console for debugging information.</code></pre>
+</span>
+<form id="form-GETapi-external-activities--appId-" data-method="GET"
+      data-path="api/external/activities/{appId}"
+      data-authed="1"
+      data-hasfiles="0"
+      data-isarraybody="0"
+      autocomplete="off"
+      onsubmit="event.preventDefault(); executeTryOut('GETapi-external-activities--appId-', this);">
+    <h3>
+        Request&nbsp;&nbsp;&nbsp;
+                    <button type="button"
+                    style="background-color: #8fbcd4; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-tryout-GETapi-external-activities--appId-"
+                    onclick="tryItOut('GETapi-external-activities--appId-');">Try it out ⚡
+            </button>
+            <button type="button"
+                    style="background-color: #c97a7e; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-canceltryout-GETapi-external-activities--appId-"
+                    onclick="cancelTryOut('GETapi-external-activities--appId-');" hidden>Cancel 🛑
+            </button>&nbsp;&nbsp;
+            <button type="submit"
+                    style="background-color: #6ac174; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-executetryout-GETapi-external-activities--appId-"
+                    data-initial-text="Send Request 💥"
+                    data-loading-text="⏱ Sending..."
+                    hidden>Send Request 💥
+            </button>
+            </h3>
+            <p>
+            <small class="badge badge-green">GET</small>
+            <b><code>api/external/activities/{appId}</code></b>
+        </p>
+                <h4 class="fancy-heading-panel"><b>Headers</b></h4>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>X-Magic-Token</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="X-Magic-Token" class="auth-value"               data-endpoint="GETapi-external-activities--appId-"
+               value="{YOUR_MAGIC_TOKEN}"
+               data-component="header">
+    <br>
+<p>Example: <code>{YOUR_MAGIC_TOKEN}</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Content-Type</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Content-Type"                data-endpoint="GETapi-external-activities--appId-"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Accept</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Accept"                data-endpoint="GETapi-external-activities--appId-"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                        <h4 class="fancy-heading-panel"><b>URL Parameters</b></h4>
+                    <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>appId</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="appId"                data-endpoint="GETapi-external-activities--appId-"
+               value="app-123"
+               data-component="url">
+    <br>
+<p>The application ID. Example: <code>app-123</code></p>
             </div>
                     </form>
 
