@@ -77,8 +77,17 @@
                                                                                 <li class="tocify-item level-2" data-unique="external-api-POSTapi-external-payment-create-price">
                                 <a href="#external-api-POSTapi-external-payment-create-price">Create Price</a>
                             </li>
+                                                                                <li class="tocify-item level-2" data-unique="external-api-POSTapi-external-payment-update-configuration">
+                                <a href="#external-api-POSTapi-external-payment-update-configuration">Update Application Configuration</a>
+                            </li>
                                                                                 <li class="tocify-item level-2" data-unique="external-api-GETapi-external-payment-status--activityId-">
                                 <a href="#external-api-GETapi-external-payment-status--activityId-">Get Payment Status</a>
+                            </li>
+                                                                                <li class="tocify-item level-2" data-unique="external-api-GETapi-external-payment-subscriptions--appId-">
+                                <a href="#external-api-GETapi-external-payment-subscriptions--appId-">Get Subscriptions for Application</a>
+                            </li>
+                                                                                <li class="tocify-item level-2" data-unique="external-api-POSTapi-external-payment-cancel-subscription">
+                                <a href="#external-api-POSTapi-external-payment-cancel-subscription">Cancel Subscription</a>
                             </li>
                                                                                 <li class="tocify-item level-2" data-unique="external-api-GETapi-external-activities--appId-">
                                 <a href="#external-api-GETapi-external-activities--appId-">Get Activities for Application
@@ -99,7 +108,7 @@ Retrieve a list of payment activities associated with a specific application.</a
     </ul>
 
     <ul class="toc-footer" id="last-updated">
-        <li>Last updated: March 25, 2026</li>
+        <li>Last updated: March 26, 2026</li>
     </ul>
 </div>
 
@@ -199,6 +208,9 @@ a recurring price ($50/mo) and a one-time price ($100).</p>
             "quantity": 1
         }
     ],
+    "metadata": {
+        "total_amount": 20000 //useful for installment tracking
+    }
     "subscription_data": { "cancel_at": 1721887200 },
     "success_url": "...", "cancel_url": "..."
 }</code></pre>
@@ -838,6 +850,177 @@ You can check the Dev Tools console for debugging information.</code></pre>
         </div>
         </form>
 
+                    <h2 id="external-api-POSTapi-external-payment-update-configuration">Update Application Configuration</h2>
+
+<p>
+<small class="badge badge-darkred">requires authentication</small>
+</p>
+
+<p>Update the JSON settings (webhooks, logic, etc.) for a specific application.</p>
+
+<span id="example-requests-POSTapi-external-payment-update-configuration">
+<blockquote>Example request:</blockquote>
+
+
+<div class="bash-example">
+    <pre><code class="language-bash">curl --request POST \
+    "http://localhost:8000/api/external/payment/update-configuration" \
+    --header "X-Magic-Token: {YOUR_MAGIC_TOKEN}" \
+    --header "Content-Type: application/json" \
+    --header "Accept: application/json" \
+    --data "{
+    \"app_id\": \"architecto\",
+    \"settings\": []
+}"
+</code></pre></div>
+
+
+<div class="javascript-example">
+    <pre><code class="language-javascript">const url = new URL(
+    "http://localhost:8000/api/external/payment/update-configuration"
+);
+
+const headers = {
+    "X-Magic-Token": "{YOUR_MAGIC_TOKEN}",
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+};
+
+let body = {
+    "app_id": "architecto",
+    "settings": []
+};
+
+fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+}).then(response =&gt; response.json());</code></pre></div>
+
+</span>
+
+<span id="example-responses-POSTapi-external-payment-update-configuration">
+            <blockquote>
+            <p>Example response (200):</p>
+        </blockquote>
+                <pre>
+
+<code class="language-json" style="max-height: 300px;">{
+    &quot;success&quot;: true,
+    &quot;message&quot;: &quot;Configuration updated successfully.&quot;
+}</code>
+ </pre>
+    </span>
+<span id="execution-results-POSTapi-external-payment-update-configuration" hidden>
+    <blockquote>Received response<span
+                id="execution-response-status-POSTapi-external-payment-update-configuration"></span>:
+    </blockquote>
+    <pre class="json"><code id="execution-response-content-POSTapi-external-payment-update-configuration"
+      data-empty-response-text="<Empty response>" style="max-height: 400px;"></code></pre>
+</span>
+<span id="execution-error-POSTapi-external-payment-update-configuration" hidden>
+    <blockquote>Request failed with error:</blockquote>
+    <pre><code id="execution-error-message-POSTapi-external-payment-update-configuration">
+
+Tip: Check that you&#039;re properly connected to the network.
+If you&#039;re a maintainer of ths API, verify that your API is running and you&#039;ve enabled CORS.
+You can check the Dev Tools console for debugging information.</code></pre>
+</span>
+<form id="form-POSTapi-external-payment-update-configuration" data-method="POST"
+      data-path="api/external/payment/update-configuration"
+      data-authed="1"
+      data-hasfiles="0"
+      data-isarraybody="0"
+      autocomplete="off"
+      onsubmit="event.preventDefault(); executeTryOut('POSTapi-external-payment-update-configuration', this);">
+    <h3>
+        Request&nbsp;&nbsp;&nbsp;
+                    <button type="button"
+                    style="background-color: #8fbcd4; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-tryout-POSTapi-external-payment-update-configuration"
+                    onclick="tryItOut('POSTapi-external-payment-update-configuration');">Try it out ⚡
+            </button>
+            <button type="button"
+                    style="background-color: #c97a7e; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-canceltryout-POSTapi-external-payment-update-configuration"
+                    onclick="cancelTryOut('POSTapi-external-payment-update-configuration');" hidden>Cancel 🛑
+            </button>&nbsp;&nbsp;
+            <button type="submit"
+                    style="background-color: #6ac174; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-executetryout-POSTapi-external-payment-update-configuration"
+                    data-initial-text="Send Request 💥"
+                    data-loading-text="⏱ Sending..."
+                    hidden>Send Request 💥
+            </button>
+            </h3>
+            <p>
+            <small class="badge badge-black">POST</small>
+            <b><code>api/external/payment/update-configuration</code></b>
+        </p>
+                <h4 class="fancy-heading-panel"><b>Headers</b></h4>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>X-Magic-Token</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="X-Magic-Token" class="auth-value"               data-endpoint="POSTapi-external-payment-update-configuration"
+               value="{YOUR_MAGIC_TOKEN}"
+               data-component="header">
+    <br>
+<p>Example: <code>{YOUR_MAGIC_TOKEN}</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Content-Type</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Content-Type"                data-endpoint="POSTapi-external-payment-update-configuration"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Accept</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Accept"                data-endpoint="POSTapi-external-payment-update-configuration"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                                <h4 class="fancy-heading-panel"><b>Body Parameters</b></h4>
+        <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>app_id</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="app_id"                data-endpoint="POSTapi-external-payment-update-configuration"
+               value="architecto"
+               data-component="body">
+    <br>
+<p>The unique ID for the application. Example: <code>architecto</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>settings</code></b>&nbsp;&nbsp;
+<small>object</small>&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="settings"                data-endpoint="POSTapi-external-payment-update-configuration"
+               value=""
+               data-component="body">
+    <br>
+<p>The JSON configuration object.</p>
+        </div>
+        </form>
+
                     <h2 id="external-api-GETapi-external-payment-status--activityId-">Get Payment Status</h2>
 
 <p>
@@ -1014,6 +1197,338 @@ You can check the Dev Tools console for debugging information.</code></pre>
             </div>
                     </form>
 
+                    <h2 id="external-api-GETapi-external-payment-subscriptions--appId-">Get Subscriptions for Application</h2>
+
+<p>
+<small class="badge badge-darkred">requires authentication</small>
+</p>
+
+<p>Retrieve all subscriptions associated with an app_id, including payment progress for installments.</p>
+
+<span id="example-requests-GETapi-external-payment-subscriptions--appId-">
+<blockquote>Example request:</blockquote>
+
+
+<div class="bash-example">
+    <pre><code class="language-bash">curl --request GET \
+    --get "http://localhost:8000/api/external/payment/subscriptions/architecto" \
+    --header "X-Magic-Token: {YOUR_MAGIC_TOKEN}" \
+    --header "Content-Type: application/json" \
+    --header "Accept: application/json"</code></pre></div>
+
+
+<div class="javascript-example">
+    <pre><code class="language-javascript">const url = new URL(
+    "http://localhost:8000/api/external/payment/subscriptions/architecto"
+);
+
+const headers = {
+    "X-Magic-Token": "{YOUR_MAGIC_TOKEN}",
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+};
+
+
+fetch(url, {
+    method: "GET",
+    headers,
+}).then(response =&gt; response.json());</code></pre></div>
+
+</span>
+
+<span id="example-responses-GETapi-external-payment-subscriptions--appId-">
+            <blockquote>
+            <p>Example response (200):</p>
+        </blockquote>
+                <pre>
+
+<code class="language-json" style="max-height: 300px;">{
+    &quot;success&quot;: true,
+    &quot;data&quot;: [
+        {
+            &quot;id&quot;: &quot;sub_...&quot;,
+            &quot;status&quot;: &quot;active&quot;,
+            &quot;amount_total&quot;: 400000,
+            &quot;amount_collected&quot;: 100000,
+            &quot;amount_remaining&quot;: 300000,
+            &quot;currency&quot;: &quot;aud&quot;,
+            &quot;cancel_at&quot;: &quot;2024-12-31 23:59:59&quot;,
+            &quot;payments_count&quot;: 1,
+            &quot;metadata&quot;: {}
+        }
+    ]
+}</code>
+ </pre>
+    </span>
+<span id="execution-results-GETapi-external-payment-subscriptions--appId-" hidden>
+    <blockquote>Received response<span
+                id="execution-response-status-GETapi-external-payment-subscriptions--appId-"></span>:
+    </blockquote>
+    <pre class="json"><code id="execution-response-content-GETapi-external-payment-subscriptions--appId-"
+      data-empty-response-text="<Empty response>" style="max-height: 400px;"></code></pre>
+</span>
+<span id="execution-error-GETapi-external-payment-subscriptions--appId-" hidden>
+    <blockquote>Request failed with error:</blockquote>
+    <pre><code id="execution-error-message-GETapi-external-payment-subscriptions--appId-">
+
+Tip: Check that you&#039;re properly connected to the network.
+If you&#039;re a maintainer of ths API, verify that your API is running and you&#039;ve enabled CORS.
+You can check the Dev Tools console for debugging information.</code></pre>
+</span>
+<form id="form-GETapi-external-payment-subscriptions--appId-" data-method="GET"
+      data-path="api/external/payment/subscriptions/{appId}"
+      data-authed="1"
+      data-hasfiles="0"
+      data-isarraybody="0"
+      autocomplete="off"
+      onsubmit="event.preventDefault(); executeTryOut('GETapi-external-payment-subscriptions--appId-', this);">
+    <h3>
+        Request&nbsp;&nbsp;&nbsp;
+                    <button type="button"
+                    style="background-color: #8fbcd4; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-tryout-GETapi-external-payment-subscriptions--appId-"
+                    onclick="tryItOut('GETapi-external-payment-subscriptions--appId-');">Try it out ⚡
+            </button>
+            <button type="button"
+                    style="background-color: #c97a7e; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-canceltryout-GETapi-external-payment-subscriptions--appId-"
+                    onclick="cancelTryOut('GETapi-external-payment-subscriptions--appId-');" hidden>Cancel 🛑
+            </button>&nbsp;&nbsp;
+            <button type="submit"
+                    style="background-color: #6ac174; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-executetryout-GETapi-external-payment-subscriptions--appId-"
+                    data-initial-text="Send Request 💥"
+                    data-loading-text="⏱ Sending..."
+                    hidden>Send Request 💥
+            </button>
+            </h3>
+            <p>
+            <small class="badge badge-green">GET</small>
+            <b><code>api/external/payment/subscriptions/{appId}</code></b>
+        </p>
+                <h4 class="fancy-heading-panel"><b>Headers</b></h4>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>X-Magic-Token</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="X-Magic-Token" class="auth-value"               data-endpoint="GETapi-external-payment-subscriptions--appId-"
+               value="{YOUR_MAGIC_TOKEN}"
+               data-component="header">
+    <br>
+<p>Example: <code>{YOUR_MAGIC_TOKEN}</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Content-Type</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Content-Type"                data-endpoint="GETapi-external-payment-subscriptions--appId-"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Accept</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Accept"                data-endpoint="GETapi-external-payment-subscriptions--appId-"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                        <h4 class="fancy-heading-panel"><b>URL Parameters</b></h4>
+                    <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>appId</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="appId"                data-endpoint="GETapi-external-payment-subscriptions--appId-"
+               value="architecto"
+               data-component="url">
+    <br>
+<p>The application ID. Example: <code>architecto</code></p>
+            </div>
+                    </form>
+
+                    <h2 id="external-api-POSTapi-external-payment-cancel-subscription">Cancel Subscription</h2>
+
+<p>
+<small class="badge badge-darkred">requires authentication</small>
+</p>
+
+<p>Cancel an active subscription on Stripe.</p>
+
+<span id="example-requests-POSTapi-external-payment-cancel-subscription">
+<blockquote>Example request:</blockquote>
+
+
+<div class="bash-example">
+    <pre><code class="language-bash">curl --request POST \
+    "http://localhost:8000/api/external/payment/cancel-subscription" \
+    --header "X-Magic-Token: {YOUR_MAGIC_TOKEN}" \
+    --header "Content-Type: application/json" \
+    --header "Accept: application/json" \
+    --data "{
+    \"app_id\": \"architecto\",
+    \"subscription_id\": \"architecto\"
+}"
+</code></pre></div>
+
+
+<div class="javascript-example">
+    <pre><code class="language-javascript">const url = new URL(
+    "http://localhost:8000/api/external/payment/cancel-subscription"
+);
+
+const headers = {
+    "X-Magic-Token": "{YOUR_MAGIC_TOKEN}",
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+};
+
+let body = {
+    "app_id": "architecto",
+    "subscription_id": "architecto"
+};
+
+fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+}).then(response =&gt; response.json());</code></pre></div>
+
+</span>
+
+<span id="example-responses-POSTapi-external-payment-cancel-subscription">
+            <blockquote>
+            <p>Example response (200):</p>
+        </blockquote>
+                <pre>
+
+<code class="language-json" style="max-height: 300px;">{
+    &quot;success&quot;: true,
+    &quot;message&quot;: &quot;Subscription cancelled successfully.&quot;
+}</code>
+ </pre>
+    </span>
+<span id="execution-results-POSTapi-external-payment-cancel-subscription" hidden>
+    <blockquote>Received response<span
+                id="execution-response-status-POSTapi-external-payment-cancel-subscription"></span>:
+    </blockquote>
+    <pre class="json"><code id="execution-response-content-POSTapi-external-payment-cancel-subscription"
+      data-empty-response-text="<Empty response>" style="max-height: 400px;"></code></pre>
+</span>
+<span id="execution-error-POSTapi-external-payment-cancel-subscription" hidden>
+    <blockquote>Request failed with error:</blockquote>
+    <pre><code id="execution-error-message-POSTapi-external-payment-cancel-subscription">
+
+Tip: Check that you&#039;re properly connected to the network.
+If you&#039;re a maintainer of ths API, verify that your API is running and you&#039;ve enabled CORS.
+You can check the Dev Tools console for debugging information.</code></pre>
+</span>
+<form id="form-POSTapi-external-payment-cancel-subscription" data-method="POST"
+      data-path="api/external/payment/cancel-subscription"
+      data-authed="1"
+      data-hasfiles="0"
+      data-isarraybody="0"
+      autocomplete="off"
+      onsubmit="event.preventDefault(); executeTryOut('POSTapi-external-payment-cancel-subscription', this);">
+    <h3>
+        Request&nbsp;&nbsp;&nbsp;
+                    <button type="button"
+                    style="background-color: #8fbcd4; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-tryout-POSTapi-external-payment-cancel-subscription"
+                    onclick="tryItOut('POSTapi-external-payment-cancel-subscription');">Try it out ⚡
+            </button>
+            <button type="button"
+                    style="background-color: #c97a7e; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-canceltryout-POSTapi-external-payment-cancel-subscription"
+                    onclick="cancelTryOut('POSTapi-external-payment-cancel-subscription');" hidden>Cancel 🛑
+            </button>&nbsp;&nbsp;
+            <button type="submit"
+                    style="background-color: #6ac174; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-executetryout-POSTapi-external-payment-cancel-subscription"
+                    data-initial-text="Send Request 💥"
+                    data-loading-text="⏱ Sending..."
+                    hidden>Send Request 💥
+            </button>
+            </h3>
+            <p>
+            <small class="badge badge-black">POST</small>
+            <b><code>api/external/payment/cancel-subscription</code></b>
+        </p>
+                <h4 class="fancy-heading-panel"><b>Headers</b></h4>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>X-Magic-Token</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="X-Magic-Token" class="auth-value"               data-endpoint="POSTapi-external-payment-cancel-subscription"
+               value="{YOUR_MAGIC_TOKEN}"
+               data-component="header">
+    <br>
+<p>Example: <code>{YOUR_MAGIC_TOKEN}</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Content-Type</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Content-Type"                data-endpoint="POSTapi-external-payment-cancel-subscription"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Accept</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Accept"                data-endpoint="POSTapi-external-payment-cancel-subscription"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                                <h4 class="fancy-heading-panel"><b>Body Parameters</b></h4>
+        <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>app_id</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="app_id"                data-endpoint="POSTapi-external-payment-cancel-subscription"
+               value="architecto"
+               data-component="body">
+    <br>
+<p>The application ID. Example: <code>architecto</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>subscription_id</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="subscription_id"                data-endpoint="POSTapi-external-payment-cancel-subscription"
+               value="architecto"
+               data-component="body">
+    <br>
+<p>The Stripe subscription ID (sub_...). Example: <code>architecto</code></p>
+        </div>
+        </form>
+
                     <h2 id="external-api-GETapi-external-activities--appId-">Get Activities for Application
 
 Retrieve a list of payment activities associated with a specific application.</h2>
@@ -1184,7 +1699,21 @@ You can check the Dev Tools console for debugging information.</code></pre>
 <p>
 </p>
 
-<p>Receive and process Stripe webhook events (checkout.session.completed, etc.).</p>
+<p>Receive and process Stripe webhook events.</p>
+<h3>Stripe Configuration:</h3>
+<ol>
+<li>Go to Stripe Dashboard &gt; Developers &gt; Webhooks.</li>
+<li>Add an endpoint: <code>https://your-domain.com/api/external/stripe/webhook/{app_id}</code></li>
+<li>Select events:<ul>
+<li><code>checkout.session.completed</code> (Primary payment)</li>
+<li><code>customer.subscription.created</code> (New subscription)</li>
+<li><code>customer.subscription.updated</code> (Status changes like past_due)</li>
+<li><code>customer.subscription.deleted</code> (Subscription cancelled/ended)</li>
+<li><code>invoice.payment_succeeded</code> (Recurring payment received)</li>
+</ul>
+</li>
+<li>Copy the "Signing secret" and save it in <code>/admin/stripe-configurations</code> for the matching <code>app_id</code>.</li>
+</ol>
 
 <span id="example-requests-POSTapi-external-stripe-webhook--app_id-">
 <blockquote>Example request:</blockquote>

@@ -102,6 +102,9 @@ endpoints:
                     "quantity": 1
                 }
             ],
+            "metadata": {
+                "total_amount": 20000 //useful for installment tracking
+            }
             "subscription_data": { "cancel_at": 1721887200 },
             "success_url": "...", "cancel_url": "..."
         }
@@ -481,6 +484,77 @@ endpoints:
   -
     custom: []
     httpMethods:
+      - POST
+    uri: api/external/payment/update-configuration
+    metadata:
+      custom: []
+      groupName: 'External API'
+      groupDescription: |-
+
+        APIs for external systems to interact with our payment and activity tracking system.
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Update Application Configuration'
+      description: 'Update the JSON settings (webhooks, logic, etc.) for a specific application.'
+      authenticated: true
+      deprecated: false
+    headers:
+      X-Magic-Token: '{YOUR_MAGIC_TOKEN}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      app_id:
+        custom: []
+        name: app_id
+        description: 'The unique ID for the application.'
+        required: true
+        example: architecto
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+      settings:
+        custom: []
+        name: settings
+        description: 'The JSON configuration object.'
+        required: true
+        example: []
+        type: object
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      app_id: architecto
+      settings: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+           "success": true,
+           "message": "Configuration updated successfully."
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth:
+      - headers
+      - X-Magic-Token
+      - 6g43cv8PD1aE5beadkZfhV6
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
       - GET
     uri: 'api/external/payment/status/{activityId}'
     metadata:
@@ -553,6 +627,148 @@ endpoints:
           {
            "success": false,
            "message": "Activity not found"
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth:
+      - headers
+      - X-Magic-Token
+      - 6g43cv8PD1aE5beadkZfhV6
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: 'api/external/payment/subscriptions/{appId}'
+    metadata:
+      custom: []
+      groupName: 'External API'
+      groupDescription: |-
+
+        APIs for external systems to interact with our payment and activity tracking system.
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Get Subscriptions for Application'
+      description: 'Retrieve all subscriptions associated with an app_id, including payment progress for installments.'
+      authenticated: true
+      deprecated: false
+    headers:
+      X-Magic-Token: '{YOUR_MAGIC_TOKEN}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters:
+      appId:
+        custom: []
+        name: appId
+        description: 'The application ID.'
+        required: true
+        example: architecto
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+    cleanUrlParameters:
+      appId: architecto
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+           "success": true,
+           "data": [
+             {
+               "id": "sub_...",
+               "status": "active",
+               "amount_total": 400000,
+               "amount_collected": 100000,
+               "amount_remaining": 300000,
+               "currency": "aud",
+               "cancel_at": "2024-12-31 23:59:59",
+               "payments_count": 1,
+               "metadata": {}
+             }
+           ]
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth:
+      - headers
+      - X-Magic-Token
+      - 6g43cv8PD1aE5beadkZfhV6
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - POST
+    uri: api/external/payment/cancel-subscription
+    metadata:
+      custom: []
+      groupName: 'External API'
+      groupDescription: |-
+
+        APIs for external systems to interact with our payment and activity tracking system.
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Cancel Subscription'
+      description: 'Cancel an active subscription on Stripe.'
+      authenticated: true
+      deprecated: false
+    headers:
+      X-Magic-Token: '{YOUR_MAGIC_TOKEN}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      app_id:
+        custom: []
+        name: app_id
+        description: 'The application ID.'
+        required: true
+        example: architecto
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+      subscription_id:
+        custom: []
+        name: subscription_id
+        description: 'The Stripe subscription ID (sub_...).'
+        required: true
+        example: architecto
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      app_id: architecto
+      subscription_id: architecto
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+           "success": true,
+           "message": "Subscription cancelled successfully."
           }
         headers: []
         description: ''
@@ -649,7 +865,19 @@ endpoints:
       subgroup: ''
       subgroupDescription: ''
       title: 'Handle Stripe Webhook'
-      description: 'Receive and process Stripe webhook events (checkout.session.completed, etc.).'
+      description: |-
+        Receive and process Stripe webhook events.
+
+        ### Stripe Configuration:
+        1. Go to Stripe Dashboard > Developers > Webhooks.
+        2. Add an endpoint: `https://your-domain.com/api/external/stripe/webhook/{app_id}`
+        3. Select events:
+           - `checkout.session.completed` (Primary payment)
+           - `customer.subscription.created` (New subscription)
+           - `customer.subscription.updated` (Status changes like past_due)
+           - `customer.subscription.deleted` (Subscription cancelled/ended)
+           - `invoice.payment_succeeded` (Recurring payment received)
+        4. Copy the "Signing secret" and save it in `/admin/stripe-configurations` for the matching `app_id`.
       authenticated: false
       deprecated: false
     headers:
