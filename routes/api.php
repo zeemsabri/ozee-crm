@@ -70,6 +70,14 @@ Route::post('/telegram/test-telegram', [TelegramWebhookController::class, 'send'
 Route::post('/telegram/test-topic', [TelegramWebhookController::class, 'createTopic']);
 Route::post('/telegram/message-thread', [TelegramWebhookController::class, 'sendThreadMessage']);
 
+Route::get('/extension/version', function () {
+    return response()->json(['version' => config('services.extension.version')]);
+});
+
+Route::get('/extension/download', function () {
+    return response()->json(['link' => config('services.extension.download_link')]);
+});
+
 Route::post('/loginapp', [AuthenticatedSessionController::class, 'storeapp'])->middleware(['guest', 'web']);
 // Public Authentication Routes (NO auth:sanctum middleware)
 Route::post('/login', [AuthenticatedSessionController::class, 'store'])
@@ -108,6 +116,7 @@ Route::middleware('auth.apikey')->group(function () {
     Route::get('/activity/projects', [\App\Http\Controllers\Api\ExternalApiController::class, 'getProjects']);
     Route::get('/activity/projects/{project}/tasks', [\App\Http\Controllers\Api\ExternalApiController::class, 'getProjectTasks']);
     Route::get('/activity/tasks', [\App\Http\Controllers\Api\ExternalApiController::class, 'getUserTasks']);
+    Route::get('/activity/tasks/activeTask', [\App\Http\Controllers\Api\ExternalApiController::class, 'getActiveTask']);
     Route::get('/activity/tasks/{task}', [\App\Http\Controllers\Api\ExternalApiController::class, 'getTaskDetails']);
     Route::post('/activity/tasks/{task}/status', [\App\Http\Controllers\Api\ExternalApiController::class, 'updateTaskStatus']);
     Route::get('/activity/tasks/{task}/notes', [\App\Http\Controllers\Api\ExternalApiController::class, 'getTaskNotes']);

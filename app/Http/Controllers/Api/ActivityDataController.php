@@ -45,7 +45,7 @@ class ActivityDataController extends Controller
     {
         $user = $request->user();
         $raw = $request->all();
-//        Log::info('Received activity data', ['data' => $raw]);
+        Log::info('Received activity data', ['data' => $raw]);
 
         // Detect batch mode: either { events: [...] } or a direct array [...]
         $payloads = null;
@@ -74,6 +74,7 @@ class ActivityDataController extends Controller
                 'status'  => 'success',
                 'message' => 'Batch data received and saved.',
                 'count'   => count($payloads),
+                'activeTask'    =>  $user->activeTask
             ]);
         }
 
@@ -92,6 +93,7 @@ class ActivityDataController extends Controller
         return response()->json([
             'status'  => 'success',
             'message' => 'Data received and saved.',
+            'activeTask'    =>  $user->activeTask
         ]);
     }
 

@@ -59,6 +59,10 @@ return [
     ],
 
     'chrome_extension' => env('CHROME_EXTENSION'),
+    'extension' => [
+        'download_link' =>  env('CHROME_EXTENSION'),
+        'version'   =>    "0.5.5"
+    ],
 
     'telegram'  =>  [
         'bot_token' =>  env('TELEGRAM_TOKEN')

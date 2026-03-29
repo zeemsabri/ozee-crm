@@ -137,6 +137,22 @@ class ExternalApiController extends Controller
     }
 
     /**
+     * Fetch full details of a specific task.
+     *
+     * @param Task $task
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getActiveTask(Request $request)
+    {
+        $user = Auth::user();
+
+        // Authorization check (via project)
+        $task = $user->activeTask;
+
+        return response()->json($task);
+    }
+
+    /**
      * Update status on a task (start, pause, resume, complete, block, unblock, revise, archive).
      *
      * @param Request $request
