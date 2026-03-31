@@ -63,6 +63,40 @@ class ExternalTokenController extends Controller
     }
 
     /**
+     * Update the specified external token in storage.
+     */
+    public function update(Request $request, MagicLink $magicLink)
+    {
+        if ($magicLink->type !== 'external') {
+            return back()->with('error', 'Only external tokens can be edited from this interface.');
+        }
+
+        $request->validate([
+            'label' => 'required|string|max:255',
+            'email' => 'nullable|email',
+            'project_id' => 'nullable|exists:projects,id',
+            'expires_at' => 'nullable|date',
+            'max_uses' => 'nullable|integer|min:1',
+            'whitelist_domains' => 'nullable|array',
+            'whitelist_ips' => 'nullable|array',
+        ]);
+
+        $magicLink->update([
+            'label' => $request->label,
+            'email' => $request->email,
+            'project_id' => $request->project_id ?: null,
+            'expires_at' => $request->expires_at ?: null,
+            'max_uses' => $request->max_uses,
+            'whitelist' => [
+                'domains' => $request->whitelist_domains ?? [],
+                'ips' => $request->whitelist_ips ?? [],
+            ],
+        ]);
+
+        return back()->with('success', 'External token updated successfully.');
+    }
+
+    /**
      * Remove the specified external token from storage.
      */
     public function destroy(MagicLink $magicLink)

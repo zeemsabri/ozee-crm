@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
@@ -17,8 +17,10 @@ const props = defineProps({
 });
 
 const showCreateModal = ref(false);
+const showEditModal = ref(false);
 const showDeleteModal = ref(false);
 const tokenToDelete = ref(null);
+const editingTokenId = ref(null);
 
 const form = useForm({
     label: '',
@@ -58,7 +60,36 @@ const removeIp = (index) => {
 const openCreateModal = () => {
     form.reset();
     form.clearErrors();
+    editingTokenId.value = null;
     showCreateModal.value = true;
+};
+
+const openEditModal = (token) => {
+    form.clearErrors();
+    editingTokenId.value = token.id;
+    
+    form.label = token.label;
+    form.email = token.email || '';
+    form.project_id = token.project_id || '';
+    // Format date for input[type="date"]
+    form.expires_at = token.expires_at ? new Date(token.expires_at).toISOString().split('T')[0] : '';
+    form.max_uses = token.max_uses;
+    form.whitelist_domains = [...(token.whitelist?.domains || [])];
+    form.whitelist_ips = [...(token.whitelist?.ips || [])];
+    
+    showEditModal.value = true;
+};
+
+const closeModal = () => {
+    showCreateModal.value = false;
+    showEditModal.value = false;
+    editingTokenId.value = null;
+    form.reset();
+};
+
+const handleSuccess = () => {
+    closeModal();
+    router.reload({ preserveScroll: true });
 };
 
 const confirmDeletion = (token) => {
@@ -70,6 +101,7 @@ const deleteToken = () => {
     form.delete(route('admin.external-tokens.destroy', tokenToDelete.value.id), {
         onSuccess: () => {
             showDeleteModal.value = false;
+            router.reload({ preserveScroll: true });
         },
     });
 };
@@ -148,6 +180,11 @@ const copyToken = (token) => {
                                     </td>
                                     <td class="px-6 py-4 text-right">
                                         <div class="flex justify-end space-x-2">
+                                            <SecondaryButton title="Edit Settings" @click="openEditModal(token)">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
+                                            </SecondaryButton>
                                             <SecondaryButton title="Copy Token" @click="copyToken(token.token)">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -174,14 +211,14 @@ const copyToken = (token) => {
         </div>
 
         <BaseFormModal
-            :show="showCreateModal"
-            title="Create External Token"
-            :api-endpoint="route('admin.external-tokens.store')"
-            http-method="post"
+            :show="showCreateModal || showEditModal"
+            :title="editingTokenId ? 'Edit External Token' : 'Create External Token'"
+            :api-endpoint="editingTokenId ? route('admin.external-tokens.update', editingTokenId) : route('admin.external-tokens.store')"
+            :http-method="editingTokenId ? 'patch' : 'post'"
             :form-data="form"
-            submit-button-text="Generate Token"
-            @close="showCreateModal = false"
-            @submitted="showCreateModal = false"
+            :submit-button-text="editingTokenId ? 'Update Settings' : 'Generate Token'"
+            @close="closeModal"
+            @submitted="handleSuccess"
         >
             <template #default="{ errors }">
                 <div class="space-y-5">
