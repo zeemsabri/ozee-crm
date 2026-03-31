@@ -23,6 +23,7 @@ const tokenToDelete = ref(null);
 const editingTokenId = ref(null);
 
 const form = useForm({
+    id: null,
     label: '',
     email: '',
     project_id: '',
@@ -60,12 +61,14 @@ const removeIp = (index) => {
 const openCreateModal = () => {
     form.reset();
     form.clearErrors();
+    form.id = null;
     editingTokenId.value = null;
     showCreateModal.value = true;
 };
 
 const openEditModal = (token) => {
     form.clearErrors();
+    form.id = token.id;
     editingTokenId.value = token.id;
     
     form.label = token.label;
@@ -210,13 +213,14 @@ const copyToken = (token) => {
             </div>
         </div>
 
+        <!-- Create Token Modal -->
         <BaseFormModal
-            :show="showCreateModal || showEditModal"
-            :title="editingTokenId ? 'Edit External Token' : 'Create External Token'"
-            :api-endpoint="editingTokenId ? route('admin.external-tokens.update', { magicLink: editingTokenId }) : route('admin.external-tokens.store')"
-            :http-method="editingTokenId ? 'put' : 'post'"
+            :show="showCreateModal"
+            title="Create External Token"
+            :api-endpoint="route('admin.external-tokens.store')"
+            http-method="post"
             :form-data="form"
-            :submit-button-text="editingTokenId ? 'Update Settings' : 'Generate Token'"
+            submit-button-text="Generate Token"
             @close="closeModal"
             @submitted="handleSuccess"
         >
@@ -257,6 +261,92 @@ const copyToken = (token) => {
                         <div>
                             <InputLabel for="max_uses" value="Usage Limit" />
                             <TextInput id="max_uses" v-model="form.max_uses" type="number" class="mt-1 block w-full" placeholder="Unlimited" />
+                            <InputError :message="errors.max_uses" class="mt-1" />
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-100 pt-4">
+                        <InputLabel value="Whitelisted Domains" />
+                        <div class="flex mt-1">
+                            <TextInput v-model="domainInput" type="text" class="block w-full text-sm" placeholder="e.g. api.stripe.com" @keyup.enter.prevent="addDomain" />
+                            <SecondaryButton type="button" class="ml-2 !py-2" @click="addDomain">Add</SecondaryButton>
+                        </div>
+                        <div class="flex flex-wrap gap-1.5 mt-2.5">
+                            <span v-for="(domain, index) in form.whitelist_domains" :key="index" class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                {{ domain }}
+                                <button type="button" class="ml-1.5 text-indigo-400 hover:text-indigo-600 focus:outline-none" @click="removeDomain(index)">&times;</button>
+                            </span>
+                            <span v-if="form.whitelist_domains.length === 0" class="text-[11px] text-gray-400 italic">No domains whitelisted</span>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-100 pt-4">
+                        <InputLabel value="Whitelisted IP Addresses" />
+                        <div class="flex mt-1">
+                            <TextInput v-model="ipInput" type="text" class="block w-full text-sm" placeholder="e.g. 54.187.174.169" @keyup.enter.prevent="addIp" />
+                            <SecondaryButton type="button" class="ml-2 !py-2" @click="addIp">Add</SecondaryButton>
+                        </div>
+                        <div class="flex flex-wrap gap-1.5 mt-2.5">
+                            <span v-for="(ip, index) in form.whitelist_ips" :key="index" class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                {{ ip }}
+                                <button type="button" class="ml-1.5 text-emerald-400 hover:text-emerald-600 focus:outline-none" @click="removeIp(index)">&times;</button>
+                            </span>
+                            <span v-if="form.whitelist_ips.length === 0" class="text-[11px] text-gray-400 italic">No IPs whitelisted</span>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </BaseFormModal>
+
+        <!-- Edit Token Modal -->
+        <BaseFormModal
+            v-if="showEditModal"
+            :show="showEditModal"
+            title="Edit External Token"
+            :api-endpoint="route('admin.external-tokens.update', { id: form.id })"
+            http-method="post"
+            :form-data="form"
+            submit-button-text="Update Settings"
+            @close="closeModal"
+            @submitted="handleSuccess"
+        >
+            <template #default="{ errors }">
+                <div class="space-y-5">
+                    <div>
+                        <InputLabel for="edit_label" value="Token Label" />
+                        <TextInput id="edit_label" v-model="form.label" type="text" class="mt-1 block w-full" placeholder="e.g. Stripe Webhook Integration" required />
+                        <p class="text-[11px] text-gray-500 mt-1">A descriptive name to identify this token's purpose.</p>
+                        <InputError :message="errors.label" class="mt-1" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="edit_email" value="Identifier Email" />
+                        <TextInput id="edit_email" v-model="form.email" type="email" class="mt-1 block w-full" placeholder="system@example.com" />
+                        <p class="text-[11px] text-gray-500 mt-1">Used to associate activities with a specific entity.</p>
+                        <InputError :message="errors.email" class="mt-1" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="edit_project_id" value="Associated Project" />
+                        <select id="edit_project_id" v-model="form.project_id" class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm">
+                            <option value="">None (Global Access)</option>
+                            <option v-for="project in projects" :key="project.id" :value="project.id">
+                                {{ project.name }}
+                            </option>
+                        </select>
+                        <p class="text-[11px] text-gray-500 mt-1">The project data this token will have access to.</p>
+                        <InputError :message="errors.project_id" class="mt-1" />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <InputLabel for="edit_expires_at" value="Expiry Date" />
+                            <TextInput id="edit_expires_at" v-model="form.expires_at" type="date" class="mt-1 block w-full" />
+                            <InputError :message="errors.expires_at" class="mt-1" />
+                        </div>
+                        <div>
+                            <InputLabel for="edit_max_uses" value="Usage Limit" />
+                            <TextInput id="edit_max_uses" v-model="form.max_uses" type="number" class="mt-1 block w-full" placeholder="Unlimited" />
                             <InputError :message="errors.max_uses" class="mt-1" />
                         </div>
                     </div>

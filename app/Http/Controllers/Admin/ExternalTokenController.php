@@ -65,8 +65,10 @@ class ExternalTokenController extends Controller
     /**
      * Update the specified external token in storage.
      */
-    public function update(Request $request, MagicLink $magicLink)
+    public function update(Request $request, $id)
     {
+        $magicLink = MagicLink::findOrFail($id);
+
         if ($magicLink->type !== 'external') {
             return back()->with('error', 'Only external tokens can be edited from this interface.');
         }

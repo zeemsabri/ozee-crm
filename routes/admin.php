@@ -59,12 +59,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('admin.live-status.logs');
 
         // External Tokens management routes
+        Route::post('/external-tokens/{id}/update', [\App\Http\Controllers\Admin\ExternalTokenController::class, 'update'])
+            ->name('admin.external-tokens.update');
         Route::get('/external-tokens', [\App\Http\Controllers\Admin\ExternalTokenController::class, 'index'])
             ->name('admin.external-tokens.index');
         Route::post('/external-tokens', [\App\Http\Controllers\Admin\ExternalTokenController::class, 'store'])
             ->name('admin.external-tokens.store');
-        Route::put('/external-tokens/{magicLink}', [\App\Http\Controllers\Admin\ExternalTokenController::class, 'update'])
-            ->name('admin.external-tokens.update');
         Route::delete('/external-tokens/{magicLink}', [\App\Http\Controllers\Admin\ExternalTokenController::class, 'destroy'])
             ->name('admin.external-tokens.destroy');
 
