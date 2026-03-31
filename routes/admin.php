@@ -63,7 +63,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('admin.external-tokens.index');
         Route::post('/external-tokens', [\App\Http\Controllers\Admin\ExternalTokenController::class, 'store'])
             ->name('admin.external-tokens.store');
-        Route::patch('/external-tokens/{magicLink}', [\App\Http\Controllers\Admin\ExternalTokenController::class, 'update'])
+        Route::put('/external-tokens/{magicLink}', [\App\Http\Controllers\Admin\ExternalTokenController::class, 'update'])
             ->name('admin.external-tokens.update');
         Route::delete('/external-tokens/{magicLink}', [\App\Http\Controllers\Admin\ExternalTokenController::class, 'destroy'])
             ->name('admin.external-tokens.destroy');

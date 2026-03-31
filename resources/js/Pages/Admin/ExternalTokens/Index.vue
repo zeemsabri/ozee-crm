@@ -213,8 +213,8 @@ const copyToken = (token) => {
         <BaseFormModal
             :show="showCreateModal || showEditModal"
             :title="editingTokenId ? 'Edit External Token' : 'Create External Token'"
-            :api-endpoint="editingTokenId ? route('admin.external-tokens.update', editingTokenId) : route('admin.external-tokens.store')"
-            :http-method="editingTokenId ? 'patch' : 'post'"
+            :api-endpoint="editingTokenId ? route('admin.external-tokens.update', { magicLink: editingTokenId }) : route('admin.external-tokens.store')"
+            :http-method="editingTokenId ? 'put' : 'post'"
             :form-data="form"
             :submit-button-text="editingTokenId ? 'Update Settings' : 'Generate Token'"
             @close="closeModal"
