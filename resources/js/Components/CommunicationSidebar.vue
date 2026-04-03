@@ -20,7 +20,8 @@ import {
     CornerDownRight,
     Mail,
     Hash,
-    ExternalLink
+    ExternalLink,
+    Search
 } from 'lucide-vue-next';
 import { usePage } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -41,6 +42,8 @@ const props = defineProps({});
 const isFullScreen = ref(false);
 const activeTab = ref('notifications'); // 'notifications' or 'chat'
 const filter = ref('unread');
+const notificationType = ref('all');
+const searchQuery = ref('');
 
 watch(isFullScreen, (val) => {
     if (val) {
@@ -97,8 +100,27 @@ const availableContexts = computed(() => {
 });
 
 const filteredNotifications = computed(() => {
-    if (filter.value === 'unread') return notifications.value.filter(n => !n.isRead);
-    return notifications.value;
+    let result = notifications.value;
+    
+    if (filter.value === 'unread') {
+        result = result.filter(n => !n.isRead);
+    }
+    
+    if (notificationType.value !== 'all') {
+        result = result.filter(n => isTypeMatch(n, notificationType.value));
+    }
+    
+    if (searchQuery.value.trim()) {
+        const query = searchQuery.value.toLowerCase();
+        result = result.filter(n => {
+            const titleMatch = n.title && n.title.toLowerCase().includes(query);
+            const messageMatch = n.message && n.message.toLowerCase().includes(query);
+            const taskMatch = n.task_number && String(n.task_number).includes(query);
+            return titleMatch || messageMatch || taskMatch;
+        });
+    }
+    
+    return result;
 });
 
 const fetchUnreadCounts = async () => {
@@ -518,10 +540,25 @@ const closeSidebar = () => {
             
             <!-- NOTIFICATIONS PANE (Hidden entirely in full screen based on instruction) -->
             <div v-if="!isFullScreen && activeTab === 'notifications'" class="w-full flex flex-col bg-white h-full overflow-hidden">
-                <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                    <div class="flex space-x-2">
-                        <button @click="filter = 'all'" :class="['px-3 py-1 rounded-full text-xs font-medium transition-colors', filter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-600 hover:bg-slate-300']">All</button>
-                        <button @click="filter = 'unread'" :class="['px-3 py-1 rounded-full text-xs font-medium transition-colors', filter === 'unread' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100']">Unread</button>
+                <div class="px-5 py-3 border-b border-slate-100 flex flex-col space-y-3 bg-slate-50/50 shrink-0">
+                    <div class="flex items-center justify-between">
+                        <div class="flex space-x-2">
+                            <button @click="filter = 'all'" :class="['px-3 py-1 rounded-full text-xs font-medium transition-colors', filter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-600 hover:bg-slate-300']">All</button>
+                            <button @click="filter = 'unread'" :class="['px-3 py-1 rounded-full text-xs font-medium transition-colors', filter === 'unread' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100']">Unread</button>
+                        </div>
+                        <div class="flex space-x-2">
+                            <select v-model="notificationType" class="text-xs border-slate-300 rounded focus:ring-indigo-500 focus:border-indigo-500 py-1 pl-2 pr-6 bg-white shrink-0 cursor-pointer">
+                                <option value="all">All Types</option>
+                                <option value="mention">Mentions</option>
+                                <option value="task">Tasks</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="w-full relative">
+                        <input v-model="searchQuery" type="text" placeholder="Search notifications..." class="w-full text-xs border-slate-300 rounded focus:ring-indigo-500 focus:border-indigo-500 pl-8 py-1.5 bg-white" />
+                        <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                            <Search class="w-3.5 h-3.5 text-slate-400" />
+                        </div>
                     </div>
                 </div>
                 <!-- Standard Notification List (Unchanged visually, just scoped) -->
