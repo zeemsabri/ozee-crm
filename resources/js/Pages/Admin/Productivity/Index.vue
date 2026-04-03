@@ -601,6 +601,69 @@ const getTaskAnalysis = (taskId) => {
                 </div>
             </section>
 
+            <!-- Project & Activity Breakdowns -->
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Project Breakdown -->
+                <div class="bg-white/85 backdrop-blur-md rounded-[2.5rem] p-8 border border-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)]">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="p-2 bg-indigo-50 rounded-xl">
+                            <GlobeIcon class="w-5 h-5 text-indigo-600" />
+                        </div>
+                        <h2 class="text-sm font-black text-indigo-600 uppercase tracking-widest">Project-Based Breakdown</h2>
+                    </div>
+                    <div class="space-y-4">
+                        <div v-if="!stats?.project_stats?.length" class="text-center py-10 text-zinc-400 italic text-xs">
+                             No project associations found in recent activity.
+                        </div>
+                        <div v-for="proj in stats?.project_stats" :key="proj.name" class="p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
+                             <div class="flex justify-between items-center mb-2">
+                                 <span class="font-black text-xs text-zinc-700 uppercase tracking-tight">{{ proj.name }}</span>
+                                 <span class="text-xs font-black text-indigo-600">{{ Math.round(proj.total_minutes) }}m total</span>
+                             </div>
+                             <div class="flex gap-2 items-center">
+                                 <div class="flex-1 h-2 bg-zinc-200 rounded-full overflow-hidden flex">
+                                     <div class="h-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" :style="{ width: (proj.total_minutes > 0 ? (proj.active_minutes / proj.total_minutes * 100) : 0) + '%' }"></div>
+                                     <div class="h-full bg-amber-400 opacity-60" :style="{ width: (proj.total_minutes > 0 ? (proj.idle_minutes / proj.total_minutes * 100) : 0) + '%' }"></div>
+                                 </div>
+                                 <div class="text-[10px] font-bold text-zinc-400 w-24 text-right">
+                                     {{ Math.round(proj.active_minutes) }}m act / {{ Math.round(proj.idle_minutes) }}m idl
+                                 </div>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Overall Activity Breakdown -->
+                <div class="bg-white/85 backdrop-blur-md rounded-[2.5rem] p-8 border border-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)]">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="p-2 bg-purple-50 rounded-xl">
+                            <HistoryIcon class="w-5 h-5 text-purple-600" />
+                        </div>
+                        <h2 class="text-sm font-black text-purple-600 uppercase tracking-widest">Global Activity Impact</h2>
+                    </div>
+                    <div class="space-y-3">
+                        <div v-if="!stats?.activity_stats?.length" class="text-center py-10 text-zinc-400 italic text-xs">
+                             Waiting for telemetry data...
+                        </div>
+                        <div v-for="act in stats?.activity_stats" :key="act.domain" class="flex items-center justify-between p-3 hover:bg-zinc-50 rounded-xl transition-all border border-transparent hover:border-zinc-100">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 bg-white border border-zinc-200 rounded-lg flex items-center justify-center text-[10px] font-black text-zinc-400 shadow-sm uppercase">
+                                    {{ act.domain.substring(0, 2) }}
+                                </div>
+                                <div>
+                                    <div class="text-[11px] font-black text-zinc-700 tracking-tight truncate max-w-[150px]">{{ act.domain }}</div>
+                                    <div class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">{{ act.category }}</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xs font-black text-zinc-900">{{ Math.round(act.total_minutes) }}m</div>
+                                <div class="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Active Spent</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Diagnostic Timeline -->
             <section class="bg-white/85 backdrop-blur-md rounded-[2.5rem] p-10 border border-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] relative overflow-hidden">
                 <div class="flex justify-between items-end mb-12">
@@ -904,9 +967,12 @@ const getTaskAnalysis = (taskId) => {
                                             <div class="bg-white rounded-[1.5rem] border border-zinc-200 overflow-hidden shadow-sm p-4">
                                                 <div v-if="!task.top_domains?.length" class="text-xs italic text-zinc-500 text-center py-4">No specific platform data recorded.</div>
                                                 <ul v-else class="space-y-3">
-                                                    <li v-for="(domain, dIdx) in task.top_domains" :key="dIdx" class="flex justify-between items-center text-xs px-2 py-1 hover:bg-zinc-50 rounded-lg">
-                                                        <span class="font-bold text-zinc-700 font-mono">{{ domain }}</span>
-                                                        <span class="bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded border border-zinc-200 text-[9px] font-black uppercase">Active Source</span>
+                                                    <li v-for="(domainObj, dIdx) in task.top_domains" :key="dIdx" class="flex justify-between items-center text-xs px-2 py-1 hover:bg-zinc-50 rounded-lg">
+                                                        <span class="font-bold text-zinc-700 font-mono">{{ domainObj.domain }}</span>
+                                                        <div class="flex items-center gap-3">
+                                                            <span class="text-[10px] font-black text-indigo-600 tabular-nums">{{ Math.round(domainObj.minutes) }}m</span>
+                                                            <span class="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded border border-emerald-100 text-[8px] font-black uppercase tracking-widest">Tracked</span>
+                                                        </div>
                                                     </li>
                                                 </ul>
                                             </div>

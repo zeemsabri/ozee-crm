@@ -54,6 +54,8 @@ class ProductivityReportService
             'first_seen' => $activities->first()?->recorded_at?->toTimeString(),
             'last_seen' => $activities->last()?->recorded_at?->toTimeString(),
             'context_switches' => $this->calculateContextSwitches($activities),
+            'project_stats' => $this->calculateProjectStats($activities),
+            'activity_stats' => $this->calculateOverallActivityStats($activities),
         ];
 
         // 5. Accuracy Metrics (Unidentified Domains)
@@ -101,10 +103,11 @@ class ProductivityReportService
                 'active_mins' => round($taskActivities->where('idle_state', 'active')->sum('duration') / 60, 2),
                 'idle_mins' => round($taskActivities->where('idle_state', 'idle')->sum('duration') / 60, 2),
                 'top_domains' => $taskActivities->groupBy('domain')
-                    ->map(fn($g) => $g->sum('duration')) // duration is already in seconds, will be converted in prepareTaskData? No, sum is duration.
+                    ->map(fn($g) => round($g->sum('duration') / 60, 2))
                     ->sortDesc()
                     ->take(5)
-                    ->keys()
+                    ->map(fn($dur, $dom) => ['domain' => $dom, 'minutes' => $dur])
+                    ->values()
                     ->toArray(),
                 'system_events' => $logs->where('subject_id', $taskId)->map(fn($l) => [
                     'event' => $l->description,
@@ -142,6 +145,34 @@ class ProductivityReportService
         }
 
         return $barcode;
+    }
+
+    private function calculateProjectStats($activities)
+    {
+        return $activities->groupBy(fn($a) => $a->task?->milestone?->project?->name ?? 'Unlinked/Internal')
+            ->map(fn($group) => [
+                'name' => $group->first()->task?->milestone?->project?->name ?? 'Unlinked/Internal',
+                'active_minutes' => round($group->where('idle_state', 'active')->sum('duration') / 60, 2),
+                'idle_minutes' => round($group->where('idle_state', 'idle')->sum('duration') / 60, 2),
+                'total_minutes' => round($group->sum('duration') / 60, 2),
+            ])
+            ->values()
+            ->sortByDesc('total_minutes')
+            ->toArray();
+    }
+
+    private function calculateOverallActivityStats($activities)
+    {
+        return $activities->groupBy('domain')
+            ->map(fn($group) => [
+                'domain' => $group->first()->domain,
+                'category' => $group->first()->category ?? 'uncategorized',
+                'total_minutes' => round($group->sum('duration') / 60, 2),
+            ])
+            ->values()
+            ->sortByDesc('total_minutes')
+            ->take(10)
+            ->toArray();
     }
 
     /**
