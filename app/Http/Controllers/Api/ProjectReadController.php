@@ -29,29 +29,46 @@ class ProjectReadController extends Controller
         $user = Auth::user();
         $withTrashed = $request->has('with_trashed') && $request->with_trashed === 'true';
 
+        // Select only required columns to minimize payload
+        $selectColumns = [
+            'projects.id', 'projects.name', 'projects.description', 
+            'projects.status', 'projects.source', 'projects.client_id', 
+            'projects.deleted_at'
+        ];
+
         if ($user->isSuperAdmin() || $user->isManager()) {
-            $query = Project::query();
+            $query = Project::select($selectColumns);
 
             // Include trashed (archived) projects if requested
             if ($withTrashed) {
                 $query->withTrashed();
             }
 
-            $projects = $query->with(['clients', 'users' => function ($query) {
-                $query->withPivot('role_id');
-            }, 'transactions', 'notes'])->get();
+            $projects = $query->with([
+                'clients' => function ($query) {
+                    $query->select('clients.id', 'clients.name');
+                }, 
+                'users' => function ($query) {
+                    $query->select('users.id', 'users.name')->withPivot('role_id');
+                }
+            ])->get();
 
         } else {
-            $query = $user->projects();
+            $query = $user->projects()->select($selectColumns);
 
             // Include trashed (archived) projects if requested
             if ($withTrashed) {
                 $query->withTrashed();
             }
 
-            $projects = $query->with(['clients', 'users' => function ($query) {
-                $query->withPivot('role_id');
-            }, 'transactions', 'notes'])->get();
+            $projects = $query->with([
+                'clients' => function ($query) {
+                    $query->select('clients.id', 'clients.name');
+                }, 
+                'users' => function ($query) {
+                    $query->select('users.id', 'users.name')->withPivot('role_id');
+                }
+            ])->get();
         }
 
         return response()->json($projects);
