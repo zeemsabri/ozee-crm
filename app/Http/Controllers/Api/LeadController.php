@@ -123,7 +123,7 @@ class LeadController extends Controller
         $assignedTo = $request->input('assigned_to_id');
         $campaignIdsParam = $request->input('campaign_ids');
         $perPage = (int) ($request->input('per_page', 15));
-        $perPage = $perPage > 0 && $perPage <= 100 ? $perPage : 15;
+        $perPage = $perPage > 0 && $perPage <= 1000 ? $perPage : 15;
 
         // Parse campaign_ids as CSV or array
         $campaignIds = [];

@@ -22,8 +22,10 @@ const badgeClass = (status) => {
     case 'processing': return 'bg-indigo-100 text-indigo-700';
     case 'hot_incoming': return 'bg-orange-100 text-orange-700';
     case 'hot_outgoing': return 'bg-pink-100 text-pink-700';
+    case 'generation_failed': 
     case 'generationfailed': 
     case 'failed': return 'bg-red-100 text-red-700';
+    case 'sequence_completed': 
     case 'sequencecompleted': 
     case 'completed': return 'bg-purple-100 text-purple-700';
     case 'new':

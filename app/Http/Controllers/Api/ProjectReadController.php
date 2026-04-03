@@ -40,6 +40,7 @@ class ProjectReadController extends Controller
             $projects = $query->with(['clients', 'users' => function ($query) {
                 $query->withPivot('role_id');
             }, 'transactions', 'notes'])->get();
+
         } else {
             $query = $user->projects();
 
@@ -52,17 +53,6 @@ class ProjectReadController extends Controller
                 $query->withPivot('role_id');
             }, 'transactions', 'notes'])->get();
         }
-
-        //        $projects->each(function ($project) {
-        //            $project->notes->each(function ($note) {
-        //                try {
-        //                    $note->content = $note->content;
-        //                } catch (\Exception $e) {
-        //                    Log::error('Failed to decrypt note content in index method', ['note_id' => $note->id, 'error' => $e->getMessage()]);
-        //                    $note->content = '[Encrypted content could not be decrypted]';
-        //                }
-        //            });
-        //        });
 
         return response()->json($projects);
     }

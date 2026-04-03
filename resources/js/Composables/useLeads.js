@@ -9,7 +9,7 @@ export function useLeads() {
 
   // Pagination
   const currentPage = ref(1);
-  const perPage = ref(15);
+  const perPage = ref(1000); // Increased to 1000 to show 'all' leads at once as requested
   const total = ref(0);
   const lastPage = ref(1);
 
@@ -114,9 +114,25 @@ export function useLeads() {
 
   // Derived: leads grouped by status for Kanban
   const leadsByStatus = computed(() => {
-    const groups = { new: [], contacted: [], qualified: [], converted: [], lost: [] };
+    const groups = {
+        new: [],
+        processing: [],
+        contacted: [],
+        outreach_sent: [],
+        qualified: [],
+        sequence_completed: [],
+        generation_failed: [],
+        converted: [],
+        lost: [],
+    };
     for (const lead of leads.value) {
-      const key = (lead.status || 'new').toLowerCase();
+      let key = (lead.status || 'new').toLowerCase();
+      
+      // Group hot_incoming and hot_outgoing with 'new' as per user request
+      if (key === 'hot_incoming' || key === 'hot_outgoing') {
+        key = 'new';
+      }
+      
       if (!groups[key]) groups[key] = [];
       groups[key].push(lead);
     }

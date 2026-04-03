@@ -12,9 +12,13 @@ const props = defineProps({
 const emit = defineEmits(['edit', 'delete', 'move']);
 
 const standardColumns = [
-  { key: 'new', title: 'New' },
+  { key: 'new', title: 'New / Hot Incoming' },
+  { key: 'processing', title: 'Processing' },
   { key: 'contacted', title: 'Contacted' },
+  { key: 'outreach_sent', title: 'Outreach Sent' },
   { key: 'qualified', title: 'Qualified' },
+  { key: 'sequence_completed', title: 'Sequence Completed' },
+  { key: 'generation_failed', title: 'Generation Failed' },
   { key: 'converted', title: 'Converted' },
   { key: 'lost', title: 'Lost' },
 ];
