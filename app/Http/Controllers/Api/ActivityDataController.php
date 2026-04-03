@@ -45,7 +45,6 @@ class ActivityDataController extends Controller
     {
         $user = $request->user();
         $raw = $request->all();
-        Log::info('Received activity data', ['data' => $raw]);
 
         // Detect batch mode: either { events: [...] } or a direct array [...]
         $payloads = null;
