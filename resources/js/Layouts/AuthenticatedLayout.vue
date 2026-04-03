@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import PushNotificationContainer from '@/Components/PushNotificationContainer.vue';
 import StandardNotificationContainer from '@/Components/StandardNotificationContainer.vue';
 import AvailabilityBlocker from '@/Components/Availability/AvailabilityBlocker.vue';
@@ -25,6 +25,7 @@ import PromptOrchestrator from '@/Components/Prompts/PromptOrchestrator.vue';
 import MeetingMinutesModal from '@/Components/MeetingMinutesModal.vue';
 import YesterdayReport from '@/Components/Productivity/YesterdayReport.vue';
 import ExtensionEnforcementModal from '@/Components/Availability/ExtensionEnforcementModal.vue';
+import HourlyNotificationSummaryModal from '@/Components/Notices/HourlyNotificationSummaryModal.vue';
 
 const showingNavigationDropdown = ref(false);
 const openCreateTaskModel = ref(false);
@@ -32,6 +33,7 @@ const openBulkTaskModel = ref(false);
 const addResource = ref(false);
 const openKudoModal = ref(false);
 const openMeetingMinutesModal = ref(false);
+const showHourlySummary = ref(false);
 
 const allProjectsForSidebar = ref([]);
 const loadingAllProjects = ref(true);
@@ -140,6 +142,42 @@ onMounted(() => {
     fetchUnreadNotices();
 });
 
+const unreadSummary = computed(() => {
+    const unread = notificationSidebarState.value.notifications.filter(n => !n.isRead);
+    const mentions = unread.filter(n => {
+        const type = n.type || '';
+        return type === 'user_mentioned' || type.includes('UserMentioned');
+    }).length;
+    const tasks = unread.filter(n => {
+        const type = n.type || '';
+        return type === 'task_assigned' || type.includes('TaskAssigned');
+    }).length;
+    const others = unread.length - mentions - tasks;
+    
+    return { mentions, tasks, others, total: unread.length };
+});
+
+const checkHourlyNotificationSummary = () => {
+    const LAST_SHOWN_KEY = 'last_hourly_notification_modal_shown_at';
+    const lastShown = localStorage.getItem(LAST_SHOWN_KEY);
+    const now = Date.now();
+    const ONE_HOUR = 60 * 60 * 1000;
+
+    if (!lastShown || (now - parseInt(lastShown)) > ONE_HOUR) {
+        // If we have unread notifications, show the modal
+        if (unreadSummary.value.total > 0) {
+            showHourlySummary.value = true;
+            localStorage.setItem(LAST_SHOWN_KEY, now.toString());
+        }
+    }
+};
+
+watch(() => notificationSidebarState.value.notifications, (newVal) => {
+    if (newVal.length > 0 && !showHourlySummary.value) {
+        checkHourlyNotificationSummary();
+    }
+}, { immediate: true });
+
 onBeforeUnmount(() => {
     // Clear the registered notice fetcher when layout unmounts
     setNoticeFetcher(null);
@@ -242,5 +280,12 @@ onBeforeUnmount(() => {
 
         <!-- Extension Enforcement Modal (reminds users to keep extension active) -->
         <ExtensionEnforcementModal />
+
+        <HourlyNotificationSummaryModal 
+            :show="showHourlySummary" 
+            :summary="unreadSummary"
+            @close="showHourlySummary = false"
+            @open-sidebar="openNotificationsSidebar"
+        />
     </div>
 </template>
