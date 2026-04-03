@@ -134,20 +134,27 @@ const filteredNotifications = computed(() => {
 
 const groupedNotifications = computed(() => {
     const today = [];
+    const thisWeek = [];
     const older = [];
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
+
+    const startOfWeek = new Date();
+    startOfWeek.setHours(0, 0, 0, 0);
+    startOfWeek.setDate(startOfWeek.getDate() - 7);
     
     filteredNotifications.value.forEach(n => {
         const nDate = new Date(n.created_at);
         if (nDate >= startOfToday) {
             today.push(n);
+        } else if (nDate >= startOfWeek) {
+            thisWeek.push(n);
         } else {
             older.push(n);
         }
     });
     
-    return { today, older };
+    return { today, thisWeek, older };
 });
 
 const fetchUnreadCounts = async () => {
@@ -619,6 +626,35 @@ const closeSidebar = () => {
                         </div>
                     </div>
 
+                    <!-- This Week's Notifications -->
+                    <div v-if="groupedNotifications.thisWeek.length > 0">
+                        <div class="sticky top-0 bg-slate-100/90 backdrop-blur-sm px-5 py-2 z-10 border-y border-slate-200">
+                            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">This Week</h3>
+                        </div>
+                        <div class="divide-y divide-slate-100">
+                            <div v-for="notification in groupedNotifications.thisWeek" :key="notification.id"
+                                class="p-5 transition-colors group cursor-pointer hover:bg-slate-50"
+                                @click="handleNotificationClick(notification)">
+                                <div class="flex items-start space-x-4">
+                                    <div class="flex-shrink-0 mt-1">
+                                        <component :is="getIconForType(notification.type)" class="w-5 h-5 text-slate-400" />
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <p class="text-sm font-semibold text-slate-900 truncate">
+                                                <span v-if="notification.task_number" class="text-indigo-600 mr-1">#{{ notification.task_number }}</span>
+                                                {{ notification.title }}
+                                            </p>
+                                            <span class="text-xs text-slate-400 whitespace-nowrap ml-2"><Clock class="w-3 h-3 inline mr-1" />{{ notification.created_at }}</span>
+                                        </div>
+                                        <p class="text-sm text-slate-600" v-html="formatMessage(notification.message)"></p>
+                                    </div>
+                                    <div v-if="!notification.isRead" class="w-2 h-2 mt-2 bg-indigo-600 rounded-full"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Older Notifications -->
                     <div v-if="groupedNotifications.older.length > 0">
                         <div class="sticky top-0 bg-slate-100/90 backdrop-blur-sm px-5 py-2 z-10 border-y border-slate-200">
@@ -648,7 +684,7 @@ const closeSidebar = () => {
                         </div>
                     </div>
                     
-                    <div v-if="groupedNotifications.today.length === 0 && groupedNotifications.older.length === 0" class="text-center text-slate-500 py-10 text-sm">
+                    <div v-if="groupedNotifications.today.length === 0 && groupedNotifications.thisWeek.length === 0 && groupedNotifications.older.length === 0" class="text-center text-slate-500 py-10 text-sm">
                         No notifications found.
                     </div>
                 </div>
