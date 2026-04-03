@@ -243,6 +243,7 @@ class ProjectReadController extends Controller
             'telegram_group_id' => $project->telegram_group_id,
             'telegram_group_name' => $project->telegram_group_name,
             'telegram_link_code' => $project->telegram_link_code,
+            'integrations' => $project->integrations,
         ]);
     }
 

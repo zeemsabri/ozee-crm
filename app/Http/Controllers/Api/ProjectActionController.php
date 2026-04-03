@@ -808,7 +808,9 @@ class ProjectActionController extends Controller
                 'timezone' => $validated['timezone'] ?? null,
                 'project_tier_id' => $validated['project_tier_id'] ?? ProjectTier::first()?->id,
                 'profit_margin_percentage' => $validated['profit_margin_percentage'] ?? null,
-                'integrations' => $validated['integrations'] ?? null,
+                'integrations' => array_key_exists('integrations', $validated) && is_array($validated['integrations']) 
+                    ? array_merge($project->integrations ?? [], $validated['integrations']) 
+                    : $project->integrations,
             ];
 
             // --- NEW LOGIC FOR GOOGLE DRIVE FOLDER ID ---

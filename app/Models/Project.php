@@ -605,4 +605,37 @@ class Project extends Model
     {
         return round(($this->total_budget - $this->approved_contracts_amount), 2);
     }
+
+    /**
+     * Update or set a specific integration setting.
+     * 
+     * Supported keys include:
+     * - 'telegram_general_topic_id': ID for Telegram groups
+     * - 'bugherd_project_id': BugHerd external integration ID
+     * - 'active_telegram_project_id': General project identifier for Telegram context
+     *
+     * @param string $key
+     * @param mixed $value
+     * @return $this
+     */
+    public function setIntegration(string $key, $value)
+    {
+        $integrations = $this->integrations ?? [];
+        $integrations[$key] = $value;
+        $this->integrations = $integrations;
+        
+        return $this;
+    }
+
+    /**
+     * Get a specific integration setting.
+     *
+     * @param string $key
+     * @param mixed $default
+     * @return mixed
+     */
+    public function getIntegration(string $key, $default = null)
+    {
+        return ($this->integrations ?? [])[$key] ?? $default;
+    }
 }
