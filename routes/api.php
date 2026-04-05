@@ -694,6 +694,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stats', [App\Http\Controllers\Api\StandupAnalyticsController::class, 'getStats']);
     });
 
+    Route::get('clients/{client}/vault', [\App\Http\Controllers\Admin\VaultController::class, 'index']);
+    Route::post('vault/unlock', [\App\Http\Controllers\Admin\VaultController::class, 'unlock']);
+    Route::get('vault/{credential}/logs', [\App\Http\Controllers\Admin\VaultController::class, 'logs']);
+    Route::delete('vault/{credential}', [\App\Http\Controllers\Admin\VaultController::class, 'destroy']);
+
 });
 
 // === Client-Specific API Routes (Protected by Magic Link Token) ===
@@ -732,6 +737,10 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
     Route::post('documents', [ProjectClientAction::class, 'uploadClientDocuments']);
     Route::post('documents/{document}/notes', [ProjectClientAction::class, 'addNoteToDocument']);
     Route::post('switch-project', [MagicLinkController::class, 'switchProject']);
+    Route::post('vault', [\App\Http\Controllers\Client\VaultController::class, 'store']);
+    Route::get('vault', [\App\Http\Controllers\Client\VaultController::class, 'index']);
+    Route::delete('vault/{id}', [\App\Http\Controllers\Client\VaultController::class, 'destroy']);
+    Route::get('vault/{id}/logs', [\App\Http\Controllers\Client\VaultController::class, 'logs']);
 
 });
 

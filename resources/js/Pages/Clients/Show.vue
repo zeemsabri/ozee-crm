@@ -7,33 +7,17 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
 import Modal from '@/Components/Modal.vue';
 import RightSidebar from '@/Components/RightSidebar.vue';
+import InputLabel from '@/Components/InputLabel.vue';
+import TextInput from '@/Components/TextInput.vue';
 import CustomComposeEmailContent from '@/Pages/Emails/Inbox/Components/CustomComposeEmailContent.vue';
 import CustomEmailApprovalContent from '@/Pages/Emails/Inbox/Components/CustomEmailApprovalContent.vue';
 import EmailDetailsContent from '@/Pages/Emails/Inbox/Components/EmailDetailsContent.vue';
 import EmailActionContent from '@/Pages/Emails/Inbox/Components/EmailActionContent.vue';
 import ReceivedEmailActionContent from '@/Pages/Emails/Inbox/Components/ReceivedEmailActionContent.vue';
-import { useLeadDetails } from '@/Composables/useLeadDetails.js';
+import { useClientDetails } from '@/Composables/useClientDetails.js';
 import axios from 'axios';
 
-// Lead presentations state
-const leadPresentations = ref([]);
-const presentationsLoading = ref(false);
-const presentationsError = ref('');
 
-const fetchLeadPresentations = async (idRef) => {
-    if (!idRef?.value) return;
-    presentationsLoading.value = true;
-    presentationsError.value = '';
-    try {
-        const { data } = await axios.get(`/api/leads/${idRef.value}/presentations`);
-        leadPresentations.value = Array.isArray(data) ? data : (data?.data ?? []);
-    } catch (e) {
-        console.error('Failed to load presentations', e);
-        presentationsError.value = e?.response?.data?.message || 'Failed to load presentations';
-    } finally {
-        presentationsLoading.value = false;
-    }
-};
 
 const props = defineProps({
     id: { type: Number, required: true },
@@ -42,7 +26,76 @@ const props = defineProps({
 
 // Centralized data fetching via composable
 const idRef = ref(props.id);
-const { loading, error, lead: leadState, fullName, notes, notesLoading, notesError, savingNote, fetchLead, fetchNotes, addNote } = useLeadDetails(idRef);
+const { loading, error, client: clientState, lead: leadState, fullName, presentations: leadPresentations, emails, notes, notesLoading, notesError, savingNote, fetchClientDetails, fetchNotes, addNote } = useClientDetails(idRef);
+
+// Vault State
+const vaultCredentials = ref([]);
+const vaultLoading = ref(false);
+const vaultLogs = ref([]);
+const logsLoading = ref(false);
+const showUnlockModal = ref(false);
+const unlockForm = ref({ credential_id: null, pin: '' });
+const unlockedData = ref(null);
+const unlocking = ref(false);
+
+const fetchVaultCredentials = async () => {
+    vaultLoading.value = true;
+    try {
+        const { data } = await axios.get(`/api/clients/${idRef.value}/vault`);
+        vaultCredentials.value = data;
+    } catch (e) {
+        console.error('Failed to load vault', e);
+    } finally {
+        vaultLoading.value = false;
+    }
+};
+
+const fetchVaultLogs = async (credentialId) => {
+    logsLoading.value = true;
+    vaultLogs.value = [];
+    try {
+        const { data } = await axios.get(`/api/vault/${credentialId}/logs`);
+        vaultLogs.value = data;
+    } catch (e) {
+        console.error('Failed to load vault logs', e);
+    } finally {
+        logsLoading.value = false;
+    }
+};
+
+const openLogs = async (cred) => {
+    sidebar.value = { show: true, mode: 'vault-logs', title: `Logs: ${cred.label}`, data: cred, loading: true };
+    await fetchVaultLogs(cred.id);
+    sidebar.value.loading = false;
+};
+
+const openUnlock = (cred) => {
+    unlockForm.value = { credential_id: cred.id, pin: '' };
+    unlockedData.value = null;
+    showUnlockModal.value = true;
+};
+
+const handleUnlock = async () => {
+    unlocking.value = true;
+    try {
+        const { data } = await axios.post('/api/vault/unlock', unlockForm.value);
+        unlockedData.value = data;
+    } catch (e) {
+        alert(e.response?.data?.message || 'Failed to unlock');
+    } finally {
+        unlocking.value = false;
+    }
+};
+
+const deleteCredential = async (id) => {
+    if (!confirm('Permanent delete?')) return;
+    try {
+        await axios.delete(`/api/vault/${id}`);
+        vaultCredentials.value = vaultCredentials.value.filter(c => c.id !== id);
+    } catch (e) {
+        alert('Failed to delete');
+    }
+};
 
 // Local UI state
 const noteInput = ref('');
@@ -70,30 +123,7 @@ const convertToClient = async () => {
     }
 };
 
-// Emails for this lead
-const emails = ref([]);
-const emailsLoading = ref(false);
-const emailsError = ref('');
-const emailPagination = ref({ current_page: 1, last_page: 1, total: 0 });
 
-const fetchLeadEmails = async (page = 1) => {
-    emailsLoading.value = true;
-    emailsError.value = '';
-    try {
-        const { data } = await axios.get(`/api/leads/${idRef.value}/emails`, { params: { page } });
-        emails.value = data.data || [];
-        emailPagination.value = {
-            current_page: data.current_page || 1,
-            last_page: data.last_page || 1,
-            total: data.total || (Array.isArray(data.data) ? data.data.length : 0),
-        };
-    } catch (e) {
-        console.error('Failed to load lead emails', e);
-        emailsError.value = e?.response?.data?.message || 'Failed to load emails';
-    } finally {
-        emailsLoading.value = false;
-    }
-};
 
 // Sidebar state
 const sidebar = ref({ show: false, mode: null, title: '', data: null, loading: false });
@@ -125,44 +155,33 @@ const handleEditEmail = (email) => {
 
 const handleSidebarSubmitted = () => {
     sidebar.value.show = false;
-    fetchLeadEmails(emailPagination.value.current_page);
+    fetchClientDetails();
 };
 
 const changeEmailPage = (page) => {
-    if (page < 1 || page > emailPagination.value.last_page) return;
-    fetchLeadEmails(page);
+    // No-op or remove if not needed
 };
 
 onMounted(async () => {
-    await fetchLead();
+    await fetchClientDetails();
     await fetchNotes();
-    await fetchLeadEmails(1);
-    await fetchLeadPresentations(idRef);
+    await fetchVaultCredentials();
 });
 </script>
 
 <template>
-    <Head :title="`Lead: ${fullName}`" />
+    <Head :title="`Client: ${fullName}`" />
     <AuthenticatedLayout>
         <template #header>
             <div class="flex items-center justify-between w-full">
                 <div>
                     <div class="flex items-center gap-3">
-                        <h2 class="font-semibold text-xl text-gray-800 leading-tight">Lead Details</h2>
-                        <span v-if="leadState" class="text-xs px-2 py-0.5 rounded-full capitalize"
-                              :class="{
-                    'bg-gray-100 text-gray-700': !leadState.status || leadState.status.toLowerCase() === 'new',
-                    'bg-blue-100 text-blue-700': leadState.status && leadState.status.toLowerCase() === 'contacted',
-                    'bg-amber-100 text-amber-700': leadState.status && leadState.status.toLowerCase() === 'qualified',
-                    'bg-emerald-100 text-emerald-700': leadState.status && leadState.status.toLowerCase() === 'converted',
-                    'bg-rose-100 text-rose-700': leadState.status && leadState.status.toLowerCase() === 'lost'
-                  }">{{ leadState.status || 'new' }}</span>
+                        <h2 class="font-semibold text-xl text-gray-800 leading-tight">Client Details</h2>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
                     <PrimaryButton @click="openCompose">Compose Email</PrimaryButton>
-                    <PrimaryButton v-if="(leadState?.status || '').toLowerCase() !== 'converted'" @click="showConfirm = true">Convert to Client</PrimaryButton>
-                    <span v-else class="text-sm text-gray-500">Already converted</span>
+                    <span v-if="clientState?.lead_id" class="text-sm text-gray-500">Converted from Lead</span>
                 </div>
             </div>
         </template>
@@ -178,37 +197,52 @@ onMounted(async () => {
                             <div class="h-32 bg-gray-100 rounded"></div>
                         </div>
 
-                        <div v-if="leadState && !loading" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div v-if="clientState && !loading" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             <!-- Details -->
                             <section class="lg:col-span-2 space-y-6">
                                 <div>
                                     <h3 class="text-lg font-semibold mb-2">Profile</h3>
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                                         <div><span class="text-gray-500">Name:</span> <span class="font-medium">{{ fullName }}</span></div>
-                                        <div v-if="leadState.email"><span class="text-gray-500">Email:</span> <span class="font-medium">{{ leadState.email }}</span></div>
-                                        <div v-if="leadState.phone"><span class="text-gray-500">Phone:</span> <span class="font-medium">{{ leadState.phone }}</span></div>
-                                        <div v-if="leadState.company"><span class="text-gray-500">Company:</span> <span class="font-medium">{{ leadState.company }}</span></div>
-                                        <div v-if="leadState.title"><span class="text-gray-500">Title:</span> <span class="font-medium">{{ leadState.title }}</span></div>
-                                        <div v-if="leadState.source"><span class="text-gray-500">Source:</span> <span class="font-medium">{{ leadState.source }}</span></div>
-                                        <div v-if="leadState.pipeline_stage"><span class="text-gray-500">Pipeline Stage:</span> <span class="font-medium">{{ leadState.pipeline_stage }}</span></div>
-                                        <div v-if="leadState.estimated_value"><span class="text-gray-500">Estimated Value:</span> <span class="font-medium">{{ leadState.estimated_value }} {{ leadState.currency || 'USD' }}</span></div>
-                                        <div v-if="leadState.website"><span class="text-gray-500">Website:</span> <span class="font-medium">{{ leadState.website }}</span></div>
-                                        <div v-if="leadState.address || leadState.city || leadState.state || leadState.zip || leadState.country">
-                                            <span class="text-gray-500">Address:</span>
-                                            <div class="font-medium">
-                                                {{ leadState.address }}
-                                                <template v-if="leadState.city">, {{ leadState.city }}</template>
-                                                <template v-if="leadState.state">, {{ leadState.state }}</template>
-                                                <template v-if="leadState.zip"> {{ leadState.zip }}</template>
-                                                <template v-if="leadState.country">, {{ leadState.country }}</template>
+                                        <div v-if="clientState?.email"><span class="text-gray-500">Email:</span> <span class="font-medium">{{ clientState.email }}</span></div>
+                                        <div v-if="clientState?.phone"><span class="text-gray-500">Phone:</span> <span class="font-medium">{{ clientState.phone }}</span></div>
+                                        <div v-if="clientState?.company"><span class="text-gray-500">Company:</span> <span class="font-medium">{{ clientState.company }}</span></div>
+                                        <div v-if="clientState?.address"><span class="text-gray-500">Address:</span> <span class="font-medium">{{ clientState.address }}</span></div>
+                                        <div v-if="clientState?.notes"><span class="text-gray-500">Notes:</span> <span class="font-medium">{{ clientState.notes }}</span></div>
+                                    </div>
+                                </div>
+
+                                <!-- Vault Section -->
+                                <div class="mt-8 bg-blue-50 border border-blue-100 rounded-xl p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div class="flex items-center gap-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                            <h3 class="text-lg font-bold text-blue-900">Secure Client Vault</h3>
+                                        </div>
+                                        <span class="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-1 rounded-full">AES-256 PBKDF2</span>
+                                    </div>
+
+                                    <div v-if="vaultLoading" class="text-sm text-gray-500">Loading vault...</div>
+                                    <div v-else-if="vaultCredentials.length === 0" class="text-sm text-blue-800 bg-blue-100 p-4 rounded-lg border border-blue-200">
+                                        No credentials shared by this client yet.
+                                    </div>
+                                    <div v-else class="space-y-3">
+                                        <div v-for="cred in vaultCredentials" :key="cred.id" class="flex items-center justify-between bg-white p-4 rounded-lg border border-blue-100 shadow-sm">
+                                            <div>
+                                                <div class="font-semibold text-gray-900">{{ cred.label }}</div>
+                                                <div class="text-xs text-gray-500">
+                                                    Expires: {{ new Date(cred.expires_at).toLocaleDateString() }} 
+                                                    <span v-if="cred.last_viewed_at" class="ml-2">• Last Viewed: {{ new Date(cred.last_viewed_at).toLocaleDateString() }}</span>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <SecondaryButton @click="openLogs(cred)" class="!py-1 !text-xs !bg-gray-100 !text-gray-700 hover:!bg-gray-200">Logs</SecondaryButton>
+                                                <SecondaryButton @click="openUnlock(cred)" class="!py-1 !text-xs">Unlock</SecondaryButton>
+                                                <button @click="deleteCredential(cred.id)" class="text-red-500 hover:text-red-700 transition-colors">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                </button>
                                             </div>
                                         </div>
-                                        <div v-if="leadState.assigned_to?.name || leadState.assigned_to_id">
-                                            <span class="text-gray-500">Assigned:</span>
-                                            <span class="font-medium">{{ leadState.assigned_to?.name || `User #${leadState.assigned_to_id}` }}</span>
-                                        </div>
-                                        <div v-if="leadState.tags"><span class="text-gray-500">Tags:</span> <span class="font-medium">{{ leadState.tags }}</span></div>
-                                        <div v-if="leadState.notes"><span class="text-gray-500">Notes:</span> <span class="font-medium">{{ leadState.notes }}</span></div>
                                     </div>
                                 </div>
 
@@ -218,8 +252,8 @@ onMounted(async () => {
                                         <h3 class="text-lg font-semibold">Emails</h3>
                                         <PrimaryButton @click="openCompose">Compose Email</PrimaryButton>
                                     </div>
-                                    <div v-if="emailsLoading" class="text-gray-500 text-sm">Loading emails...</div>
-                                    <div v-else-if="emailsError" class="text-red-600 text-sm">{{ emailsError }}</div>
+                                    <div v-if="loading" class="text-gray-500 text-sm">Loading emails...</div>
+                                    <div v-else-if="error" class="text-red-600 text-sm">{{ error }}</div>
                                     <div v-else-if="emails.length === 0" class="text-gray-500 text-sm">No emails found for this lead.</div>
                                     <div v-else class="overflow-x-auto shadow rounded-md border border-gray-100">
                                         <table class="min-w-full divide-y divide-gray-200">
@@ -247,11 +281,6 @@ onMounted(async () => {
                                             </tr>
                                             </tbody>
                                         </table>
-                                        <div v-if="emailPagination.last_page > 1" class="p-2 flex justify-end gap-1">
-                                            <button class="px-2 py-1 text-sm border rounded" :disabled="emailPagination.current_page === 1" @click="changeEmailPage(emailPagination.current_page - 1)">Prev</button>
-                                            <span class="px-2 py-1 text-sm">Page {{ emailPagination.current_page }} of {{ emailPagination.last_page }}</span>
-                                            <button class="px-2 py-1 text-sm border rounded" :disabled="emailPagination.current_page === emailPagination.last_page" @click="changeEmailPage(emailPagination.current_page + 1)">Next</button>
-                                        </div>
                                     </div>
                                 </div>
                             </section>
@@ -263,8 +292,8 @@ onMounted(async () => {
                                     <div class="flex items-center justify-between mb-2">
                                         <h3 class="text-lg font-semibold">Presentations</h3>
                                     </div>
-                                    <div v-if="presentationsLoading" class="text-gray-500 text-sm">Loading presentations...</div>
-                                    <div v-else-if="presentationsError" class="text-red-600 text-sm">{{ presentationsError }}</div>
+                                    <div v-if="loading" class="text-gray-500 text-sm">Loading presentations...</div>
+                                    <div v-else-if="error" class="text-red-600 text-sm">{{ error }}</div>
                                     <div v-else-if="leadPresentations.length === 0" class="text-gray-500 text-sm">No presentations found for this lead.</div>
                                     <ul v-else class="divide-y divide-gray-200 rounded-md border border-gray-200">
                                         <li v-for="p in leadPresentations" :key="p.id" class="p-3 flex items-center justify-between">
@@ -372,7 +401,87 @@ onMounted(async () => {
                         @error="() => {}"
                     />
                 </div>
+                <!-- Vault Logs View -->
+                <div v-else-if="sidebar.mode === 'vault-logs'" class="space-y-6">
+                    <div v-if="logsLoading" class="flex items-center justify-center py-12">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                    <div v-else-if="vaultLogs.length === 0" class="text-center py-12 text-gray-500 italic">
+                        No activity recorded yet for this credential.
+                    </div>
+                    <div v-else class="flow-root">
+                        <ul role="list" class="-mb-8">
+                            <li v-for="(log, idx) in vaultLogs" :key="log.id">
+                                <div class="relative pb-8">
+                                    <span v-if="idx !== vaultLogs.length - 1" class="absolute left-4 top-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
+                                    <div class="relative flex space-x-3">
+                                        <div>
+                                            <span class="h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center ring-8 ring-white">
+                                                <svg class="h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                </svg>
+                                            </span>
+                                        </div>
+                                        <div class="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
+                                            <div>
+                                                <p class="text-sm text-gray-500">
+                                                    {{ log.description }} 
+                                                    <span class="font-medium text-gray-900">by {{ log.causer?.name || 'System' }}</span>
+                                                </p>
+                                            </div>
+                                            <div class="whitespace-nowrap text-right text-sm text-gray-500">
+                                                <time :datetime="log.created_at">{{ new Date(log.created_at).toLocaleString() }}</time>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
             </template>
         </RightSidebar>
+
+        <!-- Unlock Vault Modal -->
+        <Modal :show="showUnlockModal" @close="showUnlockModal = false">
+            <div class="p-6">
+                <h3 class="text-lg font-bold text-gray-900 mb-4">Unlock Credentials</h3>
+                
+                <div v-if="unlockedData" class="bg-green-50 p-6 rounded-xl border border-green-200 mb-6 animate-pulse">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-green-700 uppercase">Username / Email</label>
+                            <div class="text-lg font-mono break-all">{{ unlockedData.username }}</div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-green-700 uppercase">Password</label>
+                            <div class="text-lg font-mono break-all">{{ unlockedData.password }}</div>
+                        </div>
+                    </div>
+                    <p class="mt-4 text-xs text-green-600 italic">This data will disappear when you close this modal.</p>
+                </div>
+                
+                <form v-else @submit.prevent="handleUnlock" class="space-y-4">
+                    <p class="text-sm text-gray-600">Enter the PIN provided by the client to decrypt these credentials.</p>
+                    <div>
+                        <InputLabel for="unlock_pin" value="Enter PIN" />
+                        <TextInput 
+                            id="unlock_pin" 
+                            type="password" 
+                            class="mt-1 block w-full text-center font-mono tracking-widest text-xl" 
+                            v-model="unlockForm.pin" 
+                            required 
+                            autofocus 
+                        />
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <SecondaryButton @click="showUnlockModal = false">Cancel</SecondaryButton>
+                        <PrimaryButton :disabled="unlocking" type="submit">
+                            {{ unlocking ? 'Decrypting...' : 'Unlock Data' }}
+                        </PrimaryButton>
+                    </div>
+                </form>
+            </div>
+        </Modal>
     </AuthenticatedLayout>
 </template>

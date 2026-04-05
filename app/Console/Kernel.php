@@ -37,6 +37,9 @@ class Kernel extends ConsoleKernel
         // Note: In production, you can instead create a single cron entry to run:
         // * * * * * php /path/to/artisan app:run-scheduler --quiet
         $schedule->command('app:run-scheduler')->everyMinute();
+
+        // Prune expired vault credentials hourly
+        $schedule->command('vault:prune')->hourly();
     }
 
     /**

@@ -16,7 +16,11 @@ class VerifyMagicLinkToken
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $token = $request->bearerToken(); // Assuming token is in Authorization: Bearer header
+        $token = $request->bearerToken();
+
+        if (! $token) {
+            $token = $request->query('token') ?: $request->input('token');
+        }
 
         if (! $token) {
             return response()->json(['message' => 'Magic link token not provided.'], 401);

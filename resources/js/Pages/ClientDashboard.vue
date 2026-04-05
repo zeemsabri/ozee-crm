@@ -13,6 +13,7 @@ import DeliverableViewerModal from './ClientDashboard/DeliverableViewerModal.vue
 import PinSetupModal from './ClientDashboard/PinSetupModal.vue';
 import ResourcesSection from './ClientDashboard/ResourceSection.vue'; // Import the new ResourcesSection
 import SEOReport from "@/Pages/ClientDashboard/SEOReport.vue";
+import VaultSection from './ClientDashboard/VaultSection.vue';
 
 const props = defineProps({
     initialAuthToken: { // Token from magic link
@@ -350,6 +351,7 @@ provide('activityService', { addActivity: addActivity }); // Provided for child 
             <ResourcesSection v-if="currentSection === 'resources'" :project-id="projectId" :initial-auth-token="initialAuthToken" :shareable-resources="shareableResources" @add-activity="addActivity" />
             <InvoicesSection v-if="currentSection === 'invoices'" :invoices="invoices" @update-invoice="handleUpdateInvoice" @add-activity="addActivity" />
             <AnnouncementsSection v-if="currentSection === 'announcements'" :announcements="announcements" />
+            <VaultSection v-if="currentSection === 'vault'" :project-id="projectId" :initial-auth-token="initialAuthToken" @add-activity="addActivity" />
         </div>
 
         <BaseModal
