@@ -23,6 +23,7 @@ class Client extends Model
         'timezone',
         'lead_id',
         'pin',
+        'telegram_link_code',
     ];
 
     protected $hidden = [
@@ -131,5 +132,9 @@ class Client extends Model
     public function contexts()
     {
         return $this->morphMany(Context::class, 'linkable');
+    }
+    public function telegramAccount()
+    {
+        return $this->morphOne(TelegramAccount::class, 'telegramable');
     }
 }

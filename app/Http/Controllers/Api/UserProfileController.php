@@ -53,10 +53,14 @@ class UserProfileController extends Controller
     {
         $user = Auth::user();
         return response()->json([
+            'id' => $user->id,
+            'name' => $user->name,
             'is_online' => (bool)$user->is_online,
             'extension_mandatory' => (bool)$user->extension_mandatory,
             'can_bypass' => (bool)$user->hasPermission('by_pass_extension'),
             'last_activity' => $user->last_activity,
+            'telegram_link_code' => $user->telegram_link_code,
+            'telegram_account' => $user->telegramAccount,
         ]);
     }
 }

@@ -53,6 +53,7 @@ class User extends Authenticatable
         'is_online',
         'online_data',
         'extension_mandatory',
+        'telegram_link_code',
     ];
 
     /**
@@ -745,5 +746,9 @@ class User extends Authenticatable
         }
 
         return $query->latest()->get();
+    }
+    public function telegramAccount()
+    {
+        return $this->morphOne(TelegramAccount::class, 'telegramable');
     }
 }

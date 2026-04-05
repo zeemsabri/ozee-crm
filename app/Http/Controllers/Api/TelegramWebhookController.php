@@ -24,7 +24,6 @@ class TelegramWebhookController extends Controller
             // Store the JSON payload for debugging
             $filename = 'telegram/webhooks/' . now()->format('Y-m-d_H-i-s') . '_' . uniqid() . '.json';
             Storage::disk('local')->put($filename, json_encode($payload, JSON_PRETTY_PRINT));
-            Log::info("Telegram webhook captured and saved to {$filename}");
 
             $message = $payload['message'] ?? ($payload['edited_message'] ?? null);
             if (!$message) {
@@ -33,43 +32,78 @@ class TelegramWebhookController extends Controller
 
             $text = $message['text'] ?? null;
             $chatId = $message['chat']['id'] ?? null;
+            $from = $message['from'] ?? null;
+            $fromId = $from['id'] ?? null;
 
             if (!$chatId) {
                 return response()->json(['status' => 'ok']);
             }
 
-            // Check if this chat is already linked to a project
-            $project = \App\Models\Project::where('telegram_group_id', $chatId)->first();
+            // Handle linking: /link #CODE
+            if ($text && preg_match('/^\/link\s+#([a-zA-Z0-9]+)$/', $text, $matches)) {
+                $code = $matches[1];
 
-            if (!$project) {
-                // Not linked. Check for link command: /link #CODE
-                if ($text && preg_match('/^\/link\s+#([a-zA-Z0-9]+)$/', $text, $matches)) {
-                    $code = $matches[1];
-                    $projectToLink = \App\Models\Project::where('telegram_link_code', $code)->first();
+                // 1. Try Project linking (linking a group to a project)
+                $projectToLink = \App\Models\Project::where('telegram_link_code', $code)->first();
+                if ($projectToLink) {
+                    $chatName = $message['chat']['title'] ?? ($message['chat']['username'] ?? 'Telegram Group');
+                    $projectToLink->update([
+                        'telegram_group_id' => $chatId,
+                        'telegram_group_name' => $chatName,
+                        'telegram_link_code' => null,
+                    ]);
+                    
+                    // Clear the project cache for this chat ID
+                    \Illuminate\Support\Facades\Cache::forget("telegram_project_by_chat_{$chatId}");
 
-                    if ($projectToLink) {
-                        $chatName = $message['chat']['title'] ?? ($message['chat']['username'] ?? 'Telegram Group');
-                        $projectToLink->update([
-                            'telegram_group_id' => $chatId,
-                            'telegram_group_name' => $chatName,
-                            'telegram_link_code' => null, // Clear code after use
-                        ]);
+                    $this->sendMessage($chatId, "✅ Project Linked: *{$projectToLink->name}*");
+                    $telegramService = app(\App\Services\TelegramService::class);
+                    $telegramService->ensureGeneralTopicExists($projectToLink);
+                    $telegramService->createDefaultTopics($projectToLink);
+                    return response()->json(['status' => 'ok']);
+                }
 
-                        $this->sendMessage($chatId, "✅ Success! This group (*{$chatName}*) is now linked to project: *{$projectToLink->name}*");
+                // 2. Try User/Client linking (linking a person to their account) - usually via private chat
+                // A person can link their account to their Telegram ID.
+                if ($fromId) {
+                    $linkable = \App\Models\User::where('telegram_link_code', $code)->first()
+                             ?? \App\Models\Client::where('telegram_link_code', $code)->first();
 
-                        $telegramService = app(\App\Services\TelegramService::class);
-                        // Ensure General topic exists locally
-                        $telegramService->ensureGeneralTopicExists($projectToLink);
-                        // Create default topics in Telegram
-                        $telegramService->createDefaultTopics($projectToLink);
+                    if ($linkable) {
+                        \App\Models\TelegramAccount::updateOrCreate(
+                            ['telegram_id' => $fromId],
+                            [
+                                'telegramable_id' => $linkable->id,
+                                'telegramable_type' => get_class($linkable),
+                                'username' => $from['username'] ?? null,
+                                'first_name' => $from['first_name'] ?? null,
+                                'last_name' => $from['last_name'] ?? null,
+                            ]
+                        );
 
-                        return response()->json(['status' => 'ok']);
-                    } else {
-                        $this->sendMessage($chatId, "❌ Invalid link code. Please generate a new code from the project settings.");
+                        // Clear link code
+                        $linkable->update(['telegram_link_code' => null]);
+
+                        // Clear cache for this telegram id
+                        \Illuminate\Support\Facades\Cache::forget("telegram_account_{$fromId}");
+
+                        $this->sendMessage($chatId, "✅ Account verified! Your Telegram is now linked to: *{$linkable->name}*");
                         return response()->json(['status' => 'ok']);
                     }
                 }
 
+                // If code was provided but not found
+                $this->sendMessage($chatId, "❌ Invalid or expired link code.");
+                return response()->json(['status' => 'ok']);
+            }
+
+            // Check if this chat is already linked to a project
+            /** @var \App\Models\Project|null $project */
+            $project = \Illuminate\Support\Facades\Cache::remember("telegram_project_by_chat_{$chatId}", 3600, function () use ($chatId) {
+                return \App\Models\Project::where('telegram_group_id', $chatId)->first();
+            });
+
+            if (!$project) {
                 return response()->json(['status' => 'ok']);
             }
 
@@ -79,24 +113,42 @@ class TelegramWebhookController extends Controller
                 return response()->json(['status' => 'ok']);
             }
 
+            // Identify sender (User or Client) via cache/db
+            $senderData = null;
+            if ($fromId) {
+                $senderData = \Illuminate\Support\Facades\Cache::remember("telegram_account_{$fromId}", 3600, function () use ($fromId) {
+                    $account = \App\Models\TelegramAccount::where('telegram_id', $fromId)->first();
+                    if ($account) {
+                        return [
+                            'id' => $account->telegramable_id,
+                            'type' => $account->telegramable_type,
+                        ];
+                    }
+                    return null;
+                });
+            }
+
             // Handle message recording
             $threadId = $message['message_thread_id'] ?? null;
-            $telegramService = app(\App\Services\TelegramService::class);
-            $generalTopic = $telegramService->ensureGeneralTopicExists($project);
+            
+            // Optimize: Cache the general topic ID to avoid DB lookups on every message
+            $targetTopicId = \Illuminate\Support\Facades\Cache::remember("project_{$project->id}_general_topic_id", 3600, function () use ($project) {
+                $telegramService = app(\App\Services\TelegramService::class);
+                return $telegramService->ensureGeneralTopicExists($project)->id;
+            });
 
-            $targetTopicId = $generalTopic->id;
-
+            // Optimize: Cache the specific thread's topic ID
             if ($threadId) {
-                $topic = \App\Models\TelegramTopic::where('project_id', $project->id)
-                    ->where('telegram_thread_id', $threadId)
-                    ->first();
-                if ($topic) {
-                    $targetTopicId = $topic->id;
-                }
+                $targetTopicId = \Illuminate\Support\Facades\Cache::remember("project_{$project->id}_thread_{$threadId}_topic_id", 3600, function () use ($project, $threadId, $targetTopicId) {
+                    $topic = \App\Models\TelegramTopic::where('project_id', $project->id)
+                        ->where('telegram_thread_id', $threadId)
+                        ->first();
+                    return $topic ? $topic->id : $targetTopicId;
+                });
             }
 
             if ($text) {
-                $chatMsg = \App\Models\ChatMessage::create([
+                $msgData = [
                     'project_id' => $project->id,
                     'telegram_topic_id' => $targetTopicId,
                     'telegram_message_id' => $message['message_id'],
@@ -104,12 +156,24 @@ class TelegramWebhookController extends Controller
                     'source' => 'telegram',
                     'type' => 'text',
                     'meta_data' => [
-                        'telegram_from' => $message['from'] ?? null,
+                        'telegram_from' => $from,
                     ]
-                ]);
+                ];
+
+                if ($senderData) {
+                    if ($senderData['type'] === \App\Models\User::class) {
+                        $msgData['user_id'] = $senderData['id'];
+                    } elseif ($senderData['type'] === \App\Models\Client::class) {
+                        $msgData['client_id'] = $senderData['id'];
+                    }
+                }
+
+                $chatMsg = \App\Models\ChatMessage::create($msgData);
 
                 // Broadcast
-//                \App\Events\ChatMessageSent::dispatch($chatMsg->load(['user', 'parent.user']));
+                if (class_exists(\App\Events\ChatMessageSent::class)) {
+                     \App\Events\ChatMessageSent::dispatch($chatMsg->load(['user', 'client', 'parent.user']));
+                }
             }
 
             return response()->json([
@@ -118,7 +182,7 @@ class TelegramWebhookController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error("Failed to process Telegram webhook: " . $e->getMessage());
+            Log::error("Failed to process Telegram webhook: " . $e->getMessage() . "\n" . $e->getTraceAsString());
             return response()->json(['status' => 'error'], 500);
         }
     }

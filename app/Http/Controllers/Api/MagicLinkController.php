@@ -325,6 +325,7 @@ class MagicLinkController extends Controller
                 'projectId' => $magicLink->project_id,
                 'clientProjects' => $clientProjects,
                 'clientHasPin' => $client && ! empty($client->pin),
+                'telegramBotName' => config('services.telegram.bot_name', env('TELEGRAM_BOT_NAME')),
             ]);
 
         } catch (\Exception $e) {

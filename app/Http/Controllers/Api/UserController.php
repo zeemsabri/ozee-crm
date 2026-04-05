@@ -343,4 +343,26 @@ class UserController extends Controller
             'api_key' => $key
         ]);
     }
+
+    /**
+     * Generate a new Telegram link code for the user.
+     */
+    public function generateTelegramLinkCode(User $user)
+    {
+        // Require update permission or self update
+        if (Auth::id() !== $user->id) {
+            $this->authorize('update', $user);
+        }
+
+        $code = strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 8));
+
+        $user->update([
+            'telegram_link_code' => $code,
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'code' => $code,
+        ]);
+    }
 }

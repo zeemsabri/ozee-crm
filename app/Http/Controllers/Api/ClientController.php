@@ -327,4 +327,26 @@ class ClientController extends Controller
             'emails' => $emails,
         ]);
     }
+
+    /**
+     * Generate a new Telegram link code for the client.
+     */
+    public function generateTelegramLinkCode(Client $client)
+    {
+        // Only users with edit_clients permission can generate code for clients
+        if (! Auth::user()->hasPermission('edit_clients')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $code = strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 8));
+
+        $client->update([
+            'telegram_link_code' => $code,
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'code' => $code,
+        ]);
+    }
 }

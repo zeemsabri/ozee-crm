@@ -482,4 +482,60 @@ class ProjectClientReader extends Controller
             return response()->json(['message' => 'Failed to fetch comments.', 'error' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Get the Telegram status for the authenticated client.
+     */
+    public function getClientStatus(Request $request)
+    {
+        try {
+            $authenticatedClientEmail = $request->attributes->get('magic_link_email');
+            $client = Client::where('email', $authenticatedClientEmail)->first();
+
+            if (! $client) {
+                return response()->json(['message' => 'Client not found.'], 404);
+            }
+
+            return response()->json([
+                'id' => $client->id,
+                'email' => $client->email,
+                'telegram_link_code' => $client->telegram_link_code,
+                'telegram_account' => $client->telegramAccount ? [
+                    'username' => $client->telegramAccount->username,
+                    'first_name' => $client->telegramAccount->first_name,
+                ] : null,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching client status: '.$e->getMessage());
+
+            return response()->json(['message' => 'Failed to fetch client status.'], 500);
+        }
+    }
+
+    /**
+     * Generate a new Telegram link code for the authenticated client.
+     */
+    public function generateTelegramCode(Request $request)
+    {
+        try {
+            $authenticatedClientEmail = $request->attributes->get('magic_link_email');
+            $client = Client::where('email', $authenticatedClientEmail)->first();
+
+            if (! $client) {
+                return response()->json(['message' => 'Client not found.'], 404);
+            }
+
+            $code = strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 8));
+            $client->update(['telegram_link_code' => $code]);
+
+            return response()->json([
+                'status' => 'success',
+                'code' => $code,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error generating client telegram code: '.$e->getMessage());
+
+            return response()->json(['message' => 'Failed to generate code.'], 500);
+        }
+    }
 }

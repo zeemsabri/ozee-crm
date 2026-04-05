@@ -73,6 +73,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user,
             ],
             'chrome_extension_link' => config('services.chrome_extension'),
+            'telegramBotName' => env('TELEGRAM_BOT_NAME', 'ozee_web_bot'),
         ];
     }
 }

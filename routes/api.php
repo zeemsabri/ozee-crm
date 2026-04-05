@@ -311,7 +311,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('projects/{project}/expendable-budget', [ProjectActionController::class, 'updateExpendableBudget']);
     Route::post('projects/{project}/archive', [ProjectActionController::class, 'archive']);
     Route::patch('projects/{project}/assign-leads', [ProjectActionController::class, 'assignLeads'])->middleware('permission:manage_projects');
-    Route::post('projects/{project}/generate-telegram-code', [ProjectActionController::class, 'generateTelegramLinkCode']);
+    Route::post('projects/{project}/generate-telegram-code', 'App\Http\Controllers\Api\ProjectActionController@generateTelegramLinkCode');
+    Route::post('users/{user}/generate-telegram-code', 'App\Http\Controllers\Api\UserController@generateTelegramLinkCode');
+    Route::post('clients/{client}/generate-telegram-code', 'App\Http\Controllers\Api\ClientController@generateTelegramLinkCode');
     Route::post('projects/{project}/expendables', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'store']);
     Route::put('projects/{project}/expendables/{expendable}', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'update']);
     Route::post('projects/{project}/expendables/{expendable}/accept', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'accept']);
@@ -737,6 +739,8 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
     Route::post('documents', [ProjectClientAction::class, 'uploadClientDocuments']);
     Route::post('documents/{document}/notes', [ProjectClientAction::class, 'addNoteToDocument']);
     Route::post('switch-project', [MagicLinkController::class, 'switchProject']);
+    Route::get('me/status', [ProjectClientReader::class, 'getClientStatus']);
+    Route::post('me/generate-telegram-code', [ProjectClientReader::class, 'generateTelegramCode']);
     Route::post('vault', [\App\Http\Controllers\Client\VaultController::class, 'store']);
     Route::get('vault', [\App\Http\Controllers\Client\VaultController::class, 'index']);
     Route::delete('vault/{id}', [\App\Http\Controllers\Client\VaultController::class, 'destroy']);
