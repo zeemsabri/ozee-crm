@@ -121,15 +121,67 @@ onMounted(() => {
             <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-600 text-white rounded-2xl shadow-lg mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
             </div>
-            <h1 class="text-3xl font-extrabold text-gray-900 sm:text-4xl">Secure Client Vault</h1>
+            <h1 class="text-3xl font-extrabold text-gray-900 sm:text-4xl">Secure Credential Vault</h1>
             <p class="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
-                Share your login details with our team with military-grade encryption.
+                Share your login details with our team with military-grade encryption. We never store your PIN, and your data automatically self-destructs.
             </p>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <!-- Left Column: The List of existing ones -->
             <div class="lg:col-span-1 space-y-6 order-2 lg:order-1">
+                <!-- How It Works Section -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-sm font-semibold text-blue-600 uppercase tracking-wider mb-4">How it works</h3>
+
+                    <div class="space-y-6">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1">
+                                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-bold text-xs">1</div>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-bold text-gray-900">Zero-Knowledge Encryption</p>
+                                <p class="text-xs text-gray-500 mt-1">Your PIN is the only key. Our servers never see or save it.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1">
+                                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-bold text-xs">2</div>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-bold text-gray-900">Controlled Access</p>
+                                <p class="text-xs text-gray-500 mt-1">Our team can only view details if you manually share the PIN with them.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 mt-1">
+                                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-600 font-bold text-xs">3</div>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-bold text-gray-900">Auto-Destruct</p>
+                                <p class="text-xs text-gray-500 mt-1">Details are wiped from our system permanently after the expiry period.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Quote -->
+                <div class="bg-blue-600 p-6 rounded-2xl shadow-lg text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 mb-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                    <p class="text-sm font-medium leading-relaxed">
+                        "Your security is our priority. This system ensures even if our database was compromised, your passwords remain unreadable without your unique PIN."
+                    </p>
+                    <div class="mt-4 flex items-center">
+                        <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                        </div>
+                        <span class="ml-2 text-[10px] font-semibold uppercase tracking-wide">Security Team</span>
+                    </div>
+                </div>
+
+                <!-- My Existing Logins -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                     <h3 class="text-sm font-semibold text-blue-600 uppercase tracking-wider mb-4">My Shared Logins</h3>
                     
@@ -201,7 +253,7 @@ onMounted(() => {
                             <input v-model="form.pin" type="password" maxlength="6" pattern="\d*" inputmode="numeric" placeholder="4-6 digits" class="w-full px-4 py-3 rounded-xl border border-blue-200 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none font-mono text-center text-xl tracking-widest" required>
                                 <p class="mt-2 text-xs text-blue-600 flex items-center italic">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                    Write this down. It cannot be recovered.
+                                    We do not save this. You must tell our team this PIN verbally.
                                 </p>
                         </div>
 
@@ -230,6 +282,15 @@ onMounted(() => {
                     </div>
                 </form>
             </div>
+        </div>
+
+        <!-- Footer / Trust Badges -->
+        <div class="mt-12 text-center text-gray-500 text-[10px] flex flex-col items-center gap-2">
+            <div class="flex items-center gap-4">
+                <span class="flex items-center"><svg class="w-3 h-3 text-green-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> AES-256 Encryption</span>
+                <span class="flex items-center"><svg class="w-3 h-3 text-green-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Zero-Knowledge Storage</span>
+            </div>
+            <p>&copy; 2026 CRM Portal. All connections are secured via SSL.</p>
         </div>
 
         <!-- Logs Modal -->
