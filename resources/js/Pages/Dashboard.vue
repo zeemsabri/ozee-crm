@@ -10,6 +10,7 @@ import GoogleStandupModal from '@/Components/GoogleAccount/GoogleStandupModal.vu
 import TaskNotificationPrompt from '@/Components/TaskNotificationPrompt.vue';
 import AvailabilityPrompt from '@/Components/Availability/AvailabilityPrompt.vue';
 import GoogleAccountPrompt from '@/Components/GoogleAccount/GoogleAccountPrompt.vue';
+import TelegramAccountPrompt from '@/Components/TelegramAccount/TelegramAccountPrompt.vue';
 import YesterdayReport from '@/Components/Productivity/YesterdayReport.vue';
 import * as taskState from '@/Utils/taskState.js';
 
@@ -176,6 +177,11 @@ const handleViewMeetingsAndScroll = () => {
                     <!-- Google Account Prompt (Conditionally displayed, spans full width) -->
                     <div class="md:col-span-3">
                         <GoogleAccountPrompt />
+                    </div>
+
+                    <!-- Telegram Account Prompt (Conditionally displayed, spans full width) -->
+                    <div class="md:col-span-3">
+                        <TelegramAccountPrompt />
                     </div>
 
                     <!-- Dashboard Overview Card -->

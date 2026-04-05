@@ -23,7 +23,8 @@ import {
     TrashIcon,
     ArchiveBoxIcon,
     ArrowUturnUpIcon,
-    KeyIcon
+    KeyIcon,
+    ChatBubbleOvalLeftEllipsisIcon
 } from '@heroicons/vue/24/outline';
 
 // Access authenticated user
@@ -386,6 +387,21 @@ const generateApiKey = async (user) => {
     }
 };
 
+// --- Generate Telegram Link Code ---
+const generateTelegramLinkCode = async (user) => {
+    try {
+        const response = await window.axios.post(`/api/users/${user.id}/generate-telegram-code`);
+        const index = users.value.findIndex(u => u.id === user.id);
+        if (index !== -1) {
+            users.value[index].telegram_link_code = response.data.code;
+        }
+        console.log('Telegram link code generated successfully!');
+    } catch (error) {
+        console.error('Error generating Telegram link code:', error);
+        alert('Failed to generate code.');
+    }
+};
+
 // Function to update the role string when role_id changes
 const updateRoleString = () => {
     const selectedRole = roleOptions.value.find(role => role.value === userForm.role_id);
@@ -596,12 +612,28 @@ const getAvatarColor = (name) => {
                                             </p>
                                             <code class="text-[10px] break-all text-indigo-600 block">{{ userItem.api_key }}</code>
                                         </div>
+
+                                        <!-- Telegram Code Display -->
+                                        <div v-if="userItem.telegram_link_code" class="mt-3 p-2 bg-sky-50 rounded-lg border border-dashed border-sky-300">
+                                            <p class="text-[10px] uppercase font-semibold text-sky-500 mb-1 flex items-center">
+                                                <ChatBubbleOvalLeftEllipsisIcon class="h-3 w-3 mr-1" /> Telegram Code
+                                            </p>
+                                            <code class="text-sm font-mono font-bold text-sky-700 block">#{{ userItem.telegram_link_code }}</code>
+                                        </div>
                                     </div>
 
                                     <!-- Action icons bottom right corner -->
                                     <div class="mt-4 flex justify-end gap-2">
                                         <PrimaryButton as="a" :href="`/users/${userItem.id}`" title="View User">View</PrimaryButton>
                                         
+                                        <button
+                                            v-if="isSuperAdmin || isManager"
+                                            @click="generateTelegramLinkCode(userItem)"
+                                            class="p-2 rounded-full text-gray-400 hover:text-sky-600 hover:bg-sky-50 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors"
+                                            title="Generate Telegram Link Code">
+                                            <ChatBubbleOvalLeftEllipsisIcon class="h-5 w-5" />
+                                        </button>
+
                                         <button
                                             v-if="isSuperAdmin || isManager"
                                             @click="generateApiKey(userItem)"
