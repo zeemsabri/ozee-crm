@@ -10,6 +10,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import { showSuccessNotification, showErrorNotification } from '@/Utils/notification';
 
 // Access user from Inertia props
 const user = computed(() => usePage().props.auth.user);
@@ -164,6 +165,22 @@ const deleteClient = async () => {
     }
 };
 
+// --- Telegram Code ---
+const generateTelegramCode = async (client) => {
+    try {
+        const response = await axios.post(`/api/clients/${client.id}/generate-telegram-code`);
+        // Find and update the client in the local list
+        const index = clients.value.findIndex(c => c.id === client.id);
+        if (index !== -1) {
+            clients.value[index].telegram_link_code = response.data.code;
+        }
+        showSuccessNotification('Telegram link code generated!');
+    } catch (error) {
+        console.error('Error generating Telegram code:', error);
+        showErrorNotification('Failed to generate Telegram code.');
+    }
+};
+
 // Fetch clients when the component is mounted
 onMounted(() => {
     fetchClients();
@@ -210,7 +227,27 @@ onMounted(() => {
                                     <td class="px-6 py-4 whitespace-nowrap">{{ client.phone || 'N/A' }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div class="flex items-center space-x-2">
-                                            <PrimaryButton as="a" :href="`/clients/${client.id}`">View</PrimaryButton>
+                                            <PrimaryButton as="a" :href="`/clients/${client.id}`" title="View Details">View</PrimaryButton>
+                                            
+                                            <!-- Telegram Code Section -->
+                                            <div class="flex items-center bg-sky-50 px-2 py-1 rounded border border-sky-100" v-if="client.telegram_link_code || client.telegram_account">
+                                                <div v-if="client.telegram_account" class="flex items-center text-sky-700" title="Telegram Linked">
+                                                    <svg class="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.53-1.39.51-.46-.01-1.33-.26-1.98-.48-.8-.27-1.43-.42-1.37-.89.03-.25.38-.51 1.03-.78 4.04-1.76 6.74-2.92 8.09-3.48 3.85-1.6 4.64-1.88 5.17-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.13-.03.19z"/></svg>
+                                                    <span class="text-xs font-semibold">@{{ client.telegram_account.username || 'Linked' }}</span>
+                                                </div>
+                                                <div v-else class="flex items-center">
+                                                    <span class="text-[10px] font-mono font-bold text-sky-800 mr-1 bg-white px-1.5 py-0.5 rounded border border-sky-100 cursor-all select-all">/link #{{ client.telegram_link_code }}</span>
+                                                    <button @click="generateTelegramCode(client)" class="p-0.5 text-sky-400 hover:text-sky-600 transition-colors" title="Regenerate Code">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <button v-else @click="generateTelegramCode(client)" class="p-1 text-gray-400 hover:text-sky-600 border border-transparent hover:border-sky-200 rounded transition-colors" title="Generate Telegram Code">
+                                                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.53-1.39.51-.46-.01-1.33-.26-1.98-.48-.8-.27-1.43-.42-1.37-.89.03-.25.38-.51 1.03-.78 4.04-1.76 6.74-2.92 8.09-3.48 3.85-1.6 4.64-1.88 5.17-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.13-.03.19z"/></svg>
+                                            </button>
+
                                             <PrimaryButton v-if="canManageClients" @click="openEditModal(client)">Edit</PrimaryButton>
                                             <DangerButton v-if="canManageClients" @click="confirmClientDeletion(client)">Delete</DangerButton>
                                         </div>

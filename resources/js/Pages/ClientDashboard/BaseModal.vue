@@ -41,6 +41,7 @@ const handleClose = () => {
             <div v-if="children">
                 <component :is="children" />
             </div>
+            <slot />
             <div class="flex justify-end space-x-4 mt-4">
                 <button
                     v-for="(button, index) in buttons"

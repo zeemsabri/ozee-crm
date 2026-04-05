@@ -2,8 +2,17 @@
 import { defineProps, computed, defineEmits, ref, onMounted, watch } from 'vue';
 import Chart from 'chart.js/auto';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import TelegramPrompt from './TelegramPrompt.vue';
 
 const props = defineProps({
+    initialAuthToken: { // Needed for TelegramPrompt
+        type: String,
+        default: ''
+    },
+    telegramBotName: {
+        type: String,
+        default: null
+    },
     activities: {
         type: Array,
         default: () => []
@@ -389,6 +398,11 @@ const formatDate = (dateString) => {
             </div>
         </div>
 
+        <!-- Telegram Link Prompt -->
+        <TelegramPrompt 
+            :initialAuthToken="props.initialAuthToken" 
+            :botName="props.telegramBotName"
+        />
 
         <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Left Column -->

@@ -8,7 +8,7 @@ const props = defineProps({
     initialAuthToken: String,
     botName: {
         type: String,
-        default: 'ozee_web_bot'
+        default: null
     }
 });
 

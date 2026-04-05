@@ -1,8 +1,31 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
+import { usePage } from '@inertiajs/vue3';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import { showSuccessNotification, showErrorNotification } from '@/Utils/notification';
+
+const page = usePage();
+const props = defineProps({
+    statusUrl: {
+        type: String,
+        default: '/api/me/status'
+    },
+    generateUrl: {
+        type: String,
+        default: null // Will be constructed if null
+    },
+    botName: {
+        type: String,
+        default: null
+    },
+    authToken: {
+        type: String,
+        default: null
+    }
+});
+
+const effectiveBotName = computed(() => props.botName || page.props.telegramBotName || 'ozee_web_bot');
 
 const user = ref(null);
 const telegramAccount = ref(null);
@@ -10,10 +33,14 @@ const linkCode = ref('');
 const isLoading = ref(true);
 const isGenerating = ref(false);
 
+const getHeaders = () => {
+    return props.authToken ? { 'Authorization': `Bearer ${props.authToken}` } : {};
+};
+
 const fetchStatus = async () => {
     try {
         isLoading.value = true;
-        const response = await axios.get('/api/me/status');
+        const response = await axios.get(props.statusUrl, { headers: getHeaders() });
         user.value = response.data;
         telegramAccount.value = response.data.telegram_account;
         linkCode.value = response.data.telegram_link_code;
@@ -27,7 +54,17 @@ const fetchStatus = async () => {
 const generateCode = async () => {
     try {
         isGenerating.value = true;
-        const response = await axios.post(`/api/users/${user.value.id}/generate-telegram-code`);
+        let url = props.generateUrl;
+        if (!url && user.value) {
+            url = `/api/users/${user.value.id}/generate-telegram-code`;
+        }
+        
+        if (!url) {
+            console.error('No generate URL available');
+            return;
+        }
+
+        const response = await axios.post(url, {}, { headers: getHeaders() });
         linkCode.value = response.data.code;
         showSuccessNotification('New code generated!');
     } catch (error) {
@@ -77,16 +114,16 @@ onMounted(() => {
 
             <div v-else class="space-y-4">
                 <div v-if="linkCode" class="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Your Link Code</p>
-                    <div class="text-3xl font-mono font-bold text-indigo-600 tracking-widest bg-white inline-block px-6 py-2 rounded border shadow-sm mb-4">
-                        #{{ linkCode }}
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Verification Command</p>
+                    <div class="text-2xl font-mono font-bold text-indigo-600 tracking-wider bg-white inline-block px-6 py-3 rounded-lg border-2 border-indigo-100 shadow-sm mb-4 select-all cursor-copy" title="Copy and send this command to the bot">
+                        /link #{{ linkCode }}
                     </div>
-                    <p class="text-sm text-gray-600">
-                        Send this code to our <span class="font-bold">Telegram Bot</span> to verify your account.
+                    <p class="text-sm text-gray-600 px-4">
+                        Copy the command above and send it as a message to our <span class="font-bold text-gray-900">Telegram Bot</span> to link your account.
                     </p>
                     <div class="mt-4">
-                         <a href="https://t.me/ozee_web_bot" target="_blank" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center justify-center">
-                            Open Telegram Bot
+                         <a :href="`https://t.me/${effectiveBotName}`" target="_blank" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center justify-center">
+                            Open Telegram Bot (@{{ effectiveBotName }})
                             <svg class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                             </svg>

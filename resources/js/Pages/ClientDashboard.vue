@@ -325,6 +325,8 @@ provide('activityService', { addActivity: addActivity }); // Provided for child 
         <div class="flex-1 p-8 overflow-y-auto main-content" :style="mainContentMargin">
             <HomeSection
                 v-if="currentSection === 'home'"
+                :initial-auth-token="props.initialAuthToken"
+                :telegram-bot-name="$page.props.telegramBotName"
                 :activities="activities"
                 :tickets="tickets"
                 :approvals="approvals"
