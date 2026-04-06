@@ -24,16 +24,16 @@ class ChatController extends Controller
         // Fetch Chat Messages with read receipts
         $topicId = $request->input('topic_id');
         $isGeneralTopic = false;
-        
+
         if ($topicId) {
             $topic = \App\Models\TelegramTopic::find($topicId);
             $isGeneralTopic = ($topic && $topic->type === \App\Enums\TelegramTopicType::GENERAL);
         } else {
-            // If no topic_id provided, assume we want to see general or all? 
+            // If no topic_id provided, assume we want to see general or all?
             // The sidebar usually always has a topic selected now.
-            $isGeneralTopic = true; 
+            $isGeneralTopic = true;
         }
-        
+
         $messagesQuery = ChatMessage::where('project_id', $project->id)
             ->when($topicId, function($q) use ($topicId, $isGeneralTopic) {
                 if ($isGeneralTopic) {
@@ -45,7 +45,7 @@ class ChatController extends Controller
                     $q->where('telegram_topic_id', $topicId);
                 }
             }, function($q) {
-                // If no topic_id, we can choose to show all or just general. 
+                // If no topic_id, we can choose to show all or just general.
                 // Let's show all for now if explicitly no topic requested.
             })
             ->with([
@@ -182,7 +182,7 @@ class ChatController extends Controller
     public function store(Request $request, Project $project)
     {
         $request->validate([
-            'message'   => 'required|string',
+            'message' => 'required|string',
             'parent_id' => 'nullable|integer|exists:chat_messages,id',
             'telegram_topic_id' => 'nullable|integer|exists:telegram_topics,id',
         ]);
@@ -197,11 +197,11 @@ class ChatController extends Controller
         if (preg_match('/^\/(client|reply)(?:@[A-Za-z0-9_]+)?\s+(.+)$/s', $originalMessage, $matches)) {
             $isClientCommand = true;
             $clientCommandText = $matches[2];
-            
+
             $proxyTopic = \App\Models\TelegramTopic::where('project_id', $project->id)
                 ->where('type', \App\Enums\TelegramTopicType::PROXY->value)
                 ->first();
-                
+
             if ($proxyTopic) {
                 $targetTopicId = $proxyTopic->id;
             }
@@ -210,18 +210,18 @@ class ChatController extends Controller
         $messageToSave = $isClientCommand ? $clientCommandText : $originalMessage;
 
         $message = ChatMessage::create([
-            'project_id'        => $project->id,
-            'user_id'           => Auth::id(),
-            'parent_id'         => $request->parent_id,
+            'project_id' => $project->id,
+            'user_id' => Auth::id(),
+            'parent_id' => $request->parent_id,
             'telegram_topic_id' => $targetTopicId,
-            'message'           => $messageToSave,
-            'type'              => 'text',
-            'source'            => 'crm',
+            'message' => $messageToSave,
+            'type' => 'text',
+            'source' => 'crm',
         ]);
 
         // Parse mentions using the MentionService
-        $mentionService     = new \App\Services\MentionService();
-        $mentionedUserIds   = $mentionService->parseAndNotify($messageToSave, $message);
+        $mentionService = new \App\Services\MentionService();
+        $mentionedUserIds = $mentionService->parseAndNotify($messageToSave, $message);
 
         if (!empty($mentionedUserIds)) {
             $message->update([
@@ -246,7 +246,7 @@ class ChatController extends Controller
                         $message->addTelegramResponse($result, 'proxy_topic');
                     }
                 }
-                
+
                 // Original topic echo (so team knows it was sent)
                 if ($request->telegram_topic_id && $request->telegram_topic_id != ($proxyTopic->id ?? 0)) {
                     $originalTopic = \App\Models\TelegramTopic::find($request->telegram_topic_id);
@@ -268,7 +268,7 @@ class ChatController extends Controller
             } else if ($request->telegram_topic_id) {
                 // Sent normally
                 $topic = \App\Models\TelegramTopic::find($request->telegram_topic_id);
-                
+
                 if ($topic) {
                     // Send to the Telegram group topic (keeps team synced)
                     $result = $telegramService->sendMessageToTopic($topic, $originalMessage, $prefix);
@@ -294,6 +294,23 @@ class ChatController extends Controller
             }
         }
 
+    }
+
+//        // Mark sender's own message as read immediately
+//        UserInteraction::firstOrCreate([
+//            'user_id'          => Auth::id(),
+//            'interactable_id'  => $message->id,
+//            'interactable_type' => ChatMessage::class,
+//            'interaction_type' => 'read',
+//        ]);
+//
+//        // Broadcast to all project members via Reverb so the message appears
+//        // in real-time for everyone without a page refresh.
+//        ChatMessageSent::dispatch($message->load(['user', 'parent.user']));
+//
+//        return response()->json($message->load('user'));
+//    }
+
     public function destroy(Request $request, Project $project, ChatMessage $chatMessage)
     {
         // Ensure message belongs to the project
@@ -317,21 +334,6 @@ class ChatController extends Controller
             'success' => true,
             'telegram_results' => $telegramResults
         ]);
-    }
-
-        // Mark sender's own message as read immediately
-        UserInteraction::firstOrCreate([
-            'user_id'          => Auth::id(),
-            'interactable_id'  => $message->id,
-            'interactable_type' => ChatMessage::class,
-            'interaction_type' => 'read',
-        ]);
-
-        // Broadcast to all project members via Reverb so the message appears
-        // in real-time for everyone without a page refresh.
-        ChatMessageSent::dispatch($message->load(['user', 'parent.user']));
-
-        return response()->json($message->load('user'));
     }
 
     // ---------------------------------------------------------------

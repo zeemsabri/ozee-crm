@@ -278,6 +278,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Chat Routes
     Route::get('projects/{project}/chat', [ChatController::class, 'index']);
     Route::post('projects/{project}/chat', [ChatController::class, 'store']);
+    Route::delete('projects/{project}/chat/{chat_message}', [ChatController::class, 'destroy']);
     Route::post('projects/{project}/chat/mark-read', [ChatController::class, 'markRead']);
     Route::get('chat/unread-counts', [ChatController::class, 'unreadCounts']);
 

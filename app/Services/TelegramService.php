@@ -323,4 +323,46 @@ class TelegramService
 
         return $response->successful() ? $response->json('result') : null;
     }
+
+    /**
+     * Send a message to a chat with a specific topic and optional reply to a message.
+     */
+    public function sendMessage($chatId, $text, $topicId = null, $replyToMessageId = null, $chatMessageId = null)
+    {
+        $payload = [
+            'chat_id' => $chatId,
+            'text' => $text,
+        ];
+
+        if ($topicId) {
+            $payload['message_thread_id'] = $topicId;
+        }
+
+        if ($replyToMessageId) {
+            $payload['reply_to_message_id'] = $replyToMessageId;
+        }
+
+        $response = Http::post("https://api.telegram.org/bot{$this->botToken}/sendMessage", $payload);
+
+        if ($response->successful()) {
+            $data = $response->json();
+            // Save the response data, e.g., message_id for potential deletion
+            $this->saveMessageResponse($data, $chatMessageId);
+            return $data;
+        }
+
+        throw new \Exception('Failed to send message to Telegram: ' . $response->body());
+    }
+
+    private function saveMessageResponse($data, $chatMessageId = null)
+    {
+        if ($chatMessageId && isset($data['result']['message_id'])) {
+            $chatMessage = \App\Models\ChatMessage::find($chatMessageId);
+            if ($chatMessage) {
+                $chatMessage->update(['telegram_message_id' => $data['result']['message_id']]);
+            }
+        }
+        // Log the full response for debugging
+        Log::info('Telegram message sent', $data);
+    }
 }

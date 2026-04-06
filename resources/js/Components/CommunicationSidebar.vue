@@ -21,7 +21,8 @@ import {
     Mail,
     Hash,
     ExternalLink,
-    Search
+    Search,
+    Trash2
 } from 'lucide-vue-next';
 import { usePage } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -36,6 +37,7 @@ import { pushSuccess } from '@/Utils/notification';
 import { formatDate } from '@/Utils/notification';
 import { formatMentions } from '@/Utils/mentions';
 import MentionInput from '@/Components/ProjectTasks/MentionInput.vue';
+import { v4 as uuidv4 } from 'uuid';
 
 const props = defineProps({});
 
@@ -78,6 +80,7 @@ const chatContainer = ref(null);
 const mentionInputRef = ref(null);
 const loadingMore = ref(false);
 const hasMore = ref(true);
+const pendingMessages = ref({});
 const unreadByProject = ref({}); 
 const projectSearch = ref('');
 const subscribedTopicIds = ref(new Set()); 
@@ -328,32 +331,56 @@ const handleSendMessage = async () => {
     const messageContent = newMessage.value;
     newMessage.value = '';
 
+    // Generate a temporary ID for optimistic UI
+    const tempId = uuidv4();
+    const tempMsg = {
+        id: tempId,
+        type: 'text',
+        user: user.value.name,
+        initials: user.value.name.substring(0, 2).toUpperCase(),
+        color: 'bg-indigo-600',
+        message: messageContent,
+        parent: replyToMessage.value,
+        time: 'Just now',
+        is_me: true,
+        created_at: new Date().toISOString(),
+        pending: true,
+    };
+    chatMessages.value.push(tempMsg);
+    pendingMessages.value[tempId] = true;
+    replyToMessage.value = null;
+    mentionInputRef.value?.clear();
+    scrollToBottom();
+
     try {
-        const response = await axios.post(`/api/projects/${activeProject.value.id}/chat`, {
+        await axios.post(`/api/projects/${activeProject.value.id}/chat`, {
             message: messageContent,
-            parent_id: replyToMessage.value?.id,
+            parent_id: tempMsg.parent?.id,
             telegram_topic_id: activeTopic.value.id
         });
-        
-        const msg = {
-            id: response.data.id,
-            type: 'text',
-            user: user.value.name,
-            initials: user.value.name.substring(0, 2).toUpperCase(),
-            color: 'bg-indigo-600',
-            message: response.data.message,
-            parent: replyToMessage.value,
-            time: 'Just now',
-            is_me: true,
-            created_at: response.data.created_at
-        };
-        chatMessages.value.push(msg);
-        newMessage.value = '';
-        replyToMessage.value = null;
-        mentionInputRef.value?.clear();
-        scrollToBottom();
+        // No need to update here; real message will arrive via Echo event
     } catch (error) {
+        // Remove pending message on error
+        chatMessages.value = chatMessages.value.filter(m => m.id !== tempId);
+        delete pendingMessages.value[tempId];
         console.error('Error sending message:', error);
+    }
+};
+
+const deleteMessage = async (msg) => {
+    if (!confirm('Are you sure you want to delete this message? This will also remove it from Telegram.')) return;
+    
+    try {
+        await axios.delete(`/api/projects/${activeProject.value.id}/chat/${msg.id}`);
+        chatMessages.value = chatMessages.value.filter(m => m.id !== msg.id);
+        pushSuccess({ 
+            view_id: `delete_${msg.id}`,
+            title: 'Deleted', 
+            message: 'Message removed successfully' 
+        });
+    } catch (error) {
+        console.error('Error deleting message:', error);
+        alert('Failed to delete message');
     }
 };
 
@@ -462,6 +489,18 @@ const subscribeToTopic = (topicId) => {
 
             incoming.is_me = incoming.sender_id === user.value?.id;
 
+            // Replace pending message if exists
+            if (incoming.is_me) {
+                // Try to find a pending message with same content and time window
+                const idx = chatMessages.value.findIndex(m => m.pending && m.message === incoming.message);
+                if (idx !== -1) {
+                    chatMessages.value[idx] = { ...incoming, pending: false };
+                    delete pendingMessages.value[chatMessages.value[idx].id];
+                    scrollToBottom();
+                    return;
+                }
+            }
+
             if (activeTopic.value?.id === topicId) {
                 if (!incoming.is_me) {
                     chatMessages.value.push(incoming);
@@ -469,9 +508,8 @@ const subscribeToTopic = (topicId) => {
                 }
             } else {
                 if (!incoming.is_me) {
-                    // Update badge later... setup simple toast push here
                     pushSuccess({
-                        view_id: `chat_${incoming.id}`, 
+                        view_id: `chat_${incoming.id}`,
                         title: incoming.user || 'New Message',
                         project_name: 'Team Chat',
                         message: incoming.message,
@@ -786,13 +824,17 @@ const closeSidebar = () => {
                                 <span class="text-[10px] text-slate-400">{{ msg.time }}</span>
                             </div>
                             
-                            <!-- Reply action overlay -->
                             <div v-if="msg.type !== 'email'" 
-                                class="absolute top-4 opacity-0 group-hover/msg:opacity-100 transition-opacity"
-                                :class="[msg.is_me ? '-left-8' : '-right-8']">
+                                class="absolute top-4 opacity-0 group-hover/msg:opacity-100 transition-opacity flex items-center space-x-1"
+                                :class="[msg.is_me ? '-left-16' : '-right-16']">
                                 <button @click="replyToMessage = msg"
                                     class="p-1.5 text-slate-400 bg-white hover:text-indigo-600 shadow-sm rounded-full border border-slate-200 transition-all">
                                     <CornerDownRight class="w-3.5 h-3.5" />
+                                </button>
+                                <button v-if="msg.is_me || user.role?.slug === 'super-admin' || user.role?.slug === 'admin' || user.role?.slug === 'manager'" 
+                                    @click="deleteMessage(msg)"
+                                    class="p-1.5 text-slate-400 bg-white hover:text-red-500 shadow-sm rounded-full border border-slate-200 transition-all">
+                                    <Trash2 class="w-3.5 h-3.5" />
                                 </button>
                             </div>
 

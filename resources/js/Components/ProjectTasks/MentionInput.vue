@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import { ref, nextTick, watch } from 'vue';
 import axios from 'axios';
 
 const props = defineProps({
@@ -171,6 +171,14 @@ const moveUp = () => {
     selectedIndex.value = (selectedIndex.value - 1 + filteredResults.value.length) % filteredResults.value.length;
 };
 
+const hideSuggestions = () => {
+    showSuggestions.value = false;
+};
+
+const hideSuggestionsWithDelay = () => {
+    window.setTimeout(hideSuggestions, 200);
+};
+
 const onEnter = (e) => {
     if (showSuggestions.value && filteredResults.value.length > 0) {
         e.preventDefault();
@@ -198,7 +206,7 @@ defineExpose({
             @keydown.up.prevent="moveUp"
             @keydown.enter="onEnter"
             @keydown.esc="showSuggestions = false"
-            @blur="setTimeout(() => showSuggestions = false, 200)"
+            @blur="hideSuggestionsWithDelay"
             :placeholder="placeholder"
             class="w-full rounded-2xl border-indigo-100 focus:ring-indigo-500 text-sm p-4 min-h-[60px] max-h-[150px] placeholder:text-indigo-200"
         ></textarea>
@@ -212,7 +220,7 @@ defineExpose({
             @keydown.up.prevent="moveUp"
             @keydown.enter.prevent="onEnter"
             @keydown.esc="showSuggestions = false"
-            @blur="setTimeout(() => showSuggestions = false, 200)"
+            @blur="hideSuggestionsWithDelay"
             :placeholder="placeholder" 
             class="w-full rounded-xl border-gray-200 text-sm focus:ring-indigo-500 font-medium h-10 px-4"
         />
