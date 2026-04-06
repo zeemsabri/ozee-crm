@@ -211,7 +211,7 @@ class ChatController extends Controller
         }
 
         $requiresLinkedTelegramClients = $isClientCommand
-            || ($selectedTopic && $selectedTopic->type === \App\Enums\TelegramTopicType::PROXY->value);
+            || ($selectedTopic && $selectedTopic->type === \App\Enums\TelegramTopicType::PROXY);
 
         if ($requiresLinkedTelegramClients) {
             $telegramService = app(\App\Services\TelegramService::class);
@@ -295,7 +295,7 @@ class ChatController extends Controller
                     }
 
                     // If it's the Proxy topic (Client Communication), relay to all clients directly
-                    if ($topic->type === \App\Enums\TelegramTopicType::PROXY->value || $topic->type === \App\Enums\TelegramTopicType::PROXY) {
+                    if ($topic->type === \App\Enums\TelegramTopicType::PROXY) {
                         foreach ($project->clients as $client) {
                             $result = $telegramService->sendDirectMessageToClient($client, $originalMessage, $prefix);
                             if ($result) {

@@ -28,7 +28,7 @@ class TelegramTopicController extends Controller
 
         return response()->json($topics->map(function (TelegramTopic $topic) use ($clientMessagingStatus) {
             $data = $topic->toArray();
-            $data['client_messaging'] = $topic->type === \App\Enums\TelegramTopicType::PROXY->value
+            $data['client_messaging'] = $topic->type === \App\Enums\TelegramTopicType::PROXY
                 ? $clientMessagingStatus
                 : null;
 
