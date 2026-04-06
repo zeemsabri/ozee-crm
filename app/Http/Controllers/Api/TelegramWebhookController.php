@@ -25,12 +25,41 @@ class TelegramWebhookController extends Controller
             $filename = 'telegram/webhooks/' . now()->format('Y-m-d_H-i-s') . '_' . uniqid() . '.json';
             Storage::disk('local')->put($filename, json_encode($payload, JSON_PRETTY_PRINT));
 
+            // 1. Handle Callback Queries (for Inline Buttons)
+            if (isset($payload['callback_query'])) {
+                $callback = $payload['callback_query'];
+                $data = $callback['data'] ?? '';
+                $fromId = $callback['from']['id'] ?? null;
+
+                if ($fromId && str_starts_with($data, 'switch_project_')) {
+                    $projectId = (int) str_replace('switch_project_', '', $data);
+                    $account = \App\Models\TelegramAccount::where('telegram_id', $fromId)->first();
+                    
+                    if ($account && $account->telegramable instanceof \App\Models\Client) {
+                        $client = $account->telegramable;
+                        $project = \App\Models\Project::find($projectId);
+                        
+                        if ($project && $client->projects->contains($project->id)) {
+                            $client->update(['active_telegram_project_id' => $project->id]);
+                            
+                            // Acknowledge callback
+                            $this->answerCallbackQuery($callback['id'], "Active project set to: {$project->name}");
+                            
+                            // Update the main menu
+                            $telegramService = app(\App\Services\TelegramService::class);
+                            $telegramService->updateClientPersistentMenu($client, "✅ Your active project is now set to: *{$project->name}*");
+                        }
+                    }
+                }
+                return response()->json(['status' => 'ok']);
+            }
+
             $message = $payload['message'] ?? ($payload['edited_message'] ?? null);
             if (!$message) {
                 return response()->json(['status' => 'ok']);
             }
 
-            $text = $message['text'] ?? null;
+            $text = $message['text'] ?? ($message['caption'] ?? '');
             $chatId = $message['chat']['id'] ?? null;
             $from = $message['from'] ?? null;
             $fromId = $from['id'] ?? null;
@@ -84,32 +113,32 @@ class TelegramWebhookController extends Controller
                         // Clear link code
                         $linkable->update(['telegram_link_code' => null]);
 
+                        // Ensure Client Communication topic exists for all projects of this client
+                        if ($linkable instanceof \App\Models\Client) {
+                            $telegramService = app(\App\Services\TelegramService::class);
+                            foreach ($linkable->projects as $project) {
+                                if ($project->telegram_group_id) {
+                                    $telegramService->ensureClientTopicExists($project);
+                                }
+                            }
+                        }
+
                         // Clear cache for this telegram id
                         \Illuminate\Support\Facades\Cache::forget("telegram_account_{$fromId}");
 
                         $this->sendMessage($chatId, "✅ Account verified! Your Telegram is now linked to: *{$linkable->name}*");
+
+                        // Update menu for client
+                        if ($linkable instanceof \App\Models\Client) {
+                            app(\App\Services\TelegramService::class)->updateClientPersistentMenu($linkable);
+                        }
+
                         return response()->json(['status' => 'ok']);
                     }
                 }
 
                 // If code was provided but not found
                 $this->sendMessage($chatId, "❌ Invalid or expired link code.");
-                return response()->json(['status' => 'ok']);
-            }
-
-            // Check if this chat is already linked to a project
-            /** @var \App\Models\Project|null $project */
-            $project = \Illuminate\Support\Facades\Cache::remember("telegram_project_by_chat_{$chatId}", 3600, function () use ($chatId) {
-                return \App\Models\Project::where('telegram_group_id', $chatId)->first();
-            });
-
-            if (!$project) {
-                return response()->json(['status' => 'ok']);
-            }
-
-            // If already linked, handle commands
-            if ($text === '/start') {
-                $this->sendMenu($chatId, $project);
                 return response()->json(['status' => 'ok']);
             }
 
@@ -128,23 +157,179 @@ class TelegramWebhookController extends Controller
                 });
             }
 
-            // Handle message recording
+            // Handle "Switch Active Project" or multi-project menu triggers
+            if ($text && str_contains($text, '(Tap to Switch)') && $senderData && $senderData['type'] === \App\Models\Client::class) {
+                $client = \App\Models\Client::find($senderData['id']);
+                if ($client && $client->projects->count() > 1) {
+                    app(\App\Services\TelegramService::class)->sendProjectSelectionMessage($client);
+                    return response()->json(['status' => 'ok']);
+                }
+            }
+
+            // Check if this chat is already linked to a project (for group chats)
+            /** @var \App\Models\Project|null $project */
+            $project = \Illuminate\Support\Facades\Cache::remember("telegram_project_by_chat_{$chatId}", 3600, function () use ($chatId) {
+                return \App\Models\Project::where('telegram_group_id', $chatId)->first();
+            });
+
+            // If it's a private chat with a CLIENT, we might want to use their selected active project
+            if (!$project && $senderData && $senderData['type'] === \App\Models\Client::class) {
+                $client = \App\Models\Client::find($senderData['id']);
+                if ($client) {
+                    $project = $client->activeTelegramProject ?? $client->projects->first();
+                }
+            }
+
+            if (!$project) {
+                return response()->json(['status' => 'ok']);
+            }
+
+            // Handle message recording (Topic context)
             $threadId = $message['message_thread_id'] ?? null;
+
+            // Handle /client or /reply [message] command for staff to reply to clients from any topic
+            $isClientCommand = false;
+            $clientCommandText = '';
+            if ($text && preg_match('/^\/(client|reply)(?:@[A-Za-z0-9_]+)?\s+(.+)$/s', $text, $matches)) {
+                $isClientCommand = true;
+                $clientCommandText = $matches[2];
+            }
+
+            // Identify sender - ALREADY DONE ABOVE
             
             // Optimize: Cache the general topic ID to avoid DB lookups on every message
-            $targetTopicId = \Illuminate\Support\Facades\Cache::remember("project_{$project->id}_general_topic_id", 3600, function () use ($project) {
+            $generalTopicId = \Illuminate\Support\Facades\Cache::remember("project_{$project->id}_general_topic_id", 3600, function () use ($project) {
                 $telegramService = app(\App\Services\TelegramService::class);
                 return $telegramService->ensureGeneralTopicExists($project)->id;
             });
 
-            // Optimize: Cache the specific thread's topic ID
+            // Default target is General
+            $targetTopicId = $generalTopicId;
+            $relayResults = [];
+            $telegramService = app(\App\Services\TelegramService::class);
+
+            // If we have a thread ID from Telegram, try to find matching topic
             if ($threadId) {
-                $targetTopicId = \Illuminate\Support\Facades\Cache::remember("project_{$project->id}_thread_{$threadId}_topic_id", 3600, function () use ($project, $threadId, $targetTopicId) {
+                $targetTopicId = \Illuminate\Support\Facades\Cache::remember("project_{$project->id}_thread_{$threadId}_topic_id", 3600, function () use ($project, $threadId, $generalTopicId) {
                     $topic = \App\Models\TelegramTopic::where('project_id', $project->id)
                         ->where('telegram_thread_id', $threadId)
                         ->first();
-                    return $topic ? $topic->id : $targetTopicId;
+                    return $topic ? $topic->id : $generalTopicId;
                 });
+            }
+
+            // CRITICAL: If the message is from a CLIENT (DM), it MUST go to the Client Communication (Proxy) topic
+            // AND the General topic so the internal team is notified everywhere.
+            if ($text && $senderData && $senderData['type'] === \App\Models\Client::class && !isset($message['chat']['title'])) {
+                $client = \App\Models\Client::find($senderData['id']);
+                $prefix = $client ? $client->name : ($from['first_name'] ?? 'Client');
+                
+                // 1. Send to Proxy Topic
+                $proxyTopic = \App\Models\TelegramTopic::where('project_id', $project->id)
+                    ->where('type', \App\Enums\TelegramTopicType::PROXY->value)
+                    ->first();
+                if ($proxyTopic) {
+                    $targetTopicId = $proxyTopic->id;
+                    $result = $telegramService->sendMessageToTopic($proxyTopic, $text, $prefix);
+                    if ($result) {
+                        $relayResults['proxy_topic'] = $result;
+                    }
+                }
+
+                // 2. Send to General Topic
+                $generalTopic = \App\Models\TelegramTopic::where('project_id', $project->id)
+                    ->where('type', \App\Enums\TelegramTopicType::GENERAL->value)
+                    ->first();
+                if ($generalTopic) {
+                    $result = $telegramService->sendMessageToTopic($generalTopic, $text, "Incoming Client Message: " . $prefix);
+                    if ($result) {
+                        $relayResults['general_topic'] = $result;
+                    }
+                }
+
+                // 3. Send to ALL OTHER clients in the project
+                foreach ($project->clients as $otherClient) {
+                    if ($otherClient->id !== $client->id) {
+                        $result = $telegramService->sendDirectMessageToClient($otherClient, $text, $prefix);
+                        if ($result) {
+                            $relayResults['client_dms'][] = $result;
+                        }
+                    }
+                }
+            }
+
+            // Get Proxy Topic for internal team routing
+            $proxyTopic = \App\Models\TelegramTopic::where('project_id', $project->id)
+                ->where('type', \App\Enums\TelegramTopicType::PROXY->value)
+                ->first();
+
+            // Handle Cross-Topic Team Command (/client or /reply)
+            // Fire for ANY sender in a group chat - no need to be a linked CRM User.
+            // Clients sending DMs won't have chat.title, so this is safely team-only.
+            if ($isClientCommand && isset($message['chat']['title'])) {
+                // Resolve best sender name
+                $prefix = 'Team';
+                if ($senderData && $senderData['type'] === \App\Models\User::class) {
+                    $user = \App\Models\User::find($senderData['id']);
+                    $prefix = $user ? $user->name : ($from['first_name'] ?? 'Team');
+                } else {
+                    $prefix = $from['first_name'] ?? ($from['username'] ?? 'Team');
+                }
+
+                $text = $clientCommandText; // Override text to be saved in DB
+
+                if ($proxyTopic) {
+                    $targetTopicId = $proxyTopic->id;
+
+                    // Post a copy in Proxy Topic with attribution
+                    $proxyMessage = "*(Sent via /client by {$prefix})*: \n{$text}";
+                    $result = $telegramService->sendMessageToTopic($proxyTopic, $proxyMessage);
+                    if ($result) {
+                        $relayResults['proxy_topic'] = $result;
+                    }
+                }
+
+                // Relay to all linked clients of this project via DM
+                foreach ($project->clients as $clientModel) {
+                    $result = $telegramService->sendDirectMessageToClient($clientModel, $text, $prefix);
+                    if ($result) {
+                        $relayResults['client_dms'][] = $result;
+                    }
+                }
+
+                // Confirm back to the sender in the same thread/topic
+                $result = $this->sendMessage($chatId, "✅ Message sent to client(s).", $threadId);
+                if ($result) {
+                    $relayResults['confirmation_message'] = $result;
+                }
+            }
+            // DIRECTION 2: Internal Team -> Client DM (from Proxy topic)
+            // If the message is from within a Group Topic and the topic is a PROXY topic.
+            else if ($text && $threadId && isset($message['chat']['title'])) {
+                $currentTopic = \App\Models\TelegramTopic::where('project_id', $project->id)
+                    ->where('telegram_thread_id', $threadId)
+                    ->first();
+
+                if ($currentTopic && $currentTopic->type === \App\Enums\TelegramTopicType::PROXY) {
+                    $targetTopicId = $currentTopic->id;
+                    
+                    // Identify internal sender
+                    $prefix = 'Team';
+                    if ($senderData && $senderData['type'] === \App\Models\User::class) {
+                        $user = \App\Models\User::find($senderData['id']);
+                        $prefix = $user ? $user->name : ($from['first_name'] ?? 'Team');
+                    } else {
+                        $prefix = $from['first_name'] ?? ($from['username'] ?? 'Team');
+                    }
+
+                    // Relay to all linked clients of this project
+                    foreach ($project->clients as $clientModel) {
+                        $result = $telegramService->sendDirectMessageToClient($clientModel, $text, $prefix);
+                        if ($result) {
+                            $relayResults['client_dms'][] = $result;
+                        }
+                    }
+                }
             }
 
             if ($text) {
@@ -157,6 +342,7 @@ class TelegramWebhookController extends Controller
                     'type' => 'text',
                     'meta_data' => [
                         'telegram_from' => $from,
+                        'telegram_relays' => $relayResults, // Keep legacy for now
                     ]
                 ];
 
@@ -168,7 +354,25 @@ class TelegramWebhookController extends Controller
                     }
                 }
 
+                /** @var \App\Models\ChatMessage $chatMsg */
                 $chatMsg = \App\Models\ChatMessage::create($msgData);
+
+                // Standardized Tracking for deletion
+                $chatMsg->addTelegramResponse([
+                    'message_id' => $message['message_id'],
+                    'chat' => ['id' => $chatId]
+                ], 'source');
+
+                foreach ($relayResults as $key => $val) {
+                    if ($key === 'client_dms' && is_array($val)) {
+                        foreach ($val as $res) {
+                            $chatMsg->addTelegramResponse($res, 'client_relay');
+                        }
+                    } else if (is_array($val)) {
+                        $chatMsg->addTelegramResponse($val, $key);
+                    }
+                }
+                $chatMsg->save();
 
                 // Broadcast
                 if (class_exists(\App\Events\ChatMessageSent::class)) {
@@ -187,19 +391,37 @@ class TelegramWebhookController extends Controller
         }
     }
 
-    private function sendMessage($chatId, $text)
+    private function sendMessage($chatId, $text, $threadId = null)
     {
         $token = config('services.telegram.bot_token');
-        return Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+        $response = Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
             'chat_id' => $chatId,
+            'message_thread_id' => $threadId,
             'text' => $text,
             'parse_mode' => 'Markdown',
+        ]);
+
+        return $response->successful() ? $response->json('result') : null;
+    }
+
+    private function answerCallbackQuery($callbackQueryId, $text = null)
+    {
+        $token = config('services.telegram.bot_token');
+        return Http::post("https://api.telegram.org/bot{$token}/answerCallbackQuery", [
+            'callback_query_id' => $callbackQueryId,
+            'text' => $text,
         ]);
     }
 
     private function sendMenu($chatId, $project)
     {
         $token = config('services.telegram.bot_token');
+
+        $telegramAccount = \App\Models\TelegramAccount::where('telegram_id', $chatId)->first();
+        if ($telegramAccount && $telegramAccount->telegramable instanceof \App\Models\Client) {
+             return app(\App\Services\TelegramService::class)->updateClientPersistentMenu($telegramAccount->telegramable);
+        }
+
         return Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
             'chat_id' => $chatId,
             'text' => "Welcome! This group is linked to *{$project->name}*.\nUse the menu below to navigate.",

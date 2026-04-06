@@ -62,4 +62,65 @@ class ChatMessage extends Model
     {
         return $this->morphMany(UserInteraction::class, 'interactable');
     }
+
+    /**
+     * Add a Telegram API response result to the message metadata.
+     * This tracks all instances of the message across group topics and client DMs.
+     */
+    public function addTelegramResponse(array $result, ?string $type = null): self
+    {
+        $meta = $this->meta_data ?? [];
+        $responses = $meta['telegram_responses'] ?? [];
+
+        $responses[] = [
+            'message_id' => $result['message_id'] ?? null,
+            'chat_id'    => $result['chat']['id'] ?? null,
+            'type'       => $type,
+            'sent_at'    => now()->toDateTimeString(),
+        ];
+
+        $meta['telegram_responses'] = $responses;
+        $this->meta_data = $meta;
+
+        // Ensure the primary message ID is set if not already
+        if (!$this->telegram_message_id) {
+            $this->telegram_message_id = $result['message_id'] ?? null;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Delete this message from all recorded Telegram locations.
+     */
+    public function deleteFromTelegram(): array
+    {
+        $telegramService = app(\App\Services\TelegramService::class);
+        $meta = $this->meta_data ?? [];
+        $responses = $meta['telegram_responses'] ?? [];
+        
+        $results = [];
+
+        foreach ($responses as $index => $res) {
+            if (isset($res['chat_id']) && isset($res['message_id'])) {
+                $ok = $telegramService->deleteMessage($res['chat_id'], $res['message_id']);
+                $results[] = [
+                    'chat_id' => $res['chat_id'],
+                    'message_id' => $res['message_id'],
+                    'success' => $ok
+                ];
+                
+                // Mark as deleted in metadata if successful
+                if ($ok) {
+                    $responses[$index]['deleted_at'] = now()->toDateTimeString();
+                }
+            }
+        }
+
+        $meta['telegram_responses'] = $responses;
+        $this->meta_data = $meta;
+        $this->save();
+
+        return $results;
+    }
 }

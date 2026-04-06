@@ -501,6 +501,14 @@ class ProjectActionController extends Controller
 
         $project->load('clients');
 
+        // Notify newly attached clients via Telegram if applicable
+        $telegramService = app(\App\Services\TelegramService::class);
+        foreach ($project->clients as $client) {
+            if ($client->telegramAccount) {
+                $telegramService->updateClientPersistentMenu($client, "🎉 Good news! You have been added to a new project: *{$project->name}*.");
+            }
+        }
+
         return response()->json($project->clients, 200);
     }
 

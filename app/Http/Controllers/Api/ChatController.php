@@ -50,7 +50,9 @@ class ChatController extends Controller
             })
             ->with([
                 'user',
+                'client',
                 'parent.user',
+                'parent.client',
                 'interactions' => function ($q) {
                     $q->with('user:id,name')->where('interaction_type', 'read');
                 },
@@ -101,17 +103,20 @@ class ChatController extends Controller
                 'read_at' => $i->updated_at->toDateTimeString(),
             ]);
 
+            $userName = $msg->user?->name ?? ($msg->client?->name ?? ($msg->meta_data['telegram_from']['first_name'] ?? 'Telegram User'));
+
             return [
                 'id'         => $msg->id,
                 'type'       => $msg->source === 'telegram' ? 'telegram' : 'text',
-                'user'       => $msg->user?->name ?? ($msg->meta_data['telegram_from']['first_name'] ?? 'Telegram User'),
+                'user'       => $userName,
                 'user_id'    => $msg->user_id,
-                'initials'   => strtoupper(substr($msg->user?->name ?? ($msg->meta_data['telegram_from']['first_name'] ?? 'T'), 0, 2)),
-                'color'      => $msg->source === 'telegram' ? 'bg-sky-500' : 'bg-indigo-600',
+                'client_id'  => $msg->client_id,
+                'initials'   => strtoupper(substr($userName, 0, 2)),
+                'color'      => $msg->client_id ? 'bg-sky-500' : ($msg->source === 'telegram' ? 'bg-sky-500' : 'bg-indigo-600'),
                 'message'    => $msg->message,
                 'parent'     => $msg->parent ? [
                     'id'      => $msg->parent->id,
-                    'user'    => $msg->parent->user?->name ?? 'System',
+                    'user'    => $msg->parent->user?->name ?? ($msg->parent->client?->name ?? 'System'),
                     'message' => Str::limit($msg->parent->message, 50),
                 ] : null,
                 'reads'      => $reads,
@@ -182,19 +187,41 @@ class ChatController extends Controller
             'telegram_topic_id' => 'nullable|integer|exists:telegram_topics,id',
         ]);
 
+        // 1. Detect if this is a Cross-Topic `/client` command from the CRM
+        $originalMessage = $request->message;
+        $isClientCommand = false;
+        $clientCommandText = '';
+        $targetTopicId = $request->telegram_topic_id;
+        $proxyTopic = null;
+
+        if (preg_match('/^\/(client|reply)(?:@[A-Za-z0-9_]+)?\s+(.+)$/s', $originalMessage, $matches)) {
+            $isClientCommand = true;
+            $clientCommandText = $matches[2];
+            
+            $proxyTopic = \App\Models\TelegramTopic::where('project_id', $project->id)
+                ->where('type', \App\Enums\TelegramTopicType::PROXY->value)
+                ->first();
+                
+            if ($proxyTopic) {
+                $targetTopicId = $proxyTopic->id;
+            }
+        }
+
+        $messageToSave = $isClientCommand ? $clientCommandText : $originalMessage;
+
         $message = ChatMessage::create([
             'project_id'        => $project->id,
             'user_id'           => Auth::id(),
             'parent_id'         => $request->parent_id,
-            'telegram_topic_id' => $request->telegram_topic_id,
-            'message'           => $request->message,
+            'telegram_topic_id' => $targetTopicId,
+            'message'           => $messageToSave,
             'type'              => 'text',
             'source'            => 'crm',
         ]);
 
         // Parse mentions using the MentionService
         $mentionService     = new \App\Services\MentionService();
-        $mentionedUserIds   = $mentionService->parseAndNotify($request->message, $message);
+        $mentionedUserIds   = $mentionService->parseAndNotify($messageToSave, $message);
 
         if (!empty($mentionedUserIds)) {
             $message->update([
@@ -204,13 +231,93 @@ class ChatController extends Controller
             ]);
         }
 
-        // Sync with Telegram if applicable
-        if ($request->telegram_topic_id && $project->telegram_group_id) {
-            $topic = \App\Models\TelegramTopic::find($request->telegram_topic_id);
-            if ($topic) {
-                app(\App\Services\TelegramService::class)->sendMessageToTopic($topic, $request->message);
+        // 2. Sync with Telegram if applicable
+        if ($project->telegram_group_id) {
+            $user = Auth::user();
+            $prefix = $user ? $user->name : 'Team';
+            $telegramService = app(\App\Services\TelegramService::class);
+
+            if ($isClientCommand) {
+                // Sent via Cross-Topic Command
+                if ($proxyTopic) {
+                    $proxyMessage = "*(Sent via command by {$prefix})*: \n{$clientCommandText}";
+                    $result = $telegramService->sendMessageToTopic($proxyTopic, $proxyMessage);
+                    if ($result) {
+                        $message->addTelegramResponse($result, 'proxy_topic');
+                    }
+                }
+                
+                // Original topic echo (so team knows it was sent)
+                if ($request->telegram_topic_id && $request->telegram_topic_id != ($proxyTopic->id ?? 0)) {
+                    $originalTopic = \App\Models\TelegramTopic::find($request->telegram_topic_id);
+                    if ($originalTopic) {
+                        $result = $telegramService->sendMessageToTopic($originalTopic, "✅ Reply sent to client(s): \n_{$clientCommandText}_");
+                        if ($result) {
+                            $message->addTelegramResponse($result, 'topic_echo');
+                        }
+                    }
+                }
+
+                // Relay to all clients directly
+                foreach ($project->clients as $client) {
+                    $result = $telegramService->sendDirectMessageToClient($client, $clientCommandText, $prefix);
+                    if ($result) {
+                        $message->addTelegramResponse($result, 'client_dm');
+                    }
+                }
+            } else if ($request->telegram_topic_id) {
+                // Sent normally
+                $topic = \App\Models\TelegramTopic::find($request->telegram_topic_id);
+                
+                if ($topic) {
+                    // Send to the Telegram group topic (keeps team synced)
+                    $result = $telegramService->sendMessageToTopic($topic, $originalMessage, $prefix);
+                    if ($result) {
+                        $message->addTelegramResponse($result, 'topic_message');
+                    }
+
+                    // If it's the Proxy topic (Client Communication), relay to all clients directly
+                    if ($topic->type === \App\Enums\TelegramTopicType::PROXY->value || $topic->type === \App\Enums\TelegramTopicType::PROXY) {
+                        foreach ($project->clients as $client) {
+                            $result = $telegramService->sendDirectMessageToClient($client, $originalMessage, $prefix);
+                            if ($result) {
+                                $message->addTelegramResponse($result, 'client_dm');
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Persistence is handled by saving the message if it was modified
+            if ($message->isDirty('meta_data') || $message->isDirty('telegram_message_id')) {
+                $message->save();
             }
         }
+
+    public function destroy(Request $request, Project $project, ChatMessage $chatMessage)
+    {
+        // Ensure message belongs to the project
+        if ($chatMessage->project_id !== $project->id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Authorize: Only the sender or a project admin can delete
+        $user = Auth::user();
+        if ($chatMessage->user_id !== $user->id && !$user->hasPermission('manage_projects')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // 1. Delete from Telegram (all instances)
+        $telegramResults = $chatMessage->deleteFromTelegram();
+
+        // 2. Delete from CRM
+        $chatMessage->delete();
+
+        return response()->json([
+            'success' => true,
+            'telegram_results' => $telegramResults
+        ]);
+    }
 
         // Mark sender's own message as read immediately
         UserInteraction::firstOrCreate([

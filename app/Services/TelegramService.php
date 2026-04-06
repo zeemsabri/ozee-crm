@@ -122,9 +122,23 @@ class TelegramService
      */
     public function createDefaultTopics(Project $project)
     {
-        // "General" is handled locally and exists by default in Telegram as the main group
-        // We only create specialized topics in Telegram
-        $this->createTopic($project, 'Client Communication', TelegramTopicType::CLIENT);
+        $this->ensureClientTopicExists($project);
+    }
+
+    /**
+     * Ensure a "Client Communication" (Proxy) topic exists for the project.
+     */
+    public function ensureClientTopicExists(Project $project): ?TelegramTopic
+    {
+        $topic = TelegramTopic::where('project_id', $project->id)
+            ->where('type', TelegramTopicType::PROXY->value)
+            ->first();
+
+        if (!$topic) {
+            return $this->createTopic($project, 'Client Communication', TelegramTopicType::PROXY);
+        }
+
+        return $topic;
     }
 
     /**
@@ -171,7 +185,7 @@ class TelegramService
     /**
      * Send a message from the CRM to a specific Telegram Topic.
      */
-    public function sendMessageToTopic(TelegramTopic $topic, string $text)
+    public function sendMessageToTopic(TelegramTopic $topic, string $text, string $prefix = null)
     {
         $project = $topic->project;
         $chatId = $project->telegram_group_id;
@@ -180,11 +194,133 @@ class TelegramService
             return null;
         }
 
-        return Http::post("https://api.telegram.org/bot{$this->token}/sendMessage", [
+        if ($prefix) {
+            $text = "💬 *{$prefix}:* \n{$text}";
+        }
+
+        $response = Http::post("https://api.telegram.org/bot{$this->token}/sendMessage", [
             'chat_id' => $chatId,
             'message_thread_id' => $topic->telegram_thread_id, // Works for null (General) or specific threads
             'text' => $text,
             'parse_mode' => 'Markdown',
         ]);
+
+        return $response->successful() ? $response->json('result') : null;
+    }
+
+    /**
+     * Send a DM from the bot to a client.
+     */
+    public function sendDirectMessageToClient(\App\Models\Client $client, string $text, string $prefix = null)
+    {
+        $account = $client->telegramAccount;
+        if (!$account || !$account->telegram_id) {
+            return null;
+        }
+
+        if ($prefix) {
+            $text = "💬 *{$prefix}:* \n{$text}";
+        }
+
+        $response = Http::post("https://api.telegram.org/bot{$this->token}/sendMessage", [
+            'chat_id' => $account->telegram_id,
+            'text' => $text,
+            'parse_mode' => 'Markdown',
+        ]);
+
+        return $response->successful() ? $response->json('result') : null;
+    }
+
+    /**
+     * Delete a message from Telegram.
+     */
+    public function deleteMessage($chatId, $messageId): bool
+    {
+        if (!$chatId || !$messageId || !$this->token) {
+            return false;
+        }
+
+        try {
+            $response = Http::post("https://api.telegram.org/bot{$this->token}/deleteMessage", [
+                'chat_id' => $chatId,
+                'message_id' => $messageId,
+            ]);
+
+            return $response->successful();
+        } catch (\Exception $e) {
+            Log::error('Telegram deleteMessage Exception: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Update the persistent keyboard menu for a client based on their projects.
+     */
+    public function updateClientPersistentMenu(\App\Models\Client $client, string $notificationText = null)
+    {
+        $account = $client->telegramAccount;
+        if (!$account || !$account->telegram_id) {
+            return;
+        }
+
+        $projects = $client->projects;
+        $activeProject = $client->activeTelegramProject ?? $projects->first();
+
+        // Prepare keyboard
+        $keyboard = [];
+        if ($projects->count() > 1) {
+            $projectName = $activeProject ? $activeProject->name : 'None';
+            $keyboard[] = [['text' => "📁 Active: {$projectName} (Tap to Switch)"]];
+        } else {
+            $keyboard[] = [['text' => '📁 View Project']];
+        }
+
+        $keyboard[] = [['text' => '❓ Help'], ['text' => '👤 Request Call']];
+
+        // 1. Update the menu by sending a message (or just the menu)
+        $text = $notificationText ?? ($activeProject ? "Your menu has been updated for project: *{$activeProject->name}*" : "Welcome! Your menu is ready.");
+
+        $response = Http::post("https://api.telegram.org/bot{$this->token}/sendMessage", [
+            'chat_id' => $account->telegram_id,
+            'text' => $text,
+            'parse_mode' => 'Markdown',
+            'reply_markup' => json_encode([
+                'keyboard' => $keyboard,
+                'resize_keyboard' => true,
+                'is_persistent' => true,
+            ])
+        ]);
+
+        return $response->successful() ? $response->json('result') : null;
+    }
+
+    /**
+     * Send an inline keyboard allowing the client to switch their active project.
+     */
+    public function sendProjectSelectionMessage(\App\Models\Client $client)
+    {
+        $account = $client->telegramAccount;
+        if (!$account || !$account->telegram_id) {
+            return;
+        }
+
+        $projects = $client->projects;
+        $activeProjectId = $client->active_telegram_project_id;
+
+        $buttons = [];
+        foreach ($projects as $project) {
+            $prefix = ($project->id == $activeProjectId) ? "✅ " : "📁 ";
+            $buttons[] = [['text' => $prefix . $project->name, 'callback_data' => "switch_project_{$project->id}"]];
+        }
+
+        $response = Http::post("https://api.telegram.org/bot{$this->token}/sendMessage", [
+            'chat_id' => $account->telegram_id,
+            'text' => "Select a project to set as active:",
+            'reply_markup' => json_encode([
+                'inline_keyboard' => $buttons
+            ])
+        ]);
+
+        return $response->successful() ? $response->json('result') : null;
     }
 }
