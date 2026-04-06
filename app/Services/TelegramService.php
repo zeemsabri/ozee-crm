@@ -141,6 +141,45 @@ class TelegramService
         return $topic;
     }
 
+    public function getClientMessagingStatus(Project $project): array
+    {
+        $project->loadMissing('clients.telegramAccount');
+
+        $totalClients = $project->clients->count();
+        $linkedClientCount = $project->clients
+            ->filter(fn ($client) => $client->telegramAccount && $client->telegramAccount->telegram_id)
+            ->count();
+
+        if ($totalClients === 0) {
+            $message = 'No clients are assigned to this project yet. Add a client and link their Telegram account before using Client Communication.';
+        } elseif ($linkedClientCount === 0) {
+            $message = 'No client on this project has linked Telegram yet. Ask the client to link their Telegram account before using Client Communication.';
+        } else {
+            $message = null;
+        }
+
+        return [
+            'enabled' => $linkedClientCount > 0,
+            'linked_client_count' => $linkedClientCount,
+            'total_client_count' => $totalClients,
+            'message' => $message,
+        ];
+    }
+
+    public function canSendProjectClientMessages(Project $project): bool
+    {
+        return $this->getClientMessagingStatus($project)['enabled'];
+    }
+
+    public function getClientMessagingUnavailableTelegramText(Project $project): string
+    {
+        $status = $this->getClientMessagingStatus($project);
+
+        return "⚠️ *Client messaging is unavailable for this project.*\n\n"
+            . ($status['message'] ?? 'No linked Telegram clients are available for this project.')
+            . "\n\nAsk the client to link their Telegram account from the CRM before sending messages from *Client Communication*.";
+    }
+
     /**
      * Ensure a local "General" topic exists for the project.
      * This is used for messages that don't belong to a specific Telegram thread.
@@ -185,7 +224,7 @@ class TelegramService
     /**
      * Send a message from the CRM to a specific Telegram Topic.
      */
-    public function sendMessageToTopic(TelegramTopic $topic, string $text, string $prefix = null)
+    public function sendMessageToTopic(TelegramTopic $topic, string $text, ?string $prefix = null)
     {
         $project = $topic->project;
         $chatId = $project->telegram_group_id;
@@ -211,7 +250,7 @@ class TelegramService
     /**
      * Send a DM from the bot to a client.
      */
-    public function sendDirectMessageToClient(\App\Models\Client $client, string $text, string $prefix = null)
+    public function sendDirectMessageToClient(\App\Models\Client $client, string $text, ?string $prefix = null)
     {
         $account = $client->telegramAccount;
         if (!$account || !$account->telegram_id) {
@@ -256,7 +295,7 @@ class TelegramService
     /**
      * Update the persistent keyboard menu for a client based on their projects.
      */
-    public function updateClientPersistentMenu(\App\Models\Client $client, string $notificationText = null)
+    public function updateClientPersistentMenu(\App\Models\Client $client, ?string $notificationText = null)
     {
         $account = $client->telegramAccount;
         if (!$account || !$account->telegram_id) {

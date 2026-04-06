@@ -207,6 +207,7 @@ class TelegramWebhookController extends Controller
             $targetTopicId = $generalTopicId;
             $relayResults = [];
             $telegramService = app(\App\Services\TelegramService::class);
+            $clientMessagingStatus = $telegramService->getClientMessagingStatus($project);
 
             // If we have a thread ID from Telegram, try to find matching topic
             if ($threadId) {
@@ -267,6 +268,17 @@ class TelegramWebhookController extends Controller
             // Fire for ANY sender in a group chat - no need to be a linked CRM User.
             // Clients sending DMs won't have chat.title, so this is safely team-only.
             if ($isClientCommand && isset($message['chat']['title'])) {
+                if (!$clientMessagingStatus['enabled']) {
+                    $result = $this->sendMessage(
+                        $chatId,
+                        $telegramService->getClientMessagingUnavailableTelegramText($project),
+                        $threadId
+                    );
+
+                    if ($result) {
+                        $relayResults['client_messaging_unavailable_notice'] = $result;
+                    }
+                } else {
                 // Resolve best sender name
                 $prefix = 'Team';
                 if ($senderData && $senderData['type'] === \App\Models\User::class) {
@@ -302,6 +314,7 @@ class TelegramWebhookController extends Controller
                 if ($result) {
                     $relayResults['confirmation_message'] = $result;
                 }
+                }
             }
             // DIRECTION 2: Internal Team -> Client DM (from Proxy topic)
             // If the message is from within a Group Topic and the topic is a PROXY topic.
@@ -312,21 +325,33 @@ class TelegramWebhookController extends Controller
 
                 if ($currentTopic && $currentTopic->type === \App\Enums\TelegramTopicType::PROXY) {
                     $targetTopicId = $currentTopic->id;
-                    
-                    // Identify internal sender
-                    $prefix = 'Team';
-                    if ($senderData && $senderData['type'] === \App\Models\User::class) {
-                        $user = \App\Models\User::find($senderData['id']);
-                        $prefix = $user ? $user->name : ($from['first_name'] ?? 'Team');
-                    } else {
-                        $prefix = $from['first_name'] ?? ($from['username'] ?? 'Team');
-                    }
 
-                    // Relay to all linked clients of this project
-                    foreach ($project->clients as $clientModel) {
-                        $result = $telegramService->sendDirectMessageToClient($clientModel, $text, $prefix);
+                    if (!$clientMessagingStatus['enabled']) {
+                        $result = $this->sendMessage(
+                            $chatId,
+                            $telegramService->getClientMessagingUnavailableTelegramText($project),
+                            $threadId
+                        );
+
                         if ($result) {
-                            $relayResults['client_dms'][] = $result;
+                            $relayResults['client_messaging_unavailable_notice'] = $result;
+                        }
+                    } else {
+                        // Identify internal sender
+                        $prefix = 'Team';
+                        if ($senderData && $senderData['type'] === \App\Models\User::class) {
+                            $user = \App\Models\User::find($senderData['id']);
+                            $prefix = $user ? $user->name : ($from['first_name'] ?? 'Team');
+                        } else {
+                            $prefix = $from['first_name'] ?? ($from['username'] ?? 'Team');
+                        }
+
+                        // Relay to all linked clients of this project
+                        foreach ($project->clients as $clientModel) {
+                            $result = $telegramService->sendDirectMessageToClient($clientModel, $text, $prefix);
+                            if ($result) {
+                                $relayResults['client_dms'][] = $result;
+                            }
                         }
                     }
                 }

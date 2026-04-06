@@ -17,14 +17,23 @@ class TelegramTopicController extends Controller
     public function index(Request $request, Project $project)
     {
         // Ensure the local "General" topic exists
-        app(\App\Services\TelegramService::class)->ensureGeneralTopicExists($project);
+        $telegramService = app(\App\Services\TelegramService::class);
+        $telegramService->ensureGeneralTopicExists($project);
+        $clientMessagingStatus = $telegramService->getClientMessagingStatus($project);
 
         $topics = TelegramTopic::where('project_id', $project->id)
             ->orderByRaw("CASE WHEN type = 'general' THEN 0 ELSE 1 END")
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return response()->json($topics);
+        return response()->json($topics->map(function (TelegramTopic $topic) use ($clientMessagingStatus) {
+            $data = $topic->toArray();
+            $data['client_messaging'] = $topic->type === \App\Enums\TelegramTopicType::PROXY->value
+                ? $clientMessagingStatus
+                : null;
+
+            return $data;
+        }));
     }
 
     /**

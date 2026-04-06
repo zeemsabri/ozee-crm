@@ -193,6 +193,9 @@ class ChatController extends Controller
         $clientCommandText = '';
         $targetTopicId = $request->telegram_topic_id;
         $proxyTopic = null;
+        $selectedTopic = $request->telegram_topic_id
+            ? \App\Models\TelegramTopic::find($request->telegram_topic_id)
+            : null;
 
         if (preg_match('/^\/(client|reply)(?:@[A-Za-z0-9_]+)?\s+(.+)$/s', $originalMessage, $matches)) {
             $isClientCommand = true;
@@ -204,6 +207,21 @@ class ChatController extends Controller
 
             if ($proxyTopic) {
                 $targetTopicId = $proxyTopic->id;
+            }
+        }
+
+        $requiresLinkedTelegramClients = $isClientCommand
+            || ($selectedTopic && $selectedTopic->type === \App\Enums\TelegramTopicType::PROXY->value);
+
+        if ($requiresLinkedTelegramClients) {
+            $telegramService = app(\App\Services\TelegramService::class);
+            $clientMessagingStatus = $telegramService->getClientMessagingStatus($project);
+
+            if (!$clientMessagingStatus['enabled']) {
+                return response()->json([
+                    'message' => $clientMessagingStatus['message'],
+                    'client_messaging' => $clientMessagingStatus,
+                ], 422);
             }
         }
 

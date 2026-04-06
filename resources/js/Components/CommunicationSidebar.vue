@@ -33,7 +33,7 @@ import {
     markNotificationAndRefetch,
     markToastAsSeen
 } from '@/Utils/notification-sidebar';
-import { pushSuccess } from '@/Utils/notification';
+import { pushSuccess, warning } from '@/Utils/notification';
 import { formatDate } from '@/Utils/notification';
 import { formatMentions } from '@/Utils/mentions';
 import MentionInput from '@/Components/ProjectTasks/MentionInput.vue';
@@ -89,6 +89,9 @@ const user = computed(() => usePage().props.auth.user);
 const notifications = computed(() => notificationSidebarState.value.notifications);
 const unreadCount = computed(() => notifications.value.filter(n => !n.isRead).length);
 const totalChatUnread = computed(() => Object.values(unreadByProject.value).reduce((a, b) => a + b, 0));
+const activeTopicClientMessaging = computed(() => activeTopic.value?.client_messaging ?? null);
+const isClientMessagingBlocked = computed(() => activeTopicClientMessaging.value && !activeTopicClientMessaging.value.enabled);
+const clientMessagingNotice = computed(() => activeTopicClientMessaging.value?.message ?? '');
 
 const availableContexts = computed(() => {
     const search = projectSearch.value.toLowerCase();
@@ -327,6 +330,11 @@ const handleScroll = (e) => {
 
 const handleSendMessage = async () => {
     if (!newMessage.value.trim() || !activeProject.value || !activeTopic.value) return;
+
+    if (isClientMessagingBlocked.value) {
+        warning(clientMessagingNotice.value || 'Client messaging is unavailable for this project.');
+        return;
+    }
     
     const messageContent = newMessage.value;
     newMessage.value = '';
@@ -363,6 +371,7 @@ const handleSendMessage = async () => {
         // Remove pending message on error
         chatMessages.value = chatMessages.value.filter(m => m.id !== tempId);
         delete pendingMessages.value[tempId];
+        warning(error.response?.data?.message || 'Failed to send message');
         console.error('Error sending message:', error);
     }
 };
@@ -873,6 +882,16 @@ const closeSidebar = () => {
 
                     <!-- Input Area -->
                     <div v-if="activeTopic" class="p-4 bg-white border-t border-slate-200 shrink-0">
+                        <div v-if="isClientMessagingBlocked" class="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                            <p class="text-xs font-semibold text-amber-800">Client messaging unavailable</p>
+                            <p class="mt-1 text-xs text-amber-700">
+                                {{ clientMessagingNotice }}
+                            </p>
+                            <p class="mt-1 text-[11px] text-amber-700/90">
+                                Linked clients: {{ activeTopicClientMessaging?.linked_client_count ?? 0 }} / {{ activeTopicClientMessaging?.total_client_count ?? 0 }}
+                            </p>
+                        </div>
+
                         <div v-if="replyToMessage" class="mb-2 bg-slate-50 border-l-4 border-indigo-500 p-2 rounded-r flex items-center justify-between mx-2">
                             <div class="flex-1 min-w-0">
                                 <p class="text-[10px] uppercase font-bold text-indigo-600 tracking-wider">Replying to {{ replyToMessage.user }}</p>
@@ -889,11 +908,11 @@ const closeSidebar = () => {
                                 v-model="newMessage"
                                 :project-id="activeProject?.id"
                                 type="textarea"
-                                placeholder="Message to topic..."
+                                :placeholder="isClientMessagingBlocked ? 'Client messaging is unavailable until a client links Telegram.' : 'Message to topic...'"
                                 @submit="handleSendMessage"
                                 class="flex-1 bg-transparent !border-none !shadow-none !ring-0 !min-h-[44px] pt-[12px]"
                             />
-                            <button @click="handleSendMessage" :disabled="!newMessage.trim()"
+                            <button @click="handleSendMessage" :disabled="!newMessage.trim() || isClientMessagingBlocked"
                                 class="m-1 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-sm disabled:opacity-50 transition-colors flex-shrink-0 flex items-center justify-center">
                                 <Send class="w-4 h-4" />
                             </button>
