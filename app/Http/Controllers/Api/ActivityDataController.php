@@ -7,7 +7,6 @@ use App\Models\UserActivity;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class ActivityDataController extends Controller
 {
@@ -45,7 +44,13 @@ class ActivityDataController extends Controller
     {
         $user = $request->user();
         $raw = $request->all();
+        $requestMetadata = $this->extractRequestMetadata($request);
 
+        Log::info('Received activity data', [
+            'user_id' => $user?->id,
+            'extension_version' => $requestMetadata['extension_version'] ?? null,
+            'data' => $raw,
+        ]);
         // Detect batch mode: either { events: [...] } or a direct array [...]
         $payloads = null;
         if (isset($raw['events']) && is_array($raw['events'])) {
@@ -65,7 +70,7 @@ class ActivityDataController extends Controller
                     ->first();
 
                 foreach ($payloads as $payload) {
-                    $lastActivity = $this->processPayload($payload, $user, $lastActivity);
+                    $lastActivity = $this->processPayload($payload, $user, $lastActivity, $requestMetadata);
                 }
             }
 
@@ -86,7 +91,7 @@ class ActivityDataController extends Controller
                 ->latest('id')
                 ->first();
 
-            $this->processPayload($payload, $user, $lastActivity);
+            $this->processPayload($payload, $user, $lastActivity, $requestMetadata);
         }
 
         return response()->json([
@@ -103,9 +108,10 @@ class ActivityDataController extends Controller
      * @param  array                        $payload
      * @param  \App\Models\User             $user
      * @param  \App\Models\UserActivity|null $lastActivity
+     * @param  array<string, mixed>         $requestMetadata
      * @return \App\Models\UserActivity|null
      */
-    private function processPayload(array $payload, $user, ?UserActivity $lastActivity): ?UserActivity
+    private function processPayload(array $payload, $user, ?UserActivity $lastActivity, array $requestMetadata = []): ?UserActivity
     {
         $activityData    = $payload['data'] ?? [];
         $type            = $activityData['type'] ?? 'heartbeat';
@@ -138,6 +144,7 @@ class ActivityDataController extends Controller
         $durationReported = max(0, (int) ($payload['duration'] ?? 0));
         $idleState       = $payload['idleState'] ?? 'unknown';
         $category        = $this->categorizeDomain($domain, $user->id);
+        $metadata        = $this->buildActivityMetadata($payload, $requestMetadata);
 
         // Session Merging Threshold: 2 minutes (120 seconds)
         $mergingThreshold = 120;
@@ -156,6 +163,7 @@ class ActivityDataController extends Controller
                 'title'             => $activityData['title'] ?? $lastActivity->title,
                 'url'               => $url ?: $lastActivity->url,
                 'tab_count'         => $activityData['tabCount'] ?? $lastActivity->tab_count,
+                'metadata'          => $this->mergeActivityMetadata($lastActivity->metadata, $metadata),
             ]);
 
             return $lastActivity;
@@ -178,7 +186,76 @@ class ActivityDataController extends Controller
             'duration'         => $durationReported,
             'idle_state'       => $idleState,
             'category'         => $category,
+            'metadata'         => $metadata,
         ]);
+    }
+
+    /**
+     * Extract request-level metadata that should be attached to each activity row.
+     *
+     * @return array<string, mixed>
+     */
+    private function extractRequestMetadata(Request $request): array
+    {
+        return array_filter([
+            'extension_version' => $request->header('X-EXTENSION-VERSION'),
+        ], static fn ($value) => $value !== null && $value !== '');
+    }
+
+    /**
+     * Build metadata that is useful for reporting but not worth a dedicated column.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $requestMetadata
+     * @return array<string, mixed>
+     */
+    private function buildActivityMetadata(array $payload, array $requestMetadata = []): array
+    {
+        $activityData = $payload['data'] ?? [];
+        $url = $activityData['url'] ?? '';
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+
+        return array_filter([
+            'extension_version' => $requestMetadata['extension_version'] ?? null,
+            'event_count' => 1,
+            'event_type' => $activityData['type'] ?? 'heartbeat',
+            'session_status' => $activityData['sessionStatus'] ?? null,
+            'url_scheme' => is_string($scheme) ? strtolower($scheme) : null,
+            'is_internal_url' => $this->isInternalUrl($url, $scheme),
+        ], static fn ($value) => $value !== null && $value !== '');
+    }
+
+    /**
+     * Merge newly observed metadata into the current activity row.
+     *
+     * @param  array<string, mixed>|null  $existingMetadata
+     * @param  array<string, mixed>  $newMetadata
+     * @return array<string, mixed>
+     */
+    private function mergeActivityMetadata(?array $existingMetadata, array $newMetadata): array
+    {
+        $mergedMetadata = array_replace($existingMetadata ?? [], $newMetadata);
+        $mergedMetadata['event_count'] = (int) (($existingMetadata['event_count'] ?? 0) + ($newMetadata['event_count'] ?? 0));
+
+        return $mergedMetadata;
+    }
+
+    /**
+     * Identify browser-internal URLs such as chrome:// pages.
+     */
+    private function isInternalUrl(string $url, string|int|null $scheme = null): ?bool
+    {
+        if ($url === '') {
+            return null;
+        }
+
+        $normalizedScheme = is_string($scheme) ? strtolower($scheme) : strtolower((string) parse_url($url, PHP_URL_SCHEME));
+
+        if ($normalizedScheme === '') {
+            return null;
+        }
+
+        return !in_array($normalizedScheme, ['http', 'https'], true);
     }
 
     /**

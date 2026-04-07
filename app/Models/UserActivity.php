@@ -23,6 +23,7 @@ class UserActivity extends Model
         'idle_state',
         'category',
         'is_category_override',
+        'metadata',
     ];
 
     protected $casts = [
@@ -33,6 +34,7 @@ class UserActivity extends Model
         'task_id' => 'integer',
         'recorded_at' => 'datetime',
         'last_heartbeat_at' => 'datetime',
+        'metadata' => 'array',
     ];
 
     public function user()
