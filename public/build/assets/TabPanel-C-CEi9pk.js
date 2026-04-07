@@ -1,1 +1,0 @@
-import{i as t,L as o,o as s,c as l,a0 as r}from"./app-BN4_5kFd.js";const i={__name:"TabPanel",props:{active:{type:Boolean,default:!1}},setup(e){return(a,c)=>t((s(),l("div",null,[r(a.$slots,"default")],512)),[[o,e.active]])}};export{i as default};
