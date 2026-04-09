@@ -2,11 +2,18 @@
 
 namespace App\Services;
 
+use App\Enums\TaskStatus;
 use App\Models\Project;
+use App\Models\Task;
+use App\Models\TaskType;
+use App\Models\TelegramAccount;
 use App\Models\TelegramTopic;
+use App\Models\User;
 use App\Enums\TelegramTopicType;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class TelegramService
 {
@@ -361,6 +368,333 @@ class TelegramService
         ]);
 
         return $response->successful() ? $response->json('result') : null;
+    }
+
+    public function isCreateTaskCommand(?string $text): bool
+    {
+        return is_string($text)
+            && preg_match('/^\/create-task(?:@[A-Za-z0-9_]+)?(?:\s|$)/', trim($text)) === 1;
+    }
+
+    public function handleCreateTaskCommand(Project $project, array $message, ?array $senderData = null): array
+    {
+        $text = $message['text'] ?? ($message['caption'] ?? '');
+
+        if (! $this->isCreateTaskCommand($text)) {
+            return ['handled' => false];
+        }
+
+        if (! isset($message['chat']['title'])) {
+            return [
+                'handled' => true,
+                'success' => false,
+                'response_text' => '⚠️ /create-task can only be used inside a linked project group.',
+                'meta_data' => [
+                    'telegram_command' => [
+                        'name' => 'create-task',
+                        'status' => 'rejected',
+                        'reason' => 'not_group_chat',
+                    ],
+                ],
+            ];
+        }
+
+        if (($senderData['type'] ?? null) !== User::class || empty($senderData['id'])) {
+            return [
+                'handled' => true,
+                'success' => false,
+                'response_text' => '⚠️ Link your Telegram account to a CRM team user before using /create-task.',
+                'meta_data' => [
+                    'telegram_command' => [
+                        'name' => 'create-task',
+                        'status' => 'rejected',
+                        'reason' => 'sender_not_linked_user',
+                    ],
+                ],
+            ];
+        }
+
+        $parsedCommand = $this->parseCreateTaskCommand($text, $message['entities'] ?? ($message['caption_entities'] ?? []));
+
+        if (! $parsedCommand) {
+            return [
+                'handled' => true,
+                'success' => false,
+                'response_text' => '⚠️ Usage: /create-task "Task title" optional @username',
+                'meta_data' => [
+                    'telegram_command' => [
+                        'name' => 'create-task',
+                        'status' => 'rejected',
+                        'reason' => 'invalid_format',
+                    ],
+                ],
+            ];
+        }
+
+        $creator = User::find($senderData['id']);
+        if (! $creator) {
+            return [
+                'handled' => true,
+                'success' => false,
+                'response_text' => '⚠️ Your linked CRM user could not be found. Re-link your Telegram account and try again.',
+                'meta_data' => [
+                    'telegram_command' => [
+                        'name' => 'create-task',
+                        'status' => 'rejected',
+                        'reason' => 'creator_not_found',
+                    ],
+                ],
+            ];
+        }
+
+        $assignee = null;
+        if (! empty($parsedCommand['assignee_reference'])) {
+            $assignee = $this->resolveTelegramTaskAssignee($parsedCommand['assignee_reference']);
+
+            if (! $assignee) {
+                $assigneeLabel = $parsedCommand['assignee_reference']['raw_label']
+                    ?? $parsedCommand['assignee_reference']['lookup_value']
+                    ?? 'that mention';
+
+                return [
+                    'handled' => true,
+                    'success' => false,
+                    'response_text' => "⚠️ I couldn't match {$assigneeLabel} to a linked CRM user.",
+                    'meta_data' => [
+                        'telegram_command' => [
+                            'name' => 'create-task',
+                            'status' => 'rejected',
+                            'reason' => 'assignee_not_found',
+                            'assignee_reference' => $assigneeLabel,
+                        ],
+                    ],
+                ];
+            }
+        }
+
+        try {
+            $task = $this->createTaskFromTelegramCommand($project, $parsedCommand['title'], $creator, $assignee, $message);
+
+            $assigneeText = $assignee
+                ? " Assigned to *{$assignee->name}*."
+                : ' It is currently unassigned.';
+
+            return [
+                'handled' => true,
+                'success' => true,
+                'response_text' => "✅ Task created: *{$task->name}* ({$task->task_number}).{$assigneeText}",
+                'meta_data' => [
+                    'telegram_command' => [
+                        'name' => 'create-task',
+                        'status' => 'created',
+                        'task_id' => $task->id,
+                        'task_number' => $task->task_number,
+                        'title' => $task->name,
+                        'assigned_to_user_id' => $assignee?->id,
+                    ],
+                ],
+            ];
+        } catch (\Throwable $exception) {
+            Log::error('Telegram create-task command failed', [
+                'project_id' => $project->id,
+                'message_id' => $message['message_id'] ?? null,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return [
+                'handled' => true,
+                'success' => false,
+                'response_text' => '❌ Failed to create the task. Please try again from the CRM if this keeps happening.',
+                'meta_data' => [
+                    'telegram_command' => [
+                        'name' => 'create-task',
+                        'status' => 'failed',
+                    ],
+                ],
+            ];
+        }
+    }
+
+    private function parseCreateTaskCommand(string $text, array $entities = []): ?array
+    {
+        if (! preg_match('/^\/create-task(?:@[A-Za-z0-9_]+)?\s+(.+)$/su', trim($text), $matches)) {
+            return null;
+        }
+
+        $commandBody = trim($matches[1] ?? '');
+        if ($commandBody === '') {
+            return null;
+        }
+
+        $assigneeReference = $this->extractTaskAssigneeReference($text, $entities);
+
+        if (! empty($assigneeReference['raw_label'])) {
+            $quotedLabel = preg_quote($assigneeReference['raw_label'], '/');
+            $commandBody = preg_replace("/\\s+{$quotedLabel}\\s*$/u", '', $commandBody) ?? $commandBody;
+            $commandBody = trim($commandBody);
+        }
+
+        if ($commandBody === '') {
+            return null;
+        }
+
+        if (preg_match('/^"(.+)"$/su', $commandBody, $quotedTitle)) {
+            $title = trim($quotedTitle[1]);
+        } else {
+            $title = trim($commandBody, " \t\n\r\0\x0B\"'");
+        }
+
+        if ($title === '') {
+            return null;
+        }
+
+        return [
+            'title' => $title,
+            'assignee_reference' => $assigneeReference,
+        ];
+    }
+
+    private function extractTaskAssigneeReference(string $text, array $entities = []): ?array
+    {
+        $references = [];
+
+        foreach ($entities as $entity) {
+            $type = $entity['type'] ?? null;
+            if (! in_array($type, ['mention', 'text_mention'], true)) {
+                continue;
+            }
+
+            $offset = (int) ($entity['offset'] ?? 0);
+            $length = (int) ($entity['length'] ?? 0);
+            $rawLabel = $length > 0 ? trim(mb_substr($text, $offset, $length)) : null;
+
+            $references[] = [
+                'offset' => $offset,
+                'type' => $type,
+                'raw_label' => $rawLabel,
+                'lookup_value' => $rawLabel,
+                'telegram_id' => isset($entity['user']['id']) ? (string) $entity['user']['id'] : null,
+            ];
+        }
+
+        if ($references !== []) {
+            usort($references, fn (array $left, array $right) => $right['offset'] <=> $left['offset']);
+
+            return $references[0];
+        }
+
+        if (preg_match('/\s+(@[A-Za-z0-9_]+)\s*$/u', $text, $matches)) {
+            return [
+                'type' => 'mention',
+                'raw_label' => $matches[1],
+                'lookup_value' => $matches[1],
+                'telegram_id' => null,
+            ];
+        }
+
+        return null;
+    }
+
+    private function resolveTelegramTaskAssignee(array $reference): ?User
+    {
+        if (! empty($reference['telegram_id'])) {
+            $account = TelegramAccount::query()
+                ->where('telegram_id', (string) $reference['telegram_id'])
+                ->where('telegramable_type', User::class)
+                ->with('telegramable')
+                ->first();
+
+            if ($account?->telegramable instanceof User) {
+                return $account->telegramable;
+            }
+        }
+
+        $lookupValue = trim((string) ($reference['lookup_value'] ?? $reference['raw_label'] ?? ''));
+        $normalized = Str::lower(ltrim($lookupValue, '@'));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $accounts = TelegramAccount::query()
+            ->where('telegramable_type', User::class)
+            ->with('telegramable')
+            ->get()
+            ->filter(fn (TelegramAccount $account) => $account->telegramable instanceof User)
+            ->values();
+
+        $exactMatch = $accounts->first(function (TelegramAccount $account) use ($normalized) {
+            $candidates = array_filter([
+                Str::lower((string) $account->username),
+                Str::lower((string) $account->first_name),
+                Str::lower((string) $account->last_name),
+                Str::lower(trim(($account->first_name ?? '') . ' ' . ($account->last_name ?? ''))),
+                Str::lower((string) $account->telegramable->name),
+            ]);
+
+            return in_array($normalized, $candidates, true);
+        });
+
+        if ($exactMatch) {
+            return $exactMatch->telegramable;
+        }
+
+        $startsWithMatches = $accounts->filter(function (TelegramAccount $account) use ($normalized) {
+            $candidates = array_filter([
+                Str::lower((string) $account->username),
+                Str::lower((string) $account->first_name),
+                Str::lower((string) $account->last_name),
+                Str::lower(trim(($account->first_name ?? '') . ' ' . ($account->last_name ?? ''))),
+                Str::lower((string) $account->telegramable->name),
+            ]);
+
+            foreach ($candidates as $candidate) {
+                if (Str::startsWith($candidate, $normalized)) {
+                    return true;
+                }
+            }
+
+            return false;
+        })->values();
+
+        return $startsWithMatches->count() === 1
+            ? $startsWithMatches->first()->telegramable
+            : null;
+    }
+
+    private function createTaskFromTelegramCommand(
+        Project $project,
+        string $title,
+        User $creator,
+        ?User $assignee,
+        array $message
+    ): Task {
+        return DB::transaction(function () use ($project, $title, $creator, $assignee, $message) {
+            $milestone = $project->supportMilestone();
+            $taskType = TaskType::firstOrCreate(
+                ['name' => 'New'],
+                ['created_by_user_id' => $creator->id]
+            );
+
+            $task = Task::create([
+                'name' => $title,
+                'status' => TaskStatus::ToDo->value,
+                'task_type_id' => $taskType->id,
+                'milestone_id' => $milestone->id,
+                'assigned_to_user_id' => $assignee?->id,
+                'priority' => 'medium',
+                'creator_id' => $creator->id,
+                'creator_type' => User::class,
+                'source' => 'telegram',
+                'additional_info' => [
+                    'telegram_command' => 'create-task',
+                    'telegram_chat_id' => $message['chat']['id'] ?? null,
+                    'telegram_message_id' => $message['message_id'] ?? null,
+                ],
+            ]);
+
+            return $task->load(['assignedTo', 'milestone.project']);
+        });
     }
 
     /**

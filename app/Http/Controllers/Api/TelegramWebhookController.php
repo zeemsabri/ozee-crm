@@ -208,6 +208,8 @@ class TelegramWebhookController extends Controller
             $relayResults = [];
             $telegramService = app(\App\Services\TelegramService::class);
             $clientMessagingStatus = $telegramService->getClientMessagingStatus($project);
+            $commandMetaData = [];
+            $commandHandled = false;
 
             // If we have a thread ID from Telegram, try to find matching topic
             if ($threadId) {
@@ -221,7 +223,26 @@ class TelegramWebhookController extends Controller
 
             // CRITICAL: If the message is from a CLIENT (DM), it MUST go to the Client Communication (Proxy) topic
             // AND the General topic so the internal team is notified everywhere.
-            if ($text && $senderData && $senderData['type'] === \App\Models\Client::class && !isset($message['chat']['title'])) {
+            if ($text && $telegramService->isCreateTaskCommand($text)) {
+                $taskCommandResult = $telegramService->handleCreateTaskCommand($project, $message, $senderData);
+                $commandHandled = (bool) ($taskCommandResult['handled'] ?? false);
+
+                if ($commandHandled) {
+                    $result = $this->sendMessage(
+                        $chatId,
+                        $taskCommandResult['response_text'] ?? '⚠️ Unable to process /create-task.',
+                        $threadId
+                    );
+
+                    if ($result) {
+                        $relayResults['task_command_response'] = $result;
+                    }
+
+                    $commandMetaData = $taskCommandResult['meta_data'] ?? [];
+                }
+            }
+
+            if (!$commandHandled && $text && $senderData && $senderData['type'] === \App\Models\Client::class && !isset($message['chat']['title'])) {
                 $client = \App\Models\Client::find($senderData['id']);
                 $prefix = $client ? $client->name : ($from['first_name'] ?? 'Client');
                 
@@ -267,7 +288,7 @@ class TelegramWebhookController extends Controller
             // Handle Cross-Topic Team Command (/client or /reply)
             // Fire for ANY sender in a group chat - no need to be a linked CRM User.
             // Clients sending DMs won't have chat.title, so this is safely team-only.
-            if ($isClientCommand && isset($message['chat']['title'])) {
+            if (!$commandHandled && $isClientCommand && isset($message['chat']['title'])) {
                 if (!$clientMessagingStatus['enabled']) {
                     $result = $this->sendMessage(
                         $chatId,
@@ -318,7 +339,7 @@ class TelegramWebhookController extends Controller
             }
             // DIRECTION 2: Internal Team -> Client DM (from Proxy topic)
             // If the message is from within a Group Topic and the topic is a PROXY topic.
-            else if ($text && $threadId && isset($message['chat']['title'])) {
+            else if (!$commandHandled && $text && $threadId && isset($message['chat']['title'])) {
                 $currentTopic = \App\Models\TelegramTopic::where('project_id', $project->id)
                     ->where('telegram_thread_id', $threadId)
                     ->first();
@@ -358,6 +379,15 @@ class TelegramWebhookController extends Controller
             }
 
             if ($text) {
+                $metaData = [
+                    'telegram_from' => $from,
+                    'telegram_relays' => $relayResults,
+                ];
+
+                if (!empty($commandMetaData)) {
+                    $metaData = array_merge($metaData, $commandMetaData);
+                }
+
                 $msgData = [
                     'project_id' => $project->id,
                     'telegram_topic_id' => $targetTopicId,
@@ -365,10 +395,7 @@ class TelegramWebhookController extends Controller
                     'message' => $text,
                     'source' => 'telegram',
                     'type' => 'text',
-                    'meta_data' => [
-                        'telegram_from' => $from,
-                        'telegram_relays' => $relayResults, // Keep legacy for now
-                    ]
+                    'meta_data' => $metaData
                 ];
 
                 if ($senderData) {
