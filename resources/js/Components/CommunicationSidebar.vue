@@ -102,7 +102,7 @@ const availableContexts = computed(() => {
             unreadCount: unreadByProject.value[p.id] ?? 0,
             color: 'bg-indigo-500' // Default
         }))
-        .sort((a, b) => b.unreadCount - a.unreadCount);
+        .sort((a, b) => a.name.localeCompare(b.name));
 });
 
 const filteredNotifications = computed(() => {
