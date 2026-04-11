@@ -3,11 +3,69 @@ import { computed, ref } from 'vue';
 import { useExtensionStatus } from '@/Composables/useExtensionStatus';
 
 const dismissedUntil = ref(Number(localStorage.getItem('extension_reminder_bar_dismissed_until') || 0));
-const { status, loading, shouldShowReminder, refreshStatus } = useExtensionStatus();
+const { status, loading, shouldShowReminder, reminderReason, refreshStatus } = useExtensionStatus();
+
+const formatTimestamp = (value) => {
+    if (!value) {
+        return null;
+    }
+
+    const parsed = new Date(value);
+
+    if (Number.isNaN(parsed.getTime())) {
+        return value;
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    }).format(parsed);
+};
 
 const isDismissed = computed(() => dismissedUntil.value > Date.now());
 const isVisible = computed(() => shouldShowReminder.value && !isDismissed.value);
-const lastSeenLabel = computed(() => status.value.last_status_change || status.value.last_activity || null);
+const lastSeenLabel = computed(() => {
+    return formatTimestamp(
+        status.value.extension_version_last_seen_at || status.value.last_status_change || status.value.last_activity || null
+    );
+});
+const actionLabel = computed(() => reminderReason.value === 'outdated_version' ? 'Update Extension' : 'Open Extension');
+const lastSeenPrefix = computed(() => {
+    if (reminderReason.value === 'outdated_version' || reminderReason.value === 'missing_version') {
+        return 'Last version report:';
+    }
+
+    return 'Last reported activity:';
+});
+const reminderTitle = computed(() => {
+    if (reminderReason.value === 'outdated_version') {
+        return 'Your extension is out of date.';
+    }
+
+    if (reminderReason.value === 'missing_version') {
+        return 'Extension version could not be verified.';
+    }
+
+    return 'Extension is required but you are currently offline.';
+});
+const reminderMessage = computed(() => {
+    if (reminderReason.value === 'outdated_version') {
+        const requiredVersion = status.value.required_extension_version;
+        const reportedVersion = status.value.reported_extension_version || 'unknown';
+
+        return `Update the extension to version ${requiredVersion} or newer. Current reported version: ${reportedVersion}.`;
+    }
+
+    if (reminderReason.value === 'missing_version') {
+        const requiredVersion = status.value.required_extension_version;
+
+        return requiredVersion
+            ? `Open the extension so CRM can verify that you are on version ${requiredVersion} or newer.`
+            : 'Open the extension so CRM can verify your installed version.';
+    }
+
+    return 'Turn on the extension so your work time is recorded correctly.';
+});
 
 const dismissReminder = () => {
     dismissedUntil.value = Date.now() + (60 * 60 * 1000);
@@ -25,10 +83,10 @@ const dismissReminder = () => {
                     </svg>
                 </div>
                 <div>
-                    <p class="font-semibold">Extension is required but you are currently offline.</p>
+                    <p class="font-semibold">{{ reminderTitle }}</p>
                     <p class="mt-1 text-amber-900/80">
-                        Turn on the extension so your work time is recorded correctly.
-                        <span v-if="lastSeenLabel" class="font-medium">Last reported activity: {{ lastSeenLabel }}</span>
+                        {{ reminderMessage }}
+                        <span v-if="lastSeenLabel" class="font-medium">{{ lastSeenPrefix }} {{ lastSeenLabel }}</span>
                     </p>
                 </div>
             </div>
@@ -40,11 +98,11 @@ const dismissReminder = () => {
                     rel="noopener noreferrer"
                     class="inline-flex items-center rounded-full bg-amber-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-amber-700"
                 >
-                    Open Extension
+                    {{ actionLabel }}
                 </a>
                 <button
                     type="button"
-                    @click="refreshStatus"
+                    @click="refreshStatus({ force: true })"
                     :disabled="loading"
                     class="inline-flex items-center rounded-full border border-amber-300 bg-white px-4 py-2 text-xs font-semibold text-amber-900 transition hover:border-amber-400 hover:bg-amber-50 disabled:opacity-60"
                 >

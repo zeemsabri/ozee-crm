@@ -4,12 +4,16 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
+use App\Models\DailyTask;
 use App\Models\Project;
 use App\Models\Role;
 use App\Models\Task;
+use App\Models\TaskType;
 use App\Services\ValueSetValidator;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class ExternalApiController extends Controller
 {
@@ -148,6 +152,65 @@ class ExternalApiController extends Controller
 
         // Authorization check (via project)
         $task = $user->activeTask;
+
+        return response()->json($task);
+    }
+
+    /**
+     * Create a quick task in the project's support milestone and start it immediately.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function createQuickTask(Request $request)
+    {
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'project_id' => 'required|exists:projects,id',
+        ]);
+
+        $project = Project::findOrFail($validated['project_id']);
+
+        if (! $user->isSuperAdmin() && ! $user->isManager() && ! $user->projects()->where('projects.id', $project->id)->exists()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $task = DB::transaction(function () use ($project, $user, $validated) {
+            $supportMilestone = $project->supportMilestone();
+            $taskType = TaskType::firstOrCreate(['name' => 'New']);
+            $today = Carbon::today();
+
+            $task = Task::create([
+                'name' => $validated['name'],
+                'status' => TaskStatus::ToDo,
+                'milestone_id' => $supportMilestone->id,
+                'assigned_to_user_id' => $user->id,
+                'due_date' => $today,
+                'priority' => 'medium',
+                'task_type_id' => $taskType->id,
+                'source' => 'extension_quick_task',
+            ]);
+
+            $task->start($user);
+
+            $nextOrder = DailyTask::forUser($user->id)->forDate($today->toDateString())->max('order') ?? -1;
+            DailyTask::firstOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'task_id' => $task->id,
+                    'date' => $today->toDateString(),
+                ],
+                [
+                    'order' => $nextOrder + 1,
+                    'status' => DailyTask::STATUS_PENDING,
+                ]
+            );
+
+            return $task;
+        });
+
+        $task->load(['assignedTo', 'taskType', 'milestone.project', 'tags', 'subtasks']);
 
         return response()->json($task);
     }

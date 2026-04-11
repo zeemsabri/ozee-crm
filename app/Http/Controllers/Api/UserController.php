@@ -71,7 +71,7 @@ class UserController extends Controller
         $user = Auth::user();
 
         // Build base query with eager loads
-        $query = User::with(['projects', 'categories.set']);
+        $query = User::with(['projects', 'categories.set', 'telegramAccount']);
 
         // Apply soft delete scopes based on query params
         // ?with_trashed=1 -> include both active and archived
@@ -80,6 +80,12 @@ class UserController extends Controller
             $query->onlyTrashed();
         } elseif ($request->boolean('with_trashed')) {
             $query->withTrashed();
+        }
+
+        if ($request->input('telegram_linked') === 'linked') {
+            $query->whereHas('telegramAccount');
+        } elseif ($request->input('telegram_linked') === 'unlinked') {
+            $query->whereDoesntHave('telegramAccount');
         }
 
         // Filter data based on role

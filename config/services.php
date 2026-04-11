@@ -61,7 +61,7 @@ return [
     'chrome_extension' => env('CHROME_EXTENSION'),
     'extension' => [
         'download_link' =>  env('CHROME_EXTENSION'),
-        'version'   =>    "0.5.6"
+        'version'   =>    "0.5.7"
     ],
 
     'telegram'  =>  [

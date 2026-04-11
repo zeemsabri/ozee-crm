@@ -24,7 +24,9 @@ import {
     ArchiveBoxIcon,
     ArrowUturnUpIcon,
     KeyIcon,
-    ChatBubbleOvalLeftEllipsisIcon
+    ChatBubbleOvalLeftEllipsisIcon,
+    ClipboardDocumentIcon,
+    ArrowTopRightOnSquareIcon
 } from '@heroicons/vue/24/outline';
 
 // Access authenticated user
@@ -42,6 +44,7 @@ const searchQuery = ref('');
 const selectedRole = ref('');
 const selectedProject = ref('');
 const selectedStatus = ref('active'); // active | archived | all
+const selectedTelegramLinked = ref('');
 
 // Modals state
 const showCreateModal = ref(false);
@@ -204,6 +207,9 @@ const fetchUsers = async () => {
             params.with_trashed = 1;
         } else if (selectedStatus.value === 'archived') {
             params.only_trashed = 1;
+        }
+        if (selectedTelegramLinked.value) {
+            params.telegram_linked = selectedTelegramLinked.value;
         }
         const response = await window.axios.get('/api/users', { params });
         users.value = response.data;
@@ -423,6 +429,55 @@ const getProjectSummary = (userProjects) => {
     return `${projectNames[0]}, ${projectNames[1]} and ${remainingCount} more`;
 };
 
+const getTelegramUsername = (telegramAccount) => {
+    if (!telegramAccount?.username) {
+        return 'No username';
+    }
+
+    return `@${telegramAccount.username}`;
+};
+
+const getTelegramProfileUrl = (telegramAccount) => {
+    if (!telegramAccount) {
+        return null;
+    }
+
+    if (telegramAccount.username) {
+        return `https://t.me/${telegramAccount.username}`;
+    }
+
+    if (telegramAccount.telegram_id) {
+        return `tg://user?id=${telegramAccount.telegram_id}`;
+    }
+
+    return null;
+};
+
+const copyToClipboard = async (value, successMessage) => {
+    if (!value) {
+        return;
+    }
+
+    try {
+        await navigator.clipboard.writeText(value);
+        window.toast?.success(successMessage);
+    } catch (error) {
+        console.error('Failed to copy to clipboard:', error);
+        window.toast?.error('Failed to copy to clipboard');
+        alert('Failed to copy to clipboard.');
+    }
+};
+
+const copyTelegramUsername = (telegramAccount) => copyToClipboard(
+    telegramAccount?.username ? `@${telegramAccount.username}` : '',
+    'Telegram username copied'
+);
+
+const copyTelegramId = (telegramAccount) => copyToClipboard(
+    telegramAccount?.telegram_id || '',
+    'Telegram ID copied'
+);
+
 
 // Fetch users and roles when component is mounted
 onMounted(() => {
@@ -532,6 +587,11 @@ const getAvatarColor = (name) => {
                                         {{ option.label }}
                                     </option>
                                 </select>
+                                <select v-model="selectedTelegramLinked" @change="fetchUsers" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm w-full sm:w-44">
+                                    <option value="">All Telegram</option>
+                                    <option value="linked">Telegram Linked</option>
+                                    <option value="unlinked">Telegram Not Linked</option>
+                                </select>
                                 <select v-model="selectedStatus" @change="fetchUsers" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm w-full sm:w-40">
                                     <option value="active">Active</option>
                                     <option value="archived">Archived</option>
@@ -603,6 +663,76 @@ const getAvatarColor = (name) => {
                                             <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold uppercase bg-red-100 text-red-700 ring-1 ring-inset ring-red-600/20">
                                                 Extension Mandatory
                                             </span>
+                                        </div>
+
+                                        <div v-if="userItem.telegram_account" class="mt-3 p-3 bg-sky-50 rounded-xl border border-sky-100">
+                                            <div class="flex items-start justify-between gap-3">
+                                                <div class="min-w-0 flex-1">
+                                                    <p class="text-[10px] uppercase font-semibold text-sky-500 mb-2 flex items-center">
+                                                        <ChatBubbleOvalLeftEllipsisIcon class="h-3 w-3 mr-1" /> Telegram Linked
+                                                    </p>
+
+                                                    <div class="space-y-2">
+                                                        <div>
+                                                            <p class="text-[10px] uppercase tracking-wide text-sky-700/70">Username</p>
+                                                            <div class="flex items-center gap-2 mt-1 min-w-0">
+                                                                <a
+                                                                    v-if="userItem.telegram_account.username"
+                                                                    :href="getTelegramProfileUrl(userItem.telegram_account)"
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    class="text-sm font-semibold text-sky-700 hover:text-sky-900 truncate"
+                                                                >
+                                                                    {{ getTelegramUsername(userItem.telegram_account) }}
+                                                                </a>
+                                                                <span v-else class="text-sm text-sky-800/70">No username</span>
+                                                                <button
+                                                                    v-if="userItem.telegram_account.username"
+                                                                    @click="copyTelegramUsername(userItem.telegram_account)"
+                                                                    class="p-1 rounded-md text-sky-500 hover:text-sky-700 hover:bg-white transition-colors"
+                                                                    title="Copy Telegram username"
+                                                                >
+                                                                    <ClipboardDocumentIcon class="h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <p class="text-[10px] uppercase tracking-wide text-sky-700/70">Telegram ID</p>
+                                                            <div class="flex items-center gap-2 mt-1 min-w-0">
+                                                                <a
+                                                                    v-if="getTelegramProfileUrl(userItem.telegram_account)"
+                                                                    :href="getTelegramProfileUrl(userItem.telegram_account)"
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    class="text-sm font-mono font-semibold text-sky-700 hover:text-sky-900 truncate"
+                                                                >
+                                                                    {{ userItem.telegram_account.telegram_id }}
+                                                                </a>
+                                                                <span v-else class="text-sm font-mono text-sky-800/70">{{ userItem.telegram_account.telegram_id }}</span>
+                                                                <button
+                                                                    @click="copyTelegramId(userItem.telegram_account)"
+                                                                    class="p-1 rounded-md text-sky-500 hover:text-sky-700 hover:bg-white transition-colors"
+                                                                    title="Copy Telegram ID"
+                                                                >
+                                                                    <ClipboardDocumentIcon class="h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <a
+                                                    v-if="getTelegramProfileUrl(userItem.telegram_account)"
+                                                    :href="getTelegramProfileUrl(userItem.telegram_account)"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    class="p-2 rounded-lg text-sky-600 hover:text-sky-800 hover:bg-white transition-colors"
+                                                    title="Open in Telegram"
+                                                >
+                                                    <ArrowTopRightOnSquareIcon class="h-4 w-4" />
+                                                </a>
+                                            </div>
                                         </div>
 
                                         <!-- API Key Display -->

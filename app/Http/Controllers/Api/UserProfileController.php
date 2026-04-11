@@ -3,12 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\UserActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 
 class UserProfileController extends Controller
 {
+    private const EXTENSION_VERSION_CACHE_HOURS = 8;
+
     /**
      * Explicitly update the authenticated user's online status.
      */
@@ -86,18 +90,76 @@ class UserProfileController extends Controller
     /**
      * Get the current user's online status and extension settings.
      */
-    public function status()
+    public function status(Request $request)
     {
         $user = Auth::user();
+
+        $extensionVersionStatus = $this->getExtensionVersionStatus(
+            $user,
+            $request->boolean('force')
+        );
+
         return response()->json([
             'id' => $user->id,
             'name' => $user->name,
-            'is_online' => (bool)$user->is_online,
-            'extension_mandatory' => (bool)$user->extension_mandatory,
-            'can_bypass' => (bool)$user->hasPermission('by_pass_extension'),
+            'is_online' => (bool) $user->is_online,
+            'extension_mandatory' => (bool) $user->extension_mandatory,
+            'can_bypass' => (bool) $user->hasPermission('by_pass_extension'),
             'last_activity' => $user->last_activity,
+            'last_status_change' => data_get($user->online_data, 'last_status_change'),
             'telegram_link_code' => $user->telegram_link_code,
             'telegram_account' => $user->telegramAccount,
-        ]);
+        ] + $extensionVersionStatus);
+    }
+
+    /**
+     * Resolve the user's cached extension version status from recent activity metadata.
+     *
+     * @return array<string, mixed>
+     */
+    private function getExtensionVersionStatus($user, bool $forceRefresh = false): array
+    {
+        $cacheKey = "user-extension-version-status:{$user->id}";
+
+        if ($forceRefresh) {
+            Cache::forget($cacheKey);
+        }
+
+        return Cache::remember(
+            $cacheKey,
+            now()->addHours(self::EXTENSION_VERSION_CACHE_HOURS),
+            function () use ($user) {
+                $latestActivity = UserActivity::query()
+                    ->where('user_id', $user->id)
+                    ->whereNotNull('metadata')
+                    ->latest('recorded_at')
+                    ->latest('id')
+                    ->limit(50)
+                    ->get(['metadata', 'recorded_at'])
+                    ->first(fn (UserActivity $activity) => filled(data_get($activity->metadata, 'extension_version')));
+
+                $reportedVersion = $latestActivity
+                    ? data_get($latestActivity->metadata, 'extension_version')
+                    : null;
+
+                $requiredVersion = config('services.extension.version');
+                $isMissingVersion = filled($requiredVersion) && blank($reportedVersion);
+                $isOutdatedVersion = filled($requiredVersion)
+                    && filled($reportedVersion)
+                    && version_compare($reportedVersion, $requiredVersion, '<');
+
+                return [
+                    'reported_extension_version' => $reportedVersion,
+                    'required_extension_version' => $requiredVersion,
+                    'extension_version_last_seen_at' => $latestActivity?->recorded_at?->toIso8601String(),
+                    'extension_version_checked_at' => now()->toIso8601String(),
+                    'extension_version_missing' => $isMissingVersion,
+                    'extension_version_outdated' => $isOutdatedVersion,
+                    'extension_reminder_reason' => $isMissingVersion
+                        ? 'missing_version'
+                        : ($isOutdatedVersion ? 'outdated_version' : null),
+                ];
+            }
+        );
     }
 }
