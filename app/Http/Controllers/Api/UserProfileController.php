@@ -10,6 +10,43 @@ use Illuminate\Support\Facades\Validator;
 class UserProfileController extends Controller
 {
     /**
+     * Explicitly update the authenticated user's online status.
+     */
+    public function updateOnlineStatus(Request $request)
+    {
+        $user = Auth::user();
+
+        $validator = Validator::make($request->all(), [
+            'status' => 'required|string|in:online,offline,active,inactive',
+            'reason' => 'nullable|string|max:255',
+            'metadata' => 'nullable|array',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $status = $request->string('status')->lower()->value();
+        $isOnline = in_array($status, ['online', 'active'], true);
+
+        $context = array_merge($request->input('metadata', []), [
+            'source' => 'presence_endpoint',
+            'requested_status' => $status,
+            'reason' => $request->input('reason'),
+        ]);
+
+        $changed = $user->setOnlineStatus($isOnline, $context);
+
+        return response()->json([
+            'message' => $changed ? 'Online status updated successfully.' : 'Online status already set.',
+            'status' => $isOnline ? 'online' : 'offline',
+            'is_online' => $isOnline,
+            'changed' => $changed,
+            'last_status_change' => data_get($user->fresh()->online_data, 'last_status_change'),
+        ]);
+    }
+
+    /**
      * Update a single profile field for the authenticated user.
      * Accepts a generic payload and updates allowed fields only.
      */

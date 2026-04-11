@@ -469,6 +469,10 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         ]);
     })->name('dashboard');
 
+    Route::get('/attendance', function () {
+        return Inertia::render('Attendance/Index');
+    })->name('attendance.index');
+
     // Your existing profile routes
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

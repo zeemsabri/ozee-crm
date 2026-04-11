@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes; // Import Collection for getClient
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Activitylog\Models\Activity;
 
 class User extends Authenticatable
 {
@@ -723,6 +724,36 @@ class User extends Authenticatable
     }
 
     /**
+     * Update the user's online presence and write an activity log when it changes.
+     */
+    public function setOnlineStatus(bool $isOnline, array $context = []): bool
+    {
+        if ($this->is_online === $isOnline) {
+            return false;
+        }
+
+        $this->update([
+            'is_online' => $isOnline,
+            'online_data' => array_merge($this->online_data ?? [], [
+                'last_status_change' => now()->toIso8601String(),
+                'source' => $context['source'] ?? 'api',
+                'status' => $isOnline ? 'online' : 'offline',
+                'reason' => $context['reason'] ?? null,
+            ]),
+        ]);
+
+        activity('online_status')
+            ->performedOn($this)
+            ->withProperties([
+                'status' => $isOnline ? 'online' : 'offline',
+                'data' => $context,
+            ])
+            ->log('User went '.($isOnline ? 'online' : 'offline'));
+
+        return true;
+    }
+
+    /**
      * Retrieve the online/offline activity logs for the user within a date range.
      *
      * @param string|null $startDate
@@ -732,7 +763,7 @@ class User extends Authenticatable
     public function onlineActivityLogs(?string $startDate = null, ?string $endDate = null)
     {
         $userTimezone = $this->timezone ?? config('app.timezone', 'UTC');
-        $query = \Spatie\Activitylog\Models\Activity::forSubject($this)
+        $query = Activity::forSubject($this)
             ->where('log_name', 'online_status');
 
         if ($startDate) {

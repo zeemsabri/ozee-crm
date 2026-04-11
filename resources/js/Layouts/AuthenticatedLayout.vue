@@ -25,6 +25,7 @@ import PromptOrchestrator from '@/Components/Prompts/PromptOrchestrator.vue';
 import MeetingMinutesModal from '@/Components/MeetingMinutesModal.vue';
 import YesterdayReport from '@/Components/Productivity/YesterdayReport.vue';
 import ExtensionEnforcementModal from '@/Components/Availability/ExtensionEnforcementModal.vue';
+import ExtensionReminderBar from '@/Components/Availability/ExtensionReminderBar.vue';
 import HourlyNotificationSummaryModal from '@/Components/Notices/HourlyNotificationSummaryModal.vue';
 
 const showingNavigationDropdown = ref(false);
@@ -213,6 +214,8 @@ onBeforeUnmount(() => {
                 @open-kudo-modal="openKudoModal = true"
                 @open-meeting-minutes-modal="openMeetingMinutesModal = true"
             />
+
+            <ExtensionReminderBar />
 
             <!-- Mobile Navigation -->
             <MobileNavigation

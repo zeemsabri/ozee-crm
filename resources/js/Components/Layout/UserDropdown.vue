@@ -55,6 +55,9 @@ const handleLogoutError = (error) => {
             </template>
 
             <template #content>
+                <DropdownLink :href="route('attendance.index')">
+                    Attendance
+                </DropdownLink>
                 <DropdownLink :href="route('profile.edit')">
                     Profile
                 </DropdownLink>

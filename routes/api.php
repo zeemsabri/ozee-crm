@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\ShareableResourceController;
 use App\Http\Controllers\Api\SubtaskController;
 use App\Http\Controllers\Api\TaskController;
 use App\Http\Controllers\Api\TaskTypeController;
+use App\Http\Controllers\Api\UserAttendanceController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\UserWorkspaceController;
@@ -111,6 +112,7 @@ Route::post('/client-api/setup-pin', [MagicLinkController::class, 'setupPin']);
 
 Route::middleware('auth.apikey')->group(function () {
     Route::post('/activityData', [ActivityDataController::class, 'store']);
+    Route::post('/presence/status', [UserProfileController::class, 'updateOnlineStatus']);
 
     // External API routes
     Route::get('/activity/projects', [\App\Http\Controllers\Api\ExternalApiController::class, 'getProjects']);
@@ -151,6 +153,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('/me/status', [UserProfileController::class, 'status']);
+    Route::get('/me/attendance', [UserAttendanceController::class, 'index']);
 
     // Centralized options endpoint
     Route::get('options/{key}', [OptionsController::class, 'show']);

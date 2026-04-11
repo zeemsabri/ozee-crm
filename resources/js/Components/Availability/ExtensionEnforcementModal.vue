@@ -1,38 +1,27 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch } from 'vue';
 import Modal from '@/Components/Modal.vue';
-import axios from 'axios';
-import { usePage } from '@inertiajs/vue3';
 import { useToast } from 'vue-toast-notification';
+import { useExtensionStatus } from '@/Composables/useExtensionStatus';
 
-const page = usePage();
 const toast = useToast();
 const showModal = ref(false);
-const checkInterval = ref(null);
 const isChecking = ref(false);
 const canBypass = ref(false);
+const { status, shouldShowReminder, refreshStatus } = useExtensionStatus();
 
 const checkExtensionStatus = async (isManual = false) => {
-    // Only check if user is logged in
-    if (!page.props.auth?.user) {
-        console.log('Enforcement: No user logged in, skipping check.');
-        return;
-    }
-
     if (isManual) {
         isChecking.value = true;
     }
 
     try {
-        const response = await axios.get('/api/me/status');
-        const data = response.data;
-        canBypass.value = data.can_bypass;
+        const data = await refreshStatus();
+        if (!data) {
+            return;
+        }
 
-        console.log('Enforcement Check:', {
-            is_online: data.is_online,
-            extension_mandatory: data.extension_mandatory,
-            can_bypass: data.can_bypass
-        });
+        canBypass.value = data.can_bypass;
 
         // If extension is mandatory and user is not online
         if (data.extension_mandatory && !data.is_online) {
@@ -69,19 +58,17 @@ const checkExtensionStatus = async (isManual = false) => {
     }
 };
 
-onMounted(() => {
-    console.log('Enforcement Modal Mounted');
-    // Check immediately on mount
-    checkExtensionStatus();
-
-    // Check every 5 minutes (300,000 ms)
-    checkInterval.value = setInterval(checkExtensionStatus, 300000);
-});
-
-onBeforeUnmount(() => {
-    if (checkInterval.value) {
-        clearInterval(checkInterval.value);
+watch(shouldShowReminder, (value) => {
+    if (!value) {
+        showModal.value = false;
+        return;
     }
+
+    checkExtensionStatus();
+}, { immediate: true });
+
+watch(status, (value) => {
+    canBypass.value = value.can_bypass;
 });
 
 const close = () => {

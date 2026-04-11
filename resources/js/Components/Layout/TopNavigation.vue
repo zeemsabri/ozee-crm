@@ -153,6 +153,9 @@ onMounted(async () => {
                         <NavLink :href="route('workspace.index')" :active="route().current('workspace.index')">
                             My Workspace
                         </NavLink>
+                        <NavLink :href="route('attendance.index')" :active="route().current('attendance.index')">
+                            Attendance
+                        </NavLink>
 
                         <BonusDropdown />
 
@@ -213,6 +216,9 @@ onMounted(async () => {
                 </NavLink>
                 <NavLink :href="route('workspace.index')" :active="route().current('workspace.index')">
                     My Workspace
+                </NavLink>
+                <NavLink :href="route('attendance.index')" :active="route().current('attendance.index')">
+                    Attendance
                 </NavLink>
                 <NavLink :href="route('presentations.index')" :active="route().current('presentations.index')">
                     Presentation
