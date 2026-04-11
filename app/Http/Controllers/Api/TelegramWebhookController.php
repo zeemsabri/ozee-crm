@@ -23,7 +23,7 @@ class TelegramWebhookController extends Controller
 
             // Store the JSON payload for debugging
             $filename = 'telegram/webhooks/' . now()->format('Y-m-d_H-i-s') . '_' . uniqid() . '.json';
-            Storage::disk('local')->put($filename, json_encode($payload, JSON_PRETTY_PRINT));
+            //Storage::disk('local')->put($filename, json_encode($payload, JSON_PRETTY_PRINT));
 
             // 1. Handle Callback Queries (for Inline Buttons)
             if (isset($payload['callback_query'])) {
@@ -34,17 +34,17 @@ class TelegramWebhookController extends Controller
                 if ($fromId && str_starts_with($data, 'switch_project_')) {
                     $projectId = (int) str_replace('switch_project_', '', $data);
                     $account = \App\Models\TelegramAccount::where('telegram_id', $fromId)->first();
-                    
+
                     if ($account && $account->telegramable instanceof \App\Models\Client) {
                         $client = $account->telegramable;
                         $project = \App\Models\Project::find($projectId);
-                        
+
                         if ($project && $client->projects->contains($project->id)) {
                             $client->update(['active_telegram_project_id' => $project->id]);
-                            
+
                             // Acknowledge callback
                             $this->answerCallbackQuery($callback['id'], "Active project set to: {$project->name}");
-                            
+
                             // Update the main menu
                             $telegramService = app(\App\Services\TelegramService::class);
                             $telegramService->updateClientPersistentMenu($client, "✅ Your active project is now set to: *{$project->name}*");
@@ -81,7 +81,7 @@ class TelegramWebhookController extends Controller
                         'telegram_group_name' => $chatName,
                         'telegram_link_code' => null,
                     ]);
-                    
+
                     // Clear the project cache for this chat ID
                     \Illuminate\Support\Facades\Cache::forget("telegram_project_by_chat_{$chatId}");
 
@@ -196,7 +196,7 @@ class TelegramWebhookController extends Controller
             }
 
             // Identify sender - ALREADY DONE ABOVE
-            
+
             // Optimize: Cache the general topic ID to avoid DB lookups on every message
             $generalTopicId = \Illuminate\Support\Facades\Cache::remember("project_{$project->id}_general_topic_id", 3600, function () use ($project) {
                 $telegramService = app(\App\Services\TelegramService::class);
@@ -245,7 +245,7 @@ class TelegramWebhookController extends Controller
             if (!$commandHandled && $text && $senderData && $senderData['type'] === \App\Models\Client::class && !isset($message['chat']['title'])) {
                 $client = \App\Models\Client::find($senderData['id']);
                 $prefix = $client ? $client->name : ($from['first_name'] ?? 'Client');
-                
+
                 // 1. Send to Proxy Topic
                 $proxyTopic = \App\Models\TelegramTopic::where('project_id', $project->id)
                     ->where('type', \App\Enums\TelegramTopicType::PROXY->value)

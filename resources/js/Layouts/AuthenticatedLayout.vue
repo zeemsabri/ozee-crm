@@ -110,11 +110,15 @@ const unreadNotificationCount = computed(() => {
 });
 
 const handleTaskUpdated = (task) => {
-    console.log('Task updated globally.', task);
+    window.dispatchEvent(new CustomEvent('workspace-task-updated', {
+        detail: task,
+    }));
 };
 
 const handleTaskDeleted = (taskId) => {
-    console.log('Task deleted globally.', taskId);
+    window.dispatchEvent(new CustomEvent('workspace-task-deleted', {
+        detail: { taskId },
+    }));
 };
 
 const handleNoticeLinkClick = (notice) => {

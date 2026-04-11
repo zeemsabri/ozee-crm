@@ -19,7 +19,7 @@ class TelegramService
 {
     protected string $token;
 
-    public function __construct()
+    public function __construct(protected MentionService $mentionService)
     {
         $this->token = config('services.telegram.bot_token') ?? '';
     }
@@ -240,15 +240,13 @@ class TelegramService
             return null;
         }
 
-        if ($prefix) {
-            $text = "💬 *{$prefix}:* \n{$text}";
-        }
+        $text = $this->formatOutboundTelegramMessage($text, $prefix);
 
         $response = Http::post("https://api.telegram.org/bot{$this->token}/sendMessage", [
             'chat_id' => $chatId,
             'message_thread_id' => $topic->telegram_thread_id, // Works for null (General) or specific threads
             'text' => $text,
-            'parse_mode' => 'Markdown',
+            'parse_mode' => 'HTML',
         ]);
 
         return $response->successful() ? $response->json('result') : null;
@@ -264,17 +262,31 @@ class TelegramService
             return null;
         }
 
-        if ($prefix) {
-            $text = "💬 *{$prefix}:* \n{$text}";
-        }
+        $text = $this->formatOutboundTelegramMessage($text, $prefix);
 
         $response = Http::post("https://api.telegram.org/bot{$this->token}/sendMessage", [
             'chat_id' => $account->telegram_id,
             'text' => $text,
-            'parse_mode' => 'Markdown',
+            'parse_mode' => 'HTML',
         ]);
 
         return $response->successful() ? $response->json('result') : null;
+    }
+
+    protected function formatOutboundTelegramMessage(string $text, ?string $prefix = null): string
+    {
+        $escapedText = $this->escapeTelegramHtml($this->mentionService->renderPlainText($text));
+
+        if (!$prefix) {
+            return $escapedText;
+        }
+
+        return '💬 <b>' . $this->escapeTelegramHtml($prefix) . ":</b>\n" . $escapedText;
+    }
+
+    protected function escapeTelegramHtml(string $text): string
+    {
+        return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     /**

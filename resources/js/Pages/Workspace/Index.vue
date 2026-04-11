@@ -1,6 +1,6 @@
 <script setup>
 import { Head, usePage } from '@inertiajs/vue3';
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { fetchCurrencyRates, displayCurrency } from '@/Utils/currency';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Filters from '@/Pages/Workspace/components/Filters.vue';
@@ -215,9 +215,12 @@ watch(visibleColumns, (val) => {
 }, { deep: true });
 
 const visibleKanbanColumns = computed(() => kanbanColumns.filter(c => visibleColumns.value.includes(c.key)));
+const activeTaskStatuses = ['To Do', 'In Progress', 'Paused', 'Blocked'];
+const recentDoneFetchLimit = 25;
 
 // Assigned tasks for Kanban
 const assignedTasks = ref([]);
+const recentDoneTasks = ref([]);
 const tasksInDailyLog = ref(new Set());
 const loadingAssignedTasks = ref(false);
 const tasksError = ref('');
@@ -283,6 +286,27 @@ const priorityOptions = [
     { value: 'low', label: 'Low' },
 ];
 
+const dueFilterOptions = [
+    { value: 'all', label: 'All Due' },
+    { value: 'today', label: 'Due Today' },
+    { value: 'overdue', label: 'Overdue' },
+    { value: 'week', label: 'Due This Week' },
+];
+
+const completedFilterOptions = [
+    { value: 'all', label: 'All Completed' },
+    { value: 'completed_today', label: 'Completed Today' },
+    { value: 'completed_yesterday', label: 'Completed Yesterday' },
+    { value: 'completed_this_week', label: 'Completed This Week' },
+    { value: 'completed_last_week', label: 'Completed Last Week' },
+    { value: 'completed_this_month', label: 'Completed This Month' },
+    { value: 'completed_last_month', label: 'Completed Last Month' },
+    { value: 'completed_last_7', label: 'Completed in Last 7 Days' },
+    { value: 'completed_last_30', label: 'Completed in Last 30 Days' },
+];
+
+const showAdvancedFilters = ref(false);
+
 // Clear helpers
 const clearAllFilters = () => {
     searchText.value = '';
@@ -300,6 +324,249 @@ const clearMilestone = () => { milestoneId.value = null; };
 const clearDueFilter = () => { dueFilter.value = 'all'; };
 const clearCompletedFilter = () => { completedFilter.value = 'all'; };
 const clearSearch = () => { searchText.value = ''; };
+
+const combinedKanbanTasks = computed(() => {
+    const merged = [...assignedTasks.value, ...recentDoneTasks.value];
+    const seen = new Set();
+
+    return merged.filter((task) => {
+        if (seen.has(task.id)) return false;
+        seen.add(task.id);
+
+        return true;
+    });
+});
+
+const activeFilterChips = computed(() => {
+    const chips = [];
+    const assigneeLabel = usersOptions.value.find(option => String(option.value) === String(assigneeId.value))?.label;
+    const projectLabel = projectOptions.value.find(option => String(option.value) === String(projectId.value))?.label;
+    const milestoneLabel = milestoneOptions.value.find(option => String(option.value) === String(milestoneId.value))?.label;
+
+    if (searchText.value) chips.push({ key: 'search', label: `Search: ${searchText.value}`, clear: clearSearch });
+    if (projectId.value && projectLabel) chips.push({ key: 'project', label: `Project: ${projectLabel}`, clear: clearProject });
+    if (assigneeId.value && assigneeLabel) chips.push({ key: 'assignee', label: `Assignee: ${assigneeLabel}`, clear: clearAssignee });
+    if (priority.value) chips.push({ key: 'priority', label: `Priority: ${priority.value}`, clear: clearPriority });
+    if (milestoneId.value && milestoneLabel) chips.push({ key: 'milestone', label: `Milestone: ${milestoneLabel}`, clear: clearMilestone });
+    if (dueFilter.value !== 'all') chips.push({ key: 'due', label: `Due: ${dueFilter.value}`, clear: clearDueFilter });
+    if (completedFilter.value !== 'all') chips.push({ key: 'completed', label: `Completed: ${completedFilter.value}`, clear: clearCompletedFilter });
+
+    return chips;
+});
+
+const advancedFilterCount = computed(() => {
+    let count = 0;
+    if (priority.value) count++;
+    if (milestoneId.value) count++;
+    if (dueFilter.value !== 'all') count++;
+    if (completedFilter.value !== 'all') count++;
+
+    return count;
+});
+
+const hasActiveFilters = computed(() => activeFilterChips.value.length > 0);
+
+const visibleActiveTaskCount = computed(() => activeTaskStatuses.reduce((count, status) => count + (itemsByColumn.value[status]?.length ?? 0), 0));
+const visibleDoneTaskCount = computed(() => itemsByColumn.value.Done?.length ?? 0);
+const recentDoneSummary = computed(() => {
+    if (!recentDoneTasks.value.length) return 'No recent completed tasks';
+    if (recentDoneTasks.value.length > 10) return `Showing latest 10 of ${recentDoneTasks.value.length} recent completed tasks`;
+
+    return `Showing ${recentDoneTasks.value.length} recent completed task${recentDoneTasks.value.length === 1 ? '' : 's'}`;
+});
+
+const activePreset = ref('my-active');
+
+const setKanbanPreset = (preset) => {
+    activePreset.value = preset;
+
+    if (preset === 'my-active') {
+        assigneeId.value = null;
+        dueFilter.value = 'all';
+        completedFilter.value = 'all';
+        return;
+    }
+
+    if (preset === 'team-active') {
+        assigneeId.value = '__all__';
+        dueFilter.value = 'all';
+        completedFilter.value = 'all';
+        return;
+    }
+
+    if (preset === 'overdue') {
+        dueFilter.value = 'overdue';
+        completedFilter.value = 'all';
+        return;
+    }
+
+    if (preset === 'recent-done') {
+        dueFilter.value = 'all';
+        completedFilter.value = 'completed_last_7';
+    }
+};
+
+const buildTaskScopeParams = (statuses, extra = {}) => {
+    const params = {
+        ...extra,
+        statuses: statuses.join(','),
+    };
+
+    if (projectId.value) params.project_id = projectId.value;
+    if (searchText.value && !params.search) params.search = searchText.value;
+
+    const currentUserId = usePage().props.auth?.user?.id;
+
+    if (assigneeId.value === '__all__') {
+        if (!canDo('view_all_user').value && !projectId.value) {
+            const accessibleProjectIds = projectOptions.value
+                .map(option => option.value)
+                .filter(value => value !== null);
+
+            if (accessibleProjectIds.length > 0) {
+                params.project_ids = accessibleProjectIds.join(',');
+            }
+        }
+
+        return params;
+    }
+
+    if (assigneeId.value) {
+        params.assigned_to_user_id = assigneeId.value;
+        return params;
+    }
+
+    if (currentUserId) {
+        params.assigned_to_user_id = currentUserId;
+    }
+
+    return params;
+};
+
+const applyCompletedWindowToParams = (params) => {
+    switch (completedFilter.value) {
+        case 'completed_today':
+            params.completed_on = new Date().toISOString().slice(0, 10);
+            break;
+        case 'completed_yesterday':
+            params.completed_since = yesterday.toISOString().slice(0, 10);
+            params.completed_until = yesterdayEnd.toISOString().slice(0, 10);
+            break;
+        case 'completed_this_week':
+            params.completed_since = startOfWeek.toISOString().slice(0, 10);
+            params.completed_until = endOfWeek.toISOString().slice(0, 10);
+            break;
+        case 'completed_last_week':
+            params.completed_since = lastWeekStart.toISOString().slice(0, 10);
+            params.completed_until = lastWeekEnd.toISOString().slice(0, 10);
+            break;
+        case 'completed_this_month':
+            params.completed_since = startOfMonth.toISOString().slice(0, 10);
+            params.completed_until = endOfMonth.toISOString().slice(0, 10);
+            break;
+        case 'completed_last_month':
+            params.completed_since = lastMonthStart.toISOString().slice(0, 10);
+            params.completed_until = lastMonthEnd.toISOString().slice(0, 10);
+            break;
+        case 'completed_last_7':
+            params.completed_since = last7Start.toISOString().slice(0, 10);
+            break;
+        case 'completed_last_30':
+            params.completed_since = last30Start.toISOString().slice(0, 10);
+            break;
+        default:
+            params.completed_since = last30Start.toISOString().slice(0, 10);
+            break;
+    }
+
+    return params;
+};
+
+const fetchTaskPage = async (params) => {
+    const { data } = await window.axios.get('/api/tasks', { params });
+    const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+
+    return {
+        list,
+        currentPage: Array.isArray(data) ? 1 : (data.current_page || 1),
+        lastPage: Array.isArray(data) ? 1 : (data.last_page || 1),
+    };
+};
+
+const mergeTasksById = (existingTasks, incomingTasks) => {
+    const merged = [...existingTasks];
+    const existingIds = new Set(existingTasks.map(task => String(task.id)));
+
+    for (const task of incomingTasks) {
+        if (!existingIds.has(String(task.id))) {
+            merged.push(task);
+        }
+    }
+
+    return merged;
+};
+
+const matchesSearchQuery = (task) => {
+    const q = (searchText.value || '').toLowerCase().trim();
+    if (!q) return true;
+
+    return String(task.name || task.title || '').toLowerCase().includes(q)
+        || String(task.milestone?.name || '').toLowerCase().includes(q)
+        || String(task.project?.name || task.milestone?.project?.name || '').toLowerCase().includes(q)
+        || String(task.description || '').toLowerCase().includes(q);
+};
+
+const matchesBoardScope = (task, statusGroup = 'active') => {
+    const status = String(task.status || '');
+    if (statusGroup === 'active' && !activeTaskStatuses.includes(status)) return false;
+    if (statusGroup === 'done' && status !== 'Done') return false;
+    if (!matchesSearchQuery(task)) return false;
+
+    const pid = task.project?.id ?? task.milestone?.project_id ?? task.milestone?.project?.id ?? null;
+    if (projectId.value && String(pid) !== String(projectId.value)) return false;
+
+    const uid = task.assigned_to_user_id ?? task.assigned_to?.id ?? task.assigned_to_id ?? null;
+    const currentUserId = usePage().props.auth?.user?.id;
+
+    if (assigneeId.value === '__all__') {
+        if (!canDo('view_all_user').value && !projectId.value) {
+            const accessibleProjectIds = projectOptions.value
+                .map(option => option.value)
+                .filter(value => value !== null)
+                .map(String);
+
+            if (pid && !accessibleProjectIds.includes(String(pid))) return false;
+        }
+
+        return true;
+    }
+
+    if (assigneeId.value) return String(uid) === String(assigneeId.value);
+    if (currentUserId) return String(uid) === String(currentUserId);
+
+    return true;
+};
+
+const reconcileTaskInBoard = (updatedTask) => {
+    if (!updatedTask?.id) return;
+
+    assignedTasks.value = assignedTasks.value.filter(task => String(task.id) !== String(updatedTask.id));
+    recentDoneTasks.value = recentDoneTasks.value.filter(task => String(task.id) !== String(updatedTask.id));
+
+    if (matchesBoardScope(updatedTask, 'done')) {
+        recentDoneTasks.value = [updatedTask, ...recentDoneTasks.value].slice(0, recentDoneFetchLimit);
+        return;
+    }
+
+    if (matchesBoardScope(updatedTask, 'active')) {
+        assignedTasks.value = [updatedTask, ...assignedTasks.value];
+    }
+};
+
+const removeTaskFromBoard = (taskId) => {
+    assignedTasks.value = assignedTasks.value.filter(task => String(task.id) !== String(taskId));
+    recentDoneTasks.value = recentDoneTasks.value.filter(task => String(task.id) !== String(taskId));
+};
 
 // Caches
 const projectUsersCache = new Map();
@@ -412,12 +679,10 @@ watch(projectId, async (pid) => {
         }
     }
 
-// If currently viewing All Users, re-fetch tasks with new project scope to avoid massive payloads
-    if (kanbanView.value && assigneeId.value === '__all__') {
-        const baseParams = {};
-        if (pid) baseParams.project_id = pid;
+// Re-fetch the board when project scope changes
+    if (kanbanView.value) {
         kanbanPage.value = 1;
-        await fetchAllUsersScopedTasks(baseParams);
+        await fetchKanbanWithCurrentFilters();
     }
 });
 
@@ -445,77 +710,36 @@ const addTaskToDailyLog = async (task) => {
 const kanbanPage = ref(1);
 const kanbanLastPage = ref(1);
 
-const fetchTasksWithParams = async (params, append = false) => {
-    loadingAssignedTasks.value = true;
-    tasksError.value = '';
-    try {
-        // Inject search if not already present
-        if (searchText.value && !params.search) {
-            params.search = searchText.value;
-        }
-        params.page = kanbanPage.value;
-        if (!params.per_page) params.per_page = 100; // default kanban page size
+const fetchActiveTasks = async (append = false) => {
+    const params = buildTaskScopeParams(activeTaskStatuses, {
+        per_page: 100,
+        page: kanbanPage.value,
+    });
 
-        const { data } = await window.axios.get('/api/tasks', { params });
-        const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
-        
-        if (append) {
-            // Check for duplicates
-            const existingIds = new Set(assignedTasks.value.map(t => t.id));
-            const newTasks = list.filter(t => !existingIds.has(t.id));
-            assignedTasks.value = [...assignedTasks.value, ...newTasks];
-        } else {
-            assignedTasks.value = list;
-        }
+    const result = await fetchTaskPage(params);
 
-        if (!Array.isArray(data) && data.last_page) {
-            kanbanLastPage.value = data.last_page;
-            kanbanPage.value = data.current_page;
-        } else {
-            kanbanLastPage.value = 1;
-        }
-    } catch (e) {
-        console.error('Failed to load tasks', e);
-        tasksError.value = 'Failed to load tasks';
-        if (!append) assignedTasks.value = [];
-    } finally {
-        loadingAssignedTasks.value = false;
-    }
+    assignedTasks.value = append
+        ? mergeTasksById(assignedTasks.value, result.list)
+        : result.list;
+
+    kanbanPage.value = result.currentPage;
+    kanbanLastPage.value = result.lastPage;
 };
 
-const fetchAssignedTasksAll = async (append = false) => {
-    const userId = usePage().props.auth?.user?.id;
-    if (!userId) return;
-    await fetchTasksWithParams({ assigned_to_user_id: userId, per_page: 100 }, append);
-};
+const fetchRecentDoneTasks = async () => {
+    const params = applyCompletedWindowToParams(buildTaskScopeParams(['Done'], {
+        per_page: recentDoneFetchLimit,
+        page: 1,
+    }));
 
-// Fetch only due (including overdue) tasks and today's completed tasks for All Users
-const fetchAllUsersScopedTasks = async (baseParams = {}, append = false) => {
-    const todayStr = new Date().toISOString().slice(0,10);
-    // Remove due_until constraint if search is active so we find all tasks matching search
-    let params = { ...baseParams, per_page: 100, statuses: 'To Do,In Progress,Paused,Blocked,Done' };
-    if (!searchText.value) {
-        params.due_until = todayStr;
-    }
-    
-    // If user doesn't have view_all_user permission and no specific project is selected,
-    // we need to limit to their accessible projects
-    if (!canDo('view_all_user').value && !baseParams.project_id) {
-        const accessibleProjectIds = projectOptions.value
-            .map(p => p.value)
-            .filter(v => v !== null);
-        if (accessibleProjectIds.length > 0) {
-            params.project_ids = accessibleProjectIds.join(',');
-        }
-    }
-    
-    await fetchTasksWithParams(params, append);
+    const result = await fetchTaskPage(params);
+    recentDoneTasks.value = result.list;
 };
 
 watch(kanbanView, (on) => {
     setTimeout(() => {
         if (on && assignedTasks.value.length === 0 && !loadingAssignedTasks.value) {
-            fetchAssignedTasksAll();
+            fetchKanbanWithCurrentFilters();
         }
     }, 500)
 
@@ -524,21 +748,36 @@ watch(kanbanView, (on) => {
 // Trigger backend re-fetch if certain filters change
 const fetchKanbanWithCurrentFilters = async (append = false) => {
     if (!kanbanView.value) return;
-    const currentUserId = usePage().props.auth?.user?.id;
-    const baseParams = {};
-    if (projectId.value) baseParams.project_id = projectId.value;
-    
-    if (assigneeId.value === '__all__') {
-        await fetchAllUsersScopedTasks(baseParams, append);
-    } else if (assigneeId.value) {
-        await fetchTasksWithParams({ ...baseParams, assigned_to_user_id: assigneeId.value, per_page: 100 }, append);
-    } else {
-        if (currentUserId) await fetchTasksWithParams({ ...baseParams, assigned_to_user_id: currentUserId, per_page: 100 }, append);
+    loadingAssignedTasks.value = true;
+    tasksError.value = '';
+
+    try {
+        await fetchActiveTasks(append);
+
+        if (!append) {
+            await fetchRecentDoneTasks();
+        }
+    } catch (e) {
+        console.error('Failed to load tasks', e);
+        tasksError.value = 'Failed to load tasks';
+
+        if (!append) {
+            assignedTasks.value = [];
+            recentDoneTasks.value = [];
+        }
+    } finally {
+        loadingAssignedTasks.value = false;
     }
-}
+};
 
 // Re-fetch tasks when assignee selection changes
-watch(assigneeId, async (v) => {
+watch(assigneeId, async () => {
+    kanbanPage.value = 1;
+    await fetchKanbanWithCurrentFilters();
+});
+
+watch(completedFilter, async () => {
+    if (!kanbanView.value) return;
     kanbanPage.value = 1;
     await fetchKanbanWithCurrentFilters();
 });
@@ -565,7 +804,7 @@ const filteredAssignedTasks = computed(() => {
     // Since we now use backend search, just rely on it primarily.
     // We can keep the local filter for items already fetched to make it responsive immediately.
     const q = (searchText.value || '').toLowerCase().trim();
-    const result = (assignedTasks.value || []).filter(t => {
+    const result = combinedKanbanTasks.value.filter(t => {
         // Search by name/milestone/project
         // local fallback just in case
         const matchesSearch = !q ||
@@ -699,7 +938,8 @@ const handleSwitchToBulk = () => {
 };
 
 const handleTaskSaved = () => {
-    fetchAssignedTasksAll();
+    kanbanPage.value = 1;
+    fetchKanbanWithCurrentFilters();
 };
 
 // Block reason modal state for workspace-level actions
@@ -715,7 +955,7 @@ const confirmWorkspaceBlock = async (reason) => {
     if (!taskPendingBlock.value) return;
     try {
         const updated = await taskState.blockTask(taskPendingBlock.value, reason);
-        updateTaskInList(updated);
+        reconcileTaskInBoard(updated);
     } catch (e) {
         console.error('Failed to block task from workspace:', e);
     } finally {
@@ -748,6 +988,24 @@ const updateTaskInList = (updated) => {
         assignedTasks.value.push(updated);
     }
 };
+
+const handleExternalTaskUpdated = (event) => {
+    reconcileTaskInBoard(event.detail);
+};
+
+const handleExternalTaskDeleted = (event) => {
+    removeTaskFromBoard(event.detail?.taskId);
+};
+
+onMounted(() => {
+    window.addEventListener('workspace-task-updated', handleExternalTaskUpdated);
+    window.addEventListener('workspace-task-deleted', handleExternalTaskDeleted);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('workspace-task-updated', handleExternalTaskUpdated);
+    window.removeEventListener('workspace-task-deleted', handleExternalTaskDeleted);
+});
 
 const handleKanbanDrop = async ({ data, to }) => {
     if (!data || !to) return;
@@ -797,7 +1055,7 @@ const handleKanbanDrop = async ({ data, to }) => {
                  // Default to simple update if no specific transition action defined
                  updated = (await window.axios.put(`/api/tasks/${data.id}`, { status: to })).data;
         }
-        updateTaskInList(updated);
+        reconcileTaskInBoard(updated);
     } catch (e) {
         console.error('Failed to update task status', e);
         // Roll back
@@ -814,8 +1072,7 @@ const handleKanbanAddTask = async ({ columnKey, taskName }) => {
         });
         
         if (response.data && response.data.id) {
-            // Push directly to assignedTasks so it shows up in Kanban instantly
-            assignedTasks.value.push(response.data);
+            reconcileTaskInBoard(response.data);
         }
     } catch (e) {
         console.error('Failed to quick add task', e);
@@ -906,139 +1163,187 @@ onMounted(async () => {
 
                 <!-- Kanban view -->
                 <div v-else class="mt-4">
-<div class="mb-3 flex flex-col gap-3">
-    <div class="flex items-center justify-between gap-4">
-        <h3 class="text-lg font-semibold text-gray-800">My Tasks (Kanban)</h3>
-        <div class="flex items-center gap-2">
-            <span v-if="loadingAssignedTasks" class="text-xs text-gray-500">Loading...</span>
-            <span v-else-if="tasksError" class="text-xs text-red-600">{{ tasksError }}</span>
-<div class="relative">
-                <!-- Columns selector dropdown -->
-                <button type="button" class="px-3 py-1.5 text-sm border rounded-md bg-white hover:bg-gray-50" @click="showColumnsMenu = !showColumnsMenu">
-                    Columns
-                </button>
-                <div v-if="showColumnsMenu" class="absolute right-0 mt-2 w-56 bg-white border rounded-md shadow-lg z-10 p-3">
-                    <div class="space-y-2">
-                        <label v-for="col in kanbanColumns" :key="col.key" class="flex items-center gap-2 text-sm">
-                            <input type="checkbox" class="rounded" :value="col.key" v-model="visibleColumns" />
-                            <span>{{ col.title }}</span>
-                        </label>
-                        <div class="text-xs text-gray-500 pt-1">Tip: Archived is optional</div>
+<div class="mb-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div class="min-w-0">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M7 12h10M10 18h4" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold tracking-tight text-slate-900">Task Board</h3>
+                        <p class="mt-1 text-sm text-slate-500">
+                            {{ visibleActiveTaskCount }} active tasks
+                            <span class="mx-2 text-slate-300">•</span>
+                            {{ recentDoneSummary }}
+                        </p>
                     </div>
                 </div>
             </div>
-            <button
-                type="button"
-                class="px-3 py-1.5 text-sm border rounded-md bg-white hover:bg-gray-50 text-red-500"
-                @click="clearAllFilters"
-                title="Clear all filters"
-            >
-                Reset Filters
-            </button>
-            <button type="button" class="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 shadow-sm" @click="openCreateTaskModal">
-                Add Task
-            </button>
-            <button type="button" class="px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100" @click="openBulkTaskModal">
-                Bulk Tasks
-            </button>
-        </div>
-    </div>
 
-    <!-- Filters row (Always Visible) -->
-    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-3 py-2 border-b border-gray-100">
-        <!-- Search -->
-        <div class="relative">
-            <input
-                type="text"
-                v-model="searchText"
-                placeholder="Search tasks..."
-                class="w-full pr-16 px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <div class="absolute inset-y-0 right-2 flex items-center gap-1">
-                <button type="button" class="text-xs text-gray-600 hover:text-gray-900" @click="clearSearch" v-if="searchText">Clear</button>
+            <div class="flex flex-wrap items-center gap-2 lg:justify-end">
+                <span v-if="loadingAssignedTasks" class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">Syncing board...</span>
+                <span v-else-if="tasksError" class="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-600">{{ tasksError }}</span>
+
+                <div class="relative">
+                    <button type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50" @click="showColumnsMenu = !showColumnsMenu">
+                        Columns
+                    </button>
+                    <div v-if="showColumnsMenu" class="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl z-10">
+                        <div class="space-y-2">
+                            <label v-for="col in kanbanColumns" :key="col.key" class="flex items-center gap-2 text-sm text-slate-700">
+                                <input type="checkbox" class="rounded border-slate-300" :value="col.key" v-model="visibleColumns" />
+                                <span>{{ col.title }}</span>
+                            </label>
+                            <div class="pt-1 text-xs text-slate-400">Archived stays optional by default.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button
+                    v-if="hasActiveFilters"
+                    type="button"
+                    class="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
+                    @click="clearAllFilters"
+                    title="Clear all filters"
+                >
+                    Reset
+                </button>
+
+                <button type="button" class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700" @click="openCreateTaskModal">
+                    Add Task
+                </button>
+                <button type="button" class="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100" @click="openBulkTaskModal">
+                    Bulk Tasks
+                </button>
             </div>
         </div>
-        <!-- Project -->
-        <div class="flex items-center gap-2">
-            <div class="flex-1">
+
+        <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div class="inline-flex w-full flex-wrap items-center gap-1 rounded-2xl bg-slate-100 p-1 xl:w-auto">
+                <button
+                    type="button"
+                    class="rounded-xl px-3 py-2 text-sm font-medium transition"
+                    :class="activePreset === 'my-active' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+                    @click="setKanbanPreset('my-active')"
+                >My Active Work</button>
+                <button
+                    type="button"
+                    class="rounded-xl px-3 py-2 text-sm font-medium transition"
+                    :class="activePreset === 'team-active' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+                    @click="setKanbanPreset('team-active')"
+                >Team Board</button>
+                <button
+                    type="button"
+                    class="rounded-xl px-3 py-2 text-sm font-medium transition"
+                    :class="activePreset === 'overdue' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+                    @click="setKanbanPreset('overdue')"
+                >Overdue</button>
+                <button
+                    type="button"
+                    class="rounded-xl px-3 py-2 text-sm font-medium transition"
+                    :class="activePreset === 'recent-done' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+                    @click="setKanbanPreset('recent-done')"
+                >Recent Done</button>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+                <span class="rounded-full bg-slate-100 px-3 py-1.5">{{ visibleKanbanColumns.length }} columns visible</span>
+                <span class="rounded-full bg-slate-100 px-3 py-1.5">{{ visibleDoneTaskCount }} done shown</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(260px,1.8fr)_minmax(220px,1fr)_minmax(220px,1fr)_auto]">
+            <div class="relative">
+                <input
+                    type="text"
+                    v-model="searchText"
+                    placeholder="Search tasks, milestones, or projects"
+                    class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 pr-16 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+                />
+                <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 hover:text-slate-700" @click="clearSearch" v-if="searchText">Clear</button>
+            </div>
+
+            <div>
                 <SelectDropdown
                     v-model="projectId"
                     :options="projectOptions"
-                    placeholder="Filter by project"
+                    placeholder="Project"
                 />
             </div>
-            <button type="button" class="text-xs text-gray-600 hover:text-gray-900" @click="clearProject" v-if="projectId">Clear</button>
-        </div>
-        <!-- Assignee -->
-        <div class="flex items-center gap-2">
-            <div class="flex-1">
+
+            <div>
                 <SelectDropdown
                     v-model="assigneeId"
                     :options="usersOptions"
-                    placeholder="Filter by assignee"
+                    placeholder="Assignee"
                 />
             </div>
-            <button type="button" class="text-xs text-gray-600 hover:text-gray-900" @click="clearAssignee" v-if="assigneeId">Clear</button>
-        </div>
-        <!-- Priority -->
-        <div class="flex items-center gap-2">
-            <div class="flex-1">
-                <SelectDropdown
-                    v-model="priority"
-                    :options="priorityOptions"
-                    placeholder="Priority"
-                />
-            </div>
-            <button type="button" class="text-xs text-gray-600 hover:text-gray-900" @click="clearPriority" v-if="priority">Clear</button>
-        </div>
-        <!-- Milestone (only when project selected) -->
-        <div v-if="projectId" class="flex items-center gap-2">
-            <div class="flex-1">
-                <SelectDropdown
-                    v-model="milestoneId"
-                    :options="milestoneOptions"
-                    placeholder="Filter by milestone"
-                />
-            </div>
-            <button type="button" class="text-xs text-gray-600 hover:text-gray-900" @click="clearMilestone" v-if="milestoneId">Clear</button>
-        </div>
-        <!-- Due filter -->
-        <div class="flex items-center gap-2">
-            <div class="flex-1">
-                <SelectDropdown
-                    v-model="dueFilter"
-                    :options="[
-                        { value: 'all', label: 'All Due' },
-                        { value: 'today', label: 'Due Today' },
-                        { value: 'overdue', label: 'Overdue' },
-                        { value: 'week', label: 'Due This Week' },
-                    ]"
-                    placeholder="Due filter"
-                />
-            </div>
-            <button type="button" class="text-xs text-gray-600 hover:text-gray-900" @click="clearDueFilter" v-if="dueFilter !== 'all'">Clear</button>
+
+            <button
+                type="button"
+                class="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                @click="showAdvancedFilters = !showAdvancedFilters"
+            >
+                <span>Advanced Filters</span>
+                <span v-if="advancedFilterCount" class="rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-semibold text-white">{{ advancedFilterCount }}</span>
+            </button>
         </div>
 
-        <!-- Completed filter -->
-        <div class="flex items-center gap-2">
-            <div class="flex-1">
-                <SelectDropdown
-                    v-model="completedFilter"
-                    :options="[
-                        { value: 'all', label: 'All Completed' },
-                        { value: 'completed_today', label: 'Completed Today' },
-                        { value: 'completed_yesterday', label: 'Completed Yesterday' },
-                        { value: 'completed_this_week', label: 'Completed This Week' },
-                        { value: 'completed_last_week', label: 'Completed Last Week' },
-                        { value: 'completed_this_month', label: 'Completed This Month' },
-                        { value: 'completed_last_month', label: 'Completed Last Month' },
-                        { value: 'completed_last_7', label: 'Completed in Last 7 Days' },
-                        { value: 'completed_last_30', label: 'Completed in Last 30 Days' },
-                    ]"
-                    placeholder="Completed filter"
-                />
+        <div v-if="showAdvancedFilters" class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div>
+                    <div class="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Priority</div>
+                    <SelectDropdown
+                        v-model="priority"
+                        :options="priorityOptions"
+                        placeholder="Priority"
+                    />
+                </div>
+
+                <div v-if="projectId">
+                    <div class="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Milestone</div>
+                    <SelectDropdown
+                        v-model="milestoneId"
+                        :options="milestoneOptions"
+                        placeholder="Milestone"
+                    />
+                </div>
+
+                <div>
+                    <div class="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Due Window</div>
+                    <SelectDropdown
+                        v-model="dueFilter"
+                        :options="dueFilterOptions"
+                        placeholder="Due filter"
+                    />
+                </div>
+
+                <div>
+                    <div class="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Completed</div>
+                    <SelectDropdown
+                        v-model="completedFilter"
+                        :options="completedFilterOptions"
+                        placeholder="Completed filter"
+                    />
+                </div>
             </div>
-            <button type="button" class="text-xs text-gray-600 hover:text-gray-900" @click="clearCompletedFilter" v-if="completedFilter !== 'all'">Clear</button>
+        </div>
+
+        <div v-if="activeFilterChips.length" class="flex flex-wrap gap-2">
+            <button
+                v-for="chip in activeFilterChips"
+                :key="chip.key"
+                type="button"
+                class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-white"
+                @click="chip.clear()"
+            >
+                <span>{{ chip.label }}</span>
+                <span class="text-slate-400">×</span>
+            </button>
         </div>
     </div>
 </div>
