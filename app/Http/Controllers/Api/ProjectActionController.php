@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Models\ProjectNote;
 use App\Models\ProjectTier;
 use App\Models\User;
+use App\Services\ExistingClientEnquiryService;
 use App\Services\GmailService;
 use App\Services\GoogleChatService;
 use App\Services\GoogleDriveService;
@@ -880,13 +881,35 @@ class ProjectActionController extends Controller
 
         $validatedData = $request->validate([
             'services' => 'nullable|array',
+            'services.*' => 'string|max:255',
             'service_details' => 'nullable|array',
+            'service_details.*.enquiry_id' => 'nullable|string|max:100',
+            'service_details.*.service_id' => 'required|string|max:255',
+            'service_details.*.amount' => 'nullable|numeric|min:0',
+            'service_details.*.currency' => 'nullable|string|max:10',
+            'service_details.*.frequency' => 'nullable|string|in:monthly,one_off',
+            'service_details.*.start_date' => 'nullable|date',
+            'service_details.*.description' => 'nullable|string|max:5000',
+            'service_details.*.payment_breakdown' => 'nullable|array',
+            'service_details.*.payment_breakdown.*.label' => 'nullable|string|max:255',
+            'service_details.*.payment_breakdown.*.percentage' => 'nullable|integer|min:0|max:100',
+            'service_details.*.payment_breakdown.*.due_date' => 'nullable|date',
+            'service_details.*.service_tracking_type' => 'nullable|string|in:operational_service,client_enquiry',
+            'service_details.*.show_on_leads_board' => 'nullable|boolean',
+            'service_details.*.enquiry_status' => 'nullable|string|in:pending_quote,quoted,approved,rejected,converted_to_service',
+            'service_details.*.enquiry_created_at' => 'nullable|date',
+            'service_details.*.enquiry_updated_at' => 'nullable|date',
+            'service_details.*.enquiry_meta' => 'nullable|array',
             'total_amount' => 'nullable|numeric',
             'payment_type' => 'nullable|string|in:one_off,monthly',
         ]);
 
-        $project->services = $validatedData['services'] ?? $project->services;
-        $project->service_details = $validatedData['service_details'] ?? $project->service_details;
+        $enquiryService = app(ExistingClientEnquiryService::class);
+        $serviceDetails = $enquiryService->normalizeServiceDetails($validatedData['service_details'] ?? $project->service_details, $project->currency ?? null);
+        $services = $enquiryService->syncServices($validatedData['services'] ?? $project->services ?? [], $serviceDetails);
+
+        $project->services = $services;
+        $project->service_details = $serviceDetails;
         $project->total_amount = $validatedData['total_amount'] ?? $project->total_amount;
         $project->payment_type = $validatedData['payment_type'] ?? $project->payment_type;
         $project->save();

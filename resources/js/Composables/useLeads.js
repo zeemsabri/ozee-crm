@@ -22,6 +22,8 @@ export function useLeads() {
     campaign_ids: []
   });
 
+  const enquiryStatuses = ['pending_quote', 'quoted', 'approved', 'rejected', 'converted_to_service'];
+
   // Users (for assignment)
   const users = ref([]);
 
@@ -50,19 +52,26 @@ export function useLeads() {
       if (filters.assigned_to_id) params.assigned_to_id = filters.assigned_to_id;
       if (filters.campaign_ids && filters.campaign_ids.length) params.campaign_ids = filters.campaign_ids.join(',');
 
-      const { data } = await axios.get('/api/leads', { params });
+      const [leadResponse, enquiryResponse] = await Promise.all([
+        axios.get('/api/leads', { params }),
+        (filters.campaign_ids && filters.campaign_ids.length)
+          ? Promise.resolve({ data: { data: [], meta: { current_page: 1, per_page: perPage.value, total: 0, last_page: 1 } } })
+          : axios.get('/api/existing-client-enquiries', { params }),
+      ]);
 
-      leads.value = data.data ?? data;
-      const meta = data.meta ?? null;
-      if (meta) {
-        currentPage.value = meta.current_page;
-        perPage.value = meta.per_page;
-        total.value = meta.total;
-        lastPage.value = meta.last_page;
-      } else {
-        total.value = Array.isArray(leads.value) ? leads.value.length : 0;
-        lastPage.value = 1;
-      }
+      const leadItems = leadResponse.data.data ?? leadResponse.data ?? [];
+      const enquiryItems = enquiryResponse.data.data ?? enquiryResponse.data ?? [];
+
+      leads.value = [...leadItems, ...enquiryItems].sort((left, right) => {
+        const leftValue = new Date(left.updated_at || left.created_at || 0).getTime();
+        const rightValue = new Date(right.updated_at || right.created_at || 0).getTime();
+        return rightValue - leftValue;
+      });
+
+      currentPage.value = 1;
+      perPage.value = params.per_page;
+      total.value = leads.value.length;
+      lastPage.value = 1;
     } catch (error) {
       console.error('Error fetching leads', error);
       generalError.value = error?.response?.data?.message || 'Failed to fetch leads.';
@@ -106,10 +115,62 @@ export function useLeads() {
     return data;
   };
 
+  const createExistingClientEnquiry = async (payload) => {
+    generalError.value = '';
+    const { data } = await axios.post('/api/existing-client-enquiries', payload);
+    await fetchLeads();
+    return data.data ?? data;
+  };
+
+  const updateExistingClientEnquiry = async (id, payload) => {
+    generalError.value = '';
+    const { data } = await axios.put(`/api/existing-client-enquiries/${id}`, payload);
+    await fetchLeads();
+    return data.data ?? data;
+  };
+
+  const convertExistingClientEnquiry = async (item, payload) => {
+    generalError.value = '';
+    const enquiryId = item?.enquiry_id || item?.id;
+    const projectId = item?.project_id || item?.metadata?.project_id;
+    const { data } = await axios.post(`/api/existing-client-enquiries/${enquiryId}/convert`, {
+      project_id: projectId,
+      ...payload,
+    });
+    await fetchLeads();
+    return data;
+  };
+
   const deleteLead = async (id) => {
     generalError.value = '';
     await axios.delete(`/api/leads/${id}`);
     await fetchLeads();
+  };
+
+  const deleteCard = async (item) => {
+    if (item?.card_type === 'existing_client_enquiry') {
+      generalError.value = '';
+      const enquiryId = item?.enquiry_id || item?.id;
+      const projectId = item?.project_id || item?.metadata?.project_id;
+      await axios.delete(`/api/existing-client-enquiries/${enquiryId}`, { data: { project_id: projectId } });
+      await fetchLeads();
+      return;
+    }
+
+    await deleteLead(item.id);
+  };
+
+  const updateCard = async (item, payload) => {
+    if (item?.card_type === 'existing_client_enquiry') {
+      const enquiryId = item?.enquiry_id || item?.id;
+      const projectId = item?.project_id || item?.metadata?.project_id;
+      return updateExistingClientEnquiry(enquiryId, {
+        project_id: projectId,
+        ...payload,
+      });
+    }
+
+    return updateLead(item.id ?? item, payload);
   };
 
   // Derived: leads grouped by status for Kanban
@@ -124,6 +185,11 @@ export function useLeads() {
         generation_failed: [],
         converted: [],
         lost: [],
+        pending_quote: [],
+        quoted: [],
+        approved: [],
+        rejected: [],
+        converted_to_service: [],
     };
     for (const lead of leads.value) {
       let key = (lead.status || 'new').toLowerCase();
@@ -131,6 +197,10 @@ export function useLeads() {
       // Group hot_incoming and hot_outgoing with 'new' as per user request
       if (key === 'hot_incoming' || key === 'hot_outgoing') {
         key = 'new';
+      }
+
+      if (lead.card_type === 'existing_client_enquiry' && !enquiryStatuses.includes(key)) {
+        key = 'pending_quote';
       }
       
       if (!groups[key]) groups[key] = [];
@@ -148,5 +218,7 @@ export function useLeads() {
     // actions
     fetchUsers, fetchLeads, changePage, resetFilters,
     createLead, updateLead, deleteLead,
+    createExistingClientEnquiry, updateExistingClientEnquiry, convertExistingClientEnquiry,
+    deleteCard, updateCard,
   };
 }

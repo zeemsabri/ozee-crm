@@ -20,6 +20,8 @@ const emit = defineEmits(['updated']);
 
 const errors = ref({});
 const loading = ref(false);
+const convertingEnquiry = reactive({});
+const selectedConversionType = reactive({});
 
 // Currency options for the dropdown (can be fetched from an API or defined here)
 const currencyOptions = [
@@ -29,6 +31,25 @@ const currencyOptions = [
     { value: 'USD', label: 'USD' },
     { value: 'EUR', label: 'EUR' },
     { value: 'GBP', label: 'GBP' },
+];
+
+const serviceTrackingOptions = [
+    { value: 'operational_service', label: 'Normal Service' },
+    { value: 'client_enquiry', label: 'Existing Client Enquiry' },
+];
+
+const enquiryStatusOptions = [
+    { value: 'pending_quote', label: 'Pending Quote' },
+    { value: 'quoted', label: 'Quoted' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'rejected', label: 'Rejected' },
+    { value: 'converted_to_service', label: 'Converted To Service' },
+];
+
+const conversionTypeOptions = [
+    { value: 'task', label: 'Task' },
+    { value: 'milestone', label: 'Milestone' },
+    { value: 'project', label: 'Project' },
 ];
 
 // Internal base department options
@@ -176,6 +197,7 @@ const fetchServicesAndPaymentData = async () => {
 
         // Ensure payment_breakdown is an array and convert legacy format, add due_date
         formData.service_details.forEach(detail => {
+            hydrateServiceTracking(detail);
             if (detail.payment_breakdown && !Array.isArray(detail.payment_breakdown)) {
                 const legacyBreakdown = detail.payment_breakdown;
                 detail.payment_breakdown = [
@@ -195,6 +217,9 @@ const fetchServicesAndPaymentData = async () => {
                         pb.due_date = null;
                     }
                 });
+            }
+            if (!selectedConversionType[detail.service_id]) {
+                selectedConversionType[detail.service_id] = 'task';
             }
         });
 
@@ -255,10 +280,16 @@ const handleServiceSelection = (serviceId, isSelected) => {
                 amount: '',
                 frequency: 'one_off',
                 start_date: '',
+                description: '',
                 payment_breakdown: [
                     { label: 'Payment 1', percentage: 100, due_date: null } // Default to 100% for new service
                 ],
-                currency: formData.currency // Default to overall project currency
+                currency: formData.currency, // Default to overall project currency
+                service_tracking_type: 'operational_service',
+                show_on_leads_board: false,
+                enquiry_status: null,
+                enquiry_id: null,
+                enquiry_meta: {},
             });
         }
         // Expand the newly selected service
@@ -283,10 +314,16 @@ const getServiceDetail = (serviceId) => {
             amount: '',
             frequency: 'one_off',
             start_date: '',
+            description: '',
             payment_breakdown: [
                 { label: 'Payment 1', percentage: 100, due_date: null } // Default for new detail
             ],
-            currency: formData.currency // Default to overall project currency
+            currency: formData.currency, // Default to overall project currency
+            service_tracking_type: 'operational_service',
+            show_on_leads_board: false,
+            enquiry_status: null,
+            enquiry_id: null,
+            enquiry_meta: {},
         };
         formData.service_details.push(detail);
     } else if (detail.payment_breakdown && !Array.isArray(detail.payment_breakdown)) {
@@ -309,7 +346,85 @@ const getServiceDetail = (serviceId) => {
             }
         });
     }
+    hydrateServiceTracking(detail);
     return detail;
+};
+
+const hydrateServiceTracking = (detail) => {
+    if (!detail) return detail;
+
+    if (!detail.service_tracking_type) {
+        detail.service_tracking_type = 'operational_service';
+    }
+    if (detail.service_tracking_type !== 'client_enquiry') {
+        detail.show_on_leads_board = false;
+        detail.enquiry_status = null;
+    } else {
+        if (detail.show_on_leads_board === undefined || detail.show_on_leads_board === null) {
+            detail.show_on_leads_board = true;
+        }
+        if (!detail.enquiry_status) {
+            detail.enquiry_status = 'pending_quote';
+        }
+    }
+    if (!detail.enquiry_meta || typeof detail.enquiry_meta !== 'object') {
+        detail.enquiry_meta = {};
+    }
+    return detail;
+};
+
+const onTrackingTypeChange = (serviceId) => {
+    const detail = getServiceDetail(serviceId);
+    hydrateServiceTracking(detail);
+};
+
+const convertEnquiry = async (serviceId) => {
+    const detail = getServiceDetail(serviceId);
+    if (!detail?.enquiry_id) {
+        errors.value.general = 'Save the enquiry first before converting it.';
+        return;
+    }
+    if (detail.enquiry_status !== 'approved') {
+        errors.value.general = 'Only approved enquiries can be converted.';
+        return;
+    }
+
+    convertingEnquiry[serviceId] = true;
+    errors.value.general = '';
+
+    try {
+        const conversionType = selectedConversionType[serviceId] || 'task';
+
+        if (conversionType === 'project') {
+            const params = new URLSearchParams({
+                from_existing_enquiry: '1',
+                enquiry_id: String(detail.enquiry_id || ''),
+                source_project_id: String(props.projectId || ''),
+                name: String(`Project - ${detail.service_id || 'Service'}`),
+                description: String(detail.description || ''),
+                service_name: String(detail.service_id || ''),
+                amount: String(detail.amount ?? ''),
+                currency: String(detail.currency || formData.currency || ''),
+                frequency: String(detail.frequency || 'one_off'),
+                start_date: String(detail.start_date || ''),
+                source: 'existing_client_enquiry',
+            });
+
+            window.location.href = `/projects/create?${params.toString()}`;
+            return;
+        }
+
+        const response = await window.axios.post(`/api/existing-client-enquiries/${detail.enquiry_id}/convert`, {
+            project_id: props.projectId,
+            conversion_type: conversionType,
+        });
+        success(`Enquiry converted into ${response.data?.created?.type || conversionType}.`);
+        await fetchServicesAndPaymentData();
+    } catch (error) {
+        errors.value.general = error?.response?.data?.message || 'Failed to convert enquiry.';
+    } finally {
+        convertingEnquiry[serviceId] = false;
+    }
 };
 
 // Calculate total percentage for a service's payment breakdown
@@ -568,6 +683,88 @@ watch(() => props.projectId, (newProjectId) => {
                                             v-model="getServiceDetail(option.value).start_date"
                                             :disabled="!canManageProjectServicesAndPayments"
                                         />
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <InputLabel :for="`service_tracking_type_${option.value}`" value="Tracking" />
+                                        <SelectDropdown
+                                            :id="`service_tracking_type_${option.value}`"
+                                            v-model="getServiceDetail(option.value).service_tracking_type"
+                                            :options="serviceTrackingOptions"
+                                            value-key="value"
+                                            label-key="label"
+                                            class="w-full mt-1"
+                                            :disabled="!canManageProjectServicesAndPayments"
+                                            @update:modelValue="onTrackingTypeChange(option.value)"
+                                        />
+                                        <p class="text-xs text-gray-500 mt-1">Only enquiry-tracked rows appear on the leads board.</p>
+                                    </div>
+                                    <div class="flex items-end">
+                                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                            <input
+                                                type="checkbox"
+                                                class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
+                                                v-model="getServiceDetail(option.value).show_on_leads_board"
+                                                :disabled="!canManageProjectServicesAndPayments || getServiceDetail(option.value).service_tracking_type !== 'client_enquiry'"
+                                            />
+                                            Show on leads board
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="mb-4">
+                                    <InputLabel :for="`service_description_${option.value}`" value="Description" />
+                                    <textarea
+                                        :id="`service_description_${option.value}`"
+                                        v-model="getServiceDetail(option.value).description"
+                                        class="w-full mt-1 border-gray-300 rounded-md shadow-sm"
+                                        rows="3"
+                                        :disabled="!canManageProjectServicesAndPayments"
+                                        placeholder="Add notes, quote context, or service details"
+                                    ></textarea>
+                                </div>
+
+                                <div v-if="getServiceDetail(option.value).service_tracking_type === 'client_enquiry'" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <InputLabel :for="`service_enquiry_status_${option.value}`" value="Enquiry Status" />
+                                        <SelectDropdown
+                                            :id="`service_enquiry_status_${option.value}`"
+                                            v-model="getServiceDetail(option.value).enquiry_status"
+                                            :options="enquiryStatusOptions"
+                                            value-key="value"
+                                            label-key="label"
+                                            class="w-full mt-1"
+                                            :disabled="!canManageProjectServicesAndPayments"
+                                        />
+                                    </div>
+                                    <div v-if="getServiceDetail(option.value).enquiry_meta?.conversion" class="text-sm text-gray-600 flex items-end">
+                                        Converted into {{ getServiceDetail(option.value).enquiry_meta.conversion.type }} #{{ getServiceDetail(option.value).enquiry_meta.conversion.record_id }}
+                                    </div>
+                                </div>
+
+                                <div v-if="getServiceDetail(option.value).service_tracking_type === 'client_enquiry' && getServiceDetail(option.value).enquiry_status === 'approved'" class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                                    <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
+                                        <div>
+                                            <InputLabel :for="`conversion_type_${option.value}`" value="Convert Approved Enquiry Into" />
+                                            <SelectDropdown
+                                                :id="`conversion_type_${option.value}`"
+                                                v-model="selectedConversionType[option.value]"
+                                                :options="conversionTypeOptions"
+                                                value-key="value"
+                                                label-key="label"
+                                                class="w-full mt-1"
+                                                :disabled="!canManageProjectServicesAndPayments || convertingEnquiry[option.value]"
+                                            />
+                                        </div>
+                                        <PrimaryButton
+                                            type="button"
+                                            :disabled="!canManageProjectServicesAndPayments || convertingEnquiry[option.value]"
+                                            @click="convertEnquiry(option.value)"
+                                        >
+                                            {{ convertingEnquiry[option.value] ? 'Converting...' : 'Convert Enquiry' }}
+                                        </PrimaryButton>
                                     </div>
                                 </div>
 

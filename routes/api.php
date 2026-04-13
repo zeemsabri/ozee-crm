@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\ComponentController;
 use App\Http\Controllers\Api\EmailController;
 use App\Http\Controllers\Api\EmailTemplateController;
+use App\Http\Controllers\Api\ExistingClientEnquiryController;
 use App\Http\Controllers\Api\FamifyHub\MailController as FamifyMailController;
 use App\Http\Controllers\Api\FileAttachmentController;
 use App\Http\Controllers\Api\ImageUploadController;
@@ -216,6 +217,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Client Management Routes (CRUD)
     Route::apiResource('clients', ClientController::class)->names('api.clients');
+    Route::get('/existing-client-enquiries/supporting-data', [ExistingClientEnquiryController::class, 'supportingData']);
+    Route::get('/existing-client-enquiries', [ExistingClientEnquiryController::class, 'index']);
+    Route::post('/existing-client-enquiries', [ExistingClientEnquiryController::class, 'store']);
+    Route::put('/existing-client-enquiries/{enquiryId}', [ExistingClientEnquiryController::class, 'update']);
+    Route::delete('/existing-client-enquiries/{enquiryId}', [ExistingClientEnquiryController::class, 'destroy']);
+    Route::post('/existing-client-enquiries/{enquiryId}/convert', [ExistingClientEnquiryController::class, 'convert']);
     Route::get('/leads/search', [LeadController::class, 'search']);
     Route::apiResource('leads', LeadController::class)->names('api.leads');
     Route::post('/leads/{lead}/contexts', [LeadController::class, 'addContext']);

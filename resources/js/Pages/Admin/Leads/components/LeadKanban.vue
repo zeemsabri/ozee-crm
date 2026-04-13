@@ -21,6 +21,11 @@ const standardColumns = [
   { key: 'generation_failed', title: 'Generation Failed' },
   { key: 'converted', title: 'Converted' },
   { key: 'lost', title: 'Lost' },
+  { key: 'pending_quote', title: 'Pending Quote' },
+  { key: 'quoted', title: 'Quoted' },
+  { key: 'approved', title: 'Approved' },
+  { key: 'rejected', title: 'Rejected' },
+  { key: 'converted_to_service', title: 'Converted To Service' },
 ];
 
 const columns = computed(() => {

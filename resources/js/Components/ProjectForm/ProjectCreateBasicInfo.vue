@@ -61,6 +61,44 @@ const newProjectForm = reactive({
 const isCreating = ref(false); // Local saving state for this component
 const projectTiers = ref([]); // Store project tiers fetched from API
 
+const applyPrefillFromQuery = () => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('from_existing_enquiry') !== '1') return;
+
+    const prefilledName = params.get('name');
+    const prefilledDescription = params.get('description');
+    const prefilledSource = params.get('source');
+    const prefilledProjectType = params.get('project_type');
+    const prefilledWebsite = params.get('website');
+    const prefilledServiceName = params.get('service_name');
+    const prefilledFrequency = params.get('frequency');
+    const prefilledAmount = params.get('amount');
+    const prefilledCurrency = params.get('currency');
+    const prefilledStartDate = params.get('start_date');
+
+    if (prefilledName) newProjectForm.name = prefilledName;
+    if (prefilledSource) newProjectForm.source = prefilledSource;
+    if (prefilledProjectType) newProjectForm.project_type = prefilledProjectType;
+    if (prefilledWebsite) newProjectForm.website = prefilledWebsite;
+
+    if (prefilledDescription) {
+        newProjectForm.description = prefilledDescription;
+    } else {
+        const lines = [];
+        if (prefilledServiceName) lines.push(`Service: ${prefilledServiceName}`);
+        if (prefilledAmount) {
+            lines.push(`Estimated Amount: ${prefilledCurrency || ''}${prefilledAmount}`.trim());
+        }
+        if (prefilledFrequency) lines.push(`Frequency: ${prefilledFrequency.replace('_', ' ')}`);
+        if (prefilledStartDate) lines.push(`Start Date: ${prefilledStartDate}`);
+        if (lines.length) {
+            newProjectForm.description = lines.join('\n');
+        }
+    }
+};
+
 /**
  * Fetches project tiers from the API
  */
@@ -145,6 +183,7 @@ const submitBasicInfo = async () => {
 
 // Fetch project tiers when component is mounted
 onMounted(() => {
+    applyPrefillFromQuery();
     fetchProjectTiers();
 });
 </script>

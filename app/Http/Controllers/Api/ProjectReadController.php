@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\ProjectNote;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\ExistingClientEnquiryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
@@ -349,9 +350,12 @@ class ProjectReadController extends Controller
         }
 
         // Return financial information
+        $serviceDetails = app(ExistingClientEnquiryService::class)
+            ->normalizeServiceDetails($project->service_details, $project->currency ?? null);
+
         return response()->json([
             'services' => $project->services,
-            'service_details' => $project->service_details,
+            'service_details' => $serviceDetails,
             'total_amount' => $project->total_amount,
             'total_expendable_amount' => $project->total_expendable_amount,
             'currency' => $project->currency,
