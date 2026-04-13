@@ -101,7 +101,7 @@ class ProjectTimeCostReportController extends Controller
         $report = $projects->map(function ($project) use ($activitiesByProject, $transactionsByProject) {
             $created = Carbon::parse($project->created_at);
             $deleted = $project->deleted_at ? Carbon::parse($project->deleted_at) : Carbon::now();
-            $durationDays = $created->diffInDays($deleted);
+            $durationDays = round($created->diffInHours($deleted) / 24, 2);
 
             $projActivities = $activitiesByProject->get($project->id, collect());
             $projTrans = $transactionsByProject->get($project->id, collect());
