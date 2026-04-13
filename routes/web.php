@@ -263,6 +263,14 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
             ->middleware(['permission:manage_projects'])
             ->name('productivity-projects.index');
 
+        // Project Time & Cost Report
+        Route::get('/project-time-cost', [\App\Http\Controllers\Admin\ProjectTimeCostReportController::class, 'index'])
+            ->middleware(['permission:manage_projects'])
+            ->name('project-time-cost.index');
+        Route::get('/api/project-time-cost', [\App\Http\Controllers\Admin\ProjectTimeCostReportController::class, 'fetch'])
+            ->middleware(['permission:manage_projects'])
+            ->name('api.project-time-cost.fetch');
+
         // Activity Report
         Route::get('/activity-report', [\App\Http\Controllers\Admin\ActivityReportController::class, 'index'])
             ->middleware(['permission:manage_projects'])
