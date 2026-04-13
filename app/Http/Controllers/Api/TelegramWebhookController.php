@@ -149,12 +149,43 @@ class TelegramWebhookController extends Controller
                     $account = \App\Models\TelegramAccount::where('telegram_id', $fromId)->first();
                     if ($account) {
                         return [
-                            'id' => $account->telegramable_id,
-                            'type' => $account->telegramable_type,
+                            'id'         => $account->telegramable_id,
+                            'type'       => $account->telegramable_type,
+                            'username'   => $account->username,
+                            'first_name' => $account->first_name,
+                            'last_name'  => $account->last_name,
                         ];
                     }
                     return null;
                 });
+
+                // Lazy profile sync: if the sender is known but their Telegram profile
+                // fields changed since we last saved them (e.g. they set a username after
+                // linking), update the DB and bust the cache — no DB hit when nothing changed.
+                if ($senderData && $from) {
+                    $incomingUsername  = $from['username']   ?? null;
+                    $incomingFirstName = $from['first_name'] ?? null;
+                    $incomingLastName  = $from['last_name']  ?? null;
+
+                    if (
+                        $incomingUsername  !== $senderData['username']   ||
+                        $incomingFirstName !== $senderData['first_name'] ||
+                        $incomingLastName  !== $senderData['last_name']
+                    ) {
+                        \App\Models\TelegramAccount::where('telegram_id', $fromId)->update([
+                            'username'   => $incomingUsername,
+                            'first_name' => $incomingFirstName,
+                            'last_name'  => $incomingLastName,
+                        ]);
+
+                        \Illuminate\Support\Facades\Cache::forget("telegram_account_{$fromId}");
+
+                        // Keep senderData consistent for the rest of this request
+                        $senderData['username']   = $incomingUsername;
+                        $senderData['first_name'] = $incomingFirstName;
+                        $senderData['last_name']  = $incomingLastName;
+                    }
+                }
             }
 
             // Handle "Switch Active Project" or multi-project menu triggers
