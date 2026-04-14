@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use GPBMetadata\Google\Api\Log;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -95,6 +96,8 @@ class AuthenticatedSessionController extends Controller
      */
     public function storeapp(LoginRequest $request): RedirectResponse|JsonResponse
     {
+
+        \Illuminate\Support\Facades\Log::info('User logged in try');
         $request->authenticate();
 
         $request->session()->regenerate();
@@ -102,6 +105,7 @@ class AuthenticatedSessionController extends Controller
         // Load the user's role with permissions to ensure they're available immediately after login
         $user = $request->user();
 
+        \Illuminate\Support\Facades\Log::info('User logged in: ' . $user->name);
         // Check for extension mandatory enforcement
         if ($user->extension_mandatory && !$user->is_online) {
             // Check if user has bypass permission

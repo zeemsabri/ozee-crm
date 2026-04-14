@@ -760,6 +760,27 @@ Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
 
 });
 
+// === Native App API Routes ===
+// Dedicated API group for the standalone desktop application
+Route::prefix('native-app')->middleware(['auth:sanctum'])->group(function () {
+    // Projects
+    Route::get('projects', [\App\Http\Controllers\Api\ProjectReadController::class, 'getProjectsSimplified']);
+    
+    // Topics
+    Route::get('projects/{project}/topics', [\App\Http\Controllers\Api\TelegramTopicController::class, 'index']);
+    Route::post('projects/{project}/topics', [\App\Http\Controllers\Api\TelegramTopicController::class, 'store']);
+    
+    // Chat & Messages
+    Route::get('projects/{project}/chat', [\App\Http\Controllers\Api\ChatController::class, 'index']);
+    Route::post('projects/{project}/chat', [\App\Http\Controllers\Api\ChatController::class, 'store']);
+    Route::delete('projects/{project}/chat/{chat_message}', [\App\Http\Controllers\Api\ChatController::class, 'destroy']);
+    Route::post('projects/{project}/chat/mark-read', [\App\Http\Controllers\Api\ChatController::class, 'markRead']);
+    Route::get('chat/unread-counts', [\App\Http\Controllers\Api\ChatController::class, 'unreadCounts']);
+
+    // Users
+    Route::get('users', [\App\Http\Controllers\Api\UserController::class, 'indexSimplified']);
+});
+
 // === External API Routes (Protected by External Magic Link Token) ===
 Route::prefix('external')->middleware(['auth.magiclink.external'])->group(function () {
     Route::post('/payment/create-session', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'createSession']);

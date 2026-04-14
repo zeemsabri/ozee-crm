@@ -17,3 +17,19 @@ Broadcast::channel('project.{projectId}', function ($user, $projectId) {
     }
     return $user->projects()->where('projects.id', $projectId)->exists();
 });
+
+/**
+ * Authorize the private topic chat channel.
+ * Users can subscribe if they belong to the topic's project
+ * or have the global 'view_all_projects' permission.
+ */
+Broadcast::channel('topic.{topicId}', function ($user, $topicId) {
+    if ($user->hasPermission('view_all_projects')) {
+        return true;
+    }
+    $topic = \App\Models\TelegramTopic::find($topicId);
+    if (!$topic) {
+        return false;
+    }
+    return $user->projects()->where('projects.id', $topic->project_id)->exists();
+});

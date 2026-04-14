@@ -18,6 +18,7 @@ class ChatMessageSent implements ShouldBroadcastNow
     public int $projectId;
     public ?int $senderId;
     public array $messagePayload;
+    public ?int $topicId;
 
     public function __construct(ChatMessage $chatMessage)
     {
@@ -25,6 +26,7 @@ class ChatMessageSent implements ShouldBroadcastNow
 
         $this->projectId = (int)$chatMessage->project_id;
         $this->senderId  = $chatMessage->user_id ?? $chatMessage->client_id;
+        $this->topicId   = $chatMessage->telegram_topic_id ? (int)$chatMessage->telegram_topic_id : null;
 
         $parent = $chatMessage->parent;
         $senderName = $chatMessage->user?->name ?? ($chatMessage->client?->name ?? 'System');
@@ -59,7 +61,15 @@ class ChatMessageSent implements ShouldBroadcastNow
      */
     public function broadcastOn(): Channel|array
     {
-        return new PrivateChannel("project.{$this->projectId}");
+        $channels = [
+            new PrivateChannel("project.{$this->projectId}")
+        ];
+        
+        if ($this->topicId) {
+            $channels[] = new PrivateChannel("topic.{$this->topicId}");
+        }
+
+        return $channels;
     }
 
     /**

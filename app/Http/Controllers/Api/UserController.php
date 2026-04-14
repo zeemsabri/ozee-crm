@@ -104,6 +104,24 @@ class UserController extends Controller
     }
 
     /**
+     * Get a simplified list of users for internal applications (Native App).
+     */
+    public function indexSimplified(Request $request)
+    {
+        $users = User::with('telegramAccount')->get()->map(function ($user) {
+            return [
+                'id' => $user->id,
+                'name' => $user->name,
+                'avatar' => $user->avatar,
+                'telegram_id' => $user->telegramAccount?->telegram_id,
+                'username' => $user->telegramAccount?->username,
+            ];
+        });
+
+        return response()->json($users);
+    }
+
+    /**
      * Store a newly created user in storage.
      * Accessible by: Super Admin (can assign any role), Manager (can create employee/contractor)
      */
