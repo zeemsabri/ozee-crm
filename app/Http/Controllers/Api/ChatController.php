@@ -11,6 +11,7 @@ use App\Models\UserInteraction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class ChatController extends Controller
@@ -134,6 +135,102 @@ class ChatController extends Controller
         $combined = $formattedMessages->concat($emails)->sortBy('created_at')->values();
 
         return response()->json($combined);
+    }
+
+    /**
+     * Optimized Chat Pagination for Native App
+     */
+    public function indexNative(Request $request, Project $project)
+    {
+        $userId = Auth::id();
+        $topicId = $request->input('topic_id');
+        $perPage = $request->input('per_page', 50);
+//        Log::info($request->all());
+
+        $query = ChatMessage::where('project_id', $project->id)
+            ->when($topicId, function($q) use ($topicId) {
+                $topic = \App\Models\TelegramTopic::find($topicId);
+                $isGeneralTopic = ($topic && $topic->type === \App\Enums\TelegramTopicType::GENERAL);
+
+                if ($isGeneralTopic) {
+                    $q->where(function($sub) use ($topicId) {
+                        $sub->where('telegram_topic_id', $topicId)
+                           ->orWhereNull('telegram_topic_id');
+                    });
+                } else {
+                    $q->where('telegram_topic_id', $topicId);
+                }
+            })
+            ->with([
+                'user',
+                'client',
+                'parent.user',
+                'parent.client',
+                'interactions' => function ($q) {
+                    $q->with('user:id,name')->where('interaction_type', 'read');
+                },
+            ]);
+
+        // Cursor logic based on since_id and before_id
+        if ($request->has('since_id')) {
+            $query->where('id', '>', $request->since_id)->orderBy('id', 'asc');
+        } elseif ($request->has('before_id')) {
+            $query->where('id', '<', $request->before_id)->orderBy('id', 'desc');
+        } else {
+            $query->orderBy('id', 'desc');
+        }
+
+        $paginator = $query->paginate($perPage);
+
+        $formattedMessages = collect($paginator->items())->map(function ($msg) use ($userId) {
+            $reads = $msg->interactions->map(fn ($i) => [
+                'user'    => $i->user?->name ?? 'Someone',
+                'read_at' => $i->updated_at->toDateTimeString(),
+            ]);
+
+            $userName = $msg->user?->name ?? ($msg->client?->name ?? ($msg->meta_data['telegram_from']['first_name'] ?? 'Telegram User'));
+
+            return [
+                'id'         => $msg->id,
+                'type'       => $msg->source === 'telegram' ? 'telegram' : 'text',
+                'user'       => $userName,
+                'user_id'    => $msg->user_id,
+                'client_id'  => $msg->client_id,
+                'initials'   => strtoupper(substr($userName, 0, 2)),
+                'color'      => $msg->client_id ? 'bg-sky-500' : ($msg->source === 'telegram' ? 'bg-sky-500' : 'bg-indigo-600'),
+                'message'    => $msg->message,
+                'parent'     => $msg->parent ? [
+                    'id'      => $msg->parent->id,
+                    'user'    => $msg->parent->user?->name ?? ($msg->parent->client?->name ?? 'System'),
+                    'message' => Str::limit($msg->parent->message, 50),
+                ] : null,
+                'reads'      => $reads,
+                'time'       => $msg->created_at->diffForHumans(),
+                'created_at' => $msg->created_at->toDateTimeString(),
+                'is_me'      => $msg->user_id === $userId,
+                'source'     => $msg->source,
+            ];
+        });
+
+        // For "since_id" (new messages), we want them in ASC order for the app to append.
+        // For "before_id" (older history) or "latest", we keep DESC so the app knows these are previous.
+        // Wait, if I use orderBy('id', 'asc') for since_id, the returned collection is ASC.
+        // If I use orderBy('id', 'desc') for before_id, the returned collection is DESC.
+        // This is correct as per instructions.
+
+        $response =  response()->json([
+            'data' => $formattedMessages,
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+                'has_more'     => $paginator->hasMorePages(),
+            ]
+        ]);
+
+//        Log::info($response);
+
+        return $response;
     }
 
     /**

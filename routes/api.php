@@ -771,7 +771,7 @@ Route::prefix('native-app')->middleware(['auth:sanctum'])->group(function () {
     Route::post('projects/{project}/topics', [\App\Http\Controllers\Api\TelegramTopicController::class, 'store']);
     
     // Chat & Messages
-    Route::get('projects/{project}/chat', [\App\Http\Controllers\Api\ChatController::class, 'index']);
+    Route::get('projects/{project}/chat', [\App\Http\Controllers\Api\ChatController::class, 'indexNative']);
     Route::post('projects/{project}/chat', [\App\Http\Controllers\Api\ChatController::class, 'store']);
     Route::delete('projects/{project}/chat/{chat_message}', [\App\Http\Controllers\Api\ChatController::class, 'destroy']);
     Route::post('projects/{project}/chat/mark-read', [\App\Http\Controllers\Api\ChatController::class, 'markRead']);

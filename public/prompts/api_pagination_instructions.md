@@ -1,0 +1,62 @@
+# Backend Integration Guide: Chat Pagination
+
+To improve performance and support local caching in the NativePHP application, the Chat API needs to support cursor-based pagination.
+
+## Endpoints to Update 'native-app' prefix
+
+### `GET /projects/{projectId}/chat`
+
+#### Current Request
+`GET /projects/{projectId}/chat?topic_id={topicId}`
+
+#### Proposed Request
+`GET /projects/{projectId}/chat?topic_id={topicId}&since_id={id}&before_id={id}&per_page={per_page}`
+
+**Parameters:**
+- `topic_id` (required): The ID of the topic.
+- `since_id` (optional): Return messages created **after** this ID (used for fetching new messages).
+- `before_id` (optional): Return messages created **before** this ID (used for loading older history).
+- `per_page` (optional, default: 50): Number of messages to return.
+
+## Implementation Details
+
+### Recommended Logic for Backend
+To support both real-time updates and historical scrolling, the backend should handle the `since_id` and `before_id` filters:
+
+```php
+$query = Message::where('project_id', $projectId)
+    ->where('topic_id', $topicId);
+
+if ($request->has('since_id')) {
+    $query->where('id', '>', $request->since_id)->orderBy('id', 'asc');
+} elseif ($request->has('before_id')) {
+    $query->where('id', '<', $request->before_id)->orderBy('id', 'desc');
+} else {
+    $query->orderBy('id', 'desc');
+}
+
+return $query->paginate($request->input('per_page', 50));
+```
+
+## Expected Response Format
+
+The response should include a way to know if more data exists:
+
+```json
+{
+    "data": [...],
+    "meta": {
+        "current_page": 1,
+        "per_page": 50,
+        "total": 1500,
+        "has_more": true 
+    }
+}
+```
+
+## Delta Sync (Optional but Recommended)
+
+To speed up initial app load, it would be beneficial to have a `since_id` parameter:
+- `GET /projects/{projectId}/chat?topic_id={topicId}&since_id={lastLocalId}`
+- Returns all messages created *after* `since_id`.
+- If no `since_id` is provided, return the latest `per_page` messages.
