@@ -2,7 +2,7 @@
 
 To improve performance and support local caching in the NativePHP application, the Chat API needs to support cursor-based pagination.
 
-## Endpoints to Update 'native-app' prefix
+## Endpoints to Update
 
 ### `GET /projects/{projectId}/chat`
 
@@ -21,21 +21,22 @@ To improve performance and support local caching in the NativePHP application, t
 ## Implementation Details
 
 ### Recommended Logic for Backend
-To support both real-time updates and historical scrolling, the backend should handle the `since_id` and `before_id` filters:
+To support both real-time updates and historical scrolling, the backend should handle the `since_id` and `before_id` filters. **Important**: Always return messages in **descending order (newest first)** to simplify pagination.
 
 ```php
 $query = Message::where('project_id', $projectId)
     ->where('topic_id', $topicId);
 
 if ($request->has('since_id')) {
-    $query->where('id', '>', $request->since_id)->orderBy('id', 'asc');
+    // Return messages newer than since_id
+    $query->where('id', '>', $request->since_id);
 } elseif ($request->has('before_id')) {
-    $query->where('id', '<', $request->before_id)->orderBy('id', 'desc');
-} else {
-    $query->orderBy('id', 'desc');
+    // Return messages older than before_id
+    $query->where('id', '<', $request->before_id);
 }
 
-return $query->paginate($request->input('per_page', 50));
+// Always order by Newest First
+return $query->orderBy('id', 'desc')->paginate($request->input('per_page', 50));
 ```
 
 ## Expected Response Format

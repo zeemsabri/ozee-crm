@@ -173,14 +173,12 @@ class ChatController extends Controller
 
         // Cursor logic based on since_id and before_id
         if ($request->has('since_id')) {
-            $query->where('id', '>', $request->since_id)->orderBy('id', 'asc');
+            $query->where('id', '>', $request->since_id);
         } elseif ($request->has('before_id')) {
-            $query->where('id', '<', $request->before_id)->orderBy('id', 'desc');
-        } else {
-            $query->orderBy('id', 'desc');
+            $query->where('id', '<', $request->before_id);
         }
 
-        $paginator = $query->paginate($perPage);
+        $paginator = $query->orderBy('id', 'desc')->paginate($perPage);
 
         $formattedMessages = collect($paginator->items())->map(function ($msg) use ($userId) {
             $reads = $msg->interactions->map(fn ($i) => [
@@ -211,12 +209,6 @@ class ChatController extends Controller
                 'source'     => $msg->source,
             ];
         });
-
-        // For "since_id" (new messages), we want them in ASC order for the app to append.
-        // For "before_id" (older history) or "latest", we keep DESC so the app knows these are previous.
-        // Wait, if I use orderBy('id', 'asc') for since_id, the returned collection is ASC.
-        // If I use orderBy('id', 'desc') for before_id, the returned collection is DESC.
-        // This is correct as per instructions.
 
         $response =  response()->json([
             'data' => $formattedMessages,
