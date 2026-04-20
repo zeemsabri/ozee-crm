@@ -108,7 +108,7 @@ class User extends Authenticatable
     public function isManager(): bool
     {
         // Get the role directly from the relationship to avoid using the accessor
-        return $this->app_role === 'manager';
+        return $this->app_role === 'manager' || $this->app_role === 'assistant-manager';
     }
 
     public function isEmployee(): bool
@@ -714,7 +714,7 @@ class User extends Authenticatable
 
     /**
      * Get the currently active task for the user.
-     * 
+     *
      * @return \Illuminate\Database\Eloquent\Relations\HasOne
      */
     public function activeTask()
