@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
 
@@ -13,31 +14,47 @@ class UserMentioned extends Notification implements ShouldQueue
 {
     use Queueable;
 
+    private array $payload;
+
     public function __construct(
         public Model $sourceModel,
         public User $mentionedByUser
-    ) {}
+    ) {
+        $this->setPayload();
+    }
 
     public function via($notifiable)
     {
-        return ['database'];
+        return ['database', 'broadcast'];
+    }
+
+    private function setPayload()
+    {
+        $this->payload = $this->getPayload();
+
+        return $this;
     }
 
     public function toArray($notifiable)
     {
+        return $this->payload;
+    }
+
+    private function getPayload()
+    {
         $content = $this->sourceModel->message ?? $this->sourceModel->content ?? '';
         // Clean both @{id:name} and #{id:task_number}
         $cleanMessage = preg_replace('/[@#]\{(\d+):([^}]+)\}/', '$2', $content);
-        
+
         // Handle project relationship if exists
         $projectName = 'Chat';
         $taskNumber = null;
         if (isset($this->sourceModel->project)) {
             $projectName = $this->sourceModel->project->name;
         } elseif (method_exists($this->sourceModel, 'project') && $this->sourceModel->project) {
-             $projectName = $this->sourceModel->project->name;
+            $projectName = $this->sourceModel->project->name;
         } elseif (isset($this->sourceModel->noteable) && isset($this->sourceModel->noteable->project)) {
-             $projectName = $this->sourceModel->noteable->project->name;
+            $projectName = $this->sourceModel->noteable->project->name;
         }
 
         $taskId = null;
@@ -57,8 +74,19 @@ class UserMentioned extends Notification implements ShouldQueue
             'task_number' => $taskNumber,
             'source_id' => $this->sourceModel->id,
             'source_type' => class_basename($this->sourceModel),
-            'url' => '#', 
+            'url' => '#',
             'type' => 'user_mentioned',
         ];
+    }
+
+    /**
+     * Get the broadcastable representation of the notification.
+     *
+     * @param  mixed  $notifiable
+     * @return BroadcastMessage
+     */
+    public function toBroadcast($notifiable)
+    {
+        return new BroadcastMessage($this->payload);
     }
 }
