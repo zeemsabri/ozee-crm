@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\EmailAiAnalysisService;
 use App\Services\GmailService;
 use App\Services\MagicLinkService;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Http\Request;
 
 class TestController extends Controller
@@ -134,5 +135,115 @@ class TestController extends Controller
 
         // Finally, trim the result to remove any unwanted leading/trailing whitespace.
         return trim($substring);
+    }
+
+    /**
+     * Send a test email using a prefixed env mail configuration.
+     *
+     * Example prefix: IFAM_QUIZ -> IFAM_QUIZ_MAIL_HOST, IFAM_QUIZ_MAIL_PORT, etc.
+     */
+    public function testEmailWithConfig(Request $request)
+    {
+        $validated = $request->validate([
+            'config_prefix' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9_]+$/'],
+            'to' => ['required', 'email'],
+            'subject' => ['nullable', 'string', 'max:255'],
+            'body' => ['nullable', 'string'],
+        ]);
+
+        $prefix = strtoupper((string) $validated['config_prefix']);
+
+        $host = $this->getEnvValue("{$prefix}_MAIL_HOST");
+        $port = $this->getEnvValue("{$prefix}_MAIL_PORT");
+        $username = $this->getEnvValue("{$prefix}_MAIL_USERNAME");
+        $password = $this->getEnvValue("{$prefix}_MAIL_PASSWORD");
+        $encryption = $this->getEnvValue("{$prefix}_MAIL_ENCRYPTION") ?: null;
+        $fromAddress = $this->getEnvValue("{$prefix}_MAIL_FROM_ADDRESS") ?: config('mail.from.address');
+        $fromName = $this->getEnvValue("{$prefix}_MAIL_FROM_NAME") ?: config('mail.from.name');
+
+        $missing = [];
+        foreach ([
+            "{$prefix}_MAIL_HOST" => $host,
+            "{$prefix}_MAIL_PORT" => $port,
+            "{$prefix}_MAIL_USERNAME" => $username,
+            "{$prefix}_MAIL_PASSWORD" => $password,
+            "{$prefix}_MAIL_FROM_ADDRESS" => $fromAddress,
+        ] as $key => $value) {
+            if ($value === null || $value === '') {
+                $missing[] = $key;
+            }
+        }
+
+        if (! empty($missing)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Missing required mail configuration values.',
+                'missing' => $missing,
+            ], 422);
+        }
+
+        $mailerName = 'runtime_test_'.strtolower($prefix);
+        config([
+            "mail.mailers.{$mailerName}" => [
+                'transport' => 'smtp',
+                'host' => $host,
+                'port' => (int) $port,
+                'username' => $username,
+                'password' => $password,
+                'encryption' => $encryption,
+                'timeout' => null,
+            ],
+        ]);
+
+        $subject = $validated['subject'] ?? "Test Email ({$prefix})";
+        $body = $validated['body'] ?? "This is a test email using {$prefix} mail configuration.";
+
+        try {
+            Mail::mailer($mailerName)->raw($body, function ($message) use ($validated, $subject, $fromAddress, $fromName) {
+                $message->to($validated['to'])
+                    ->subject($subject)
+                    ->from($fromAddress, $fromName);
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Test email sent successfully.',
+                'mailer' => $mailerName,
+                'config_prefix' => $prefix,
+                'to' => $validated['to'],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send test email.',
+                'error' => $e->getMessage(),
+                'config_prefix' => $prefix,
+            ], 500);
+        }
+    }
+
+    private function getEnvValue(string $key): ?string
+    {
+        $value = env($key);
+        if ($value !== null && $value !== false) {
+            return (string) $value;
+        }
+
+        $serverValue = $_SERVER[$key] ?? null;
+        if ($serverValue !== null && $serverValue !== false) {
+            return (string) $serverValue;
+        }
+
+        $envValue = $_ENV[$key] ?? null;
+        if ($envValue !== null && $envValue !== false) {
+            return (string) $envValue;
+        }
+
+        $getEnvValue = getenv($key);
+        if ($getEnvValue !== false && $getEnvValue !== null) {
+            return (string) $getEnvValue;
+        }
+
+        return null;
     }
 }
