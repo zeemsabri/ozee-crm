@@ -1,8 +1,277 @@
 name: 'External API'
 description: |-
 
-  APIs for external systems to interact with our payment and activity tracking system.
+  APIs for external systems to send transactional email through a linked email app.
 endpoints:
+  -
+    custom: []
+    httpMethods:
+      - POST
+    uri: api/external/email/send
+    metadata:
+      custom: []
+      groupName: 'External API'
+      groupDescription: |-
+
+        APIs for external systems to send transactional email through a linked email app.
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Send Email'
+      description: |-
+        Send an email through the email app linked to the current external magic token.
+
+        The provided `app_id` must match the email app linked to the token in the
+        `X-Magic-Token` header. Only SMTP delivery mode is supported in this phase.
+
+        ### Example Payload
+        ```json
+        {
+          "app_id": 12,
+          "to": "recipient@example.com",
+          "cc": ["manager@example.com"],
+          "bcc": ["audit@example.com"],
+          "subject": "Welcome to the portal",
+          "body_html": "<p>Hello <strong>there</strong></p>",
+          "body_text": "Hello there",
+          "from_address": "noreply@example.com",
+          "from_name": "Example App",
+          "reply_to": "support@example.com",
+          "metadata": {
+            "external_message_id": "msg_12345"
+          }
+        }
+        ```
+      authenticated: true
+      deprecated: false
+    headers:
+      X-Magic-Token: '{YOUR_MAGIC_TOKEN}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      app_id:
+        custom: []
+        name: app_id
+        description: 'The internal ID of the email app linked to the token.'
+        required: true
+        example: 12
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      to:
+        custom: []
+        name: to
+        description: 'The primary recipient email address.'
+        required: true
+        example: recipient@example.com
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      cc:
+        custom: []
+        name: cc
+        description: 'Optional list of CC recipient email addresses.'
+        required: false
+        example:
+          - manager@example.com
+        type: 'string[]'
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      bcc:
+        custom: []
+        name: bcc
+        description: 'Optional list of BCC recipient email addresses.'
+        required: false
+        example:
+          - audit@example.com
+        type: 'string[]'
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      subject:
+        custom: []
+        name: subject
+        description: 'Email subject line. Maximum 255 characters.'
+        required: true
+        example: 'Welcome to the portal'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      body_html:
+        custom: []
+        name: body_html
+        description: 'Optional HTML email body. Required when `body_text` is not provided.'
+        required: false
+        example: '<p>Hello <strong>there</strong></p>'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: true
+        deprecated: false
+      body_text:
+        custom: []
+        name: body_text
+        description: 'Optional plain-text email body. Required when `body_html` is not provided.'
+        required: false
+        example: 'Hello there'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: true
+        deprecated: false
+      from_address:
+        custom: []
+        name: from_address
+        description: 'Optional sender email override. Falls back to the email app default sender address.'
+        required: false
+        example: noreply@example.com
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: true
+        deprecated: false
+      from_name:
+        custom: []
+        name: from_name
+        description: 'Optional sender name override. Falls back to the email app default sender name.'
+        required: false
+        example: 'Example App'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: true
+        deprecated: false
+      reply_to:
+        custom: []
+        name: reply_to
+        description: 'Optional reply-to email override. Falls back to the email app default reply-to address.'
+        required: false
+        example: support@example.com
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: true
+        deprecated: false
+      metadata:
+        custom: []
+        name: metadata
+        description: 'Optional metadata stored with the email log entry.'
+        required: false
+        example:
+          external_message_id: msg_12345
+        type: object
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: true
+        deprecated: false
+      'cc.*':
+        custom: []
+        name: 'cc.*'
+        description: 'Email address to CC.'
+        required: false
+        example: manager@example.com
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      'bcc.*':
+        custom: []
+        name: 'bcc.*'
+        description: 'Email address to BCC.'
+        required: false
+        example: audit@example.com
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      app_id: 12
+      to: recipient@example.com
+      cc:
+        - manager@example.com
+      bcc:
+        - audit@example.com
+      subject: 'Welcome to the portal'
+      body_html: '<p>Hello <strong>there</strong></p>'
+      body_text: 'Hello there'
+      from_address: noreply@example.com
+      from_name: 'Example App'
+      reply_to: support@example.com
+      metadata:
+        external_message_id: msg_12345
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+            "success": true,
+            "message": "Email sent successfully.",
+            "data": {
+              "log_id": 25,
+              "status": "sent"
+            }
+          }
+        headers: []
+        description: ''
+      -
+        custom: []
+        status: 403
+        content: |-
+          {
+            "success": false,
+            "message": "Token does not belong to the provided app_id."
+          }
+        headers: []
+        description: ''
+      -
+        custom: []
+        status: 422
+        content: |-
+          {
+            "success": false,
+            "message": "API provider mode is configured but not supported in phase 1.",
+            "code": "external_email_api_mode_not_supported"
+          }
+        headers: []
+        description: ''
+      -
+        custom: []
+        status: 500
+        content: |-
+          {
+            "success": false,
+            "message": "Failed to send email.",
+            "data": {
+              "log_id": 25,
+              "status": "failed"
+            }
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth:
+      - headers
+      - X-Magic-Token
+      - 6g43cv8PD1aE5beadkZfhV6
+    controller: null
+    method: null
+    route: null
   -
     custom: []
     httpMethods:
