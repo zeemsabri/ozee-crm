@@ -14,6 +14,7 @@ import BaseFormModal from '@/Components/BaseFormModal.vue';
 const props = defineProps({
     tokens: Array,
     projects: Array,
+    emailApps: Array,
 });
 
 const showCreateModal = ref(false);
@@ -27,6 +28,7 @@ const form = useForm({
     label: '',
     email: '',
     project_id: '',
+    email_app_id: '',
     expires_at: '',
     max_uses: null,
     whitelist_domains: [],
@@ -74,6 +76,7 @@ const openEditModal = (token) => {
     form.label = token.label;
     form.email = token.email || '';
     form.project_id = token.project_id || '';
+    form.email_app_id = token.email_app_id || '';
     // Format date for input[type="date"]
     form.expires_at = token.expires_at ? new Date(token.expires_at).toISOString().split('T')[0] : '';
     form.max_uses = token.max_uses;
@@ -142,6 +145,7 @@ const copyToken = (token) => {
                                 <tr>
                                     <th class="px-6 py-3 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Label & Token</th>
                                     <th class="px-6 py-3 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Project</th>
+                                    <th class="px-6 py-3 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Email App</th>
                                     <th class="px-6 py-3 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Expiry</th>
                                     <th class="px-6 py-3 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Uses</th>
                                     <th class="px-6 py-3 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Whitelist</th>
@@ -157,6 +161,10 @@ const copyToken = (token) => {
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 text-gray-700 font-medium">{{ token.project?.name }}</td>
+                                    <td class="px-6 py-4">
+                                        <span v-if="token.email_app" class="text-gray-700 font-medium">{{ token.email_app.name }}</span>
+                                        <span v-else class="text-gray-400 italic">Unlinked</span>
+                                    </td>
                                     <td class="px-6 py-4">
                                         <span v-if="token.expires_at" :class="new Date(token.expires_at) < new Date() ? 'text-red-500 font-bold' : 'text-gray-600'">
                                             {{ new Date(token.expires_at).toLocaleDateString() }}
@@ -202,7 +210,7 @@ const copyToken = (token) => {
                                     </td>
                                 </tr>
                                 <tr v-if="tokens.length === 0">
-                                    <td colspan="6" class="px-6 py-8 text-center text-gray-500 italic">
+                                    <td colspan="7" class="px-6 py-8 text-center text-gray-500 italic">
                                         No external API tokens have been created yet.
                                     </td>
                                 </tr>
@@ -250,6 +258,18 @@ const copyToken = (token) => {
                         </select>
                         <p class="text-[11px] text-gray-500 mt-1">The project data this token will have access to.</p>
                         <InputError :message="errors.project_id" class="mt-1" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="email_app_id" value="Linked Email App" />
+                        <select id="email_app_id" v-model="form.email_app_id" class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm">
+                            <option value="">None (cannot send external email)</option>
+                            <option v-for="app in emailApps" :key="app.id" :value="app.id">
+                                {{ app.name }}
+                            </option>
+                        </select>
+                        <p class="text-[11px] text-gray-500 mt-1">Each token can be linked to one Email App for /external/email/send calls.</p>
+                        <InputError :message="errors.email_app_id" class="mt-1" />
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
@@ -336,6 +356,18 @@ const copyToken = (token) => {
                         </select>
                         <p class="text-[11px] text-gray-500 mt-1">The project data this token will have access to.</p>
                         <InputError :message="errors.project_id" class="mt-1" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="edit_email_app_id" value="Linked Email App" />
+                        <select id="edit_email_app_id" v-model="form.email_app_id" class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm">
+                            <option value="">None (cannot send external email)</option>
+                            <option v-for="app in emailApps" :key="app.id" :value="app.id">
+                                {{ app.name }}
+                            </option>
+                        </select>
+                        <p class="text-[11px] text-gray-500 mt-1">Token + app_id is enforced on external email send.</p>
+                        <InputError :message="errors.email_app_id" class="mt-1" />
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">

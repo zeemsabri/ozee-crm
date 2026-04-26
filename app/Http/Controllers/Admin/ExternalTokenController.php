@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\EmailApp;
 use App\Models\MagicLink;
 use App\Models\Project;
 use Illuminate\Http\Request;
@@ -17,15 +18,17 @@ class ExternalTokenController extends Controller
     public function index()
     {
         $tokens = MagicLink::where('type', 'external')
-            ->with('project')
+            ->with(['project', 'emailApp'])
             ->latest()
             ->get();
 
         $projects = Project::select('id', 'name')->get();
+        $emailApps = EmailApp::select('id', 'name', 'is_active')->orderBy('name')->get();
 
         return Inertia::render('Admin/ExternalTokens/Index', [
             'tokens' => $tokens,
             'projects' => $projects,
+            'emailApps' => $emailApps,
         ]);
     }
 
@@ -38,6 +41,7 @@ class ExternalTokenController extends Controller
             'label' => 'required|string|max:255',
             'email' => 'nullable|email',
             'project_id' => 'nullable|exists:projects,id',
+            'email_app_id' => 'nullable|exists:email_apps,id',
             'expires_at' => 'nullable|date|after:now',
             'max_uses' => 'nullable|integer|min:1',
             'whitelist_domains' => 'nullable|array',
@@ -48,6 +52,7 @@ class ExternalTokenController extends Controller
             'label' => $request->label,
             'email' => $request->email,
             'project_id' => $request->project_id ?: null,
+            'email_app_id' => $request->email_app_id ?: null,
             'token' => Str::random(64),
             'type' => 'external',
             'expires_at' => $request->expires_at ?: null,
@@ -77,6 +82,7 @@ class ExternalTokenController extends Controller
             'label' => 'required|string|max:255',
             'email' => 'nullable|email',
             'project_id' => 'nullable|exists:projects,id',
+            'email_app_id' => 'nullable|exists:email_apps,id',
             'expires_at' => 'nullable|date',
             'max_uses' => 'nullable|integer|min:1',
             'whitelist_domains' => 'nullable|array',
@@ -87,6 +93,7 @@ class ExternalTokenController extends Controller
             'label' => $request->label,
             'email' => $request->email,
             'project_id' => $request->project_id ?: null,
+            'email_app_id' => $request->email_app_id ?: null,
             'expires_at' => $request->expires_at ?: null,
             'max_uses' => $request->max_uses,
             'whitelist' => [

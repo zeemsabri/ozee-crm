@@ -15,6 +15,7 @@ class MagicLink extends Model
         'email',
         'token',
         'project_id',
+        'email_app_id',
         'temporary_pin',
         'temp_pin_expires_at',
         'expires_at',
@@ -40,6 +41,7 @@ class MagicLink extends Model
         'max_uses' => 'integer',
         'uses_count' => 'integer',
         'last_used_at' => 'datetime',
+        'email_app_id' => 'integer',
     ];
 
     /**
@@ -48,6 +50,16 @@ class MagicLink extends Model
     public function project()
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function emailApp()
+    {
+        return $this->belongsTo(EmailApp::class);
+    }
+
+    public function externalEmailLogs()
+    {
+        return $this->hasMany(ExternalEmailLog::class);
     }
 
     /**

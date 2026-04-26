@@ -784,6 +784,7 @@ Route::prefix('native-app')->middleware(['auth:sanctum'])->group(function () {
 
 // === External API Routes (Protected by External Magic Link Token) ===
 Route::prefix('external')->middleware(['auth.magiclink.external'])->group(function () {
+    Route::post('/email/send', [\App\Http\Controllers\Api\External\ExternalEmailController::class, 'send']);
     Route::post('/payment/create-session', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'createSession']);
     Route::post('/payment/create-price', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'createPrice']);
     Route::post('/payment/update-configuration', [\App\Http\Controllers\Api\External\ExternalPaymentController::class, 'updateConfiguration']);

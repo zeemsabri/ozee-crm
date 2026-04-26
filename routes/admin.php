@@ -68,6 +68,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/external-tokens/{magicLink}', [\App\Http\Controllers\Admin\ExternalTokenController::class, 'destroy'])
             ->name('admin.external-tokens.destroy');
 
+        // Email Apps management routes
+        Route::get('/email-apps', [\App\Http\Controllers\Admin\EmailAppController::class, 'index'])
+            ->name('admin.email-apps.index');
+        Route::post('/email-apps', [\App\Http\Controllers\Admin\EmailAppController::class, 'store'])
+            ->name('admin.email-apps.store');
+        Route::put('/email-apps/{emailApp}', [\App\Http\Controllers\Admin\EmailAppController::class, 'update'])
+            ->name('admin.email-apps.update');
+        Route::delete('/email-apps/{emailApp}', [\App\Http\Controllers\Admin\EmailAppController::class, 'destroy'])
+            ->name('admin.email-apps.destroy');
+
         // Stripe Configuration routes
         Route::get('/stripe-configurations', [\App\Http\Controllers\Admin\StripeConfigurationController::class, 'index'])
             ->name('admin.stripe-configurations.index');

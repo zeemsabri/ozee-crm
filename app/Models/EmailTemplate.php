@@ -29,4 +29,10 @@ class EmailTemplate extends Model
     {
         return $this->belongsToMany(PlaceholderDefinition::class, 'email_template_placeholder', 'email_template_id', 'placeholder_definition_id');
     }
+
+    public function emailApps(): BelongsToMany
+    {
+        return $this->belongsToMany(EmailApp::class, 'email_app_template', 'email_template_id', 'email_app_id')
+            ->withTimestamps();
+    }
 }

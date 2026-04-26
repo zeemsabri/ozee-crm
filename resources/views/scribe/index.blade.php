@@ -71,7 +71,10 @@
                     <a href="#external-api">External API</a>
                 </li>
                                     <ul id="tocify-subheader-external-api" class="tocify-subheader">
-                                                    <li class="tocify-item level-2" data-unique="external-api-POSTapi-external-payment-create-session">
+                                                    <li class="tocify-item level-2" data-unique="external-api-POSTapi-external-email-send">
+                                <a href="#external-api-POSTapi-external-email-send">Send Email</a>
+                            </li>
+                                                                                <li class="tocify-item level-2" data-unique="external-api-POSTapi-external-payment-create-session">
                                 <a href="#external-api-POSTapi-external-payment-create-session">Create Checkout Session</a>
                             </li>
                                                                                 <li class="tocify-item level-2" data-unique="external-api-POSTapi-external-payment-create-price">
@@ -108,7 +111,7 @@ Retrieve a list of payment activities associated with a specific application.</a
     </ul>
 
     <ul class="toc-footer" id="last-updated">
-        <li>Last updated: March 26, 2026</li>
+        <li>Last updated: April 26, 2026</li>
     </ul>
 </div>
 
@@ -132,9 +135,399 @@ You can switch the language used with the tabs at the top right (or from the nav
 
         <h1 id="external-api">External API</h1>
 
-    <p>APIs for external systems to interact with our payment and activity tracking system.</p>
+    <p>APIs for external systems to send transactional email through a linked email app.</p>
 
-                                <h2 id="external-api-POSTapi-external-payment-create-session">Create Checkout Session</h2>
+                                <h2 id="external-api-POSTapi-external-email-send">Send Email</h2>
+
+<p>
+<small class="badge badge-darkred">requires authentication</small>
+</p>
+
+<p>Send an email through the email app linked to the current external magic token.</p>
+<p>The provided <code>app_id</code> must match the email app linked to the token in the
+<code>X-Magic-Token</code> header. Only SMTP delivery mode is supported in this phase.</p>
+<h3>Example Payload</h3>
+<pre><code class="language-json">{
+  "app_id": 12,
+  "to": "recipient@example.com",
+  "cc": ["manager@example.com"],
+  "bcc": ["audit@example.com"],
+  "subject": "Welcome to the portal",
+  "body_html": "&lt;p&gt;Hello &lt;strong&gt;there&lt;/strong&gt;&lt;/p&gt;",
+  "body_text": "Hello there",
+  "from_address": "noreply@example.com",
+  "from_name": "Example App",
+  "reply_to": "support@example.com",
+  "metadata": {
+    "external_message_id": "msg_12345"
+  }
+}</code></pre>
+
+<span id="example-requests-POSTapi-external-email-send">
+<blockquote>Example request:</blockquote>
+
+
+<div class="bash-example">
+    <pre><code class="language-bash">curl --request POST \
+    "http://localhost:8000/api/external/email/send" \
+    --header "X-Magic-Token: {YOUR_MAGIC_TOKEN}" \
+    --header "Content-Type: application/json" \
+    --header "Accept: application/json" \
+    --data "{
+    \"app_id\": 12,
+    \"to\": \"recipient@example.com\",
+    \"cc\": [
+        \"manager@example.com\"
+    ],
+    \"bcc\": [
+        \"audit@example.com\"
+    ],
+    \"subject\": \"Welcome to the portal\",
+    \"body_html\": \"&lt;p&gt;Hello &lt;strong&gt;there&lt;\\/strong&gt;&lt;\\/p&gt;\",
+    \"body_text\": \"Hello there\",
+    \"from_address\": \"noreply@example.com\",
+    \"from_name\": \"Example App\",
+    \"reply_to\": \"support@example.com\",
+    \"metadata\": {
+        \"external_message_id\": \"msg_12345\"
+    }
+}"
+</code></pre></div>
+
+
+<div class="javascript-example">
+    <pre><code class="language-javascript">const url = new URL(
+    "http://localhost:8000/api/external/email/send"
+);
+
+const headers = {
+    "X-Magic-Token": "{YOUR_MAGIC_TOKEN}",
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+};
+
+let body = {
+    "app_id": 12,
+    "to": "recipient@example.com",
+    "cc": [
+        "manager@example.com"
+    ],
+    "bcc": [
+        "audit@example.com"
+    ],
+    "subject": "Welcome to the portal",
+    "body_html": "&lt;p&gt;Hello &lt;strong&gt;there&lt;\/strong&gt;&lt;\/p&gt;",
+    "body_text": "Hello there",
+    "from_address": "noreply@example.com",
+    "from_name": "Example App",
+    "reply_to": "support@example.com",
+    "metadata": {
+        "external_message_id": "msg_12345"
+    }
+};
+
+fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+}).then(response =&gt; response.json());</code></pre></div>
+
+</span>
+
+<span id="example-responses-POSTapi-external-email-send">
+            <blockquote>
+            <p>Example response (200):</p>
+        </blockquote>
+                <pre>
+
+<code class="language-json" style="max-height: 300px;">{
+    &quot;success&quot;: true,
+    &quot;message&quot;: &quot;Email sent successfully.&quot;,
+    &quot;data&quot;: {
+        &quot;log_id&quot;: 25,
+        &quot;status&quot;: &quot;sent&quot;
+    }
+}</code>
+ </pre>
+            <blockquote>
+            <p>Example response (403):</p>
+        </blockquote>
+                <pre>
+
+<code class="language-json" style="max-height: 300px;">{
+    &quot;success&quot;: false,
+    &quot;message&quot;: &quot;Token does not belong to the provided app_id.&quot;
+}</code>
+ </pre>
+            <blockquote>
+            <p>Example response (422):</p>
+        </blockquote>
+                <pre>
+
+<code class="language-json" style="max-height: 300px;">{
+    &quot;success&quot;: false,
+    &quot;message&quot;: &quot;API provider mode is configured but not supported in phase 1.&quot;,
+    &quot;code&quot;: &quot;external_email_api_mode_not_supported&quot;
+}</code>
+ </pre>
+            <blockquote>
+            <p>Example response (500):</p>
+        </blockquote>
+                <pre>
+
+<code class="language-json" style="max-height: 300px;">{
+    &quot;success&quot;: false,
+    &quot;message&quot;: &quot;Failed to send email.&quot;,
+    &quot;data&quot;: {
+        &quot;log_id&quot;: 25,
+        &quot;status&quot;: &quot;failed&quot;
+    }
+}</code>
+ </pre>
+    </span>
+<span id="execution-results-POSTapi-external-email-send" hidden>
+    <blockquote>Received response<span
+                id="execution-response-status-POSTapi-external-email-send"></span>:
+    </blockquote>
+    <pre class="json"><code id="execution-response-content-POSTapi-external-email-send"
+      data-empty-response-text="<Empty response>" style="max-height: 400px;"></code></pre>
+</span>
+<span id="execution-error-POSTapi-external-email-send" hidden>
+    <blockquote>Request failed with error:</blockquote>
+    <pre><code id="execution-error-message-POSTapi-external-email-send">
+
+Tip: Check that you&#039;re properly connected to the network.
+If you&#039;re a maintainer of ths API, verify that your API is running and you&#039;ve enabled CORS.
+You can check the Dev Tools console for debugging information.</code></pre>
+</span>
+<form id="form-POSTapi-external-email-send" data-method="POST"
+      data-path="api/external/email/send"
+      data-authed="1"
+      data-hasfiles="0"
+      data-isarraybody="0"
+      autocomplete="off"
+      onsubmit="event.preventDefault(); executeTryOut('POSTapi-external-email-send', this);">
+    <h3>
+        Request&nbsp;&nbsp;&nbsp;
+                    <button type="button"
+                    style="background-color: #8fbcd4; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-tryout-POSTapi-external-email-send"
+                    onclick="tryItOut('POSTapi-external-email-send');">Try it out ⚡
+            </button>
+            <button type="button"
+                    style="background-color: #c97a7e; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-canceltryout-POSTapi-external-email-send"
+                    onclick="cancelTryOut('POSTapi-external-email-send');" hidden>Cancel 🛑
+            </button>&nbsp;&nbsp;
+            <button type="submit"
+                    style="background-color: #6ac174; padding: 5px 10px; border-radius: 5px; border-width: thin;"
+                    id="btn-executetryout-POSTapi-external-email-send"
+                    data-initial-text="Send Request 💥"
+                    data-loading-text="⏱ Sending..."
+                    hidden>Send Request 💥
+            </button>
+            </h3>
+            <p>
+            <small class="badge badge-black">POST</small>
+            <b><code>api/external/email/send</code></b>
+        </p>
+                <h4 class="fancy-heading-panel"><b>Headers</b></h4>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>X-Magic-Token</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="X-Magic-Token" class="auth-value"               data-endpoint="POSTapi-external-email-send"
+               value="{YOUR_MAGIC_TOKEN}"
+               data-component="header">
+    <br>
+<p>Example: <code>{YOUR_MAGIC_TOKEN}</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Content-Type</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Content-Type"                data-endpoint="POSTapi-external-email-send"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                                <div style="padding-left: 28px; clear: unset;">
+                <b style="line-height: 2;"><code>Accept</code></b>&nbsp;&nbsp;
+&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="Accept"                data-endpoint="POSTapi-external-email-send"
+               value="application/json"
+               data-component="header">
+    <br>
+<p>Example: <code>application/json</code></p>
+            </div>
+                                <h4 class="fancy-heading-panel"><b>Body Parameters</b></h4>
+        <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>app_id</code></b>&nbsp;&nbsp;
+<small>integer</small>&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="number" style="display: none"
+               step="any"               name="app_id"                data-endpoint="POSTapi-external-email-send"
+               value="12"
+               data-component="body">
+    <br>
+<p>The internal ID of the email app linked to the token. Example: <code>12</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>to</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="to"                data-endpoint="POSTapi-external-email-send"
+               value="recipient@example.com"
+               data-component="body">
+    <br>
+<p>The primary recipient email address. Example: <code>recipient@example.com</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+        <details>
+            <summary style="padding-bottom: 10px;">
+                <b style="line-height: 2;"><code>cc</code></b>&nbsp;&nbsp;
+<small>string[]</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+<br>
+<p>Optional list of CC recipient email addresses.</p>
+            </summary>
+                                                <div style="margin-left: 14px; clear: unset;">
+                        <b style="line-height: 2;"><code>*</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="cc.*"                data-endpoint="POSTapi-external-email-send"
+               value="manager@example.com"
+               data-component="body">
+    <br>
+<p>Email address to CC. Example: <code>manager@example.com</code></p>
+                    </div>
+                                    </details>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+        <details>
+            <summary style="padding-bottom: 10px;">
+                <b style="line-height: 2;"><code>bcc</code></b>&nbsp;&nbsp;
+<small>string[]</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+<br>
+<p>Optional list of BCC recipient email addresses.</p>
+            </summary>
+                                                <div style="margin-left: 14px; clear: unset;">
+                        <b style="line-height: 2;"><code>*</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="bcc.*"                data-endpoint="POSTapi-external-email-send"
+               value="audit@example.com"
+               data-component="body">
+    <br>
+<p>Email address to BCC. Example: <code>audit@example.com</code></p>
+                    </div>
+                                    </details>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>subject</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+ &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="subject"                data-endpoint="POSTapi-external-email-send"
+               value="Welcome to the portal"
+               data-component="body">
+    <br>
+<p>Email subject line. Maximum 255 characters. Example: <code>Welcome to the portal</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>body_html</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="body_html"                data-endpoint="POSTapi-external-email-send"
+               value="<p>Hello <strong>there</strong></p>"
+               data-component="body">
+    <br>
+<p>Optional HTML email body. Required when <code>body_text</code> is not provided. Example: <code>&lt;p&gt;Hello &lt;strong&gt;there&lt;/strong&gt;&lt;/p&gt;</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>body_text</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="body_text"                data-endpoint="POSTapi-external-email-send"
+               value="Hello there"
+               data-component="body">
+    <br>
+<p>Optional plain-text email body. Required when <code>body_html</code> is not provided. Example: <code>Hello there</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>from_address</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="from_address"                data-endpoint="POSTapi-external-email-send"
+               value="noreply@example.com"
+               data-component="body">
+    <br>
+<p>Optional sender email override. Falls back to the email app default sender address. Example: <code>noreply@example.com</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>from_name</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="from_name"                data-endpoint="POSTapi-external-email-send"
+               value="Example App"
+               data-component="body">
+    <br>
+<p>Optional sender name override. Falls back to the email app default sender name. Example: <code>Example App</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>reply_to</code></b>&nbsp;&nbsp;
+<small>string</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="reply_to"                data-endpoint="POSTapi-external-email-send"
+               value="support@example.com"
+               data-component="body">
+    <br>
+<p>Optional reply-to email override. Falls back to the email app default reply-to address. Example: <code>support@example.com</code></p>
+        </div>
+                <div style=" padding-left: 28px;  clear: unset;">
+            <b style="line-height: 2;"><code>metadata</code></b>&nbsp;&nbsp;
+<small>object</small>&nbsp;
+<i>optional</i> &nbsp;
+ &nbsp;
+                <input type="text" style="display: none"
+                              name="metadata"                data-endpoint="POSTapi-external-email-send"
+               value=""
+               data-component="body">
+    <br>
+<p>Optional metadata stored with the email log entry.</p>
+        </div>
+        </form>
+
+                    <h2 id="external-api-POSTapi-external-payment-create-session">Create Checkout Session</h2>
 
 <p>
 <small class="badge badge-darkred">requires authentication</small>
