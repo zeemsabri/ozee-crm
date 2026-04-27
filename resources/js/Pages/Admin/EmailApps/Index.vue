@@ -10,6 +10,7 @@ import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import BaseFormModal from '@/Components/BaseFormModal.vue';
 import Modal from '@/Components/Modal.vue';
+import RightSidebar from '@/Components/RightSidebar.vue';
 
 const props = defineProps({
     apps: Array,
@@ -20,6 +21,16 @@ const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const showDeleteModal = ref(false);
 const appToDelete = ref(null);
+const showLogsSidebar = ref(false);
+const logsLoading = ref(false);
+const selectedAppForLogs = ref(null);
+const appLogs = ref([]);
+const appLogsPagination = ref({
+    current_page: 1,
+    last_page: 1,
+    per_page: 20,
+    total: 0,
+});
 
 const form = ref(defaultForm());
 
@@ -31,6 +42,7 @@ function defaultForm() {
         description: '',
         is_active: true,
         delivery_mode: 'smtp',
+        hourly_send_limit: 100,
         smtp_host: '',
         smtp_port: 587,
         smtp_username: '',
@@ -60,6 +72,7 @@ function openEditModal(app) {
         description: app.description || '',
         is_active: !!app.is_active,
         delivery_mode: app.delivery_mode || 'smtp',
+        hourly_send_limit: app.hourly_send_limit || 100,
         smtp_host: app.smtp_host || '',
         smtp_port: app.smtp_port || 587,
         smtp_username: app.smtp_username || '',
@@ -111,6 +124,58 @@ function toggleTemplate(templateId) {
 
     form.value.template_ids.push(templateId);
 }
+
+function openLogsSidebar(app) {
+    selectedAppForLogs.value = app;
+    showLogsSidebar.value = true;
+    fetchAppLogs(1);
+}
+
+function closeLogsSidebar() {
+    showLogsSidebar.value = false;
+    selectedAppForLogs.value = null;
+    appLogs.value = [];
+    appLogsPagination.value = {
+        current_page: 1,
+        last_page: 1,
+        per_page: 20,
+        total: 0,
+    };
+}
+
+function fetchAppLogs(page = 1) {
+    if (!selectedAppForLogs.value) {
+        return;
+    }
+
+    logsLoading.value = true;
+
+    window.axios.get(route('admin.email-apps.logs', { emailApp: selectedAppForLogs.value.id }), {
+        params: {
+            page,
+            per_page: appLogsPagination.value.per_page,
+        },
+    }).then(({ data }) => {
+        appLogs.value = data.data || [];
+        appLogsPagination.value = {
+            current_page: data.current_page || 1,
+            last_page: data.last_page || 1,
+            per_page: data.per_page || 20,
+            total: data.total || 0,
+        };
+    }).finally(() => {
+        logsLoading.value = false;
+    });
+}
+
+function statusBadgeClass(status) {
+    if (status === 'sent') return 'bg-emerald-50 text-emerald-700 border border-emerald-100';
+    if (status === 'queued') return 'bg-blue-50 text-blue-700 border border-blue-100';
+    if (status === 'failed') return 'bg-red-50 text-red-700 border border-red-100';
+    if (status === 'rejected' || status === 'not_supported') return 'bg-amber-50 text-amber-700 border border-amber-100';
+
+    return 'bg-gray-50 text-gray-700 border border-gray-100';
+}
 </script>
 
 <template>
@@ -141,6 +206,7 @@ function toggleTemplate(templateId) {
                                     <th class="px-6 py-3 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">App</th>
                                     <th class="px-6 py-3 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Mode</th>
                                     <th class="px-6 py-3 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Hourly Limit</th>
                                     <th class="px-6 py-3 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Linked Templates</th>
                                     <th class="px-6 py-3 bg-gray-50 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
@@ -164,6 +230,10 @@ function toggleTemplate(templateId) {
                                         </span>
                                     </td>
                                     <td class="px-6 py-4">
+                                        <div class="text-sm text-gray-900 font-medium">{{ app.hourly_send_limit || 100 }}/hour</div>
+                                        <div class="text-xs text-gray-500">{{ app.external_email_logs_count || 0 }} total logs</div>
+                                    </td>
+                                    <td class="px-6 py-4">
                                         <div v-if="app.templates?.length" class="flex flex-wrap gap-1.5">
                                             <span v-for="template in app.templates" :key="template.id" class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
                                                 {{ template.name }}
@@ -173,6 +243,9 @@ function toggleTemplate(templateId) {
                                     </td>
                                     <td class="px-6 py-4 text-right">
                                         <div class="flex justify-end space-x-2">
+                                            <SecondaryButton title="Logs" @click="openLogsSidebar(app)">
+                                                Logs
+                                            </SecondaryButton>
                                             <SecondaryButton title="Edit" @click="openEditModal(app)">
                                                 Edit
                                             </SecondaryButton>
@@ -183,7 +256,7 @@ function toggleTemplate(templateId) {
                                     </td>
                                 </tr>
                                 <tr v-if="apps.length === 0">
-                                    <td colspan="5" class="px-6 py-8 text-center text-gray-500 italic">
+                                    <td colspan="6" class="px-6 py-8 text-center text-gray-500 italic">
                                         No email apps created yet.
                                     </td>
                                 </tr>
@@ -229,6 +302,12 @@ function toggleTemplate(templateId) {
                                 <option value="api">API (Phase 2)</option>
                             </select>
                             <InputError :message="errors.delivery_mode" class="mt-1" />
+                        </div>
+                        <div>
+                            <InputLabel for="hourly_send_limit" value="Hourly Send Limit" />
+                            <TextInput id="hourly_send_limit" v-model="form.hourly_send_limit" type="number" min="1" class="mt-1 block w-full" />
+                            <p class="mt-1 text-xs text-gray-500">Maximum emails queued for processing per hour for this app.</p>
+                            <InputError :message="errors.hourly_send_limit" class="mt-1" />
                         </div>
                         <div class="flex items-center mt-6">
                             <input id="is_active" v-model="form.is_active" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
@@ -363,6 +442,12 @@ function toggleTemplate(templateId) {
                             </select>
                             <InputError :message="errors.delivery_mode" class="mt-1" />
                         </div>
+                        <div>
+                            <InputLabel for="edit_hourly_send_limit" value="Hourly Send Limit" />
+                            <TextInput id="edit_hourly_send_limit" v-model="form.hourly_send_limit" type="number" min="1" class="mt-1 block w-full" />
+                            <p class="mt-1 text-xs text-gray-500">Maximum emails queued for processing per hour for this app.</p>
+                            <InputError :message="errors.hourly_send_limit" class="mt-1" />
+                        </div>
                         <div class="flex items-center mt-6">
                             <input id="edit_is_active" v-model="form.is_active" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
                             <label for="edit_is_active" class="ml-2 text-sm text-gray-700">Active</label>
@@ -471,5 +556,86 @@ function toggleTemplate(templateId) {
                 </div>
             </div>
         </Modal>
+
+        <RightSidebar
+            :show="showLogsSidebar"
+            :title="selectedAppForLogs ? `${selectedAppForLogs.name} Logs` : 'Email Logs'"
+            :initial-width="50"
+            @update:show="(value) => { if (!value) closeLogsSidebar(); }"
+            @close="closeLogsSidebar"
+        >
+            <template #content>
+                <div class="space-y-4">
+                    <div v-if="selectedAppForLogs" class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-700">
+                            <span class="font-semibold text-gray-900">App:</span> {{ selectedAppForLogs.name }}
+                        </div>
+                        <div class="text-sm text-gray-700 mt-1">
+                            <span class="font-semibold text-gray-900">Hourly limit:</span> {{ selectedAppForLogs.hourly_send_limit || 100 }}/hour
+                        </div>
+                    </div>
+
+                    <div v-if="logsLoading" class="text-sm text-gray-500">Loading logs...</div>
+
+                    <div v-else-if="appLogs.length === 0" class="text-sm text-gray-500 italic">No logs found for this app.</div>
+
+                    <div v-else class="space-y-3">
+                        <div v-for="log in appLogs" :key="log.id" class="border border-gray-200 rounded-lg p-4 bg-white">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <div class="text-sm font-semibold text-gray-900">{{ log.subject || '(No subject)' }}</div>
+                                    <div class="text-xs text-gray-500 mt-0.5">To: {{ log.to_email }}</div>
+                                </div>
+                                <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium" :class="statusBadgeClass(log.status)">
+                                    {{ log.status }}
+                                </span>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3 text-xs text-gray-600">
+                                <div>
+                                    <span class="font-semibold text-gray-700">Created:</span>
+                                    {{ log.created_at || '-' }}
+                                </div>
+                                <div>
+                                    <span class="font-semibold text-gray-700">Attempted:</span>
+                                    {{ log.attempted_at || '-' }}
+                                </div>
+                                <div>
+                                    <span class="font-semibold text-gray-700">Sent:</span>
+                                    {{ log.sent_at || '-' }}
+                                </div>
+                            </div>
+
+                            <p v-if="log.error_message" class="mt-2 text-xs text-red-600 break-words">
+                                {{ log.error_message }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <template #footer>
+                <div class="flex items-center justify-between">
+                    <div class="text-xs text-gray-500">
+                        Page {{ appLogsPagination.current_page }} of {{ appLogsPagination.last_page }}
+                        ({{ appLogsPagination.total }} logs)
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <SecondaryButton
+                            :disabled="logsLoading || appLogsPagination.current_page <= 1"
+                            @click="fetchAppLogs(appLogsPagination.current_page - 1)"
+                        >
+                            Previous
+                        </SecondaryButton>
+                        <SecondaryButton
+                            :disabled="logsLoading || appLogsPagination.current_page >= appLogsPagination.last_page"
+                            @click="fetchAppLogs(appLogsPagination.current_page + 1)"
+                        >
+                            Next
+                        </SecondaryButton>
+                    </div>
+                </div>
+            </template>
+        </RightSidebar>
     </AuthenticatedLayout>
 </template>

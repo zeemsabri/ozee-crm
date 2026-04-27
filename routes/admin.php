@@ -77,6 +77,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('admin.email-apps.update');
         Route::delete('/email-apps/{emailApp}', [\App\Http\Controllers\Admin\EmailAppController::class, 'destroy'])
             ->name('admin.email-apps.destroy');
+        Route::get('/email-apps/{emailApp}/logs', [\App\Http\Controllers\Admin\EmailAppController::class, 'logs'])
+            ->name('admin.email-apps.logs');
 
         // Stripe Configuration routes
         Route::get('/stripe-configurations', [\App\Http\Controllers\Admin\StripeConfigurationController::class, 'index'])

@@ -3,13 +3,11 @@
 namespace App\Http\Controllers\Api\External;
 
 use App\Http\Controllers\Controller;
-use App\Mail\ExternalApiEmail;
+use App\Jobs\SendExternalEmailJob;
 use App\Models\EmailApp;
 use App\Models\ExternalEmailLog;
 use App\Models\MagicLink;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 /**
  * @group External API
@@ -30,7 +28,7 @@ class ExternalEmailController extends Controller
      * ```json
      * {
      *   "app_id": 12,
-     *   "to": "recipient@example.com",
+    *   "to": ["recipient@example.com", "recipient2@example.com"],
      *   "cc": ["manager@example.com"],
      *   "bcc": ["audit@example.com"],
      *   "subject": "Welcome to the portal",
@@ -48,7 +46,8 @@ class ExternalEmailController extends Controller
      * @authenticated
      *
      * @bodyParam app_id integer required The internal ID of the email app linked to the token. Example: 12
-     * @bodyParam to string required The primary recipient email address. Example: recipient@example.com
+    * @bodyParam to string|array required A single recipient email or a list of recipients. Example: ["recipient@example.com", "recipient2@example.com"]
+    * @bodyParam to.* string Email address to send to when `to` is an array. Example: recipient@example.com
      * @bodyParam cc array Optional list of CC recipient email addresses. Example: ["manager@example.com"]
      * @bodyParam cc.* string Email address to CC. Example: manager@example.com
      * @bodyParam bcc array Optional list of BCC recipient email addresses. Example: ["audit@example.com"]
@@ -63,10 +62,11 @@ class ExternalEmailController extends Controller
      *
      * @response 200 {
      *   "success": true,
-     *   "message": "Email sent successfully.",
+    *   "message": "Emails queued successfully.",
      *   "data": {
-     *     "log_id": 25,
-     *     "status": "sent"
+    *     "queued_count": 2,
+    *     "hourly_send_limit": 100,
+    *     "log_ids": [25, 26]
      *   }
      * }
      *
@@ -81,20 +81,17 @@ class ExternalEmailController extends Controller
      *   "code": "external_email_api_mode_not_supported"
      * }
      *
-     * @response 500 {
+     * @response 429 {
      *   "success": false,
-     *   "message": "Failed to send email.",
-     *   "data": {
-     *     "log_id": 25,
-     *     "status": "failed"
-     *   }
+     *   "message": "Recipient count exceeds the per-request safety limit.",
+     *   "max_recipients_per_request": 200
      * }
      */
     public function send(Request $request)
     {
         $validated = $request->validate([
             'app_id' => ['required', 'integer', 'exists:email_apps,id'],
-            'to' => ['required', 'email'],
+            'to' => ['required'],
             'cc' => ['nullable', 'array'],
             'cc.*' => ['email'],
             'bcc' => ['nullable', 'array'],
@@ -113,6 +110,23 @@ class ExternalEmailController extends Controller
                 'success' => false,
                 'message' => 'At least one of body_html or body_text is required.',
             ], 422);
+        }
+
+        $recipients = $this->normalizeRecipients($validated['to']);
+        if (empty($recipients)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The to field must be a valid email or array of valid emails.',
+            ], 422);
+        }
+
+        $maxRecipientsPerRequest = 200;
+        if (count($recipients) > $maxRecipientsPerRequest) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Recipient count exceeds the per-request safety limit.',
+                'max_recipients_per_request' => $maxRecipientsPerRequest,
+            ], 429);
         }
 
         /** @var MagicLink|null $magicLink */
@@ -180,76 +194,70 @@ class ExternalEmailController extends Controller
             ], 422);
         }
 
-        $mailerName = 'external_email_app_'.(string) $emailApp->id;
-
-        config([
-            "mail.mailers.{$mailerName}" => [
-                'transport' => 'smtp',
-                'host' => $emailApp->smtp_host,
-                'port' => (int) $emailApp->smtp_port,
-                'username' => $emailApp->smtp_username,
-                'password' => $emailApp->smtp_password,
-                'encryption' => $emailApp->smtp_encryption,
-                'timeout' => null,
-            ],
-        ]);
-
         $fromAddress = $validated['from_address'] ?? $emailApp->smtp_from_address;
         $fromName = $validated['from_name'] ?? $emailApp->smtp_from_name;
         $replyTo = $validated['reply_to'] ?? $emailApp->smtp_reply_to;
 
-        try {
-            $pending = Mail::mailer($mailerName)->to($validated['to']);
+        $hourlyLimit = max(1, (int) ($emailApp->hourly_send_limit ?: 100));
+        $alreadyQueuedInLastHour = ExternalEmailLog::query()
+            ->where('email_app_id', $emailApp->id)
+            ->where('status', 'queued')
+            ->where('created_at', '>=', now()->subHour())
+            ->count();
 
-            if (! empty($validated['cc'])) {
-                $pending->cc($validated['cc']);
-            }
+        $alreadyAttemptedInLastHour = ExternalEmailLog::query()
+            ->where('email_app_id', $emailApp->id)
+            ->whereNotNull('attempted_at')
+            ->where('attempted_at', '>=', now()->subHour())
+            ->count();
 
-            if (! empty($validated['bcc'])) {
-                $pending->bcc($validated['bcc']);
-            }
+        $positionBase = $alreadyQueuedInLastHour + $alreadyAttemptedInLastHour;
+        $logIds = [];
 
-            $pending->send(new ExternalApiEmail(
-                subjectLine: $validated['subject'],
-                htmlBody: $validated['body_html'] ?? null,
-                textBody: $validated['body_text'] ?? null,
-                fromAddress: $fromAddress,
-                fromName: $fromName,
-                replyToAddress: $replyTo,
-            ));
+        foreach ($recipients as $index => $recipient) {
+            $position = $positionBase + $index;
+            $delaySeconds = (int) floor(($position * 3600) / $hourlyLimit);
+            $scheduledFor = now()->addSeconds($delaySeconds);
 
-            $log = $this->createLog($magicLink, $emailApp, $validated, 'sent', null, [
-                'delivery_mode' => 'smtp',
-            ], now());
+            $perRecipientPayload = $validated;
+            $perRecipientPayload['to'] = $recipient;
+            $perRecipientPayload['body_html'] = $validated['body_html'] ?? null;
+            $perRecipientPayload['body_text'] = $validated['body_text'] ?? null;
+            $perRecipientPayload['from_address'] = $fromAddress;
+            $perRecipientPayload['from_name'] = $fromName;
+            $perRecipientPayload['reply_to'] = $replyTo;
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Email sent successfully.',
-                'data' => [
-                    'log_id' => $log->id,
-                    'status' => $log->status,
+            $log = $this->createLog(
+                $magicLink,
+                $emailApp,
+                $perRecipientPayload,
+                'queued',
+                null,
+                [
+                    'delivery_mode' => 'smtp',
+                    'queued_for' => $scheduledFor->toDateTimeString(),
+                    'processed_by_queue' => true,
                 ],
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('External email send failed.', [
-                'email_app_id' => $emailApp->id,
-                'magic_link_id' => $magicLink->id,
-                'error' => $e->getMessage(),
-            ]);
+                null,
+                null,
+            );
 
-            $log = $this->createLog($magicLink, $emailApp, $validated, 'failed', $e->getMessage(), [
-                'delivery_mode' => 'smtp',
-            ]);
+            SendExternalEmailJob::dispatch($log->id, $emailApp->id)
+                ->delay($scheduledFor)
+                ->onQueue('emails');
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to send email.',
-                'data' => [
-                    'log_id' => $log->id,
-                    'status' => $log->status,
-                ],
-            ], 500);
+            $logIds[] = $log->id;
         }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Emails queued successfully.',
+            'data' => [
+                'queued_count' => count($recipients),
+                'hourly_send_limit' => $hourlyLimit,
+                'log_ids' => $logIds,
+            ],
+        ]);
     }
 
     private function createLog(
@@ -260,6 +268,7 @@ class ExternalEmailController extends Controller
         ?string $errorMessage = null,
         ?array $responsePayload = null,
         $sentAt = null,
+        $attemptedAt = null,
     ): ExternalEmailLog {
         return ExternalEmailLog::create([
             'magic_link_id' => $magicLink?->id,
@@ -267,7 +276,9 @@ class ExternalEmailController extends Controller
             'project_id' => $magicLink?->project_id,
             'status' => $status,
             'provider' => $emailApp?->delivery_mode === 'api' ? ($emailApp->api_provider ?: 'api') : 'smtp',
-            'to_email' => $validated['to'] ?? 'unknown',
+            'to_email' => is_array($validated['to'] ?? null)
+                ? (string) ($validated['to'][0] ?? 'unknown')
+                : (string) ($validated['to'] ?? 'unknown'),
             'subject' => $validated['subject'] ?? null,
             'error_message' => $errorMessage,
             'request_payload' => [
@@ -276,14 +287,40 @@ class ExternalEmailController extends Controller
                 'cc' => $validated['cc'] ?? [],
                 'bcc' => $validated['bcc'] ?? [],
                 'subject' => $validated['subject'] ?? null,
+                'body_html' => $validated['body_html'] ?? null,
+                'body_text' => $validated['body_text'] ?? null,
+                'from_address' => $validated['from_address'] ?? null,
+                'from_name' => $validated['from_name'] ?? null,
+                'reply_to' => $validated['reply_to'] ?? null,
                 'has_body_html' => ! empty($validated['body_html']),
                 'has_body_text' => ! empty($validated['body_text']),
                 'metadata' => $validated['metadata'] ?? [],
             ],
             'response_payload' => $responsePayload,
-            'attempted_at' => now(),
+            'attempted_at' => $attemptedAt ?? ($status === 'queued' ? null : now()),
             'sent_at' => $sentAt,
         ]);
+    }
+
+    private function normalizeRecipients(mixed $to): array
+    {
+        $emails = [];
+
+        if (is_string($to)) {
+            $emails = [trim($to)];
+        }
+
+        if (is_array($to)) {
+            $emails = array_values(array_filter(array_map(function ($email) {
+                return is_string($email) ? trim($email) : null;
+            }, $to)));
+        }
+
+        $emails = array_values(array_unique($emails));
+
+        return array_values(array_filter($emails, function ($email) {
+            return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+        }));
     }
 
     private function missingSmtpFields(EmailApp $emailApp): array

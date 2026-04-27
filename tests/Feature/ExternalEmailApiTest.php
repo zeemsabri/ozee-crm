@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Mail\ExternalApiEmail;
+use App\Jobs\SendExternalEmailJob;
 use App\Models\Client;
 use App\Models\EmailApp;
 use App\Models\MagicLink;
 use App\Models\Project;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class ExternalEmailApiTest extends TestCase
@@ -17,7 +17,7 @@ class ExternalEmailApiTest extends TestCase
 
     public function test_external_email_send_succeeds_for_valid_token_and_linked_active_smtp_app(): void
     {
-        Mail::fake();
+        Queue::fake();
 
         $project = $this->createProject();
         $app = $this->createSmtpEmailApp();
@@ -27,22 +27,31 @@ class ExternalEmailApiTest extends TestCase
             'X-Magic-Token' => $token->token,
         ])->postJson('/api/external/email/send', [
             'app_id' => $app->id,
-            'to' => 'recipient@example.com',
+            'to' => ['recipient@example.com', 'recipient2@example.com'],
             'subject' => 'Welcome',
             'body_text' => 'Hello from external API',
         ]);
 
         $response->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.status', 'sent');
+            ->assertJsonPath('data.queued_count', 2)
+            ->assertJsonPath('data.hourly_send_limit', 100);
 
-        Mail::assertSent(ExternalApiEmail::class);
+        Queue::assertPushed(SendExternalEmailJob::class, 2);
 
         $this->assertDatabaseHas('external_email_logs', [
             'magic_link_id' => $token->id,
             'email_app_id' => $app->id,
-            'status' => 'sent',
+            'status' => 'queued',
             'to_email' => 'recipient@example.com',
+            'subject' => 'Welcome',
+        ]);
+
+        $this->assertDatabaseHas('external_email_logs', [
+            'magic_link_id' => $token->id,
+            'email_app_id' => $app->id,
+            'status' => 'queued',
+            'to_email' => 'recipient2@example.com',
             'subject' => 'Welcome',
         ]);
     }

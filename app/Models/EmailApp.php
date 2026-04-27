@@ -17,6 +17,7 @@ class EmailApp extends Model
         'description',
         'is_active',
         'delivery_mode',
+        'hourly_send_limit',
         'smtp_host',
         'smtp_port',
         'smtp_username',
@@ -34,6 +35,7 @@ class EmailApp extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'smtp_port' => 'integer',
+        'hourly_send_limit' => 'integer',
         'smtp_password' => 'encrypted',
         'api_key' => 'encrypted',
         'api_secret' => 'encrypted',

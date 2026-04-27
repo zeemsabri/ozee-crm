@@ -15,6 +15,7 @@ class EmailAppController extends Controller
     public function index()
     {
         $apps = EmailApp::with('templates:id,name')
+            ->withCount('externalEmailLogs')
             ->latest()
             ->get()
             ->map(function (EmailApp $app) {
@@ -25,6 +26,7 @@ class EmailAppController extends Controller
                     'description' => $app->description,
                     'is_active' => $app->is_active,
                     'delivery_mode' => $app->delivery_mode,
+                    'hourly_send_limit' => $app->hourly_send_limit,
                     'smtp_host' => $app->smtp_host,
                     'smtp_port' => $app->smtp_port,
                     'smtp_username' => $app->smtp_username,
@@ -36,6 +38,7 @@ class EmailAppController extends Controller
                     'api_base_url' => $app->api_base_url,
                     'templates' => $app->templates,
                     'template_ids' => $app->templates->pluck('id')->all(),
+                    'external_email_logs_count' => $app->external_email_logs_count,
                     'has_smtp_password' => ! empty($app->smtp_password),
                     'has_api_key' => ! empty($app->api_key),
                     'has_api_secret' => ! empty($app->api_secret),
@@ -91,6 +94,32 @@ class EmailAppController extends Controller
         return back()->with('success', 'Email app deleted successfully.');
     }
 
+    public function logs(Request $request, EmailApp $emailApp)
+    {
+        $perPage = min((int) $request->integer('per_page', 20), 100);
+
+        $logs = $emailApp->externalEmailLogs()
+            ->latest('id')
+            ->paginate($perPage)
+            ->through(function ($log) {
+                return [
+                    'id' => $log->id,
+                    'status' => $log->status,
+                    'provider' => $log->provider,
+                    'to_email' => $log->to_email,
+                    'subject' => $log->subject,
+                    'error_message' => $log->error_message,
+                    'attempted_at' => optional($log->attempted_at)?->toDateTimeString(),
+                    'sent_at' => optional($log->sent_at)?->toDateTimeString(),
+                    'created_at' => optional($log->created_at)?->toDateTimeString(),
+                    'request_payload' => $log->request_payload,
+                    'response_payload' => $log->response_payload,
+                ];
+            });
+
+        return response()->json($logs);
+    }
+
     private function rules(Request $request, ?int $id = null): array
     {
         $mode = $request->input('delivery_mode', 'smtp');
@@ -101,6 +130,7 @@ class EmailAppController extends Controller
             'description' => ['nullable', 'string'],
             'is_active' => ['sometimes', 'boolean'],
             'delivery_mode' => ['required', Rule::in(['smtp', 'api'])],
+            'hourly_send_limit' => ['nullable', 'integer', 'min:1', 'max:10000'],
 
             'smtp_host' => [Rule::requiredIf($mode === 'smtp'), 'nullable', 'string', 'max:255'],
             'smtp_port' => [Rule::requiredIf($mode === 'smtp'), 'nullable', 'integer', 'between:1,65535'],
@@ -131,6 +161,7 @@ class EmailAppController extends Controller
             'description' => $validated['description'] ?? null,
             'is_active' => (bool) ($validated['is_active'] ?? true),
             'delivery_mode' => $validated['delivery_mode'],
+            'hourly_send_limit' => (int) ($validated['hourly_send_limit'] ?? 100),
             'smtp_host' => $validated['smtp_host'] ?? null,
             'smtp_port' => $validated['smtp_port'] ?? null,
             'smtp_username' => $validated['smtp_username'] ?? null,
