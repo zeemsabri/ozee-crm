@@ -11,6 +11,7 @@ import ProjectFormClientsUsers from '@/Components/ProjectForm/ProjectFormClients
 import ProjectFormDocuments from '@/Components/ProjectForm/ProjectFormDocuments.vue';
 import ProjectFormNotes from '@/Components/ProjectForm/ProjectFormNotes.vue';
 import ProjectDeliverables from '@/Components/ProjectForm/ProjectDeliverables.vue';
+import ProjectVaultCredentialsTab from '@/Components/ProjectVaultCredentialsTab.vue';
 import ServicesAndPaymentForm from '@/Components/ServicesAndPaymentForm.vue'; // Assuming this component exists
 import ProjectTransactions from '@/Components/ProjectTransactions.vue'; // Assuming this component exists
 import ProjectExpendables from '@/Components/ProjectExpendables.vue';
@@ -83,6 +84,7 @@ const canViewProjectExpendable = canView('project_expendable', userProjectRole);
 const canManageProjectExpendable = canManage('project_expendable', userProjectRole);
 const canViewProjectDeliverables = canView('project_deliverables');
 const canManageProjectDeliverables = canManage('project_deliverables');
+const canManageAllCredentials = canDo('view_all_credentials');
 
 // Tab management state
 const activeTab = ref('basic');
@@ -244,6 +246,18 @@ onMounted(async () => {
                 >
                     Deliverables
                 </button>
+                <button
+                    v-if="projectId"
+                    @click="switchTab('vault')"
+                    :class="[
+                        'py-3 px-5 text-center border-b-2 font-medium text-base rounded-t-lg transition-colors duration-200 whitespace-nowrap',
+                        activeTab === 'vault'
+                            ? 'border-indigo-600 text-indigo-700 bg-indigo-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 hover:bg-gray-50'
+                    ]"
+                >
+                    Credentials Management
+                </button>
             </nav>
         </div>
 
@@ -331,6 +345,13 @@ onMounted(async () => {
                 :canManageProjectDeliverables="canManageProjectDeliverables"
                 :canViewProjectDeliverables="canViewProjectDeliverables"
                 :isSaving="props.isSaving"
+            />
+
+            <ProjectVaultCredentialsTab
+                v-if="activeTab === 'vault'"
+                :project-id="projectId"
+                :can-manage-all-credentials="canManageAllCredentials"
+                :is-management-view="true"
             />
         </div>
 

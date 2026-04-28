@@ -26,7 +26,14 @@ class VaultController extends Controller
         if (!$client) return response()->json(['message' => 'Unauthorized'], 403);
 
         $credentials = ClientVaultCredential::where('client_id', $client->id)
-            ->where('expires_at', '>', now())
+            ->where(function ($query) {
+                $query->where('source', ClientVaultCredential::SOURCE_CLIENT)
+                    ->orWhere(function ($teamQuery) {
+                        $teamQuery->where('source', ClientVaultCredential::SOURCE_TEAM)
+                            ->where('is_visible_to_client', true);
+                    });
+            })
+            ->notExpired()
             ->latest()
             ->get(['id', 'label', 'expires_at', 'last_viewed_at', 'created_at']);
 
@@ -57,6 +64,8 @@ class VaultController extends Controller
 
         $credential = ClientVaultCredential::create([
             'client_id' => $client->id,
+            'source' => ClientVaultCredential::SOURCE_CLIENT,
+            'is_visible_to_client' => true,
             'label' => $request->label,
             'encrypted_username' => $encryptedUsername,
             'encrypted_password' => $encryptedPassword,
@@ -76,7 +85,9 @@ class VaultController extends Controller
         $client = $this->getClientFromToken($request->query('token'));
         if (!$client) return response()->json(['message' => 'Unauthorized'], 403);
 
-        $credential = ClientVaultCredential::where('client_id', $client->id)->findOrFail($id);
+        $credential = ClientVaultCredential::where('client_id', $client->id)
+            ->where('source', ClientVaultCredential::SOURCE_CLIENT)
+            ->findOrFail($id);
 
         $activities = \Spatie\Activitylog\Models\Activity::forSubject($credential)
             ->with('causer')
@@ -91,8 +102,10 @@ class VaultController extends Controller
         $client = $this->getClientFromToken($request->query('token'));
         if (!$client) return response()->json(['message' => 'Unauthorized'], 403);
 
-        $credential = ClientVaultCredential::where('client_id', $client->id)->findOrFail($id);
-        $credential->delete();
+        $credential = ClientVaultCredential::where('client_id', $client->id)
+            ->where('source', ClientVaultCredential::SOURCE_CLIENT)
+            ->findOrFail($id);
+        $credential->forceDelete();
 
         return response()->json(['success' => true]);
     }

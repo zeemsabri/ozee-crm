@@ -710,8 +710,14 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('clients/{client}/vault', [\App\Http\Controllers\Admin\VaultController::class, 'index']);
+    Route::get('projects/{project}/vault-credentials', [\App\Http\Controllers\Admin\VaultController::class, 'indexByProject']);
+    Route::post('projects/{project}/vault-credentials', [\App\Http\Controllers\Admin\VaultController::class, 'storeForProject']);
     Route::post('vault/unlock', [\App\Http\Controllers\Admin\VaultController::class, 'unlock']);
+    Route::put('vault/{credential}', [\App\Http\Controllers\Admin\VaultController::class, 'update']);
     Route::get('vault/{credential}/logs', [\App\Http\Controllers\Admin\VaultController::class, 'logs']);
+    Route::get('vault/{credential}/shared-users', [\App\Http\Controllers\Admin\VaultController::class, 'sharedUsers']);
+    Route::post('vault/{credential}/share', [\App\Http\Controllers\Admin\VaultController::class, 'share']);
+    Route::delete('vault/{credential}/share/{user}', [\App\Http\Controllers\Admin\VaultController::class, 'revoke']);
     Route::delete('vault/{credential}', [\App\Http\Controllers\Admin\VaultController::class, 'destroy']);
 
 });

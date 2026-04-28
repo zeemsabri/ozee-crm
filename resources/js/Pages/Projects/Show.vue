@@ -42,6 +42,7 @@ import * as taskState from '@/Utils/taskState.js';
 import ProjectDeliverableTab from "@/Components/ProjectsDeliverables/ProjectDeliverableTab.vue";
 import RightSidebar from '@/Components/RightSidebar.vue';
 import DeliverableDetailSidebar from '@/Components/ProjectsDeliverables/DeliverableDetailSidebar.vue';
+import ProjectVaultCredentialsTab from '@/Components/ProjectVaultCredentialsTab.vue';
 
 // New import for the deliverables overview card
 import ProjectDeliverablesOverviewCard from '@/Components/ProjectDashboard/ProjectDeliverablesOverviewCard.vue';
@@ -122,6 +123,7 @@ const canViewUsers = computed(() => canView('users').value);
 const canViewProjectServicesAndPayments = computed(() => canView('project_financial', userProjectRole).value);
 const canViewProjectTransactions = computed(() => canView('project_transactions').value);
 const canViewClientFinancial = computed(() => canView('client_financial').value);
+const canManageAllCredentials = computed(() => canDo('view_all_credentials').value || isSuperAdmin.value);
 
 const currencyOptions = [
     { value: 'PKR', label: 'PKR' },
@@ -492,6 +494,7 @@ onMounted(async () => {
                     :can-view-notes="canViewNotes"
                     :can-view-deliverables="canViewDeliverables"
                     :can-view-seo-reports="canViewSeoReports"
+                    :can-view-vault="true"
                 />
 
                 <div v-if="selectedTab === null">
@@ -686,6 +689,12 @@ onMounted(async () => {
                     :project-id="projectId"
                     :can-create-seo-reports="canCreateSeoReports"
                     @openCreateSeoReportModal="openCreateSeoReportModal"
+                />
+
+                <ProjectVaultCredentialsTab
+                    v-if="selectedTab === 'vault'"
+                    :project-id="projectId"
+                    :can-manage-all-credentials="canManageAllCredentials"
                 />
             </div>
         </div>

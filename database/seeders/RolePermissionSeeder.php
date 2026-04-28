@@ -103,6 +103,7 @@ class RolePermissionSeeder extends Seeder
                 'delete_clients' => 'Delete clients',
                 'view_client_financial' => 'View client financial information',
                 'view_client_contacts' => 'View client contact details',
+                'view_all_credentials' => 'View and manage all vault credentials',
             ],
             'User Management' => [
                 'view_users' => 'View user list and details',
@@ -179,7 +180,7 @@ class RolePermissionSeeder extends Seeder
         $managerPermissions = [
             // Client Management
             'view_clients', 'create_clients', 'edit_clients',
-            'view_client_financial', 'view_client_contacts',
+            'view_client_financial', 'view_client_contacts', 'view_all_credentials',
 
             // User Management
             'view_users', 'create_users', 'edit_users',

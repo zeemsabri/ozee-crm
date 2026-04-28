@@ -27,12 +27,17 @@ class VaultPrune extends Command
      */
     public function handle()
     {
-        $expired = ClientVaultCredential::where('expires_at', '<', now())->get();
+        $expired = ClientVaultCredential::whereNotNull('expires_at')
+            ->where('expires_at', '<', now())
+            ->get();
         $count = $expired->count();
 
         foreach ($expired as $credential) {
-            // Ideally, we could notify the client here, but for now just delete.
-            $credential->delete();
+            if ($credential->isClientSubmitted()) {
+                $credential->forceDelete();
+            } else {
+                $credential->delete();
+            }
         }
 
         if ($count > 0) {
