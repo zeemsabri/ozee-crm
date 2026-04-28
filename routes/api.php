@@ -114,6 +114,8 @@ Route::post('/client-api/setup-pin', [MagicLinkController::class, 'setupPin']);
 Route::middleware('auth.apikey')->group(function () {
     Route::post('/activityData', [ActivityDataController::class, 'store']);
     Route::post('/presence/status', [UserProfileController::class, 'updateOnlineStatus']);
+    Route::get('/extension/vault/labels', [\App\Http\Controllers\Api\ExtensionVaultController::class, 'labels']);
+    Route::post('/extension/vault/resolve', [\App\Http\Controllers\Api\ExtensionVaultController::class, 'resolve']);
 
     // External API routes
     Route::get('/activity/projects', [\App\Http\Controllers\Api\ExternalApiController::class, 'getProjects']);
