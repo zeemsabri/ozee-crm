@@ -243,7 +243,8 @@ class ExternalEmailController extends Controller
             );
 
             SendExternalEmailJob::dispatch($log->id, $emailApp->id)
-                ->delay($scheduledFor);
+                ->delay($scheduledFor)
+                ->onQueue('emails');
 
             $logIds[] = $log->id;
         }

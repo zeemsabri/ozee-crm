@@ -110,7 +110,7 @@ class StripeWebhookController extends Controller
     {
         $metadata = $session->metadata ?? [];
         $metaArray = is_object($metadata) ? (method_exists($metadata, 'toArray') ? $metadata->toArray() : (array)$metadata) : (array)$metadata;
-        
+
         // Ensure it's a flat metadata array
         if (isset($metaArray['metadata'])) {
             $innerMeta = is_object($metaArray['metadata']) ? (method_exists($metaArray['metadata'], 'toArray') ? $metaArray['metadata']->toArray() : (array)$metaArray['metadata']) : (array)$metaArray['metadata'];
@@ -147,10 +147,10 @@ class StripeWebhookController extends Controller
                     if (isset($metaArray['auto_cancel_at'])) {
                         $updatePayload['cancel_at'] = (int) $metaArray['auto_cancel_at'];
                     }
-                    
+
                     // Sync all metadata to the subscription
                     unset($metaArray['auto_cancel_at']); // Don't re-save this in subscription metadata
-                    
+
                     if (!empty($metaArray)) {
                         $updatePayload['metadata'] = $metaArray;
                     }
@@ -259,7 +259,7 @@ class StripeWebhookController extends Controller
         // Parent metadata if any
         $parentMeta = [];
         $parentDetails = is_object($subscription->parent ?? null) ? (method_exists($subscription->parent, 'toArray') ? $subscription->parent->toArray() : (array)$subscription->parent) : (array)($subscription->parent ?? []);
-        
+
         if (isset($parentDetails['subscription_details']['metadata'])) {
             $pm = $parentDetails['subscription_details']['metadata'];
             $parentMeta = is_object($pm) ? (method_exists($pm, 'toArray') ? $pm->toArray() : (array)$pm) : (array)$pm;
