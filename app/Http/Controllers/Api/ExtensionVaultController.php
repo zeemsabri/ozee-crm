@@ -61,6 +61,7 @@ class ExtensionVaultController extends Controller
         if (empty($validated['credential_id']) && empty($validated['label']) && empty($validated['url'])) {
             return response()->json([
                 'message' => 'Provide credential_id, label, or url.',
+                'data' => [],
             ], 422);
         }
 
@@ -70,14 +71,18 @@ class ExtensionVaultController extends Controller
         if ($matches->isEmpty()) {
             return response()->json([
                 'message' => 'No matching accessible credential found.',
+                'data' => [],
             ], 404);
         }
 
         if ($matches->count() > 1 && empty($validated['credential_id'])) {
+            $candidates = $this->mapCandidates($matches);
+
             return response()->json([
                 'message' => 'Multiple credentials match this website. Please select credential_id.',
                 'requires_selection' => true,
-                'candidates' => $this->mapCandidates($matches),
+                'candidates' => $candidates,
+                'data' => $candidates,
             ], 409);
         }
 
@@ -91,6 +96,7 @@ class ExtensionVaultController extends Controller
                 'requires_pin' => true,
                 'credential_id' => $credential->id,
                 'label' => $credential->label,
+                'data' => [],
             ], 422);
         }
 
@@ -100,6 +106,7 @@ class ExtensionVaultController extends Controller
         if ($username === null || $password === null) {
             return response()->json([
                 'message' => 'Unable to decrypt credential with the provided PIN.',
+                'data' => [],
             ], 422);
         }
 
@@ -126,7 +133,9 @@ class ExtensionVaultController extends Controller
 
         $credential->update(['last_viewed_at' => now()]);
 
-        return response()->json($response);
+        return response()->json([
+            'data' => [$response],
+        ]);
     }
 
     private function accessibleCredentialsQuery(User $user)
