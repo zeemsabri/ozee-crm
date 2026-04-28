@@ -314,9 +314,10 @@ onMounted(async () => {
 
         <div class="rounded-lg border border-gray-200 p-4 space-y-4">
             <h4 class="text-sm font-semibold text-gray-800">Add Credential</h4>
+            <p class="text-xs text-gray-500">For label, enter a website URL, app name, or service name (for example: https://example.com, Slack, cPanel).</p>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input v-model="createForm.label" type="text" placeholder="Label (e.g. Hosting Panel)" class="rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" />
+                <input v-model="createForm.label" type="text" placeholder="Website URL, app name, or service name" class="rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" />
                 <input v-model="createForm.username" type="text" placeholder="Username" class="rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" />
                 <input v-model="createForm.password" type="text" placeholder="Password" class="rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" />
                 <input v-model="createForm.pin" type="text" placeholder="PIN (4-10)" class="rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" />
@@ -394,7 +395,7 @@ onMounted(async () => {
                     <div v-if="editingCredentialId === credential.id" class="rounded-md border border-indigo-200 bg-indigo-50 p-3 space-y-3">
                         <p class="text-sm font-semibold text-indigo-900">Edit Credential</p>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <input v-model="editForm.label" type="text" class="rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Label" />
+                            <input v-model="editForm.label" type="text" class="rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Website URL, app name, or service name" />
                             <div>
                                 <label class="block text-xs font-medium text-gray-600 mb-1">Expiry (days)</label>
                                 <input v-model.number="editForm.expiry_days" type="number" min="0" max="3650" class="w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" placeholder="0 = no expiry" />
