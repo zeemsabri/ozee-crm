@@ -6,12 +6,14 @@ use App\Models\ChatMessage;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Str;
 
-class ChatMessageSent implements ShouldBroadcastNow
+class ChatMessageSent implements ShouldBroadcast, ShouldQueue
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -64,7 +66,7 @@ class ChatMessageSent implements ShouldBroadcastNow
         $channels = [
             new PrivateChannel("project.{$this->projectId}")
         ];
-        
+
         if ($this->topicId) {
             $channels[] = new PrivateChannel("topic.{$this->topicId}");
         }

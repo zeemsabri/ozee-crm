@@ -401,22 +401,9 @@ class ChatController extends Controller
             }
         }
 
-    }
+        return response()->json($message->load('user'));
 
-//        // Mark sender's own message as read immediately
-//        UserInteraction::firstOrCreate([
-//            'user_id'          => Auth::id(),
-//            'interactable_id'  => $message->id,
-//            'interactable_type' => ChatMessage::class,
-//            'interaction_type' => 'read',
-//        ]);
-//
-//        // Broadcast to all project members via Reverb so the message appears
-//        // in real-time for everyone without a page refresh.
-//        ChatMessageSent::dispatch($message->load(['user', 'parent.user']));
-//
-//        return response()->json($message->load('user'));
-//    }
+    }
 
     public function destroy(Request $request, Project $project, ChatMessage $chatMessage)
     {

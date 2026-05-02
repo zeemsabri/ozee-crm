@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Log;
 
 class ChatMessage extends Model
 {
@@ -23,6 +24,33 @@ class ChatMessage extends Model
         'type',
         'meta_data',
     ];
+
+    protected static function booted()
+    {
+
+
+        static::created(function ($message) {
+            if ($message->user_id) {
+                \App\Models\UserInteraction::firstOrCreate([
+                    'user_id'          => $message->user_id,
+                    'interactable_id'  => $message->id,
+                    'interactable_type' => static::class,
+                    'interaction_type' => 'read',
+                ]);
+            }
+            
+            \Illuminate\Support\Facades\Log::info("Preparing to broadcast ChatMessageSent for Project ID: {$message->project_id}, Message ID: {$message->id}");
+            
+            try {
+                // Broadcast to all project members via Reverb so the message appears
+                // in real-time for everyone without a page refresh.
+                \App\Events\ChatMessageSent::dispatch($message->load(['user', 'parent.user']));
+                \Illuminate\Support\Facades\Log::info("Successfully dispatched ChatMessageSent for Message ID: {$message->id}");
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error("Failed to broadcast ChatMessageSent for Message ID: {$message->id}. Error: " . $e->getMessage());
+            }
+        });
+    }
 
     public function parent()
     {
@@ -98,7 +126,7 @@ class ChatMessage extends Model
         $telegramService = app(\App\Services\TelegramService::class);
         $meta = $this->meta_data ?? [];
         $responses = $meta['telegram_responses'] ?? [];
-        
+
         $results = [];
 
         foreach ($responses as $index => $res) {
@@ -109,7 +137,7 @@ class ChatMessage extends Model
                     'message_id' => $res['message_id'],
                     'success' => $ok
                 ];
-                
+
                 // Mark as deleted in metadata if successful
                 if ($ok) {
                     $responses[$index]['deleted_at'] = now()->toDateTimeString();

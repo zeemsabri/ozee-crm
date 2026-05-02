@@ -485,50 +485,64 @@ const getIconForType = (type) => {
     return Bell;
 };
 
-const subscribeToTopic = (topicId) => {
-    if (!window.Echo || !topicId) return;
-    if (subscribedTopicIds.value.has(topicId)) return; 
+const subscribedProjectIds = ref(new Set());
 
-    subscribedTopicIds.value.add(topicId);
+const subscribeToAllProjects = () => {
+    if (!window.Echo) return;
+    
+    projects.value.forEach(p => {
+        if (subscribedProjectIds.value.has(p.id)) return;
+        subscribedProjectIds.value.add(p.id);
 
-    window.Echo.private(`topic.${topicId}`)
-        .listen('.ChatMessageSent', (data) => {
-            const incoming = data.messagePayload;
-            if (!incoming) return;
+        window.Echo.private(`project.${p.id}`)
+            .listen('.ChatMessageSent', (data) => {
+                const incoming = data.messagePayload || data.message || data;
+                if (!incoming) return;
+                
+                const msgTopicId = incoming.topic_id || incoming.telegram_topic_id || data.topicId;
+                incoming.is_me = (incoming.sender_id === user.value?.id) || (incoming.user_id === user.value?.id) || (data.senderId === user.value?.id);
 
-            incoming.is_me = incoming.sender_id === user.value?.id;
-
-            // Replace pending message if exists
-            if (incoming.is_me) {
-                // Try to find a pending message with same content and time window
-                const idx = chatMessages.value.findIndex(m => m.pending && m.message === incoming.message);
-                if (idx !== -1) {
-                    chatMessages.value[idx] = { ...incoming, pending: false };
-                    delete pendingMessages.value[chatMessages.value[idx].id];
-                    scrollToBottom();
-                    return;
+                // Replace pending message if exists
+                if (incoming.is_me) {
+                    const idx = chatMessages.value.findIndex(m => m.pending && m.message === incoming.message);
+                    if (idx !== -1) {
+                        chatMessages.value[idx] = { ...incoming, pending: false };
+                        delete pendingMessages.value[chatMessages.value[idx].id];
+                        scrollToBottom();
+                        return;
+                    }
                 }
-            }
 
-            if (activeTopic.value?.id === topicId) {
-                if (!incoming.is_me) {
-                    chatMessages.value.push(incoming);
-                    scrollToBottom();
+                if (activeProject.value?.id === p.id && activeTopic.value?.id === msgTopicId) {
+                    if (!incoming.is_me) {
+                        const exists = chatMessages.value.find(m => m.id === incoming.id);
+                        if (!exists) {
+                            chatMessages.value.push(incoming);
+                            scrollToBottom();
+                        }
+                    }
+                } else {
+                    if (!incoming.is_me) {
+                        // Increment unread count for this project
+                        if (unreadByProject.value[p.id] !== undefined) {
+                            unreadByProject.value[p.id]++;
+                        } else {
+                            unreadByProject.value[p.id] = 1;
+                        }
+
+                        pushSuccess({
+                            view_id: `chat_${incoming.id}`,
+                            title: incoming.user || 'New Message',
+                            project_name: p.name,
+                            message: incoming.message,
+                            type: 'chat_message',
+                            isNewPush: true,
+                            isRead: false
+                        });
+                    }
                 }
-            } else {
-                if (!incoming.is_me) {
-                    pushSuccess({
-                        view_id: `chat_${incoming.id}`,
-                        title: incoming.user || 'New Message',
-                        project_name: 'Team Chat',
-                        message: incoming.message,
-                        type: 'chat_message',
-                        isNewPush: true,
-                        isRead: false
-                    });
-                }
-            }
-        });
+            });
+    });
 };
 
 const handleOpenProjectChat = async (event) => {
