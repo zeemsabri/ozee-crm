@@ -500,7 +500,7 @@ const subscribeToAllProjects = () => {
                 if (!incoming) return;
                 
                 const msgTopicId = incoming.topic_id || incoming.telegram_topic_id || data.topicId;
-                incoming.is_me = (incoming.sender_id === user.value?.id) || (incoming.user_id === user.value?.id) || (data.senderId === user.value?.id);
+                incoming.is_me = (incoming.sender_id == user.value?.id) || (incoming.user_id == user.value?.id) || (data.senderId == user.value?.id);
 
                 // Replace pending message if exists
                 if (incoming.is_me) {
@@ -509,19 +509,19 @@ const subscribeToAllProjects = () => {
                         chatMessages.value[idx] = { ...incoming, pending: false };
                         delete pendingMessages.value[chatMessages.value[idx].id];
                         scrollToBottom();
-                        return;
+                        return; // Successfully replaced local optimistic message
                     }
                 }
 
-                if (activeProject.value?.id === p.id && activeTopic.value?.id === msgTopicId) {
-                    if (!incoming.is_me) {
-                        const exists = chatMessages.value.find(m => m.id === incoming.id);
-                        if (!exists) {
-                            chatMessages.value.push(incoming);
-                            scrollToBottom();
-                        }
+                // If message belongs to active view
+                if (activeProject.value?.id == p.id && activeTopic.value?.id == msgTopicId) {
+                    const exists = chatMessages.value.find(m => m.id == incoming.id);
+                    if (!exists) {
+                        chatMessages.value.push(incoming);
+                        scrollToBottom();
                     }
                 } else {
+                    // It belongs to another view. Only notify if it was NOT sent by the current user.
                     if (!incoming.is_me) {
                         // Increment unread count for this project
                         if (unreadByProject.value[p.id] !== undefined) {
