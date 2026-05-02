@@ -15,6 +15,7 @@ use App\Policies\ClientPolicy;
 use App\Policies\EmailPolicy;
 use App\Policies\ProjectPolicy;
 use App\Policies\UserPolicy;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -41,6 +42,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Broadcast::routes(['middleware' => ['api', 'auth:sanctum']]);
+        require base_path('routes/channels.php');
+
         // Register the Email observer
         Email::observe(EmailObserver::class);
 

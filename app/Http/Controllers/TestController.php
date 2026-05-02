@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\Email;
 use App\Models\Project;
 use App\Models\User;
+use App\Notifications\EmailApproved;
 use App\Services\EmailAiAnalysisService;
 use App\Services\GmailService;
 use App\Services\MagicLinkService;
@@ -220,6 +221,25 @@ class TestController extends Controller
                 'config_prefix' => $prefix,
             ], 500);
         }
+    }
+
+    public function sendTestNotification(Request $request)
+    {
+        $message = $request->input('message', 'This is a test notification from Reverb!');
+
+        $userToNotify = User::find(1);
+        $email = Email::first();
+        $userToNotify->notify(new EmailApproved($email, true));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Test notification sent!',
+            'data' => [
+                'message' => $message,
+                'channel' => 'test-channel',
+                'event' => 'TestNotification'
+            ]
+        ]);
     }
 
     private function getEnvValue(string $key): ?string

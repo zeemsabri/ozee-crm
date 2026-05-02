@@ -132,6 +132,7 @@ Route::middleware('auth.apikey')->group(function () {
 
 Route::get('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
 Route::post('/playground', [\App\Http\Controllers\TestController::class, 'playGourd']);
+Route::post('/test-reverb', [\App\Http\Controllers\TestController::class, 'sendTestNotification']);
 Route::post('/test-email-with-config', [\App\Http\Controllers\TestController::class, 'testEmailWithConfig']);
 
 // Public Bugs Reporting Endpoints
