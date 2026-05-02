@@ -186,6 +186,7 @@ const fetchProjects = async () => {
             }
         }
         fetchUnreadCounts();
+        subscribeToAllProjects();
     } catch (error) {
         console.error('Error fetching projects:', error);
     }
@@ -419,7 +420,6 @@ const switchProject = async (project, fetchChat = true) => {
 
 const switchTopic = (topic) => {
     activeTopic.value = topic;
-    subscribeToTopic(topic.id);
     fetchChatMessages();
 };
 
@@ -568,8 +568,8 @@ onMounted(() => {
 
 onUnmounted(() => {
     if (window.Echo) {
-        subscribedTopicIds.value.forEach(id => {
-            window.Echo.leave(`topic.${id}`);
+        subscribedProjectIds.value.forEach(id => {
+            window.Echo.leave(`project.${id}`);
         });
     }
     window.removeEventListener('open-project-chat', handleOpenProjectChat);
