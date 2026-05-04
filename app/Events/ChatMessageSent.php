@@ -35,24 +35,26 @@ class ChatMessageSent implements ShouldBroadcast, ShouldQueue
         $initials = strtoupper(substr($senderName, 0, 2));
 
         $this->messagePayload = [
-            'id'         => $chatMessage->id,
-            'type'       => $chatMessage->type ?? 'text',
-            'user'       => $senderName,
-            'user_id'    => $chatMessage->user_id,
-            'client_id'  => $chatMessage->client_id,
-            'initials'   => $initials,
-            'color'      => $chatMessage->client_id ? 'bg-sky-600' : 'bg-indigo-600',
-            'message'    => $chatMessage->message,
-            'parent'     => $parent ? [
+            'id'                 => $chatMessage->id,
+            'type'               => $chatMessage->type ?? 'text',
+            'user'               => $senderName,
+            'user_id'            => $chatMessage->user_id,
+            'client_id'          => $chatMessage->client_id,
+            'initials'           => $initials,
+            'color'              => $chatMessage->client_id ? 'bg-sky-600' : 'bg-indigo-600',
+            'message'            => $chatMessage->message,
+            'topic_id'           => $this->topicId,
+            'telegram_topic_id'  => $this->topicId,
+            'parent'             => $parent ? [
                 'id'      => $parent->id,
                 'user'    => $parent->user?->name ?? ($parent->client?->name ?? 'System'),
                 'message' => Str::limit($parent->message, 50),
             ] : null,
-            'reads'      => [],
-            'time'       => $chatMessage->created_at->diffForHumans(),
-            'created_at' => $chatMessage->created_at->toDateTimeString(),
-            'sender_id'  => $this->senderId,
-            'source'     => $chatMessage->source,
+            'reads'              => [],
+            'time'               => $chatMessage->created_at->diffForHumans(),
+            'created_at'         => $chatMessage->created_at->toDateTimeString(),
+            'sender_id'          => $this->senderId,
+            'source'             => $chatMessage->source,
         ];
     }
 

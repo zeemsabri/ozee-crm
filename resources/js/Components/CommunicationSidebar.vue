@@ -488,21 +488,34 @@ const getIconForType = (type) => {
 const subscribedProjectIds = ref(new Set());
 
 const subscribeToAllProjects = () => {
+    console.log("subscribeToAllProjects called! window.Echo exists?", !!window.Echo);
     if (!window.Echo) return;
     
     projects.value.forEach(p => {
         if (subscribedProjectIds.value.has(p.id)) return;
+        console.log(`Subscribing Vue App to project.${p.id} on Reverb...`);
         subscribedProjectIds.value.add(p.id);
 
-        window.Echo.private(`project.${p.id}`)
-            .listen('.ChatMessageSent', (data) => {
+        const channel = window.Echo.private(`project.${p.id}`);
+        
+        channel.on('pusher:subscription_succeeded', () => {
+            console.log(`Successfully subscribed to project.${p.id} on Reverb!`);
+        });
+
+        channel.on('pusher:subscription_error', (error) => {
+            console.error(`Failed to subscribe to project.${p.id} on Reverb! Auth error:`, error);
+        });
+
+        channel.listen('.ChatMessageSent', (data) => {
                 const incoming = data.messagePayload || data.message || data;
                 if (!incoming) return;
                 
-                const msgTopicId = incoming.topic_id || incoming.telegram_topic_id || data.topicId;
+                const msgTopicId = incoming.topic_id || incoming.telegram_topic_id || data.topicId || null;
                 incoming.is_me = (incoming.sender_id == user.value?.id) || (incoming.user_id == user.value?.id) || (data.senderId == user.value?.id);
 
-                // Replace pending message if exists
+                console.log('[Reverb] ChatMessageSent received', { msgTopicId, activeTopicId: activeTopic.value?.id, activeProjectId: activeProject.value?.id, incomingProjectId: p.id });
+
+                // Replace pending message if exists (own messages sent from this tab)
                 if (incoming.is_me) {
                     const idx = chatMessages.value.findIndex(m => m.pending && m.message === incoming.message);
                     if (idx !== -1) {
@@ -513,8 +526,14 @@ const subscribeToAllProjects = () => {
                     }
                 }
 
+                // Determine if this message belongs to the currently visible chat.
+                // topicId can be null for messages not linked to a Telegram topic — in that
+                // case we match on project alone so the message still appears.
+                const projectMatches = activeProject.value?.id == p.id;
+                const topicMatches = msgTopicId === null || activeTopic.value?.id == msgTopicId;
+
                 // If message belongs to active view
-                if (activeProject.value?.id == p.id && activeTopic.value?.id == msgTopicId) {
+                if (projectMatches && topicMatches) {
                     const exists = chatMessages.value.find(m => m.id == incoming.id);
                     if (!exists) {
                         chatMessages.value.push(incoming);
