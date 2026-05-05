@@ -104,7 +104,7 @@ const createCategory = async () => {
 <template>
     <div class="hidden sm:flex sm:items-center">
         <!-- Mega menu using the enhanced Dropdown component -->
-        <Dropdown align="left" width="screen" :content-classes="'py-6 bg-white p-6 w-full shadow-lg'">
+        <Dropdown align="left" width="screen" :content-classes="'max-h-[calc(100vh-8rem)] overflow-y-auto bg-white p-6 py-6 w-full shadow-lg'">
             <template #trigger>
                 <span class="inline-flex rounded-md">
                     <button type="button"

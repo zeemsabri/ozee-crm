@@ -4,6 +4,7 @@ import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
+import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
 import PrimaryButton from "@/Components/PrimaryButton.vue";
 import { Link, usePage, router } from '@inertiajs/vue3';
 import { usePermissions } from '@/Directives/permissions';
@@ -41,6 +42,18 @@ const handleOpenNotifications = async () => {
 const handleOpenChat = async () => {
     await requestDesktopNotificationPermission();
     emit('openChatSidebar');
+};
+
+const closeMobileMenu = () => {
+    showingNavigationDropdown.value = false;
+};
+
+const handleMobileAction = async (eventName) => {
+    closeMobileMenu();
+    if (eventName === 'openNotificationsSidebar' || eventName === 'openChatSidebar') {
+        await requestDesktopNotificationPermission();
+    }
+    emit(eventName);
 };
 
 // Determine if Admin menu should be visible based on any admin-related permissions
@@ -93,7 +106,7 @@ onMounted(async () => {
                 </div>
 
                 <!-- Desktop User Actions & Notifications -->
-                <div class="hidden sm:flex items-center space-x-4 lg:space-x-6">
+                <div class="hidden lg:flex items-center space-x-4 xl:space-x-6">
                     <!-- Monthly Points Badge -->
                     <Link :href="route('leaderboard.index')" class="mr-3 cursor-pointer">
                         <div v-if="!loadingPoints" class="group relative inline-flex items-center px-3 py-1 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 text-white text-sm font-semibold shadow-lg ring-2 ring-emerald-300/60 transition-all duration-300 ease-in-out">
@@ -136,7 +149,7 @@ onMounted(async () => {
                 </div>
 
                 <!-- Mobile menu button -->
-                <div class="-mr-2 flex items-center gap-1 sm:hidden">
+                <div class="-mr-2 flex items-center gap-1 lg:hidden">
                     <button
                         @click="handleOpenChat"
                         class="relative inline-flex items-center justify-center rounded-full p-2 text-gray-500 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-indigo-600 focus:bg-gray-100 focus:text-indigo-600 focus:outline-none"
@@ -188,7 +201,7 @@ onMounted(async () => {
         </div>
 
         <!-- Action & Navigation Bar -->
-        <div class="bg-gray-50 border-t border-gray-100 py-2 hidden sm:block">
+        <div class="hidden border-t border-gray-100 bg-gray-50 py-2 lg:block">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-2 overflow-x-auto no-scrollbar">
@@ -254,35 +267,173 @@ onMounted(async () => {
         </div>
 
         <!-- Mobile Navigation Menu -->
-        <div :class="{'block': showingNavigationDropdown, 'hidden': !showingNavigationDropdown}" class="sm:hidden border-t border-gray-100 bg-white shadow-sm">
-        <div class="space-y-1 px-2 pt-2 pb-3">
-                <NavLink :href="route('dashboard')" :active="route().current('dashboard')">
-                    Dashboard
-                </NavLink>
-                <NavLink :href="route('inbox')" :active="route().current('inbox')">
-                    Inbox
-                </NavLink>
-                <NavLink :href="route('workspace.index')" :active="route().current('workspace.index')">
-                    My Workspace
-                </NavLink>
-                <NavLink :href="route('attendance.index')" :active="route().current('attendance.index')">
-                    Attendance
-                </NavLink>
-                <NavLink :href="route('presentations.index')" :active="route().current('presentations.index')">
-                    Presentation
-                </NavLink>
-                <NavLink :href="route('bonus-system.index')" :active="route().current('bonus-system.index')">
-                    Bonus System
-                </NavLink>
-                <NavLink :href="route('leaderboard.index')" :active="route().current('leaderboard.index')">
-                    Leaderboard
-                </NavLink>
-                <NavLink :href="route('kudos.index')" :active="route().current('kudos.index')">
-                    Kudos
-                </NavLink>
-                <NavLink v-permission="'add_expendables'" :href="route('project-expendables.index')">
-                    Project Expendables
-                </NavLink>
+        <div
+            v-if="showingNavigationDropdown"
+            class="fixed inset-0 top-16 z-40 bg-slate-900/20 backdrop-blur-[1px] lg:hidden"
+            @click="closeMobileMenu"
+        />
+        <div
+            :class="{ 'translate-y-0 opacity-100': showingNavigationDropdown, '-translate-y-2 opacity-0 pointer-events-none': !showingNavigationDropdown }"
+            class="fixed inset-x-0 bottom-0 top-16 z-50 overflow-y-auto border-t border-gray-100 bg-white shadow-xl transition duration-200 lg:hidden"
+        >
+            <div class="space-y-6 px-4 py-4">
+                <div class="rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-sm">
+                    <div class="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Browse</div>
+                    <div class="space-y-1">
+                        <ResponsiveNavLink :href="route('dashboard')" :active="route().current('dashboard')" @click="closeMobileMenu">
+                            Dashboard
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink :href="route('inbox')" :active="route().current('inbox')" @click="closeMobileMenu">
+                            Inbox
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink :href="route('workspace.index')" :active="route().current('workspace.index')" @click="closeMobileMenu">
+                            My Workspace
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink :href="route('attendance.index')" :active="route().current('attendance.index')" @click="closeMobileMenu">
+                            Attendance
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink :href="route('presentations.index')" :active="route().current('presentations.index')" @click="closeMobileMenu">
+                            Presentation
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink :href="route('bonus-system.index')" :active="route().current('bonus-system.index')" @click="closeMobileMenu">
+                            Bonus System
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink :href="route('leaderboard.index')" :active="route().current('leaderboard.index')" @click="closeMobileMenu">
+                            Leaderboard
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink :href="route('kudos.index')" :active="route().current('kudos.index')" @click="closeMobileMenu">
+                            Kudos
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink v-permission="'add_expendables'" :href="route('project-expendables.index')" @click="closeMobileMenu">
+                            Project Expendables
+                        </ResponsiveNavLink>
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+                    <div class="mb-3 px-1 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Quick Actions</div>
+                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <button
+                            type="button"
+                            @click="handleMobileAction('openCreateTaskModal')"
+                            class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+                        >
+                            <Plus class="mr-2 h-4 w-4" />
+                            <span>Add Task</span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="handleMobileAction('openAddResource')"
+                            class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+                        >
+                            <Plus class="mr-2 h-4 w-4" />
+                            <span>Add Resource</span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="handleMobileAction('open-meeting-minutes-modal')"
+                            class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+                        >
+                            <Plus class="mr-2 h-4 w-4" />
+                            <span>Add Meeting Minutes</span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="handleMobileAction('openChatSidebar')"
+                            class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+                        >
+                            <MessageSquare class="mr-2 h-4 w-4" />
+                            <span>Team Chat</span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="handleMobileAction('openNotificationsSidebar')"
+                            class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+                        >
+                            <Bell class="mr-2 h-4 w-4" />
+                            <span>Notifications</span>
+                        </button>
+                        <button
+                            v-if="canDo('create_kudos')"
+                            type="button"
+                            @click="handleMobileAction('open-kudo-modal')"
+                            class="inline-flex items-center justify-center rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600"
+                        >
+                            <Award class="mr-2 h-4 w-4" />
+                            <span>Give Kudo</span>
+                        </button>
+                    </div>
+                </div>
+
+                <details v-if="canViewAdminDropdown" class="rounded-2xl border border-gray-200 bg-white shadow-sm" open>
+                    <summary class="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-gray-900">
+                        <div class="flex items-center justify-between">
+                            <span>Admin</span>
+                            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </summary>
+                    <div class="space-y-4 border-t border-gray-100 px-3 py-3">
+                        <div>
+                            <div class="px-1 pb-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Management</div>
+                            <div class="space-y-1">
+                                <ResponsiveNavLink v-permission="'manage_projects'" :href="route('projects.index')" :active="route().current('projects.index')" @click="closeMobileMenu">Projects</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'create_clients'" :href="route('clients.page')" :active="route().current('clients.page')" @click="closeMobileMenu">Clients</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'create_users'" :href="route('users.page')" :active="route().current('users.page')" @click="closeMobileMenu">Users</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_projects'" :href="route('leads.page')" :active="route().current('leads.page')" @click="closeMobileMenu">Leads</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_projects'" href="/campaigns" :active="$page.url && $page.url.startsWith('/campaigns')" @click="closeMobileMenu">Campaigns</ResponsiveNavLink>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="px-1 pb-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Reports</div>
+                            <div class="space-y-1">
+                                <ResponsiveNavLink v-permission="'manage_projects'" :href="route('admin.productivity.index')" :active="route().current('admin.productivity.index')" @click="closeMobileMenu">Productivity Report</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_projects'" :href="route('admin.project-time-cost.index')" :active="route().current('admin.project-time-cost.index')" @click="closeMobileMenu">Project Time & Cost Report</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_projects'" :href="route('admin.productivity-projects.index')" :active="route().current('admin.productivity-projects.index')" @click="closeMobileMenu">Project Activity Report</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_projects'" :href="route('admin.activity-report.index')" :active="route().current('admin.activity-report.index')" @click="closeMobileMenu">Activity Report</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_projects'" :href="route('admin.live-status.index')" :active="route().current('admin.live-status.index')" @click="closeMobileMenu">User Live Status</ResponsiveNavLink>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="px-1 pb-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Planning & Sharing</div>
+                            <div class="space-y-1">
+                                <ResponsiveNavLink v-permission="'create_users'" :href="route('availability.index')" :active="route().current('availability.index')" @click="closeMobileMenu">Weekly Availability</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_notices'" :href="route('admin.notice-board.index')" @click="closeMobileMenu">Notice Board</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'view_shareable_resources'" :href="route('shareable-resources.page')" @click="closeMobileMenu">Shareable Resources</ResponsiveNavLink>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="px-1 pb-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Configuration</div>
+                            <div class="space-y-1">
+                                <ResponsiveNavLink v-permission="'manage_projects'" :href="route('task-types.page')" :active="route().current('task-types.page')" @click="closeMobileMenu">Task Types</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'view_project_tiers'" href="/admin/project-tiers" @click="closeMobileMenu">Project Tiers</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_email_templates'" :href="route('email-templates.page')" :active="route().current('email-templates.page')" @click="closeMobileMenu">Email Templates</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_placeholder_definitions'" :href="route('placeholder-definitions.page')" :active="route().current('placeholder-definitions.page')" @click="closeMobileMenu">Placeholder Definitions</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'create_automations'" :href="route('automation.page')" :active="route().current('automation.page')" @click="closeMobileMenu">Automation</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'create_automations'" :href="route('prompts.page')" :active="route().current('prompts.page')" @click="closeMobileMenu">Prompts</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'create_schedules'" :href="route('schedules.index')" :active="$page.url && $page.url.startsWith('/schedules')" @click="closeMobileMenu">Schedules</ResponsiveNavLink>
+                                <ResponsiveNavLink :href="route('admin.categories.index')" @click="closeMobileMenu">Categories</ResponsiveNavLink>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="px-1 pb-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Access & Finance</div>
+                            <div class="space-y-1">
+                                <ResponsiveNavLink v-permission="'manage_roles'" :href="route('admin.roles.index')" @click="closeMobileMenu">Manage Roles</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'assign_permissions'" :href="route('admin.permissions.index')" @click="closeMobileMenu">Manage Permissions</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_roles'" :href="route('admin.email-apps.index')" :active="route().current('admin.email-apps.index')" @click="closeMobileMenu">Email Apps</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_roles'" :href="route('admin.external-tokens.index')" :active="route().current('admin.external-tokens.index')" @click="closeMobileMenu">External Tokens</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_roles'" :href="route('admin.stripe-configurations.index')" :active="route().current('admin.stripe-configurations.index')" @click="closeMobileMenu">Stripe Configuration</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_monthly_budgets'" href="/admin/monthly-budgets" @click="closeMobileMenu">Monthly Budgets</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'view_monthly_budgets'" href="/admin/bonus-calculator" @click="closeMobileMenu">Bonus Calculator</ResponsiveNavLink>
+                            </div>
+                        </div>
+                    </div>
+                </details>
             </div>
         </div>
     </nav>

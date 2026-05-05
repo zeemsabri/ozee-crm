@@ -5,6 +5,7 @@ import StandardNotificationContainer from '@/Components/StandardNotificationCont
 import AvailabilityBlocker from '@/Components/Availability/AvailabilityBlocker.vue';
 import { usePage, router } from '@inertiajs/vue3';
 import { setStandardNotificationContainer, setNoticeFetcher } from '@/Utils/notification';
+import { setupDesktopNotificationPermissionBootstrap } from '@/Utils/browser-notifications';
 import CreateTaskModal from "@/Components/ProjectTasks/CreateTaskModal.vue";
 import WorkspaceBulkTaskModal from "@/Components/WorkspaceBulkTaskModal.vue";
 import CreateResourceForm from "@/Components/ShareableResource/CreateForm.vue";
@@ -47,6 +48,7 @@ const { showNoticeModal, unreadNotices, fetchUnreadNotices, closeModal } = useNo
 
 // Create a new ref for the standard notification container
 const standardNotificationContainerRef = ref(null);
+let teardownDesktopNotificationBootstrap = null;
 
 const setAxiosAuthHeader = async () => {
     const token = localStorage.getItem('authToken');
@@ -135,6 +137,8 @@ const handleSwitchToBulkFromGlobal = () => {
 
 onMounted(() => {
     setAxiosAuthHeader();
+    teardownDesktopNotificationBootstrap = setupDesktopNotificationPermissionBootstrap();
+
     // Set the standard notification container to the new component instance
     if (standardNotificationContainerRef.value) {
         setStandardNotificationContainer(standardNotificationContainerRef.value);
@@ -189,6 +193,7 @@ watch(() => notificationSidebarState.value.notifications, (newVal) => {
 onBeforeUnmount(() => {
     // Clear the registered notice fetcher when layout unmounts
     setNoticeFetcher(null);
+    teardownDesktopNotificationBootstrap?.();
 });
 </script>
 
