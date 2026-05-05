@@ -12,10 +12,14 @@ const props = defineProps({
     unreadNotificationCount: {
         type: Number,
         default: 0
+    },
+    unreadChatCount: {
+        type: Number,
+        default: 0
     }
 });
 
-const emit = defineEmits(['openCreateTaskModal', 'openAddResource', 'openNotificationsSidebar', 'logoutSuccess', 'logoutError']);
+const emit = defineEmits(['openCreateTaskModal', 'openAddResource', 'openNotificationsSidebar', 'openChatSidebar', 'logoutSuccess', 'logoutError']);
 
 const user = computed(() => usePage().props.auth.user);
 
@@ -140,6 +144,9 @@ const handleLogoutError = (error) => {
                 </ResponsiveNavLink>
                 <ResponsiveNavLink as="button" @click="emit('openNotificationsSidebar')">
                     Notifications ({{ unreadNotificationCount }})
+                </ResponsiveNavLink>
+                <ResponsiveNavLink as="button" @click="emit('openChatSidebar')">
+                    Team Chat ({{ unreadChatCount }})
                 </ResponsiveNavLink>
                 <ResponsiveNavLink :href="route('profile.edit')">
                     Profile

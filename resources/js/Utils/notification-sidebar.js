@@ -32,6 +32,7 @@ const removeIdFromLocalStorage = (viewId) => {
 // A global state object for all notifications
 export const notificationSidebarState = ref({
     show: false,
+    mode: 'notifications',
     notifications: [],
 });
 
@@ -174,6 +175,7 @@ export const fetchNotificationsFromDatabase = async () => {
  */
 export const openNotificationsSidebar = () => {
     notificationSidebarState.value.show = true;
+    notificationSidebarState.value.mode = 'notifications';
     notificationSidebarState.value.notifications.forEach(n => {
         n.isNewPush = false;
     });
@@ -186,6 +188,14 @@ export const openNotificationsSidebar = () => {
  */
 export const closeNotificationsSidebar = () => {
     notificationSidebarState.value.show = false;
+};
+
+export const openChatSidebar = () => {
+    notificationSidebarState.value.show = true;
+    notificationSidebarState.value.mode = 'chat';
+    notificationSidebarState.value.notifications.forEach(n => {
+        n.isNewPush = false;
+    });
 };
 
 /**

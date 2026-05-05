@@ -11,10 +11,12 @@ import CreateResourceForm from "@/Components/ShareableResource/CreateForm.vue";
 import CommunicationSidebar from '@/Components/CommunicationSidebar.vue';
 import KudoModal from '@/Components/Kudos/KudoModal.vue';
 import {
+    openChatSidebar,
     openNotificationsSidebar,
     notificationSidebarState,
     fetchNotificationsFromDatabase,
 } from '@/Utils/notification-sidebar';
+import { fetchChatUnreadCounts, totalChatUnreadCount } from '@/Utils/chat-state';
 import LeftSidebar from '@/Components/LeftSidebar.vue';
 import TopNavigation from '@/Components/Layout/TopNavigation.vue';
 import MobileNavigation from '@/Components/Layout/MobileNavigation.vue';
@@ -139,6 +141,7 @@ onMounted(() => {
     }
     fetchAllProjects();
     fetchNotificationsFromDatabase();
+    fetchChatUnreadCounts();
 
     // Register notice fetcher for push-triggered full modal
     setNoticeFetcher(fetchUnreadNotices);
@@ -208,9 +211,11 @@ onBeforeUnmount(() => {
             <!-- Top Navigation -->
             <TopNavigation
                 :unread-notification-count="unreadNotificationCount"
+                :unread-chat-count="totalChatUnreadCount"
                 @open-create-task-modal="openCreateTaskModel = true"
                 @open-add-resource="addResource = true"
                 @open-notifications-sidebar="openNotificationsSidebar"
+                @open-chat-sidebar="openChatSidebar"
                 @open-kudo-modal="openKudoModal = true"
                 @open-meeting-minutes-modal="openMeetingMinutesModal = true"
             />
@@ -221,9 +226,11 @@ onBeforeUnmount(() => {
             <MobileNavigation
                 :showing-navigation-dropdown="showingNavigationDropdown"
                 :unread-notification-count="unreadNotificationCount"
+                :unread-chat-count="totalChatUnreadCount"
                 @open-create-task-modal="openCreateTaskModel = true"
                 @open-add-resource="addResource = true"
                 @open-notifications-sidebar="openNotificationsSidebar"
+                @open-chat-sidebar="openChatSidebar"
                 @logout-success="handleLogoutSuccess"
                 @logout-error="handleLogoutError"
             />

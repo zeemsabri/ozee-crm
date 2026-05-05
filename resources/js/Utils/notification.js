@@ -3,6 +3,7 @@
  */
 
 import { addOrUpdateNotification } from '@/Utils/notification-sidebar';
+import { maybeShowDesktopNotification } from '@/Utils/browser-notifications';
 
 // Reference to the standard notification container component (for toasts)
 let standardNotificationContainer = null;
@@ -63,6 +64,15 @@ export const pushSuccess = (payload) => {
 
     // The second argument `true` flags it as a new push notification
     addOrUpdateNotification(payload, true);
+
+    maybeShowDesktopNotification({
+        title: payload.title || payload.project_name || 'New notification',
+        body: payload.message || '',
+        tag: payload.view_id || payload.id,
+        onClick: () => {
+            window.dispatchEvent(new CustomEvent('open-notifications-panel'));
+        },
+    });
 };
 
 // --- Standard Notification Helpers ---

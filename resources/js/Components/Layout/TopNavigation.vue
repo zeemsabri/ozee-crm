@@ -7,24 +7,41 @@ import NavLink from '@/Components/NavLink.vue';
 import PrimaryButton from "@/Components/PrimaryButton.vue";
 import { Link, usePage, router } from '@inertiajs/vue3';
 import { usePermissions } from '@/Directives/permissions';
-import { Bell, Plus, Award } from 'lucide-vue-next'; // Using lucide icons for a modern look
+import { Bell, MessageSquare, Plus, Award } from 'lucide-vue-next'; // Using lucide icons for a modern look
 import AdminDropdown from '@/Components/Layout/AdminDropdown.vue';
 import UserDropdown from '@/Components/Layout/UserDropdown.vue';
 import BonusDropdown from '@/Components/Layout/BonusDropdown.vue';
+import { totalChatUnreadCount } from '@/Utils/chat-state';
+import { requestDesktopNotificationPermission } from '@/Utils/browser-notifications';
 
 const props = defineProps({
     unreadNotificationCount: {
         type: Number,
         default: 0
+    },
+    unreadChatCount: {
+        type: Number,
+        default: 0
     }
 });
 
-const emit = defineEmits(['openCreateTaskModal', 'openAddResource', 'openNotificationsSidebar', 'open-kudo-modal', 'open-meeting-minutes-modal']);
+const emit = defineEmits(['openCreateTaskModal', 'openAddResource', 'openNotificationsSidebar', 'openChatSidebar', 'open-kudo-modal', 'open-meeting-minutes-modal']);
 
 const showingNavigationDropdown = ref(false);
 const user = computed(() => usePage().props.auth.user);
+const chatCount = computed(() => props.unreadChatCount || totalChatUnreadCount.value);
 
 const { canDo } = usePermissions();
+
+const handleOpenNotifications = async () => {
+    await requestDesktopNotificationPermission();
+    emit('openNotificationsSidebar');
+};
+
+const handleOpenChat = async () => {
+    await requestDesktopNotificationPermission();
+    emit('openChatSidebar');
+};
 
 // Determine if Admin menu should be visible based on any admin-related permissions
 // If a specific permission slug is not present in the system, inner links remain visible per requirement
@@ -76,7 +93,7 @@ onMounted(async () => {
                 </div>
 
                 <!-- Desktop User Actions & Notifications -->
-                <div class="hidden sm:flex items-center space-x-6">
+                <div class="hidden sm:flex items-center space-x-4 lg:space-x-6">
                     <!-- Monthly Points Badge -->
                     <Link :href="route('leaderboard.index')" class="mr-3 cursor-pointer">
                         <div v-if="!loadingPoints" class="group relative inline-flex items-center px-3 py-1 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 text-white text-sm font-semibold shadow-lg ring-2 ring-emerald-300/60 transition-all duration-300 ease-in-out">
@@ -93,7 +110,18 @@ onMounted(async () => {
 
                     <!-- Notifications Button -->
                     <button
-                        @click="emit('openNotificationsSidebar')"
+                        @click="handleOpenChat"
+                        class="relative flex-shrink-0 text-gray-400 hover:text-indigo-600 p-2 rounded-full transition-colors duration-200"
+                        aria-label="Open team chat"
+                    >
+                        <MessageSquare class="h-6 w-6" />
+                        <span v-if="chatCount > 0" class="absolute top-0 right-0 inline-flex min-w-[1.15rem] items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-indigo-50 transform translate-x-1/2 -translate-y-1/2 bg-indigo-600 rounded-full">
+                            {{ chatCount }}
+                        </span>
+                    </button>
+
+                    <button
+                        @click="handleOpenNotifications"
                         class="relative flex-shrink-0 text-gray-400 hover:text-indigo-600 p-2 rounded-full transition-colors duration-200"
                         aria-label="View all notifications"
                     >
@@ -108,7 +136,27 @@ onMounted(async () => {
                 </div>
 
                 <!-- Mobile menu button -->
-                <div class="-mr-2 flex items-center sm:hidden">
+                <div class="-mr-2 flex items-center gap-1 sm:hidden">
+                    <button
+                        @click="handleOpenChat"
+                        class="relative inline-flex items-center justify-center rounded-full p-2 text-gray-500 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-indigo-600 focus:bg-gray-100 focus:text-indigo-600 focus:outline-none"
+                        aria-label="Open team chat"
+                    >
+                        <MessageSquare class="h-5 w-5" />
+                        <span v-if="chatCount > 0" class="absolute right-0 top-0 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-indigo-600 px-1 py-0.5 text-[10px] font-bold leading-none text-white">
+                            {{ chatCount }}
+                        </span>
+                    </button>
+                    <button
+                        @click="handleOpenNotifications"
+                        class="relative inline-flex items-center justify-center rounded-full p-2 text-gray-500 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-indigo-600 focus:bg-gray-100 focus:text-indigo-600 focus:outline-none"
+                        aria-label="Open notifications"
+                    >
+                        <Bell class="h-5 w-5" />
+                        <span v-if="unreadNotificationCount > 0" class="absolute right-0 top-0 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-red-600 px-1 py-0.5 text-[10px] font-bold leading-none text-white">
+                            {{ unreadNotificationCount }}
+                        </span>
+                    </button>
                     <button @click="showingNavigationDropdown = !showingNavigationDropdown"
                             class="inline-flex items-center justify-center rounded-md p-2 text-gray-400 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-gray-500 focus:bg-gray-100 focus:text-gray-500 focus:outline-none"
                     >
@@ -206,8 +254,8 @@ onMounted(async () => {
         </div>
 
         <!-- Mobile Navigation Menu -->
-        <div :class="{'block': showingNavigationDropdown, 'hidden': !showingNavigationDropdown}" class="sm:hidden">
-        <div class="space-y-1 pt-2 pb-3">
+        <div :class="{'block': showingNavigationDropdown, 'hidden': !showingNavigationDropdown}" class="sm:hidden border-t border-gray-100 bg-white shadow-sm">
+        <div class="space-y-1 px-2 pt-2 pb-3">
                 <NavLink :href="route('dashboard')" :active="route().current('dashboard')">
                     Dashboard
                 </NavLink>
