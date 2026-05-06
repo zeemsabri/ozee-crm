@@ -46,11 +46,11 @@ class ActivityDataController extends Controller
         $raw = $request->all();
         $requestMetadata = $this->extractRequestMetadata($request);
 
-        Log::info('Received activity data', [
-            'user_id' => $user?->id,
-            'extension_version' => $requestMetadata['extension_version'] ?? null,
-            'data' => $raw,
-        ]);
+//        Log::info('Received activity data', [
+//            'user_id' => $user?->id,
+//            'extension_version' => $requestMetadata['extension_version'] ?? null,
+//            'data' => $raw,
+//        ]);
         // Detect batch mode: either { events: [...] } or a direct array [...]
         $payloads = null;
         if (isset($raw['events']) && is_array($raw['events'])) {
