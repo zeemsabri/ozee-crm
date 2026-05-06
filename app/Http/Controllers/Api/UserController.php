@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Project;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -117,6 +118,28 @@ class UserController extends Controller
                 'username' => $user->telegramAccount?->username,
             ];
         });
+
+        return response()->json($users);
+    }
+
+    /**
+     * Get a simplified list of users that can access a specific project.
+     */
+    public function projectUsersSimplified(Project $project)
+    {
+        $this->authorize('view', $project);
+
+        $users = $project->getUsersWithProjectAccess(false, ['telegramAccount'])
+            ->map(function ($user) {
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'avatar' => $user->avatar,
+                    'telegram_id' => $user->telegramAccount?->telegram_id,
+                    'username' => $user->telegramAccount?->username,
+                ];
+            })
+            ->values();
 
         return response()->json($users);
     }

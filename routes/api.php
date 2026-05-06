@@ -789,6 +789,7 @@ Route::prefix('native-app')->middleware(['auth:sanctum'])->group(function () {
 
     // Users
     Route::get('users', [\App\Http\Controllers\Api\UserController::class, 'indexSimplified']);
+    Route::get('projects/{project}/users', [\App\Http\Controllers\Api\UserController::class, 'projectUsersSimplified']);
 });
 
 // === External API Routes (Protected by External Magic Link Token) ===

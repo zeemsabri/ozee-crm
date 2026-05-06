@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\Taggable;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -310,6 +311,116 @@ class Project extends Model
     public function bonusTransactions()
     {
         return $this->hasMany(BonusTransaction::class);
+    }
+
+    /**
+     * Get all users that can access this project.
+     *
+     * Includes project users, project manager, project admin,
+     * and users with the global view_all_projects permission.
+     */
+    public function getUsersWithProjectAccess(bool $includeTodayAvailabilities = false, array $additionalRelations = []): EloquentCollection
+    {
+        $relations = array_merge(['role.permissions'], $additionalRelations);
+
+        $this->load(['users' => function ($query) use ($includeTodayAvailabilities, $additionalRelations) {
+            $query->withPivot('role_id')->with(array_merge(['role.permissions'], $additionalRelations));
+
+            if ($includeTodayAvailabilities) {
+                $query->with(['availabilities' => function ($availabilityQuery) {
+                    $availabilityQuery->whereDate('date', today());
+                }]);
+            }
+        }]);
+
+        $users = $this->users;
+        $userIds = $users->pluck('id')->toArray();
+
+        $extraUsers = [
+            ['id' => $this->project_manager_id, 'role' => 'Project Manager'],
+            ['id' => $this->project_admin_id, 'role' => 'Project Admin'],
+        ];
+
+        foreach ($extraUsers as $extraUser) {
+            if (! $extraUser['id'] || in_array($extraUser['id'], $userIds, true)) {
+                continue;
+            }
+
+            $query = User::with($relations);
+            if ($includeTodayAvailabilities) {
+                $query->with(['availabilities' => function ($availabilityQuery) {
+                    $availabilityQuery->whereDate('date', today());
+                }]);
+            }
+
+            $user = $query->find($extraUser['id']);
+            if ($user) {
+                $user->pivot = (object) ['role_id' => null, 'role' => $extraUser['role']];
+                $users->push($user);
+                $userIds[] = $user->id;
+            }
+        }
+
+        $globalAccessQuery = User::whereHas('role.permissions', function ($query) {
+            $query->where('slug', 'view_all_projects');
+        })->with($relations);
+
+        if ($includeTodayAvailabilities) {
+            $globalAccessQuery->with(['availabilities' => function ($availabilityQuery) {
+                $availabilityQuery->whereDate('date', today());
+            }]);
+        }
+
+        $globalAccessUsers = $globalAccessQuery->get();
+
+        foreach ($globalAccessUsers as $globalAccessUser) {
+            if (in_array($globalAccessUser->id, $userIds, true)) {
+                continue;
+            }
+
+            $globalAccessUser->pivot = (object) ['role_id' => null, 'role' => 'Global Access'];
+            $users->push($globalAccessUser);
+            $userIds[] = $globalAccessUser->id;
+        }
+
+        $users->each(function ($user) {
+            $user->loadMissing('role.permissions');
+
+            if (isset($user->pivot->role_id)) {
+                $projectRole = Role::with('permissions')->find($user->pivot->role_id);
+                if ($projectRole) {
+                    $permissions = $projectRole->permissions->map(fn ($permission) => [
+                        'id' => $permission->id,
+                        'name' => $permission->name,
+                        'slug' => $permission->slug,
+                        'category' => $permission->category,
+                    ]);
+
+                    $user->pivot->role_data = [
+                        'id' => $projectRole->id,
+                        'name' => $projectRole->name,
+                        'slug' => $projectRole->slug,
+                        'permissions' => $permissions,
+                    ];
+
+                    $user->setRelation('pivot', $user->pivot->makeVisible(['role_data']));
+                    $user->pivot->role = $projectRole->name;
+                }
+            }
+
+            if ($user->role) {
+                $user->global_permissions = $user->role->permissions->map(fn ($permission) => [
+                    'id' => $permission->id,
+                    'name' => $permission->name,
+                    'slug' => $permission->slug,
+                    'category' => $permission->category,
+                ]);
+
+                $user->makeVisible(['global_permissions']);
+            }
+        });
+
+        return $users->unique('id')->values();
     }
 
     /**
