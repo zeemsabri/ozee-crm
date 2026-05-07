@@ -44,26 +44,9 @@ class MediaFileController extends Controller
         $perPage = $validated['per_page'] ?? 20;
         $query = FileAttachment::query();
 
-        // Filter by fileable types
+        // Filter by fileable types (query-level)
         if (!empty($validated['fileable_types'])) {
             $query->whereIn('fileable_type', $validated['fileable_types']);
-        }
-
-        // Filter by project IDs (includes soft-deleted projects)
-        if (!empty($validated['project_ids'])) {
-            $query->where(function ($q) use ($validated) {
-                $q->whereIn('project_id', $validated['project_ids'])
-                    ->orWhereIn('fileable_type', [Task::class, Email::class])
-                    ->whereIn('fileable_id', function ($subq) use ($validated) {
-                        if (in_array(Task::class, $validated['fileable_types'] ?? [])) {
-                            $subq->selectRaw('id')
-                                ->from('tasks')
-                                ->whereHas('milestone', function ($q) use ($validated) {
-                                    $q->whereIn('project_id', $validated['project_ids']);
-                                });
-                        }
-                    });
-            });
         }
 
         // Filter by search (filename contains)
@@ -79,13 +62,45 @@ class MediaFileController extends Controller
             $query->whereDate('created_at', '<=', $validated['date_to']);
         }
 
-        // Get paginated results
+        // Get paginated results before enrichment
         $files = $query->latest('created_at')->paginate($perPage);
 
         // Enrich each file with project context and parent status
-        $files->getCollection()->transform(function (FileAttachment $file) {
+        $enriched = $files->getCollection()->map(function (FileAttachment $file) {
             return $this->enrichFile($file);
         });
+
+        // Apply post-enrichment filters (linked_status, parent_status, project_ids)
+        $filtered = $enriched->filter(function ($file) use ($validated) {
+            // Filter by linked status
+            if (!empty($validated['linked_status'])) {
+                if ($validated['linked_status'] === 'linked' && !$file['linked']) {
+                    return false;
+                }
+                if ($validated['linked_status'] === 'unlinked' && $file['linked']) {
+                    return false;
+                }
+            }
+
+            // Filter by parent status
+            if (!empty($validated['parent_status'])) {
+                if ($file['parent_status'] !== $validated['parent_status']) {
+                    return false;
+                }
+            }
+
+            // Filter by project IDs
+            if (!empty($validated['project_ids'])) {
+                if (!$file['project_id'] || !in_array($file['project_id'], $validated['project_ids'])) {
+                    return false;
+                }
+            }
+
+            return true;
+        })->values();
+
+        // Rebuild paginated collection with filtered data
+        $files->setCollection($filtered);
 
         // Build filter option payloads
         $fileableTypes = FileAttachment::query()
@@ -223,37 +238,41 @@ class MediaFileController extends Controller
      */
     protected function enrichFile(FileAttachment $file): array
     {
-        $file->load(['fileable' => function ($q) {
-            $q->withTrashed();
-        }]);
-
         $project = null;
         $parentStatus = 'missing';
 
+        // First try direct project_id
         if ($file->project_id) {
             $project = Project::withTrashed()->find($file->project_id);
             $parentStatus = $project ? ($project->trashed() ? 'soft_deleted' : 'active') : 'missing';
         }
 
-        // Resolve from parent chain
-        if (!$project && $file->fileable) {
-            $parent = $file->fileable;
-            $parentDeleted = false;
+        // If no direct link, resolve from parent chain
+        if (!$project) {
+            $fileable = $file->fileable_type;
+            $fileableId = $file->fileable_id;
 
-            if ($parent instanceof Task) {
-                $parentDeleted = $parent->trashed();
-                $milestone = $parent->milestone;
-                $project = $milestone?->project;
-            } elseif ($parent instanceof Email) {
-                $parentDeleted = $parent->trashed();
-                $conversation = $parent->conversation;
-                $project = $conversation?->project;
-            } elseif ($parent instanceof Project) {
-                $parentDeleted = $parent->trashed();
-                $project = $parent;
+            if ($fileable === Task::class) {
+                $parent = Task::withTrashed()->find($fileableId);
+                if ($parent) {
+                    $parentStatus = $parent->trashed() ? 'soft_deleted' : 'active';
+                    $milestone = $parent->milestone;
+                    $project = $milestone?->project;
+                }
+            } elseif ($fileable === Email::class) {
+                $parent = Email::withTrashed()->find($fileableId);
+                if ($parent) {
+                    $parentStatus = $parent->trashed() ? 'soft_deleted' : 'active';
+                    $conversation = $parent->conversation;
+                    $project = $conversation?->project;
+                }
+            } elseif ($fileable === Project::class) {
+                $parent = Project::withTrashed()->find($fileableId);
+                if ($parent) {
+                    $parentStatus = $parent->trashed() ? 'soft_deleted' : 'active';
+                    $project = $parent;
+                }
             }
-
-            $parentStatus = $parent ? ($parentDeleted ? 'soft_deleted' : 'active') : 'missing';
         }
 
         return [

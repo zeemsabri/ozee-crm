@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -114,7 +114,6 @@ const resetFilters = () => {
     filters.date_from = '';
     filters.date_to = '';
     filters.page = 1;
-    loadFiles();
 };
 
 const loadFiles = async () => {
@@ -204,6 +203,24 @@ const deleteSelected = async () => {
     }
 };
 
+// Watch filters for changes and trigger reload (except page which is handled separately)
+watch(
+    () => [
+        filters.fileable_types,
+        filters.project_ids,
+        filters.linked_status,
+        filters.parent_status,
+        filters.search,
+        filters.date_from,
+        filters.date_to,
+        filters.per_page,
+    ],
+    () => {
+        filters.page = 1; // Reset to page 1 when filters change
+        loadFiles();
+    }
+);
+
 onMounted(() => {
     loadFiles();
 });
@@ -236,7 +253,6 @@ onMounted(() => {
                                     :options="state.filterOptions.fileable_types"
                                     :is-multi="true"
                                     placeholder="All types"
-                                    @change="() => { filters.page = 1; loadFiles(); }"
                                 />
                             </div>
 
@@ -247,7 +263,6 @@ onMounted(() => {
                                     :options="state.filterOptions.projects"
                                     :is-multi="true"
                                     placeholder="All projects"
-                                    @change="() => { filters.page = 1; loadFiles(); }"
                                 />
                             </div>
 
@@ -257,7 +272,6 @@ onMounted(() => {
                                     v-model="filters.linked_status"
                                     :options="state.filterOptions.linked_statuses"
                                     placeholder="All statuses"
-                                    @change="() => { filters.page = 1; loadFiles(); }"
                                 />
                             </div>
 
@@ -267,7 +281,6 @@ onMounted(() => {
                                     v-model="filters.parent_status"
                                     :options="state.filterOptions.parent_statuses"
                                     placeholder="All statuses"
-                                    @change="() => { filters.page = 1; loadFiles(); }"
                                 />
                             </div>
 
@@ -278,7 +291,6 @@ onMounted(() => {
                                     type="text"
                                     placeholder="Search files..."
                                     class="w-full mt-1"
-                                    @change="() => { filters.page = 1; loadFiles(); }"
                                 />
                             </div>
 
@@ -288,7 +300,6 @@ onMounted(() => {
                                     v-model="filters.date_from"
                                     type="date"
                                     class="w-full mt-1"
-                                    @change="() => { filters.page = 1; loadFiles(); }"
                                 />
                             </div>
 
@@ -298,13 +309,12 @@ onMounted(() => {
                                     v-model="filters.date_to"
                                     type="date"
                                     class="w-full mt-1"
-                                    @change="() => { filters.page = 1; loadFiles(); }"
                                 />
                             </div>
 
                             <div>
                                 <InputLabel value="Per Page" />
-                                <select v-model.number="filters.per_page" @change="() => { filters.page = 1; loadFiles(); }" class="w-full mt-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <select v-model.number="filters.per_page" class="w-full mt-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                     <option value="10">10</option>
                                     <option value="20">20</option>
                                     <option value="50">50</option>
