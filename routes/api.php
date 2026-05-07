@@ -371,6 +371,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('files', [FileAttachmentController::class, 'store']);
     Route::delete('files/{file}', [FileAttachmentController::class, 'destroy']);
 
+    // Admin media files listing endpoint
+    Route::get('admin/media-files/list', [\App\Http\Controllers\Admin\MediaFileController::class, 'list'])
+        ->middleware(['permission:manage_projects'])
+        ->name('admin.media-files.list');
+
+    // Admin media files view URL endpoint
+    Route::get('admin/media-files/{file}/view-url', [\App\Http\Controllers\Admin\MediaFileController::class, 'viewUrl'])
+        ->middleware(['permission:manage_projects'])
+        ->name('admin.media-files.view-url');
+
+    // Admin media files bulk delete endpoint
+    Route::post('admin/media-files/bulk-delete', [\App\Http\Controllers\Admin\MediaFileController::class, 'bulkDelete'])
+        ->middleware(['permission:manage_projects'])
+        ->name('admin.media-files.bulk-delete');
+
     // Email Management & Approval Routes
     Route::get('emails/pending-approval', [EmailController::class, 'pendingApproval']);
     Route::get('emails/pending-approval-simplified', [EmailController::class, 'pendingApprovalSimplified']);

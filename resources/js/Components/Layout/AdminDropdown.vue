@@ -165,6 +165,7 @@ const createCategory = async () => {
                         <div>
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Configuration</h4>
                             <div class="space-y-1">
+                                <DropdownLink v-permission="'manage_projects'" :href="route('admin.media-files.index')" :active="route().current('admin.media-files.index')" class="!px-2 !py-1.5">Media Files</DropdownLink>
                                 <DropdownLink v-permission="'manage_projects'" :href="route('task-types.page')" :active="route().current('task-types.page')" class="!px-2 !py-1.5">Task Types</DropdownLink>
                                 <DropdownLink v-permission="'view_project_tiers'" href="/admin/project-tiers" class="!px-2 !py-1.5">Project Tiers</DropdownLink>
                                 <DropdownLink v-permission="'manage_email_templates'" :href="route('email-templates.page')" :active="route().current('email-templates.page')" class="!px-2 !py-1.5">Email Templates</DropdownLink>

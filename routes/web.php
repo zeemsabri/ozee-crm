@@ -276,6 +276,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
             ->middleware(['permission:manage_projects'])
             ->name('activity-report.index');
 
+        // Media Files Admin Page
+        Route::get('/media-files', [\App\Http\Controllers\Admin\MediaFileController::class, 'index'])
+            ->middleware(['permission:manage_projects'])
+            ->name('media-files.index');
+
         // Categories CRUD Page
         Route::get('/categories', function () {
             return Inertia::render('Admin/Categories/Index');
