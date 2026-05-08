@@ -19,9 +19,24 @@ const filters = reactive({
     search: '',
     date_from: '',
     date_to: '',
+    min_size_mb: '',
+    max_size_mb: '',
+    sort_by: 'created_at',
+    sort_direction: 'desc',
     page: 1,
     per_page: 20,
 });
+
+const sortByOptions = [
+    { value: 'created_at', label: 'Created Date' },
+    { value: 'file_size', label: 'File Size' },
+    { value: 'filename', label: 'Filename' },
+];
+
+const sortDirectionOptions = [
+    { value: 'desc', label: 'Descending' },
+    { value: 'asc', label: 'Ascending' },
+];
 
 const state = reactive({
     files: [],
@@ -113,6 +128,10 @@ const resetFilters = () => {
     filters.search = '';
     filters.date_from = '';
     filters.date_to = '';
+    filters.min_size_mb = '';
+    filters.max_size_mb = '';
+    filters.sort_by = 'created_at';
+    filters.sort_direction = 'desc';
     filters.page = 1;
 };
 
@@ -140,6 +159,18 @@ const loadFiles = async () => {
         }
         if (filters.date_to) {
             queryParams.append('date_to', filters.date_to);
+        }
+        if (filters.min_size_mb !== '' && filters.min_size_mb !== null) {
+            queryParams.append('min_size_mb', filters.min_size_mb);
+        }
+        if (filters.max_size_mb !== '' && filters.max_size_mb !== null) {
+            queryParams.append('max_size_mb', filters.max_size_mb);
+        }
+        if (filters.sort_by) {
+            queryParams.append('sort_by', filters.sort_by);
+        }
+        if (filters.sort_direction) {
+            queryParams.append('sort_direction', filters.sort_direction);
         }
         queryParams.append('page', filters.page);
         queryParams.append('per_page', filters.per_page);
@@ -213,6 +244,10 @@ watch(
         filters.search,
         filters.date_from,
         filters.date_to,
+        filters.min_size_mb,
+        filters.max_size_mb,
+        filters.sort_by,
+        filters.sort_direction,
         filters.per_page,
     ],
     () => {
@@ -309,6 +344,48 @@ onMounted(() => {
                                     v-model="filters.date_to"
                                     type="date"
                                     class="w-full mt-1"
+                                />
+                            </div>
+
+                            <div>
+                                <InputLabel value="Min Size (MB)" />
+                                <TextInput
+                                    v-model="filters.min_size_mb"
+                                    type="number"
+                                    min="0"
+                                    step="0.1"
+                                    placeholder="e.g. 1"
+                                    class="w-full mt-1"
+                                />
+                            </div>
+
+                            <div>
+                                <InputLabel value="Max Size (MB)" />
+                                <TextInput
+                                    v-model="filters.max_size_mb"
+                                    type="number"
+                                    min="0"
+                                    step="0.1"
+                                    placeholder="optional"
+                                    class="w-full mt-1"
+                                />
+                            </div>
+
+                            <div>
+                                <InputLabel value="Sort By" />
+                                <SelectDropdown
+                                    v-model="filters.sort_by"
+                                    :options="sortByOptions"
+                                    placeholder="Created Date"
+                                />
+                            </div>
+
+                            <div>
+                                <InputLabel value="Sort Direction" />
+                                <SelectDropdown
+                                    v-model="filters.sort_direction"
+                                    :options="sortDirectionOptions"
+                                    placeholder="Descending"
                                 />
                             </div>
 

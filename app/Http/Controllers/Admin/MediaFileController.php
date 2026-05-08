@@ -37,11 +37,17 @@ class MediaFileController extends Controller
             'search' => 'nullable|string|max:255',
             'date_from' => 'nullable|date',
             'date_to' => 'nullable|date',
+            'min_size_mb' => 'nullable|numeric|min:0',
+            'max_size_mb' => 'nullable|numeric|min:0',
+            'sort_by' => 'nullable|in:created_at,file_size,filename',
+            'sort_direction' => 'nullable|in:asc,desc',
             'page' => 'nullable|integer|min:1',
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
 
         $perPage = $validated['per_page'] ?? 20;
+        $sortBy = $validated['sort_by'] ?? 'created_at';
+        $sortDirection = $validated['sort_direction'] ?? 'desc';
         $query = FileAttachment::query();
 
         // Filter by fileable types (query-level)
@@ -62,8 +68,16 @@ class MediaFileController extends Controller
             $query->whereDate('created_at', '<=', $validated['date_to']);
         }
 
+        // Filter by file size range (MB to bytes)
+        if (isset($validated['min_size_mb']) && $validated['min_size_mb'] !== '') {
+            $query->where('file_size', '>=', (int) round($validated['min_size_mb'] * 1024 * 1024));
+        }
+        if (isset($validated['max_size_mb']) && $validated['max_size_mb'] !== '') {
+            $query->where('file_size', '<=', (int) round($validated['max_size_mb'] * 1024 * 1024));
+        }
+
         // Get paginated results before enrichment
-        $files = $query->latest('created_at')->paginate($perPage);
+        $files = $query->orderBy($sortBy, $sortDirection)->paginate($perPage);
 
         // Enrich each file with project context and parent status
         $enriched = $files->getCollection()->map(function (FileAttachment $file) {
