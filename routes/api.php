@@ -293,6 +293,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Chat Routes
     Route::get('projects/{project}/chat', [ChatController::class, 'index']);
     Route::post('projects/{project}/chat', [ChatController::class, 'store']);
+    Route::post('projects/{project}/chat/attachments', [ChatController::class, 'storeAttachments']);
+    Route::post('projects/{project}/chat/drive-documents/create', [ChatController::class, 'createDriveDocument']);
+    Route::post('projects/{project}/chat/drive-documents/reference', [ChatController::class, 'referenceDriveFile']);
+    Route::get('projects/{project}/chat/drive-documents/browse', [ChatController::class, 'browseDriveFolder']);
     Route::delete('projects/{project}/chat/{chat_message}', [ChatController::class, 'destroy']);
     Route::post('projects/{project}/chat/mark-read', [ChatController::class, 'markRead']);
     Route::get('chat/unread-counts', [ChatController::class, 'unreadCounts']);
@@ -798,6 +802,10 @@ Route::prefix('native-app')->middleware(['auth:sanctum'])->group(function () {
     // Chat & Messages
     Route::get('projects/{project}/chat', [\App\Http\Controllers\Api\ChatController::class, 'indexNative']);
     Route::post('projects/{project}/chat', [\App\Http\Controllers\Api\ChatController::class, 'store']);
+    Route::post('projects/{project}/chat/attachments', [\App\Http\Controllers\Api\ChatController::class, 'storeAttachments']);
+    Route::post('projects/{project}/chat/drive-documents/create', [\App\Http\Controllers\Api\ChatController::class, 'createDriveDocument']);
+    Route::post('projects/{project}/chat/drive-documents/reference', [\App\Http\Controllers\Api\ChatController::class, 'referenceDriveFile']);
+    Route::get('projects/{project}/chat/drive-documents/browse', [\App\Http\Controllers\Api\ChatController::class, 'browseDriveFolder']);
     Route::delete('projects/{project}/chat/{chat_message}', [\App\Http\Controllers\Api\ChatController::class, 'destroy']);
     Route::post('projects/{project}/chat/mark-read', [\App\Http\Controllers\Api\ChatController::class, 'markRead']);
     Route::get('chat/unread-counts', [\App\Http\Controllers\Api\ChatController::class, 'unreadCounts']);

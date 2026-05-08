@@ -48,6 +48,11 @@ class FileAttachment extends Model
         if (! $path) {
             return null;
         }
+
+        if (filter_var($path, FILTER_VALIDATE_URL)) {
+            return $path;
+        }
+
         try {
             return Storage::disk('gcs')->temporaryUrl($path, now()->addDay());
         } catch (\Throwable $e) {
@@ -64,6 +69,11 @@ class FileAttachment extends Model
         if (! $thumb) {
             return null;
         }
+
+        if (filter_var($thumb, FILTER_VALIDATE_URL)) {
+            return $thumb;
+        }
+
         try {
             return Storage::disk('gcs')->temporaryUrl($thumb, now()->addDay());
         } catch (\Throwable $e) {

@@ -91,6 +91,11 @@ class ChatMessage extends Model
         return $this->morphMany(UserInteraction::class, 'interactable');
     }
 
+    public function files()
+    {
+        return $this->morphMany(FileAttachment::class, 'fileable');
+    }
+
     /**
      * Add a Telegram API response result to the message metadata.
      * This tracks all instances of the message across group topics and client DMs.

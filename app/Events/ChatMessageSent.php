@@ -24,7 +24,7 @@ class ChatMessageSent implements ShouldBroadcast, ShouldQueue
 
     public function __construct(ChatMessage $chatMessage)
     {
-        $chatMessage->loadMissing(['user', 'client', 'parent.user', 'parent.client']);
+        $chatMessage->loadMissing(['user', 'client', 'parent.user', 'parent.client', 'files']);
 
         $this->projectId = (int)$chatMessage->project_id;
         $this->senderId  = $chatMessage->user_id ?? $chatMessage->client_id;
@@ -55,6 +55,18 @@ class ChatMessageSent implements ShouldBroadcast, ShouldQueue
             'created_at'         => $chatMessage->created_at->toDateTimeString(),
             'sender_id'          => $this->senderId,
             'source'             => $chatMessage->source,
+            'attachments'        => $chatMessage->files->map(function ($file) {
+                return [
+                    'id' => $file->id,
+                    'filename' => $file->filename,
+                    'mime_type' => $file->mime_type,
+                    'file_size' => $file->file_size,
+                    'path' => $file->path,
+                    'url' => $file->path_url ?: $file->path,
+                    'thumbnail_url' => $file->thumbnail_url ?: $file->thumbnail,
+                    'google_drive_file_id' => $file->google_drive_file_id,
+                ];
+            })->values()->all(),
         ];
     }
 

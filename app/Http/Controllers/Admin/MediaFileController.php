@@ -8,6 +8,7 @@ use App\Models\Email;
 use App\Models\FileAttachment;
 use App\Models\Project;
 use App\Models\Task;
+use App\Services\GoogleDriveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -163,6 +164,18 @@ class MediaFileController extends Controller
         try {
             // Generate signed URL for the file
             $pathUrl = $file->path_url;
+            if (!$pathUrl) {
+                if (!empty($file->path) && filter_var($file->path, FILTER_VALIDATE_URL)) {
+                    $pathUrl = $file->path;
+                } elseif (!empty($file->google_drive_file_id)) {
+                    try {
+                        $pathUrl = app(GoogleDriveService::class)->getWebContentLink($file->google_drive_file_id, 'webViewLink');
+                    } catch (\Throwable $e) {
+                        $pathUrl = null;
+                    }
+                }
+            }
+
             if (!$pathUrl) {
                 return response()->json(['error' => 'File path not available'], 404);
             }

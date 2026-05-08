@@ -21,6 +21,11 @@ import {
     CornerDownRight,
     Mail,
     Hash,
+    Image as ImageIcon,
+    FileText,
+    Link2,
+    FilePlus2,
+    Paperclip,
     ExternalLink,
     Search,
     Trash2
@@ -107,9 +112,20 @@ const loadingTopics = ref(false);
 
 const chatContainer = ref(null);
 const mentionInputRef = ref(null);
+const chatFileInputRef = ref(null);
+const showDrivePicker = ref(false);
+const drivePickerLoading = ref(false);
+const drivePickerError = ref('');
+const drivePickerFilter = ref('');
+const driveItems = ref([]);
+const driveRootFolderId = ref(null);
+const driveCurrentFolderId = ref(null);
+const driveFolderStack = ref([]);
 const loadingMore = ref(false);
 const hasMore = ref(true);
 const pendingMessages = ref({});
+const failedAttachmentInlineIds = ref(new Set());
+const failedAttachmentThumbIds = ref(new Set());
 const unreadByProject = unreadByProjectState;
 const projectSearch = ref('');
 const subscribedTopicIds = ref(new Set()); 
@@ -179,6 +195,17 @@ const chatLandingProjects = computed(() => {
         .slice(0, 6);
 });
 const activeProjectTopicsPreview = computed(() => topics.value.slice(0, 8));
+const filteredDriveItems = computed(() => {
+    const q = drivePickerFilter.value.trim().toLowerCase();
+    if (!q) {
+        return driveItems.value;
+    }
+
+    return driveItems.value.filter(item => item.name?.toLowerCase().includes(q));
+});
+
+const driveFolderItems = computed(() => filteredDriveItems.value.filter(item => item.is_folder));
+const driveFileItems = computed(() => filteredDriveItems.value.filter(item => !item.is_folder));
 
 const availableContexts = computed(() => {
     const search = projectSearch.value.toLowerCase();
@@ -480,6 +507,217 @@ const handleSendMessage = async () => {
     }
 };
 
+const triggerAttachmentPicker = () => {
+    if (!activeProject.value || !activeTopic.value) {
+        warning('Select a project topic first.');
+        return;
+    }
+
+    if (isClientMessagingBlocked.value) {
+        warning(clientMessagingNotice.value || 'Client messaging is unavailable for this project.');
+        return;
+    }
+
+    chatFileInputRef.value?.click();
+};
+
+const handleAttachmentInput = async (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length || !activeProject.value || !activeTopic.value) {
+        event.target.value = '';
+        return;
+    }
+
+    const formData = new FormData();
+    files.forEach(file => formData.append('files[]', file));
+
+    if (newMessage.value.trim()) {
+        formData.append('message', newMessage.value.trim());
+    }
+
+    if (replyToMessage.value?.id) {
+        formData.append('parent_id', replyToMessage.value.id);
+    }
+
+    formData.append('telegram_topic_id', activeTopic.value.id);
+
+    isActionLoading.value = true;
+
+    try {
+        const response = await axios.post(`/api/projects/${activeProject.value.id}/chat/attachments`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+
+        const createdMessage = response?.data;
+        if (createdMessage?.id && !chatMessages.value.find(m => m.id == createdMessage.id)) {
+            chatMessages.value.push(createdMessage);
+        }
+
+        newMessage.value = '';
+        replyToMessage.value = null;
+        mentionInputRef.value?.clear();
+        scrollToBottom();
+    } catch (error) {
+        warning(error.response?.data?.message || 'Failed to upload attachment(s)');
+    } finally {
+        isActionLoading.value = false;
+        event.target.value = '';
+    }
+};
+
+const createDriveDocumentFromChat = async () => {
+    if (!activeProject.value || !activeTopic.value) {
+        warning('Select a project topic first.');
+        return;
+    }
+
+    const title = prompt('Document title', `Notes ${new Date().toLocaleDateString()}`);
+    if (!title || !title.trim()) {
+        return;
+    }
+
+    isActionLoading.value = true;
+
+    try {
+        const response = await axios.post(`/api/projects/${activeProject.value.id}/chat/drive-documents/create`, {
+            title: title.trim(),
+            message: newMessage.value.trim() || null,
+            parent_id: replyToMessage.value?.id,
+            telegram_topic_id: activeTopic.value.id,
+        });
+
+        const createdMessage = response?.data;
+        if (createdMessage?.id && !chatMessages.value.find(m => m.id == createdMessage.id)) {
+            chatMessages.value.push(createdMessage);
+        }
+
+        newMessage.value = '';
+        replyToMessage.value = null;
+        mentionInputRef.value?.clear();
+        scrollToBottom();
+    } catch (error) {
+        warning(error.response?.data?.message || 'Failed to create Google document');
+    } finally {
+        isActionLoading.value = false;
+    }
+};
+
+const fetchDrivePickerItems = async (folderId = null) => {
+    if (!activeProject.value) {
+        return;
+    }
+
+    drivePickerLoading.value = true;
+    drivePickerError.value = '';
+
+    try {
+        const response = await axios.get(`/api/projects/${activeProject.value.id}/chat/drive-documents/browse`, {
+            params: {
+                folder_id: folderId || undefined,
+            },
+        });
+
+        const payload = response.data || {};
+        driveItems.value = Array.isArray(payload.items) ? payload.items : [];
+        driveRootFolderId.value = payload.root_folder_id || driveRootFolderId.value;
+        driveCurrentFolderId.value = payload.current_folder_id || folderId || driveRootFolderId.value;
+    } catch (error) {
+        drivePickerError.value = error.response?.data?.message || 'Failed to load Google Drive folder.';
+    } finally {
+        drivePickerLoading.value = false;
+    }
+};
+
+const openDrivePicker = async () => {
+    if (!activeProject.value || !activeTopic.value) {
+        warning('Select a project topic first.');
+        return;
+    }
+
+    if (isClientMessagingBlocked.value) {
+        warning(clientMessagingNotice.value || 'Client messaging is unavailable for this project.');
+        return;
+    }
+
+    drivePickerFilter.value = '';
+    driveItems.value = [];
+    driveRootFolderId.value = null;
+    driveCurrentFolderId.value = null;
+    driveFolderStack.value = [];
+    showDrivePicker.value = true;
+    await fetchDrivePickerItems();
+};
+
+const closeDrivePicker = () => {
+    showDrivePicker.value = false;
+};
+
+const enterDriveFolder = async (item) => {
+    if (!item?.id || !item?.is_folder) {
+        return;
+    }
+
+    if (driveCurrentFolderId.value) {
+        driveFolderStack.value.push({
+            id: driveCurrentFolderId.value,
+            name: item.name,
+        });
+    }
+
+    await fetchDrivePickerItems(item.id);
+};
+
+const goToPreviousDriveFolder = async () => {
+    if (!driveFolderStack.value.length) {
+        if (driveRootFolderId.value && driveCurrentFolderId.value !== driveRootFolderId.value) {
+            await fetchDrivePickerItems(driveRootFolderId.value);
+        }
+        return;
+    }
+
+    const previous = driveFolderStack.value.pop();
+    await fetchDrivePickerItems(previous.id);
+};
+
+const referenceDriveFileFromChat = async (item) => {
+    if (!item?.id) {
+        warning('Select a Google Drive file to share.');
+        return;
+    }
+
+    const payload = {
+        drive_file_id: item.id,
+        name: item.name || null,
+        mime_type: item.mime_type || null,
+        message: newMessage.value.trim() || null,
+        parent_id: replyToMessage.value?.id,
+        telegram_topic_id: activeTopic.value.id,
+    };
+
+    isActionLoading.value = true;
+
+    try {
+        const response = await axios.post(`/api/projects/${activeProject.value.id}/chat/drive-documents/reference`, payload);
+
+        const createdMessage = response?.data;
+        if (createdMessage?.id && !chatMessages.value.find(m => m.id == createdMessage.id)) {
+            chatMessages.value.push(createdMessage);
+        }
+
+        newMessage.value = '';
+        replyToMessage.value = null;
+        mentionInputRef.value?.clear();
+        closeDrivePicker();
+        scrollToBottom();
+    } catch (error) {
+        warning(error.response?.data?.message || 'Failed to reference Drive file');
+    } finally {
+        isActionLoading.value = false;
+    }
+};
+
 const deleteMessage = async (msg) => {
     if (!confirm('Are you sure you want to delete this message? This will also remove it from Telegram.')) return;
     
@@ -499,6 +737,114 @@ const deleteMessage = async (msg) => {
 
 const formatMessage = (message) => {
     return formatMentions(message);
+};
+
+const formatAttachmentSize = (bytes) => {
+    if (!bytes) {
+        return '';
+    }
+
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = Number(bytes);
+    let unitIdx = 0;
+
+    while (size >= 1024 && unitIdx < units.length - 1) {
+        size /= 1024;
+        unitIdx += 1;
+    }
+
+    return `${size.toFixed(2)} ${units[unitIdx]}`;
+};
+
+const getAttachmentLink = (attachment) => attachment?.url || attachment?.path || null;
+
+const getAttachmentKey = (attachment) => String(attachment?.id ?? attachment?.filename ?? '');
+
+const isLikelyDirectImageUrl = (url) => {
+    if (!url) {
+        return false;
+    }
+
+    const value = String(url).toLowerCase();
+
+    if (value.startsWith('data:image/')) {
+        return true;
+    }
+
+    if (/(\.png|\.jpe?g|\.gif|\.webp|\.bmp|\.svg)(\?|$)/.test(value)) {
+        return true;
+    }
+
+    // Some providers return direct image links without file extensions.
+    return value.includes('googleusercontent.com') || value.includes('storage.googleapis.com');
+};
+
+const isImageAttachment = (attachment) => {
+    if (!attachment) {
+        return false;
+    }
+
+    const mime = String(attachment.mime_type || '').toLowerCase();
+    if (mime.startsWith('image/')) {
+        return true;
+    }
+
+    const link = String(getAttachmentLink(attachment) || '').toLowerCase();
+    return /(\.png|\.jpe?g|\.gif|\.webp|\.bmp|\.svg)(\?|$)/.test(link);
+};
+
+const canRenderInlineImage = (attachment) => {
+    if (!isImageAttachment(attachment)) {
+        return false;
+    }
+
+    const key = getAttachmentKey(attachment);
+    if (failedAttachmentInlineIds.value.has(key)) {
+        return false;
+    }
+
+    return isLikelyDirectImageUrl(getAttachmentLink(attachment));
+};
+
+const canRenderThumbnail = (attachment) => {
+    const key = getAttachmentKey(attachment);
+    if (failedAttachmentThumbIds.value.has(key)) {
+        return false;
+    }
+
+    return isLikelyDirectImageUrl(attachment?.thumbnail_url);
+};
+
+const handleInlineImageError = (attachment) => {
+    const key = getAttachmentKey(attachment);
+    if (!key) {
+        return;
+    }
+
+    failedAttachmentInlineIds.value = new Set(failedAttachmentInlineIds.value).add(key);
+};
+
+const handleThumbnailError = (attachment) => {
+    const key = getAttachmentKey(attachment);
+    if (!key) {
+        return;
+    }
+
+    failedAttachmentThumbIds.value = new Set(failedAttachmentThumbIds.value).add(key);
+};
+
+const getAttachmentIcon = (attachment) => {
+    const mime = String(attachment?.mime_type || '').toLowerCase();
+
+    if (mime.startsWith('image/')) {
+        return ImageIcon;
+    }
+
+    if (mime.includes('pdf') || mime.includes('word') || mime.includes('document') || mime.includes('sheet') || mime.includes('presentation') || mime.includes('text')) {
+        return FileText;
+    }
+
+    return Paperclip;
 };
 
 const scrollToBottom = () => {
@@ -757,6 +1103,7 @@ onUnmounted(() => {
 });
 
 const closeSidebar = () => {
+    closeDrivePicker();
     closeNotificationsSidebar();
 };
 </script>
@@ -1252,6 +1599,54 @@ const closeSidebar = () => {
                                      :class="[msg.is_me ? 'chat-message-bubble-sent text-slate-950 rounded-tr-sm' : 'chat-message-bubble-received text-slate-100 rounded-tl-sm']"
                                      v-html="formatMessage(msg.message)">
                                 </div>
+                                <div v-if="msg.attachments && msg.attachments.length" class="mt-2 space-y-2 w-full max-w-xl">
+                                    <div
+                                        v-for="attachment in msg.attachments"
+                                        :key="attachment.id"
+                                        class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-100"
+                                    >
+                                        <a
+                                            v-if="canRenderInlineImage(attachment)"
+                                            :href="getAttachmentLink(attachment)"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="block"
+                                        >
+                                            <img
+                                                :src="getAttachmentLink(attachment)"
+                                                :alt="attachment.filename || 'Image attachment'"
+                                                @error="handleInlineImageError(attachment)"
+                                                class="max-h-72 w-auto max-w-full rounded-lg border border-white/10 object-contain"
+                                            />
+                                        </a>
+
+                                        <a
+                                            :href="getAttachmentLink(attachment)"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="mt-2 flex items-center gap-3 hover:text-sky-200"
+                                        >
+                                            <img
+                                                v-if="!canRenderInlineImage(attachment) && canRenderThumbnail(attachment)"
+                                                :src="attachment.thumbnail_url"
+                                                alt="Attachment preview"
+                                                @error="handleThumbnailError(attachment)"
+                                                class="h-10 w-10 rounded-lg object-cover border border-white/10"
+                                            />
+                                            <div v-else class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5">
+                                                <component :is="getAttachmentIcon(attachment)" class="h-4 w-4 text-sky-200" />
+                                            </div>
+                                            <div class="min-w-0 flex-1">
+                                                <p class="truncate font-semibold text-slate-100">{{ attachment.filename || 'Attachment' }}</p>
+                                                <p class="truncate text-[11px] text-slate-400">
+                                                    {{ attachment.mime_type || 'file' }}
+                                                    <span v-if="attachment.file_size"> · {{ formatAttachmentSize(attachment.file_size) }}</span>
+                                                </p>
+                                            </div>
+                                            <ExternalLink class="h-3.5 w-3.5 shrink-0 text-slate-300" />
+                                        </a>
+                                    </div>
+                                </div>
                                 <div v-if="msg.is_me" class="flex items-center pr-1 h-3 mt-0.5">
                                     <CheckCheck v-if="msg.reads && msg.reads.length" class="w-3.5 h-3.5 text-sky-300" :title="msg.reads.map(r => r.user).join(', ')" />
                                     <CheckCheck v-else class="w-3.5 h-3.5 text-slate-500" title="Sent" />
@@ -1297,6 +1692,40 @@ const closeSidebar = () => {
                         </div>
 
                         <div class="relative flex items-end gap-2 rounded-[24px] border border-white/10 bg-white/5 p-1 shadow-sm transition-all focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-400/30">
+                            <input
+                                ref="chatFileInputRef"
+                                type="file"
+                                class="hidden"
+                                multiple
+                                @change="handleAttachmentInput"
+                            />
+                            <button
+                                type="button"
+                                @click="triggerAttachmentPicker"
+                                :disabled="isActionLoading || isClientMessagingBlocked"
+                                class="m-1 flex shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 p-2 text-slate-200 transition-colors hover:bg-white/10 disabled:opacity-50"
+                                title="Upload image/document"
+                            >
+                                <Paperclip class="w-4 h-4" />
+                            </button>
+                            <button
+                                type="button"
+                                @click="createDriveDocumentFromChat"
+                                :disabled="isActionLoading || isClientMessagingBlocked"
+                                class="m-1 flex shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 p-2 text-slate-200 transition-colors hover:bg-white/10 disabled:opacity-50"
+                                title="Create Google document"
+                            >
+                                <FilePlus2 class="w-4 h-4" />
+                            </button>
+                            <button
+                                type="button"
+                                @click="openDrivePicker"
+                                :disabled="isActionLoading || isClientMessagingBlocked"
+                                class="m-1 flex shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 p-2 text-slate-200 transition-colors hover:bg-white/10 disabled:opacity-50"
+                                title="Reference Drive file"
+                            >
+                                <Link2 class="w-4 h-4" />
+                            </button>
                             <MentionInput
                                 ref="mentionInputRef"
                                 v-model="newMessage"
@@ -1312,6 +1741,90 @@ const closeSidebar = () => {
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div
+            v-if="showDrivePicker"
+            class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/60 p-4"
+            @click.self="closeDrivePicker"
+        >
+            <div class="w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-900 p-4 shadow-2xl">
+                <div class="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Google Drive</p>
+                        <h3 class="text-sm font-bold text-white">Browse project folder</h3>
+                    </div>
+                    <button @click="closeDrivePicker" class="rounded-md p-1.5 text-slate-400 hover:bg-white/10 hover:text-white">
+                        <X class="h-4 w-4" />
+                    </button>
+                </div>
+
+                <div class="mt-3 flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="goToPreviousDriveFolder"
+                        :disabled="drivePickerLoading"
+                        class="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 disabled:opacity-50"
+                    >
+                        <ChevronLeft class="h-3.5 w-3.5" />
+                        Back
+                    </button>
+                    <input
+                        v-model="drivePickerFilter"
+                        type="text"
+                        placeholder="Search files in this folder..."
+                        class="w-full rounded-xl border-white/10 bg-white/5 text-sm text-white placeholder:text-slate-400 focus:border-sky-400 focus:ring-sky-400"
+                    >
+                </div>
+
+                <div v-if="drivePickerError" class="mt-3 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                    {{ drivePickerError }}
+                </div>
+
+                <div class="mt-3 max-h-[60vh] overflow-y-auto space-y-2 pr-1">
+                    <div v-if="drivePickerLoading" class="flex items-center justify-center py-10 text-sky-300">
+                        <div class="animate-spin rounded-full h-5 w-5 border-2 border-sky-300 border-t-transparent"></div>
+                    </div>
+
+                    <template v-else>
+                        <button
+                            v-for="folder in driveFolderItems"
+                            :key="folder.id"
+                            type="button"
+                            @click="enterDriveFolder(folder)"
+                            class="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left hover:border-sky-300/40 hover:bg-white/10"
+                        >
+                            <div class="min-w-0">
+                                <p class="truncate text-sm font-semibold text-white">{{ folder.name }}</p>
+                                <p class="text-[11px] text-slate-400">Folder</p>
+                            </div>
+                            <ChevronLeft class="h-4 w-4 rotate-180 text-slate-400" />
+                        </button>
+
+                        <button
+                            v-for="file in driveFileItems"
+                            :key="file.id"
+                            type="button"
+                            @click="referenceDriveFileFromChat(file)"
+                            :disabled="isActionLoading"
+                            class="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left hover:border-sky-300/40 hover:bg-white/10 disabled:opacity-50"
+                        >
+                            <div class="min-w-0">
+                                <p class="truncate text-sm font-semibold text-white">{{ file.name }}</p>
+                                <p class="truncate text-[11px] text-slate-400">{{ file.mime_type || 'file' }}</p>
+                            </div>
+                            <span class="rounded-full bg-sky-400/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-sky-200">Share</span>
+                        </button>
+
+                        <p
+                            v-if="!driveFolderItems.length && !driveFileItems.length"
+                            class="rounded-xl border border-dashed border-white/10 bg-white/5 px-3 py-8 text-center text-xs text-slate-400"
+                        >
+                            No files found in this folder.
+                        </p>
+                    </template>
                 </div>
             </div>
         </div>

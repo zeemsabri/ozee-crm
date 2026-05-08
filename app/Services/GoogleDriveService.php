@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Traits\GoogleApiAuthTrait;
 use Google\Service\Drive;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class GoogleDriveService
 {
@@ -82,6 +83,57 @@ class GoogleDriveService
             Log::error('Error uploading file to Google Drive: '.$e->getMessage(), [
                 'file_name' => $fileName,
                 'parent_folder_id' => $parentFolderId,
+                'error' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Create a new Google-native document in a Drive folder.
+     *
+     * @return array{id:string,link:?string,mime_type:string,name:string}
+     */
+    public function createDocument(
+        string $name,
+        string $parentFolderId,
+        string $mimeType = 'application/vnd.google-apps.document'
+    ): array {
+        try {
+            $file = new Drive\DriveFile;
+            $file->setName($name);
+            $file->setMimeType($mimeType);
+            $file->setParents([$parentFolderId]);
+
+            $createdFile = $this->driveService->files->create($file, [
+                'fields' => 'id, webViewLink, mimeType, name',
+                'supportsAllDrives' => true,
+            ]);
+
+            $permission = new Drive\Permission;
+            $permission->setType('anyone');
+            $permission->setRole('reader');
+
+            $this->driveService->permissions->create(
+                $createdFile->id,
+                $permission,
+                [
+                    'fields' => 'id',
+                    'supportsAllDrives' => true,
+                ]
+            );
+
+            return [
+                'id' => $createdFile->id,
+                'link' => $createdFile->getWebViewLink(),
+                'mime_type' => $createdFile->getMimeType(),
+                'name' => $createdFile->getName(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Error creating Google Drive document: ' . $e->getMessage(), [
+                'name' => $name,
+                'parent_folder_id' => $parentFolderId,
+                'mime_type' => $mimeType,
                 'error' => $e->getTraceAsString(),
             ]);
             throw $e;
@@ -307,6 +359,101 @@ class GoogleDriveService
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Return metadata for a Drive file id.
+     */
+    public function getFileMetadata(string $fileId): array
+    {
+        try {
+            $file = $this->driveService->files->get($fileId, [
+                'fields' => 'id, name, mimeType, webViewLink, thumbnailLink, size, modifiedTime, parents',
+                'supportsAllDrives' => true,
+            ]);
+
+            return [
+                'id' => $file->getId(),
+                'name' => $file->getName(),
+                'mime_type' => $file->getMimeType(),
+                'web_view_link' => $file->getWebViewLink(),
+                'thumbnail' => $file->getThumbnailLink(),
+                'size' => $file->getSize(),
+                'modified_time' => $file->getModifiedTime(),
+                'parents' => $file->getParents(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Error fetching file metadata from Google Drive: ' . $e->getMessage(), [
+                'file_id' => $fileId,
+                'error' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * List files/folders directly inside a parent folder.
+     */
+    public function listFolderItems(string $folderId, int $pageSize = 100): array
+    {
+        try {
+            $safeFolderId = addslashes($folderId);
+            $results = $this->driveService->files->listFiles([
+                'q' => "'{$safeFolderId}' in parents and trashed=false",
+                'pageSize' => max(1, min($pageSize, 200)),
+                'orderBy' => 'folder,name',
+                'fields' => 'files(id, name, mimeType, webViewLink, thumbnailLink, size, modifiedTime, parents)',
+                'supportsAllDrives' => true,
+                'includeItemsFromAllDrives' => true,
+            ]);
+
+            return collect($results->getFiles())->map(function ($file) {
+                $mime = (string) $file->getMimeType();
+                return [
+                    'id' => $file->getId(),
+                    'name' => $file->getName(),
+                    'mime_type' => $mime,
+                    'is_folder' => $mime === 'application/vnd.google-apps.folder',
+                    'web_view_link' => $file->getWebViewLink(),
+                    'thumbnail' => $file->getThumbnailLink(),
+                    'size' => $file->getSize(),
+                    'modified_time' => $file->getModifiedTime(),
+                    'parents' => $file->getParents(),
+                ];
+            })->values()->all();
+        } catch (\Exception $e) {
+            Log::error('Error listing Google Drive folder items: ' . $e->getMessage(), [
+                'folder_id' => $folderId,
+                'error' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Extract a Drive file ID from a full URL or return the incoming raw ID.
+     */
+    public function resolveFileId(string $raw): string
+    {
+        $value = trim($raw);
+
+        if ($value === '') {
+            throw new \InvalidArgumentException('Google Drive file ID or URL is required.');
+        }
+
+        if (!Str::startsWith($value, ['http://', 'https://'])) {
+            return $value;
+        }
+
+        if (preg_match('/\/d\/([a-zA-Z0-9_-]+)/', $value, $matches) === 1) {
+            return $matches[1];
+        }
+
+        if (preg_match('/[?&]id=([a-zA-Z0-9_-]+)/', $value, $matches) === 1) {
+            return $matches[1];
+        }
+
+        throw new \InvalidArgumentException('Unable to parse Google Drive file ID from URL.');
     }
 
     /**

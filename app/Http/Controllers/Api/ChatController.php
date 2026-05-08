@@ -6,8 +6,11 @@ use App\Events\ChatMessageSent;
 use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
 use App\Models\Email;
+use App\Models\FileAttachment;
 use App\Models\Project;
 use App\Models\UserInteraction;
+use App\Services\ChatAttachmentService;
+use App\Services\GoogleDriveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +57,7 @@ class ChatController extends Controller
                 'client',
                 'parent.user',
                 'parent.client',
+                'files',
                 'interactions' => function ($q) {
                     $q->with('user:id,name')->where('interaction_type', 'read');
                 },
@@ -125,6 +129,7 @@ class ChatController extends Controller
                 'created_at' => $msg->created_at->toDateTimeString(),
                 'is_me'      => $msg->user_id === $userId,
                 'source'     => $msg->source,
+                'attachments' => $msg->files->map(fn ($file) => $this->serializeAttachment($file))->values(),
             ];
         });
 
@@ -166,6 +171,7 @@ class ChatController extends Controller
                 'client',
                 'parent.user',
                 'parent.client',
+                'files',
                 'interactions' => function ($q) {
                     $q->with('user:id,name')->where('interaction_type', 'read');
                 },
@@ -207,6 +213,7 @@ class ChatController extends Controller
                 'created_at' => $msg->created_at->toDateTimeString(),
                 'is_me'      => $msg->user_id === $userId,
                 'source'     => $msg->source,
+                'attachments' => $msg->files->map(fn ($file) => $this->serializeAttachment($file))->values(),
             ];
         });
 
@@ -405,6 +412,155 @@ class ChatController extends Controller
 
     }
 
+    public function storeAttachments(Request $request, Project $project, ChatAttachmentService $chatAttachmentService)
+    {
+        $request->validate([
+            'message' => 'nullable|string',
+            'parent_id' => 'nullable|integer|exists:chat_messages,id',
+            'telegram_topic_id' => 'nullable|integer|exists:telegram_topics,id',
+            'files' => 'required|array|min:1',
+            'files.*' => 'required|file|max:20480',
+        ]);
+
+        $messageText = trim((string) $request->input('message', ''));
+        $chatMessage = $this->createChatMessageWithoutBroadcast([
+            'project_id' => $project->id,
+            'user_id' => Auth::id(),
+            'parent_id' => $request->parent_id,
+            'telegram_topic_id' => $request->telegram_topic_id,
+            'message' => $messageText !== '' ? $messageText : 'Shared attachment',
+            'type' => 'file',
+            'source' => 'crm',
+            'meta_data' => null,
+        ]);
+
+        try {
+            $chatAttachmentService->attachUploadedFiles($project, $chatMessage, $request->file('files'));
+        } catch (\Throwable $e) {
+            $chatMessage->delete();
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $chatMessage->load(['user', 'client', 'parent.user', 'parent.client', 'files']);
+        ChatMessageSent::dispatch($chatMessage);
+
+        return response()->json($this->formatChatMessageResponse($chatMessage, Auth::id()));
+    }
+
+    public function createDriveDocument(Request $request, Project $project, ChatAttachmentService $chatAttachmentService)
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'message' => 'nullable|string',
+            'parent_id' => 'nullable|integer|exists:chat_messages,id',
+            'telegram_topic_id' => 'nullable|integer|exists:telegram_topics,id',
+        ]);
+
+        $messageText = trim((string) $request->input('message', ''));
+        $title = trim((string) $request->input('title'));
+
+        $chatMessage = $this->createChatMessageWithoutBroadcast([
+            'project_id' => $project->id,
+            'user_id' => Auth::id(),
+            'parent_id' => $request->parent_id,
+            'telegram_topic_id' => $request->telegram_topic_id,
+            'message' => $messageText !== '' ? $messageText : "Created document: {$title}",
+            'type' => 'file',
+            'source' => 'crm',
+            'meta_data' => null,
+        ]);
+
+        try {
+            $chatAttachmentService->attachNewDriveDocument($project, $chatMessage, $title);
+        } catch (\Throwable $e) {
+            $chatMessage->delete();
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $chatMessage->load(['user', 'client', 'parent.user', 'parent.client', 'files']);
+        ChatMessageSent::dispatch($chatMessage);
+
+        return response()->json($this->formatChatMessageResponse($chatMessage, Auth::id()));
+    }
+
+    public function referenceDriveFile(Request $request, Project $project, ChatAttachmentService $chatAttachmentService)
+    {
+        $request->validate([
+            'drive_file_id' => 'nullable|string|max:255',
+            'drive_url' => 'nullable|url|max:2000',
+            'name' => 'nullable|string|max:255',
+            'mime_type' => 'nullable|string|max:255',
+            'message' => 'nullable|string',
+            'parent_id' => 'nullable|integer|exists:chat_messages,id',
+            'telegram_topic_id' => 'nullable|integer|exists:telegram_topics,id',
+        ]);
+
+        if (! $request->filled('drive_file_id') && ! $request->filled('drive_url')) {
+            return response()->json([
+                'message' => 'Either drive_file_id or drive_url is required.',
+            ], 422);
+        }
+
+        $messageText = trim((string) $request->input('message', ''));
+        $chatMessage = $this->createChatMessageWithoutBroadcast([
+            'project_id' => $project->id,
+            'user_id' => Auth::id(),
+            'parent_id' => $request->parent_id,
+            'telegram_topic_id' => $request->telegram_topic_id,
+            'message' => $messageText !== '' ? $messageText : 'Shared a Google Drive file',
+            'type' => 'file',
+            'source' => 'crm',
+            'meta_data' => null,
+        ]);
+
+        $chatAttachmentService->attachDriveReference($project, $chatMessage, $request->only([
+            'drive_file_id',
+            'drive_url',
+            'name',
+            'mime_type',
+        ]));
+
+        $chatMessage->load(['user', 'client', 'parent.user', 'parent.client', 'files']);
+        ChatMessageSent::dispatch($chatMessage);
+
+        return response()->json($this->formatChatMessageResponse($chatMessage, Auth::id()));
+    }
+
+    public function browseDriveFolder(
+        Request $request,
+        Project $project,
+        ChatAttachmentService $chatAttachmentService,
+        GoogleDriveService $googleDriveService
+    ) {
+        $request->validate([
+            'folder_id' => 'nullable|string|max:255',
+            'page_size' => 'nullable|integer|min:1|max:200',
+        ]);
+
+        $rootFolderId = $chatAttachmentService->resolveProjectDriveFolderId($project);
+        if (! $rootFolderId) {
+            return response()->json([
+                'message' => 'Project Google Drive folder is not configured.',
+            ], 422);
+        }
+
+        $folderId = $request->input('folder_id', $rootFolderId);
+        $pageSize = (int) $request->input('page_size', 100);
+
+        try {
+            $items = $googleDriveService->listFolderItems((string) $folderId, $pageSize);
+            return response()->json([
+                'root_folder_id' => $rootFolderId,
+                'current_folder_id' => (string) $folderId,
+                'items' => $items,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Failed to fetch Google Drive folder items.',
+            ], 422);
+        }
+    }
+
     public function destroy(Request $request, Project $project, ChatMessage $chatMessage)
     {
         // Ensure message belongs to the project
@@ -458,5 +614,83 @@ class ChatController extends Controller
         if (!empty($rows)) {
             DB::table('user_interactions')->insertOrIgnore($rows);
         }
+    }
+
+    private function createChatMessageWithoutBroadcast(array $attributes): ChatMessage
+    {
+        $now = now();
+        $id = DB::table('chat_messages')->insertGetId([
+            'project_id' => $attributes['project_id'],
+            'user_id' => $attributes['user_id'] ?? null,
+            'client_id' => $attributes['client_id'] ?? null,
+            'telegram_topic_id' => $attributes['telegram_topic_id'] ?? null,
+            'parent_id' => $attributes['parent_id'] ?? null,
+            'telegram_message_id' => $attributes['telegram_message_id'] ?? null,
+            'message' => $attributes['message'],
+            'source' => $attributes['source'] ?? 'crm',
+            'type' => $attributes['type'] ?? 'text',
+            'meta_data' => $attributes['meta_data'] ? json_encode($attributes['meta_data']) : null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $message = ChatMessage::query()->findOrFail($id);
+
+        if ($message->user_id) {
+            UserInteraction::firstOrCreate([
+                'user_id' => $message->user_id,
+                'interactable_id' => $message->id,
+                'interactable_type' => ChatMessage::class,
+                'interaction_type' => 'read',
+            ]);
+        }
+
+        return $message;
+    }
+
+    private function formatChatMessageResponse(ChatMessage $message, int $userId): array
+    {
+        $reads = $message->interactions->map(fn ($i) => [
+            'user' => $i->user?->name ?? 'Someone',
+            'read_at' => $i->updated_at->toDateTimeString(),
+        ]);
+
+        $userName = $message->user?->name ?? ($message->client?->name ?? ($message->meta_data['telegram_from']['first_name'] ?? 'Telegram User'));
+
+        return [
+            'id' => $message->id,
+            'type' => $message->source === 'telegram' ? 'telegram' : ($message->type ?? 'text'),
+            'user' => $userName,
+            'user_id' => $message->user_id,
+            'client_id' => $message->client_id,
+            'initials' => strtoupper(substr($userName, 0, 2)),
+            'color' => $message->client_id ? 'bg-sky-500' : ($message->source === 'telegram' ? 'bg-sky-500' : 'bg-indigo-600'),
+            'message' => $message->message,
+            'parent' => $message->parent ? [
+                'id' => $message->parent->id,
+                'user' => $message->parent->user?->name ?? ($message->parent->client?->name ?? 'System'),
+                'message' => Str::limit($message->parent->message, 50),
+            ] : null,
+            'reads' => $reads,
+            'time' => $message->created_at->diffForHumans(),
+            'created_at' => $message->created_at->toDateTimeString(),
+            'is_me' => $message->user_id === $userId,
+            'source' => $message->source,
+            'attachments' => $message->files->map(fn ($file) => $this->serializeAttachment($file))->values(),
+        ];
+    }
+
+    private function serializeAttachment(FileAttachment $file): array
+    {
+        return [
+            'id' => $file->id,
+            'filename' => $file->filename,
+            'mime_type' => $file->mime_type,
+            'file_size' => $file->file_size,
+            'path' => $file->path,
+            'url' => $file->path_url ?: $file->path,
+            'thumbnail_url' => $file->thumbnail_url ?: $file->thumbnail,
+            'google_drive_file_id' => $file->google_drive_file_id,
+        ];
     }
 }
