@@ -542,6 +542,75 @@ Response includes `task` with relations:
 
 ---
 
+### 10) Get Activities (Model Activity Log)
+
+- Last updated: 2026-05-09
+- Route: `GET /api/activities`
+- Controller: `App\Http\Controllers\Api\ActivityController@index`
+- Middleware: `auth:sanctum`
+
+Use this endpoint to pull recent activity logs globally or for a specific model instance such as a task.
+
+#### Query Parameters
+
+- `subject_type` (string, optional): Fully-qualified model class from activity log, for example `App\\Models\\Task`
+- `subject_id` (integer, required when `subject_type` is provided): Model record ID
+- `limit` (integer, optional): Number of records, min `1`, max `100`, default `50`
+
+#### Task Activity Example
+
+Request:
+
+`GET /api/activities?subject_type=App\\Models\\Task&subject_id=123&limit=25`
+
+Response (200):
+
+```json
+[
+  {
+    "id": 9001,
+    "log_name": "default",
+    "description": "updated",
+    "subject_type": "App\\Models\\Task",
+    "subject_id": 123,
+    "causer_type": "App\\Models\\User",
+    "causer_id": 8,
+    "properties": {
+      "attributes": {
+        "status": "In Progress"
+      },
+      "old": {
+        "status": "To Do"
+      }
+    },
+    "created_at": "2026-05-09T10:30:00.000000Z",
+    "causer": {
+      "id": 8,
+      "name": "John Doe"
+    }
+  }
+]
+```
+
+#### Global Activity Example
+
+Request:
+
+`GET /api/activities?limit=20`
+
+Behavior:
+
+- Returns latest activity records across all subjects.
+- Records are ordered by `created_at DESC`.
+- Includes `causer` relation.
+
+#### Common Errors
+
+- `422`: `subject_id` missing while `subject_type` is provided.
+- `422`: `limit` outside allowed range.
+
+---
+
 ## Endpoint Template (Copy/Paste)
 
 ````md
