@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Spatie\Activitylog\Models\Activity;
 
 class ActivityController extends Controller
@@ -41,6 +42,8 @@ class ActivityController extends Controller
         $activities = $query->orderBy('created_at', 'desc')
             ->limit($limit)
             ->get();
+
+        Log::info('Activities retrieved: '.count($activities));
 
         return response()->json($activities);
     }

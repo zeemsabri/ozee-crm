@@ -12,18 +12,19 @@ This is a living API document. Add or update endpoint sections here as implement
 ## Global Conventions
 
 - Base URL: `/api`
-- Auth (internal app): `Authorization: Bearer {sanctum_token}`
-- Auth (extension/external): `auth.apikey` protected endpoints under `/api/activity/*`
+- Auth: `Authorization: Bearer {sanctum_token}`
 - Content type: `application/json` (except multipart upload endpoints)
 - Date format: ISO-8601 unless noted
 
 ---
 
-## Task Endpoints (Initial Set)
+## Task and Project Task Endpoints
+
+- Last updated: 2026-05-09
+- Scope: Internal endpoints only (`auth:sanctum`)
 
 ### 1) Get Tasks For a Project
 
-- Last updated: 2026-05-09
 - Route: `GET /api/projects/{project}/tasks`
 - Controller: `App\Http\Controllers\Api\ProjectReadController@getTasks`
 - Middleware: `auth:sanctum`
@@ -38,7 +39,7 @@ This is a living API document. Add or update endpoint sections here as implement
 
 #### Response (200)
 
-Returns a list of tasks for milestone IDs belonging to the project, ordered by `due_date ASC`, with relations:
+Returns project milestone tasks ordered by `due_date ASC` with relations:
 
 - `assignedTo`
 - `taskType`
@@ -46,162 +47,188 @@ Returns a list of tasks for milestone IDs belonging to the project, ordered by `
 - `tags`
 - `subtasks`
 
-```json
-[
-  {
-    "id": 123,
-    "name": "Implement API docs",
-    "status": "To Do",
-    "due_date": "2026-05-12",
-    "assigned_to_user_id": 8,
-    "milestone_id": 41,
-    "task_type_id": 2,
-    "assigned_to": {
-      "id": 8,
-      "name": "John Doe"
-    },
-    "task_type": {
-      "id": 2,
-      "name": "Development"
-    },
-    "milestone": {
-      "id": 41,
-      "name": "Phase 1"
-    },
-    "tags": [],
-    "subtasks": []
-  }
-]
-```
-
-#### Common Errors
-
-- `403`: Unauthorized to view this project.
-
 ---
 
-### 2) Get Task Details
+### 2) Task Resource Endpoints (`apiResource tasks`)
 
-- Last updated: 2026-05-09
-- Route: `GET /api/tasks/{task}`
-- Controller: `App\Http\Controllers\Api\TaskController@show`
-- Middleware: `auth:sanctum`
+Routes from `Route::apiResource('tasks', TaskController::class)->middleware(['process.tags'])`:
 
-#### Authorization
+- `GET /api/tasks` -> `index`
+- `POST /api/tasks` -> `store`
+- `GET /api/tasks/{task}` -> `show`
+- `PUT/PATCH /api/tasks/{task}` -> `update`
+- `DELETE /api/tasks/{task}` -> `destroy`
 
-- Inherits route-level authenticated access.
+#### 2.1) `GET /api/tasks` (index)
 
-#### Path Parameters
+Supported query filters:
 
-- `task` (integer, required): Task ID.
+- `milestone_id`
+- `status`
+- `assigned_to_user_id`
+- `project_id`
+- `project_ids` (comma-separated)
+- `statuses` (comma-separated)
+- `updated_since`
+- `completed_on`
+- `completed_since`
+- `completed_until`
+- `due_until`
+- `search`
+- `per_page` (returns paginator when provided)
 
-#### Response (200)
+Response:
 
-Returns a single task with relations:
+- `200` tasks list or paginated response.
 
-- `assignedTo`
-- `taskType`
-- `milestone.project`
-- `tags`
-- `subtasks`
-- `notes` (selected fields only)
+#### 2.2) `POST /api/tasks` (store)
 
-`notes` include fields:
+Required fields:
 
-- `id`
-- `content`
-- `noteable_type`
-- `noteable_id`
-- `created_at`
-- `creator_type`
-- `creator_id`
+- `name`
+- `status`
+- `task_type_id`
+- `milestone_id`
+
+Optional fields include:
+
+- `description`, `assigned_to_user_id`, `due_date`, `needs_approval`, `requires_qa`, `effort`, `tags`, `schedule`
+
+Response:
+
+- `201` created task.
+
+#### 2.3) `GET /api/tasks/{task}` (show)
+
+Response:
+
+- `200` task with relations: `assignedTo`, `taskType`, `milestone.project`, `tags`, `subtasks`, `notes`.
+
+#### 2.4) `PUT/PATCH /api/tasks/{task}` (update)
+
+Behavior highlights:
+
+- Supports partial updates.
+- Rejects updates to `priority` or `assigned_to_user_id` when status is `Done`.
+
+Response:
+
+- `200` updated task.
+
+Common errors:
+
+- `422` invalid payload or restricted update on completed task.
+
+#### 2.5) `DELETE /api/tasks/{task}` (destroy)
+
+Response:
 
 ```json
 {
-  "id": 123,
-  "name": "Implement API docs",
-  "status": "In Progress",
-  "assigned_to": {
-    "id": 8,
-    "name": "John Doe"
-  },
-  "milestone": {
-    "id": 41,
-    "name": "Phase 1",
-    "project": {
-      "id": 7,
-      "name": "Email Approval App"
-    }
-  },
-  "tags": [],
-  "subtasks": [],
-  "notes": [
-    {
-      "id": 33,
-      "content": "Initial implementation done",
-      "noteable_type": "App\\Models\\Task",
-      "noteable_id": 123,
-      "created_at": "2026-05-09T08:30:00.000000Z",
-      "creator_type": "App\\Models\\User",
-      "creator_id": 8
-    }
-  ]
+  "message": "Task deleted successfully"
 }
 ```
 
 ---
 
-### 3) Get Task Notes
+### 3) Create Tasks in Bulk (Contract-Based)
 
-- Last updated: 2026-05-09
-- Route: `GET /api/activity/tasks/{task}/notes`
-- Controller: `App\Http\Controllers\Api\ExternalApiController@getTaskNotes`
-- Middleware: `auth.apikey`
+- Route: `POST /api/tasks/bulk`
+- Controller: `App\Http\Controllers\Api\TaskController@bulk`
+- Middleware: `auth:sanctum`
 
-#### Authorization
-
-- Super admin/manager or project membership for the task's project.
-
-#### Path Parameters
-
-- `task` (integer, required): Task ID.
-
-#### Response (200)
-
-Returns notes ordered by `created_at DESC` with `creator` loaded.
+Request body:
 
 ```json
-[
-  {
-    "id": 33,
-    "content": "Initial implementation done",
-    "creator": {
-      "id": 8,
-      "name": "John Doe"
-    },
-    "created_at": "2026-05-09T08:30:00.000000Z"
-  }
-]
+{
+  "tasks": [
+    {
+      "name": "Prepare final copy",
+      "description": "Optional",
+      "dueDate": "2026-05-15",
+      "priority": "Medium",
+      "contract_id": 10
+    }
+  ]
+}
 ```
 
-#### Common Errors
+Notes:
 
-- `403`: Unauthorized.
+- `dueDate` is required and must be today or later.
+- `priority` accepted values: `Low`, `Medium`, `High`.
+- `contract_id` must exist in `project_expendables` and map to a milestone expendable.
+
+Response:
+
+- `201` with `tasks` array.
 
 ---
 
-### 4) Add Task Note
+### 4) Create Tasks in Bulk (Workspace)
 
-- Last updated: 2026-05-09
-- Route (internal): `POST /api/tasks/{task}/notes`
-- Controller (internal): `App\Http\Controllers\Api\TaskController@addNote`
-- Middleware (internal): `auth:sanctum`
+- Route: `POST /api/tasks/bulk-workspace`
+- Controller: `App\Http\Controllers\Api\TaskController@bulkWorkspace`
+- Middleware: `auth:sanctum`
 
-- Route (extension/external): `POST /api/activity/tasks/{task}/notes`
-- Controller (extension/external): `App\Http\Controllers\Api\ExternalApiController@addTaskNote`
-- Middleware (extension/external): `auth.apikey`
+Request body:
 
-#### Request Body
+```json
+{
+  "tasks": [
+    {
+      "name": "Draft onboarding email",
+      "project_id": 7,
+      "description": "Optional",
+      "due_date": "2026-05-12",
+      "priority": "medium",
+      "assigned_to_user_id": 8,
+      "milestone_id": 41
+    }
+  ]
+}
+```
+
+Notes:
+
+- `project_id` is required per item.
+- If `milestone_id` is omitted, the project support milestone is used.
+
+Response:
+
+- `201` with `tasks` array.
+
+---
+
+### 5) Quick Task Create
+
+- Route: `POST /api/tasks/quick`
+- Controller: `App\Http\Controllers\Api\TaskController@quickStore`
+- Middleware: `auth:sanctum`
+
+Request body:
+
+```json
+{
+  "name": "Quick follow-up",
+  "status": "To Do",
+  "project_id": 7
+}
+```
+
+Response:
+
+- `201` created task.
+
+---
+
+### 6) Add Note to Task
+
+- Route: `POST /api/tasks/{task}/notes`
+- Controller: `App\Http\Controllers\Api\TaskController@addNote`
+- Middleware: `auth:sanctum`
+
+Request body:
 
 ```json
 {
@@ -209,7 +236,7 @@ Returns notes ordered by `created_at DESC` with `creator` loaded.
 }
 ```
 
-#### Response (200)
+Response:
 
 ```json
 {
@@ -221,73 +248,69 @@ Returns notes ordered by `created_at DESC` with `creator` loaded.
 }
 ```
 
-#### Common Errors
+---
 
-- `422`: Missing/invalid `note`.
-- `403`: Unauthorized (external route).
+### 7) Task Status Transition Endpoints
+
+- `PATCH /api/tasks/{task}/complete` -> `markAsCompleted`
+- `POST /api/tasks/{task}/start` -> `start`
+- `POST /api/tasks/{task}/pause` -> `pause`
+- `POST /api/tasks/{task}/resume` -> `resume`
+- `POST /api/tasks/{task}/block` -> `block`
+- `POST /api/tasks/{task}/unblock` -> `unblock`
+- `POST /api/tasks/{task}/archive` -> `archive`
+- `POST /api/tasks/{task}/revise` -> `revise`
+
+Behavior summary:
+
+- `complete` requires status `In Progress`.
+- `pause` requires status `In Progress`.
+- `resume` requires status `Paused`.
+- `block` requires body field `reason`.
+- `unblock` requires status `Blocked`.
+- `revise` requires status `Done`.
+
+Block request body example:
+
+```json
+{
+  "reason": "Waiting for client assets"
+}
+```
 
 ---
 
-### 5) Get Task Files
+### 8) Task Files Endpoints
 
-- Last updated: 2026-05-09
+#### 8.1) List Task Files
+
 - Route: `GET /api/files?model_type=Task&model_id={taskId}`
 - Controller: `App\Http\Controllers\Api\FileAttachmentController@index`
 - Middleware: `auth:sanctum`
 
-#### Query Parameters
+Query parameters:
 
-- `model_type` (string, required): `Task` or full class (e.g. `App\\Models\\Task`)
-- `model_id` (integer, required): Task ID
+- `model_type` (required): `Task` or `App\\Models\\Task`
+- `model_id` (required): Task ID
 
-#### Response (200)
+Response:
 
-Returns latest-first file attachments for the task. File model appends signed URLs:
+- `200` latest-first file list.
 
-- `path_url`
-- `thumbnail_url`
+#### 8.2) Upload Task Files
 
-```json
-[
-  {
-    "id": 12,
-    "fileable_type": "App\\Models\\Task",
-    "fileable_id": 123,
-    "filename": "spec.pdf",
-    "mime_type": "application/pdf",
-    "file_size": 249120,
-    "path": "uploads/tasks/spec.pdf",
-    "thumbnail": null,
-    "path_url": "https://...",
-    "thumbnail_url": null,
-    "created_at": "2026-05-09T09:10:00.000000Z"
-  }
-]
-```
-
-#### Common Errors
-
-- `422`: Missing `model_type` or `model_id`.
-- `404`: Model not found.
-- `403`: Unauthorized.
-
----
-
-### 6) Upload Task Files
-
-- Last updated: 2026-05-09
 - Route: `POST /api/files`
 - Controller: `App\Http\Controllers\Api\FileAttachmentController@store`
 - Middleware: `auth:sanctum`
 - Content-Type: `multipart/form-data`
 
-#### Form Data
+Form data:
 
-- `model_type` (string, required): `Task` or `App\\Models\\Task`
-- `model_id` (integer, required): Task ID
-- `files[]` (file[], required): Max 20MB each
+- `model_type` (required): `Task` or `App\\Models\\Task`
+- `model_id` (required): Task ID
+- `files[]` (required): max 20MB each
 
-#### Response (200)
+Response:
 
 ```json
 {
@@ -296,29 +319,13 @@ Returns latest-first file attachments for the task. File model appends signed UR
 }
 ```
 
-Note: Current implementation returns an empty `files` array even after successful upload. The success message confirms upload; entries are persisted via the task `files()` relation.
+#### 8.3) Delete Task File
 
-#### Common Errors
-
-- `422`: Validation failed.
-- `400`: Project Google Drive folder not configured.
-- `404`: Model not found.
-- `403`: Unauthorized.
-
----
-
-### 7) Delete Task File
-
-- Last updated: 2026-05-09
 - Route: `DELETE /api/files/{file}`
 - Controller: `App\Http\Controllers\Api\FileAttachmentController@destroy`
 - Middleware: `auth:sanctum`
 
-#### Path Parameters
-
-- `file` (integer, required): File attachment ID.
-
-#### Response (200)
+Response:
 
 ```json
 {
@@ -326,288 +333,25 @@ Note: Current implementation returns an empty `files` array even after successfu
 }
 ```
 
-#### Common Errors
-
-- `403`: Unauthorized.
-
 ---
 
-### 8) Task Status Transitions (Internal API)
+### 9) Get Activities (Model Activity Log)
 
-- Last updated: 2026-05-09
-- Base controller: `App\Http\Controllers\Api\TaskController`
-- Middleware: `auth:sanctum`
-
-This API exposes one endpoint per transition:
-
-- `POST /api/tasks/{task}/start`
-- `POST /api/tasks/{task}/pause`
-- `POST /api/tasks/{task}/resume`
-- `PATCH /api/tasks/{task}/complete`
-- `POST /api/tasks/{task}/block`
-- `POST /api/tasks/{task}/unblock`
-- `POST /api/tasks/{task}/archive`
-- `POST /api/tasks/{task}/revise`
-
-All endpoints return the updated task with relationships:
-
-- `assignedTo`
-- `taskType`
-- `milestone.project`
-- `tags`
-- `subtasks`
-
-#### 8.1) Start Task
-
-- Route: `POST /api/tasks/{task}/start`
-- Controller method: `start`
-
-Behavior:
-
-- Sets status to `In Progress`.
-
-Response (200): Updated task object.
-
-#### 8.2) Pause Task
-
-- Route: `POST /api/tasks/{task}/pause`
-- Controller method: `pause`
-
-Behavior:
-
-- Allowed only when current status is `In Progress`.
-- Sets status to `Paused`.
-
-Common errors:
-
-- `422`: `Only tasks in progress can be paused`.
-
-#### 8.3) Resume Task
-
-- Route: `POST /api/tasks/{task}/resume`
-- Controller method: `resume`
-
-Behavior:
-
-- Allowed only when current status is `Paused`.
-- Sets status to `In Progress`.
-
-Common errors:
-
-- `422`: `Only paused tasks can be resumed`.
-
-#### 8.4) Complete Task
-
-- Route: `PATCH /api/tasks/{task}/complete`
-- Controller method: `markAsCompleted`
-
-Behavior:
-
-- Allowed only when current status is `In Progress`.
-- Sets status to `Done` via `markAsCompleted(...)`.
-- Updates today DailyTask status for the authenticated user to `completed`.
-
-Common errors:
-
-- `422`: `Task must be started before it can be completed`.
-
-#### 8.5) Block Task
-
-- Route: `POST /api/tasks/{task}/block`
-- Controller method: `block`
-
-Request Body:
-
-```json
-{
-  "reason": "Waiting for client assets"
-}
-```
-
-Behavior:
-
-- Stores current status in `previous_status`.
-- Sets status to `Blocked`.
-- Saves `block_reason`.
-
-Common errors:
-
-- `422`: Missing/invalid `reason`.
-
-#### 8.6) Unblock Task
-
-- Route: `POST /api/tasks/{task}/unblock`
-- Controller method: `unblock`
-
-Behavior:
-
-- Allowed only when current status is `Blocked`.
-- Restores status to `previous_status` if set, otherwise `To Do`.
-- Clears `block_reason` and `previous_status`.
-
-Common errors:
-
-- `422`: `Only blocked tasks can be unblocked`.
-
-#### 8.7) Archive Task
-
-- Route: `POST /api/tasks/{task}/archive`
-- Controller method: `archive`
-
-Behavior:
-
-- Sets status to `Archived` (via model `archive()` helper).
-
-Response (200): Updated task object.
-
-#### 8.8) Revise Task
-
-- Route: `POST /api/tasks/{task}/revise`
-- Controller method: `revise`
-
-Behavior:
-
-- Allowed only when current status is `Done`.
-- Sets status back to `To Do`.
-- Sets today's DailyTask status back to `pending` for the authenticated user.
-
-Common errors:
-
-- `422`: `Only completed tasks can be revised`.
-
----
-
-### 9) Task Status Transitions (Activity/Extension API)
-
-- Last updated: 2026-05-09
-- Route: `POST /api/activity/tasks/{task}/status`
-- Controller: `App\Http\Controllers\Api\ExternalApiController@updateTaskStatus`
-- Middleware: `auth.apikey`
-
-#### Authorization
-
-- Super admin/manager or project membership for the task's project.
-
-#### Request Body
-
-```json
-{
-  "status": "start",
-  "reason": "Required only when status is block"
-}
-```
-
-Fields:
-
-- `status` (required): One of `start`, `pause`, `resume`, `complete`, `stop`, `block`, `unblock`, `revise`, `archive`
-- `reason` (required when `status=block`): Max 255 chars
-
-#### Transition Rules
-
-- `start`: Allowed from `To Do` or `Paused`; target `In Progress`.
-- `pause`: Allowed only from `In Progress`; target `Paused`.
-- `resume`: Allowed from `Paused` or `Blocked`; target `In Progress`.
-- `complete` / `stop`: Allowed only from `In Progress`; target `Done`.
-- `block`: Not allowed from `Done` or `Archived`; target `Blocked`; stores `previous_status` and `block_reason`.
-- `unblock`: Allowed only from `Blocked`; restores `previous_status` or defaults to `To Do`; clears block fields.
-- `revise`: Allowed only from `Done`; target `To Do`.
-- `archive`: Moves task to `Archived`.
-
-#### Response (200)
-
-```json
-{
-  "message": "Task status successfully updated to In Progress",
-  "task": {
-    "id": 123,
-    "status": "In Progress"
-  }
-}
-```
-
-Response includes `task` with relations:
-
-- `assignedTo`
-- `taskType`
-- `milestone.project`
-- `tags`
-- `subtasks`
-
-#### Common Errors
-
-- `422`: Invalid transition for current state.
-- `422`: Missing `reason` for `block`.
-- `422`: Task has no milestone/project (`Task can't be progressed because it doesn't belong to any milesone`).
-- `403`: Unauthorized.
-
----
-
-### 10) Get Activities (Model Activity Log)
-
-- Last updated: 2026-05-09
 - Route: `GET /api/activities`
 - Controller: `App\Http\Controllers\Api\ActivityController@index`
 - Middleware: `auth:sanctum`
 
 Use this endpoint to pull recent activity logs globally or for a specific model instance such as a task.
 
-#### Query Parameters
+Query parameters:
 
-- `subject_type` (string, optional): Fully-qualified model class from activity log, for example `App\\Models\\Task`
-- `subject_id` (integer, required when `subject_type` is provided): Model record ID
-- `limit` (integer, optional): Number of records, min `1`, max `100`, default `50`
+- `subject_type` (optional): Fully-qualified model class, for example `App\\Models\\Task`
+- `subject_id` (required when `subject_type` is provided): Model record ID
+- `limit` (optional): min `1`, max `100`, default `50`
 
-#### Task Activity Example
-
-Request:
+Task example:
 
 `GET /api/activities?subject_type=App\\Models\\Task&subject_id=123&limit=25`
-
-Response (200):
-
-```json
-[
-  {
-    "id": 9001,
-    "log_name": "default",
-    "description": "updated",
-    "subject_type": "App\\Models\\Task",
-    "subject_id": 123,
-    "causer_type": "App\\Models\\User",
-    "causer_id": 8,
-    "properties": {
-      "attributes": {
-        "status": "In Progress"
-      },
-      "old": {
-        "status": "To Do"
-      }
-    },
-    "created_at": "2026-05-09T10:30:00.000000Z",
-    "causer": {
-      "id": 8,
-      "name": "John Doe"
-    }
-  }
-]
-```
-
-#### Global Activity Example
-
-Request:
-
-`GET /api/activities?limit=20`
-
-Behavior:
-
-- Returns latest activity records across all subjects.
-- Records are ordered by `created_at DESC`.
-- Includes `causer` relation.
-
-#### Common Errors
-
-- `422`: `subject_id` missing while `subject_type` is provided.
-- `422`: `limit` outside allowed range.
 
 ---
 
@@ -619,7 +363,7 @@ Behavior:
 - Last updated: YYYY-MM-DD
 - Route: `METHOD /api/...`
 - Controller: `Namespace\\Controller@method`
-- Middleware: `auth:sanctum | auth.apikey | auth.magiclink`
+- Middleware: `auth:sanctum`
 
 #### Authorization
 
