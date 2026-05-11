@@ -7,18 +7,21 @@ use App\Http\Resources\ClientResource;
 use App\Models\Client;
 use App\Models\Conversation;
 use App\Models\Lead;
+use App\Services\XeroContactSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException; // For Auth::user()
+use RuntimeException;
 
 class ClientController extends Controller
 {
-    public function __construct()
+    public function __construct(private readonly XeroContactSyncService $xeroContactSyncService)
     {
         // Removed authorizeResource to handle authorization in each method
         // based on role-specific logic instead of relying solely on ClientPolicy
     }
+
 
     /**
      * Display a listing of the clients.
@@ -30,7 +33,7 @@ class ClientController extends Controller
         // Check if user has permission to view clients
         if ($user->hasPermission('view_clients') || $user->hasPermission('manage_project_clients')) {
             // Admins, Managers, Employees can see all clients
-            $clients = Client::all();
+            $clients = Client::with('xeroSyncedBy:id,name')->get();
         } elseif ($user->isContractor()) {
             // Contractors can see clients associated with their assigned projects
             // even without the explicit 'view_clients' permission
@@ -348,5 +351,121 @@ class ClientController extends Controller
             'status' => 'success',
             'code' => $code,
         ]);
+    }
+
+    /**
+     * Find candidate Xero contacts for this client.
+     */
+    public function xeroContactCandidates(Client $client)
+    {
+        $user = Auth::user();
+
+        if (! $user->hasPermission('edit_clients')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $candidates = $this->xeroContactSyncService->getContactCandidatesForClient($client);
+
+            return response()->json([
+                'client_id' => $client->id,
+                'candidates' => $candidates,
+                'linked_contact_id' => $client->xero_contact_id,
+            ]);
+        } catch (RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            Log::error('Failed to fetch Xero contact candidates', [
+                'client_id' => $client->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Failed to fetch Xero contacts.'], 500);
+        }
+    }
+
+    /**
+     * Sync this client to a selected Xero contact.
+     */
+    public function syncXeroContact(Request $request, Client $client)
+    {
+        $user = Auth::user();
+
+        if (! $user->hasPermission('edit_clients')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'selected_contact_id' => 'nullable|string',
+        ]);
+
+        try {
+            $candidates = collect($this->xeroContactSyncService->getContactCandidatesForClient($client));
+
+            if ($candidates->isEmpty()) {
+                return response()->json(['message' => 'No matching Xero contacts found for this client.'], 422);
+            }
+
+            $selectedContactId = $validated['selected_contact_id'] ?? null;
+            $syncMode = 'auto';
+
+            if ($selectedContactId) {
+                $selected = $candidates->firstWhere('contact_id', $selectedContactId);
+                $syncMode = 'manual';
+            } elseif ($candidates->count() === 1) {
+                $selected = $candidates->first();
+            } else {
+                return response()->json([
+                    'message' => 'Multiple Xero contacts found. Please select one contact manually.',
+                    'requires_selection' => true,
+                    'candidates' => $candidates->values(),
+                ], 422);
+            }
+
+            if (! $selected) {
+                return response()->json(['message' => 'Selected Xero contact is invalid.'], 422);
+            }
+
+            $previousMapping = [
+                'xero_contact_id' => $client->xero_contact_id,
+                'xero_contact_name' => $client->xero_contact_name,
+                'xero_contact_email' => $client->xero_contact_email,
+            ];
+
+            $client->update([
+                'xero_contact_id' => data_get($selected, 'contact_id'),
+                'xero_contact_name' => data_get($selected, 'name'),
+                'xero_contact_email' => data_get($selected, 'email'),
+                'xero_sync_mode' => $syncMode,
+                'xero_synced_at' => now(),
+                'xero_synced_by_user_id' => $user->id,
+            ]);
+
+            activity('xero_client_sync')
+                ->performedOn($client)
+                ->causedBy($user)
+                ->withProperties([
+                    'sync_mode' => $syncMode,
+                    'selected_contact' => $selected,
+                    'previous_mapping' => $previousMapping,
+                ])
+                ->log($syncMode === 'manual'
+                    ? 'Client was manually linked to a Xero contact.'
+                    : 'Client was automatically linked to a Xero contact.');
+
+            return (new ClientResource($client->fresh()->load('xeroSyncedBy:id,name')))
+                ->response()
+                ->setStatusCode(200);
+        } catch (RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            Log::error('Failed to sync client to Xero contact', [
+                'client_id' => $client->id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Failed to sync this client with Xero.'], 500);
+        }
     }
 }

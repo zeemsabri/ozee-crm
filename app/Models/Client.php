@@ -24,6 +24,12 @@ class Client extends Model
         'lead_id',
         'pin',
         'telegram_link_code',
+        'xero_contact_id',
+        'xero_contact_name',
+        'xero_contact_email',
+        'xero_sync_mode',
+        'xero_synced_at',
+        'xero_synced_by_user_id',
     ];
 
     protected $hidden = [
@@ -136,5 +142,10 @@ class Client extends Model
     public function telegramAccount()
     {
         return $this->morphOne(TelegramAccount::class, 'telegramable');
+    }
+
+    public function xeroSyncedBy()
+    {
+        return $this->belongsTo(User::class, 'xero_synced_by_user_id');
     }
 }

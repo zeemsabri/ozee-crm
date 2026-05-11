@@ -243,6 +243,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('clients/{client}/email', [ClientController::class, 'getEmail']);
     Route::get('clients/{client}/emails', [ClientController::class, 'emails']);
     Route::get('clients/{client}/details', [ClientController::class, 'details']);
+    Route::get('clients/{client}/xero-contact-candidates', [ClientController::class, 'xeroContactCandidates']);
+    Route::post('clients/{client}/xero-contact-sync', [ClientController::class, 'syncXeroContact']);
 
     // Generic project notes endpoints (polymorphic)
     Route::get('/project_notes', [ProjectNoteController::class, 'index']);

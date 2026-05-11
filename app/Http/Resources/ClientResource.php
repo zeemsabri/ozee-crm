@@ -28,6 +28,16 @@ class ClientResource extends JsonResource
 
         if ($user && $user->hasPermission('edit_clients')) {
             $data['email'] = $this->email;
+            $data['xero_contact_id'] = $this->xero_contact_id;
+            $data['xero_contact_name'] = $this->xero_contact_name;
+            $data['xero_contact_email'] = $this->xero_contact_email;
+            $data['xero_sync_mode'] = $this->xero_sync_mode;
+            $data['xero_synced_at'] = $this->xero_synced_at;
+            $data['xero_synced_by_user_id'] = $this->xero_synced_by_user_id;
+            $data['xero_synced_by'] = $this->xeroSyncedBy ? [
+                'id' => $this->xeroSyncedBy->id,
+                'name' => $this->xeroSyncedBy->name,
+            ] : null;
         }
 
         return $data;

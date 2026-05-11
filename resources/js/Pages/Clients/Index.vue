@@ -10,6 +10,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 import { showSuccessNotification, showErrorNotification } from '@/Utils/notification';
 
 // Access user from Inertia props
@@ -25,6 +26,7 @@ const generalError = ref('');
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const showDeleteModal = ref(false);
+const showXeroSyncModal = ref(false);
 
 // Form state for creating/editing
 const clientForm = reactive({
@@ -38,6 +40,11 @@ const clientForm = reactive({
 
 // State for client being deleted
 const clientToDelete = ref(null);
+const xeroSyncLoading = ref(false);
+const xeroSyncError = ref('');
+const xeroSyncClient = ref(null);
+const xeroCandidates = ref([]);
+const selectedXeroContactId = ref(null);
 
 // Permission checks from the AuthenticatedLayout (re-using logic here)
 const isSuperAdmin = computed(() => {
@@ -54,6 +61,7 @@ const isManager = computed(() => {
            user.value.role === 'manager_role';
 });
 const canManageClients = computed(() => isSuperAdmin.value || isManager.value);
+const canSyncXeroContacts = computed(() => canManageClients.value);
 
 
 // --- Fetch Clients ---
@@ -165,6 +173,85 @@ const deleteClient = async () => {
     }
 };
 
+// --- Xero Contact Sync ---
+const openXeroSyncModal = async (client) => {
+    xeroSyncClient.value = client;
+    xeroCandidates.value = [];
+    selectedXeroContactId.value = null;
+    xeroSyncError.value = '';
+    showXeroSyncModal.value = true;
+
+    await fetchXeroCandidates(client.id);
+};
+
+const fetchXeroCandidates = async (clientId) => {
+    xeroSyncLoading.value = true;
+    xeroSyncError.value = '';
+
+    try {
+        const response = await axios.get(`/api/clients/${clientId}/xero-contact-candidates`);
+        xeroCandidates.value = response.data?.candidates || [];
+
+        if (xeroCandidates.value.length === 1) {
+            selectedXeroContactId.value = xeroCandidates.value[0].contact_id;
+        }
+    } catch (error) {
+        xeroSyncError.value = error.response?.data?.message || 'Failed to fetch Xero contacts.';
+    } finally {
+        xeroSyncLoading.value = false;
+    }
+};
+
+const syncClientWithXero = async () => {
+    if (!xeroSyncClient.value) return;
+
+    xeroSyncLoading.value = true;
+    xeroSyncError.value = '';
+
+    try {
+        const payload = {};
+        if (selectedXeroContactId.value) {
+            payload.selected_contact_id = selectedXeroContactId.value;
+        }
+
+        const response = await axios.post(`/api/clients/${xeroSyncClient.value.id}/xero-contact-sync`, payload);
+        const updatedClient = response.data?.data;
+
+        if (updatedClient) {
+            const index = clients.value.findIndex(c => c.id === updatedClient.id);
+            if (index !== -1) {
+                clients.value[index] = updatedClient;
+            }
+        }
+
+        showSuccessNotification('Client synced with Xero contact successfully.');
+        showXeroSyncModal.value = false;
+    } catch (error) {
+        const responseData = error.response?.data || {};
+
+        if (responseData.requires_selection && Array.isArray(responseData.candidates)) {
+            xeroCandidates.value = responseData.candidates;
+        }
+
+        xeroSyncError.value = responseData.message || 'Failed to sync client with Xero.';
+        showErrorNotification(xeroSyncError.value);
+    } finally {
+        xeroSyncLoading.value = false;
+    }
+};
+
+const xeroCandidateOptions = computed(() => {
+    return xeroCandidates.value.map((candidate) => ({
+        value: candidate.contact_id,
+        label: `${candidate.name || 'Unnamed Contact'}${candidate.email ? ` (${candidate.email})` : ''}`,
+    }));
+});
+
+const formatDateTime = (value) => {
+    if (!value) return 'Never';
+    return new Date(value).toLocaleString();
+};
+
 // --- Telegram Code ---
 const generateTelegramCode = async (client) => {
     try {
@@ -217,6 +304,7 @@ onMounted(() => {
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Xero Contact</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                                 </thead>
@@ -225,9 +313,27 @@ onMounted(() => {
                                     <td class="px-6 py-4 whitespace-nowrap">{{ client.name }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap">{{ client.email }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap">{{ client.phone || 'N/A' }}</td>
+                                    <td class="px-6 py-4">
+                                        <div v-if="client.xero_contact_id" class="text-xs text-gray-700">
+                                            <div class="font-semibold text-emerald-700">{{ client.xero_contact_name || 'Linked' }}</div>
+                                            <div class="text-gray-500 break-all">{{ client.xero_contact_email || 'No email' }}</div>
+                                            <div class="text-gray-400 mt-1">
+                                                Synced {{ formatDateTime(client.xero_synced_at) }}
+                                                <span v-if="client.xero_synced_by?.name">by {{ client.xero_synced_by.name }}</span>
+                                                <span v-if="client.xero_sync_mode">({{ client.xero_sync_mode }})</span>
+                                            </div>
+                                        </div>
+                                        <div v-else class="text-xs text-gray-400">Not linked</div>
+                                    </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div class="flex items-center space-x-2">
                                             <PrimaryButton as="a" :href="`/clients/${client.id}`" title="View Details">View</PrimaryButton>
+                                            <SecondaryButton
+                                                v-if="canSyncXeroContacts"
+                                                @click="openXeroSyncModal(client)"
+                                            >
+                                                Sync Xero
+                                            </SecondaryButton>
                                             
                                             <!-- Telegram Code Section -->
                                             <div class="flex items-center bg-sky-50 px-2 py-1 rounded border border-sky-100" v-if="client.telegram_link_code || client.telegram_account">
@@ -352,6 +458,62 @@ onMounted(() => {
                 <div class="mt-6 flex justify-end">
                     <SecondaryButton @click="showDeleteModal = false">Cancel</SecondaryButton>
                     <DangerButton class="ms-3" @click="deleteClient">Delete Client</DangerButton>
+                </div>
+            </div>
+        </Modal>
+
+        <Modal :show="showXeroSyncModal" @close="showXeroSyncModal = false" maxWidth="2xl">
+            <div class="p-6">
+                <h2 class="text-lg font-medium text-gray-900 mb-2">Sync Client with Xero Contact</h2>
+
+                <p class="text-sm text-gray-600 mb-4" v-if="xeroSyncClient">
+                    Client: <span class="font-semibold">{{ xeroSyncClient.name }}</span>
+                    <span v-if="xeroSyncClient.email">({{ xeroSyncClient.email }})</span>
+                </p>
+
+                <div v-if="xeroSyncError" class="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {{ xeroSyncError }}
+                </div>
+
+                <div v-if="xeroSyncLoading" class="text-sm text-gray-500">Loading Xero contacts...</div>
+
+                <div v-else>
+                    <div v-if="xeroCandidates.length === 0" class="text-sm text-gray-500">
+                        No Xero contact candidates found for this client.
+                    </div>
+
+                    <div v-else class="space-y-4">
+                        <div>
+                            <InputLabel value="Choose Xero Contact" />
+                            <SelectDropdown
+                                :options="xeroCandidateOptions"
+                                v-model="selectedXeroContactId"
+                                placeholder="Select a matching Xero contact"
+                            />
+                        </div>
+
+                        <div class="max-h-48 overflow-y-auto rounded-md border border-gray-200">
+                            <div
+                                v-for="candidate in xeroCandidates"
+                                :key="candidate.contact_id"
+                                class="border-b border-gray-100 px-3 py-2 text-sm last:border-b-0"
+                            >
+                                <div class="font-semibold text-gray-900">{{ candidate.name || 'Unnamed Contact' }}</div>
+                                <div class="text-gray-500">{{ candidate.email || 'No email' }}</div>
+                                <div class="text-xs text-gray-400 mt-1">ID: {{ candidate.contact_id }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-2">
+                    <SecondaryButton @click="showXeroSyncModal = false">Cancel</SecondaryButton>
+                    <PrimaryButton
+                        :disabled="xeroSyncLoading || xeroCandidates.length === 0 || (!selectedXeroContactId && xeroCandidates.length > 1)"
+                        @click="syncClientWithXero"
+                    >
+                        Save Xero Link
+                    </PrimaryButton>
                 </div>
             </div>
         </Modal>
