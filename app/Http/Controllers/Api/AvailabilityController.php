@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Project;
 use App\Models\User;
 use App\Models\UserAvailability;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\Validator;
 
 class AvailabilityController extends Controller
 {
+    private const ATTENDANCE_REASON_SET_SLUG = 'reasons';
+
     protected GoogleChatService $googleChatService;
 
     public function __construct(GoogleChatService $googleChatService)
@@ -45,7 +48,7 @@ class AvailabilityController extends Controller
         }
 
         // Base query
-        $query = UserAvailability::with('user:id,name')->whereBetween('date', [$startDate, $endDate]);
+        $query = UserAvailability::with(['user:id,name', 'categories.set'])->whereBetween('date', [$startDate, $endDate]);
 
         // If user_id is provided and user is admin/manager, filter by that user
         if ($request->has('user_id') && $user->hasPermission('view_users_availability')
@@ -68,6 +71,15 @@ class AvailabilityController extends Controller
         ]);
     }
 
+    public function reasonOptions(): \Illuminate\Http\JsonResponse
+    {
+        $reasonOptions = UserAvailability::availableCategoryOptions(self::ATTENDANCE_REASON_SET_SLUG);
+
+        return response()->json([
+            'reason_options' => $reasonOptions,
+        ]);
+    }
+
     /**
      * Store a newly created resource in storage.
      *
@@ -87,6 +99,15 @@ class AvailabilityController extends Controller
         $validator = Validator::make($request->all(), [
             'date' => 'required|date',
             'is_available' => 'required|boolean',
+            'did_not_show_up' => 'nullable|boolean',
+            'was_late' => 'nullable|boolean',
+            'left_early' => 'nullable|boolean',
+            'did_not_show_up_reason_category_id' => 'nullable|integer|exists:categories,id',
+            'was_late_reason_category_id' => 'nullable|integer|exists:categories,id',
+            'left_early_reason_category_id' => 'nullable|integer|exists:categories,id',
+            'actual_start_time' => 'nullable|regex:/^\d{2}:\d{2}(:\d{2})?$/',
+            'actual_end_time' => 'nullable|regex:/^\d{2}:\d{2}(:\d{2})?$/|after:actual_start_time',
+            'admin_comments' => 'nullable|string|max:1000',
             'reason' => 'required_if:is_available,false|nullable|string',
             'time_slots' => 'required_if:is_available,true|nullable|array',
             'time_slots.*.start_time' => 'required_with:time_slots|string|date_format:H:i',
@@ -95,6 +116,24 @@ class AvailabilityController extends Controller
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $hasAttendanceFlag = $request->boolean('did_not_show_up', false)
+            || $request->boolean('was_late', false)
+            || $request->boolean('left_early', false);
+        $attendanceReasonCategoryIds = $this->attendanceReasonCategoryIds();
+
+        // Validate each reason category belongs to the reasons set
+        if ($request->filled('did_not_show_up_reason_category_id') && ! in_array((int) $request->input('did_not_show_up_reason_category_id'), $attendanceReasonCategoryIds, true)) {
+            return response()->json(['errors' => ['did_not_show_up_reason_category_id' => ['The selected reason is not part of the reasons set.']]], 422);
+        }
+
+        if ($request->filled('was_late_reason_category_id') && ! in_array((int) $request->input('was_late_reason_category_id'), $attendanceReasonCategoryIds, true)) {
+            return response()->json(['errors' => ['was_late_reason_category_id' => ['The selected reason is not part of the reasons set.']]], 422);
+        }
+
+        if ($request->filled('left_early_reason_category_id') && ! in_array((int) $request->input('left_early_reason_category_id'), $attendanceReasonCategoryIds, true)) {
+            return response()->json(['errors' => ['left_early_reason_category_id' => ['The selected reason is not part of the reasons set.']]], 422);
         }
 
         // Check if availability already exists for this date
@@ -114,9 +153,22 @@ class AvailabilityController extends Controller
         $availability->user_id = $user->id;
         $availability->date = $request->date;
         $availability->is_available = $request->is_available;
+        $availability->did_not_show_up = (bool) $request->boolean('did_not_show_up', false);
+        $availability->was_late = $availability->did_not_show_up ? false : (bool) $request->boolean('was_late', false);
+        $availability->left_early = $availability->did_not_show_up ? false : (bool) $request->boolean('left_early', false);
+        $availability->did_not_show_up_reason_category_id = $request->input('did_not_show_up_reason_category_id');
+        $availability->was_late_reason_category_id = $availability->did_not_show_up ? null : $request->input('was_late_reason_category_id');
+        $availability->left_early_reason_category_id = $availability->did_not_show_up ? null : $request->input('left_early_reason_category_id');
+        $availability->actual_start_time = $request->input('actual_start_time');
+        $availability->actual_end_time = $request->input('actual_end_time');
+        $availability->admin_comments = $request->input('admin_comments');
         $availability->reason = $request->is_available ? null : $request->reason;
         $availability->time_slots = $request->is_available ? $request->time_slots : null;
         $availability->save();
+
+        $this->syncAttendanceReasonCategories($availability);
+
+        $availability->load('categories.set');
 
         return response()->json([
             'message' => 'Availability saved successfully',
@@ -139,7 +191,7 @@ class AvailabilityController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        return response()->json(['availability' => $availability]);
+        return response()->json(['availability' => $availability->load('categories.set')]);
     }
 
     /**
@@ -161,6 +213,15 @@ class AvailabilityController extends Controller
         $validator = Validator::make($request->all(), [
             'date' => 'sometimes|date',
             'is_available' => 'sometimes|boolean',
+            'did_not_show_up' => 'sometimes|boolean',
+            'was_late' => 'sometimes|boolean',
+            'left_early' => 'sometimes|boolean',
+            'did_not_show_up_reason_category_id' => 'nullable|integer|exists:categories,id',
+            'was_late_reason_category_id' => 'nullable|integer|exists:categories,id',
+            'left_early_reason_category_id' => 'nullable|integer|exists:categories,id',
+            'actual_start_time' => 'nullable|regex:/^\d{2}:\d{2}(:\d{2})?$/',
+            'actual_end_time' => 'nullable|regex:/^\d{2}:\d{2}(:\d{2})?$/|after:actual_start_time',
+            'admin_comments' => 'nullable|string|max:1000',
             'reason' => 'required_if:is_available,false|nullable|string',
             'time_slots' => 'required_if:is_available,true|nullable|array',
             'time_slots.*.start_time' => 'required_with:time_slots|string|date_format:H:i',
@@ -170,6 +231,27 @@ class AvailabilityController extends Controller
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $didNotShowUp = $request->has('did_not_show_up')
+            ? $request->boolean('did_not_show_up')
+            : (bool) $availability->did_not_show_up;
+        $wasLate = $request->has('was_late') ? $request->boolean('was_late') : (bool) $availability->was_late;
+        $leftEarly = $request->has('left_early') ? $request->boolean('left_early') : (bool) $availability->left_early;
+        $hasAttendanceFlag = $didNotShowUp || $wasLate || $leftEarly;
+        $attendanceReasonCategoryIds = $this->attendanceReasonCategoryIds();
+
+        // Validate each reason category belongs to the reasons set
+        if ($request->filled('did_not_show_up_reason_category_id') && ! in_array((int) $request->input('did_not_show_up_reason_category_id'), $attendanceReasonCategoryIds, true)) {
+            return response()->json(['errors' => ['did_not_show_up_reason_category_id' => ['The selected reason is not part of the reasons set.']]], 422);
+        }
+
+        if ($request->filled('was_late_reason_category_id') && ! in_array((int) $request->input('was_late_reason_category_id'), $attendanceReasonCategoryIds, true)) {
+            return response()->json(['errors' => ['was_late_reason_category_id' => ['The selected reason is not part of the reasons set.']]], 422);
+        }
+
+        if ($request->filled('left_early_reason_category_id') && ! in_array((int) $request->input('left_early_reason_category_id'), $attendanceReasonCategoryIds, true)) {
+            return response()->json(['errors' => ['left_early_reason_category_id' => ['The selected reason is not part of the reasons set.']]], 422);
         }
 
         // Update availability
@@ -190,7 +272,66 @@ class AvailabilityController extends Controller
             }
         }
 
+        if ($request->has('did_not_show_up')) {
+            $availability->did_not_show_up = (bool) $request->boolean('did_not_show_up');
+        }
+
+        if (! $availability->did_not_show_up && $request->has('was_late')) {
+            $availability->was_late = (bool) $request->boolean('was_late');
+        }
+
+        if (! $availability->did_not_show_up && $request->has('left_early')) {
+            $availability->left_early = (bool) $request->boolean('left_early');
+        }
+
+        if ($availability->did_not_show_up) {
+            $availability->was_late = false;
+            $availability->left_early = false;
+        }
+
+        // Update reason fields
+        if ($request->has('did_not_show_up_reason_category_id')) {
+            $availability->did_not_show_up_reason_category_id = $request->input('did_not_show_up_reason_category_id');
+        }
+
+        if ($request->has('was_late_reason_category_id')) {
+            $availability->was_late_reason_category_id = $availability->was_late ? $request->input('was_late_reason_category_id') : null;
+        }
+
+        if ($request->has('left_early_reason_category_id')) {
+            $availability->left_early_reason_category_id = $availability->left_early ? $request->input('left_early_reason_category_id') : null;
+        }
+
+        // Clear reason fields if flags are false
+        if (!$availability->did_not_show_up && !$request->has('did_not_show_up_reason_category_id')) {
+            // Keep existing value if not specified
+        }
+        
+        if (!$availability->was_late && !$request->has('was_late_reason_category_id')) {
+            // Keep existing value if not specified
+        }
+        
+        if (!$availability->left_early && !$request->has('left_early_reason_category_id')) {
+            // Keep existing value if not specified
+        }
+
+        if ($request->has('actual_start_time')) {
+            $availability->actual_start_time = $request->input('actual_start_time');
+        }
+
+        if ($request->has('actual_end_time')) {
+            $availability->actual_end_time = $request->input('actual_end_time');
+        }
+
+        if ($request->has('admin_comments')) {
+            $availability->admin_comments = $request->input('admin_comments');
+        }
+
         $availability->save();
+
+        $this->syncAttendanceReasonCategories($availability);
+
+        $availability->load('categories.set');
 
         return response()->json([
             'message' => 'Availability updated successfully',
@@ -250,6 +391,7 @@ class AvailabilityController extends Controller
                 return $query->where('user_id', $request->input('user_id'));
             })
             ->orderBy('date')
+            ->with('categories.set')
             ->get();
 
         // Group availabilities by user
@@ -422,6 +564,11 @@ class AvailabilityController extends Controller
                     $existingAvailability->is_available = $availabilityData['is_available'];
                     $existingAvailability->reason = $availabilityData['is_available'] ? null : $availabilityData['reason'];
                     $existingAvailability->time_slots = $availabilityData['is_available'] ? $availabilityData['time_slots'] : null;
+                    $existingAvailability->did_not_show_up = false;
+                    $existingAvailability->was_late = false;
+                    $existingAvailability->left_early = false;
+                    $existingAvailability->actual_start_time = null;
+                    $existingAvailability->actual_end_time = null;
                     $existingAvailability->save();
 
                     $savedAvailabilities[] = $existingAvailability;
@@ -433,6 +580,11 @@ class AvailabilityController extends Controller
                     $availability->is_available = $availabilityData['is_available'];
                     $availability->reason = $availabilityData['is_available'] ? null : $availabilityData['reason'];
                     $availability->time_slots = $availabilityData['is_available'] ? $availabilityData['time_slots'] : null;
+                    $availability->did_not_show_up = false;
+                    $availability->was_late = false;
+                    $availability->left_early = false;
+                    $availability->actual_start_time = null;
+                    $availability->actual_end_time = null;
                     $availability->save();
 
                     $savedAvailabilities[] = $availability;
@@ -469,5 +621,41 @@ class AvailabilityController extends Controller
             'availabilities' => $savedAvailabilities,
             'errors' => $errors,
         ], 201);
+    }
+
+    private function syncAttendanceReasonCategories(UserAvailability $availability): void
+    {
+        $attendanceReasonCategoryIds = $this->attendanceReasonCategoryIds();
+
+        // Detach all reason categories first
+        $availability->detachCategories($attendanceReasonCategoryIds);
+
+        // Attach new reason categories if they exist and are valid
+        $reasonCategoryIdsToAttach = [];
+
+        if ($availability->did_not_show_up_reason_category_id && in_array($availability->did_not_show_up_reason_category_id, $attendanceReasonCategoryIds, true)) {
+            $reasonCategoryIdsToAttach[] = $availability->did_not_show_up_reason_category_id;
+        }
+
+        if ($availability->was_late_reason_category_id && in_array($availability->was_late_reason_category_id, $attendanceReasonCategoryIds, true)) {
+            $reasonCategoryIdsToAttach[] = $availability->was_late_reason_category_id;
+        }
+
+        if ($availability->left_early_reason_category_id && in_array($availability->left_early_reason_category_id, $attendanceReasonCategoryIds, true)) {
+            $reasonCategoryIdsToAttach[] = $availability->left_early_reason_category_id;
+        }
+
+        if (!empty($reasonCategoryIdsToAttach)) {
+            $availability->attachCategories($reasonCategoryIdsToAttach);
+        }
+    }
+
+    private function attendanceReasonCategoryIds(): array
+    {
+        return Category::query()
+            ->whereHas('set', fn ($q) => $q->where('slug', self::ATTENDANCE_REASON_SET_SLUG))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 }

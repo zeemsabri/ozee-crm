@@ -2,7 +2,6 @@
 import { ref, watch, onMounted } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
-import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
@@ -26,6 +25,10 @@ const props = defineProps({
     userId: {
         type: Number,
         default: null
+    },
+    isAdmin: {
+        type: Boolean,
+        default: false
     }
 });
 
@@ -39,6 +42,49 @@ const errors = ref({});
 const isSubmitting = ref(false);
 const successMessage = ref('');
 const formattedDate = ref('');
+const existingAvailabilityId = ref(null);
+
+const didNotShowUp = ref(false);
+const wasLate = ref(false);
+const leftEarly = ref(false);
+const didNotShowUpReasonCategoryId = ref(null);
+const wasLateReasonCategoryId = ref(null);
+const leftEarlyReasonCategoryId = ref(null);
+const reasonOptions = ref([]);
+const actualStartTime = ref('');
+const actualEndTime = ref('');
+const adminComments = ref('');
+
+const firstError = (field) => {
+    const value = errors.value?.[field];
+    if (Array.isArray(value)) return value[0];
+    return value || '';
+};
+
+const resetAttendanceFields = () => {
+    didNotShowUp.value = false;
+    wasLate.value = false;
+    leftEarly.value = false;
+    didNotShowUpReasonCategoryId.value = null;
+    wasLateReasonCategoryId.value = null;
+    leftEarlyReasonCategoryId.value = null;
+    actualStartTime.value = '';
+    actualEndTime.value = '';
+    adminComments.value = '';
+};
+
+const fetchReasonOptions = async () => {
+    if (!props.isAdmin) return;
+
+    try {
+        ensureAuthHeaders();
+        const response = await axios.get('/api/availabilities/reason-options');
+        reasonOptions.value = response.data?.reason_options || [];
+    } catch (error) {
+        console.error('Error fetching attendance reason options:', error);
+        reasonOptions.value = [];
+    }
+};
 
 // Format the date for display
 const formatDate = (dateString) => {
@@ -62,7 +108,17 @@ const fetchExistingAvailability = async () => {
 
         if (response.data && response.data.availabilities && response.data.availabilities.length > 0) {
             const availability = response.data.availabilities[0];
+            existingAvailabilityId.value = availability.id;
             isAvailable.value = availability.is_available;
+            didNotShowUp.value = !!availability.did_not_show_up;
+            wasLate.value = !!availability.was_late;
+            leftEarly.value = !!availability.left_early;
+            didNotShowUpReasonCategoryId.value = availability.did_not_show_up_reason_category_id || null;
+            wasLateReasonCategoryId.value = availability.was_late_reason_category_id || null;
+            leftEarlyReasonCategoryId.value = availability.left_early_reason_category_id || null;
+            actualStartTime.value = availability.actual_start_time || '';
+            actualEndTime.value = availability.actual_end_time || '';
+            adminComments.value = availability.admin_comments || '';
 
             if (availability.is_available) {
                 timeSlots.value = availability.time_slots && availability.time_slots.length > 0
@@ -74,10 +130,12 @@ const fetchExistingAvailability = async () => {
         } else {
             // Reset form if no existing availability
             resetForm();
+            existingAvailabilityId.value = null;
         }
     } catch (error) {
         console.error('Error fetching existing availability:', error);
         resetForm();
+        existingAvailabilityId.value = null;
     }
 };
 
@@ -86,6 +144,7 @@ const resetForm = () => {
     isAvailable.value = true;
     reason.value = '';
     timeSlots.value = [{ start_time: '', end_time: '' }];
+    resetAttendanceFields();
 };
 
 // Reset form when modal is opened/closed
@@ -95,7 +154,14 @@ watch(() => props.show, (newValue) => {
         errors.value = {};
         successMessage.value = '';
         formattedDate.value = formatDate(props.date);
+        fetchReasonOptions();
         fetchExistingAvailability();
+    }
+});
+
+watch(didNotShowUp, (newValue) => {
+    if (newValue) {
+        // Keep other flags available; did-not-show-up can coexist in record history workflows.
     }
 });
 
@@ -157,19 +223,70 @@ const submitForm = async () => {
             }
         }
 
+        // Validate individual attendance reasons
+        if (props.isAdmin && didNotShowUp.value && !didNotShowUpReasonCategoryId.value) {
+            errors.value.did_not_show_up_reason_category_id = 'Please select a reason for not showing up.';
+            isSubmitting.value = false;
+            return;
+        }
+
+        if (props.isAdmin && wasLate.value && !wasLateReasonCategoryId.value) {
+            errors.value.was_late_reason_category_id = 'Please select a reason for being late.';
+            isSubmitting.value = false;
+            return;
+        }
+
+        if (props.isAdmin && leftEarly.value && !leftEarlyReasonCategoryId.value) {
+            errors.value.left_early_reason_category_id = 'Please select a reason for leaving early.';
+            isSubmitting.value = false;
+            return;
+        }
+
+        if (props.isAdmin && ((actualStartTime.value && !actualEndTime.value) || (!actualStartTime.value && actualEndTime.value))) {
+            errors.value.actual_worked_time = 'Please provide both actual start and end times.';
+            isSubmitting.value = false;
+            return;
+        }
+
+        if (props.isAdmin && actualStartTime.value && actualEndTime.value) {
+            const [sHour, sMin] = actualStartTime.value.split(':').map(Number);
+            const [eHour, eMin] = actualEndTime.value.split(':').map(Number);
+            if ((sHour * 60 + sMin) >= (eHour * 60 + eMin)) {
+                errors.value.actual_worked_time = 'Actual end time must be after actual start time.';
+                isSubmitting.value = false;
+                return;
+            }
+        }
+
         // Ensure auth headers are set before making the request
         ensureAuthHeaders();
 
-        // Submit to API
-        const response = await axios.post('/api/availabilities', {
+        const payload = {
             date: props.date,
             is_available: isAvailable.value,
             reason: isAvailable.value ? null : reason.value,
             time_slots: isAvailable.value ? timeSlots.value : null,
+            did_not_show_up: props.isAdmin ? didNotShowUp.value : false,
+            was_late: props.isAdmin ? wasLate.value : false,
+            left_early: props.isAdmin ? leftEarly.value : false,
+            did_not_show_up_reason_category_id: props.isAdmin && didNotShowUp.value ? didNotShowUpReasonCategoryId.value : null,
+            was_late_reason_category_id: props.isAdmin && wasLate.value ? wasLateReasonCategoryId.value : null,
+            left_early_reason_category_id: props.isAdmin && leftEarly.value ? leftEarlyReasonCategoryId.value : null,
+            actual_start_time: props.isAdmin ? (actualStartTime.value || null) : null,
+            actual_end_time: props.isAdmin ? (actualEndTime.value || null) : null,
+            admin_comments: props.isAdmin ? (adminComments.value || null) : null,
             ...(props.userId ? { user_id: props.userId } : {})
-        });
+        };
 
-        successMessage.value = 'Availability saved successfully!';
+        const response = existingAvailabilityId.value
+            ? await axios.put(`/api/availabilities/${existingAvailabilityId.value}`, payload)
+            : await axios.post('/api/availabilities', payload);
+
+        successMessage.value = existingAvailabilityId.value
+            ? 'Availability updated successfully!'
+            : 'Availability saved successfully!';
+
+        existingAvailabilityId.value = response.data?.availability?.id || existingAvailabilityId.value;
 
         // Emit event to parent
         emit('availability-saved', response.data.availability);
@@ -181,32 +298,11 @@ const submitForm = async () => {
     } catch (error) {
         console.error('Error saving availability:', error);
 
-        if (error.response && error.response.data && error.response.data.errors) {
+        if (error.response && error.response.status === 409 && error.response.data?.availability?.id) {
+            existingAvailabilityId.value = error.response.data.availability.id;
+            errors.value.general = 'The availability already exists. Please click Save again to update it.';
+        } else if (error.response && error.response.data && error.response.data.errors) {
             errors.value = error.response.data.errors;
-        } else if (error.response && error.response.status === 409) {
-            // Conflict - availability already exists, try to update it
-            try {
-                const existingId = error.response.data.availability.id;
-                const updateResponse = await axios.put(`/api/availabilities/${existingId}`, {
-                    is_available: isAvailable.value,
-                    reason: isAvailable.value ? null : reason.value,
-                    time_slots: isAvailable.value ? timeSlots.value : null,
-                    ...(props.userId ? { user_id: props.userId } : {})
-                });
-
-                successMessage.value = 'Availability updated successfully!';
-
-                // Emit event to parent
-                emit('availability-saved', updateResponse.data.availability);
-
-                // Close modal after a short delay
-                setTimeout(() => {
-                    emit('close');
-                }, 1500);
-            } catch (updateError) {
-                console.error('Error updating availability:', updateError);
-                errors.value.general = 'An error occurred while updating your availability.';
-            }
         } else {
             errors.value.general = 'An error occurred while saving your availability.';
         }
@@ -218,6 +314,7 @@ const submitForm = async () => {
 onMounted(() => {
     // Ensure authentication headers are set as early as possible
     ensureAuthHeaders();
+    fetchReasonOptions();
 });
 </script>
 
@@ -229,7 +326,7 @@ onMounted(() => {
             </h2>
 
             <p class="mt-1 text-sm text-gray-600">
-                Please provide your availability for this date. This helps in planning meetings and work schedules.
+                Please provide your availability for this date. Admins can also record no-show, late arrival, early departure, and actual worked time.
             </p>
 
             <div class="mt-6">
@@ -259,6 +356,118 @@ onMounted(() => {
                         </div>
                     </div>
 
+                    <div v-if="props.isAdmin" class="mb-6 rounded-md border border-gray-200 p-4">
+                        <h3 class="text-sm font-semibold text-gray-800 mb-3">Admin Attendance Notes</h3>
+
+                        <div class="space-y-4">
+                            <!-- Did Not Show Up -->
+                            <div>
+                                <label class="flex items-center gap-2 text-sm text-gray-700">
+                                    <input v-model="didNotShowUp" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
+                                    Did not show up
+                                </label>
+                                <div v-if="didNotShowUp" class="pl-6 mt-2">
+                                    <InputLabel value="Reason" />
+                                    <select
+                                        v-model="didNotShowUpReasonCategoryId"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option :value="null">Select reason</option>
+                                        <option v-for="option in reasonOptions" :key="option.value" :value="option.value">
+                                            {{ option.label }}
+                                        </option>
+                                    </select>
+                                    <InputError :message="firstError('did_not_show_up_reason_category_id')" class="mt-2" />
+                                </div>
+                            </div>
+
+                            <!-- Arrived Late -->
+                            <div>
+                                <label class="flex items-center gap-2 text-sm text-gray-700">
+                                    <input 
+                                        v-model="wasLate" 
+                                        type="checkbox" 
+                                        :disabled="didNotShowUp"
+                                        class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed" 
+                                    />
+                                    Arrived late
+                                </label>
+                                <div v-if="wasLate" class="pl-6 mt-2">
+                                    <InputLabel value="Reason" />
+                                    <select
+                                        v-model="wasLateReasonCategoryId"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option :value="null">Select reason</option>
+                                        <option v-for="option in reasonOptions" :key="option.value" :value="option.value">
+                                            {{ option.label }}
+                                        </option>
+                                    </select>
+                                    <InputError :message="firstError('was_late_reason_category_id')" class="mt-2" />
+                                </div>
+                            </div>
+
+                            <!-- Left Early -->
+                            <div>
+                                <label class="flex items-center gap-2 text-sm text-gray-700">
+                                    <input 
+                                        v-model="leftEarly" 
+                                        type="checkbox" 
+                                        :disabled="didNotShowUp"
+                                        class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed" 
+                                    />
+                                    Left early
+                                </label>
+                                <div v-if="leftEarly" class="pl-6 mt-2">
+                                    <InputLabel value="Reason" />
+                                    <select
+                                        v-model="leftEarlyReasonCategoryId"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option :value="null">Select reason</option>
+                                        <option v-for="option in reasonOptions" :key="option.value" :value="option.value">
+                                            {{ option.label }}
+                                        </option>
+                                    </select>
+                                    <InputError :message="firstError('left_early_reason_category_id')" class="mt-2" />
+                                </div>
+                            </div>
+
+                            <!-- Actual Worked Time -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                                <div>
+                                    <InputLabel value="Actual Start Time" />
+                                    <input
+                                        type="time"
+                                        v-model="actualStartTime"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <InputLabel value="Actual End Time" />
+                                    <input
+                                        type="time"
+                                        v-model="actualEndTime"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+                            <InputError :message="firstError('actual_worked_time')" />
+
+                            <!-- Admin Comments -->
+                            <div class="pt-2">
+                                <InputLabel value="Comments" />
+                                <textarea
+                                    v-model="adminComments"
+                                    rows="3"
+                                    class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                    placeholder="Add any additional notes or comments..."
+                                ></textarea>
+                                <InputError :message="firstError('admin_comments')" class="mt-2" />
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Not Available Reason -->
                     <div v-if="!isAvailable" class="mb-4">
                         <InputLabel for="reason" value="Reason for Not Available" />
@@ -269,13 +478,13 @@ onMounted(() => {
                             class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
                             placeholder="e.g., Out of office, Holiday, Meeting all day"
                         ></textarea>
-                        <InputError :message="errors.reason" class="mt-2" />
+                        <InputError :message="firstError('reason')" class="mt-2" />
                     </div>
 
                     <!-- Time Slots (if available) -->
                     <div v-if="isAvailable" class="mb-4">
                         <InputLabel value="Available Time Slots" />
-                        <InputError :message="errors.timeSlots" class="mt-2" />
+                        <InputError :message="firstError('timeSlots')" class="mt-2" />
 
                         <div v-for="(slot, index) in timeSlots" :key="index" class="flex items-center space-x-2 mt-2">
                             <div class="flex-1">

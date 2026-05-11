@@ -2,6 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import { ref, onMounted, computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import RightSidebar from '@/Components/RightSidebar.vue';
@@ -11,8 +12,12 @@ import EmailDetailsContent from '@/Pages/Emails/Inbox/Components/EmailDetailsCon
 import EmailActionContent from '@/Pages/Emails/Inbox/Components/EmailActionContent.vue';
 import ReceivedEmailActionContent from '@/Pages/Emails/Inbox/Components/ReceivedEmailActionContent.vue';
 import axios from 'axios';
+import UserMetadataWidget from './Components/UserMetadataWidget.vue';
+import UserNotesWidget from './Components/UserNotesWidget.vue';
 
 const props = defineProps({ id: { type: Number, required: true } });
+const page = usePage();
+const authUser = computed(() => page.props.auth.user);
 
 // user details
 const loading = ref(false);
@@ -190,9 +195,16 @@ onMounted(async () => {
                 </div>
               </section>
 
-              <!-- Right column can be used for notes or other widgets in future -->
+              <!-- Right column: User Widgets -->
               <section class="space-y-6">
-                <div class="p-4 bg-gray-50 rounded border border-gray-100 text-sm text-gray-600">Additional user widgets can go here.</div>
+                <UserMetadataWidget 
+                  :userId="props.id" 
+                  :canManageKeys="authUser?.app_role === 'super-admin' || authUser?.app_role === 'manager'" 
+                />
+                
+                <UserNotesWidget 
+                  :userId="props.id" 
+                />
               </section>
             </div>
           </div>

@@ -197,6 +197,30 @@ const formatTimeSlot = (slot) => {
     return `${slot.start_time} - ${slot.end_time}`;
 };
 
+const formatWorkedTime = (startTime, endTime) => {
+    if (!startTime || !endTime) return '';
+    const format = (value) => (value || '').slice(0, 5);
+    return `${format(startTime)} - ${format(endTime)}`;
+};
+
+const getAttendanceReasons = (availability) => {
+    const reasons = {};
+    
+    if (availability?.did_not_show_up && availability?.did_not_show_up_reason?.name) {
+        reasons.noShow = availability.did_not_show_up_reason.name;
+    }
+    
+    if (availability?.was_late && availability?.was_late_reason?.name) {
+        reasons.late = availability.was_late_reason.name;
+    }
+    
+    if (availability?.left_early && availability?.left_early_reason?.name) {
+        reasons.leftEarly = availability.left_early_reason.name;
+    }
+    
+    return reasons;
+};
+
 // Initialize component
 onMounted(() => {
     // Ensure authentication headers are set as early as possible
@@ -347,6 +371,38 @@ watch(() => props.userId, (newValue) => {
                                         <div v-if="!availability.is_available && availability.reason" class="text-xs text-gray-600 mt-1">
                                             Reason: {{ availability.reason }}
                                         </div>
+
+                                        <div v-if="availability.did_not_show_up || availability.was_late || availability.left_early" class="mt-1 flex flex-wrap gap-1">
+                                            <span v-if="availability.did_not_show_up" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700">
+                                                No Show
+                                            </span>
+                                            <span v-if="availability.was_late" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">
+                                                Late
+                                            </span>
+                                            <span v-if="availability.left_early" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-700">
+                                                Left Early
+                                            </span>
+                                        </div>
+
+                                        <div v-if="Object.keys(getAttendanceReasons(availability)).length > 0" class="text-xs text-gray-600 mt-1 space-y-1">
+                                            <div v-if="getAttendanceReasons(availability).noShow">
+                                                <strong>No Show:</strong> {{ getAttendanceReasons(availability).noShow }}
+                                            </div>
+                                            <div v-if="getAttendanceReasons(availability).late">
+                                                <strong>Late:</strong> {{ getAttendanceReasons(availability).late }}
+                                            </div>
+                                            <div v-if="getAttendanceReasons(availability).leftEarly">
+                                                <strong>Left Early:</strong> {{ getAttendanceReasons(availability).leftEarly }}
+                                            </div>
+                                        </div>
+
+                                        <div v-if="availability.actual_start_time && availability.actual_end_time" class="text-xs text-blue-700 mt-1 font-medium">
+                                            Actual Worked: {{ formatWorkedTime(availability.actual_start_time, availability.actual_end_time) }}
+                                        </div>
+
+                                        <div v-if="availability.admin_comments" class="text-xs text-gray-700 mt-2 p-2 bg-gray-50 rounded border-l-2 border-indigo-400">
+                                            <strong>Comments:</strong> {{ availability.admin_comments }}
+                                        </div>
                                     </div>
                                 </div>
                                 <div v-else class="flex items-center justify-center h-full text-gray-400 text-xs italic">
@@ -373,6 +429,7 @@ watch(() => props.userId, (newValue) => {
             :show="showSingleDateModal"
             :date="selectedDate"
             :userId="selectedUserId"
+            :isAdmin="props.isAdmin"
             @close="showSingleDateModal = false"
             @availability-saved="handleAvailabilitySaved"
         />

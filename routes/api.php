@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\UserAttendanceController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\UserWorkspaceController;
+use App\Http\Controllers\Api\UserWidgetController;
 use App\Http\Controllers\Api\ValueDictionaryController;
 use App\Http\Controllers\Api\WireframeController;
 use App\Http\Controllers\Api\WorkflowLogController;
@@ -457,6 +458,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('users/{user}/restore', [UserController::class, 'restore'])->name('users.restore');
     Route::post('users/{user}/generate-api-key', [UserController::class, 'generateApiKey'])->name('users.generate-api-key');
     Route::get('users/{user}/emails', [UserController::class, 'emails']);
+    Route::get('users/{user}/metadata', [UserWidgetController::class, 'getMetadata']);
+    Route::post('users/{user}/metadata', [UserWidgetController::class, 'updateMetadata']);
+    Route::get('users/{user}/notes', [UserWidgetController::class, 'getNotes']);
+    Route::post('users/{user}/notes', [UserWidgetController::class, 'addNote']);
+    Route::get('user-metadata-keys', [UserWidgetController::class, 'getKeys']);
+    Route::post('user-metadata-keys', [UserWidgetController::class, 'addKey']);
     Route::apiResource('users', UserController::class)->names('api.users');
 
     // Permission Management Routes
@@ -559,6 +566,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('transaction-types/search', [\App\Http\Controllers\Api\TransactionTypeController::class, 'search']);
 
     // Availability Management Routes
+    Route::get('availabilities/reason-options', [AvailabilityController::class, 'reasonOptions']);
     Route::apiResource('availabilities', AvailabilityController::class);
     Route::post('availabilities/batch', [AvailabilityController::class, 'batch']);
     Route::get('weekly-availabilities', [AvailabilityController::class, 'getWeeklyAvailabilities']);

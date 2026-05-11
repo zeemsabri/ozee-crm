@@ -1,285 +1,515 @@
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { Head } from '@inertiajs/vue3';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
-import MultiSelectDropdown from '@/Components/MultiSelectDropdown.vue';
-import SelectDropdown from '@/Components/SelectDropdown.vue';
+import TextInput from '@/Components/TextInput.vue';
 
-const state = reactive({
-  sets: [],
-  models: [],
-  selectedSetId: null,
-  categories: [],
-  loading: false,
-  errors: {},
+const loading = ref(false);
+const errors = ref({});
+const step = ref(1);
+
+const sets = ref([]);
+const models = ref([]);
+const categories = ref([]);
+
+const setMode = ref('existing');
+const selectedSetId = ref(null);
+
+const setForm = reactive({
+    id: null,
+    name: '',
+    allowed_models: [],
 });
 
-const newSet = reactive({ name: '', allowed_models: [] });
-const editSet = reactive({ id: null, name: '', allowed_models: [] });
+const newCategoryName = ref('');
+const categoryEdit = reactive({
+    id: null,
+    name: '',
+});
 
-const newCategory = reactive({ name: '', category_set_id: null });
-const editCategory = reactive({ id: null, name: '', category_set_id: null });
+const selectedSet = computed(() => sets.value.find((set) => set.id === selectedSetId.value) || null);
+const selectedSetBindings = computed(() => selectedSet.value?.bindings?.map((item) => item.model_type) || []);
+const canContinueStepOne = computed(() => {
+    if (setMode.value === 'new') return true;
+    return !!selectedSetId.value;
+});
 
-const selectedSet = computed(() => state.sets.find(s => s.value === state.selectedSetId));
+const clearErrors = () => {
+    errors.value = {};
+};
+
+const toOptionLabel = (modelType) => {
+    const found = models.value.find((item) => item.value === modelType);
+    return found ? found.label : modelType;
+};
+
+const setFormFromSelected = () => {
+    if (!selectedSet.value) {
+        setForm.id = null;
+        setForm.name = '';
+        setForm.allowed_models = [];
+        return;
+    }
+
+    setForm.id = selectedSet.value.id;
+    setForm.name = selectedSet.value.name;
+    setForm.allowed_models = [...selectedSetBindings.value];
+};
 
 const loadSets = async () => {
-  try {
-    const { data } = await window.axios.get('/api/category-sets');
-    state.sets = data.map(s => ({ value: s.id, label: s.name, raw: s }));
-  } catch (e) {
-    console.error('Failed to load sets', e);
-  }
+    const response = await window.axios.get('/api/category-sets');
+    sets.value = response.data || [];
 };
 
 const loadModels = async () => {
-  try {
-    const { data } = await window.axios.get('/api/models/available');
-    state.models = data; // [{ value, label }]
-  } catch (e) {
-    console.error('Failed to load models', e);
-  }
+    const response = await window.axios.get('/api/models/available');
+    models.value = response.data || [];
 };
 
-const loadCategories = async (categorySetId) => {
-  if (!categorySetId) { state.categories = []; return; }
-  try {
-    const { data } = await window.axios.get(`/api/category-sets/${categorySetId}/categories`);
-    state.categories = data;
-  } catch (e) {
-    console.error('Failed to load categories', e);
-  }
-};
-
-onMounted(async () => {
-  await Promise.all([loadSets(), loadModels()]);
-});
-
-// Set CRUD
-const resetErrors = () => { state.errors = {}; };
-
-const createSet = async () => {
-  resetErrors();
-  try {
-    await window.axios.post('/api/category-sets', {
-      name: newSet.name,
-      allowed_models: newSet.allowed_models,
-    });
-    newSet.name = '';
-    newSet.allowed_models = [];
-    await loadSets();
-  } catch (e) {
-    if (e.response?.status === 422) state.errors = e.response.data.errors || {}; else console.error(e);
-  }
-};
-
-const startEditSet = (set) => {
-  editSet.id = set.raw.id;
-  editSet.name = set.raw.name;
-  editSet.allowed_models = (set.raw.bindings || []).map(b => b.model_type);
-};
-
-const updateSet = async () => {
-  if (!editSet.id) return;
-  resetErrors();
-  try {
-    await window.axios.put(`/api/category-sets/${editSet.id}`, {
-      name: editSet.name,
-      allowed_models: editSet.allowed_models,
-    });
-    await loadSets();
-    // refresh selected set label if it was edited
-    if (state.selectedSetId === editSet.id) {
-      const s = state.sets.find(x => x.value === editSet.id);
-      if (s) s.label = editSet.name;
+const loadCategories = async () => {
+    if (!selectedSetId.value) {
+        categories.value = [];
+        return;
     }
-    // Clear edit form
-    editSet.id = null; editSet.name = ''; editSet.allowed_models = [];
-  } catch (e) {
-    if (e.response?.status === 422) state.errors = e.response.data.errors || {}; else console.error(e);
-  }
+
+    const response = await window.axios.get(`/api/category-sets/${selectedSetId.value}/categories`);
+    categories.value = response.data || [];
 };
 
-const deleteSet = async (setId) => {
-  if (!confirm('Delete this set? This will also delete its categories.')) return;
-  try {
-    await window.axios.delete(`/api/category-sets/${setId}`);
-    if (state.selectedSetId === setId) {
-      state.selectedSetId = null;
-      state.categories = [];
+const initializeWizard = async () => {
+    loading.value = true;
+    clearErrors();
+
+    try {
+        await Promise.all([loadSets(), loadModels()]);
+
+        if (sets.value.length > 0) {
+            setMode.value = 'existing';
+            selectedSetId.value = sets.value[0].id;
+            setFormFromSelected();
+            await loadCategories();
+        } else {
+            setMode.value = 'new';
+            selectedSetId.value = null;
+            setForm.id = null;
+            setForm.name = '';
+            setForm.allowed_models = [];
+            categories.value = [];
+        }
+    } catch (error) {
+        console.error('Failed to initialize categories wizard', error);
+    } finally {
+        loading.value = false;
     }
-    await loadSets();
-  } catch (e) {
-    console.error(e);
-  }
 };
 
-// Category CRUD
+const goToStep = (targetStep) => {
+    if (targetStep < 1 || targetStep > 3) return;
+    step.value = targetStep;
+};
+
+const continueFromStepOne = async () => {
+    clearErrors();
+
+    if (setMode.value === 'existing' && !selectedSetId.value) {
+        errors.value.selected_set = ['Please select a category set to continue.'];
+        return;
+    }
+
+    if (setMode.value === 'existing') {
+        setFormFromSelected();
+        await loadCategories();
+    } else {
+        setForm.id = null;
+        setForm.name = '';
+        setForm.allowed_models = [];
+        categories.value = [];
+    }
+
+    step.value = 2;
+};
+
+const saveSetAndContinue = async () => {
+    clearErrors();
+
+    if (!setForm.name.trim()) {
+        errors.value.name = ['Set name is required.'];
+        return;
+    }
+
+    try {
+        loading.value = true;
+
+        if (setMode.value === 'new') {
+            const response = await window.axios.post('/api/category-sets', {
+                name: setForm.name,
+                allowed_models: setForm.allowed_models,
+            });
+
+            selectedSetId.value = response.data.id;
+            setMode.value = 'existing';
+        } else {
+            await window.axios.put(`/api/category-sets/${setForm.id}`, {
+                name: setForm.name,
+                allowed_models: setForm.allowed_models,
+            });
+        }
+
+        await loadSets();
+        if (selectedSetId.value) {
+            const refreshed = sets.value.find((set) => set.id === selectedSetId.value);
+            if (refreshed) {
+                setForm.id = refreshed.id;
+                setForm.name = refreshed.name;
+                setForm.allowed_models = (refreshed.bindings || []).map((item) => item.model_type);
+            }
+        }
+
+        await loadCategories();
+        step.value = 3;
+    } catch (error) {
+        if (error.response?.status === 422) {
+            errors.value = error.response.data.errors || {};
+        } else {
+            console.error('Failed to save set', error);
+        }
+    } finally {
+        loading.value = false;
+    }
+};
+
 const createCategory = async () => {
-  resetErrors();
-  try {
-    await window.axios.post('/api/categories', {
-      name: newCategory.name,
-      category_set_id: state.selectedSetId,
-    });
-    newCategory.name = '';
-    await loadCategories(state.selectedSetId);
-    await loadSets();
-  } catch (e) {
-    if (e.response?.status === 422) state.errors = e.response.data.errors || {}; else console.error(e);
-  }
+    clearErrors();
+
+    if (!newCategoryName.value.trim()) {
+        errors.value.category_name = ['Category name is required.'];
+        return;
+    }
+
+    if (!selectedSetId.value) {
+        errors.value.category_name = ['Please save or select a category set first.'];
+        return;
+    }
+
+    try {
+        await window.axios.post('/api/categories', {
+            name: newCategoryName.value,
+            category_set_id: selectedSetId.value,
+        });
+
+        newCategoryName.value = '';
+        await Promise.all([loadCategories(), loadSets()]);
+    } catch (error) {
+        if (error.response?.status === 422) {
+            errors.value = error.response.data.errors || {};
+        } else {
+            console.error('Failed to create category', error);
+        }
+    }
 };
 
 const startEditCategory = (category) => {
-  editCategory.id = category.id;
-  editCategory.name = category.name;
-  editCategory.category_set_id = state.selectedSetId;
+    categoryEdit.id = category.id;
+    categoryEdit.name = category.name;
 };
 
-const updateCategory = async () => {
-  if (!editCategory.id) return;
-  resetErrors();
-  try {
-    await window.axios.put(`/api/categories/${editCategory.id}`, {
-      name: editCategory.name,
-      category_set_id: editCategory.category_set_id,
-    });
-    await loadCategories(state.selectedSetId);
-    await loadSets();
-    editCategory.id = null; editCategory.name = ''; editCategory.category_set_id = null;
-  } catch (e) {
-    if (e.response?.status === 422) state.errors = e.response.data.errors || {}; else console.error(e);
-  }
+const cancelEditCategory = () => {
+    categoryEdit.id = null;
+    categoryEdit.name = '';
 };
 
-const deleteCategory = async (categoryId) => {
-  if (!confirm('Delete this category?')) return;
-  try {
-    await window.axios.delete(`/api/categories/${categoryId}`);
-    await loadCategories(state.selectedSetId);
-    await loadSets();
-  } catch (e) {
-    console.error(e);
-  }
+const saveEditCategory = async () => {
+    if (!categoryEdit.id) return;
+    clearErrors();
+
+    if (!categoryEdit.name.trim()) {
+        errors.value.edit_category_name = ['Category name is required.'];
+        return;
+    }
+
+    try {
+        await window.axios.put(`/api/categories/${categoryEdit.id}`, {
+            name: categoryEdit.name,
+            category_set_id: selectedSetId.value,
+        });
+
+        cancelEditCategory();
+        await loadCategories();
+    } catch (error) {
+        if (error.response?.status === 422) {
+            errors.value = error.response.data.errors || {};
+        } else {
+            console.error('Failed to update category', error);
+        }
+    }
 };
+
+const deleteCategory = async (category) => {
+    if (!confirm(`Delete category "${category.name}"?`)) return;
+
+    try {
+        await window.axios.delete(`/api/categories/${category.id}`);
+        await Promise.all([loadCategories(), loadSets()]);
+    } catch (error) {
+        console.error('Failed to delete category', error);
+    }
+};
+
+const restartWizard = () => {
+    step.value = 1;
+    newCategoryName.value = '';
+    cancelEditCategory();
+};
+
+watch(selectedSetId, async () => {
+    if (setMode.value !== 'existing') return;
+    setFormFromSelected();
+    await loadCategories();
+});
+
+onMounted(() => {
+    initializeWizard();
+});
 </script>
 
 <template>
-  <div class="p-6 space-y-6">
-    <h1 class="text-xl font-semibold">Categories</h1>
+    <Head title="Categories" />
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Sets column -->
-      <div class="lg:col-span-1 space-y-4">
-        <div class="border rounded-lg p-4">
-          <h2 class="text-sm font-semibold mb-3">Create Set</h2>
-          <div class="space-y-3">
-            <div>
-              <InputLabel value="Name" />
-              <TextInput v-model="newSet.name" class="w-full mt-1" />
-              <InputError :message="state.errors?.name?.[0]" />
-            </div>
-            <div>
-              <InputLabel value="Allowed Models (optional)" />
-              <MultiSelectDropdown :options="state.models" v-model="newSet.allowed_models" :isMulti="true" placeholder="Select models" />
-            </div>
-            <div class="flex justify-end">
-              <PrimaryButton type="button" @click="createSet">Create</PrimaryButton>
-            </div>
-          </div>
-        </div>
+    <AuthenticatedLayout>
+        <template #header>
+            <h2 class="text-xl font-semibold leading-tight text-gray-800">
+                Categories Wizard
+            </h2>
+        </template>
 
-        <div class="border rounded-lg p-4">
-          <h2 class="text-sm font-semibold mb-3">Sets</h2>
-          <div class="space-y-2">
-            <div v-for="set in state.sets" :key="set.value" class="flex items-center justify-between p-2 rounded hover:bg-gray-50 border">
-              <button class="text-left flex-1" @click="state.selectedSetId = set.value; loadCategories(set.value)">{{ set.label }}</button>
-              <div class="flex items-center gap-2">
-                <button class="text-xs text-indigo-600" @click="startEditSet(set)">Edit</button>
-                <button class="text-xs text-red-600" @click="deleteSet(set.value)">Delete</button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <div class="py-8">
+            <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
+                <div class="bg-white shadow-sm sm:rounded-lg">
+                    <div class="p-6">
+                        <div class="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+                            <button
+                                type="button"
+                                class="rounded-lg border px-4 py-3 text-left"
+                                :class="step === 1 ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white'"
+                                @click="goToStep(1)"
+                            >
+                                <div class="text-sm font-semibold text-gray-900">Step 1</div>
+                                <div class="text-sm text-gray-600">Choose a set</div>
+                            </button>
+                            <button
+                                type="button"
+                                class="rounded-lg border px-4 py-3 text-left"
+                                :class="step === 2 ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white'"
+                                :disabled="step < 2"
+                                @click="goToStep(2)"
+                            >
+                                <div class="text-sm font-semibold text-gray-900">Step 2</div>
+                                <div class="text-sm text-gray-600">Configure set</div>
+                            </button>
+                            <button
+                                type="button"
+                                class="rounded-lg border px-4 py-3 text-left"
+                                :class="step === 3 ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white'"
+                                :disabled="step < 3"
+                                @click="goToStep(3)"
+                            >
+                                <div class="text-sm font-semibold text-gray-900">Step 3</div>
+                                <div class="text-sm text-gray-600">Manage categories</div>
+                            </button>
+                        </div>
 
-        <div v-if="editSet.id" class="border rounded-lg p-4">
-          <h2 class="text-sm font-semibold mb-3">Edit Set</h2>
-          <div class="space-y-3">
-            <div>
-              <InputLabel value="Name" />
-              <TextInput v-model="editSet.name" class="w-full mt-1" />
-              <InputError :message="state.errors?.name?.[0]" />
-            </div>
-            <div>
-              <InputLabel value="Allowed Models" />
-              <MultiSelectDropdown :options="state.models" v-model="editSet.allowed_models" :isMulti="true" placeholder="Select models" />
-            </div>
-            <div class="flex justify-end gap-2">
-              <button type="button" class="text-sm text-gray-600" @click="editSet.id=null; editSet.name=''; editSet.allowed_models=[]">Cancel</button>
-              <PrimaryButton type="button" @click="updateSet">Save</PrimaryButton>
-            </div>
-          </div>
-        </div>
-      </div>
+                        <div v-if="loading" class="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                            Loading wizard data...
+                        </div>
 
-      <!-- Categories column -->
-      <div class="lg:col-span-2 space-y-4">
-        <div class="border rounded-lg p-4">
-          <h2 class="text-sm font-semibold mb-3">Create Category</h2>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <InputLabel value="Name" />
-              <TextInput v-model="newCategory.name" class="w-full mt-1" />
-              <InputError :message="state.errors?.name?.[0]" />
-            </div>
-            <div>
-              <InputLabel value="Set" />
-              <SelectDropdown :options="state.sets" v-model="state.selectedSetId" placeholder="Select set" />
-            </div>
-          </div>
-          <div class="flex justify-end mt-3">
-            <PrimaryButton type="button" :disabled="!state.selectedSetId || !newCategory.name" @click="createCategory">Add Category</PrimaryButton>
-          </div>
-        </div>
+                        <div v-else>
+                            <div v-if="step === 1" class="space-y-6">
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900">Start by selecting your mode</h3>
+                                    <p class="mt-1 text-sm text-gray-600">
+                                        Pick an existing set to update or create a new set from scratch.
+                                    </p>
+                                </div>
 
-        <div class="border rounded-lg p-4">
-          <div class="flex items-center justify-between mb-3">
-            <h2 class="text-sm font-semibold">Categories in {{ selectedSet?.label || '—' }}</h2>
-            <div class="text-xs text-gray-500" v-if="!state.selectedSetId">Select a set to view categories</div>
-          </div>
-          <div v-if="state.selectedSetId" class="space-y-2">
-            <div v-for="cat in state.categories" :key="cat.id" class="flex items-center justify-between p-2 rounded border hover:bg-gray-50">
-              <div>{{ cat.name }}</div>
-              <div class="flex items-center gap-2">
-                <button class="text-xs text-indigo-600" @click="startEditCategory(cat)">Edit</button>
-                <button class="text-xs text-red-600" @click="deleteCategory(cat.id)">Delete</button>
-              </div>
-            </div>
-            <div v-if="state.categories.length === 0" class="text-sm text-gray-500">No categories yet.</div>
-          </div>
-        </div>
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <button
+                                        type="button"
+                                        class="rounded-lg border p-4 text-left"
+                                        :class="setMode === 'existing' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'"
+                                        @click="setMode = 'existing'"
+                                    >
+                                        <div class="font-semibold text-gray-900">Update Existing Set</div>
+                                        <div class="mt-1 text-sm text-gray-600">Edit a set and adjust categories.</div>
+                                    </button>
 
-        <div v-if="editCategory.id" class="border rounded-lg p-4">
-          <h2 class="text-sm font-semibold mb-3">Edit Category</h2>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <InputLabel value="Name" />
-              <TextInput v-model="editCategory.name" class="w-full mt-1" />
-              <InputError :message="state.errors?.name?.[0]" />
+                                    <button
+                                        type="button"
+                                        class="rounded-lg border p-4 text-left"
+                                        :class="setMode === 'new' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'"
+                                        @click="setMode = 'new'"
+                                    >
+                                        <div class="font-semibold text-gray-900">Create New Set</div>
+                                        <div class="mt-1 text-sm text-gray-600">Start a new category structure.</div>
+                                    </button>
+                                </div>
+
+                                <div v-if="setMode === 'existing'" class="space-y-3">
+                                    <InputLabel value="Available category sets" />
+                                    <select
+                                        v-model="selectedSetId"
+                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option :value="null">Select set</option>
+                                        <option v-for="set in sets" :key="set.id" :value="set.id">
+                                            {{ set.name }} ({{ set.categories_count || 0 }} categories)
+                                        </option>
+                                    </select>
+                                    <InputError :message="errors.selected_set?.[0]" />
+                                </div>
+
+                                <div class="flex justify-end">
+                                    <PrimaryButton :disabled="!canContinueStepOne" @click="continueFromStepOne">
+                                        Continue
+                                    </PrimaryButton>
+                                </div>
+                            </div>
+
+                            <div v-if="step === 2" class="space-y-6">
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900">Configure the category set</h3>
+                                    <p class="mt-1 text-sm text-gray-600">
+                                        Define set name and which models can use it.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <InputLabel value="Set name" />
+                                    <TextInput v-model="setForm.name" class="mt-1 block w-full" />
+                                    <InputError :message="errors.name?.[0]" class="mt-2" />
+                                </div>
+
+                                <div>
+                                    <InputLabel value="Allowed models" />
+                                    <div class="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                                        <label
+                                            v-for="modelOption in models"
+                                            :key="modelOption.value"
+                                            class="flex items-center gap-2 rounded border border-gray-200 px-3 py-2 text-sm"
+                                        >
+                                            <input
+                                                :value="modelOption.value"
+                                                v-model="setForm.allowed_models"
+                                                type="checkbox"
+                                                class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
+                                            />
+                                            {{ modelOption.label }}
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <SecondaryButton @click="goToStep(1)">Back</SecondaryButton>
+                                    <PrimaryButton @click="saveSetAndContinue">Save Set and Continue</PrimaryButton>
+                                </div>
+                            </div>
+
+                            <div v-if="step === 3" class="space-y-6">
+                                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-gray-900">Manage categories</h3>
+                                        <p class="text-sm text-gray-600">
+                                            Working on: <span class="font-medium text-gray-800">{{ selectedSet?.name || 'No set selected' }}</span>
+                                        </p>
+                                    </div>
+                                    <SecondaryButton @click="restartWizard">Start Over</SecondaryButton>
+                                </div>
+
+                                <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                                    <div class="space-y-4 rounded-lg border border-gray-200 p-4">
+                                        <h4 class="font-semibold text-gray-900">Add new category</h4>
+                                        <div>
+                                            <InputLabel value="Category name" />
+                                            <TextInput v-model="newCategoryName" class="mt-1 block w-full" />
+                                            <InputError :message="errors.category_name?.[0] || errors.name?.[0]" class="mt-2" />
+                                        </div>
+                                        <div class="flex justify-end">
+                                            <PrimaryButton @click="createCategory">Add Category</PrimaryButton>
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-2 rounded-lg border border-gray-200 p-4">
+                                        <h4 class="font-semibold text-gray-900">Set summary</h4>
+                                        <div class="text-sm text-gray-700">
+                                            <div><span class="font-medium">Name:</span> {{ selectedSet?.name || setForm.name || 'Not set' }}</div>
+                                            <div class="mt-2">
+                                                <span class="font-medium">Allowed Models:</span>
+                                                <div v-if="(setForm.allowed_models || []).length > 0" class="mt-1 flex flex-wrap gap-1">
+                                                    <span
+                                                        v-for="modelType in setForm.allowed_models"
+                                                        :key="modelType"
+                                                        class="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700"
+                                                    >
+                                                        {{ toOptionLabel(modelType) }}
+                                                    </span>
+                                                </div>
+                                                <div v-else class="mt-1 text-xs text-gray-500">No model restriction (global set).</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="rounded-lg border border-gray-200 p-4">
+                                    <h4 class="mb-3 font-semibold text-gray-900">Existing categories</h4>
+
+                                    <div v-if="categories.length === 0" class="text-sm text-gray-500">
+                                        No categories yet. Add your first one above.
+                                    </div>
+
+                                    <div v-else class="space-y-2">
+                                        <div
+                                            v-for="category in categories"
+                                            :key="category.id"
+                                            class="flex flex-col gap-2 rounded border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between"
+                                        >
+                                            <div v-if="categoryEdit.id !== category.id" class="text-sm font-medium text-gray-800">
+                                                {{ category.name }}
+                                            </div>
+
+                                            <div v-else class="w-full sm:w-80">
+                                                <TextInput v-model="categoryEdit.name" class="block w-full" />
+                                                <InputError :message="errors.edit_category_name?.[0] || errors.name?.[0]" class="mt-2" />
+                                            </div>
+
+                                            <div class="flex items-center gap-2">
+                                                <template v-if="categoryEdit.id !== category.id">
+                                                    <button type="button" class="text-sm text-indigo-600 hover:text-indigo-800" @click="startEditCategory(category)">
+                                                        Edit
+                                                    </button>
+                                                    <button type="button" class="text-sm text-red-600 hover:text-red-800" @click="deleteCategory(category)">
+                                                        Delete
+                                                    </button>
+                                                </template>
+                                                <template v-else>
+                                                    <button type="button" class="text-sm text-gray-600 hover:text-gray-800" @click="cancelEditCategory">
+                                                        Cancel
+                                                    </button>
+                                                    <button type="button" class="text-sm text-indigo-600 hover:text-indigo-800" @click="saveEditCategory">
+                                                        Save
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div>
-              <InputLabel value="Move to Set" />
-              <SelectDropdown :options="state.sets" v-model="editCategory.category_set_id" placeholder="Select set" />
-              <InputError :message="state.errors?.category_set_id?.[0]" />
-            </div>
-          </div>
-          <div class="flex justify-end gap-2 mt-3">
-            <button type="button" class="text-sm text-gray-600" @click="editCategory.id=null; editCategory.name=''; editCategory.category_set_id=null">Cancel</button>
-            <PrimaryButton type="button" @click="updateCategory">Save</PrimaryButton>
-          </div>
         </div>
-      </div>
-    </div>
-  </div>
+    </AuthenticatedLayout>
 </template>

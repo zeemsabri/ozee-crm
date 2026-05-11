@@ -10,11 +10,12 @@ use Illuminate\Database\Eloquent\SoftDeletes; // Import Collection for getClient
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Spatie\Activitylog\Models\Activity;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, SoftDeletes, \App\Models\Traits\HasCategories;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes, \App\Models\Traits\HasCategories, LogsActivity;
 
     /**
      * Apply a global scope to always order users by name.
@@ -33,6 +34,19 @@ class User extends Authenticatable
     public function notes()
     {
         return $this->morphMany(\App\Models\ProjectNote::class, 'noteable');
+    }
+
+    public function userNotes()
+    {
+        return $this->hasMany(UserNote::class);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['metadata', 'name', 'email', 'role_id'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs();
     }
 
     protected $fillable = [
@@ -55,6 +69,7 @@ class User extends Authenticatable
         'online_data',
         'extension_mandatory',
         'telegram_link_code',
+        'metadata',
     ];
 
     /**
@@ -84,11 +99,12 @@ class User extends Authenticatable
         'is_online' => 'boolean',
         'online_data' => 'array',
         'extension_mandatory' => 'boolean',
+        'metadata' => 'array',
     ];
 
     protected $with = ['role', 'categories']; // Always load the role relationship
 
-    protected $appends = ['role_data','avatar']; // Add role data to JSON
+    protected $appends = ['role_data', 'avatar', 'app_role']; // Add role data to JSON
 
     /**
      * Get project expendable created/owned by this user.
