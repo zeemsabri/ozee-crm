@@ -150,6 +150,9 @@ Route::get('/google/redirect', [GoogleAuthController::class, 'redirectToGoogle']
 // For this MVP, we are storing to file, so no direct user login needed for this specific route.
 Route::get('/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])->name('google.callback');
 
+Route::get('/xero/callback', [\App\Http\Controllers\Admin\XeroConnectionController::class, 'callback'])
+    ->name('xero.callback');
+
 Route::get('/debug/list-drive-files', [ShareableResourceCopyController::class, 'debugListFiles']);
 // --- Google User OAuth Routes (for user-based authentication) ---
 

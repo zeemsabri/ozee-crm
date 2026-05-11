@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import Modal from '@/Components/Modal.vue';
@@ -12,6 +12,7 @@ import SelectDropdown from '@/Components/SelectDropdown.vue';
 
 const showCategoriesModal = ref(false);
 const isLoading = ref(false);
+const xeroStatus = ref('unknown');
 
 const state = reactive({
     sets: [],
@@ -31,6 +32,15 @@ const state = reactive({
 const openCategoriesModal = async () => {
     showCategoriesModal.value = true;
     await Promise.all([fetchSets(), fetchModels()]);
+};
+
+const fetchXeroStatus = async () => {
+    try {
+        const { data } = await window.axios.get(route('admin.xero.status'));
+        xeroStatus.value = data?.status || 'disconnected';
+    } catch (e) {
+        xeroStatus.value = 'unknown';
+    }
 };
 
 const fetchSets = async () => {
@@ -99,6 +109,26 @@ const createCategory = async () => {
         isLoading.value = false;
     }
 };
+
+const xeroIndicatorClass = computed(() => {
+    if (xeroStatus.value === 'connected') return 'bg-emerald-500';
+    if (xeroStatus.value === 'pending_tenant_selection') return 'bg-amber-500';
+    if (xeroStatus.value === 'reconnect_required') return 'bg-red-500';
+    if (xeroStatus.value === 'disconnected') return 'bg-gray-400';
+    return 'bg-gray-300';
+});
+
+const xeroStatusLabel = computed(() => {
+    if (xeroStatus.value === 'connected') return 'Connected';
+    if (xeroStatus.value === 'pending_tenant_selection') return 'Select Org';
+    if (xeroStatus.value === 'reconnect_required') return 'Reconnect';
+    if (xeroStatus.value === 'disconnected') return 'Disconnected';
+    return 'Checking';
+});
+
+onMounted(() => {
+    fetchXeroStatus();
+});
 </script>
 
 <template>
@@ -187,6 +217,21 @@ const createCategory = async () => {
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.email-apps.index')" :active="route().current('admin.email-apps.index')" class="!px-2 !py-1.5">Email Apps</DropdownLink>
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.external-tokens.index')" :active="route().current('admin.external-tokens.index')" class="!px-2 !py-1.5">External Tokens</DropdownLink>
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.stripe-configurations.index')" :active="route().current('admin.stripe-configurations.index')" class="!px-2 !py-1.5">Stripe Configuration</DropdownLink>
+                                <DropdownLink
+                                    v-permission="'manage_roles'"
+                                    :href="route('admin.xero.index')"
+                                    :active="route().current('admin.xero.index')"
+                                    class="!px-2 !py-1.5"
+                                    @mouseenter="fetchXeroStatus"
+                                >
+                                    <span class="inline-flex items-center gap-2">
+                                        <span>Xero Integration</span>
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-gray-600">
+                                            <span class="h-1.5 w-1.5 rounded-full" :class="xeroIndicatorClass"></span>
+                                            <span>{{ xeroStatusLabel }}</span>
+                                        </span>
+                                    </span>
+                                </DropdownLink>
                                 <DropdownLink v-permission="'manage_monthly_budgets'" href="/admin/monthly-budgets" class="!px-2 !py-1.5">Monthly Budgets</DropdownLink>
                                 <DropdownLink v-permission="'view_monthly_budgets'" href="/admin/bonus-calculator" class="!px-2 !py-1.5">Bonus Calculator</DropdownLink>
                             </div>

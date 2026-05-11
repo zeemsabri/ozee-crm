@@ -89,5 +89,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('admin.stripe-configurations.update');
         Route::delete('/stripe-configurations/{stripeConfiguration}', [\App\Http\Controllers\Admin\StripeConfigurationController::class, 'destroy'])
             ->name('admin.stripe-configurations.destroy');
+
+        // Xero connection routes
+        Route::get('/xero', [\App\Http\Controllers\Admin\XeroConnectionController::class, 'index'])
+            ->name('admin.xero.index');
+        Route::get('/xero/connect', [\App\Http\Controllers\Admin\XeroConnectionController::class, 'connect'])
+            ->name('admin.xero.connect');
+        Route::get('/xero/status', [\App\Http\Controllers\Admin\XeroConnectionController::class, 'status'])
+            ->name('admin.xero.status');
+        Route::post('/xero/select-tenant', [\App\Http\Controllers\Admin\XeroConnectionController::class, 'selectTenant'])
+            ->name('admin.xero.select-tenant');
+        Route::delete('/xero/disconnect', [\App\Http\Controllers\Admin\XeroConnectionController::class, 'disconnect'])
+            ->name('admin.xero.disconnect');
     });
 });

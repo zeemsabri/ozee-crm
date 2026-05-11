@@ -9,6 +9,7 @@
         "php": "^8.2",
         "ext-fileinfo": "*",
         "ext-gd": "*",
+        "dcblogdev/laravel-xero": "^1.1",
         "google/apiclient": "^2.12",
         "google/apps-chat": "^0.11.2",
         "google/cloud-pubsub": "^2.13",
