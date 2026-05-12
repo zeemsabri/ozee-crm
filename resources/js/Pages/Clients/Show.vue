@@ -265,6 +265,19 @@ const changeEmailPage = (page) => {
     // No-op or remove if not needed
 };
 
+const generateTelegramCode = async () => {
+    try {
+        const response = await axios.post(`/api/clients/${idRef.value}/generate-telegram-code`);
+        if (clientState.value) {
+            clientState.value.telegram_link_code = response.data.code;
+        }
+        showSuccessNotification('Telegram link code generated!');
+    } catch (error) {
+        console.error('Error generating Telegram code:', error);
+        showErrorNotification('Failed to generate Telegram code.');
+    }
+};
+
 onMounted(async () => {
     await fetchClientDetails();
     await fetchNotes();
@@ -312,6 +325,36 @@ onMounted(async () => {
                                         <div v-if="clientState?.company"><span class="text-gray-500">Company:</span> <span class="font-medium">{{ clientState.company }}</span></div>
                                         <div v-if="clientState?.address"><span class="text-gray-500">Address:</span> <span class="font-medium">{{ clientState.address }}</span></div>
                                         <div v-if="clientState?.notes"><span class="text-gray-500">Notes:</span> <span class="font-medium">{{ clientState.notes }}</span></div>
+                                    </div>
+
+                                    <!-- Telegram Link Section -->
+                                    <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <div class="p-1.5 bg-sky-100 rounded-lg">
+                                                <svg class="w-5 h-5 text-sky-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.53-1.39.51-.46-.01-1.33-.26-1.98-.48-.8-.27-1.43-.42-1.37-.89.03-.25.38-.51 1.03-.78 4.04-1.76 6.74-2.92 8.09-3.48 3.85-1.6 4.64-1.88 5.17-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.13-.03.19z"/></svg>
+                                            </div>
+                                            <span class="text-sm font-bold text-gray-700">Telegram Link</span>
+                                        </div>
+
+                                        <div class="flex items-center gap-3">
+                                            <div v-if="clientState?.telegram_account" class="flex items-center text-sky-700 font-bold text-xs bg-sky-50 px-3 py-1.5 rounded-full border border-sky-100">
+                                                Linked to @{{ clientState.telegram_account.username || 'User' }}
+                                            </div>
+                                            <div v-else-if="clientState?.telegram_link_code" class="flex items-center gap-2">
+                                                <div class="flex flex-col items-end">
+                                                    <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Bot Command</span>
+                                                    <code class="text-xs font-mono font-bold text-sky-800 bg-white px-2 py-1 rounded border border-sky-200 select-all cursor-all">/link #{{ clientState.telegram_link_code }}</code>
+                                                </div>
+                                                <button @click="generateTelegramCode" class="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-colors" title="Regenerate Code">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            <PrimaryButton v-else @click="generateTelegramCode" class="!bg-sky-600 hover:!bg-sky-700 !py-1.5 !text-xs !rounded-lg">
+                                                Enable Telegram
+                                            </PrimaryButton>
+                                        </div>
                                     </div>
                                 </div>
 

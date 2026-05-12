@@ -38,6 +38,13 @@ class ClientResource extends JsonResource
                 'id' => $this->xeroSyncedBy->id,
                 'name' => $this->xeroSyncedBy->name,
             ] : null;
+            $data['telegram_link_code'] = $this->telegram_link_code;
+            $data['telegram_account'] = $this->telegramAccount ? [
+                'id' => $this->telegramAccount->id,
+                'username' => $this->telegramAccount->username,
+                'first_name' => $this->telegramAccount->first_name,
+                'last_name' => $this->telegramAccount->last_name,
+            ] : null;
         }
 
         return $data;

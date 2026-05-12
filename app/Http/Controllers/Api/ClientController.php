@@ -34,7 +34,7 @@ class ClientController extends Controller
         // Check if user has permission to view clients
         if ($user->hasPermission('view_clients') || $user->hasPermission('manage_project_clients')) {
             // Admins, Managers, Employees can see all clients
-            $clients = Client::with('xeroSyncedBy:id,name')->get();
+            $clients = Client::with(['xeroSyncedBy:id,name', 'telegramAccount'])->get();
         } elseif ($user->isContractor()) {
             // Contractors can see clients associated with their assigned projects
             // even without the explicit 'view_clients' permission
@@ -254,7 +254,7 @@ class ClientController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $client->load('lead');
+        $client->load(['lead', 'telegramAccount']);
         $lead = $client->lead;
 
         // Presentations (client + from linked lead)
