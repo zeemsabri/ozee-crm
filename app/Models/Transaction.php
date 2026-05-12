@@ -16,6 +16,7 @@ class Transaction extends Model
         'amount',
         'currency',
         'user_id',
+        'client_id',
         'hours_spent',
         'type',
         'is_paid',
@@ -38,6 +39,11 @@ class Transaction extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function client()
+    {
+        return $this->belongsTo(Client::class);
     }
 
     public function transactionType()

@@ -8,6 +8,7 @@ export function useClientDetails(idRef) {
   const lead = ref(null);
   const presentations = ref([]);
   const emails = ref([]);
+  const xeroLogs = ref([]);
 
   // Notes
   const notes = ref([]);
@@ -30,6 +31,7 @@ export function useClientDetails(idRef) {
       lead.value = data.lead;
       presentations.value = data.presentations || [];
       emails.value = data.emails || [];
+      xeroLogs.value = data.xero_logs || [];
     } catch (e) {
       console.error('Failed to load client details', e);
       error.value = e?.response?.data?.message || 'Failed to load client details';
@@ -80,7 +82,7 @@ export function useClientDetails(idRef) {
   return {
     // state
     loading, error, client, lead, fullName, presentations, emails,
-    notes, notesLoading, notesError, savingNote,
+    notes, notesLoading, notesError, savingNote, xeroLogs,
     // actions
     fetchClientDetails, fetchNotes, addNote,
   };

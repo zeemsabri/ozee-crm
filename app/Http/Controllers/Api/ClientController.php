@@ -11,7 +11,8 @@ use App\Services\XeroContactSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException; // For Auth::user()
+use Illuminate\Validation\ValidationException;
+use Spatie\Activitylog\Models\Activity;
 use RuntimeException;
 
 class ClientController extends Controller
@@ -317,6 +318,15 @@ class ClientController extends Controller
             return strtotime($b['created_at']) <=> strtotime($a['created_at']);
         });
 
+        // Xero Sync Logs
+        $xeroLogs = Activity::query()
+            ->where('subject_type', Client::class)
+            ->where('subject_id', $client->id)
+            ->where('log_name', 'xero_client_sync')
+            ->with('causer:id,name')
+            ->orderByDesc('id')
+            ->get();
+
         return response()->json([
             'client' => (new ClientResource($client))->resolve(request()),
             'lead' => $lead ? [
@@ -328,6 +338,7 @@ class ClientController extends Controller
             ] : null,
             'presentations' => $presentations,
             'emails' => $emails,
+            'xero_logs' => $xeroLogs,
         ]);
     }
 
@@ -391,7 +402,7 @@ class ClientController extends Controller
     {
         $user = Auth::user();
 
-        if (! $user->hasPermission('edit_clients')) {
+        if (!$user->hasPermission('edit_clients')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -422,7 +433,7 @@ class ClientController extends Controller
                 ], 422);
             }
 
-            if (! $selected) {
+            if (!$selected) {
                 return response()->json(['message' => 'Selected Xero contact is invalid.'], 422);
             }
 
@@ -466,6 +477,53 @@ class ClientController extends Controller
             ]);
 
             return response()->json(['message' => 'Failed to sync this client with Xero.'], 500);
+        }
+
+    }
+
+    /**
+     * Create a new Xero contact for this client and link it.
+     */
+    public function createXeroContact(Client $client)
+    {
+        $user = Auth::user();
+
+        if (! $user->hasPermission('edit_clients')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $contact = $this->xeroContactSyncService->createContactForClient($client);
+
+            $client->update([
+                'xero_contact_id' => data_get($contact, 'contact_id'),
+                'xero_contact_name' => data_get($contact, 'name'),
+                'xero_contact_email' => data_get($contact, 'email'),
+                'xero_sync_mode' => 'manual',
+                'xero_synced_at' => now(),
+                'xero_synced_by_user_id' => $user->id,
+            ]);
+
+            activity('xero_client_sync')
+                ->performedOn($client)
+                ->causedBy($user)
+                ->withProperties([
+                    'sync_mode' => 'manual',
+                    'created_contact' => $contact,
+                ])
+                ->log('A new Xero contact was created and linked to the client.');
+
+            return (new ClientResource($client->fresh()->load('xeroSyncedBy:id,name')))
+                ->response()
+                ->setStatusCode(200);
+        } catch (\Throwable $e) {
+            Log::error('Failed to create Xero contact for client', [
+                'client_id' => $client->id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Failed to create Xero contact: '.$e->getMessage()], 500);
         }
     }
 }

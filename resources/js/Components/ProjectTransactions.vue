@@ -27,6 +27,7 @@ const canViewProjectTransactions = canDo('view_project_transactions', props.user
 
 const transactions = ref([]); // Now holds raw transactions from backend
 const users = ref([]);
+const clients = ref([]);
 const errors = ref({});
 const generalError = ref('');
 const loading = ref(false); // Overall loading state for the component
@@ -42,6 +43,7 @@ const transactionForm = ref({
     amount: '',
     currency: 'PKR', // Default currency for new transactions
     user_id: null,
+    client_id: null,
     hours_spent: '',
     type: 'expense',
     transaction_type: null, // can be ID or 'new_...'
@@ -114,6 +116,13 @@ const userOptions = computed(() => {
     }));
 });
 
+const clientOptions = computed(() => {
+    return clients.value.map(client => ({
+        value: client.id,
+        label: client.name || 'Unknown Client'
+    }));
+});
+
 // Helper to get today's date in YYYY-MM-DD format
 const getTodayDate = () => {
     const today = new Date();
@@ -130,9 +139,10 @@ const fetchUsers = async () => {
     try {
         const response = await window.axios.get(`/api/projects/${props.projectId}/sections/clients-users`);
         users.value = response.data.users || [];
+        clients.value = response.data.clients || [];
     } catch (err) {
-        generalError.value = 'Failed to fetch users.';
-        console.error('Error fetching users:', err);
+        generalError.value = 'Failed to fetch users and clients.';
+        console.error('Error fetching users/clients:', err);
     }
 };
 
@@ -197,8 +207,8 @@ const saveTransaction = async () => {
             errors.value.transaction_type_id = ['Transaction Type is required'];
             return;
         }
-        if (transactionForm.value.type === 'expense' && !transactionForm.value.user_id) {
-            errors.value.user_id = ['User is required for expense transactions'];
+        if ((transactionForm.value.type === 'expense' || transactionForm.value.type === 'bonus') && !transactionForm.value.user_id) {
+            errors.value.user_id = ['User is required for this transaction type'];
             return;
         }
 
@@ -237,6 +247,7 @@ const resetTransactionForm = () => {
         amount: '',
         currency: 'PKR',
         user_id: null,
+        client_id: null,
         hours_spent: '',
         type: 'expense',
         transaction_type: null,
@@ -483,6 +494,14 @@ watch(currentDisplayCurrency, (newCurrency) => {
     }
 }, { deep: true }); // Deep watch for changes within objects if needed
 
+watch(() => transactionForm.value.type, (newType) => {
+    if (newType === 'income') {
+        transactionForm.value.user_id = null;
+    } else {
+        transactionForm.value.client_id = null;
+    }
+});
+
 </script>
 
 <template>
@@ -659,6 +678,17 @@ watch(currentDisplayCurrency, (newCurrency) => {
                     />
                     <InputError :message="errors.user_id?.[0]" class="mt-2" />
                 </div>
+                <div v-if="transactionForm.type === 'income'">
+                    <InputLabel for="client_id" value="Client" />
+                    <SelectDropdown
+                        id="client_id"
+                        v-model="transactionForm.client_id"
+                        :options="clientOptions"
+                        :disabled="loading || !clients.length"
+                        placeholder="Select a client"
+                    />
+                    <InputError :message="errors.client_id?.[0]" class="mt-2" />
+                </div>
                 <div v-if="transactionForm.type === 'expense' || transactionForm.type === 'bonus'">
                     <InputLabel for="hours_spent" value="Hours Spent (Optional)" />
                     <TextInput
@@ -731,6 +761,7 @@ watch(currentDisplayCurrency, (newCurrency) => {
                     <div class="flex justify-between items-end text-xs text-gray-600 mt-2 border-t border-gray-200 pt-2">
                         <div>
                             <span v-if="transaction.user_id" class="block">User: {{ transaction.user?.name || users.find(u => u.id === transaction.user_id)?.name || 'Unknown' }}</span>
+                            <span v-if="transaction.client_id" class="block">Client: {{ transaction.client?.name || clients.find(c => c.id === transaction.client_id)?.name || 'Unknown' }}</span>
                             <span v-if="transaction.hours_spent" class="block">Hours: {{ transaction.hours_spent }}</span>
                             <span v-if="(transaction.type === 'expense' || transaction.type === 'bonus') && rawTotalIncome > 0" class="block mt-1 text-gray-500">
                                 {{ ((convertCurrency(transaction.amount, transaction.currency, currentDisplayCurrency) / rawTotalIncome) * 100).toFixed(2) }}% of Income

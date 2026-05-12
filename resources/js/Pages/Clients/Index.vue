@@ -21,6 +21,7 @@ const clients = ref([]);
 const loading = ref(true);
 const errors = ref({});
 const generalError = ref('');
+const searchQuery = ref('');
 
 // Modals state
 const showCreateModal = ref(false);
@@ -101,9 +102,12 @@ const createClient = async () => {
     generalError.value = '';
     try {
         const response = await axios.post('/api/clients', clientForm);
-        clients.value.push(response.data.data); // Add new client to the list
+        const newClient = response.data.data;
+        clients.value.push(newClient); // Add new client to the list
         showCreateModal.value = false;
-        alert('Client created successfully!'); // Simple success feedback
+        
+        // Two-step process: Trigger Xero Sync immediately
+        openXeroSyncModal(newClient);
     } catch (error) {
         if (error.response && error.response.status === 422) {
             errors.value = error.response.data.errors;
@@ -240,11 +244,49 @@ const syncClientWithXero = async () => {
     }
 };
 
+const createXeroContact = async () => {
+    if (!xeroSyncClient.value) return;
+
+    xeroSyncLoading.value = true;
+    xeroSyncError.value = '';
+
+    try {
+        const response = await axios.post(`/api/clients/${xeroSyncClient.value.id}/xero-contact-create`);
+        const updatedClient = response.data?.data;
+
+        if (updatedClient) {
+            const index = clients.value.findIndex(c => c.id === updatedClient.id);
+            if (index !== -1) {
+                clients.value[index] = updatedClient;
+            }
+        }
+
+        showSuccessNotification('Xero contact created and linked successfully.');
+        showXeroSyncModal.value = false;
+    } catch (error) {
+        xeroSyncError.value = error.response?.data?.message || 'Failed to create Xero contact.';
+        showErrorNotification(xeroSyncError.value);
+    } finally {
+        xeroSyncLoading.value = false;
+    }
+};
+
 const xeroCandidateOptions = computed(() => {
     return xeroCandidates.value.map((candidate) => ({
         value: candidate.contact_id,
         label: `${candidate.name || 'Unnamed Contact'}${candidate.email ? ` (${candidate.email})` : ''}`,
     }));
+});
+
+const filteredClients = computed(() => {
+    if (!searchQuery.value) return clients.value;
+    const q = searchQuery.value.toLowerCase();
+    return clients.value.filter(c => 
+        (c.name && c.name.toLowerCase().includes(q)) ||
+        (c.email && c.email.toLowerCase().includes(q)) ||
+        (c.company && c.company.toLowerCase().includes(q)) ||
+        (c.phone && c.phone.toLowerCase().includes(q))
+    );
 });
 
 const formatDateTime = (value) => {
@@ -282,85 +324,151 @@ onMounted(() => {
             <h2 class="font-semibold text-xl text-gray-800 leading-tight">Clients</h2>
         </template>
 
-        <div class="py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+        <div class="py-8">
+            <div class="w-full px-4 sm:px-6 lg:px-8">
+                <div class="bg-white overflow-hidden shadow-xl sm:rounded-xl border border-gray-100">
                     <div class="p-6 text-gray-900">
-                        <h3 class="text-2xl font-bold mb-4">Client List</h3>
-
-                        <div v-if="canManageClients" class="mb-6">
-                            <PrimaryButton @click="openCreateModal">
-                                Create New Client
-                            </PrimaryButton>
+                        <div class="flex items-center justify-between mb-8">
+                            <div>
+                                <h3 class="text-2xl font-bold text-gray-900">Client Directory</h3>
+                                <p class="text-sm text-gray-500 mt-1">Manage your customer relationships and Xero synchronization.</p>
+                            </div>
                         </div>
 
-                        <div v-if="loading" class="text-gray-600">Loading clients...</div>
-                        <div v-else-if="generalError" class="text-red-600">{{ generalError }}</div>
-                        <div v-else-if="clients.length === 0" class="text-gray-600">No clients found.</div>
+                        <!-- Search and Actions -->
+                        <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div class="relative w-full md:w-96">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
+                                <input 
+                                    v-model="searchQuery" 
+                                    type="text" 
+                                    placeholder="Search by name, email or company..." 
+                                    class="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl leading-5 bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm transition duration-150 ease-in-out"
+                                />
+                            </div>
+                            
+                            <div v-if="canManageClients">
+                                <PrimaryButton @click="openCreateModal" class="flex items-center gap-2 !rounded-xl !py-2.5 shadow-sm hover:shadow-md transition-all">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Add New Client
+                                </PrimaryButton>
+                            </div>
+                        </div>
+
+                        <div v-if="loading" class="flex flex-col items-center justify-center py-12">
+                            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                            <div class="text-gray-500 font-medium">Loading your clients...</div>
+                        </div>
+                        <div v-else-if="generalError" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6">
+                            {{ generalError }}
+                        </div>
+                        <div v-else-if="clients.length === 0" class="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                            <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            <h3 class="text-lg font-semibold text-gray-900">No clients yet</h3>
+                            <p class="text-gray-500 mb-6">Get started by creating your first client.</p>
+                            <PrimaryButton v-if="canManageClients" @click="openCreateModal">Create Client</PrimaryButton>
+                        </div>
                         <div v-else>
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Xero Contact</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="client in clients" :key="client.id">
-                                    <td class="px-6 py-4 whitespace-nowrap">{{ client.name }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap">{{ client.email }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap">{{ client.phone || 'N/A' }}</td>
-                                    <td class="px-6 py-4">
-                                        <div v-if="client.xero_contact_id" class="text-xs text-gray-700">
-                                            <div class="font-semibold text-emerald-700">{{ client.xero_contact_name || 'Linked' }}</div>
-                                            <div class="text-gray-500 break-all">{{ client.xero_contact_email || 'No email' }}</div>
-                                            <div class="text-gray-400 mt-1">
-                                                Synced {{ formatDateTime(client.xero_synced_at) }}
-                                                <span v-if="client.xero_synced_by?.name">by {{ client.xero_synced_by.name }}</span>
-                                                <span v-if="client.xero_sync_mode">({{ client.xero_sync_mode }})</span>
-                                            </div>
-                                        </div>
-                                        <div v-else class="text-xs text-gray-400">Not linked</div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div class="flex items-center space-x-2">
-                                            <PrimaryButton as="a" :href="`/clients/${client.id}`" title="View Details">View</PrimaryButton>
-                                            <SecondaryButton
-                                                v-if="canSyncXeroContacts"
-                                                @click="openXeroSyncModal(client)"
-                                            >
-                                                Sync Xero
-                                            </SecondaryButton>
-                                            
-                                            <!-- Telegram Code Section -->
-                                            <div class="flex items-center bg-sky-50 px-2 py-1 rounded border border-sky-100" v-if="client.telegram_link_code || client.telegram_account">
-                                                <div v-if="client.telegram_account" class="flex items-center text-sky-700" title="Telegram Linked">
-                                                    <svg class="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.53-1.39.51-.46-.01-1.33-.26-1.98-.48-.8-.27-1.43-.42-1.37-.89.03-.25.38-.51 1.03-.78 4.04-1.76 6.74-2.92 8.09-3.48 3.85-1.6 4.64-1.88 5.17-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.13-.03.19z"/></svg>
-                                                    <span class="text-xs font-semibold">@{{ client.telegram_account.username || 'Linked' }}</span>
+                            <div class="overflow-x-auto rounded-xl border border-gray-100 shadow-sm">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50/50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Client Info</th>
+                                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Contact Details</th>
+                                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Xero Connection</th>
+                                        <th scope="col" class="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-100">
+                                    <tr v-for="client in filteredClients" :key="client.id" class="hover:bg-gray-50/50 transition-colors">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div class="h-10 w-10 flex-shrink-0 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm">
+                                                    {{ client.name.charAt(0) }}
                                                 </div>
-                                                <div v-else class="flex items-center">
-                                                    <span class="text-[10px] font-mono font-bold text-sky-800 mr-1 bg-white px-1.5 py-0.5 rounded border border-sky-100 cursor-all select-all">/link #{{ client.telegram_link_code }}</span>
-                                                    <button @click="generateTelegramCode(client)" class="p-0.5 text-sky-400 hover:text-sky-600 transition-colors" title="Regenerate Code">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                <div class="ml-4">
+                                                    <div class="text-sm font-bold text-gray-900">{{ client.name }}</div>
+                                                    <div class="text-xs text-gray-500">{{ client.company || 'Private Individual' }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-gray-900">{{ client.email }}</div>
+                                            <div class="text-xs text-gray-500">{{ client.phone || 'No phone number' }}</div>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <div v-if="client.xero_contact_id" class="flex flex-col">
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                                                    <span class="text-sm font-semibold text-emerald-800">{{ client.xero_contact_name }}</span>
+                                                </div>
+                                                <div class="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-wider">
+                                                    Synced {{ formatDateTime(client.xero_synced_at) }}
+                                                </div>
+                                            </div>
+                                            <div v-else class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                                Not linked
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <div class="flex items-center justify-end space-x-2">
+                                                <PrimaryButton as="a" :href="`/clients/${client.id}`" class="!bg-indigo-50 !text-indigo-700 hover:!bg-indigo-100 !border-transparent !px-3 !py-1.5 text-xs font-bold transition-all">View</PrimaryButton>
+                                                
+                                                <SecondaryButton
+                                                    v-if="canSyncXeroContacts"
+                                                    @click="openXeroSyncModal(client)"
+                                                    class="!px-3 !py-1.5 text-xs font-bold"
+                                                >
+                                                    Sync Xero
+                                                </SecondaryButton>
+                                                
+                                                <!-- Telegram Link -->
+                                                <div class="flex items-center bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-100" v-if="client.telegram_link_code || client.telegram_account">
+                                                    <div v-if="client.telegram_account" class="flex items-center text-sky-700" title="Telegram Linked">
+                                                        <svg class="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.53-1.39.51-.46-.01-1.33-.26-1.98-.48-.8-.27-1.43-.42-1.37-.89.03-.25.38-.51 1.03-.78 4.04-1.76 6.74-2.92 8.09-3.48 3.85-1.6 4.64-1.88 5.17-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.13-.03.19z"/></svg>
+                                                        <span class="text-xs font-bold">@{{ client.telegram_account.username || 'Linked' }}</span>
+                                                    </div>
+                                                    <div v-else class="flex items-center">
+                                                        <span class="text-[10px] font-mono font-bold text-sky-800 mr-2 bg-white px-2 py-0.5 rounded border border-sky-200 cursor-all select-all">/link #{{ client.telegram_link_code }}</span>
+                                                        <button @click="generateTelegramCode(client)" class="text-sky-400 hover:text-sky-600" title="Regenerate">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="flex items-center gap-1">
+                                                    <button v-if="canManageClients" @click="openEditModal(client)" class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit">
+                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button v-if="canManageClients" @click="confirmClientDeletion(client)" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                         </svg>
                                                     </button>
                                                 </div>
                                             </div>
-                                            <button v-else @click="generateTelegramCode(client)" class="p-1 text-gray-400 hover:text-sky-600 border border-transparent hover:border-sky-200 rounded transition-colors" title="Generate Telegram Code">
-                                                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.53-1.39.51-.46-.01-1.33-.26-1.98-.48-.8-.27-1.43-.42-1.37-.89.03-.25.38-.51 1.03-.78 4.04-1.76 6.74-2.92 8.09-3.48 3.85-1.6 4.64-1.88 5.17-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.13-.03.19z"/></svg>
-                                            </button>
-
-                                            <PrimaryButton v-if="canManageClients" @click="openEditModal(client)">Edit</PrimaryButton>
-                                            <DangerButton v-if="canManageClients" @click="confirmClientDeletion(client)">Delete</DangerButton>
-                                        </div>
-                                    </td>
-                                </tr>
-                                </tbody>
-                            </table>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="filteredClients.length === 0 && searchQuery">
+                                        <td colspan="4" class="px-6 py-12 text-center text-gray-500 italic">
+                                            No clients matching "{{ searchQuery }}"
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -508,6 +616,14 @@ onMounted(() => {
 
                 <div class="mt-6 flex justify-end gap-2">
                     <SecondaryButton @click="showXeroSyncModal = false">Cancel</SecondaryButton>
+                    <SecondaryButton
+                        v-if="!xeroSyncLoading"
+                        @click="createXeroContact"
+                        class="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                        title="Create this client as a new contact in Xero"
+                    >
+                        Create in Xero
+                    </SecondaryButton>
                     <PrimaryButton
                         :disabled="xeroSyncLoading || xeroCandidates.length === 0 || (!selectedXeroContactId && xeroCandidates.length > 1)"
                         @click="syncClientWithXero"

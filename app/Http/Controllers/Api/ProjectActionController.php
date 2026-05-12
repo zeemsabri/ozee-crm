@@ -206,6 +206,7 @@ class ProjectActionController extends Controller
                     'transactions.*.description' => 'required|string|max:255',
                     'transactions.*.amount' => 'required|numeric|min:0',
                     'transactions.*.user_id' => 'nullable|exists:users,id',
+                    'transactions.*.client_id' => 'nullable|exists:clients,id',
                     'transactions.*.hours_spent' => 'nullable|numeric|min:0',
                     'transactions.*.type' => 'required|in:income,expense',
                 ]);
@@ -308,6 +309,7 @@ class ProjectActionController extends Controller
                         'description' => $transaction['description'],
                         'amount' => $transaction['amount'],
                         'user_id' => $transaction['user_id'] ?? null,
+                        'client_id' => $transaction['client_id'] ?? null,
                         'hours_spent' => $transaction['hours_spent'] ?? null,
                         'type' => $transaction['type'],
                     ]);

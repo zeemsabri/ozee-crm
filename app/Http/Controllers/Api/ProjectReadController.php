@@ -346,6 +346,8 @@ class ProjectReadController extends Controller
         // Start building the query for transactions
         $transactionsQuery = $project->transactions()->with(['transactionType', 'user' => function ($query) {
             $query->select('id', 'name');
+        }, 'client' => function ($query) {
+            $query->select('id', 'name');
         }]);
 
         // Apply user_id filter if present in the request

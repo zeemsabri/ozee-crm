@@ -28,10 +28,11 @@ class TransactionsController extends Controller // Assuming your controller is n
         $validationRules = [
             'description' => 'required|string|max:255',
             'amount' => 'required|numeric|min:0',
-            'user_id' => 'required_if:type,expense|exists:users,id', // User ID is required when type is expense
+            'user_id' => 'required_if:type,expense,bonus|nullable|exists:users,id', // User ID is required when type is expense or bonus
+            'client_id' => 'nullable|exists:clients,id', // Client ID is optional (primarily for income)
             'currency' => 'required|string',
             'hours_spent' => 'nullable|numeric|min:0', // Hours spent is optional
-            'type' => 'required|in:income,expense,bonus', // Type must be 'income' or 'expense'
+            'type' => 'required|in:income,expense,bonus', // Type must be 'income', 'expense', or 'bonus'
             'transaction_type_id' => 'required|exists:transaction_types,id', // Always required
         ];
 
@@ -46,6 +47,7 @@ class TransactionsController extends Controller // Assuming your controller is n
             'amount' => $validated['amount'],
             'currency' => $validated['currency'],
             'user_id' => $validated['user_id'] ?? null, // Use null if user_id is not provided
+            'client_id' => $validated['client_id'] ?? null, // Store client_id if provided
             'hours_spent' => $validated['hours_spent'] ?? null, // Use null if hours_spent is not provided
             'type' => $validated['type'],
             'transaction_type_id' => $validated['transaction_type_id'] ?? null,
