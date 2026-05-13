@@ -73,9 +73,12 @@ class XeroInvoiceService
     {
         return $invoice->invoiceItems->map(function ($item) use ($invoice) {
             $projectService = $item->projectService;
+            $description = trim((string) ($item->description ?? ''));
 
             return [
-                'Description' => "{$projectService->service_id} - {$item->label}",
+                'Description' => $description !== ''
+                    ? $description
+                    : "{$projectService->service_id} - {$item->label}",
                 'Quantity' => (float) $item->quantity,
                 'UnitAmount' => (float) $item->unit_price,
                 'AccountCode' => $projectService->xero_account_code ?? '200',

@@ -11,6 +11,7 @@ import Modal from '@/Components/Modal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
+import MentionInput from '@/Components/ProjectTasks/MentionInput.vue';
 
 const invoices = ref([]);
 const projects = ref([]);
@@ -19,13 +20,25 @@ const loading = ref(true);
 const loadingServices = ref(false);
 const filterStatus = ref('');
 const showCreateModal = ref(false);
+const showReviewModal = ref(false);
+const selectedInvoice = ref(null);
+const reviewComment = ref('');
+const reviewProcessing = ref(false);
 
-const buildMilestoneKey = (service, milestone, index) => `${service.project_service_id}-${index}-${milestone.label}-${milestone.percentage}-${milestone.due_date ?? ''}`;
+const taxTypeOptions = [
+    { value: 'OUTPUT', label: 'OUTPUT - GST on Income (10%)' },
+    { value: 'NONE', label: 'NONE - No Tax' },
+    { value: 'EXEMPTOUTPUT', label: 'EXEMPTOUTPUT - Exempt Income' },
+    { value: 'INPUT', label: 'INPUT - GST on Expenses' },
+];
+
+const buildMilestoneKey = (service, milestone, index) => `${service?.project_service_id ?? service?.id ?? 'service'}-${index}-${milestone.label}-${milestone.percentage}-${milestone.due_date ?? ''}`;
 
 const emptyLineItem = () => ({
     project_service_id: '',
     milestone_key: '',
     label: '',
+    description: '',
     quantity: 1,
     unit_price: '',
     tax_type: 'OUTPUT',
@@ -97,6 +110,9 @@ const syncLineItem = (item) => {
 
     item.milestone_key = milestone.key;
     item.label = milestone.label;
+    if (!item.description) {
+        item.description = getServiceLabel(service);
+    }
     item.milestone_percentage = milestone.percentage;
     item.unit_price = ((Number(service.amount || 0) * Number(milestone.percentage || 0)) / 100).toFixed(2);
     if (!item.tax_type) {
@@ -116,6 +132,9 @@ const syncMilestoneSelection = (item) => {
     }
 
     item.label = milestone.label;
+    if (!item.description) {
+        item.description = getServiceLabel(service);
+    }
     item.milestone_percentage = milestone.percentage;
     item.unit_price = ((Number(service.amount || 0) * Number(milestone.percentage || 0)) / 100).toFixed(2);
 };
@@ -203,6 +222,7 @@ const submitInvoice = () => {
             project_service_id: item.project_service_id,
             milestone_key: item.milestone_key,
             label: item.label,
+            description: item.description,
             quantity: Number(item.quantity || 1),
             unit_price: Number(item.unit_price || 0),
             milestone_percentage: Number(item.milestone_percentage || 0),
@@ -221,14 +241,102 @@ const submitInvoice = () => {
     });
 };
 
-const approveInvoice = async (invoice) => {
+const openReviewModal = (invoice) => {
+    selectedInvoice.value = invoice;
+    reviewComment.value = '';
+    showReviewModal.value = true;
+};
+
+const closeReviewModal = () => {
+    showReviewModal.value = false;
+    selectedInvoice.value = null;
+    reviewComment.value = '';
+};
+
+const cleanMentionText = (text) => {
+    if (!text) {
+        return '';
+    }
+
+    return text
+        .replace(/@\{\d+:([^}]+)\}/g, '@$1')
+        .replace(/#\{\d+:([^}:]+):([^}]+)\}/g, '#$1 $2')
+        .replace(/#\{\d+:([^}]+)\}/g, '#$1');
+};
+
+const reviewEntries = computed(() => {
+    if (!selectedInvoice.value?.comments?.length) {
+        return [];
+    }
+
+    return [...selectedInvoice.value.comments].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+});
+
+const approveInvoice = async (invoice, fromModal = false) => {
     if (!await confirmPrompt('Approve this invoice for Xero sync?')) return;
     try {
-        await axios.post(`/api/projects/${invoice.project_id}/invoices/${invoice.id}/approve`);
+        reviewProcessing.value = true;
+        await axios.post(`/api/projects/${invoice.project_id}/invoices/${invoice.id}/approve`, {
+            review_comment: reviewComment.value || null,
+        });
         success('Invoice approved.');
+        if (fromModal) {
+            closeReviewModal();
+        }
         fetchInvoices();
     } catch (err) {
         error(err.response?.data?.message || 'Approval failed.');
+    } finally {
+        reviewProcessing.value = false;
+    }
+};
+
+const rejectInvoice = async (invoice) => {
+    if (!reviewComment.value?.trim()) {
+        error('Add a rejection comment before rejecting this invoice.');
+        return;
+    }
+    if (!await confirmPrompt('Reject this invoice?')) return;
+
+    try {
+        reviewProcessing.value = true;
+        await axios.post(`/api/projects/${invoice.project_id}/invoices/${invoice.id}/reject`, {
+            review_comment: reviewComment.value,
+        });
+        success('Invoice rejected.');
+        closeReviewModal();
+        fetchInvoices();
+    } catch (err) {
+        error(err.response?.data?.message || 'Rejection failed.');
+    } finally {
+        reviewProcessing.value = false;
+    }
+};
+
+const addReviewComment = async (invoice) => {
+    if (!reviewComment.value?.trim()) {
+        error('Add a comment first.');
+        return;
+    }
+
+    try {
+        reviewProcessing.value = true;
+        await axios.post(`/api/projects/${invoice.project_id}/invoices/${invoice.id}/comment`, {
+            comment: reviewComment.value,
+        });
+        success('Comment added.');
+        reviewComment.value = '';
+        await fetchInvoices();
+        if (selectedInvoice.value) {
+            const latest = invoices.value.find(entry => entry.id === selectedInvoice.value.id);
+            if (latest) {
+                selectedInvoice.value = latest;
+            }
+        }
+    } catch (err) {
+        error(err.response?.data?.message || 'Comment failed.');
+    } finally {
+        reviewProcessing.value = false;
     }
 };
 
@@ -253,7 +361,9 @@ const getStatusClass = (status) => {
         case 'approved': return 'bg-green-100 text-green-800';
         case 'authorised': return 'bg-green-100 text-green-800';
         case 'pending_approval': return 'bg-amber-100 text-amber-800';
+        case 'rejected': return 'bg-orange-100 text-orange-800';
         case 'void': return 'bg-red-100 text-red-800';
+        case 'voided': return 'bg-red-100 text-red-800';
         default: return 'bg-gray-100 text-gray-800';
     }
 };
@@ -271,7 +381,8 @@ const getStatusClass = (status) => {
                         <option value="">All Statuses</option>
                         <option value="pending_approval">Pending Approval</option>
                         <option value="authorised">Authorised (Synced)</option>
-                        <option value="void">Void</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="voided">Voided</option>
                     </select>
                     <PrimaryButton @click="openCreateModal">
                         Create Invoice
@@ -314,7 +425,7 @@ const getStatusClass = (status) => {
                                 </td>
                                 <td class="px-6 py-4 text-right text-sm font-medium">
                                     <div class="flex justify-end gap-2">
-                                        <button v-if="invoice.status === 'pending_approval'" @click="approveInvoice(invoice)" class="text-green-600 hover:text-green-900">Approve</button>
+                                        <button v-if="invoice.status === 'pending_approval'" @click="openReviewModal(invoice)" class="text-indigo-600 hover:text-indigo-900">Review</button>
                                         <button v-if="invoice.status === 'authorised'" @click="voidInvoice(invoice)" class="text-red-600 hover:text-red-900">Void</button>
                                     </div>
                                 </td>
@@ -416,7 +527,16 @@ const getStatusClass = (status) => {
 
                                 <div>
                                     <InputLabel :for="`line_tax_${index}`" value="Tax Type" />
-                                    <TextInput :id="`line_tax_${index}`" v-model="item.tax_type" class="mt-1 block w-full" />
+                                    <select
+                                        :id="`line_tax_${index}`"
+                                        v-model="item.tax_type"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option v-for="taxType in taxTypeOptions" :key="taxType.value" :value="taxType.value">
+                                            {{ taxType.label }}
+                                        </option>
+                                    </select>
+                                    <p class="mt-1 text-xs text-gray-500">This sends the selected Xero tax code exactly as shown.</p>
                                 </div>
 
                                 <div>
@@ -425,6 +545,17 @@ const getStatusClass = (status) => {
                                         {{ formatCurrency(Number(item.unit_price || 0), selectedProject?.currency || 'AUD') }}
                                     </div>
                                 </div>
+                            </div>
+
+                            <div>
+                                <InputLabel :for="`line_description_${index}`" value="Description (Xero)" />
+                                <textarea
+                                    :id="`line_description_${index}`"
+                                    v-model="item.description"
+                                    rows="2"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    placeholder="This description is sent to Xero line item"
+                                />
                             </div>
 
                             <div class="flex items-center justify-between">
@@ -446,6 +577,86 @@ const getStatusClass = (status) => {
                     <SecondaryButton @click="showCreateModal = false">Cancel</SecondaryButton>
                     <PrimaryButton @click="submitInvoice" :disabled="form.processing">
                         Create Invoice
+                    </PrimaryButton>
+                </div>
+            </div>
+        </Modal>
+
+        <Modal :show="showReviewModal" @close="closeReviewModal">
+            <div class="p-6" v-if="selectedInvoice">
+                <h3 class="text-lg font-semibold">Invoice Review</h3>
+                <p class="mt-1 text-sm text-gray-600">
+                    {{ selectedInvoice.project?.name }}
+                    <span class="mx-2">•</span>
+                    {{ selectedInvoice.client?.name }}
+                    <span class="mx-2">•</span>
+                    {{ formatCurrency(selectedInvoice.total_amount || selectedInvoice.amount, selectedInvoice.currency || selectedInvoice.project?.currency) }}
+                </p>
+
+                <div class="mt-5">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Line Items</h4>
+                    <div class="max-h-56 overflow-auto rounded-md border border-gray-200">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-3 py-2 text-left">Service</th>
+                                    <th class="px-3 py-2 text-left">Description</th>
+                                    <th class="px-3 py-2 text-left">Tax</th>
+                                    <th class="px-3 py-2 text-right">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <tr v-for="lineItem in selectedInvoice.invoice_items || []" :key="lineItem.id">
+                                    <td class="px-3 py-2">{{ lineItem.project_service?.service_id || 'Service' }}</td>
+                                    <td class="px-3 py-2">{{ lineItem.description || lineItem.label }}</td>
+                                    <td class="px-3 py-2">{{ lineItem.tax_type || 'OUTPUT' }}</td>
+                                    <td class="px-3 py-2 text-right">{{ formatCurrency(Number(lineItem.quantity || 1) * Number(lineItem.unit_price || 0), selectedInvoice.currency || selectedInvoice.project?.currency || 'AUD') }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="mt-5">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Review Comments</h4>
+                    <div class="space-y-2 max-h-40 overflow-auto rounded-md border border-gray-200 p-3 bg-gray-50">
+                        <p v-if="!reviewEntries.length" class="text-sm text-gray-500">No review comments yet.</p>
+                        <div v-for="entry in reviewEntries" :key="entry.id" class="rounded bg-white border border-gray-200 p-2">
+                            <div class="text-xs text-gray-500">
+                                <span class="font-semibold text-gray-700">{{ entry.user?.name || 'User' }}</span>
+                                <span class="mx-1">•</span>
+                                <span class="uppercase">{{ entry.action }}</span>
+                                <span class="mx-1">•</span>
+                                <span>{{ new Date(entry.created_at).toLocaleString() }}</span>
+                            </div>
+                            <p v-if="entry.content" class="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{{ cleanMentionText(entry.content) }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-5">
+                    <InputLabel value="Add Comment (supports @mentions)" />
+                    <MentionInput
+                        type="textarea"
+                        :project-id="Number(selectedInvoice.project_id)"
+                        v-model="reviewComment"
+                        placeholder="Add approval/rejection notes and mention assignees"
+                    />
+                </div>
+
+                <div class="mt-6 flex flex-wrap justify-end gap-3">
+                    <SecondaryButton @click="closeReviewModal">Close</SecondaryButton>
+                    <SecondaryButton :disabled="reviewProcessing" @click="addReviewComment(selectedInvoice)">Add Comment</SecondaryButton>
+                    <button
+                        type="button"
+                        class="inline-flex items-center rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        :disabled="reviewProcessing"
+                        @click="rejectInvoice(selectedInvoice)"
+                    >
+                        Reject
+                    </button>
+                    <PrimaryButton :disabled="reviewProcessing" @click="approveInvoice(selectedInvoice, true)">
+                        Approve & Sync
                     </PrimaryButton>
                 </div>
             </div>

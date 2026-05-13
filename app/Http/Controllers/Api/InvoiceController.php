@@ -5,9 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
+use App\Models\InvoiceComment;
 use App\Models\InvoiceItem;
 use App\Models\Project;
 use App\Models\ProjectService;
+use App\Models\Task;
+use App\Models\TaskType;
+use App\Models\User;
+use App\Enums\TaskStatus;
+use App\Services\MentionService;
 use App\Services\XeroInvoiceService;
 use App\Services\XeroAttachmentService;
 use Illuminate\Validation\ValidationException;
@@ -32,7 +38,7 @@ class InvoiceController extends Controller
         }
 
         $invoices = Invoice::where('project_id', $project->id)
-            ->with(['client', 'invoiceItems.projectService'])
+            ->with(['client', 'invoiceItems.projectService', 'comments.user'])
             ->latest()
             ->get();
 
@@ -53,6 +59,7 @@ class InvoiceController extends Controller
             'line_items.*.project_service_id' => 'required|exists:project_services,id',
             'line_items.*.milestone_key' => 'required|string|max:255',
             'line_items.*.label' => 'required|string|max:255',
+            'line_items.*.description' => 'nullable|string',
             'line_items.*.quantity' => 'nullable|numeric|min:0.01',
             'line_items.*.unit_price' => 'nullable|numeric|min:0',
             'line_items.*.milestone_percentage' => 'nullable|numeric|min:0|max:100',
@@ -87,22 +94,28 @@ class InvoiceController extends Controller
                 return back();
             }
 
-            return response()->json($invoice->load(['client', 'invoiceItems.projectService']), 201);
+            return response()->json($invoice->load(['client', 'invoiceItems.projectService', 'comments.user']), 201);
         });
     }
 
-    public function approve(Project $project, Invoice $invoice)
+    public function approve(Request $request, Project $project, Invoice $invoice)
     {
         $user = Auth::user();
         if (!$user->isSuperAdmin()) {
             return response()->json(['message' => 'Only Super Admins can approve invoices.'], 403);
         }
 
+        $this->ensureProjectInvoice($project, $invoice);
+
+        $validated = $request->validate([
+            'review_comment' => 'nullable|string',
+        ]);
+
         if ($invoice->status !== 'pending_approval') {
             return response()->json(['message' => 'Invoice is not in pending status.'], 400);
         }
 
-        return DB::transaction(function () use ($invoice) {
+        return DB::transaction(function () use ($invoice, $project, $user, $validated) {
             // 1. Push to Xero
             $xeroInvoiceId = $this->xeroInvoiceService->createSalesInvoice($invoice);
             $invoice->xero_invoice_id = $xeroInvoiceId;
@@ -112,8 +125,78 @@ class InvoiceController extends Controller
             // 2. Push Attachments to Xero
             $this->xeroAttachmentService->uploadAttachments($invoice, $xeroInvoiceId);
 
-            return response()->json($invoice->fresh(['client', 'invoiceItems.projectService']));
+            $this->recordReviewAction(
+                $invoice,
+                $project,
+                $user,
+                'approved',
+                $validated['review_comment'] ?? null
+            );
+
+            return response()->json($invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user']));
         });
+    }
+
+    public function reject(Request $request, Project $project, Invoice $invoice)
+    {
+        $user = Auth::user();
+        if (!$user->isSuperAdmin()) {
+            return response()->json(['message' => 'Only Super Admins can reject invoices.'], 403);
+        }
+
+        $this->ensureProjectInvoice($project, $invoice);
+
+        $validated = $request->validate([
+            'review_comment' => 'required|string',
+        ]);
+
+        if ($invoice->status !== 'pending_approval') {
+            return response()->json(['message' => 'Invoice is not in pending status.'], 400);
+        }
+
+        return DB::transaction(function () use ($invoice, $project, $user, $validated) {
+            $invoice->status = 'rejected';
+            $invoice->save();
+
+            $this->recordReviewAction($invoice, $project, $user, 'rejected', $validated['review_comment']);
+
+            return response()->json($invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user']));
+        });
+    }
+
+    public function comment(Request $request, Project $project, Invoice $invoice)
+    {
+        $user = Auth::user();
+        if (!$user->isSuperAdmin()) {
+            return response()->json(['message' => 'Only Super Admins can comment on invoices.'], 403);
+        }
+
+        $this->ensureProjectInvoice($project, $invoice);
+
+        $validated = $request->validate([
+            'comment' => 'required|string',
+        ]);
+
+        $this->recordReviewAction($invoice, $project, $user, 'comment', $validated['comment']);
+
+        return response()->json($invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user']));
+    }
+
+    public function void(Invoice $invoice)
+    {
+        $user = Auth::user();
+        if (!$user->isSuperAdmin()) {
+            return response()->json(['message' => 'Only Super Admins can void invoices.'], 403);
+        }
+
+        if ($invoice->status === 'voided') {
+            return response()->json(['message' => 'Invoice is already voided.'], 400);
+        }
+
+        $invoice->status = 'voided';
+        $invoice->save();
+
+        return response()->json($invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user']));
     }
 
     public function all(Request $request)
@@ -123,7 +206,7 @@ class InvoiceController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $query = Invoice::with(['project', 'client', 'invoiceItems.projectService']);
+        $query = Invoice::with(['project', 'client', 'invoiceItems.projectService', 'comments.user']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -173,6 +256,7 @@ class InvoiceController extends Controller
                 'project_service_id' => $projectService->id,
                 'milestone_key' => $milestoneKey,
                 'label' => (string) $lineItem['label'],
+                'description' => $lineItem['description'] ?? null,
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
                 'tax_type' => $lineItem['tax_type'] ?? 'OUTPUT',
@@ -192,5 +276,64 @@ class InvoiceController extends Controller
         $percentage = (float) ($lineItem['milestone_percentage'] ?? 0);
 
         return round(((float) $projectService->amount * $percentage) / 100, 2);
+    }
+
+    protected function ensureProjectInvoice(Project $project, Invoice $invoice): void
+    {
+        if ((int) $invoice->project_id !== (int) $project->id) {
+            throw ValidationException::withMessages([
+                'invoice' => 'The selected invoice does not belong to the selected project.',
+            ]);
+        }
+    }
+
+    protected function recordReviewAction(Invoice $invoice, Project $project, User $user, string $action, ?string $content): void
+    {
+        $invoiceComment = InvoiceComment::create([
+            'invoice_id' => $invoice->id,
+            'project_id' => $project->id,
+            'user_id' => $user->id,
+            'action' => $action,
+            'content' => $content,
+        ]);
+
+        $mentionIds = [];
+        if (filled($content)) {
+            $mentionService = app(MentionService::class);
+            $mentionIds = $mentionService->parseAndNotify($content, $invoiceComment);
+        }
+
+        if (empty($mentionIds)) {
+            return;
+        }
+
+        $milestone = $project->supportMilestone();
+        $taskType = TaskType::firstOrCreate(
+            ['name' => 'Invoice Review'],
+            ['created_by_user_id' => $user->id]
+        );
+
+        foreach (array_unique(array_map('intval', $mentionIds)) as $mentionedUserId) {
+            if ($mentionedUserId <= 0) {
+                continue;
+            }
+
+            Task::create([
+                'name' => "Invoice #{$invoice->id} {$action}",
+                'description' => trim((string) $content) !== ''
+                    ? "Invoice #{$invoice->id} {$action} note:\n\n{$content}"
+                    : "Invoice #{$invoice->id} was {$action}.",
+                'assigned_to_user_id' => $mentionedUserId,
+                'due_date' => now()->toDateString(),
+                'status' => TaskStatus::ToDo,
+                'task_type_id' => $taskType->id,
+                'milestone_id' => $milestone->id,
+                'creator_id' => $user->id,
+                'creator_type' => User::class,
+                'priority' => 'medium',
+                'source' => 'invoice_review',
+                'source_id' => $invoice->id,
+            ]);
+        }
     }
 }

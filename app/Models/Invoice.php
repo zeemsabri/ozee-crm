@@ -37,6 +37,11 @@ class Invoice extends Model
         return $this->hasMany(InvoiceItem::class);
     }
 
+    public function comments()
+    {
+        return $this->hasMany(InvoiceComment::class);
+    }
+
     public function transactions()
     {
         return $this->hasMany(Transaction::class);

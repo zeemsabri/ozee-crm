@@ -168,7 +168,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('projects/{project}/invoices', [InvoiceController::class, 'index'])->name('api.invoices.index');
     Route::post('projects/{project}/invoices', [InvoiceController::class, 'store'])->name('api.invoices.store');
-    Route::post('invoices/{invoice}/approve', [InvoiceController::class, 'approve'])->name('api.invoices.approve');
+    Route::post('projects/{project}/invoices/{invoice}/approve', [InvoiceController::class, 'approve'])->name('api.invoices.approve');
+    Route::post('projects/{project}/invoices/{invoice}/reject', [InvoiceController::class, 'reject'])->name('api.invoices.reject');
+    Route::post('projects/{project}/invoices/{invoice}/comment', [InvoiceController::class, 'comment'])->name('api.invoices.comment');
     Route::post('invoices/{invoice}/void', [InvoiceController::class, 'void'])->name('api.invoices.void');
 
     Route::get('/user', function (Request $request) {
@@ -595,6 +597,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('projects/{project}/invoices', [\App\Http\Controllers\Api\InvoiceController::class, 'index']);
     Route::post('projects/{project}/invoices', [\App\Http\Controllers\Api\InvoiceController::class, 'store']);
     Route::post('projects/{project}/invoices/{invoice}/approve', [\App\Http\Controllers\Api\InvoiceController::class, 'approve']);
+    Route::post('projects/{project}/invoices/{invoice}/reject', [\App\Http\Controllers\Api\InvoiceController::class, 'reject']);
+    Route::post('projects/{project}/invoices/{invoice}/comment', [\App\Http\Controllers\Api\InvoiceController::class, 'comment']);
 
     // Availability Management Routes
     Route::get('availabilities/reason-options', [AvailabilityController::class, 'reasonOptions']);

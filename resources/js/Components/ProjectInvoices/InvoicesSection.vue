@@ -27,7 +27,7 @@ const showCreateModal = ref(false);
 const projectServices = ref([]);
 const loadingServices = ref(false);
 
-const buildMilestoneKey = (service, milestone, index) => `${service.project_service_id}-${index}-${milestone.label}-${milestone.percentage}-${milestone.due_date ?? ''}`;
+const buildMilestoneKey = (service, milestone, index) => `${service?.project_service_id ?? service?.id ?? 'service'}-${index}-${milestone.label}-${milestone.percentage}-${milestone.due_date ?? ''}`;
 
 const emptyLineItem = () => ({
     project_service_id: '',

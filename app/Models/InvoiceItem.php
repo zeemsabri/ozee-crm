@@ -14,6 +14,7 @@ class InvoiceItem extends Model
         'project_service_id',
         'milestone_key',
         'label',
+        'description',
         'quantity',
         'unit_price',
         'tax_type',
