@@ -52,7 +52,7 @@ class ExistingClientEnquiryControllerTest extends TestCase
         $response->assertJsonMissing(['service_name' => 'SEO Retainer']);
     }
 
-    public function test_store_creates_client_enquiry_inside_project_service_details(): void
+    public function test_store_creates_client_enquiry_in_project_services_table(): void
     {
         $user = $this->createManagerUser();
         Sanctum::actingAs($user);
@@ -90,13 +90,12 @@ class ExistingClientEnquiryControllerTest extends TestCase
         $response->assertJsonPath('data.card_type', 'existing_client_enquiry');
         $response->assertJsonPath('data.service_name', 'Brochure Design');
 
-        $serviceDetails = DB::table('projects')->where('id', $projectId)->value('service_details');
-        $decoded = json_decode($serviceDetails, true, 512, JSON_THROW_ON_ERROR);
+        $serviceRows = DB::table('project_services')->where('project_id', $projectId)->get()->toArray();
 
-        $this->assertCount(1, $decoded);
-        $this->assertSame('client_enquiry', $decoded[0]['service_tracking_type']);
-        $this->assertTrue($decoded[0]['show_on_leads_board']);
-        $this->assertSame('pending_quote', $decoded[0]['enquiry_status']);
+        $this->assertCount(1, $serviceRows);
+        $this->assertSame('client_enquiry', $serviceRows[0]->service_tracking_type);
+        $this->assertSame(1, (int) $serviceRows[0]->show_on_leads_board);
+        $this->assertSame('pending_quote', $serviceRows[0]->enquiry_status);
     }
 
     public function test_convert_creates_task_and_marks_enquiry_as_converted(): void
@@ -131,10 +130,12 @@ class ExistingClientEnquiryControllerTest extends TestCase
             'source_id' => 'approved-enquiry-1',
         ]);
 
-        $serviceDetails = json_decode((string) DB::table('projects')->where('id', $projectId)->value('service_details'), true, 512, JSON_THROW_ON_ERROR);
+        $serviceRow = DB::table('project_services')->where('project_id', $projectId)->where('enquiry_id', 'approved-enquiry-1')->first();
+        $this->assertNotNull($serviceRow);
+        $this->assertSame('converted_to_service', $serviceRow->enquiry_status);
 
-        $this->assertSame('converted_to_service', $serviceDetails[0]['enquiry_status']);
-        $this->assertSame('task', $serviceDetails[0]['enquiry_meta']['conversion']['type']);
+        $meta = json_decode((string) $serviceRow->enquiry_meta, true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('task', $meta['conversion']['type'] ?? null);
     }
 
     protected function createManagerUser(): User
@@ -186,7 +187,7 @@ class ExistingClientEnquiryControllerTest extends TestCase
             ], $detail);
         })->values()->all();
 
-        return DB::table('projects')->insertGetId([
+        $projectId = DB::table('projects')->insertGetId([
             'name' => 'Primary Project',
             'client_id' => $clientId,
             'status' => 'active',
@@ -196,5 +197,31 @@ class ExistingClientEnquiryControllerTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        foreach ($normalized as $detail) {
+            DB::table('project_services')->insert([
+                'project_id' => $projectId,
+                'enquiry_id' => $detail['enquiry_id'] ?? (string) Str::uuid(),
+                'service_id' => $detail['service_id'],
+                'description' => $detail['description'] ?? null,
+                'amount' => $detail['amount'] ?? 0,
+                'currency' => $detail['currency'] ?? 'USD',
+                'frequency' => $detail['frequency'] ?? 'one_off',
+                'start_date' => $detail['start_date'] ?? null,
+                'payment_breakdown' => json_encode($detail['payment_breakdown'] ?? [], JSON_THROW_ON_ERROR),
+                'status' => 'active',
+                'service_tracking_type' => $detail['service_tracking_type'] ?? 'operational_service',
+                'show_on_leads_board' => (bool) ($detail['show_on_leads_board'] ?? false),
+                'enquiry_status' => $detail['enquiry_status'] ?? null,
+                'enquiry_created_at' => $detail['enquiry_created_at'] ?? null,
+                'enquiry_updated_at' => $detail['enquiry_updated_at'] ?? null,
+                'enquiry_meta' => json_encode($detail['enquiry_meta'] ?? [], JSON_THROW_ON_ERROR),
+                'xero_account_code' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        return $projectId;
     }
 }

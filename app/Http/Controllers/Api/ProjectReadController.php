@@ -298,7 +298,7 @@ class ProjectReadController extends Controller
 
         // Return financial information
         $serviceDetails = app(ExistingClientEnquiryService::class)
-            ->normalizeServiceDetails($project->service_details, $project->currency ?? null);
+            ->projectServiceDetails($project);
 
         return response()->json([
             'services' => $project->services,

@@ -892,6 +892,8 @@ class ProjectActionController extends Controller
             'service_details.*.frequency' => 'nullable|string|in:monthly,one_off',
             'service_details.*.start_date' => 'nullable|date',
             'service_details.*.description' => 'nullable|string|max:5000',
+            'service_details.*.status' => 'nullable|string|max:50',
+            'service_details.*.xero_account_code' => 'nullable|string|max:50',
             'service_details.*.payment_breakdown' => 'nullable|array',
             'service_details.*.payment_breakdown.*.label' => 'nullable|string|max:255',
             'service_details.*.payment_breakdown.*.percentage' => 'nullable|integer|min:0|max:100',
@@ -907,19 +909,23 @@ class ProjectActionController extends Controller
         ]);
 
         $enquiryService = app(ExistingClientEnquiryService::class);
-        $serviceDetails = $enquiryService->normalizeServiceDetails($validatedData['service_details'] ?? $project->service_details, $project->currency ?? null);
+        $serviceDetails = $enquiryService->normalizeServiceDetails(
+            $validatedData['service_details'] ?? $enquiryService->projectServiceDetails($project),
+            $project->currency ?? null
+        );
         $services = $enquiryService->syncServices($validatedData['services'] ?? $project->services ?? [], $serviceDetails);
 
         $project->services = $services;
-        $project->service_details = $serviceDetails;
         $project->total_amount = $validatedData['total_amount'] ?? $project->total_amount;
         $project->payment_type = $validatedData['payment_type'] ?? $project->payment_type;
         $project->save();
 
+        $serviceDetails = $enquiryService->saveProjectServiceDetails($project, $serviceDetails);
+
         return response()->json([
             'message' => 'Services and payment information updated successfully',
             'services' => $project->services,
-            'service_details' => $project->service_details,
+            'service_details' => $serviceDetails,
             'total_amount' => $project->total_amount,
             'payment_type' => $project->payment_type,
         ]);

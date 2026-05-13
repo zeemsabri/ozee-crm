@@ -146,6 +146,11 @@ class Project extends Model
         return $this->hasMany(Transaction::class);
     }
 
+    public function projectServices()
+    {
+        return $this->hasMany(ProjectService::class);
+    }
+
     public function notes()
     {
         return $this->hasMany(ProjectNote::class);

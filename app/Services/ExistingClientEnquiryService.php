@@ -7,11 +7,13 @@ use App\Enums\ProjectStatus;
 use App\Enums\TaskStatus;
 use App\Models\Milestone;
 use App\Models\Project;
+use App\Models\ProjectService;
 use App\Models\Task;
 use App\Models\TaskType;
 use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -71,12 +73,14 @@ class ExistingClientEnquiryService
             'start_date' => $detail['start_date'] ?? null,
             'description' => $detail['description'] ?? '',
             'payment_breakdown' => $paymentBreakdown,
+            'status' => (string) ($detail['status'] ?? 'active'),
             'service_tracking_type' => $trackingType,
             'show_on_leads_board' => $showOnLeadsBoard,
             'enquiry_status' => $status,
             'enquiry_created_at' => $detail['enquiry_created_at'] ?? null,
             'enquiry_updated_at' => $detail['enquiry_updated_at'] ?? null,
             'enquiry_meta' => is_array($detail['enquiry_meta'] ?? null) ? $detail['enquiry_meta'] : [],
+            'xero_account_code' => $detail['xero_account_code'] ?? null,
         ];
     }
 
@@ -101,7 +105,7 @@ class ExistingClientEnquiryService
         $client = $project->client ?? $project->clients->first();
         $assignedTo = $project->manager ?? $project->admin;
 
-        return collect($this->normalizeServiceDetails($project->service_details, $project->currency ?? null))
+        return collect($this->projectServiceDetails($project))
             ->filter(fn (array $detail) => $detail['service_tracking_type'] === self::TRACKING_ENQUIRY && $detail['show_on_leads_board'])
             ->map(function (array $detail) use ($project, $client, $assignedTo) {
                 $createdAt = $detail['enquiry_created_at'] ?? $project->created_at;
@@ -164,7 +168,7 @@ class ExistingClientEnquiryService
 
     public function createEnquiry(Project $project, array $payload, User $user): array
     {
-        $serviceDetails = $this->normalizeServiceDetails($project->service_details, $project->currency ?? null);
+        $serviceDetails = $this->projectServiceDetails($project);
         $detail = $this->normalizeServiceDetail([
             'enquiry_id' => (string) Str::uuid(),
             'service_id' => $payload['service_id'],
@@ -187,16 +191,14 @@ class ExistingClientEnquiryService
 
         $serviceDetails[] = $detail;
 
-        $project->service_details = $serviceDetails;
-        $project->services = $this->syncServices($project->services ?? [], $serviceDetails);
-        $project->save();
+        $this->saveProjectServiceDetails($project, $serviceDetails);
 
         return $detail;
     }
 
     public function updateEnquiry(Project $project, string $enquiryId, array $payload): array
     {
-        $serviceDetails = $this->normalizeServiceDetails($project->service_details, $project->currency ?? null);
+        $serviceDetails = $this->projectServiceDetails($project);
         $index = $this->findEnquiryIndex($serviceDetails, $enquiryId);
 
         if ($index === null) {
@@ -230,16 +232,14 @@ class ExistingClientEnquiryService
 
         $serviceDetails[$index] = $this->normalizeServiceDetail($detail, $project->currency ?? null);
 
-        $project->service_details = $serviceDetails;
-        $project->services = $this->syncServices($project->services ?? [], $serviceDetails);
-        $project->save();
+        $this->saveProjectServiceDetails($project, $serviceDetails);
 
         return $serviceDetails[$index];
     }
 
     public function deleteEnquiry(Project $project, string $enquiryId): void
     {
-        $serviceDetails = $this->normalizeServiceDetails($project->service_details, $project->currency ?? null);
+        $serviceDetails = $this->projectServiceDetails($project);
         $index = $this->findEnquiryIndex($serviceDetails, $enquiryId);
 
         if ($index === null) {
@@ -251,14 +251,12 @@ class ExistingClientEnquiryService
         unset($serviceDetails[$index]);
         $serviceDetails = array_values($serviceDetails);
 
-        $project->service_details = $serviceDetails;
-        $project->services = $this->syncServices([], $serviceDetails);
-        $project->save();
+        $this->saveProjectServiceDetails($project, $serviceDetails);
     }
 
     public function convertEnquiry(Project $project, string $enquiryId, array $payload, User $user): array
     {
-        $serviceDetails = $this->normalizeServiceDetails($project->service_details, $project->currency ?? null);
+        $serviceDetails = $this->projectServiceDetails($project);
         $index = $this->findEnquiryIndex($serviceDetails, $enquiryId);
 
         if ($index === null) {
@@ -304,9 +302,7 @@ class ExistingClientEnquiryService
 
         $serviceDetails[$index] = $this->normalizeServiceDetail($detail, $project->currency ?? null);
 
-        $project->service_details = $serviceDetails;
-        $project->services = $this->syncServices($project->services ?? [], $serviceDetails);
-        $project->save();
+        $this->saveProjectServiceDetails($project, $serviceDetails);
 
         return [
             'detail' => $serviceDetails[$index],
@@ -363,7 +359,10 @@ class ExistingClientEnquiryService
     protected function createTaskFromEnquiry(Project $project, array $detail, array $payload, User $user): array
     {
         $milestone = $project->supportMilestone();
-        $taskType = TaskType::firstOrCreate(['name' => 'New']);
+        $taskType = TaskType::firstOrCreate(
+            ['name' => 'New'],
+            ['created_by_user_id' => $user->id]
+        );
         $assignedToUserId = $payload['assigned_to_user_id'] ?? $project->project_manager_id ?? $user->id;
 
         $task = Task::create([
@@ -407,6 +406,18 @@ class ExistingClientEnquiryService
     protected function createProjectFromEnquiry(Project $project, array $detail, array $payload, User $user): array
     {
         $clientId = $project->client?->id ?? $project->clients?->first()?->id;
+        $newProjectServiceDetail = $this->normalizeServiceDetail([
+            'service_id' => $detail['service_id'],
+            'amount' => $detail['amount'],
+            'currency' => $detail['currency'],
+            'frequency' => $detail['frequency'],
+            'start_date' => $detail['start_date'],
+            'description' => $detail['description'],
+            'payment_breakdown' => $detail['payment_breakdown'],
+            'service_tracking_type' => self::TRACKING_OPERATIONAL,
+            'show_on_leads_board' => false,
+        ], $project->currency ?? null);
+
         $newProject = Project::create([
             'name' => $payload['name'] ?? trim($project->name.' - '.$detail['service_id']),
             'description' => $detail['description'] ?: $project->description,
@@ -416,20 +427,12 @@ class ExistingClientEnquiryService
             'source' => 'existing_client_enquiry',
             'payment_type' => $detail['frequency'] === 'monthly' ? 'monthly' : 'one_off',
             'services' => [$detail['service_id']],
-            'service_details' => [[
-                'service_id' => $detail['service_id'],
-                'amount' => $detail['amount'],
-                'currency' => $detail['currency'],
-                'frequency' => $detail['frequency'],
-                'start_date' => $detail['start_date'],
-                'description' => $detail['description'],
-                'payment_breakdown' => $detail['payment_breakdown'],
-                'service_tracking_type' => self::TRACKING_OPERATIONAL,
-                'show_on_leads_board' => false,
-            ]],
+            'service_details' => [$newProjectServiceDetail],
             'project_manager_id' => $payload['assigned_to_user_id'] ?? $project->project_manager_id ?? $user->id,
             'project_admin_id' => $project->project_admin_id,
         ]);
+
+        $this->saveProjectServiceDetails($newProject, [$newProjectServiceDetail]);
 
         if ($clientId) {
             $newProject->clients()->syncWithoutDetaching([$clientId => ['role_id' => null]]);
@@ -511,5 +514,92 @@ class ExistingClientEnquiryService
         }
 
         return null;
+    }
+
+    public function projectServiceDetails(Project $project): array
+    {
+        $serviceRows = $project->projectServices()
+            ->orderBy('id')
+            ->get();
+
+        if ($serviceRows->isNotEmpty()) {
+            return $serviceRows
+                ->map(function (ProjectService $service) use ($project) {
+                    return $this->normalizeServiceDetail([
+                        'enquiry_id' => $service->enquiry_id,
+                        'service_id' => $service->service_id,
+                        'amount' => $service->amount,
+                        'currency' => $service->currency,
+                        'frequency' => $service->frequency,
+                        'start_date' => optional($service->start_date)->toDateString(),
+                        'description' => $service->description,
+                        'payment_breakdown' => $service->payment_breakdown,
+                        'service_tracking_type' => $service->service_tracking_type,
+                        'show_on_leads_board' => $service->show_on_leads_board,
+                        'enquiry_status' => $service->enquiry_status,
+                        'enquiry_created_at' => optional($service->enquiry_created_at)->toDateTimeString(),
+                        'enquiry_updated_at' => optional($service->enquiry_updated_at)->toDateTimeString(),
+                        'enquiry_meta' => $service->enquiry_meta,
+                        'xero_account_code' => $service->xero_account_code,
+                    ], $project->currency ?? null);
+                })
+                ->values()
+                ->all();
+        }
+
+        return $this->normalizeServiceDetails($project->service_details, $project->currency ?? null);
+    }
+
+    public function saveProjectServiceDetails(Project $project, array $serviceDetails): array
+    {
+        $normalized = $this->normalizeServiceDetails($serviceDetails, $project->currency ?? null);
+
+        DB::transaction(function () use ($project, $normalized): void {
+            $existingByEnquiry = $project->projectServices()->get()->keyBy('enquiry_id');
+            $incomingEnquiryIds = collect($normalized)->pluck('enquiry_id')->filter()->all();
+
+            if ($incomingEnquiryIds === []) {
+                $project->projectServices()->delete();
+            } else {
+                $project->projectServices()->whereNotIn('enquiry_id', $incomingEnquiryIds)->delete();
+            }
+
+            foreach ($normalized as $detail) {
+                $existing = $existingByEnquiry->get($detail['enquiry_id'] ?? null);
+
+                $payload = [
+                    'project_id' => $project->id,
+                    'enquiry_id' => $detail['enquiry_id'] ?? (string) Str::uuid(),
+                    'service_id' => $detail['service_id'],
+                    'description' => $detail['description'] ?? null,
+                    'amount' => $detail['amount'] ?? 0,
+                    'currency' => $detail['currency'] ?? $project->currency,
+                    'frequency' => $detail['frequency'] ?? 'one_off',
+                    'start_date' => $detail['start_date'] ?? null,
+                    'payment_breakdown' => $detail['payment_breakdown'] ?? null,
+                    'status' => $detail['status'] ?? 'active',
+                    'service_tracking_type' => $detail['service_tracking_type'] ?? self::TRACKING_OPERATIONAL,
+                    'show_on_leads_board' => (bool) ($detail['show_on_leads_board'] ?? false),
+                    'enquiry_status' => $detail['enquiry_status'] ?? null,
+                    'enquiry_created_at' => $detail['enquiry_created_at'] ?? null,
+                    'enquiry_updated_at' => $detail['enquiry_updated_at'] ?? null,
+                    'enquiry_meta' => is_array($detail['enquiry_meta'] ?? null) ? $detail['enquiry_meta'] : [],
+                    'xero_account_code' => $detail['xero_account_code'] ?? ($existing?->xero_account_code),
+                ];
+
+                if ($existing) {
+                    $existing->update($payload);
+                } else {
+                    ProjectService::query()->create($payload);
+                }
+            }
+
+            $project->services = $this->syncServices($project->services ?? [], $normalized);
+            // Keep the legacy JSON column in sync during phase-1 rollout.
+            $project->service_details = $normalized;
+            $project->save();
+        });
+
+        return $normalized;
     }
 }
