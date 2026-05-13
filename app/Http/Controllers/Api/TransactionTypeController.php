@@ -19,14 +19,32 @@ class TransactionTypeController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:transaction_types,name',
+            'xero_account_code' => 'nullable|string|max:50',
         ]);
         $transactionType = TransactionType::create([
             'name' => $validated['name'],
             'slug' => Str::slug($validated['name']),
             'created_by_user_id' => Auth::id(),
+            'xero_account_code' => $validated['xero_account_code'] ?? null,
         ]);
 
         return response()->json($transactionType, 201);
+    }
+
+    public function update(Request $request, TransactionType $transactionType)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255|unique:transaction_types,name,' . $transactionType->id,
+            'xero_account_code' => 'nullable|string|max:50',
+        ]);
+
+        $transactionType->update([
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
+            'xero_account_code' => $validated['xero_account_code'] ?? null,
+        ]);
+
+        return response()->json($transactionType);
     }
 
     public function search(Request $request)

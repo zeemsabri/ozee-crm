@@ -60,6 +60,8 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\Api\ActivityDataController;
+use App\Http\Controllers\Api\BillController;
+use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\NotificationController;
 use Illuminate\Http\Request;
@@ -154,6 +156,20 @@ Route::post('/public/lead/{firefly}', [\App\Http\Controllers\Api\PublicLeadApiCo
 
 // Authenticated API Routes (behind auth:sanctum middleware for internal users)
 Route::middleware('auth:sanctum')->group(function () {
+    // Financial Routes
+    Route::get('admin/financial-pending-counts', [BillController::class, 'pendingCounts'])->name('api.admin.financial-counts');
+    Route::get('admin/bills', [BillController::class, 'all'])->name('api.admin.bills.all');
+    Route::get('admin/invoices', [InvoiceController::class, 'all'])->name('api.admin.invoices.all');
+    
+    Route::get('projects/{project}/bills', [BillController::class, 'index'])->name('api.bills.index');
+    Route::post('projects/{project}/bills', [BillController::class, 'store'])->name('api.bills.store');
+    Route::post('bills/{bill}/approve', [BillController::class, 'approve'])->name('api.bills.approve');
+    Route::post('bills/{bill}/void', [BillController::class, 'void'])->name('api.bills.void');
+
+    Route::get('projects/{project}/invoices', [InvoiceController::class, 'index'])->name('api.invoices.index');
+    Route::post('projects/{project}/invoices', [InvoiceController::class, 'store'])->name('api.invoices.store');
+    Route::post('invoices/{invoice}/approve', [InvoiceController::class, 'approve'])->name('api.invoices.approve');
+    Route::post('invoices/{invoice}/void', [InvoiceController::class, 'void'])->name('api.invoices.void');
 
     Route::get('/user', function (Request $request) {
         return $request->user();
@@ -563,10 +579,22 @@ Route::middleware('auth:sanctum')->group(function () {
     // Task Type Routes
     Route::apiResource('task-types', TaskTypeController::class);
 
-    // Transaction Types Routes (index, store, search)
+    // Transaction Types Routes (index, store, update, search)
     Route::get('transaction-types', [\App\Http\Controllers\Api\TransactionTypeController::class, 'index']);
     Route::post('transaction-types', [\App\Http\Controllers\Api\TransactionTypeController::class, 'store']);
+    Route::put('transaction-types/{transactionType}', [\App\Http\Controllers\Api\TransactionTypeController::class, 'update']);
     Route::get('transaction-types/search', [\App\Http\Controllers\Api\TransactionTypeController::class, 'search']);
+
+    // Bill Management Routes
+    Route::get('projects/{project}/bills', [\App\Http\Controllers\Api\BillController::class, 'index']);
+    Route::post('projects/{project}/bills', [\App\Http\Controllers\Api\BillController::class, 'store']);
+    Route::post('projects/{project}/bills/{bill}/approve', [\App\Http\Controllers\Api\BillController::class, 'approve']);
+    Route::post('projects/{project}/bills/{bill}/void', [\App\Http\Controllers\Api\BillController::class, 'void']);
+
+    // Invoice Management Routes (Basic)
+    Route::get('projects/{project}/invoices', [\App\Http\Controllers\Api\InvoiceController::class, 'index']);
+    Route::post('projects/{project}/invoices', [\App\Http\Controllers\Api\InvoiceController::class, 'store']);
+    Route::post('projects/{project}/invoices/{invoice}/approve', [\App\Http\Controllers\Api\InvoiceController::class, 'approve']);
 
     // Availability Management Routes
     Route::get('availabilities/reason-options', [AvailabilityController::class, 'reasonOptions']);

@@ -186,6 +186,60 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- Account Mapping Section -->
+                <section v-if="connection" class="overflow-hidden rounded-lg bg-white shadow-sm sm:rounded-lg">
+                    <div class="border-b border-gray-200 px-6 py-5">
+                        <h3 class="text-lg font-semibold text-gray-900">Xero Account Mapping</h3>
+                        <p class="mt-1 text-sm text-gray-500">
+                            Map CRM transaction types to Xero Chart of Accounts codes.
+                        </p>
+                    </div>
+
+                    <div class="px-6 py-6">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                            Transaction Type
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                            Xero Account Code
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200 bg-white">
+                                    <tr v-for="type in transaction_types" :key="type.id">
+                                        <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
+                                            {{ type.name }}
+                                        </td>
+                                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                                            <input
+                                                v-model="mappingForms[type.id].xero_account_code"
+                                                type="text"
+                                                class="w-32 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                placeholder="e.g. 620"
+                                            />
+                                        </td>
+                                        <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+                                            <button
+                                                @click="saveMapping(type.id)"
+                                                :disabled="mappingForms[type.id].processing"
+                                                class="text-indigo-600 hover:text-indigo-900 disabled:opacity-50"
+                                            >
+                                                {{ mappingForms[type.id].processing ? 'Saving...' : 'Save' }}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
     </AuthenticatedLayout>
@@ -196,12 +250,17 @@ import DangerButton from '@/Components/DangerButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, reactive } from 'vue';
+import { success as notifySuccess, error as notifyError } from '@/Utils/notification';
 
 const props = defineProps({
     connection: {
         type: Object,
         default: null,
+    },
+    transaction_types: {
+        type: Array,
+        default: () => [],
     },
 });
 
@@ -210,6 +269,17 @@ const tenantForm = useForm({
 });
 
 const disconnectForm = useForm({});
+
+// Mapping forms for each transaction type
+const mappingForms = reactive(
+    props.transaction_types.reduce((acc, type) => {
+        acc[type.id] = useForm({
+            name: type.name,
+            xero_account_code: type.xero_account_code || '',
+        });
+        return acc;
+    }, {})
+);
 
 const tenants = computed(() => props.connection?.tenants ?? []);
 const scopes = computed(() => (props.connection?.scope ? props.connection.scope.split(' ').filter(Boolean) : []));
@@ -242,6 +312,19 @@ const selectTenant = (tenantId) => {
 
 const disconnect = () => {
     disconnectForm.delete(route('admin.xero.disconnect'));
+};
+
+const saveMapping = (typeId) => {
+    const form = mappingForms[typeId];
+    form.put(`/api/transaction-types/${typeId}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            notifySuccess('Mapping saved successfully.');
+        },
+        onError: () => {
+            notifyError('Failed to save mapping.');
+        }
+    });
 };
 
 const formatDatetime = (value) => {

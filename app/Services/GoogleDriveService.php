@@ -520,4 +520,21 @@ class GoogleDriveService
             throw $e;
         }
     }
+
+    /**
+     * Get the raw content of a file from Google Drive.
+     */
+    public function getFileContent(string $fileId): string
+    {
+        try {
+            $response = $this->driveService->files->get($fileId, ['alt' => 'media']);
+            return (string) $response->getBody();
+        } catch (\Exception $e) {
+            Log::error('Error fetching file content from Google Drive: ' . $e->getMessage(), [
+                'file_id' => $fileId,
+                'error' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
 }

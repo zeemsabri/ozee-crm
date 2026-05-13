@@ -13,6 +13,7 @@ class TransactionType extends Model
         'name',
         'slug',
         'created_by_user_id',
+        'xero_account_code',
     ];
 
     public function creator()

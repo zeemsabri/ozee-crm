@@ -74,6 +74,9 @@ class MilestoneController extends Controller
                 'expendable.user' => function ($q) {
                     $q->select('id', 'name');
                 },
+                'expendable.bills' => function ($q) {
+                    $q->with('transactionType')->latest();
+                },
                 'budget',
             ])
             // Task counts by status

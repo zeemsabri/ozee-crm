@@ -70,6 +70,10 @@ class User extends Authenticatable
         'extension_mandatory',
         'telegram_link_code',
         'metadata',
+        'xero_contact_id',
+        'xero_contact_name',
+        'xero_contact_email',
+        'xero_synced_at',
     ];
 
     /**

@@ -14,8 +14,10 @@ import UpdateMilestoneDueDateModal from "@/Components/ProjectExpendables/UpdateM
 import MilestoneFormModal from '@/Components/ProjectTasks/MilestoneFormModal.vue';
 import BulkTaskModal from '@/Components/ProjectTasks/BulkTaskModal.vue';
 import MilestoneCompletionDateModal from '@/Components/ProjectTasks/MilestoneCompletionDateModal.vue';
+import InvoicesSection from '@/Components/ProjectInvoices/InvoicesSection.vue';
 import ProjectProgressTimeline from '@/Components/ProjectProgressTimeline.vue';
 import Modal from '@/Components/Modal.vue';
+import BillManagement from '@/Components/ProjectExpendables/BillManagement.vue';
 import {
     Square2StackIcon,
     CheckCircleIcon,
@@ -86,10 +88,19 @@ const expendableBudget = ref({
 });
 const users = ref([]);
 
+// Props
+const props = defineProps({
+    transaction_types: {
+        type: Array,
+        default: () => [],
+    }
+});
+
 const tabs = [
     { id: 'active', label: 'Active Milestones' },
     { id: 'completed', label: 'Completed' },
     { id: 'approved', label: 'Approved' },
+    { id: 'invoices', label: 'Sales Invoices' },
 ];
 
 // -- Computed Properties --
@@ -645,6 +656,12 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                         <div v-else-if="!filteredMilestones.length" class="text-center text-gray-500 py-12">
                             <p>No milestones found for this project in the selected tab.</p>
                         </div>
+                        <div v-else-if="activeTab === 'invoices' && selectedProjectId">
+                            <InvoicesSection 
+                                :project="{ id: selectedProjectId }" 
+                                :can-approve="canApproveMilestoneExpendables || canApproveExpendables"
+                            />
+                        </div>
                         <div v-else class="space-y-4">
                             <!-- Milestone Cards -->
                             <div v-for="m in filteredMilestones" :key="m.id" class="border border-gray-200 rounded-xl bg-gray-50 shadow-sm transition-all duration-300 hover:shadow-lg">
@@ -792,6 +809,16 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                                         <TrashIcon class="h-5 w-5" />
                                                     </button>
                                                 </div>
+                                            </div>
+
+                                            <!-- Bill Management Component -->
+                                            <div v-if="e.status === 'Accepted'" class="w-full mt-2">
+                                                <BillManagement 
+                                                    :expendable="e" 
+                                                    :transaction-types="transaction_types"
+                                                    :can-approve="canApproveMilestoneExpendables || canApproveExpendables"
+                                                    @updated="loadMilestones"
+                                                />
                                             </div>
                                         </li>
                                     </ul>

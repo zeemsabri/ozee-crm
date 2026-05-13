@@ -191,9 +191,9 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
     })->name('test.form-modal');
 
     // Project Expendables Page
-    Route::get('/project-expendables', function () {
-        return Inertia::render('Admin/ProjectExpendables/Index');
-    })->name('project-expendables.index')->middleware('permissionInAnyProject:add_expendables');
+    Route::get('/project-expendables', [\App\Http\Controllers\Admin\ProjectExpendableController::class, 'index'])
+        ->name('project-expendables.index')
+        ->middleware('permissionInAnyProject:add_expendables');
 
     // Admin routes
     Route::prefix('admin')->name('admin.')->group(function () {
@@ -468,6 +468,11 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
             Route::put('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'update'])->name('permissions.update');
             Route::delete('/permissions/{permission}', [\App\Http\Controllers\Admin\PermissionController::class, 'destroy'])->name('permissions.destroy');
         });
+
+        // Financial Management
+        Route::get('/financials', [\App\Http\Controllers\Admin\FinancialController::class, 'dashboard'])->name('financials.dashboard');
+        Route::get('/financials/bills', [\App\Http\Controllers\Admin\FinancialController::class, 'bills'])->name('financials.bills');
+        Route::get('/financials/invoices', [\App\Http\Controllers\Admin\FinancialController::class, 'invoices'])->name('financials.invoices');
 
     });
 

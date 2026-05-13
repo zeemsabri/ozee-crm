@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, usePage } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
 import NotesModal from '@/Components/NotesModal.vue';
@@ -24,6 +24,7 @@ import AssignedTasksCard from '@/Components/Dashboard/AssignedTasksCard.vue';
 import UpcomingMeetingsCard from '@/Components/Dashboard/UpcomingMeetingsCard.vue';
 import DueTasksBreakdownCard from '@/Components/Dashboard/DueTasksBreakdownCard.vue';
 import NoticeBoardCard from '@/Components/Dashboard/NoticeBoardCard.vue';
+import PendingFinancialApprovalsCard from '@/Components/Dashboard/PendingFinancialApprovalsCard.vue';
 
 // Props
 const props = defineProps({
@@ -144,6 +145,9 @@ const handleViewMeetingsAndScroll = () => {
         upcomingMeetingsCardRef.value.showMeetingsAndScroll();
     }
 };
+
+const page = usePage();
+const isSuperAdmin = computed(() => page.props.auth?.user?.role_name === 'super_admin' || page.props.auth?.user?.is_super_admin);
 </script>
 
 <template>
@@ -168,6 +172,11 @@ const handleViewMeetingsAndScroll = () => {
 
                     <!-- Total Due Tasks Card -->
                     <PendingTasksCard :total-due-tasks="totalDueTasksCount" @card-clicked="handleViewDueAndOverdueTasks"/>
+
+                    <!-- Pending Financial Approvals Card (Super Admin only) -->
+                    <div v-if="isSuperAdmin" class="md:col-span-3">
+                        <PendingFinancialApprovalsCard />
+                    </div>
 
                     <!-- Availability Prompt (Conditionally displayed, spans full width) -->
                     <div class="md:col-span-3">

@@ -100,4 +100,9 @@ class ProjectExpendable extends Model
             ->event('expendable.rejected')
             ->log("Expendable '{$this->name}' rejected");
     }
+
+    public function bills()
+    {
+        return $this->hasMany(Bill::class, 'project_expendable_id');
+    }
 }

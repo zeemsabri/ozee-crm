@@ -11,6 +11,7 @@ Artisan::command('inspire', function () {
 Schedule::command(\App\Console\Commands\FetchEmails::class)->everyMinute();
 //
 Schedule::job(new \App\Jobs\FetchCurrencyRatesJob)->daily();
+Schedule::job(new \App\Jobs\XeroPaymentSyncJob)->daily();
 
 Schedule::command('queue:work --stop-when-empty')->everyMinute();
 

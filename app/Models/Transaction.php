@@ -22,6 +22,8 @@ class Transaction extends Model
         'is_paid',
         'payment_date',
         'transaction_type_id',
+        'bill_id',
+        'xero_payment_id',
     ];
 
     protected $casts = [
@@ -49,5 +51,10 @@ class Transaction extends Model
     public function transactionType()
     {
         return $this->belongsTo(TransactionType::class);
+    }
+
+    public function bill()
+    {
+        return $this->belongsTo(Bill::class);
     }
 }
