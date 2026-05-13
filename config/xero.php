@@ -37,7 +37,7 @@ return [
     /**
      * Set the scopes
      */
-    'scopes' => env('XERO_SCOPES', 'openid email profile offline_access accounting.settings accounting.contacts accounting.transactions accounting.attachments accounting.journals.read accounting.attachments.read accounting.reports.read accounting.reports.write accounting.attachments.write accounting.settings.read accounting.attachments.online'),
+    'scopes' => env('XERO_SCOPES', 'openid email profile offline_access accounting.settings accounting.contacts'),
 
     /**
      * Encrypt tokens in database?
