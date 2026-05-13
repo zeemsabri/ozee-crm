@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ref, onMounted, watch } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { formatCurrency } from '@/Utils/currency';
 import { success, error, confirmPrompt } from '@/Utils/notification';
@@ -14,17 +14,133 @@ import InputError from '@/Components/InputError.vue';
 
 const invoices = ref([]);
 const projects = ref([]);
+const projectServices = ref([]);
 const loading = ref(true);
+const loadingServices = ref(false);
 const filterStatus = ref('');
 const showCreateModal = ref(false);
+
+const buildMilestoneKey = (service, milestone, index) => `${service.project_service_id}-${index}-${milestone.label}-${milestone.percentage}-${milestone.due_date ?? ''}`;
+
+const emptyLineItem = () => ({
+    project_service_id: '',
+    milestone_key: '',
+    label: '',
+    quantity: 1,
+    unit_price: '',
+    tax_type: 'OUTPUT',
+    milestone_percentage: '',
+});
 
 const form = useForm({
     project_id: '',
     client_id: '',
     total_amount: '',
-    due_date: '',
-    description: '',
+    line_items: [],
 });
+
+const lineItems = ref([emptyLineItem()]);
+
+const selectedProject = computed(() => projects.value.find(p => p.id === parseInt(form.project_id, 10)) || null);
+
+const selectedClientId = computed(() => {
+    if (!selectedProject.value) {
+        return '';
+    }
+
+    return selectedProject.value.clients?.[0]?.id || selectedProject.value.client_id || '';
+});
+
+const totalAmount = computed(() => lineItems.value.reduce((sum, item) => {
+    const quantity = Number(item.quantity || 1);
+    const unitPrice = Number(item.unit_price || 0);
+    return sum + (quantity * unitPrice);
+}, 0).toFixed(2));
+
+const getServiceLabel = (service) => service.service_id || service.service_name || 'Service';
+
+const getMilestoneOptions = (service) => {
+    if (!service?.payment_breakdown?.length) {
+        return [{
+            key: buildMilestoneKey(service, { label: 'Payment 1', percentage: 100, due_date: null }, 0),
+            label: 'Payment 1 - 100%',
+            percentage: 100,
+            due_date: null,
+        }];
+    }
+
+    return service.payment_breakdown.map((milestone, index) => ({
+        key: buildMilestoneKey(service, milestone, index),
+        label: `${milestone.label} - ${milestone.percentage}%`,
+        percentage: Number(milestone.percentage || 0),
+        due_date: milestone.due_date || null,
+    }));
+};
+
+const getServiceById = (projectServiceId) => projectServices.value.find(service => String(service.project_service_id) === String(projectServiceId));
+
+const syncLineItem = (item) => {
+    const service = getServiceById(item.project_service_id);
+    if (!service) {
+        item.milestone_key = '';
+        item.label = '';
+        item.unit_price = '';
+        item.milestone_percentage = '';
+        return;
+    }
+
+    const milestones = getMilestoneOptions(service);
+    const milestone = milestones[0];
+    if (!milestone) {
+        return;
+    }
+
+    item.milestone_key = milestone.key;
+    item.label = milestone.label;
+    item.milestone_percentage = milestone.percentage;
+    item.unit_price = ((Number(service.amount || 0) * Number(milestone.percentage || 0)) / 100).toFixed(2);
+    if (!item.tax_type) {
+        item.tax_type = 'OUTPUT';
+    }
+};
+
+const syncMilestoneSelection = (item) => {
+    const service = getServiceById(item.project_service_id);
+    if (!service || !item.milestone_key) {
+        return;
+    }
+
+    const milestone = getMilestoneOptions(service).find(entry => entry.key === item.milestone_key);
+    if (!milestone) {
+        return;
+    }
+
+    item.label = milestone.label;
+    item.milestone_percentage = milestone.percentage;
+    item.unit_price = ((Number(service.amount || 0) * Number(milestone.percentage || 0)) / 100).toFixed(2);
+};
+
+const fetchProjectServices = async (projectId) => {
+    projectServices.value = [];
+    if (!projectId) {
+        return;
+    }
+
+    loadingServices.value = true;
+    try {
+        const { data } = await axios.get(`/api/projects/${projectId}/sections/services-payment`);
+        projectServices.value = data.service_details || [];
+        lineItems.value = [emptyLineItem()];
+        if (projectServices.value.length) {
+            lineItems.value[0].project_service_id = projectServices.value[0].project_service_id;
+            syncLineItem(lineItems.value[0]);
+        }
+    } catch (err) {
+        error(err.response?.data?.message || 'Failed to load project services.');
+    } finally {
+        loadingServices.value = false;
+    }
+};
 
 const fetchInvoices = async () => {
     loading.value = true;
@@ -47,23 +163,51 @@ const fetchProjects = async () => {
     }
 };
 
-const selectedProject = ref(null);
 watch(() => form.project_id, (newId) => {
-    selectedProject.value = projects.value.find(p => p.id === parseInt(newId)) || null;
-    if (selectedProject.value && selectedProject.value.clients.length > 0) {
+    if (selectedProject.value && selectedProject.value.clients?.length > 0) {
         form.client_id = selectedProject.value.clients[0].id;
     } else {
         form.client_id = '';
     }
+    fetchProjectServices(newId);
 });
 
 const openCreateModal = () => {
     form.reset();
+    projectServices.value = [];
+    lineItems.value = [emptyLineItem()];
     showCreateModal.value = true;
+};
+
+const addLineItem = () => {
+    lineItems.value.push(emptyLineItem());
+};
+
+const removeLineItem = (index) => {
+    if (lineItems.value.length === 1) {
+        lineItems.value[0] = emptyLineItem();
+        return;
+    }
+
+    lineItems.value.splice(index, 1);
 };
 
 const submitInvoice = () => {
     if (!form.project_id) return error('Please select a project.');
+
+    form.client_id = selectedClientId.value || form.client_id;
+    form.total_amount = totalAmount.value;
+    form.line_items = lineItems.value
+        .filter(item => item.project_service_id && item.milestone_key)
+        .map(item => ({
+            project_service_id: item.project_service_id,
+            milestone_key: item.milestone_key,
+            label: item.label,
+            quantity: Number(item.quantity || 1),
+            unit_price: Number(item.unit_price || 0),
+            milestone_percentage: Number(item.milestone_percentage || 0),
+            tax_type: item.tax_type || 'OUTPUT',
+        }));
     
     form.post(`/api/projects/${form.project_id}/invoices`, {
         onSuccess: () => {
@@ -80,7 +224,7 @@ const submitInvoice = () => {
 const approveInvoice = async (invoice) => {
     if (!await confirmPrompt('Approve this invoice for Xero sync?')) return;
     try {
-        await axios.post(route('api.invoices.approve', { invoice: invoice.id }));
+        await axios.post(`/api/projects/${invoice.project_id}/invoices/${invoice.id}/approve`);
         success('Invoice approved.');
         fetchInvoices();
     } catch (err) {
@@ -216,37 +360,85 @@ const getStatusClass = (status) => {
                         <InputError :message="form.errors.client_id" />
                     </div>
 
-                    <div>
-                        <InputLabel for="inv_amount" value="Amount" />
-                        <TextInput 
-                            id="inv_amount" 
-                            v-model="form.total_amount" 
-                            type="number" 
-                            step="0.01"
-                            class="mt-1 block w-full"
-                        />
-                        <InputError :message="form.errors.total_amount" />
+                    <div v-if="loadingServices" class="text-sm text-gray-500">
+                        Loading services...
                     </div>
 
-                    <div>
-                        <InputLabel for="inv_due_date" value="Due Date" />
-                        <TextInput 
-                            id="inv_due_date" 
-                            v-model="form.due_date" 
-                            type="date"
-                            class="mt-1 block w-full"
-                        />
-                        <InputError :message="form.errors.due_date" />
-                    </div>
+                    <div v-else class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <InputLabel value="Invoice Line Items" />
+                            <SecondaryButton type="button" @click="addLineItem">Add Line</SecondaryButton>
+                        </div>
 
-                    <div>
-                        <InputLabel for="inv_description" value="Description" />
-                        <textarea 
-                            id="inv_description" 
-                            v-model="form.description"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            rows="3"
-                        ></textarea>
+                        <div v-for="(item, index) in lineItems" :key="index" class="rounded-lg border border-gray-200 p-4 space-y-4 bg-gray-50">
+                            <div class="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <InputLabel :for="`line_service_${index}`" value="Service" />
+                                    <select
+                                        :id="`line_service_${index}`"
+                                        v-model="item.project_service_id"
+                                        @change="syncLineItem(item)"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option value="">Select Service</option>
+                                        <option v-for="service in projectServices" :key="service.project_service_id" :value="service.project_service_id">
+                                            {{ getServiceLabel(service) }}
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <InputLabel :for="`line_milestone_${index}`" value="Milestone" />
+                                    <select
+                                        :id="`line_milestone_${index}`"
+                                        v-model="item.milestone_key"
+                                        @change="syncMilestoneSelection(item)"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        :disabled="!item.project_service_id"
+                                    >
+                                        <option value="">Select Milestone</option>
+                                        <option
+                                            v-for="milestone in getMilestoneOptions(getServiceById(item.project_service_id))"
+                                            :key="milestone.key"
+                                            :value="milestone.key"
+                                        >
+                                            {{ milestone.label }}
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="grid gap-4 md:grid-cols-3">
+                                <div>
+                                    <InputLabel :for="`line_qty_${index}`" value="Quantity" />
+                                    <TextInput :id="`line_qty_${index}`" v-model="item.quantity" type="number" min="1" step="1" class="mt-1 block w-full" />
+                                </div>
+
+                                <div>
+                                    <InputLabel :for="`line_tax_${index}`" value="Tax Type" />
+                                    <TextInput :id="`line_tax_${index}`" v-model="item.tax_type" class="mt-1 block w-full" />
+                                </div>
+
+                                <div>
+                                    <InputLabel value="Unit Price" />
+                                    <div class="mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700">
+                                        {{ formatCurrency(Number(item.unit_price || 0), selectedProject?.currency || 'AUD') }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between">
+                                <div class="text-sm text-gray-500">
+                                    {{ item.label || 'Select a milestone to calculate the amount.' }}
+                                </div>
+                                <button type="button" class="text-sm text-red-600 hover:text-red-900" @click="removeLineItem(index)">Remove</button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between rounded-lg bg-gray-100 px-4 py-3">
+                            <span class="text-sm font-medium text-gray-700">Estimated Total</span>
+                            <span class="text-base font-semibold text-gray-900">{{ formatCurrency(Number(totalAmount), selectedProject?.currency || 'AUD') }}</span>
+                        </div>
                     </div>
                 </div>
 

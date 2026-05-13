@@ -81,6 +81,7 @@ class ExistingClientEnquiryService
             'enquiry_updated_at' => $detail['enquiry_updated_at'] ?? null,
             'enquiry_meta' => is_array($detail['enquiry_meta'] ?? null) ? $detail['enquiry_meta'] : [],
             'xero_account_code' => $detail['xero_account_code'] ?? null,
+            'project_service_id' => $detail['project_service_id'] ?? null,
         ];
     }
 
@@ -526,6 +527,8 @@ class ExistingClientEnquiryService
             return $serviceRows
                 ->map(function (ProjectService $service) use ($project) {
                     return $this->normalizeServiceDetail([
+                        'project_service_id' => $service->id,
+                        'project_service_id' => $service->id,
                         'enquiry_id' => $service->enquiry_id,
                         'service_id' => $service->service_id,
                         'amount' => $service->amount,

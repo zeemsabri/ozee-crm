@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('xero_contact_name')->nullable()->after('xero_contact_id');
             $table->string('xero_contact_email')->nullable()->after('xero_contact_name');
             $table->timestamp('xero_synced_at')->nullable()->after('xero_contact_email');
-            
+
             $table->index('xero_contact_id');
         });
     }

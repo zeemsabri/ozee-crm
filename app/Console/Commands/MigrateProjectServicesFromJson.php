@@ -33,7 +33,7 @@ class MigrateProjectServicesFromJson extends Command
     {
         $dryRun = (bool) $this->option('dry-run');
 
-        $projects = Project::query()
+        $projects = Project::withTrashed()
             ->whereNotNull('service_details')
             ->with('transactions:id,project_id,transaction_type_id')
             ->get();
@@ -64,11 +64,16 @@ class MigrateProjectServicesFromJson extends Command
                 $summary['projects']++;
                 $defaultXeroAccountCode = $this->resolveDefaultXeroAccountCode($project);
 
-                foreach ($normalized as $detail) {
-                    $enquiryId = (string) ($detail['enquiry_id'] ?? '');
-                    if ($enquiryId === '') {
+                $originalDetails = $project->service_details ?? [];
+                $projectNeedsUpdate = false;
+
+                foreach ($normalized as $index => &$detail) {
+                    $originalEnquiryId = (string) ($originalDetails[$index]['enquiry_id'] ?? '');
+                    $enquiryId = (string) $detail['enquiry_id'];
+
+                    if ($originalEnquiryId === '') {
                         $summary['missing_enquiry_id']++;
-                        $enquiryId = (string) Str::uuid();
+                        $projectNeedsUpdate = true;
                         $this->warn("Project {$project->id} had a service row with missing enquiry_id. Generated: {$enquiryId}");
                     }
 
@@ -103,6 +108,10 @@ class MigrateProjectServicesFromJson extends Command
                     }
 
                     $summary['rows']++;
+                }
+
+                if ($projectNeedsUpdate && ! $dryRun) {
+                    $project->update(['service_details' => $normalized]);
                 }
             }
 

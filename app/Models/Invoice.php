@@ -32,6 +32,11 @@ class Invoice extends Model
         return $this->belongsTo(Project::class);
     }
 
+    public function invoiceItems()
+    {
+        return $this->hasMany(InvoiceItem::class);
+    }
+
     public function transactions()
     {
         return $this->hasMany(Transaction::class);
