@@ -240,6 +240,60 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- CRM Services Account Mapping Section -->
+                <section v-if="connection" class="overflow-hidden rounded-lg bg-white shadow-sm sm:rounded-lg">
+                    <div class="border-b border-gray-200 px-6 py-5">
+                        <h3 class="text-lg font-semibold text-gray-900">CRM Services Mapping</h3>
+                        <p class="mt-1 text-sm text-gray-500">
+                            Map CRM services (e.g. SEO, Website Designing) to Xero Item Codes.
+                        </p>
+                    </div>
+
+                    <div class="px-6 py-6">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                            CRM Service
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                            Xero Item Code
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200 bg-white">
+                                    <tr v-for="service in crm_services" :key="service.id">
+                                        <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
+                                            {{ service.name }}
+                                        </td>
+                                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                                            <input
+                                                v-model="crmServiceForms[service.id].xero_item_code"
+                                                type="text"
+                                                class="w-32 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                placeholder="e.g. ItemCode123"
+                                            />
+                                        </td>
+                                        <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+                                            <button
+                                                @click="saveCrmMapping(service.id)"
+                                                :disabled="crmServiceForms[service.id].processing"
+                                                class="text-indigo-600 hover:text-indigo-900 disabled:opacity-50"
+                                            >
+                                                {{ crmServiceForms[service.id].processing ? 'Saving...' : 'Save' }}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
     </AuthenticatedLayout>
@@ -252,6 +306,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { computed, reactive } from 'vue';
 import { success as notifySuccess, error as notifyError } from '@/Utils/notification';
+import axios from 'axios';
 
 const props = defineProps({
     connection: {
@@ -259,6 +314,10 @@ const props = defineProps({
         default: null,
     },
     transaction_types: {
+        type: Array,
+        default: () => [],
+    },
+    crm_services: {
         type: Array,
         default: () => [],
     },
@@ -276,6 +335,17 @@ const mappingForms = reactive(
         acc[type.id] = useForm({
             name: type.name,
             xero_account_code: type.xero_account_code || '',
+        });
+        return acc;
+    }, {})
+);
+
+// Mapping forms for CRM services
+const crmServiceForms = reactive(
+    props.crm_services.reduce((acc, service) => {
+        acc[service.id] = useForm({
+            name: service.name,
+            xero_item_code: service.xero_item_code || '',
         });
         return acc;
     }, {})
@@ -325,6 +395,22 @@ const saveMapping = (typeId) => {
             notifyError('Failed to save mapping.');
         }
     });
+};
+
+const saveCrmMapping = async (serviceId) => {
+    const form = crmServiceForms[serviceId];
+    form.processing = true;
+    try {
+        await axios.put(`/api/crm-services/${serviceId}`, {
+            xero_item_code: form.xero_item_code,
+        });
+        notifySuccess('CRM Service mapping saved successfully.');
+    } catch (error) {
+        console.error(error);
+        notifyError('Failed to save CRM Service mapping.');
+    } finally {
+        form.processing = false;
+    }
 };
 
 const formatDatetime = (value) => {

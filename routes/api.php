@@ -581,6 +581,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Task Type Routes
     Route::apiResource('task-types', TaskTypeController::class);
 
+    // CRM Services Routes
+    Route::get('crm-services', [\App\Http\Controllers\Api\CrmServiceController::class, 'index']);
+    Route::put('crm-services/{crmService}', [\App\Http\Controllers\Api\CrmServiceController::class, 'update']);
+
     // Transaction Types Routes (index, store, update, search)
     Route::get('transaction-types', [\App\Http\Controllers\Api\TransactionTypeController::class, 'index']);
     Route::post('transaction-types', [\App\Http\Controllers\Api\TransactionTypeController::class, 'store']);

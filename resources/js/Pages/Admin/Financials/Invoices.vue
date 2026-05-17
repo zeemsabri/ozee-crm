@@ -229,6 +229,10 @@ const submitInvoice = () => {
             tax_type: item.tax_type || 'OUTPUT',
         }));
     
+    if (form.line_items.length === 0) {
+        return error('Please add at least one valid invoice line item.');
+    }
+
     form.post(`/api/projects/${form.project_id}/invoices`, {
         onSuccess: () => {
             showCreateModal.value = false;

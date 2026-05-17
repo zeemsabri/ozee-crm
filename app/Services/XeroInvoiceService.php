@@ -73,12 +73,14 @@ class XeroInvoiceService
     {
         return $invoice->invoiceItems->map(function ($item) use ($invoice) {
             $projectService = $item->projectService;
+            $crmService = $projectService->crmService;
             $description = trim((string) ($item->description ?? ''));
+            $serviceName = $crmService ? $crmService->name : 'Unknown Service';
 
-            return [
+            $lineItem = [
                 'Description' => $description !== ''
                     ? $description
-                    : "{$projectService->service_id} - {$item->label}",
+                    : "{$serviceName} - {$item->label}",
                 'Quantity' => (float) $item->quantity,
                 'UnitAmount' => (float) $item->unit_price,
                 'AccountCode' => $projectService->xero_account_code ?? '200',
@@ -90,6 +92,12 @@ class XeroInvoiceService
                     ],
                 ],
             ];
+
+            if ($crmService && $crmService->xero_item_code) {
+                $lineItem['ItemCode'] = $crmService->xero_item_code;
+            }
+
+            return $lineItem;
         })->values()->all();
     }
 }

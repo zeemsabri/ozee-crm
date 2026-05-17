@@ -12,7 +12,7 @@ class ProjectService extends Model
     protected $fillable = [
         'project_id',
         'enquiry_id',
-        'service_id',
+        'crm_service_id',
         'description',
         'amount',
         'currency',
@@ -42,6 +42,11 @@ class ProjectService extends Model
     public function project()
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function crmService()
+    {
+        return $this->belongsTo(CrmService::class);
     }
 
     public function invoiceItems()

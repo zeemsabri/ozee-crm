@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('project_id')->constrained()->cascadeOnDelete();
             $table->string('enquiry_id', 100)->nullable();
-            $table->string('service_id');
+            $table->foreignId('crm_service_id')->constrained('crm_services')->cascadeOnDelete();
             $table->text('description')->nullable();
             $table->decimal('amount', 15, 2)->default(0);
             $table->string('currency', 10)->nullable();

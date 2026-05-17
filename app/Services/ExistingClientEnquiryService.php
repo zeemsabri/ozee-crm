@@ -570,10 +570,14 @@ class ExistingClientEnquiryService
             foreach ($normalized as $detail) {
                 $existing = $existingByEnquiry->get($detail['enquiry_id'] ?? null);
 
+                $crmService = \App\Models\CrmService::firstOrCreate([
+                    'name' => (string) $detail['service_id']
+                ]);
+
                 $payload = [
                     'project_id' => $project->id,
                     'enquiry_id' => $detail['enquiry_id'] ?? (string) Str::uuid(),
-                    'service_id' => $detail['service_id'],
+                    'crm_service_id' => $crmService->id,
                     'description' => $detail['description'] ?? null,
                     'amount' => $detail['amount'] ?? 0,
                     'currency' => $detail['currency'] ?? $project->currency,

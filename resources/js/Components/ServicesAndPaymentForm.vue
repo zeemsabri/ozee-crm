@@ -52,17 +52,26 @@ const conversionTypeOptions = [
     { value: 'project', label: 'Project' },
 ];
 
-// Internal base department options
-const baseDepartmentOptions = [
-    { value: 'Website Designing', label: 'Website Designing' },
-    { value: 'SEO', label: 'SEO' },
-    { value: 'Social Media', label: 'Social Media' },
-    { value: 'Content Writing', label: 'Content Writing' },
-    { value: 'Graphic Design', label: 'Graphic Design' },
-];
-
 // Reactive variable to hold all department options, including user-added ones
-const internalDepartmentOptions = ref([...baseDepartmentOptions]);
+const internalDepartmentOptions = ref([]);
+
+// Fetch CRM Services to populate base department options
+const fetchCrmServices = async () => {
+    try {
+        const response = await window.axios.get('/api/crm-services');
+        internalDepartmentOptions.value = response.data.map(service => ({
+            value: service.name,
+            label: service.name
+        }));
+    } catch (error) {
+        console.error('Failed to fetch CRM services:', error);
+    }
+};
+
+onMounted(() => {
+    fetchCrmServices();
+});
+
 
 // Reactive variables for adding new department
 const newDepartmentName = ref('');

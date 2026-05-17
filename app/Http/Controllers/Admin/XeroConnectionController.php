@@ -28,6 +28,7 @@ class XeroConnectionController extends Controller
         return Inertia::render('Admin/Xero/Index', [
             'connection' => $connection,
             'transaction_types' => \App\Models\TransactionType::orderBy('name')->get(),
+            'crm_services' => \App\Models\CrmService::orderBy('name')->get(),
         ]);
     }
 

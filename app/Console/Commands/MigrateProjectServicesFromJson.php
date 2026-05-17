@@ -77,10 +77,14 @@ class MigrateProjectServicesFromJson extends Command
                         $this->warn("Project {$project->id} had a service row with missing enquiry_id. Generated: {$enquiryId}");
                     }
 
+                    $crmService = \App\Models\CrmService::firstOrCreate([
+                        'name' => (string) $detail['service_id']
+                    ]);
+
                     $payload = [
                         'project_id' => $project->id,
                         'enquiry_id' => $enquiryId,
-                        'service_id' => (string) $detail['service_id'],
+                        'crm_service_id' => $crmService->id,
                         'description' => $detail['description'] ?? null,
                         'amount' => is_numeric($detail['amount'] ?? null) ? (float) $detail['amount'] : 0,
                         'currency' => $detail['currency'] ?? $project->currency,
