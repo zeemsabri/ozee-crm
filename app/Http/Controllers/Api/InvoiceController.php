@@ -16,6 +16,7 @@ use App\Enums\TaskStatus;
 use App\Services\MentionService;
 use App\Services\XeroInvoiceService;
 use App\Services\XeroAttachmentService;
+use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -74,7 +75,8 @@ class InvoiceController extends Controller
             ]);
         }
 
-        return DB::transaction(function () use ($project, $validated, $lineItems, $request) {
+        try {
+            return DB::transaction(function () use ($project, $validated, $lineItems) {
             $invoice = Invoice::create([
                 'project_id' => $project->id,
                 'client_id' => $validated['client_id'],
@@ -90,12 +92,17 @@ class InvoiceController extends Controller
                 $invoice->save();
             }
 
-            if ($request->header('X-Inertia')) {
-                return back();
-            }
-
             return response()->json($invoice->load(['client', 'invoiceItems.projectService', 'comments.user']), 201);
         });
+        } catch (QueryException $exception) {
+            if ($exception->getCode() === '23000') {
+                throw ValidationException::withMessages([
+                    'line_items' => 'One or more selected service milestones have already been invoiced. Please review existing invoices for this project before submitting.',
+                ]);
+            }
+
+            throw $exception;
+        }
     }
 
     public function approve(Request $request, Project $project, Invoice $invoice)
@@ -229,21 +236,29 @@ class InvoiceController extends Controller
 
             $milestoneKey = (string) $lineItem['milestone_key'];
             $requestKey = $projectService->id.'|'.$milestoneKey;
+            $serviceLabel = $projectService->crmService?->name ?: ('Service #'.$projectService->id);
             if (in_array($requestKey, $seenMilestones, true)) {
                 throw ValidationException::withMessages([
-                    'line_items' => "Milestone {$milestoneKey} was added more than once for {$projectService->service_id}.",
+                    'line_items' => "Milestone {$milestoneKey} was added more than once for {$serviceLabel}.",
                 ]);
             }
             $seenMilestones[] = $requestKey;
 
-            $duplicateExists = InvoiceItem::query()
+            $existingInvoiceItem = InvoiceItem::query()
+                ->with('invoice')
                 ->where('project_service_id', $projectService->id)
                 ->where('milestone_key', $milestoneKey)
-                ->exists();
+                ->whereHas('invoice', function ($query) {
+                    $query->whereNotIn('status', ['rejected', 'voided']);
+                })
+                ->first();
 
-            if ($duplicateExists) {
+            if ($existingInvoiceItem) {
+                $existingInvoiceNumber = $existingInvoiceItem->invoice?->invoice_number ?: ('ID '.$existingInvoiceItem->invoice_id);
+                $existingInvoiceStatus = strtoupper((string) ($existingInvoiceItem->invoice?->status ?? 'unknown'));
+
                 throw ValidationException::withMessages([
-                    'line_items' => "Milestone {$milestoneKey} has already been invoiced for {$projectService->service_id}.",
+                    'line_items' => "Milestone \"{$lineItem['label']}\" for service \"{$serviceLabel}\" is already invoiced in invoice {$existingInvoiceNumber} ({$existingInvoiceStatus}).",
                 ]);
             }
 

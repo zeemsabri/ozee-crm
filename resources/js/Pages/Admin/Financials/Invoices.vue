@@ -24,6 +24,11 @@ const showReviewModal = ref(false);
 const selectedInvoice = ref(null);
 const reviewComment = ref('');
 const reviewProcessing = ref(false);
+const createProcessing = ref(false);
+const existingProjectInvoices = ref([]);
+const existingStatusFilter = ref('');
+const existingServiceFilter = ref('');
+const existingMilestoneFilter = ref('');
 
 const taxTypeOptions = [
     { value: 'OUTPUT', label: 'OUTPUT - GST on Income (10%)' },
@@ -91,6 +96,143 @@ const getMilestoneOptions = (service) => {
 };
 
 const getServiceById = (projectServiceId) => projectServices.value.find(service => String(service.project_service_id) === String(projectServiceId));
+
+const existingInvoiceMilestones = computed(() => {
+    return existingProjectInvoices.value.flatMap((invoice) => {
+        const invoiceNumber = invoice.invoice_number || `ID ${invoice.id}`;
+        const invoiceStatus = String(invoice.status || '').toLowerCase();
+
+        return (invoice.invoice_items || []).map((item) => ({
+            id: `${invoice.id}-${item.id}`,
+            invoice_id: invoice.id,
+            invoice_number: invoiceNumber,
+            invoice_status: invoiceStatus,
+            project_service_id: String(item.project_service_id || ''),
+            service_label: item.project_service?.service_id || 'Service',
+            milestone_key: String(item.milestone_key || ''),
+            milestone_label: item.label || item.milestone_key,
+            amount: Number(item.quantity || 1) * Number(item.unit_price || 0),
+            created_at: invoice.created_at,
+        }));
+    });
+});
+
+const filteredExistingInvoiceMilestones = computed(() => {
+    const status = String(existingStatusFilter.value || '').toLowerCase();
+    const service = String(existingServiceFilter.value || '');
+    const milestoneSearch = String(existingMilestoneFilter.value || '').trim().toLowerCase();
+
+    return existingInvoiceMilestones.value.filter((row) => {
+        const statusMatch = !status || row.invoice_status === status;
+        const serviceMatch = !service || row.project_service_id === service;
+        const milestoneMatch = !milestoneSearch
+            || row.milestone_label.toLowerCase().includes(milestoneSearch)
+            || row.milestone_key.toLowerCase().includes(milestoneSearch);
+
+        return statusMatch && serviceMatch && milestoneMatch;
+    });
+});
+
+const selectedDraftMilestoneKeys = computed(() => {
+    const keys = lineItems.value
+        .filter(item => item.project_service_id && item.milestone_key)
+        .map(item => `${item.project_service_id}|${item.milestone_key}`);
+
+    return new Set(keys);
+});
+
+const draftDuplicateRows = computed(() => {
+    if (!selectedDraftMilestoneKeys.value.size) {
+        return [];
+    }
+
+    return existingInvoiceMilestones.value.filter((row) => {
+        return selectedDraftMilestoneKeys.value.has(`${row.project_service_id}|${row.milestone_key}`);
+    });
+});
+
+const normalizeMilestoneLabel = (value) => String(value || '').trim().toLowerCase();
+
+const selectedDraftServiceIds = computed(() => {
+    return new Set(
+        lineItems.value
+            .filter(item => item.project_service_id)
+            .map(item => String(item.project_service_id))
+    );
+});
+
+const selectedDraftMilestoneLabels = computed(() => {
+    return new Set(
+        lineItems.value
+            .filter(item => item.label)
+            .map(item => normalizeMilestoneLabel(item.label))
+            .filter(Boolean)
+    );
+});
+
+const getExistingMilestoneMatchType = (row) => {
+    const isExactMatch = selectedDraftMilestoneKeys.value.has(`${row.project_service_id}|${row.milestone_key}`);
+    if (isExactMatch) {
+        return 'exact';
+    }
+
+    const isServiceMatch = selectedDraftServiceIds.value.has(String(row.project_service_id));
+    if (isServiceMatch) {
+        return 'service';
+    }
+
+    const isMilestoneMatch = selectedDraftMilestoneLabels.value.has(normalizeMilestoneLabel(row.milestone_label));
+    if (isMilestoneMatch) {
+        return 'milestone';
+    }
+
+    return 'none';
+};
+
+const getExistingMilestoneRowClass = (row) => {
+    switch (getExistingMilestoneMatchType(row)) {
+        case 'exact':
+            return 'bg-red-50 ring-1 ring-inset ring-red-200';
+        case 'service':
+            return 'bg-sky-50 ring-1 ring-inset ring-sky-200';
+        case 'milestone':
+            return 'bg-amber-50 ring-1 ring-inset ring-amber-200';
+        default:
+            return '';
+    }
+};
+
+const getExistingMilestoneBadgeText = (row) => {
+    switch (getExistingMilestoneMatchType(row)) {
+        case 'exact':
+            return 'Exact Match';
+        case 'service':
+            return 'Same Service';
+        case 'milestone':
+            return 'Same Milestone';
+        default:
+            return '';
+    }
+};
+
+const getExistingMilestoneBadgeClass = (row) => {
+    switch (getExistingMilestoneMatchType(row)) {
+        case 'exact':
+            return 'bg-red-100 text-red-800';
+        case 'service':
+            return 'bg-sky-100 text-sky-800';
+        case 'milestone':
+            return 'bg-amber-100 text-amber-800';
+        default:
+            return 'bg-gray-100 text-gray-700';
+    }
+};
+
+const clearExistingFilters = () => {
+    existingStatusFilter.value = '';
+    existingServiceFilter.value = '';
+    existingMilestoneFilter.value = '';
+};
 
 const syncLineItem = (item) => {
     const service = getServiceById(item.project_service_id);
@@ -161,6 +303,20 @@ const fetchProjectServices = async (projectId) => {
     }
 };
 
+const fetchProjectInvoices = async (projectId) => {
+    existingProjectInvoices.value = [];
+    if (!projectId) {
+        return;
+    }
+
+    try {
+        const { data } = await axios.get(`/api/projects/${projectId}/invoices`);
+        existingProjectInvoices.value = Array.isArray(data) ? data : [];
+    } catch (err) {
+        error(err.response?.data?.message || 'Failed to load existing invoices for this project.');
+    }
+};
+
 const fetchInvoices = async () => {
     loading.value = true;
     try {
@@ -189,12 +345,17 @@ watch(() => form.project_id, (newId) => {
         form.client_id = '';
     }
     fetchProjectServices(newId);
+    fetchProjectInvoices(newId);
+    clearExistingFilters();
 });
 
 const openCreateModal = () => {
     form.reset();
+    form.clearErrors();
     projectServices.value = [];
     lineItems.value = [emptyLineItem()];
+    existingProjectInvoices.value = [];
+    clearExistingFilters();
     showCreateModal.value = true;
 };
 
@@ -211,9 +372,10 @@ const removeLineItem = (index) => {
     lineItems.value.splice(index, 1);
 };
 
-const submitInvoice = () => {
+const submitInvoice = async () => {
     if (!form.project_id) return error('Please select a project.');
 
+    form.clearErrors();
     form.client_id = selectedClientId.value || form.client_id;
     form.total_amount = totalAmount.value;
     form.line_items = lineItems.value
@@ -233,16 +395,41 @@ const submitInvoice = () => {
         return error('Please add at least one valid invoice line item.');
     }
 
-    form.post(`/api/projects/${form.project_id}/invoices`, {
-        onSuccess: () => {
+    createProcessing.value = true;
+    try {
+        await axios.post(`/api/projects/${form.project_id}/invoices`, {
+            project_id: Number(form.project_id),
+            client_id: Number(form.client_id),
+            total_amount: form.total_amount,
+            line_items: form.line_items,
+        });
+
             showCreateModal.value = false;
             success('Invoice created successfully.');
-            fetchInvoices();
-        },
-        onError: (err) => {
-            error(err.message || 'Failed to create invoice.');
+            await fetchInvoices();
+            await fetchProjectInvoices(form.project_id);
+        } catch (err) {
+            const validationErrors = err.response?.data?.errors || {};
+            if (validationErrors.project_id?.[0]) {
+                form.setError('project_id', validationErrors.project_id[0]);
+            }
+            if (validationErrors.client_id?.[0]) {
+                form.setError('client_id', validationErrors.client_id[0]);
+            }
+
+            const lineItemError = validationErrors.line_items?.[0]
+                || validationErrors['line_items.0.milestone_key']?.[0]
+                || validationErrors['line_items.0.project_service_id']?.[0];
+
+            if (lineItemError) {
+                error(lineItemError);
+                return;
+            }
+
+            error(err.response?.data?.message || 'Failed to create invoice.');
+        } finally {
+            createProcessing.value = false;
         }
-    });
 };
 
 const openReviewModal = (invoice) => {
@@ -479,107 +666,182 @@ const getStatusClass = (status) => {
                         Loading services...
                     </div>
 
-                    <div v-else class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <InputLabel value="Invoice Line Items" />
-                            <SecondaryButton type="button" @click="addLineItem">Add Line</SecondaryButton>
-                        </div>
-
-                        <div v-for="(item, index) in lineItems" :key="index" class="rounded-lg border border-gray-200 p-4 space-y-4 bg-gray-50">
-                            <div class="grid gap-4 md:grid-cols-2">
-                                <div>
-                                    <InputLabel :for="`line_service_${index}`" value="Service" />
-                                    <select
-                                        :id="`line_service_${index}`"
-                                        v-model="item.project_service_id"
-                                        @change="syncLineItem(item)"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    >
-                                        <option value="">Select Service</option>
-                                        <option v-for="service in projectServices" :key="service.project_service_id" :value="service.project_service_id">
-                                            {{ getServiceLabel(service) }}
-                                        </option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <InputLabel :for="`line_milestone_${index}`" value="Milestone" />
-                                    <select
-                                        :id="`line_milestone_${index}`"
-                                        v-model="item.milestone_key"
-                                        @change="syncMilestoneSelection(item)"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                        :disabled="!item.project_service_id"
-                                    >
-                                        <option value="">Select Milestone</option>
-                                        <option
-                                            v-for="milestone in getMilestoneOptions(getServiceById(item.project_service_id))"
-                                            :key="milestone.key"
-                                            :value="milestone.key"
-                                        >
-                                            {{ milestone.label }}
-                                        </option>
-                                    </select>
-                                </div>
+                    <div v-else class="grid gap-6 lg:grid-cols-3">
+                        <div class="space-y-4 lg:col-span-2">
+                            <div class="flex items-center justify-between">
+                                <InputLabel value="Invoice Line Items" />
+                                <SecondaryButton type="button" @click="addLineItem">Add Line</SecondaryButton>
                             </div>
 
-                            <div class="grid gap-4 md:grid-cols-3">
-                                <div>
-                                    <InputLabel :for="`line_qty_${index}`" value="Quantity" />
-                                    <TextInput :id="`line_qty_${index}`" v-model="item.quantity" type="number" min="1" step="1" class="mt-1 block w-full" />
-                                </div>
+                            <div v-for="(item, index) in lineItems" :key="index" class="rounded-lg border border-gray-200 p-4 space-y-4 bg-gray-50">
+                                <div class="grid gap-4 md:grid-cols-2">
+                                    <div>
+                                        <InputLabel :for="`line_service_${index}`" value="Service" />
+                                        <select
+                                            :id="`line_service_${index}`"
+                                            v-model="item.project_service_id"
+                                            @change="syncLineItem(item)"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        >
+                                            <option value="">Select Service</option>
+                                            <option v-for="service in projectServices" :key="service.project_service_id" :value="service.project_service_id">
+                                                {{ getServiceLabel(service) }}
+                                            </option>
+                                        </select>
+                                    </div>
 
-                                <div>
-                                    <InputLabel :for="`line_tax_${index}`" value="Tax Type" />
-                                    <select
-                                        :id="`line_tax_${index}`"
-                                        v-model="item.tax_type"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    >
-                                        <option v-for="taxType in taxTypeOptions" :key="taxType.value" :value="taxType.value">
-                                            {{ taxType.label }}
-                                        </option>
-                                    </select>
-                                    <p class="mt-1 text-xs text-gray-500">This sends the selected Xero tax code exactly as shown.</p>
-                                </div>
-
-                                <div>
-                                    <InputLabel value="Unit Price" />
-                                    <div class="mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700">
-                                        {{ formatCurrency(Number(item.unit_price || 0), selectedProject?.currency || 'AUD') }}
+                                    <div>
+                                        <InputLabel :for="`line_milestone_${index}`" value="Milestone" />
+                                        <select
+                                            :id="`line_milestone_${index}`"
+                                            v-model="item.milestone_key"
+                                            @change="syncMilestoneSelection(item)"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                            :disabled="!item.project_service_id"
+                                        >
+                                            <option value="">Select Milestone</option>
+                                            <option
+                                                v-for="milestone in getMilestoneOptions(getServiceById(item.project_service_id))"
+                                                :key="milestone.key"
+                                                :value="milestone.key"
+                                            >
+                                                {{ milestone.label }}
+                                            </option>
+                                        </select>
                                     </div>
                                 </div>
+
+                                <div class="grid gap-4 md:grid-cols-3">
+                                    <div>
+                                        <InputLabel :for="`line_qty_${index}`" value="Quantity" />
+                                        <TextInput :id="`line_qty_${index}`" v-model="item.quantity" type="number" min="1" step="1" class="mt-1 block w-full" />
+                                    </div>
+
+                                    <div>
+                                        <InputLabel :for="`line_tax_${index}`" value="Tax Type" />
+                                        <select
+                                            :id="`line_tax_${index}`"
+                                            v-model="item.tax_type"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        >
+                                            <option v-for="taxType in taxTypeOptions" :key="taxType.value" :value="taxType.value">
+                                                {{ taxType.label }}
+                                            </option>
+                                        </select>
+                                        <p class="mt-1 text-xs text-gray-500">This sends the selected Xero tax code exactly as shown.</p>
+                                    </div>
+
+                                    <div>
+                                        <InputLabel value="Unit Price" />
+                                        <div class="mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700">
+                                            {{ formatCurrency(Number(item.unit_price || 0), selectedProject?.currency || 'AUD') }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <InputLabel :for="`line_description_${index}`" value="Description (Xero)" />
+                                    <textarea
+                                        :id="`line_description_${index}`"
+                                        v-model="item.description"
+                                        rows="2"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        placeholder="This description is sent to Xero line item"
+                                    />
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <div class="text-sm text-gray-500">
+                                        {{ item.label || 'Select a milestone to calculate the amount.' }}
+                                    </div>
+                                    <button type="button" class="text-sm text-red-600 hover:text-red-900" @click="removeLineItem(index)">Remove</button>
+                                </div>
                             </div>
 
-                            <div>
-                                <InputLabel :for="`line_description_${index}`" value="Description (Xero)" />
-                                <textarea
-                                    :id="`line_description_${index}`"
-                                    v-model="item.description"
-                                    rows="2"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="This description is sent to Xero line item"
+                            <div class="flex items-center justify-between rounded-lg bg-gray-100 px-4 py-3">
+                                <span class="text-sm font-medium text-gray-700">Estimated Total</span>
+                                <span class="text-base font-semibold text-gray-900">{{ formatCurrency(Number(totalAmount), selectedProject?.currency || 'AUD') }}</span>
+                            </div>
+                        </div>
+
+                        <aside class="rounded-lg border border-gray-200 bg-gray-50 p-4 flex max-h-[65vh] flex-col gap-3 overflow-hidden">
+                            <div class="flex items-center justify-between">
+                                <h4 class="text-sm font-semibold text-gray-900">Existing Milestones</h4>
+                                <button
+                                    type="button"
+                                    class="text-xs text-indigo-600 hover:text-indigo-800"
+                                    @click="clearExistingFilters"
+                                >
+                                    Clear Filters
+                                </button>
+                            </div>
+
+                            <div class="space-y-2">
+                                <select
+                                    v-model="existingStatusFilter"
+                                    class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                >
+                                    <option value="">All Statuses</option>
+                                    <option value="pending_approval">Pending Approval</option>
+                                    <option value="authorised">Authorised</option>
+                                    <option value="rejected">Rejected</option>
+                                    <option value="voided">Voided</option>
+                                </select>
+
+                                <select
+                                    v-model="existingServiceFilter"
+                                    class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                >
+                                    <option value="">All Services</option>
+                                    <option v-for="service in projectServices" :key="service.project_service_id" :value="String(service.project_service_id)">
+                                        {{ getServiceLabel(service) }}
+                                    </option>
+                                </select>
+
+                                <TextInput
+                                    v-model="existingMilestoneFilter"
+                                    type="text"
+                                    class="block w-full"
+                                    placeholder="Filter milestone"
                                 />
                             </div>
 
-                            <div class="flex items-center justify-between">
-                                <div class="text-sm text-gray-500">
-                                    {{ item.label || 'Select a milestone to calculate the amount.' }}
+                            <div class="min-h-0 flex-1 overflow-y-auto rounded border border-gray-200 bg-white">
+                                <div v-if="!filteredExistingInvoiceMilestones.length" class="p-3 text-xs text-gray-500">
+                                    No invoiced milestones match these filters.
                                 </div>
-                                <button type="button" class="text-sm text-red-600 hover:text-red-900" @click="removeLineItem(index)">Remove</button>
+                                <div
+                                    v-for="row in filteredExistingInvoiceMilestones"
+                                    :key="row.id"
+                                    :class="['border-b border-gray-100 p-3 last:border-b-0 transition-colors', getExistingMilestoneRowClass(row)]"
+                                >
+                                    <div class="flex items-start justify-between gap-2">
+                                        <p class="text-xs font-semibold text-gray-900">{{ row.milestone_label }}</p>
+                                        <span
+                                            v-if="getExistingMilestoneMatchType(row) !== 'none'"
+                                            :class="['inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', getExistingMilestoneBadgeClass(row)]"
+                                        >
+                                            {{ getExistingMilestoneBadgeText(row) }}
+                                        </span>
+                                    </div>
+                                    <p class="text-xs text-gray-600 mt-1">{{ row.service_label }}</p>
+                                    <p class="text-xs text-gray-500 mt-1">
+                                        {{ row.invoice_number }} • {{ row.invoice_status.toUpperCase() }}
+                                    </p>
+                                    <p class="text-xs text-gray-500">{{ formatCurrency(row.amount, selectedProject?.currency || 'AUD') }}</p>
+                                </div>
                             </div>
-                        </div>
+                        </aside>
+                    </div>
 
-                        <div class="flex items-center justify-between rounded-lg bg-gray-100 px-4 py-3">
-                            <span class="text-sm font-medium text-gray-700">Estimated Total</span>
-                            <span class="text-base font-semibold text-gray-900">{{ formatCurrency(Number(totalAmount), selectedProject?.currency || 'AUD') }}</span>
-                        </div>
+                    <div v-if="draftDuplicateRows.length" class="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                        One or more selected milestones are already invoiced for this project. Review the Existing Milestones panel before creating this invoice.
                     </div>
                 </div>
 
                 <div class="mt-6 flex justify-end gap-3">
                     <SecondaryButton @click="showCreateModal = false">Cancel</SecondaryButton>
-                    <PrimaryButton @click="submitInvoice" :disabled="form.processing">
+                    <PrimaryButton @click="submitInvoice" :disabled="createProcessing">
                         Create Invoice
                     </PrimaryButton>
                 </div>

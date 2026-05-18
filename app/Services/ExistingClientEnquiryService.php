@@ -520,6 +520,7 @@ class ExistingClientEnquiryService
     public function projectServiceDetails(Project $project): array
     {
         $serviceRows = $project->projectServices()
+            ->with('crmService:id,name')
             ->orderBy('id')
             ->get();
 
@@ -528,9 +529,8 @@ class ExistingClientEnquiryService
                 ->map(function (ProjectService $service) use ($project) {
                     return $this->normalizeServiceDetail([
                         'project_service_id' => $service->id,
-                        'project_service_id' => $service->id,
                         'enquiry_id' => $service->enquiry_id,
-                        'service_id' => $service->service_id,
+                        'service_id' => $service->crmService?->name ?? ('Service '.$service->id),
                         'amount' => $service->amount,
                         'currency' => $service->currency,
                         'frequency' => $service->frequency,
