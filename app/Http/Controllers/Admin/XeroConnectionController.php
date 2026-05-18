@@ -25,11 +25,65 @@ class XeroConnectionController extends Controller
             ->where('provider', XeroConnection::PROVIDER)
             ->first();
 
+        $brandingThemes = [];
+        if ($connection?->status === 'connected') {
+            try {
+                $xeroInvoiceService = app(\App\Services\XeroInvoiceService::class);
+                $brandingThemes = $xeroInvoiceService->getBrandingThemes();
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to fetch Xero branding themes: ' . $e->getMessage());
+            }
+        }
+
         return Inertia::render('Admin/Xero/Index', [
             'connection' => $connection,
             'transaction_types' => \App\Models\TransactionType::orderBy('name')->get(),
             'crm_services' => \App\Models\CrmService::orderBy('name')->get(),
+            'branding_themes' => $brandingThemes,
         ]);
+    }
+
+    public function brandingThemes(Request $request): JsonResponse
+    {
+        $this->ensureSuperAdmin($request);
+
+        $connection = XeroConnection::query()
+            ->where('provider', XeroConnection::PROVIDER)
+            ->first();
+
+        if ($connection?->status !== 'connected') {
+            return response()->json(['branding_themes' => [], 'default_branding_theme_id' => null]);
+        }
+
+        try {
+            $xeroInvoiceService = app(\App\Services\XeroInvoiceService::class);
+            $brandingThemes = $xeroInvoiceService->getBrandingThemes();
+            return response()->json([
+                'branding_themes' => $brandingThemes,
+                'default_branding_theme_id' => $connection->default_branding_theme_id,
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to fetch Xero branding themes API: ' . $e->getMessage());
+            return response()->json(['branding_themes' => [], 'default_branding_theme_id' => null], 500);
+        }
+    }
+
+    public function saveDefaultBrandingTheme(Request $request): RedirectResponse
+    {
+        $this->ensureSuperAdmin($request);
+
+        $validated = $request->validate([
+            'default_branding_theme_id' => 'nullable|string',
+        ]);
+
+        $connection = XeroConnection::query()
+            ->where('provider', XeroConnection::PROVIDER)
+            ->firstOrFail();
+
+        $connection->default_branding_theme_id = $validated['default_branding_theme_id'];
+        $connection->save();
+
+        return back()->with('success', 'Default branding theme saved successfully.');
     }
 
     public function connect(Request $request): RedirectResponse

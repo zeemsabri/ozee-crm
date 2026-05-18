@@ -159,6 +159,11 @@ class FileAttachmentController extends Controller
             $project = $instance;
         }
 
+        if ($instance instanceof \App\Models\Invoice) {
+            $instance->loadMissing('project');
+            $project = $instance->project;
+        }
+
         return [$instance, $project];
     }
 }

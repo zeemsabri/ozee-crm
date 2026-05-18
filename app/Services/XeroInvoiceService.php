@@ -14,8 +14,9 @@ class XeroInvoiceService
 
     /**
      * Create a Sales Invoice in Xero for the given invoice.
+     * @return array{InvoiceID: string, InvoiceNumber: string|null}
      */
-    public function createSalesInvoice(Invoice $invoice): string
+    public function createSalesInvoice(Invoice $invoice): array
     {
         $credentials = $this->xeroTokenService->getRuntimeCredentials();
 
@@ -51,6 +52,14 @@ class XeroInvoiceService
             'LineItems' => $lineItems,
         ];
 
+        if ($invoice->currency) {
+            $payload['CurrencyCode'] = $invoice->currency;
+        }
+
+        if ($invoice->xero_branding_theme_id) {
+            $payload['BrandingThemeID'] = $invoice->xero_branding_theme_id;
+        }
+
         $response = Http::withToken($credentials['access_token'])
             ->withHeaders([
                 'Xero-tenant-id' => $credentials['tenant_id'],
@@ -61,12 +70,16 @@ class XeroInvoiceService
             ->json();
 
         $xeroInvoiceId = data_get($response, 'Invoices.0.InvoiceID');
+        $xeroInvoiceNumber = data_get($response, 'Invoices.0.InvoiceNumber');
 
         if (!$xeroInvoiceId) {
             throw new RuntimeException('Failed to create sales invoice in Xero.');
         }
 
-        return $xeroInvoiceId;
+        return [
+            'InvoiceID' => $xeroInvoiceId,
+            'InvoiceNumber' => $xeroInvoiceNumber,
+        ];
     }
 
     protected function buildLineItemsFromInvoiceItems(Invoice $invoice): array
@@ -99,5 +112,64 @@ class XeroInvoiceService
 
             return $lineItem;
         })->values()->all();
+    }
+
+    public function getInvoiceHistory(string $xeroInvoiceId): array
+    {
+        $credentials = $this->xeroTokenService->getRuntimeCredentials();
+        $url = self::INVOICES_URL . '/' . $xeroInvoiceId . '/History';
+
+        $response = Http::withToken($credentials['access_token'])
+            ->withHeaders([
+                'Xero-tenant-id' => $credentials['tenant_id'],
+                'Accept' => 'application/json',
+            ])
+            ->get($url)
+            ->throw()
+            ->json();
+
+        return data_get($response, 'HistoryRecords', []);
+    }
+
+    public function addInvoiceNote(string $xeroInvoiceId, string $note): array
+    {
+        $credentials = $this->xeroTokenService->getRuntimeCredentials();
+        $url = self::INVOICES_URL . '/' . $xeroInvoiceId . '/History';
+
+        $payload = [
+            'HistoryRecords' => [
+                [
+                    'Details' => $note,
+                ],
+            ],
+        ];
+
+        $response = Http::withToken($credentials['access_token'])
+            ->withHeaders([
+                'Xero-tenant-id' => $credentials['tenant_id'],
+                'Accept' => 'application/json',
+            ])
+            ->post($url, $payload)
+            ->throw()
+            ->json();
+
+        return data_get($response, 'HistoryRecords', []);
+    }
+
+    public function getBrandingThemes(): array
+    {
+        $credentials = $this->xeroTokenService->getRuntimeCredentials();
+        $url = 'https://api.xero.com/api.xro/2.0/BrandingThemes';
+
+        $response = Http::withToken($credentials['access_token'])
+            ->withHeaders([
+                'Xero-tenant-id' => $credentials['tenant_id'],
+                'Accept' => 'application/json',
+            ])
+            ->get($url)
+            ->throw()
+            ->json();
+
+        return data_get($response, 'BrandingThemes', []);
     }
 }

@@ -101,5 +101,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('admin.xero.select-tenant');
         Route::delete('/xero/disconnect', [\App\Http\Controllers\Admin\XeroConnectionController::class, 'disconnect'])
             ->name('admin.xero.disconnect');
+        Route::get('/xero/branding-themes', [\App\Http\Controllers\Admin\XeroConnectionController::class, 'brandingThemes'])
+            ->name('admin.xero.branding-themes');
+        Route::post('/xero/default-branding-theme', [\App\Http\Controllers\Admin\XeroConnectionController::class, 'saveDefaultBrandingTheme'])
+            ->name('admin.xero.default-branding-theme');
     });
 });

@@ -69,11 +69,13 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use App\Http\Controllers\Api\TelegramWebhookController;
+use App\Http\Controllers\Api\XeroWebhookController;
 
 Route::post('/telegram/wh', [TelegramWebhookController::class, 'handle']);
 Route::post('/telegram/test-telegram', [TelegramWebhookController::class, 'send']);
 Route::post('/telegram/test-topic', [TelegramWebhookController::class, 'createTopic']);
 Route::post('/telegram/message-thread', [TelegramWebhookController::class, 'sendThreadMessage']);
+Route::post('/xero/webhook', [XeroWebhookController::class, 'handle']);
 
 Route::get('/extension/version', function () {
     return response()->json(['version' => config('services.extension.version')]);
@@ -168,6 +170,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('projects/{project}/invoices', [InvoiceController::class, 'index'])->name('api.invoices.index');
     Route::post('projects/{project}/invoices', [InvoiceController::class, 'store'])->name('api.invoices.store');
+    Route::get('projects/{project}/invoices/{invoice}', [InvoiceController::class, 'show'])->name('api.invoices.show');
+    Route::get('projects/{project}/invoices/{invoice}/notes', [InvoiceController::class, 'notes'])->name('api.invoices.notes');
+    Route::post('projects/{project}/invoices/{invoice}/notes', [InvoiceController::class, 'addNote'])->name('api.invoices.addNote');
     Route::post('projects/{project}/invoices/{invoice}/approve', [InvoiceController::class, 'approve'])->name('api.invoices.approve');
     Route::post('projects/{project}/invoices/{invoice}/reject', [InvoiceController::class, 'reject'])->name('api.invoices.reject');
     Route::post('projects/{project}/invoices/{invoice}/comment', [InvoiceController::class, 'comment'])->name('api.invoices.comment');
@@ -600,6 +605,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Invoice Management Routes (Basic)
     Route::get('projects/{project}/invoices', [\App\Http\Controllers\Api\InvoiceController::class, 'index']);
     Route::post('projects/{project}/invoices', [\App\Http\Controllers\Api\InvoiceController::class, 'store']);
+    Route::get('projects/{project}/invoices/{invoice}', [\App\Http\Controllers\Api\InvoiceController::class, 'show']);
+    Route::get('projects/{project}/invoices/{invoice}/notes', [\App\Http\Controllers\Api\InvoiceController::class, 'notes']);
+    Route::post('projects/{project}/invoices/{invoice}/notes', [\App\Http\Controllers\Api\InvoiceController::class, 'addNote']);
     Route::post('projects/{project}/invoices/{invoice}/approve', [\App\Http\Controllers\Api\InvoiceController::class, 'approve']);
     Route::post('projects/{project}/invoices/{invoice}/reject', [\App\Http\Controllers\Api\InvoiceController::class, 'reject']);
     Route::post('projects/{project}/invoices/{invoice}/comment', [\App\Http\Controllers\Api\InvoiceController::class, 'comment']);

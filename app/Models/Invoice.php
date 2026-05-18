@@ -16,6 +16,9 @@ class Invoice extends Model
         'total_amount',
         'status',
         'xero_invoice_id',
+        'invoice_number',
+        'currency',
+        'xero_branding_theme_id',
     ];
 
     protected $casts = [

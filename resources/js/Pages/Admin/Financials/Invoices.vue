@@ -54,6 +54,8 @@ const form = useForm({
     project_id: '',
     client_id: '',
     total_amount: '',
+    xero_branding_theme_id: '',
+    attachments: [],
     line_items: [],
 });
 
@@ -329,6 +331,19 @@ const fetchInvoices = async () => {
     }
 };
 
+const brandingThemes = ref([]);
+const defaultBrandingThemeId = ref('');
+
+const fetchBrandingThemes = async () => {
+    try {
+        const { data } = await axios.get(route('admin.xero.branding-themes'));
+        brandingThemes.value = data.branding_themes || [];
+        defaultBrandingThemeId.value = data.default_branding_theme_id || '';
+    } catch (err) {
+        console.error('Failed to fetch branding themes', err);
+    }
+};
+
 const fetchProjects = async () => {
     try {
         const { data } = await axios.get('/api/projects-for-email');
@@ -352,6 +367,8 @@ watch(() => form.project_id, (newId) => {
 const openCreateModal = () => {
     form.reset();
     form.clearErrors();
+    form.xero_branding_theme_id = defaultBrandingThemeId.value;
+    form.attachments = [];
     projectServices.value = [];
     lineItems.value = [emptyLineItem()];
     existingProjectInvoices.value = [];
@@ -370,6 +387,10 @@ const removeLineItem = (index) => {
     }
 
     lineItems.value.splice(index, 1);
+};
+
+const handleFileChange = (e) => {
+    form.attachments = Array.from(e.target.files);
 };
 
 const submitInvoice = async () => {
@@ -397,39 +418,54 @@ const submitInvoice = async () => {
 
     createProcessing.value = true;
     try {
-        await axios.post(`/api/projects/${form.project_id}/invoices`, {
-            project_id: Number(form.project_id),
-            client_id: Number(form.client_id),
-            total_amount: form.total_amount,
-            line_items: form.line_items,
+        const formData = new FormData();
+        formData.append('project_id', Number(form.project_id));
+        formData.append('client_id', Number(form.client_id));
+        formData.append('total_amount', form.total_amount);
+        if (form.xero_branding_theme_id) {
+            formData.append('xero_branding_theme_id', form.xero_branding_theme_id);
+        }
+        form.line_items.forEach((item, index) => {
+            Object.entries(item).forEach(([key, val]) => {
+                formData.append(`line_items[${index}][${key}]`, val);
+            });
+        });
+        if (form.attachments && form.attachments.length) {
+            form.attachments.forEach((file, index) => {
+                formData.append(`attachments[${index}]`, file);
+            });
+        }
+
+        await axios.post(`/api/projects/${form.project_id}/invoices`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
         });
 
-            showCreateModal.value = false;
-            success('Invoice created successfully.');
-            await fetchInvoices();
-            await fetchProjectInvoices(form.project_id);
-        } catch (err) {
-            const validationErrors = err.response?.data?.errors || {};
-            if (validationErrors.project_id?.[0]) {
-                form.setError('project_id', validationErrors.project_id[0]);
-            }
-            if (validationErrors.client_id?.[0]) {
-                form.setError('client_id', validationErrors.client_id[0]);
-            }
-
-            const lineItemError = validationErrors.line_items?.[0]
-                || validationErrors['line_items.0.milestone_key']?.[0]
-                || validationErrors['line_items.0.project_service_id']?.[0];
-
-            if (lineItemError) {
-                error(lineItemError);
-                return;
-            }
-
-            error(err.response?.data?.message || 'Failed to create invoice.');
-        } finally {
-            createProcessing.value = false;
+        showCreateModal.value = false;
+        success('Invoice created successfully.');
+        await fetchInvoices();
+        await fetchProjectInvoices(form.project_id);
+    } catch (err) {
+        const validationErrors = err.response?.data?.errors || {};
+        if (validationErrors.project_id?.[0]) {
+            form.setError('project_id', validationErrors.project_id[0]);
         }
+        if (validationErrors.client_id?.[0]) {
+            form.setError('client_id', validationErrors.client_id[0]);
+        }
+
+        const lineItemError = validationErrors.line_items?.[0]
+            || validationErrors['line_items.0.milestone_key']?.[0]
+            || validationErrors['line_items.0.project_service_id']?.[0];
+
+        if (lineItemError) {
+            error(lineItemError);
+            return;
+        }
+
+        error(err.response?.data?.message || 'Failed to create invoice.');
+    } finally {
+        createProcessing.value = false;
+    }
 };
 
 const openReviewModal = (invoice) => {
@@ -545,6 +581,7 @@ const voidInvoice = async (invoice) => {
 onMounted(() => {
     fetchInvoices();
     fetchProjects();
+    fetchBrandingThemes();
 });
 
 const getStatusClass = (status) => {
@@ -615,7 +652,8 @@ const getStatusClass = (status) => {
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 text-right text-sm font-medium">
-                                    <div class="flex justify-end gap-2">
+                                    <div class="flex justify-end gap-2 items-center">
+                                        <Link :href="route('admin.financials.invoices.show', { id: invoice.id })" class="text-indigo-600 hover:text-indigo-900 font-semibold">View</Link>
                                         <button v-if="invoice.status === 'pending_approval'" @click="openReviewModal(invoice)" class="text-indigo-600 hover:text-indigo-900">Review</button>
                                         <button v-if="invoice.status === 'authorised'" @click="voidInvoice(invoice)" class="text-red-600 hover:text-red-900">Void</button>
                                     </div>
@@ -660,6 +698,35 @@ const getStatusClass = (status) => {
                             </option>
                         </select>
                         <InputError :message="form.errors.client_id" />
+                    </div>
+
+                    <div v-if="selectedProject" class="grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <InputLabel for="xero_branding_theme_id" value="Branding Theme (Payment Method)" />
+                            <select 
+                                id="xero_branding_theme_id" 
+                                v-model="form.xero_branding_theme_id" 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            >
+                                <option value="">Default / Standard Theme</option>
+                                <option v-for="theme in brandingThemes" :key="theme.BrandingThemeID" :value="theme.BrandingThemeID">
+                                    {{ theme.Name }}
+                                </option>
+                            </select>
+                            <InputError :message="form.errors.xero_branding_theme_id" />
+                        </div>
+
+                        <div>
+                            <InputLabel for="attachments" value="Attachments (sent to Xero)" />
+                            <input 
+                                id="attachments" 
+                                type="file" 
+                                multiple 
+                                @change="handleFileChange" 
+                                class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                            />
+                            <InputError :message="form.errors.attachments" />
+                        </div>
                     </div>
 
                     <div v-if="loadingServices" class="text-sm text-gray-500">

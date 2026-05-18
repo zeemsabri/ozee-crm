@@ -187,6 +187,39 @@
                     </div>
                 </section>
 
+                <!-- Branding Themes Section -->
+                <section v-if="connection && branding_themes.length > 0" class="overflow-hidden rounded-lg bg-white shadow-sm sm:rounded-lg">
+                    <div class="border-b border-gray-200 px-6 py-5">
+                        <h3 class="text-lg font-semibold text-gray-900">Default Branding Theme (Payment Method)</h3>
+                        <p class="mt-1 text-sm text-gray-500">
+                            Select the default branding theme to be used for Xero invoices. Users can override this when creating individual invoices.
+                        </p>
+                    </div>
+
+                    <div class="px-6 py-6">
+                        <div class="max-w-xl">
+                            <label class="block text-sm font-medium text-gray-700">Select Branding Theme</label>
+                            <div class="mt-2 flex gap-4">
+                                <select
+                                    v-model="brandingThemeForm.default_branding_theme_id"
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                >
+                                    <option value="">-- No Default Theme --</option>
+                                    <option v-for="theme in branding_themes" :key="theme.BrandingThemeID" :value="theme.BrandingThemeID">
+                                        {{ theme.Name }}
+                                    </option>
+                                </select>
+                                <PrimaryButton
+                                    :disabled="brandingThemeForm.processing"
+                                    @click="saveBrandingTheme"
+                                >
+                                    {{ brandingThemeForm.processing ? 'Saving...' : 'Save' }}
+                                </PrimaryButton>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Account Mapping Section -->
                 <section v-if="connection" class="overflow-hidden rounded-lg bg-white shadow-sm sm:rounded-lg">
                     <div class="border-b border-gray-200 px-6 py-5">
@@ -321,7 +354,27 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    branding_themes: {
+        type: Array,
+        default: () => [],
+    },
 });
+
+const brandingThemeForm = useForm({
+    default_branding_theme_id: props.connection?.default_branding_theme_id || '',
+});
+
+const saveBrandingTheme = () => {
+    brandingThemeForm.post(route('admin.xero.default-branding-theme'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            notifySuccess('Default branding theme saved successfully.');
+        },
+        onError: () => {
+            notifyError('Failed to save default branding theme.');
+        },
+    });
+};
 
 const tenantForm = useForm({
     tenant_id: '',

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\HandlesImageUploads;
 use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
@@ -24,7 +25,7 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
-    use HasProjectPermissions;
+    use HandlesImageUploads, HasProjectPermissions;
 
     public function __construct(
         private readonly XeroInvoiceService $xeroInvoiceService,
@@ -56,6 +57,9 @@ class InvoiceController extends Controller
         $validated = $request->validate([
             'client_id' => 'required|exists:clients,id',
             'total_amount' => 'nullable|numeric|min:0',
+            'xero_branding_theme_id' => 'nullable|string',
+            'attachments' => 'nullable|array',
+            'attachments.*' => 'file|max:20480',
             'line_items' => 'nullable|array',
             'line_items.*.project_service_id' => 'required|exists:project_services,id',
             'line_items.*.milestone_key' => 'required|string|max:255',
@@ -75,8 +79,35 @@ class InvoiceController extends Controller
             ]);
         }
 
+        $currency = null;
+        if ($lineItems->isNotEmpty()) {
+            $serviceIds = collect($lineItems)->pluck('project_service_id')->unique();
+            $services = ProjectService::whereIn('id', $serviceIds)->get();
+            $currencies = $services->pluck('currency')->filter()->unique();
+
+            if ($currencies->count() === 0 || $services->count() !== $currencies->count()) {
+                throw ValidationException::withMessages([
+                    'line_items' => 'One or more selected services do not have a currency defined. Cannot create invoice.',
+                ]);
+            }
+            if ($currencies->count() > 1) {
+                throw ValidationException::withMessages([
+                    'line_items' => 'Selected services have different currencies. All line items in an invoice must share the same currency.',
+                ]);
+            }
+            $currency = $currencies->first();
+        } else {
+            $service = ProjectService::where('project_id', $project->id)->whereNotNull('currency')->first();
+            if (!$service) {
+                throw ValidationException::withMessages([
+                    'total_amount' => 'No currency defined in project services. Cannot create invoice.',
+                ]);
+            }
+            $currency = $service->currency;
+        }
+
         try {
-            return DB::transaction(function () use ($project, $validated, $lineItems) {
+            return DB::transaction(function () use ($project, $validated, $lineItems, $request, $currency) {
             $invoice = Invoice::create([
                 'project_id' => $project->id,
                 'client_id' => $validated['client_id'],
@@ -84,7 +115,16 @@ class InvoiceController extends Controller
                     ? 0
                     : (float) ($validated['total_amount'] ?? 0),
                 'status' => 'pending_approval',
+                'currency' => $currency,
+                'xero_branding_theme_id' => $validated['xero_branding_theme_id'] ?? null,
             ]);
+
+            if ($request->hasFile('attachments')) {
+                $paths = $this->uploadFilesToGcsWithThumbnails($request->file('attachments'), 'invoices', 'gcs');
+                foreach ($paths as $uploadedFile) {
+                    $invoice->files()->create($uploadedFile);
+                }
+            }
 
             if ($lineItems->isNotEmpty()) {
                 $this->createInvoiceItems($invoice, $project, $lineItems->all());
@@ -92,7 +132,7 @@ class InvoiceController extends Controller
                 $invoice->save();
             }
 
-            return response()->json($invoice->load(['client', 'invoiceItems.projectService', 'comments.user']), 201);
+            return response()->json($invoice->load(['client', 'invoiceItems.projectService', 'comments.user', 'files']), 201);
         });
         } catch (QueryException $exception) {
             if ($exception->getCode() === '23000') {
@@ -124,13 +164,23 @@ class InvoiceController extends Controller
 
         return DB::transaction(function () use ($invoice, $project, $user, $validated) {
             // 1. Push to Xero
-            $xeroInvoiceId = $this->xeroInvoiceService->createSalesInvoice($invoice);
-            $invoice->xero_invoice_id = $xeroInvoiceId;
+            $xeroResult = $this->xeroInvoiceService->createSalesInvoice($invoice);
+            $invoice->xero_invoice_id = $xeroResult['InvoiceID'];
+            $invoice->invoice_number = $xeroResult['InvoiceNumber'];
             $invoice->status = 'authorised';
             $invoice->save();
 
             // 2. Push Attachments to Xero
-            $this->xeroAttachmentService->uploadAttachments($invoice, $xeroInvoiceId);
+            $this->xeroAttachmentService->uploadAttachments($invoice, $xeroResult['InvoiceID']);
+
+            if (!empty($validated['review_comment'])) {
+                try {
+                    $this->xeroInvoiceService->addInvoiceNote($xeroResult['InvoiceID'], $validated['review_comment']);
+                } catch (\Exception $e) {
+                    // Log error but don't fail approval
+                    \Illuminate\Support\Facades\Log::error('Failed to push review comment to Xero: ' . $e->getMessage());
+                }
+            }
 
             $this->recordReviewAction(
                 $invoice,
@@ -140,7 +190,7 @@ class InvoiceController extends Controller
                 $validated['review_comment'] ?? null
             );
 
-            return response()->json($invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user']));
+            return response()->json($invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user', 'files']));
         });
     }
 
@@ -186,7 +236,75 @@ class InvoiceController extends Controller
 
         $this->recordReviewAction($invoice, $project, $user, 'comment', $validated['comment']);
 
-        return response()->json($invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user']));
+        if ($invoice->xero_invoice_id) {
+            try {
+                $this->xeroInvoiceService->addInvoiceNote($invoice->xero_invoice_id, $validated['comment']);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to push comment to Xero: ' . $e->getMessage());
+            }
+        }
+
+        return response()->json($invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user', 'files']));
+    }
+
+    public function show(Project $project, Invoice $invoice)
+    {
+        $user = Auth::user();
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $this->ensureProjectInvoice($project, $invoice);
+
+        $invoice->load(['client', 'invoiceItems.projectService', 'comments.user', 'files']);
+
+        return response()->json($invoice);
+    }
+
+    public function notes(Project $project, Invoice $invoice)
+    {
+        $user = Auth::user();
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $this->ensureProjectInvoice($project, $invoice);
+
+        if (!$invoice->xero_invoice_id) {
+            return response()->json([]);
+        }
+
+        try {
+            $history = $this->xeroInvoiceService->getInvoiceHistory($invoice->xero_invoice_id);
+            return response()->json($history);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to fetch notes from Xero: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function addNote(Request $request, Project $project, Invoice $invoice)
+    {
+        $user = Auth::user();
+        if (!$user->isSuperAdmin()) {
+            return response()->json(['message' => 'Only Super Admins can add notes to invoices.'], 403);
+        }
+
+        $this->ensureProjectInvoice($project, $invoice);
+
+        $validated = $request->validate([
+            'note' => 'required|string',
+        ]);
+
+        if (!$invoice->xero_invoice_id) {
+            return response()->json(['message' => 'Invoice is not synced to Xero yet.'], 400);
+        }
+
+        try {
+            $history = $this->xeroInvoiceService->addInvoiceNote($invoice->xero_invoice_id, $validated['note']);
+            return response()->json($history);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to add note to Xero: ' . $e->getMessage()], 500);
+        }
     }
 
     public function void(Invoice $invoice)
