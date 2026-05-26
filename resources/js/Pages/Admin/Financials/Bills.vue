@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import axios from 'axios';
 import { formatCurrency } from '@/Utils/currency';
 import { success, error, confirmPrompt } from '@/Utils/notification';
@@ -15,6 +15,7 @@ import InputError from '@/Components/InputError.vue';
 const bills = ref([]);
 const projects = ref([]);
 const expendables = ref([]);
+const transactionTypes = ref([]);
 const loading = ref(true);
 const filterStatus = ref('');
 const showCreateModal = ref(false);
@@ -22,9 +23,23 @@ const showCreateModal = ref(false);
 const form = useForm({
     project_id: '',
     project_expendable_id: '',
+    contractor_id: '',
+    transaction_type_id: '',
     amount: '',
-    attachment: null,
-    notes: '',
+    payment_details: {
+        payment_method: 'bank_transfer',
+        account_name: '',
+        account_number: '',
+        bank_name: '',
+        bsb: '',
+        swift_code: '',
+        iban: '',
+        notes: '',
+    },
+});
+
+const selectedExpendable = computed(() => {
+    return expendables.value.find((item) => String(item.id) === String(form.project_expendable_id)) || null;
 });
 
 const fetchBills = async () => {
@@ -48,36 +63,69 @@ const fetchProjects = async () => {
     }
 };
 
+const fetchTransactionTypes = async () => {
+    try {
+        const { data } = await axios.get('/api/transaction-types');
+        transactionTypes.value = data || [];
+    } catch (err) {
+        error('Failed to load transaction types.');
+    }
+};
+
 watch(() => form.project_id, async (newId) => {
     if (!newId) {
         expendables.value = [];
+        form.project_expendable_id = '';
+        form.contractor_id = '';
         return;
     }
     try {
-        const { data } = await axios.get(`/api/projects/${newId}/expendables`);
-        expendables.value = data.filter(e => e.status === 'accepted'); // Only accepted contracts
+        const { data } = await axios.get(`/api/projects/${newId}/expendables`, {
+            params: {
+                for_billing: true,
+            },
+        });
+        expendables.value = data;
         form.project_expendable_id = '';
+        form.contractor_id = '';
     } catch (err) {
         console.error('Failed to fetch expendables', err);
     }
 });
 
+watch(() => form.project_expendable_id, () => {
+    form.contractor_id = selectedExpendable.value?.user_id || '';
+});
+
 const openCreateModal = () => {
     form.reset();
+    form.payment_details = {
+        payment_method: 'bank_transfer',
+        account_name: '',
+        account_number: '',
+        bank_name: '',
+        bsb: '',
+        swift_code: '',
+        iban: '',
+        notes: '',
+    };
     showCreateModal.value = true;
 };
 
 const submitBill = () => {
     if (!form.project_expendable_id) return error('Please select a contract.');
+    if (!form.project_id) return error('Please select a project.');
+    if (!form.contractor_id) return error('Selected contract does not have a contractor assigned.');
+    if (!form.transaction_type_id) return error('Please select a transaction type.');
     
-    form.post(`/api/bills/expendables/${form.project_expendable_id}/bills`, {
+    form.post(`/api/projects/${form.project_id}/bills`, {
         onSuccess: () => {
             showCreateModal.value = false;
             success('Bill created successfully.');
             fetchBills();
         },
-        onError: (err) => {
-            error(err.message || 'Failed to create bill.');
+        onError: () => {
+            error('Failed to create bill. Please review the form and try again.');
         }
     });
 };
@@ -107,6 +155,7 @@ const voidBill = async (bill) => {
 onMounted(() => {
     fetchBills();
     fetchProjects();
+    fetchTransactionTypes();
 });
 
 const getStatusClass = (status) => {
@@ -215,10 +264,25 @@ const getStatusClass = (status) => {
                         >
                             <option value="">Select Contract</option>
                             <option v-for="exp in expendables" :key="exp.id" :value="exp.id">
-                                {{ exp.name }} (Rem: {{ formatCurrency(exp.remaining_balance, exp.currency) }})
+                                {{ exp.name }} ({{ exp.expendable_type?.replace('App\\Models\\', '') || 'Project' }}) - Rem: {{ formatCurrency(exp.balance, exp.currency) }}
                             </option>
                         </select>
                         <InputError :message="form.errors.project_expendable_id" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="bill_transaction_type" value="Transaction Type" />
+                        <select
+                            id="bill_transaction_type"
+                            v-model="form.transaction_type_id"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        >
+                            <option value="">Select Transaction Type</option>
+                            <option v-for="type in transactionTypes" :key="type.id" :value="type.id">
+                                {{ type.name }}
+                            </option>
+                        </select>
+                        <InputError :message="form.errors.transaction_type_id" />
                     </div>
 
                     <div>
@@ -233,26 +297,100 @@ const getStatusClass = (status) => {
                         <InputError :message="form.errors.amount" />
                     </div>
 
-                    <div>
-                        <InputLabel for="bill_attachment" value="Attachment (PDF/Image)" />
-                        <input 
-                            id="bill_attachment" 
-                            type="file" 
-                            @input="form.attachment = $event.target.files[0]"
-                            class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                        />
-                        <InputError :message="form.errors.attachment" />
-                    </div>
+                    <div class="border rounded-md p-4 bg-gray-50 space-y-4">
+                        <h4 class="text-sm font-semibold text-gray-800">Payment Details (Required)</h4>
 
-                    <div>
-                        <InputLabel for="bill_notes" value="Notes" />
-                        <textarea 
-                            id="bill_notes" 
-                            v-model="form.notes"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            rows="2"
-                        ></textarea>
-                        <InputError :message="form.errors.notes" />
+                        <div>
+                            <InputLabel for="bill_payment_method" value="Payment Method" />
+                            <select
+                                id="bill_payment_method"
+                                v-model="form.payment_details.payment_method"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            >
+                                <option value="bank_transfer">Bank Transfer</option>
+                                <option value="paypal">PayPal</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <InputError :message="form.errors['payment_details.payment_method']" />
+                        </div>
+
+                        <div>
+                            <InputLabel for="bill_account_name" value="Account Name" />
+                            <TextInput
+                                id="bill_account_name"
+                                v-model="form.payment_details.account_name"
+                                type="text"
+                                class="mt-1 block w-full"
+                            />
+                            <InputError :message="form.errors['payment_details.account_name']" />
+                        </div>
+
+                        <div>
+                            <InputLabel for="bill_account_number" value="Account Number" />
+                            <TextInput
+                                id="bill_account_number"
+                                v-model="form.payment_details.account_number"
+                                type="text"
+                                class="mt-1 block w-full"
+                            />
+                            <InputError :message="form.errors['payment_details.account_number']" />
+                        </div>
+
+                        <div>
+                            <InputLabel for="bill_bank_name" value="Bank Name" />
+                            <TextInput
+                                id="bill_bank_name"
+                                v-model="form.payment_details.bank_name"
+                                type="text"
+                                class="mt-1 block w-full"
+                            />
+                            <InputError :message="form.errors['payment_details.bank_name']" />
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <InputLabel for="bill_bsb" value="BSB / Routing" />
+                                <TextInput
+                                    id="bill_bsb"
+                                    v-model="form.payment_details.bsb"
+                                    type="text"
+                                    class="mt-1 block w-full"
+                                />
+                                <InputError :message="form.errors['payment_details.bsb']" />
+                            </div>
+                            <div>
+                                <InputLabel for="bill_swift" value="SWIFT Code" />
+                                <TextInput
+                                    id="bill_swift"
+                                    v-model="form.payment_details.swift_code"
+                                    type="text"
+                                    class="mt-1 block w-full"
+                                />
+                                <InputError :message="form.errors['payment_details.swift_code']" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <InputLabel for="bill_iban" value="IBAN" />
+                            <TextInput
+                                id="bill_iban"
+                                v-model="form.payment_details.iban"
+                                type="text"
+                                class="mt-1 block w-full"
+                            />
+                            <InputError :message="form.errors['payment_details.iban']" />
+                        </div>
+
+                        <div>
+                            <InputLabel for="bill_notes" value="Payment Notes" />
+                            <textarea
+                                id="bill_notes"
+                                v-model="form.payment_details.notes"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                rows="2"
+                            ></textarea>
+                            <InputError :message="form.errors['payment_details.notes']" />
+                        </div>
                     </div>
                 </div>
 

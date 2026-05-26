@@ -55,4 +55,14 @@ class Bill extends Model
     {
         return $this->morphMany(FileAttachment::class, 'fileable');
     }
+
+    public function paymentDetail()
+    {
+        return $this->hasOne(BillPaymentDetail::class);
+    }
+
+    public function approvalInstance()
+    {
+        return $this->morphOne(ApprovalInstance::class, 'approvable');
+    }
 }

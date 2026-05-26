@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { useForm } from '@inertiajs/vue3';
+import axios from 'axios';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import Modal from '@/Components/Modal.vue';
@@ -33,9 +34,19 @@ const processing = ref(false);
 
 const form = useForm({
     amount: '',
+    project_expendable_id: '',
+    contractor_id: '',
     transaction_type_id: '',
-    description: '',
-    attachment: null,
+    payment_details: {
+        payment_method: 'bank_transfer',
+        account_name: '',
+        account_number: '',
+        bank_name: '',
+        bsb: '',
+        swift_code: '',
+        iban: '',
+        notes: '',
+    },
 });
 
 const typeOptions = computed(() => 
@@ -45,18 +56,40 @@ const typeOptions = computed(() =>
 const openCreateModal = () => {
     form.reset();
     form.amount = props.expendable.balance;
+    form.project_expendable_id = props.expendable.id;
+    form.contractor_id = props.expendable.user_id || '';
+    form.payment_details = {
+        payment_method: 'bank_transfer',
+        account_name: '',
+        account_number: '',
+        bank_name: '',
+        bsb: '',
+        swift_code: '',
+        iban: '',
+        notes: '',
+    };
     showCreateModal.value = true;
 };
 
 const submitBill = () => {
-    form.post(route('api.bills.store', { expendable: props.expendable.id }), {
+    if (!props.expendable.project_id) {
+        error('Unable to create bill because project context is missing.');
+        return;
+    }
+
+    if (!form.contractor_id) {
+        error('This contract has no assigned contractor.');
+        return;
+    }
+
+    form.post(`/api/projects/${props.expendable.project_id}/bills`, {
         onSuccess: () => {
             showCreateModal.value = false;
             success('Bill created successfully.');
             emit('updated');
         },
-        onError: (err) => {
-            error(err.message || 'Failed to create bill.');
+        onError: () => {
+            error('Failed to create bill. Please review the form and try again.');
         }
     });
 };
@@ -209,23 +242,98 @@ const formatStatus = (status) => {
 
                     <div>
                         <InputLabel for="description" value="Description" />
-                        <textarea 
-                            id="description" 
-                            v-model="form.description"
+                        <textarea
+                            id="description"
+                            v-model="form.payment_details.notes"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                             rows="2"
                         ></textarea>
+                        <InputError :message="form.errors['payment_details.notes']" />
                     </div>
 
-                    <div>
-                        <InputLabel for="attachment" value="Attachment (Invoice/Receipt)" />
-                        <input 
-                            id="attachment" 
-                            type="file" 
-                            @input="form.attachment = $event.target.files[0]"
-                            class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                        />
-                        <InputError :message="form.errors.attachment" />
+                    <div class="border rounded-md p-4 bg-gray-50 space-y-4">
+                        <h4 class="text-sm font-semibold text-gray-800">Payment Details (Required)</h4>
+
+                        <div>
+                            <InputLabel for="payment_method" value="Payment Method" />
+                            <select
+                                id="payment_method"
+                                v-model="form.payment_details.payment_method"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            >
+                                <option value="bank_transfer">Bank Transfer</option>
+                                <option value="paypal">PayPal</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <InputError :message="form.errors['payment_details.payment_method']" />
+                        </div>
+
+                        <div>
+                            <InputLabel for="account_name" value="Account Name" />
+                            <TextInput
+                                id="account_name"
+                                v-model="form.payment_details.account_name"
+                                type="text"
+                                class="mt-1 block w-full"
+                            />
+                            <InputError :message="form.errors['payment_details.account_name']" />
+                        </div>
+
+                        <div>
+                            <InputLabel for="account_number" value="Account Number" />
+                            <TextInput
+                                id="account_number"
+                                v-model="form.payment_details.account_number"
+                                type="text"
+                                class="mt-1 block w-full"
+                            />
+                            <InputError :message="form.errors['payment_details.account_number']" />
+                        </div>
+
+                        <div>
+                            <InputLabel for="bank_name" value="Bank Name" />
+                            <TextInput
+                                id="bank_name"
+                                v-model="form.payment_details.bank_name"
+                                type="text"
+                                class="mt-1 block w-full"
+                            />
+                            <InputError :message="form.errors['payment_details.bank_name']" />
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <InputLabel for="bsb" value="BSB / Routing" />
+                                <TextInput
+                                    id="bsb"
+                                    v-model="form.payment_details.bsb"
+                                    type="text"
+                                    class="mt-1 block w-full"
+                                />
+                                <InputError :message="form.errors['payment_details.bsb']" />
+                            </div>
+                            <div>
+                                <InputLabel for="swift_code" value="SWIFT Code" />
+                                <TextInput
+                                    id="swift_code"
+                                    v-model="form.payment_details.swift_code"
+                                    type="text"
+                                    class="mt-1 block w-full"
+                                />
+                                <InputError :message="form.errors['payment_details.swift_code']" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <InputLabel for="iban" value="IBAN" />
+                            <TextInput
+                                id="iban"
+                                v-model="form.payment_details.iban"
+                                type="text"
+                                class="mt-1 block w-full"
+                            />
+                            <InputError :message="form.errors['payment_details.iban']" />
+                        </div>
                     </div>
                 </div>
 

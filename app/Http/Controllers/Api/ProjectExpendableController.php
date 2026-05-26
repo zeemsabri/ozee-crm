@@ -23,6 +23,20 @@ class ProjectExpendableController extends Controller
             return response()->json(['message' => 'Unauthorized. You do not have permission to view expendables.'], 403);
         }
 
+        if (request()->boolean('for_billing')) {
+            $acceptedStatus = \App\Enums\ProjectExpendableStatus::Accepted->value;
+
+            $contracts = ProjectExpendable::query()
+                ->where('project_id', $project->id)
+                ->whereNotNull('user_id')
+                ->where('status', $acceptedStatus)
+                ->with(['user:id,name,email', 'bills.transactionType'])
+                ->latest()
+                ->get();
+
+            return response()->json($contracts);
+        }
+
         $expendables = $project->budget()
             ->latest()
             ->get();
