@@ -7,8 +7,10 @@ use App\Http\Controllers\Api\Concerns\HandlesImageUploads;
 use App\Http\Controllers\Api\Concerns\HasProjectPermissions;
 use App\Http\Controllers\Controller;
 use App\Models\FileAttachment;
+use App\Models\Invoice;
 use App\Models\Project;
 use App\Models\Task;
+use App\Services\XeroAttachmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -18,6 +20,10 @@ use Illuminate\Validation\ValidationException;
 class FileAttachmentController extends Controller
 {
     use HandlesImageUploads, HasProjectPermissions;
+
+    public function __construct(
+        private readonly XeroAttachmentService $xeroAttachmentService
+    ) {}
 
     public function index(Request $request)
     {
@@ -88,8 +94,22 @@ class FileAttachmentController extends Controller
         }
 
         foreach ($paths as $uploadedFile) {
-
             $record = $instance->files()->create($uploadedFile);
+
+            $records[] = $record;
+
+            if ($instance instanceof Invoice && ! empty($instance->xero_invoice_id)) {
+                try {
+                    $this->xeroAttachmentService->uploadAttachment($record, $instance->xero_invoice_id, 'Invoices');
+                } catch (\Throwable $e) {
+                    Log::error('Failed to sync invoice attachment to Xero', [
+                        'invoice_id' => $instance->id,
+                        'xero_invoice_id' => $instance->xero_invoice_id,
+                        'file_id' => $record->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
 
             activity()
                 ->performedOn($record)

@@ -39,6 +39,14 @@ class XeroAttachmentService
         }
     }
 
+    /**
+     * Upload one attachment to Xero.
+     */
+    public function uploadAttachment(FileAttachment $attachment, string $xeroId, string $endpoint = 'Invoices'): void
+    {
+        $this->uploadToXero($attachment, $xeroId, $endpoint);
+    }
+
     private function uploadToXero(FileAttachment $attachment, string $xeroId, string $endpoint): void
     {
         $content = $this->getFileContent($attachment);

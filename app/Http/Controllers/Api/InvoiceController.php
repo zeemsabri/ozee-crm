@@ -22,6 +22,7 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class InvoiceController extends Controller
 {
@@ -52,6 +53,9 @@ class InvoiceController extends Controller
         $user = Auth::user();
         if (!$this->canAccessProject($user, $project)) {
             return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+        if (!$this->canEditInvoice($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to edit invoices.'], 403);
         }
 
         $validated = $request->validate([
@@ -178,8 +182,23 @@ class InvoiceController extends Controller
                     $this->xeroInvoiceService->addInvoiceNote($xeroResult['InvoiceID'], $validated['review_comment']);
                 } catch (\Exception $e) {
                     // Log error but don't fail approval
-                    \Illuminate\Support\Facades\Log::error('Failed to push review comment to Xero: ' . $e->getMessage());
+                    Log::error('Failed to push review comment to Xero: ' . $e->getMessage());
                 }
+            }
+
+            $xeroEmailSent = false;
+            $xeroEmailError = null;
+            try {
+                $this->xeroInvoiceService->sendSalesInvoiceEmail($xeroResult['InvoiceID']);
+                $xeroEmailSent = true;
+            } catch (\Exception $e) {
+                // Keep approval successful even if email dispatch fails.
+                $xeroEmailError = $e->getMessage();
+                Log::error('Failed to send invoice email via Xero', [
+                    'invoice_id' => $invoice->id,
+                    'xero_invoice_id' => $xeroResult['InvoiceID'],
+                    'error' => $xeroEmailError,
+                ]);
             }
 
             $this->recordReviewAction(
@@ -190,7 +209,14 @@ class InvoiceController extends Controller
                 $validated['review_comment'] ?? null
             );
 
-            return response()->json($invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user', 'files']));
+            $approvedInvoice = $invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user', 'files']);
+            $payload = $approvedInvoice?->toArray() ?? [];
+            $payload['xero_email_sent'] = $xeroEmailSent;
+            if (!$xeroEmailSent && $xeroEmailError) {
+                $payload['xero_email_error'] = $xeroEmailError;
+            }
+
+            return response()->json($payload);
         });
     }
 
@@ -247,7 +273,7 @@ class InvoiceController extends Controller
         return response()->json($invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user', 'files']));
     }
 
-    public function show(Project $project, Invoice $invoice)
+    public function show(Request $request, Project $project, Invoice $invoice)
     {
         $user = Auth::user();
         if (!$this->canAccessProject($user, $project)) {
@@ -256,9 +282,155 @@ class InvoiceController extends Controller
 
         $this->ensureProjectInvoice($project, $invoice);
 
+        if ($request->boolean('sync_xero') && $invoice->xero_invoice_id) {
+            try {
+                $invoice = $this->xeroInvoiceService->syncLocalInvoiceFromXero($invoice);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to sync invoice from Xero during show.', [
+                    'invoice_id' => $invoice->id,
+                    'xero_invoice_id' => $invoice->xero_invoice_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         $invoice->load(['client', 'invoiceItems.projectService', 'comments.user', 'files']);
+        $invoice->setAttribute('can_edit_invoice', $this->canEditInvoice($user, $project));
+        $invoice->setAttribute('can_financially_edit_invoice', $this->canFinanciallyEditInvoice($invoice));
 
         return response()->json($invoice);
+    }
+
+    public function update(Request $request, Project $project, Invoice $invoice)
+    {
+        $user = Auth::user();
+        if (!$this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+        if (!$this->canEditInvoice($user, $project)) {
+            return response()->json(['message' => 'Unauthorized. You do not have permission to edit invoices.'], 403);
+        }
+
+        $this->ensureProjectInvoice($project, $invoice);
+
+        if (! $this->canFinanciallyEditInvoice($invoice)) {
+            return response()->json([
+                'message' => 'This invoice can no longer be edited in CRM. Use Xero adjustment workflows instead.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'line_items' => 'required|array|min:1',
+            'line_items.*.id' => 'nullable|integer|exists:invoice_items,id',
+            'line_items.*.project_service_id' => 'required|integer|exists:project_services,id',
+            'line_items.*.milestone_key' => 'required|string|max:255',
+            'line_items.*.label' => 'required|string|max:255',
+            'line_items.*.quantity' => 'required|numeric|min:0.01',
+            'line_items.*.unit_price' => 'required|numeric|min:0',
+            'line_items.*.tax_type' => 'nullable|string|max:50',
+            'line_items.*.description' => 'nullable|string|max:2000',
+            'line_items.*.milestone_percentage' => 'nullable|numeric|min:0|max:100',
+        ]);
+
+        return DB::transaction(function () use ($invoice, $validated, $user, $project) {
+            $currentItems = $invoice->invoiceItems()->get()->keyBy('id');
+            $incomingItems = collect($validated['line_items']);
+
+            $seenMilestones = [];
+            foreach ($incomingItems as $lineItem) {
+                $projectService = ProjectService::query()->whereKey((int) $lineItem['project_service_id'])->first();
+                if (! $projectService || (int) $projectService->project_id !== (int) $project->id) {
+                    return response()->json([
+                        'message' => 'Each line item must belong to a service in the selected project.',
+                    ], 422);
+                }
+
+                $milestoneKey = (string) $lineItem['milestone_key'];
+                $compositeKey = $projectService->id.'|'.$milestoneKey;
+                if (in_array($compositeKey, $seenMilestones, true)) {
+                    return response()->json([
+                        'message' => "Milestone {$milestoneKey} was added more than once for service {$projectService->id}.",
+                    ], 422);
+                }
+                $seenMilestones[] = $compositeKey;
+
+                $conflictingItem = InvoiceItem::query()
+                    ->with('invoice')
+                    ->where('project_service_id', $projectService->id)
+                    ->where('milestone_key', $milestoneKey)
+                    ->whereHas('invoice', function ($query) use ($invoice) {
+                        $query->where('id', '!=', $invoice->id)
+                            ->whereNotIn('status', ['rejected', 'voided']);
+                    })
+                    ->first();
+
+                if ($conflictingItem) {
+                    $existingInvoiceNumber = $conflictingItem->invoice?->invoice_number ?: ('ID '.$conflictingItem->invoice_id);
+                    $existingInvoiceStatus = strtoupper((string) ($conflictingItem->invoice?->status ?? 'unknown'));
+
+                    return response()->json([
+                        'message' => "Milestone \"{$lineItem['label']}\" is already invoiced in invoice {$existingInvoiceNumber} ({$existingInvoiceStatus}).",
+                    ], 422);
+                }
+            }
+
+            $incomingExistingIds = $incomingItems
+                ->pluck('id')
+                ->filter(fn ($id) => ! is_null($id))
+                ->map(fn ($id) => (int) $id)
+                ->values();
+
+            // Remove lines omitted by the user in edit mode.
+            $invoice->invoiceItems()
+                ->whereNotIn('id', $incomingExistingIds->all())
+                ->delete();
+
+            foreach ($incomingItems as $lineItem) {
+                $model = null;
+                if (!empty($lineItem['id'])) {
+                    $model = $currentItems->get((int) $lineItem['id']);
+                    if (! $model) {
+                        return response()->json([
+                            'message' => 'One or more line items do not belong to this invoice.',
+                        ], 422);
+                    }
+                }
+
+                $payload = [
+                    'project_service_id' => (int) $lineItem['project_service_id'],
+                    'milestone_key' => (string) $lineItem['milestone_key'],
+                    'label' => (string) $lineItem['label'],
+                    'description' => $lineItem['description'] ?? null,
+                    'quantity' => (float) $lineItem['quantity'],
+                    'unit_price' => (float) $lineItem['unit_price'],
+                    'tax_type' => $lineItem['tax_type'] ?? 'OUTPUT',
+                ];
+
+                if ($model) {
+                    $model->fill($payload);
+                    $model->save();
+                } else {
+                    $invoice->invoiceItems()->create($payload);
+                }
+            }
+
+            $invoice->total_amount = (float) $invoice->invoiceItems()->sum(DB::raw('quantity * unit_price'));
+            $invoice->save();
+
+            $this->recordReviewAction(
+                $invoice,
+                $project,
+                $user,
+                'updated',
+                'Invoice line items updated from CRM.'
+            );
+
+            $invoice->load(['client', 'invoiceItems.projectService', 'comments.user', 'files']);
+            $invoice->setAttribute('can_edit_invoice', $this->canEditInvoice($user, $project));
+            $invoice->setAttribute('can_financially_edit_invoice', $this->canFinanciallyEditInvoice($invoice));
+
+            return response()->json($invoice);
+        });
     }
 
     public function notes(Project $project, Invoice $invoice)
@@ -271,12 +443,12 @@ class InvoiceController extends Controller
         $this->ensureProjectInvoice($project, $invoice);
 
         if (!$invoice->xero_invoice_id) {
-            return response()->json([]);
+            return response()->json(['notes' => []]);
         }
 
         try {
             $history = $this->xeroInvoiceService->getInvoiceHistory($invoice->xero_invoice_id);
-            return response()->json($history);
+            return response()->json(['notes' => $history]);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Failed to fetch notes from Xero: ' . $e->getMessage()], 500);
         }
@@ -418,6 +590,11 @@ class InvoiceController extends Controller
                 'invoice' => 'The selected invoice does not belong to the selected project.',
             ]);
         }
+    }
+
+    protected function canFinanciallyEditInvoice(Invoice $invoice): bool
+    {
+        return in_array($invoice->status, ['pending_approval', 'rejected', 'draft'], true);
     }
 
     protected function recordReviewAction(Invoice $invoice, Project $project, User $user, string $action, ?string $content): void

@@ -3,7 +3,10 @@
 namespace App\Services;
 
 use App\Models\Invoice;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class XeroInvoiceService
@@ -80,6 +83,38 @@ class XeroInvoiceService
             'InvoiceID' => $xeroInvoiceId,
             'InvoiceNumber' => $xeroInvoiceNumber,
         ];
+    }
+
+    public function sendSalesInvoiceEmail(string $xeroInvoiceId): void
+    {
+        $credentials = $this->xeroTokenService->getRuntimeCredentials();
+        $url = self::INVOICES_URL . '/' . $xeroInvoiceId . '/Email';
+
+        $response = Http::withToken($credentials['access_token'])
+            ->withHeaders([
+                'Xero-tenant-id' => $credentials['tenant_id'],
+                'Accept' => 'application/json',
+            ])
+            ->retry(
+                3,
+                fn (int $attempt): int => $attempt * 500,
+                function ($exception): bool {
+                    if (! $exception instanceof RequestException) {
+                        return false;
+                    }
+
+                    $status = $exception->response?->status();
+                    return in_array($status, [429, 500, 502, 503, 504], true);
+                },
+                false
+            )
+            ->post($url);
+
+        if ($response->failed()) {
+            $status = $response->status();
+            $body = Str::limit((string) $response->body(), 400);
+            throw new RuntimeException("Failed to send invoice email via Xero (HTTP {$status}): {$body}");
+        }
     }
 
     protected function buildLineItemsFromInvoiceItems(Invoice $invoice): array
@@ -171,5 +206,123 @@ class XeroInvoiceService
             ->json();
 
         return data_get($response, 'BrandingThemes', []);
+    }
+
+    public function syncLocalInvoiceFromXero(Invoice $invoice): Invoice
+    {
+        if (! $invoice->xero_invoice_id) {
+            return $invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user', 'files']) ?? $invoice;
+        }
+
+        $xeroInvoice = $this->getSalesInvoiceFromXero($invoice->xero_invoice_id);
+
+        DB::transaction(function () use ($invoice, $xeroInvoice): void {
+            $invoice->status = $this->mapSalesInvoiceStatus($xeroInvoice);
+            $invoice->invoice_number = (string) data_get($xeroInvoice, 'InvoiceNumber', $invoice->invoice_number);
+            $invoice->total_amount = (float) data_get($xeroInvoice, 'Total', $invoice->total_amount);
+
+            $currencyCode = data_get($xeroInvoice, 'CurrencyCode');
+            if (is_string($currencyCode) && $currencyCode !== '') {
+                $invoice->currency = $currencyCode;
+            }
+
+            $invoice->save();
+
+            $xeroLineItems = collect(data_get($xeroInvoice, 'LineItems', []))
+                ->filter(fn ($lineItem) => is_array($lineItem))
+                ->values();
+
+            if ($xeroLineItems->isEmpty()) {
+                return;
+            }
+
+            $localItems = $invoice->invoiceItems()->orderBy('id')->get();
+
+            foreach ($localItems as $index => $localItem) {
+                $xeroLineItem = $xeroLineItems->get($index);
+                if (! is_array($xeroLineItem)) {
+                    break;
+                }
+
+                $quantity = data_get($xeroLineItem, 'Quantity');
+                if (is_numeric($quantity)) {
+                    $localItem->quantity = (float) $quantity;
+                }
+
+                $unitAmount = data_get($xeroLineItem, 'UnitAmount');
+                if (is_numeric($unitAmount)) {
+                    $localItem->unit_price = (float) $unitAmount;
+                }
+
+                $taxType = data_get($xeroLineItem, 'TaxType');
+                if (is_string($taxType) && $taxType !== '') {
+                    $localItem->tax_type = $taxType;
+                }
+
+                $description = data_get($xeroLineItem, 'Description');
+                if (is_string($description) && $description !== '') {
+                    $localItem->description = $description;
+                }
+
+                if ($localItem->isDirty()) {
+                    $localItem->save();
+                }
+            }
+        });
+
+        return $invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user', 'files']) ?? $invoice;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function getSalesInvoiceFromXero(string $xeroInvoiceId): array
+    {
+        $credentials = $this->xeroTokenService->getRuntimeCredentials();
+
+        $response = Http::withToken($credentials['access_token'])
+            ->withHeaders([
+                'Xero-tenant-id' => $credentials['tenant_id'],
+                'Accept' => 'application/json',
+            ])
+            ->get(self::INVOICES_URL . '/' . $xeroInvoiceId)
+            ->throw()
+            ->json();
+
+        $invoice = data_get($response, 'Invoices.0');
+        if (! is_array($invoice)) {
+            throw new RuntimeException('Failed to fetch invoice from Xero.');
+        }
+
+        if (strtoupper((string) data_get($invoice, 'Type', '')) !== 'ACCREC') {
+            throw new RuntimeException('Xero invoice type is not a sales invoice.');
+        }
+
+        return $invoice;
+    }
+
+    /**
+     * @param array<string, mixed> $xeroInvoice
+     */
+    private function mapSalesInvoiceStatus(array $xeroInvoice): string
+    {
+        $status = strtoupper((string) data_get($xeroInvoice, 'Status', ''));
+
+        $amountDue = data_get($xeroInvoice, 'AmountDue');
+        $amountPaid = data_get($xeroInvoice, 'AmountPaid');
+        if (is_numeric($amountDue) && is_numeric($amountPaid)) {
+            if ((float) $amountDue <= 0.00001 && (float) $amountPaid > 0) {
+                return 'paid';
+            }
+        }
+
+        return match ($status) {
+            'DRAFT' => 'draft',
+            'SUBMITTED' => 'pending_approval',
+            'AUTHORISED' => 'authorised',
+            'PAID' => 'paid',
+            'VOIDED', 'DELETED' => 'voided',
+            default => strtolower($status),
+        };
     }
 }

@@ -319,4 +319,40 @@ trait HasProjectPermissions
 
         return $user->hasPermission('create_projects') ?? $user->hasPermission('edit_projects');
     }
+
+    /**
+     * Check if user can edit invoices for a project.
+     * Supports explicit invoice permission and falls back to existing financial-management permissions.
+     */
+    protected function canEditInvoice(User $user, Project $project): bool
+    {
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        $invoiceEditSlugs = [
+            'edit_invoice',
+            'edit_invoices',
+            'manage_project_income',
+            'manage_project_services_and_payments',
+            'edit_projects',
+        ];
+
+        $projectRole = $this->getUserProjectRole($user, $project);
+        if ($projectRole) {
+            foreach ($invoiceEditSlugs as $slug) {
+                if ($projectRole->permissions->contains('slug', $slug)) {
+                    return true;
+                }
+            }
+        }
+
+        foreach ($invoiceEditSlugs as $slug) {
+            if ($user->hasPermission($slug)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

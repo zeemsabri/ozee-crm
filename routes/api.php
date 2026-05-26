@@ -170,6 +170,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('projects/{project}/invoices', [InvoiceController::class, 'index'])->name('api.invoices.index');
     Route::post('projects/{project}/invoices', [InvoiceController::class, 'store'])->name('api.invoices.store');
+    Route::put('projects/{project}/invoices/{invoice}', [InvoiceController::class, 'update'])->name('api.invoices.update');
     Route::get('projects/{project}/invoices/{invoice}', [InvoiceController::class, 'show'])->name('api.invoices.show');
     Route::get('projects/{project}/invoices/{invoice}/notes', [InvoiceController::class, 'notes'])->name('api.invoices.notes');
     Route::post('projects/{project}/invoices/{invoice}/notes', [InvoiceController::class, 'addNote'])->name('api.invoices.addNote');
@@ -605,6 +606,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Invoice Management Routes (Basic)
     Route::get('projects/{project}/invoices', [\App\Http\Controllers\Api\InvoiceController::class, 'index']);
     Route::post('projects/{project}/invoices', [\App\Http\Controllers\Api\InvoiceController::class, 'store']);
+    Route::put('projects/{project}/invoices/{invoice}', [\App\Http\Controllers\Api\InvoiceController::class, 'update']);
     Route::get('projects/{project}/invoices/{invoice}', [\App\Http\Controllers\Api\InvoiceController::class, 'show']);
     Route::get('projects/{project}/invoices/{invoice}/notes', [\App\Http\Controllers\Api\InvoiceController::class, 'notes']);
     Route::post('projects/{project}/invoices/{invoice}/notes', [\App\Http\Controllers\Api\InvoiceController::class, 'addNote']);

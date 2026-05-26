@@ -1,4 +1,4 @@
-217:            <div class="flex justify-between items-center print:hidden">
+
 218:                <div>
 221:                </div>
 222:                <div class="flex gap-3">
