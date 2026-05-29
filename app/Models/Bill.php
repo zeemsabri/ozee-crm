@@ -16,14 +16,20 @@ class Bill extends Model
         'project_id',
         'project_expendable_id',
         'transaction_type_id',
+        'xero_account_code',
+        'xero_tax_type',
         'amount',
         'status',
         'xero_invoice_id',
+        'reference_number',
+        'due_date',
+        'currency',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
         'status' => BillStatus::class,
+        'due_date' => 'date',
     ];
 
     public function contractor()

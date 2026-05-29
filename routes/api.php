@@ -70,6 +70,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\XeroWebhookController;
+use App\Http\Controllers\Api\XeroAccountController;
 
 Route::post('/telegram/wh', [TelegramWebhookController::class, 'handle']);
 Route::post('/telegram/test-telegram', [TelegramWebhookController::class, 'send']);
@@ -162,6 +163,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('admin/financial-pending-counts', [BillController::class, 'pendingCounts'])->name('api.admin.financial-counts');
     Route::get('admin/bills', [BillController::class, 'all'])->name('api.admin.bills.all');
     Route::get('admin/invoices', [InvoiceController::class, 'all'])->name('api.admin.invoices.all');
+    Route::get('xero/accounts', [XeroAccountController::class, 'index'])->name('api.xero.accounts');
+    Route::get('xero/items', [XeroAccountController::class, 'items'])->name('api.xero.items');
     
     Route::get('projects/{project}/bills', [BillController::class, 'index'])->name('api.bills.index');
     Route::post('projects/{project}/bills', [BillController::class, 'store'])->name('api.bills.store');
@@ -484,6 +487,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('users/{user}/restore', [UserController::class, 'restore'])->name('users.restore');
     Route::post('users/{user}/generate-api-key', [UserController::class, 'generateApiKey'])->name('users.generate-api-key');
+    Route::get('users/{user}/xero-contact-candidates', [UserController::class, 'xeroContactCandidates']);
+    Route::post('users/{user}/xero-contact-sync', [UserController::class, 'syncXeroContact']);
+    Route::post('users/{user}/xero-contact-create', [UserController::class, 'createXeroContact']);
     Route::get('users/{user}/emails', [UserController::class, 'emails']);
     Route::get('users/{user}/metadata', [UserWidgetController::class, 'getMetadata']);
     Route::post('users/{user}/metadata', [UserWidgetController::class, 'updateMetadata']);
@@ -600,6 +606,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Bill Management Routes
     Route::get('projects/{project}/bills', [\App\Http\Controllers\Api\BillController::class, 'index']);
     Route::post('projects/{project}/bills', [\App\Http\Controllers\Api\BillController::class, 'store']);
+    Route::put('projects/{project}/bills/{bill}', [\App\Http\Controllers\Api\BillController::class, 'update'])->name('api.bills.update');
     Route::post('projects/{project}/bills/{bill}/approve', [\App\Http\Controllers\Api\BillController::class, 'approve']);
     Route::post('projects/{project}/bills/{bill}/void', [\App\Http\Controllers\Api\BillController::class, 'void']);
 

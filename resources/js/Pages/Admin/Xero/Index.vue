@@ -251,12 +251,15 @@
                                             {{ type.name }}
                                         </td>
                                         <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                                            <input
+                                            <select
                                                 v-model="mappingForms[type.id].xero_account_code"
-                                                type="text"
-                                                class="w-32 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                                placeholder="e.g. 620"
-                                            />
+                                                class="w-48 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                            >
+                                                <option value="">Select Account</option>
+                                                <option v-for="account in xeroAccounts" :key="account.code" :value="account.code">
+                                                    {{ account.code }} - {{ account.name }}
+                                                </option>
+                                            </select>
                                         </td>
                                         <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                                             <button
@@ -305,12 +308,15 @@
                                             {{ service.name }}
                                         </td>
                                         <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                                            <input
+                                            <select
                                                 v-model="crmServiceForms[service.id].xero_item_code"
-                                                type="text"
-                                                class="w-32 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                                placeholder="e.g. ItemCode123"
-                                            />
+                                                class="w-48 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                            >
+                                                <option value="">Select Item</option>
+                                                <option v-for="item in xeroItems" :key="item.code" :value="item.code">
+                                                    {{ item.code }} - {{ item.name }}
+                                                </option>
+                                            </select>
                                         </td>
                                         <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                                             <button
@@ -337,7 +343,7 @@ import DangerButton from '@/Components/DangerButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref, onMounted } from 'vue';
 import { success as notifySuccess, error as notifyError } from '@/Utils/notification';
 import axios from 'axios';
 
@@ -473,4 +479,38 @@ const formatDatetime = (value) => {
 
     return new Date(value).toLocaleString();
 };
+
+const xeroAccounts = ref([]);
+const xeroItems = ref([]);
+
+const fetchXeroAccounts = async () => {
+    if (!props.connection || props.connection.status !== 'connected') {
+        return;
+    }
+    try {
+        const { data } = await axios.get(route('api.xero.accounts'));
+        xeroAccounts.value = Array.isArray(data) ? data : [];
+    } catch (e) {
+        console.error('Failed to fetch Xero accounts', e);
+        xeroAccounts.value = [];
+    }
+};
+
+const fetchXeroItems = async () => {
+    if (!props.connection || props.connection.status !== 'connected') {
+        return;
+    }
+    try {
+        const { data } = await axios.get(route('api.xero.items'));
+        xeroItems.value = Array.isArray(data) ? data : [];
+    } catch (e) {
+        console.error('Failed to fetch Xero items', e);
+        xeroItems.value = [];
+    }
+};
+
+onMounted(() => {
+    fetchXeroAccounts();
+    fetchXeroItems();
+});
 </script>

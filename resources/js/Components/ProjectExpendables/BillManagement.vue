@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { useForm } from '@inertiajs/vue3';
+import { Link, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
@@ -31,6 +31,11 @@ const emit = defineEmits(['updated']);
 
 const showCreateModal = ref(false);
 const processing = ref(false);
+const showXeroSyncModal = ref(false);
+const xeroSyncLoading = ref(false);
+const xeroSyncError = ref('');
+const xeroCandidates = ref([]);
+const selectedXeroContactId = ref('');
 
 const form = useForm({
     amount: '',
@@ -51,6 +56,13 @@ const form = useForm({
 
 const typeOptions = computed(() => 
     props.transactionTypes.map(t => ({ value: t.id, label: t.name }))
+);
+
+const xeroCandidateOptions = computed(() =>
+    xeroCandidates.value.map((candidate) => ({
+        value: candidate.contact_id,
+        label: `${candidate.name || 'Unnamed Contact'}${candidate.email ? ` (${candidate.email})` : ''}`,
+    }))
 );
 
 const openCreateModal = () => {
@@ -82,16 +94,45 @@ const submitBill = () => {
         return;
     }
 
-    form.post(`/api/projects/${props.expendable.project_id}/bills`, {
-        onSuccess: () => {
+    form.clearErrors();
+
+    const payload = {
+        amount: form.amount,
+        project_expendable_id: form.project_expendable_id,
+        contractor_id: form.contractor_id,
+        transaction_type_id: form.transaction_type_id,
+        payment_details: {
+            payment_method: form.payment_details.payment_method,
+            account_name: form.payment_details.account_name,
+            account_number: form.payment_details.account_number,
+            bank_name: form.payment_details.bank_name,
+            bsb: form.payment_details.bsb,
+            swift_code: form.payment_details.swift_code,
+            iban: form.payment_details.iban,
+            notes: form.payment_details.notes,
+        },
+    };
+
+    form.processing = true;
+
+    axios.post(`/api/projects/${props.expendable.project_id}/bills`, payload)
+        .then(() => {
             showCreateModal.value = false;
             success('Bill created successfully.');
             emit('updated');
-        },
-        onError: () => {
-            error('Failed to create bill. Please review the form and try again.');
-        }
-    });
+        })
+        .catch((err) => {
+            if (err.response?.status === 422 && err.response?.data?.errors) {
+                form.setError(err.response.data.errors);
+                error(err.response?.data?.message || 'Please review the form and try again.');
+                return;
+            }
+
+            error(err.response?.data?.message || 'Failed to create bill. Please review the form and try again.');
+        })
+        .finally(() => {
+            form.processing = false;
+        });
 };
 
 const approveBill = async (billId) => {
@@ -103,9 +144,97 @@ const approveBill = async (billId) => {
         success('Bill approved and synced to Xero.');
         emit('updated');
     } catch (err) {
-        error(err.response?.data?.message || 'Failed to approve bill.');
+        const message = err.response?.data?.message || 'Failed to approve bill.';
+        if (message.includes('not linked to Xero')) {
+            await openXeroSyncModal();
+            return;
+        }
+
+        error(message);
     } finally {
         processing.value = false;
+    }
+};
+
+const fetchXeroCandidates = async () => {
+    if (!props.expendable.user_id) {
+        return;
+    }
+
+    xeroSyncLoading.value = true;
+    xeroSyncError.value = '';
+
+    try {
+        const response = await axios.get(`/api/users/${props.expendable.user_id}/xero-contact-candidates`);
+        xeroCandidates.value = response.data?.candidates || [];
+
+        if (xeroCandidates.value.length === 1) {
+            selectedXeroContactId.value = xeroCandidates.value[0].contact_id;
+        }
+    } catch (err) {
+        xeroSyncError.value = err.response?.data?.message || 'Failed to fetch Xero contacts.';
+    } finally {
+        xeroSyncLoading.value = false;
+    }
+};
+
+const openXeroSyncModal = async () => {
+    xeroCandidates.value = [];
+    selectedXeroContactId.value = '';
+    xeroSyncError.value = '';
+    showXeroSyncModal.value = true;
+
+    await fetchXeroCandidates();
+};
+
+const syncContractorWithXero = async () => {
+    if (!props.expendable.user_id) {
+        return;
+    }
+
+    xeroSyncLoading.value = true;
+    xeroSyncError.value = '';
+
+    try {
+        const payload = selectedXeroContactId.value
+            ? { selected_contact_id: selectedXeroContactId.value }
+            : {};
+
+        await axios.post(`/api/users/${props.expendable.user_id}/xero-contact-sync`, payload);
+        success('Contractor linked to Xero successfully.');
+        showXeroSyncModal.value = false;
+        emit('updated');
+    } catch (err) {
+        const responseData = err.response?.data || {};
+        if (responseData.requires_selection && Array.isArray(responseData.candidates)) {
+            xeroCandidates.value = responseData.candidates;
+        }
+
+        xeroSyncError.value = responseData.message || 'Failed to link contractor to Xero.';
+        error(xeroSyncError.value);
+    } finally {
+        xeroSyncLoading.value = false;
+    }
+};
+
+const createXeroContactForContractor = async () => {
+    if (!props.expendable.user_id) {
+        return;
+    }
+
+    xeroSyncLoading.value = true;
+    xeroSyncError.value = '';
+
+    try {
+        await axios.post(`/api/users/${props.expendable.user_id}/xero-contact-create`);
+        success('Xero contact created and linked successfully.');
+        showXeroSyncModal.value = false;
+        emit('updated');
+    } catch (err) {
+        xeroSyncError.value = err.response?.data?.message || 'Failed to create Xero contact.';
+        error(xeroSyncError.value);
+    } finally {
+        xeroSyncLoading.value = false;
     }
 };
 
@@ -188,6 +317,20 @@ const formatStatus = (status) => {
                                     class="text-green-600 hover:text-green-900 font-bold"
                                 >
                                     Approve
+                                </button>
+                                <Link
+                                    :href="route('admin.financials.bills.show', { id: bill.id })"
+                                    class="text-indigo-600 hover:text-indigo-900 font-bold"
+                                >
+                                    View
+                                </Link>
+                                <button
+                                    v-if="bill.status === 'pending_approval' && canApprove && !expendable.user?.xero_contact_id"
+                                    @click="openXeroSyncModal"
+                                    :disabled="processing"
+                                    class="text-indigo-600 hover:text-indigo-900 font-bold"
+                                >
+                                    Link Xero
                                 </button>
                                 <button 
                                     v-if="bill.status === 'approved' && canApprove"
@@ -341,6 +484,46 @@ const formatStatus = (status) => {
                     <SecondaryButton @click="showCreateModal = false">Cancel</SecondaryButton>
                     <PrimaryButton @click="submitBill" :disabled="form.processing">
                         Create Bill
+                    </PrimaryButton>
+                </div>
+            </div>
+        </Modal>
+
+        <Modal :show="showXeroSyncModal" @close="showXeroSyncModal = false">
+            <div class="p-6">
+                <h3 class="text-lg font-semibold mb-2">Link Contractor to Xero</h3>
+                <p class="text-sm text-gray-600 mb-4">
+                    Contractor: <span class="font-medium">{{ expendable.user?.name || 'Unknown' }}</span>
+                </p>
+
+                <div v-if="xeroSyncError" class="mb-4 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                    {{ xeroSyncError }}
+                </div>
+
+                <div>
+                    <InputLabel for="xero_contact_candidate" value="Existing Xero Contact" />
+                    <select
+                        id="xero_contact_candidate"
+                        v-model="selectedXeroContactId"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    >
+                        <option value="">Auto-select if single match</option>
+                        <option v-for="option in xeroCandidateOptions" :key="option.value" :value="option.value">
+                            {{ option.label }}
+                        </option>
+                    </select>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <SecondaryButton @click="showXeroSyncModal = false">Cancel</SecondaryButton>
+                    <SecondaryButton @click="fetchXeroCandidates" :disabled="xeroSyncLoading">
+                        Refresh Matches
+                    </SecondaryButton>
+                    <SecondaryButton @click="createXeroContactForContractor" :disabled="xeroSyncLoading">
+                        Create In Xero
+                    </SecondaryButton>
+                    <PrimaryButton @click="syncContractorWithXero" :disabled="xeroSyncLoading">
+                        Link Selected
                     </PrimaryButton>
                 </div>
             </div>

@@ -205,6 +205,7 @@ onMounted(() => {
                                 <DropdownLink v-permission="'create_automations'" :href="route('prompts.page')" :active="route().current('prompts.page')" class="!px-2 !py-1.5">Prompts</DropdownLink>
                                 <DropdownLink v-permission="'create_schedules'" :href="route('schedules.index')" :active="$page.url && $page.url.startsWith('/schedules')" class="!px-2 !py-1.5">Schedules</DropdownLink>
                                 <DropdownLink :href="route('admin.categories.index')" class="!px-2 !py-1.5">Categories</DropdownLink>
+                                <DropdownLink :href="route('admin.approval-flows.index')" class="!px-2 !py-1.5">Approval Flows</DropdownLink>
                                 <button type="button" class="!px-2 !py-1.5 text-left text-sm text-gray-700 hover:text-gray-900" @click="openCategoriesModal">Quick Add</button>
                             </div>
                         </div>

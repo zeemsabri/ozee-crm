@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\User;
+use App\Services\XeroUserContactSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash; // For hashing passwords
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException; // For Auth::user()
+use RuntimeException;
 
 class UserController extends Controller
 {
@@ -411,5 +413,125 @@ class UserController extends Controller
             'status' => 'success',
             'code' => $code,
         ]);
+    }
+
+    /**
+     * Find candidate Xero contacts for this user.
+     */
+    public function xeroContactCandidates(User $user, XeroUserContactSyncService $xeroUserContactSyncService)
+    {
+        $this->authorizeXeroUserSync();
+
+        try {
+            $candidates = $xeroUserContactSyncService->getContactCandidatesForUser($user);
+
+            return response()->json([
+                'user_id' => $user->id,
+                'candidates' => $candidates,
+                'linked_contact_id' => $user->xero_contact_id,
+            ]);
+        } catch (RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            Log::error('Failed to fetch Xero contact candidates for user', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Failed to fetch Xero contacts.'], 500);
+        }
+    }
+
+    /**
+     * Sync this user to a selected Xero contact.
+     */
+    public function syncXeroContact(Request $request, User $user, XeroUserContactSyncService $xeroUserContactSyncService)
+    {
+        $this->authorizeXeroUserSync();
+
+        $validated = $request->validate([
+            'selected_contact_id' => 'nullable|string',
+        ]);
+
+        try {
+            $candidates = collect($xeroUserContactSyncService->getContactCandidatesForUser($user));
+
+            if ($candidates->isEmpty()) {
+                return response()->json(['message' => 'No matching Xero contacts found for this user.'], 422);
+            }
+
+            $selectedContactId = $validated['selected_contact_id'] ?? null;
+
+            if ($selectedContactId) {
+                $selected = $candidates->firstWhere('contact_id', $selectedContactId);
+            } elseif ($candidates->count() === 1) {
+                $selected = $candidates->first();
+            } else {
+                return response()->json([
+                    'message' => 'Multiple Xero contacts found. Please select one contact manually.',
+                    'requires_selection' => true,
+                    'candidates' => $candidates->values(),
+                ], 422);
+            }
+
+            if (! $selected) {
+                return response()->json(['message' => 'Selected Xero contact is invalid.'], 422);
+            }
+
+            $user->update([
+                'xero_contact_id' => data_get($selected, 'contact_id'),
+                'xero_contact_name' => data_get($selected, 'name'),
+                'xero_contact_email' => data_get($selected, 'email'),
+                'xero_synced_at' => now(),
+            ]);
+
+            return response()->json($user->fresh());
+        } catch (RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            Log::error('Failed to sync user to Xero contact', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Failed to sync this user with Xero.'], 500);
+        }
+    }
+
+    /**
+     * Create a new Xero contact for this user and link it.
+     */
+    public function createXeroContact(User $user, XeroUserContactSyncService $xeroUserContactSyncService)
+    {
+        $this->authorizeXeroUserSync();
+
+        try {
+            $contact = $xeroUserContactSyncService->createContactForUser($user);
+
+            $user->update([
+                'xero_contact_id' => data_get($contact, 'contact_id'),
+                'xero_contact_name' => data_get($contact, 'name'),
+                'xero_contact_email' => data_get($contact, 'email'),
+                'xero_synced_at' => now(),
+            ]);
+
+            return response()->json($user->fresh());
+        } catch (\Throwable $e) {
+            Log::error('Failed to create Xero contact for user', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Failed to create Xero contact: '.$e->getMessage()], 500);
+        }
+    }
+
+    private function authorizeXeroUserSync(): void
+    {
+        $authUser = Auth::user();
+
+        if (! $authUser || ! ($authUser->isSuperAdmin() || $authUser->isManager() || $authUser->hasPermission('create_users') || $authUser->hasPermission('edit_clients'))) {
+            abort(403, 'Unauthorized');
+        }
     }
 }

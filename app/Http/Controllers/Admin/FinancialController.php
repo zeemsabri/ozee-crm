@@ -19,6 +19,29 @@ class FinancialController extends Controller
         return Inertia::render('Admin/Financials/Bills');
     }
 
+    public function showBill(int $id): Response
+    {
+        $bill = \App\Models\Bill::with([
+            'contractor',
+            'project',
+            'expendable',
+            'transactionType',
+            'paymentDetail',
+            'approvalInstance.steps.actedBy',
+            'approvalInstance.steps.approverRole',
+            'approvalInstance.steps.approverUser',
+        ])->findOrFail($id);
+        $transactionTypes = \App\Models\TransactionType::query()
+            ->select(['id', 'name', 'xero_account_code'])
+            ->orderBy('name')
+            ->get();
+
+        return Inertia::render('Admin/Financials/BillDetails', [
+            'bill' => $bill,
+            'transaction_types' => $transactionTypes,
+        ]);
+    }
+
     public function invoices(): Response
     {
         return Inertia::render('Admin/Financials/Invoices');

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\MonthlyBudgetController;
 use App\Http\Controllers\Admin\ProjectTierController;
+use App\Http\Controllers\Admin\ApprovalFlowController;
 use Illuminate\Support\Facades\Route;
 
 // Admin routes for Project Tier and Monthly Budget management
@@ -105,5 +106,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('admin.xero.branding-themes');
         Route::post('/xero/default-branding-theme', [\App\Http\Controllers\Admin\XeroConnectionController::class, 'saveDefaultBrandingTheme'])
             ->name('admin.xero.default-branding-theme');
+
+        // Approval Flows management routes
+        Route::resource('approval-flows', ApprovalFlowController::class)->except(['show'])->names([
+            'index' => 'admin.approval-flows.index',
+            'create' => 'admin.approval-flows.create',
+            'store' => 'admin.approval-flows.store',
+            'edit' => 'admin.approval-flows.edit',
+            'update' => 'admin.approval-flows.update',
+            'destroy' => 'admin.approval-flows.destroy',
+        ])->middleware(['permission:manage_projects']); // Assuming manage_projects is appropriate for configuration
     });
 });

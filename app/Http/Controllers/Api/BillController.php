@@ -13,18 +13,32 @@ use App\Models\ApprovalFlow;
 use App\Models\ApprovalInstance;
 use App\Services\XeroBillService;
 use App\Services\XeroAttachmentService;
+use App\Services\CurrencyConversionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use Throwable;
 
 class BillController extends Controller
 {
     use HasProjectPermissions;
 
+    private const ALLOWED_XERO_TAX_TYPES = [
+        'INPUT',
+        'OUTPUT',
+        'EXEMPTOUTPUT',
+        'INPUTTAXED',
+        'BASEXCLUDED',
+        'EXEMPTEXPENSES',
+        // Legacy internal value kept for backward compatibility.
+        'NONE',
+    ];
+
     public function __construct(
         private readonly XeroBillService $xeroBillService,
-        private readonly XeroAttachmentService $xeroAttachmentService
+        private readonly XeroAttachmentService $xeroAttachmentService,
+        private readonly CurrencyConversionService $currencyConversionService
     ) {}
 
     public function index(Project $project)
@@ -53,6 +67,11 @@ class BillController extends Controller
             'contractor_id' => 'required|exists:users,id',
             'project_expendable_id' => 'required|exists:project_expendables,id',
             'transaction_type_id' => 'required|exists:transaction_types,id',
+            'xero_account_code' => 'nullable|string|max:50',
+            'xero_tax_type' => 'nullable|string|in:' . implode(',', self::ALLOWED_XERO_TAX_TYPES),
+            'reference_number' => 'nullable|string|max:255',
+            'due_date' => 'nullable|date',
+            'currency' => 'nullable|string|max:3',
             'amount' => 'required|numeric|min:0.01',
             'payment_details' => 'required|array',
             'payment_details.payment_method' => 'required|string|max:50',
@@ -98,11 +117,27 @@ class BillController extends Controller
             ], 422);
         }
 
-        if ($validated['amount'] > $expendable->balance) {
+        $billCurrency = $validated['currency'] ?? 'AUD';
+        $expendableCurrency = $expendable->currency ?? 'AUD';
+
+        try {
+            $amountInExpendableCurrency = $this->currencyConversionService->convert(
+                $validated['amount'],
+                $billCurrency,
+                $expendableCurrency
+            );
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to convert currency: ' . $e->getMessage(),
+                'errors' => ['currency' => [$e->getMessage()]],
+            ], 422);
+        }
+
+        if ($amountInExpendableCurrency > $expendable->balance) {
             return response()->json([
                 'message' => 'Bill amount exceeds the remaining balance of the contract.',
                 'errors' => [
-                    'amount' => ["Remaining balance is {$expendable->balance}."]
+                    'amount' => ["Remaining balance is {$expendable->balance} {$expendableCurrency}."]
                 ]
             ], 422);
         }
@@ -113,6 +148,11 @@ class BillController extends Controller
                 'contractor_id' => $validated['contractor_id'],
                 'project_expendable_id' => $validated['project_expendable_id'],
                 'transaction_type_id' => $validated['transaction_type_id'],
+                'xero_account_code' => $validated['xero_account_code'] ?? null,
+                'xero_tax_type' => $validated['xero_tax_type'] ?? null,
+                'reference_number' => $validated['reference_number'] ?? null,
+                'due_date' => $validated['due_date'] ?? null,
+                'currency' => $validated['currency'] ?? 'AUD',
                 'amount' => $validated['amount'],
                 'status' => BillStatus::PendingApproval,
             ]);
@@ -145,36 +185,137 @@ class BillController extends Controller
         return response()->json($bill->fresh(['paymentDetail']), 201);
     }
 
-    public function approve(Project $project, Bill $bill)
+    public function update(Request $request, Project $project, Bill $bill)
     {
         $user = Auth::user();
 
+        if (! $this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
         if ((int) $bill->project_id !== (int) $project->id) {
-            return response()->json(['message' => 'Bill does not belong to this project.'], 400);
+            return response()->json(['message' => 'Bill does not belong to this project.'], 404);
+        }
+
+        if (! $user->isSuperAdmin()) {
+            return response()->json(['message' => 'Only Super Admins can edit bills.'], 403);
+        }
+
+        if ($bill->status !== BillStatus::PendingApproval) {
+            return response()->json(['message' => 'Only pending approval bills can be edited.'], 400);
+        }
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'xero_account_code' => 'nullable|string|max:50',
+            'xero_tax_type' => 'nullable|string|in:' . implode(',', self::ALLOWED_XERO_TAX_TYPES),
+            'reference_number' => 'nullable|string|max:255',
+            'due_date' => 'nullable|date',
+            'currency' => 'nullable|string|max:3',
+            'payment_details' => 'required|array',
+            'payment_details.payment_method' => 'required|string|max:50',
+            'payment_details.account_name' => 'required|string|max:255',
+            'payment_details.account_number' => 'required|string|max:255',
+            'payment_details.bank_name' => 'nullable|string|max:255',
+            'payment_details.bsb' => 'nullable|string|max:255',
+            'payment_details.swift_code' => 'nullable|string|max:255',
+            'payment_details.iban' => 'nullable|string|max:255',
+            'payment_details.notes' => 'nullable|string|max:1000',
+        ]);
+
+        DB::transaction(function () use ($bill, $validated) {
+            $bill->fill([
+                'amount' => $validated['amount'],
+                'xero_account_code' => $validated['xero_account_code'] ?? null,
+                'xero_tax_type' => $validated['xero_tax_type'] ?? null,
+                'reference_number' => $validated['reference_number'] ?? null,
+                'due_date' => $validated['due_date'] ?? null,
+                'currency' => $validated['currency'] ?? 'AUD',
+            ]);
+            $bill->save();
+
+            $paymentDetails = $validated['payment_details'];
+
+            $bill->paymentDetail()->updateOrCreate(
+                ['bill_id' => $bill->id],
+                [
+                    'contractor_id' => $bill->contractor_id,
+                    'payment_method' => $paymentDetails['payment_method'],
+                    'details' => [
+                        'account_name' => $paymentDetails['account_name'],
+                        'account_number' => $paymentDetails['account_number'],
+                        'bank_name' => $paymentDetails['bank_name'] ?? null,
+                        'bsb' => $paymentDetails['bsb'] ?? null,
+                        'swift_code' => $paymentDetails['swift_code'] ?? null,
+                        'iban' => $paymentDetails['iban'] ?? null,
+                        'notes' => $paymentDetails['notes'] ?? null,
+                    ],
+                ]
+            );
+        });
+
+        return response()->json($bill->fresh(['contractor', 'expendable', 'transactionType', 'paymentDetail', 'approvalInstance.steps']));
+    }
+
+    public function approve(Bill $bill)
+    {
+        $user = Auth::user();
+
+        $project = $bill->project;
+        if (! $project || ! $this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
         if ($bill->status !== BillStatus::PendingApproval) {
             return response()->json(['message' => 'Bill is not in pending status.'], 400);
         }
 
-        $instance = $bill->approvalInstance()->with('steps')->first();
+        $approvalInput = request()->validate([
+            'xero_account_code' => 'nullable|string|max:50',
+            'xero_tax_type' => 'nullable|string|in:' . implode(',', self::ALLOWED_XERO_TAX_TYPES),
+        ]);
 
-        if ($instance) {
-            return $this->approveThroughFlow($user, $bill, $instance);
+        if (array_key_exists('xero_account_code', $approvalInput) && !empty($approvalInput['xero_account_code'])) {
+            $bill->xero_account_code = $approvalInput['xero_account_code'];
         }
 
-        if (!$user->isSuperAdmin()) {
-            return response()->json(['message' => 'Only Super Admins can approve bills.'], 403);
+        if (array_key_exists('xero_tax_type', $approvalInput) && !empty($approvalInput['xero_tax_type'])) {
+            $bill->xero_tax_type = $approvalInput['xero_tax_type'];
         }
 
-        $this->performFinalBillApproval($bill);
+        if ($bill->isDirty(['xero_account_code', 'xero_tax_type'])) {
+            $bill->save();
+        }
 
-        return response()->json($bill->fresh(['contractor', 'expendable', 'transactionType', 'approvalInstance.steps']));
+        try {
+            $instance = $bill->approvalInstance()->with('steps')->first();
+
+            if ($instance) {
+                return $this->approveThroughFlow($user, $bill, $instance);
+            }
+
+            if (!$user->isSuperAdmin()) {
+                return response()->json(['message' => 'Only Super Admins can approve bills.'], 403);
+            }
+
+            $this->performFinalBillApproval($bill);
+
+            return response()->json($bill->fresh(['contractor', 'expendable', 'transactionType', 'approvalInstance.steps']));
+        } catch (RuntimeException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        } catch (Throwable $exception) {
+            return response()->json(['message' => 'Approval failed while syncing with Xero.'], 500);
+        }
     }
 
-    public function void(Project $project, Bill $bill)
+    public function void(Bill $bill)
     {
         $user = Auth::user();
+        $project = $bill->project;
+        if (! $project || ! $this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
         if (!$user->isSuperAdmin()) {
             return response()->json(['message' => 'Only Super Admins can void bills.'], 403);
         }
@@ -192,8 +333,21 @@ class BillController extends Controller
             // 2. Restore Balance
             if ($bill->status === BillStatus::Approved) {
                 $expendable = $bill->expendable;
-                $expendable->balance += $bill->amount;
-                $expendable->save();
+
+                $billCurrency = $bill->currency ?? 'AUD';
+                $expendableCurrency = $expendable->currency ?? 'AUD';
+
+                try {
+                    $amountInExpendableCurrency = $this->currencyConversionService->convert(
+                        $bill->amount,
+                        $billCurrency,
+                        $expendableCurrency
+                    );
+                    $expendable->balance += $amountInExpendableCurrency;
+                    $expendable->save();
+                } catch (\Exception $e) {
+                    throw new RuntimeException("Failed to restore balance: " . $e->getMessage());
+                }
             }
 
             // 3. Update Status
@@ -211,11 +365,15 @@ class BillController extends Controller
     public function all(Request $request)
     {
         $user = Auth::user();
-        if (!$user->isSuperAdmin()) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
-        }
 
-        $query = Bill::with(['project', 'contractor', 'expendable', 'transactionType', 'approvalInstance.steps']);
+        $query = Bill::with([
+            'project', 'contractor', 'expendable', 'transactionType', 'paymentDetail',
+            'approvalInstance' => fn($q) => $q->with([
+                'steps.approverRole:id,name',
+                'steps.approverUser:id,name',
+                'steps.actedBy:id,name',
+            ]),
+        ]);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -235,6 +393,26 @@ class BillController extends Controller
             'bills' => Bill::where('status', BillStatus::PendingApproval)->count(),
             'invoices' => \App\Models\Invoice::where('status', 'pending_approval')->count(),
         ]);
+    }
+
+    public function show(Project $project, Bill $bill)
+    {
+        $user = Auth::user();
+
+        if (! $this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        if ((int) $bill->project_id !== (int) $project->id) {
+            return response()->json(['message' => 'Bill does not belong to this project.'], 404);
+        }
+
+        return response()->json($bill->load([
+            'project', 'contractor', 'expendable', 'transactionType', 'paymentDetail',
+            'approvalInstance.steps.approverRole:id,name',
+            'approvalInstance.steps.approverUser:id,name',
+            'approvalInstance.steps.actedBy:id,name',
+        ]));
     }
 
     private function initializeBillApprovalInstance(Bill $bill, int $projectId): void
@@ -346,8 +524,33 @@ class BillController extends Controller
         DB::transaction(function () use ($bill) {
             $expendable = $bill->expendable;
 
-            if ($bill->amount > $expendable->balance) {
-                throw new RuntimeException("Bill amount exceeds remaining balance ({$expendable->balance}).");
+            $resolvedAccountCode = $bill->xero_account_code ?: $bill->transactionType?->xero_account_code;
+            if (! $resolvedAccountCode) {
+                throw new RuntimeException('Xero account code is required before bill approval. Please set it on the bills page.');
+            }
+
+            if (! $bill->xero_tax_type) {
+                $bill->xero_tax_type = 'INPUT';
+            }
+
+            $bill->xero_account_code = $resolvedAccountCode;
+            $bill->save();
+
+            $billCurrency = $bill->currency ?? 'AUD';
+            $expendableCurrency = $expendable->currency ?? 'AUD';
+
+            try {
+                $amountInExpendableCurrency = $this->currencyConversionService->convert(
+                    $bill->amount,
+                    $billCurrency,
+                    $expendableCurrency
+                );
+            } catch (\Exception $e) {
+                throw new RuntimeException("Currency conversion failed: " . $e->getMessage());
+            }
+
+            if ($amountInExpendableCurrency > $expendable->balance) {
+                throw new RuntimeException("Bill amount exceeds remaining balance ({$expendable->balance} {$expendableCurrency}).");
             }
 
             $xeroInvoiceId = $this->xeroBillService->createPurchaseInvoice($bill);
@@ -355,7 +558,7 @@ class BillController extends Controller
             $bill->status = BillStatus::Approved;
             $bill->save();
 
-            $expendable->balance -= $bill->amount;
+            $expendable->balance -= $amountInExpendableCurrency;
             $expendable->save();
 
             $this->xeroAttachmentService->uploadAttachments($bill, $xeroInvoiceId);
