@@ -37,6 +37,12 @@ class ProjectExpendableController extends Controller
             return response()->json($contracts);
         }
 
+        if (request('type') === 'project_contracts') {
+            $contracts = $project->projectContracts();
+            $contracts->load(['user:id,name,email', 'bills.transactionType']);
+            return response()->json($contracts);
+        }
+
         $expendables = $project->budget()
             ->latest()
             ->get();
@@ -61,6 +67,7 @@ class ProjectExpendableController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'payment_terms' => 'nullable|string',
             'amount' => 'required|numeric|min:0',
             'currency' => 'required|string|max:10',
             'user_id' => 'nullable|exists:users,id',
@@ -79,20 +86,25 @@ class ProjectExpendableController extends Controller
                         ->firstOrFail();
                     break;
                 case 'Project':
-                    $status = ProjectExpendable::STATUS_ACCEPTED;
+                    $status = array_key_exists('user_id', $validated) && !is_null($validated['user_id']) 
+                        ? ProjectExpendable::STATUS_PENDING 
+                        : ProjectExpendable::STATUS_ACCEPTED;
                     $target = $project; // attach to project directly
                     break;
                 default:
                     $target = $project; // fallback
             }
         } else {
-            $status = ProjectExpendable::STATUS_ACCEPTED;
+            $status = array_key_exists('user_id', $validated) && !is_null($validated['user_id']) 
+                ? ProjectExpendable::STATUS_PENDING 
+                : ProjectExpendable::STATUS_ACCEPTED;
             $target = $project; // default attach to project
         }
 
         $payload = [
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
+            'payment_terms' => $validated['payment_terms'] ?? null,
             'project_id' => $project->id,
             // Preserve explicit null for milestone budget and only set when provided
             'user_id' => array_key_exists('user_id', $validated) ? $validated['user_id'] : null,
@@ -124,6 +136,7 @@ class ProjectExpendableController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'payment_terms' => 'nullable|string',
             'amount' => 'required|numeric|min:0',
             'currency' => 'required|string|max:10',
             'user_id' => 'nullable|exists:users,id',
@@ -136,6 +149,7 @@ class ProjectExpendableController extends Controller
         $updates = [
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
+            'payment_terms' => $validated['payment_terms'] ?? null,
             'currency' => strtoupper($validated['currency']),
             'amount' => $validated['amount'],
             'balance' => $validated['amount'],

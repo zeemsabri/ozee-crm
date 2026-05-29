@@ -5,6 +5,7 @@ import SelectDropdown from '@/Components/SelectDropdown.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
+import PaymentTermsBuilder from '@/Components/ProjectExpendables/PaymentTermsBuilder.vue';
 import { convertCurrency } from '@/Utils/currency';
 import { error } from '@/Utils/notification';
 
@@ -21,6 +22,14 @@ const props = defineProps({
     isUserSelectionRequired: {
         type: Boolean,
         default: false,
+    },
+    projectId: {
+        type: [Number, String],
+        default: null,
+    },
+    milestones: {
+        type: Array,
+        default: () => [],
     },
     // legacy props (kept for backward compatibility)
     projectTotalBudget: Number,
@@ -52,17 +61,18 @@ const userOptions = computed(() => {
 });
 
 watch(() => props.show, (newValue) => {
-    if (newValue && props.milestone) {
+    if (newValue && (props.milestone || props.projectId)) {
         errors.value = {};
+        const pId = props.milestone ? props.milestone.project_id : props.projectId;
         if (props.isBudgetForm) {
-            form.value = props.milestone.budget ? { ...props.milestone.budget, amount: Number(props.milestone.budget.amount) } : { name: 'Milestone Budget', description: '', amount: '', currency: 'PKR' };
-            apiEndpoint.value = props.milestone.budget ? `/api/projects/${props.milestone.project_id}/expendables/${props.milestone.budget.id}` : `/api/projects/${props.milestone.project_id}/expendables`;
-            httpMethod.value = props.milestone.budget ? 'put' : 'post';
-            submitButtonText.value = props.milestone.budget ? 'Update Budget' : 'Create Budget';
-            successMessage.value = props.milestone.budget ? 'Milestone budget updated successfully' : 'Milestone budget created successfully';
+            form.value = props.milestone?.budget ? { ...props.milestone.budget, amount: Number(props.milestone.budget.amount) } : { name: 'Milestone Budget', description: '', amount: '', currency: 'PKR' };
+            apiEndpoint.value = props.milestone?.budget ? `/api/projects/${pId}/expendables/${props.milestone.budget.id}` : `/api/projects/${pId}/expendables`;
+            httpMethod.value = props.milestone?.budget ? 'put' : 'post';
+            submitButtonText.value = props.milestone?.budget ? 'Update Budget' : 'Create Budget';
+            successMessage.value = props.milestone?.budget ? 'Milestone budget updated successfully' : 'Milestone budget created successfully';
         } else {
-            form.value = { name: '', description: '', amount: '', currency: 'PKR', user_id: null };
-            apiEndpoint.value = `/api/projects/${props.milestone.project_id}/expendables`;
+            form.value = { name: '', description: '', payment_terms: '', amount: '', currency: 'PKR', user_id: null };
+            apiEndpoint.value = `/api/projects/${pId}/expendables`;
             httpMethod.value = 'post';
             submitButtonText.value = 'Create Contract';
             successMessage.value = 'Contract created and sent for approval';
@@ -112,12 +122,13 @@ const validateForm = () => {
         }
 
     } else {
-        // For contracts, ensure it does not exceed the remaining milestone budget.
-        // Compare in the milestone budget currency context
-        const amountInMilestoneBudgetCurrency = convertCurrency(Number(form.value.amount || 0), form.value.currency, props.milestone.budget?.currency || 'PKR');
-        if (amountInMilestoneBudgetCurrency > Number(props.milestoneStats?.remaining || 0) + 1e-8) {
-            errors.value.amount = [`Cannot add a contract more than the remaining milestone budget.`];
-            hasError = true;
+        if (props.milestone) {
+            // For milestone contracts, ensure it does not exceed the remaining milestone budget.
+            const amountInMilestoneBudgetCurrency = convertCurrency(Number(form.value.amount || 0), form.value.currency, props.milestone.budget?.currency || 'PKR');
+            if (amountInMilestoneBudgetCurrency > Number(props.milestoneStats?.remaining || 0) + 1e-8) {
+                errors.value.amount = [`Cannot add a contract more than the remaining milestone budget.`];
+                hasError = true;
+            }
         }
     }
 
@@ -129,8 +140,8 @@ const formatDataForApi = (data) => {
         ...data,
         amount: Number(data.amount || 0),
         user_id: props.isBudgetForm ? null : data.user_id,
-        expendable_type: 'Milestone',
-        expendable_id: props.milestone.id,
+        expendable_type: props.milestone ? 'Milestone' : 'Project',
+        expendable_id: props.milestone ? props.milestone.id : props.projectId,
     };
 };
 
@@ -192,6 +203,17 @@ const allowedMaxInSelectedCurrency = computed(() => {
                     <InputLabel for="user" value="User" />
                     <SelectDropdown id="user" v-model="form.user_id" :options="userOptions" value-key="value" label-key="label" class="mt-1 w-full" placeholder="Select user" />
                     <InputError :message="errors.user_id?.[0] || apiErrors.user_id?.[0]" class="mt-1" />
+                </div>
+                <div v-if="!isBudgetForm" class="md:col-span-2">
+                    <InputLabel for="payment_terms" value="Payment Terms" class="mb-2" />
+                    <PaymentTermsBuilder
+                        id="payment_terms"
+                        v-model="form.payment_terms"
+                        :contract-amount="form.amount"
+                        :contract-currency="form.currency"
+                        :milestones="milestones"
+                    />
+                    <InputError :message="errors.payment_terms?.[0] || apiErrors.payment_terms?.[0]" class="mt-1" />
                 </div>
                 <div class="md:col-span-2">
                     <InputLabel for="description" value="Description (optional)" />

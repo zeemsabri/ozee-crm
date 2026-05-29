@@ -40,6 +40,7 @@ const selectedProjectId = ref(null);
 const loading = ref(false);
 const activeTab = ref('active');
 const milestones = ref([]);
+const projectContracts = ref([]);
 const showExpendableModal = ref(false);
 const showBudgetModal = ref(false);
 const showReasonModal = ref(false);
@@ -257,6 +258,17 @@ const loadMilestones = async () => {
     }
 };
 
+const loadProjectContracts = async () => {
+    if (!selectedProjectId.value) return;
+    try {
+        const { data } = await window.axios.get(`/api/projects/${selectedProjectId.value}/expendables?type=project_contracts`);
+        projectContracts.value = data || [];
+    } catch (e) {
+        console.error(e);
+        error('Failed to load project contracts');
+    }
+};
+
 const openReasonsList = async (m) => {
     if (!m || !m.id) {
         error('Invalid milestone selected.');
@@ -311,6 +323,7 @@ const loadProjectBudget = async () => {
 const onProjectChange = async () => {
     if (!selectedProjectId.value) {
         milestones.value = [];
+        projectContracts.value = [];
         projectBudgetAmount.value = 0;
         projectBudgetCurrency.value = 'PKR';
         expendableBudget.value = {
@@ -324,7 +337,7 @@ const onProjectChange = async () => {
         };
         return;
     }
-    await Promise.all([loadMilestones(), loadUsers(), loadProjectBudget()]);
+    await Promise.all([loadMilestones(), loadUsers(), loadProjectBudget(), loadProjectContracts()]);
 };
 
 const onModalSubmitted = async () => {
@@ -334,7 +347,7 @@ const onModalSubmitted = async () => {
     activeExpendable.value = null;
     // Refresh milestones and financial stats after any submission (including budget updates)
     if (selectedProjectId.value) {
-        await Promise.all([loadMilestones(), loadProjectBudget()]);
+        await Promise.all([loadMilestones(), loadProjectBudget(), loadProjectContracts()]);
     } else {
         await loadMilestones();
     }
@@ -346,6 +359,11 @@ const openExpendableModal = (milestone) => {
         return;
     }
     activeMilestone.value = milestone;
+    showExpendableModal.value = true;
+};
+
+const openProjectExpendableModal = () => {
+    activeMilestone.value = null;
     showExpendableModal.value = true;
 };
 
@@ -504,7 +522,7 @@ watch(currentDisplayCurrency, async (newCurrency) => {
     if (newCurrency) {
         localStorage.setItem('displayCurrency', newCurrency);
         if (selectedProjectId.value) {
-            await Promise.all([loadProjectBudget(), loadMilestones()]);
+            await Promise.all([loadProjectBudget(), loadMilestones(), loadProjectContracts()]);
         }
     }
 });
@@ -613,6 +631,67 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                         <!-- Project Progress & Timeline extracted into a reusable component -->
                         <ProjectProgressTimeline :milestones="milestones" />
                     </div>
+                </section>
+
+                <!-- Project Contracts Section -->
+                <section v-if="selectedProjectId" class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between border-b pb-4 mb-4">
+                        <h3 class="text-xl font-semibold text-gray-900">Project Contracts</h3>
+                        <PrimaryButton @click="openProjectExpendableModal" class="flex items-center gap-1">
+                            <PlusIcon class="h-4 w-4" /> Add Contract
+                        </PrimaryButton>
+                    </div>
+                    <div v-if="!projectContracts.length" class="text-center text-gray-500 text-sm py-4">No project-level contracts found.</div>
+                    <ul v-else class="space-y-2">
+                        <li v-for="e in projectContracts" :key="e.id" class="flex flex-col sm:flex-row items-start sm:items-center justify-between text-sm gap-2 p-3 rounded-lg bg-gray-100 shadow-sm">
+                            <div class="flex items-center gap-2">
+                                <span class="inline-block text-xs px-2 py-0.5 rounded-full font-medium"
+                                      :class="{
+                                          'bg-gray-200 text-gray-700': e.status === 'Pending Approval',
+                                          'bg-green-200 text-green-700': e.status === 'Accepted',
+                                          'bg-red-200 text-red-700': e.status === 'Rejected'
+                                      }">
+                                    {{ e.status || 'Pending Approval' }}
+                                </span>
+                                <span v-if="e.user && e.user.name" class="text-gray-600 text-xs sm:text-sm">{{ e.user.name }}</span>
+                                <div class="flex flex-col">
+                                    <span class="font-medium">{{ e.name }}</span>
+                                    <span v-if="e.payment_terms" class="text-xs text-gray-500 mt-0.5">Terms: {{ e.payment_terms }}</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 mt-2 sm:mt-0">
+                                <div class="text-right">
+                                    <span class="font-semibold">
+                                        {{ formatCurrency(convertCurrency(parseFloat(e.amount ?? 0), e.currency || currentDisplayCurrency, currentDisplayCurrency), currentDisplayCurrency) }}
+                                    </span>
+                                    <span v-if="e.currency && e.currency?.toUpperCase() !== currentDisplayCurrency?.toUpperCase()" class="text-gray-500 block text-xs">
+                                        ({{ formatCurrency(parseFloat(e.amount ?? 0), e.currency) }})
+                                    </span>
+                                </div>
+                                <div class="flex gap-1.5">
+                                    <template v-if="e.status === 'Pending Approval'">
+                                        <button v-if="canApproveExpendables" @click.stop="approveExpendable(e)" class="p-1 rounded-full text-green-600 hover:bg-green-200 transition-colors" title="Approve">
+                                            <CheckCircleIcon class="h-5 w-5" />
+                                        </button>
+                                        <button v-if="canApproveExpendables" @click.stop="rejectExpendable(e)" class="p-1 rounded-full text-red-600 hover:bg-red-200 transition-colors" title="Reject">
+                                            <XCircleIcon class="h-5 w-5" />
+                                        </button>
+                                    </template>
+                                    <button v-if="e.status === 'Rejected'" @click.stop="deleteExpendable(e)" class="p-1 rounded-full text-red-600 hover:bg-red-200 transition-colors" title="Delete">
+                                        <TrashIcon class="h-5 w-5" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-if="e.status === 'Accepted'" class="w-full mt-2">
+                                <BillManagement 
+                                    :expendable="e" 
+                                    :transaction-types="transaction_types"
+                                    :can-approve="canApproveExpendables"
+                                    @updated="loadProjectContracts"
+                                />
+                            </div>
+                        </li>
+                    </ul>
                 </section>
 
                 <!-- Milestone Section with Tabs -->
@@ -780,7 +859,10 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                                     {{ e.status || 'Pending Approval' }}
                                                 </span>
                                                 <span v-if="e.user && e.user.name" class="text-gray-600 text-xs sm:text-sm">{{ e.user.name }}</span>
-                                                <span class="font-medium">{{ e.name }}</span>
+                                                <div class="flex flex-col">
+                                                    <span class="font-medium">{{ e.name }}</span>
+                                                    <span v-if="e.payment_terms" class="text-xs text-gray-500 mt-0.5">Terms: {{ e.payment_terms }}</span>
+                                                </div>
                                             </div>
                                             <div class="flex items-center gap-4 mt-2 sm:mt-0">
                                                 <div class="text-right">
@@ -855,6 +937,8 @@ watch(currentDisplayCurrency, async (newCurrency) => {
             :show="showExpendableModal"
             title="Add New Contract"
             :milestone="activeMilestone"
+            :project-id="selectedProjectId"
+            :milestones="milestones"
             :users="users"
             :currency-options="currencyOptions"
             :is-user-selection-required="true"

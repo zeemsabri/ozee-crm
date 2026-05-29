@@ -42,17 +42,61 @@ const form = useForm({
     project_expendable_id: '',
     contractor_id: '',
     transaction_type_id: '',
+    currency: '',
     payment_details: {
-        payment_method: 'bank_transfer',
+        payment_method: 'bank_local',
         account_name: '',
         account_number: '',
         bank_name: '',
         bsb: '',
         swift_code: '',
         iban: '',
+        paypal_email: '',
+        payoneer_email: '',
+        wise_email: '',
+        wallet_address: '',
+        coin_type: '',
         notes: '',
     },
 });
+
+const PAYMENT_METHODS = [
+    { value: 'bank_local',      label: '🏦 Bank Transfer (Local)', fields: ['account_name', 'account_number', 'bank_name', 'bsb'] },
+    { value: 'bank_wire',       label: '🌐 International Wire Transfer', fields: ['account_name', 'account_number', 'bank_name', 'swift_code', 'iban'] },
+    { value: 'paypal',          label: '💙 PayPal', fields: ['paypal_email'] },
+    { value: 'payoneer',        label: '🟠 Payoneer', fields: ['payoneer_email'] },
+    { value: 'wise',            label: '💚 Wise (TransferWise)', fields: ['wise_email', 'account_number'] },
+    { value: 'crypto',          label: '₿ Cryptocurrency', fields: ['wallet_address', 'coin_type'] },
+    { value: 'other',           label: '📝 Other', fields: ['notes'] },
+];
+
+const paymentMethodOptions = PAYMENT_METHODS.map(m => ({ value: m.value, label: m.label }));
+
+const currentMethod = computed(() =>
+    PAYMENT_METHODS.find(m => m.value === form.payment_details.payment_method) || PAYMENT_METHODS[0]
+);
+
+function hasField(field) {
+    return currentMethod.value.fields.includes(field);
+}
+
+function onMethodChange() {
+    // Reset all method-specific fields when switching
+    Object.assign(form.payment_details, {
+        account_name: '',
+        account_number: '',
+        bank_name: '',
+        bsb: '',
+        swift_code: '',
+        iban: '',
+        paypal_email: '',
+        payoneer_email: '',
+        wise_email: '',
+        wallet_address: '',
+        coin_type: '',
+        notes: '',
+    });
+}
 
 const typeOptions = computed(() => 
     props.transactionTypes.map(t => ({ value: t.id, label: t.name }))
@@ -70,14 +114,20 @@ const openCreateModal = () => {
     form.amount = props.expendable.balance;
     form.project_expendable_id = props.expendable.id;
     form.contractor_id = props.expendable.user_id || '';
+    form.currency = props.expendable.currency || 'AUD';
     form.payment_details = {
-        payment_method: 'bank_transfer',
+        payment_method: 'bank_local',
         account_name: '',
         account_number: '',
         bank_name: '',
         bsb: '',
         swift_code: '',
         iban: '',
+        paypal_email: '',
+        payoneer_email: '',
+        wise_email: '',
+        wallet_address: '',
+        coin_type: '',
         notes: '',
     };
     showCreateModal.value = true;
@@ -98,18 +148,25 @@ const submitBill = () => {
 
     const payload = {
         amount: form.amount,
+        currency: form.currency || props.expendable.currency,
         project_expendable_id: form.project_expendable_id,
         contractor_id: form.contractor_id,
         transaction_type_id: form.transaction_type_id,
         payment_details: {
             payment_method: form.payment_details.payment_method,
-            account_name: form.payment_details.account_name,
-            account_number: form.payment_details.account_number,
-            bank_name: form.payment_details.bank_name,
-            bsb: form.payment_details.bsb,
-            swift_code: form.payment_details.swift_code,
-            iban: form.payment_details.iban,
-            notes: form.payment_details.notes,
+            // Common fields — backend stores as JSON blob, send only filled fields
+            account_name:   form.payment_details.account_name   || null,
+            account_number: form.payment_details.account_number || null,
+            bank_name:      form.payment_details.bank_name      || null,
+            bsb:            form.payment_details.bsb            || null,
+            swift_code:     form.payment_details.swift_code     || null,
+            iban:           form.payment_details.iban           || null,
+            paypal_email:   form.payment_details.paypal_email   || null,
+            payoneer_email: form.payment_details.payoneer_email || null,
+            wise_email:     form.payment_details.wise_email     || null,
+            wallet_address: form.payment_details.wallet_address || null,
+            coin_type:      form.payment_details.coin_type      || null,
+            notes:          form.payment_details.notes          || null,
         },
     };
 
@@ -394,89 +451,158 @@ const formatStatus = (status) => {
                         <InputError :message="form.errors['payment_details.notes']" />
                     </div>
 
-                    <div class="border rounded-md p-4 bg-gray-50 space-y-4">
+                    <div class="border rounded-xl bg-gray-50 p-4 space-y-4">
                         <h4 class="text-sm font-semibold text-gray-800">Payment Details (Required)</h4>
 
+                        <!-- Payment Method Selector -->
                         <div>
                             <InputLabel for="payment_method" value="Payment Method" />
                             <select
                                 id="payment_method"
                                 v-model="form.payment_details.payment_method"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                @change="onMethodChange"
+                                class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
                             >
-                                <option value="bank_transfer">Bank Transfer</option>
-                                <option value="paypal">PayPal</option>
-                                <option value="other">Other</option>
+                                <option v-for="m in paymentMethodOptions" :key="m.value" :value="m.value">
+                                    {{ m.label }}
+                                </option>
                             </select>
                             <InputError :message="form.errors['payment_details.payment_method']" />
                         </div>
 
-                        <div>
-                            <InputLabel for="account_name" value="Account Name" />
-                            <TextInput
-                                id="account_name"
-                                v-model="form.payment_details.account_name"
-                                type="text"
-                                class="mt-1 block w-full"
-                            />
-                            <InputError :message="form.errors['payment_details.account_name']" />
+                        <!-- Method hint banner -->
+                        <div class="rounded-lg bg-indigo-50 border border-indigo-200 px-3 py-2 text-xs text-indigo-700 flex items-center gap-2">
+                            <span class="text-base">{{ currentMethod.label.split(' ')[0] }}</span>
+                            <span>Fill in the <strong>{{ currentMethod.label.split(' ').slice(1).join(' ') }}</strong> details below</span>
                         </div>
 
-                        <div>
-                            <InputLabel for="account_number" value="Account Number" />
-                            <TextInput
-                                id="account_number"
-                                v-model="form.payment_details.account_number"
-                                type="text"
-                                class="mt-1 block w-full"
-                            />
-                            <InputError :message="form.errors['payment_details.account_number']" />
-                        </div>
-
-                        <div>
-                            <InputLabel for="bank_name" value="Bank Name" />
-                            <TextInput
-                                id="bank_name"
-                                v-model="form.payment_details.bank_name"
-                                type="text"
-                                class="mt-1 block w-full"
-                            />
-                            <InputError :message="form.errors['payment_details.bank_name']" />
-                        </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <InputLabel for="bsb" value="BSB / Routing" />
-                                <TextInput
-                                    id="bsb"
-                                    v-model="form.payment_details.bsb"
-                                    type="text"
-                                    class="mt-1 block w-full"
-                                />
-                                <InputError :message="form.errors['payment_details.bsb']" />
+                        <!-- ─── Bank Transfer (Local) ─── -->
+                        <template v-if="hasField('bsb') && !hasField('swift_code')">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <InputLabel for="account_name" value="Account Name" />
+                                    <TextInput id="account_name" v-model="form.payment_details.account_name" type="text" class="mt-1 block w-full" placeholder="Full name on account" />
+                                    <InputError :message="form.errors['payment_details.account_name']" />
+                                </div>
+                                <div>
+                                    <InputLabel for="account_number" value="Account Number" />
+                                    <TextInput id="account_number" v-model="form.payment_details.account_number" type="text" class="mt-1 block w-full" />
+                                    <InputError :message="form.errors['payment_details.account_number']" />
+                                </div>
+                                <div>
+                                    <InputLabel for="bank_name" value="Bank Name" />
+                                    <TextInput id="bank_name" v-model="form.payment_details.bank_name" type="text" class="mt-1 block w-full" placeholder="e.g. Commonwealth Bank" />
+                                    <InputError :message="form.errors['payment_details.bank_name']" />
+                                </div>
+                                <div>
+                                    <InputLabel for="bsb" value="BSB / Routing Number" />
+                                    <TextInput id="bsb" v-model="form.payment_details.bsb" type="text" class="mt-1 block w-full" placeholder="e.g. 062-000" />
+                                    <InputError :message="form.errors['payment_details.bsb']" />
+                                </div>
                             </div>
-                            <div>
-                                <InputLabel for="swift_code" value="SWIFT Code" />
-                                <TextInput
-                                    id="swift_code"
-                                    v-model="form.payment_details.swift_code"
-                                    type="text"
-                                    class="mt-1 block w-full"
-                                />
-                                <InputError :message="form.errors['payment_details.swift_code']" />
-                            </div>
-                        </div>
+                        </template>
 
-                        <div>
-                            <InputLabel for="iban" value="IBAN" />
-                            <TextInput
-                                id="iban"
-                                v-model="form.payment_details.iban"
-                                type="text"
-                                class="mt-1 block w-full"
-                            />
-                            <InputError :message="form.errors['payment_details.iban']" />
-                        </div>
+                        <!-- ─── International Wire ─── -->
+                        <template v-else-if="hasField('swift_code')">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <InputLabel for="account_name" value="Beneficiary Name" />
+                                    <TextInput id="account_name" v-model="form.payment_details.account_name" type="text" class="mt-1 block w-full" />
+                                    <InputError :message="form.errors['payment_details.account_name']" />
+                                </div>
+                                <div>
+                                    <InputLabel for="bank_name" value="Bank Name" />
+                                    <TextInput id="bank_name" v-model="form.payment_details.bank_name" type="text" class="mt-1 block w-full" />
+                                    <InputError :message="form.errors['payment_details.bank_name']" />
+                                </div>
+                                <div>
+                                    <InputLabel for="account_number" value="Account Number" />
+                                    <TextInput id="account_number" v-model="form.payment_details.account_number" type="text" class="mt-1 block w-full" />
+                                    <InputError :message="form.errors['payment_details.account_number']" />
+                                </div>
+                                <div>
+                                    <InputLabel for="swift_code" value="SWIFT / BIC Code" />
+                                    <TextInput id="swift_code" v-model="form.payment_details.swift_code" type="text" class="mt-1 block w-full" placeholder="e.g. CBAUAU2S" />
+                                    <InputError :message="form.errors['payment_details.swift_code']" />
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <InputLabel for="iban" value="IBAN (if applicable)" />
+                                    <TextInput id="iban" v-model="form.payment_details.iban" type="text" class="mt-1 block w-full" placeholder="e.g. GB29 NWBK 6016 1331 9268 19" />
+                                    <InputError :message="form.errors['payment_details.iban']" />
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- ─── PayPal ─── -->
+                        <template v-else-if="hasField('paypal_email')">
+                            <div>
+                                <InputLabel for="paypal_email" value="PayPal Email Address" />
+                                <TextInput id="paypal_email" v-model="form.payment_details.paypal_email" type="email" class="mt-1 block w-full" placeholder="contractor@example.com" />
+                                <InputError :message="form.errors['payment_details.paypal_email']" />
+                                <p class="text-xs text-gray-400 mt-1">Funds will be sent to this PayPal account</p>
+                            </div>
+                        </template>
+
+                        <!-- ─── Payoneer ─── -->
+                        <template v-else-if="hasField('payoneer_email')">
+                            <div>
+                                <InputLabel for="payoneer_email" value="Payoneer Email / Username" />
+                                <TextInput id="payoneer_email" v-model="form.payment_details.payoneer_email" type="email" class="mt-1 block w-full" placeholder="contractor@example.com" />
+                                <InputError :message="form.errors['payment_details.payoneer_email']" />
+                                <p class="text-xs text-gray-400 mt-1">Must match the registered Payoneer account email</p>
+                            </div>
+                        </template>
+
+                        <!-- ─── Wise ─── -->
+                        <template v-else-if="hasField('wise_email')">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <InputLabel for="wise_email" value="Wise Email" />
+                                    <TextInput id="wise_email" v-model="form.payment_details.wise_email" type="email" class="mt-1 block w-full" placeholder="contractor@example.com" />
+                                    <InputError :message="form.errors['payment_details.wise_email']" />
+                                </div>
+                                <div>
+                                    <InputLabel for="account_number" value="Account Number (optional)" />
+                                    <TextInput id="account_number" v-model="form.payment_details.account_number" type="text" class="mt-1 block w-full" />
+                                    <InputError :message="form.errors['payment_details.account_number']" />
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- ─── Crypto ─── -->
+                        <template v-else-if="hasField('wallet_address')">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div class="sm:col-span-2">
+                                    <InputLabel for="wallet_address" value="Wallet Address" />
+                                    <TextInput id="wallet_address" v-model="form.payment_details.wallet_address" type="text" class="mt-1 block w-full font-mono text-xs" placeholder="e.g. 0x71C7656EC7ab88b098defB751B7401B5f6d8976F" />
+                                    <InputError :message="form.errors['payment_details.wallet_address']" />
+                                </div>
+                                <div>
+                                    <InputLabel for="coin_type" value="Coin / Network" />
+                                    <select id="coin_type" v-model="form.payment_details.coin_type" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                                        <option value="">Select coin</option>
+                                        <option value="BTC">Bitcoin (BTC)</option>
+                                        <option value="ETH">Ethereum (ETH)</option>
+                                        <option value="USDT_TRC20">USDT (TRC-20)</option>
+                                        <option value="USDT_ERC20">USDT (ERC-20)</option>
+                                        <option value="USDC">USD Coin (USDC)</option>
+                                        <option value="BNB">BNB (BSC)</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                    <InputError :message="form.errors['payment_details.coin_type']" />
+                                </div>
+                            </div>
+                            <p class="text-xs text-amber-600 mt-1">⚠️ Double-check the wallet address and network — crypto transfers cannot be reversed.</p>
+                        </template>
+
+                        <!-- ─── Other ─── -->
+                        <template v-else>
+                            <div>
+                                <InputLabel for="notes" value="Payment Instructions / Notes" />
+                                <textarea id="notes" v-model="form.payment_details.notes" rows="4" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm" placeholder="Describe how payment should be made..."></textarea>
+                                <InputError :message="form.errors['payment_details.notes']" />
+                            </div>
+                        </template>
                     </div>
                 </div>
 

@@ -670,12 +670,23 @@ class Project extends Model
         return $expendables;
     }
 
+    public function projectContracts()
+    {
+        // Return contracts directly attached to the project
+        return $this->expendable()->whereNotNull('user_id')->get();
+    }
+
+    public function allContracts()
+    {
+        return $this->milestoneContracts()->merge($this->projectContracts());
+    }
+
     public function getPendingContractsAmountAttribute()
     {
 
         // From all contracts calculate all pending contract amounts
         $convertTo = 'AUD';
-        $allContracts = $this->milestoneContracts()->where('status', ProjectExpendable::STATUS_PENDING);
+        $allContracts = $this->allContracts()->where('status', ProjectExpendable::STATUS_PENDING);
 
         $total = 0.0;
         foreach ($allContracts as $contract) {
@@ -690,7 +701,7 @@ class Project extends Model
 
         // From all contracts calculate all approved contract amounts
         $convertTo = 'AUD';
-        $allContracts = $this->milestoneContracts()->where('status', ProjectExpendable::STATUS_ACCEPTED);
+        $allContracts = $this->allContracts()->where('status', ProjectExpendable::STATUS_ACCEPTED);
 
         $total = 0.0;
         foreach ($allContracts as $contract) {

@@ -25,6 +25,7 @@ class ProjectExpendable extends Model
     protected $fillable = [
         'name',
         'description',
+        'payment_terms',
         'project_id',
         'user_id',
         'currency',

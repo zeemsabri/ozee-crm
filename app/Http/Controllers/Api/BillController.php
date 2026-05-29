@@ -133,11 +133,30 @@ class BillController extends Controller
             ], 422);
         }
 
-        if ($amountInExpendableCurrency > $expendable->balance) {
+        $pendingBills = Bill::where('project_expendable_id', $expendable->id)
+            ->where('status', BillStatus::PendingApproval)
+            ->get();
+
+        $pendingAmountSumInExpendableCurrency = 0;
+        foreach ($pendingBills as $pendingBill) {
+            $pendingBillCurrency = $pendingBill->currency ?? 'AUD';
+            try {
+                $pendingAmountSumInExpendableCurrency += $this->currencyConversionService->convert(
+                    $pendingBill->amount,
+                    $pendingBillCurrency,
+                    $expendableCurrency
+                );
+            } catch (\Exception $e) {
+                // Ignore conversion failure for existing pending bills
+            }
+        }
+
+        if (round(($pendingAmountSumInExpendableCurrency + $amountInExpendableCurrency), 2) > round($expendable->balance, 2)) {
+            $availableForNewBills = max(0, $expendable->balance - $pendingAmountSumInExpendableCurrency);
             return response()->json([
                 'message' => 'Bill amount exceeds the remaining balance of the contract.',
                 'errors' => [
-                    'amount' => ["Remaining balance is {$expendable->balance} {$expendableCurrency}."]
+                    'amount' => ["Remaining balance available for new bills is {$availableForNewBills} {$expendableCurrency} (accounting for pending bills)."]
                 ]
             ], 422);
         }
@@ -222,6 +241,52 @@ class BillController extends Controller
             'payment_details.iban' => 'nullable|string|max:255',
             'payment_details.notes' => 'nullable|string|max:1000',
         ]);
+
+        $expendable = $bill->expendable;
+        $billCurrency = $validated['currency'] ?? 'AUD';
+        $expendableCurrency = $expendable->currency ?? 'AUD';
+
+        try {
+            $amountInExpendableCurrency = $this->currencyConversionService->convert(
+                $validated['amount'],
+                $billCurrency,
+                $expendableCurrency
+            );
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to convert currency: ' . $e->getMessage(),
+                'errors' => ['currency' => [$e->getMessage()]],
+            ], 422);
+        }
+
+        $pendingBills = Bill::where('project_expendable_id', $expendable->id)
+            ->where('status', BillStatus::PendingApproval)
+            ->where('id', '!=', $bill->id)
+            ->get();
+
+        $pendingAmountSumInExpendableCurrency = 0;
+        foreach ($pendingBills as $pendingBill) {
+            $pendingBillCurrency = $pendingBill->currency ?? 'AUD';
+            try {
+                $pendingAmountSumInExpendableCurrency += $this->currencyConversionService->convert(
+                    $pendingBill->amount,
+                    $pendingBillCurrency,
+                    $expendableCurrency
+                );
+            } catch (\Exception $e) {
+                // Ignore
+            }
+        }
+
+        if (round(($pendingAmountSumInExpendableCurrency + $amountInExpendableCurrency), 2) > round($expendable->balance, 2)) {
+            $availableForNewBills = max(0, $expendable->balance - $pendingAmountSumInExpendableCurrency);
+            return response()->json([
+                'message' => 'Bill amount exceeds the remaining balance of the contract.',
+                'errors' => [
+                    'amount' => ["Remaining balance available for bills is {$availableForNewBills} {$expendableCurrency}."]
+                ]
+            ], 422);
+        }
 
         DB::transaction(function () use ($bill, $validated) {
             $bill->fill([
