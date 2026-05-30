@@ -58,6 +58,8 @@ class Project extends Model
         'last_email_received',
         'integrations',
         'data',
+        'public_share_token',
+        'public_share_enabled',
     ];
 
     protected $casts = [
@@ -71,6 +73,7 @@ class Project extends Model
         'last_email_received' => 'datetime',
         'integrations' => 'array',
         'data' => 'array',
+        'public_share_enabled' => 'boolean',
     ];
 
     protected $hidden = [

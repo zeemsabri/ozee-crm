@@ -172,6 +172,19 @@ Route::get('/client/dashboard', [ClientDashboardController::class, 'index'])->na
 // Route for the email tracking pixel
 Route::get('/email/track/{id}', [EmailTrackingController::class, 'track'])->name('email.track');
 Route::get('/notice/track/{id}/{email?}', [EmailTrackingController::class, 'notice'])->name('notice.track');
+Route::get('/project/track/{id}/{email?}', [EmailTrackingController::class, 'project'])->name('project.track');
+
+// --- Public Project Routes (no auth required) ---
+Route::prefix('projects/public')->name('public.projects.')->group(function () {
+    Route::get('/{slug}/{code}', [\App\Http\Controllers\Public\PublicProjectController::class, 'showPretty'])->name('pretty');
+    Route::get('/{token}', [\App\Http\Controllers\Public\PublicProjectController::class, 'show'])->name('show');
+    Route::post('/{token}/otp', [\App\Http\Controllers\Public\PublicProjectController::class, 'sendOtp'])->name('otp.send');
+    Route::post('/{token}/otp/verify', [\App\Http\Controllers\Public\PublicProjectController::class, 'verifyOtp'])->name('otp.verify');
+    Route::post('/{token}/session', [\App\Http\Controllers\Public\PublicProjectController::class, 'session'])->name('session');
+    Route::post('/{token}/profile', [\App\Http\Controllers\Public\PublicProjectController::class, 'updateProfile'])->name('profile.update');
+    Route::post('/{token}/track', [\App\Http\Controllers\Public\PublicProjectController::class, 'track'])->name('track');
+    Route::post('/{token}/proposals', [\App\Http\Controllers\Public\PublicProjectController::class, 'storeProposal'])->name('proposals.store');
+});
 // Authenticated routes group for Inertia pages that require a logged-in user
 // The 'verified' middleware ensures the user's email is verified (optional, remove if not needed for MVP)
 Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) {

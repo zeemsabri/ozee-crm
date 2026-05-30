@@ -312,11 +312,11 @@ const voidBill = async (billId) => {
 
 const getStatusClass = (status) => {
     switch (status.toLowerCase()) {
-        case 'approved': return 'bg-green-100 text-green-800';
-        case 'pending_approval': return 'bg-amber-100 text-amber-800';
-        case 'voided': return 'bg-red-100 text-red-800';
-        case 'paid': return 'bg-blue-100 text-blue-800';
-        default: return 'bg-gray-100 text-gray-800';
+        case 'approved': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        case 'pending_approval': return 'bg-amber-50 text-amber-700 border-amber-200';
+        case 'voided': return 'bg-rose-50 text-rose-700 border-rose-200';
+        case 'paid': return 'bg-blue-50 text-blue-700 border-blue-200';
+        default: return 'bg-gray-50 text-gray-600 border-gray-200';
     }
 };
 
@@ -338,46 +338,46 @@ const formatStatus = (status) => {
             No bills recorded for this contract.
         </div>
 
-        <div v-else class="overflow-x-auto">
+        <div v-else class="border border-gray-200 rounded-lg overflow-hidden bg-white">
             <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+                <thead class="bg-gray-50 border-b border-gray-200">
                     <tr>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                        <th scope="col" class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200 bg-white">
-                    <tr v-for="bill in expendable.bills" :key="bill.id">
-                        <td class="px-4 py-2 whitespace-nowrap text-xs text-gray-700">
-                            {{ new Date(bill.created_at).toLocaleDateString() }}
+                <tbody class="divide-y divide-gray-100 bg-white">
+                    <tr v-for="bill in expendable.bills" :key="bill.id" class="hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                            {{ new Date(bill.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) }}
                         </td>
-                        <td class="px-4 py-2 whitespace-nowrap text-xs text-gray-700">
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
                             {{ bill.transaction_type?.name || 'N/A' }}
                         </td>
-                        <td class="px-4 py-2 whitespace-nowrap text-xs font-medium text-gray-900">
+                        <td class="px-4 py-3 whitespace-nowrap text-sm font-bold text-gray-900">
                             {{ formatCurrency(bill.amount, bill.currency || expendable.currency) }}
                         </td>
-                        <td class="px-4 py-2 whitespace-nowrap text-xs">
-                            <span :class="['px-2 py-1 rounded-full text-[10px] font-bold', getStatusClass(bill.status)]">
+                        <td class="px-4 py-3 whitespace-nowrap text-sm">
+                            <span :class="['inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase shadow-sm border', getStatusClass(bill.status)]">
                                 {{ formatStatus(bill.status) }}
                             </span>
                         </td>
-                        <td class="px-4 py-2 whitespace-nowrap text-right text-xs">
-                            <div class="flex justify-end gap-2">
+                        <td class="px-4 py-3 whitespace-nowrap text-right text-sm">
+                            <div class="flex justify-end gap-3 items-center">
                                 <button 
                                     v-if="bill.status === 'pending_approval' && canApprove"
                                     @click="approveBill(bill.id)"
                                     :disabled="processing"
-                                    class="text-green-600 hover:text-green-900 font-bold"
+                                    class="text-emerald-600 hover:text-emerald-900 font-semibold transition-colors"
                                 >
                                     Approve
                                 </button>
                                 <Link
                                     :href="route('admin.financials.bills.show', { id: bill.id })"
-                                    class="text-indigo-600 hover:text-indigo-900 font-bold"
+                                    class="text-indigo-600 hover:text-indigo-900 font-semibold transition-colors"
                                 >
                                     View
                                 </Link>
@@ -385,7 +385,7 @@ const formatStatus = (status) => {
                                     v-if="bill.status === 'pending_approval' && canApprove && !expendable.user?.xero_contact_id"
                                     @click="openXeroSyncModal"
                                     :disabled="processing"
-                                    class="text-indigo-600 hover:text-indigo-900 font-bold"
+                                    class="text-indigo-600 hover:text-indigo-900 font-semibold transition-colors"
                                 >
                                     Link Xero
                                 </button>
@@ -393,7 +393,7 @@ const formatStatus = (status) => {
                                     v-if="bill.status === 'approved' && canApprove"
                                     @click="voidBill(bill.id)"
                                     :disabled="processing"
-                                    class="text-red-600 hover:text-red-900 font-bold"
+                                    class="text-rose-600 hover:text-rose-900 font-semibold transition-colors"
                                 >
                                     Void
                                 </button>

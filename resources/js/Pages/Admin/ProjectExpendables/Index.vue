@@ -18,6 +18,7 @@ import InvoicesSection from '@/Components/ProjectInvoices/InvoicesSection.vue';
 import ProjectProgressTimeline from '@/Components/ProjectProgressTimeline.vue';
 import Modal from '@/Components/Modal.vue';
 import BillManagement from '@/Components/ProjectExpendables/BillManagement.vue';
+import ProjectShareModal from '@/Components/Modals/ProjectShareModal.vue';
 import {
     Square2StackIcon,
     CheckCircleIcon,
@@ -31,13 +32,18 @@ import {
     PlusIcon,
     ArrowPathIcon as RefreshIcon,
     InformationCircleIcon,
-    MagnifyingGlassIcon
+    MagnifyingGlassIcon,
+    DocumentTextIcon,
+    ClipboardDocumentListIcon,
+    PlayCircleIcon,
+    BanknotesIcon
 } from '@heroicons/vue/24/outline';
 
 // -- State & Data --
 const projects = ref([]);
 const selectedProjectId = ref(null);
 const loading = ref(false);
+const activeView = ref('proposals'); // 'proposals', 'planning', 'execution', 'financials'
 const activeTab = ref('active');
 const milestones = ref([]);
 const projectContracts = ref([]);
@@ -57,6 +63,13 @@ const pendingContractId = ref(null);
 const activeExpendable = ref(null);
 const showUpdateDueDateModal = ref(false);
 const milestoneForDueDateUpdate = ref(null);
+const showShareModal = ref(false);
+const expandedProposalRows = ref({});
+
+const projectContexts = ref([]);
+const projectMeetings = ref([]);
+const billFilterUser = ref('');
+const billFilterMilestone = ref('');
 
 const currencyOptions = [
     { value: 'PKR', label: 'PKR' },
@@ -97,11 +110,31 @@ const props = defineProps({
     }
 });
 
+const selectedProject = computed(() => {
+    const project = projects.value.find(option => option.value === Number(selectedProjectId.value));
+
+    if (!project) {
+        return null;
+    }
+
+    return {
+        id: Number(project.value),
+        name: project.label,
+    };
+});
+
 const tabs = [
     { id: 'active', label: 'Active Milestones' },
     { id: 'completed', label: 'Completed' },
     { id: 'approved', label: 'Approved' },
     { id: 'invoices', label: 'Sales Invoices' },
+];
+
+const VIEW_MODES = [
+    { id: 'proposals', label: 'Proposals', icon: DocumentTextIcon, desc: 'Review, shortlist, and approve bids & contracts' },
+    { id: 'planning', label: 'Planning', icon: ClipboardDocumentListIcon, desc: 'Structure milestones, define budgets, and tasks' },
+    { id: 'execution', label: 'Execution & QA', icon: PlayCircleIcon, desc: 'Track progress, review tasks, and QA milestones' },
+    { id: 'financials', label: 'Financials', icon: BanknotesIcon, desc: 'Manage budgets, bills, and project finances' },
 ];
 
 // -- Computed Properties --
@@ -160,8 +193,32 @@ const approvedTotal = computed(() => {
 });
 
 const pendingTotal = computed(() => {
-    const amt = Number(expendableBudget.value.total_pending_contract_amount || 0);
-    return convertCurrency(amt, expendableBudget.value.currency || projectBudgetCurrency.value || 'AUD', currentDisplayCurrency.value);
+    let total = 0;
+    projectContracts.value.forEach(e => {
+        if (e.status === 'Pending Approval' || e.status === 'Shortlisted') {
+            total += convertCurrency(parseFloat(e.amount ?? 0), e.currency || currentDisplayCurrency.value, currentDisplayCurrency.value);
+        }
+    });
+    (milestones.value || []).forEach(m => {
+        (m.expendable || []).forEach(e => {
+            if (e.status === 'Pending Approval' || e.status === 'Shortlisted') {
+                total += convertCurrency(parseFloat(e.amount ?? 0), e.currency || currentDisplayCurrency.value, currentDisplayCurrency.value);
+            }
+        });
+    });
+    return total;
+});
+
+const unifiedContracts = computed(() => {
+    let list = [...(projectContracts.value || []).map(e => ({ ...e, is_project_level: true }))];
+    (milestones.value || []).forEach(m => {
+        if (m.expendable && m.expendable.length) {
+            m.expendable.forEach(e => {
+                list.push({ ...e, is_project_level: false, milestone_name: m.name, milestone_id: m.id });
+            });
+        }
+    });
+    return list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 });
 
 const remainingBudget = computed(() => {
@@ -269,6 +326,26 @@ const loadProjectContracts = async () => {
     }
 };
 
+const loadProjectContexts = async () => {
+    if (!selectedProjectId.value) return;
+    try {
+        const { data } = await window.axios.get(`/api/projects/${selectedProjectId.value}/contexts`);
+        projectContexts.value = data || [];
+    } catch (e) {
+        console.error(e);
+    }
+};
+
+const loadProjectMeetings = async () => {
+    if (!selectedProjectId.value) return;
+    try {
+        const { data } = await window.axios.get(`/api/projects/${selectedProjectId.value}/meetings`);
+        projectMeetings.value = data || [];
+    } catch (e) {
+        console.error(e);
+    }
+};
+
 const openReasonsList = async (m) => {
     if (!m || !m.id) {
         error('Invalid milestone selected.');
@@ -337,7 +414,14 @@ const onProjectChange = async () => {
         };
         return;
     }
-    await Promise.all([loadMilestones(), loadUsers(), loadProjectBudget(), loadProjectContracts()]);
+    await Promise.all([
+        loadMilestones(), 
+        loadUsers(), 
+        loadProjectBudget(), 
+        loadProjectContracts(),
+        loadProjectContexts(),
+        loadProjectMeetings()
+    ]);
 };
 
 const onModalSubmitted = async () => {
@@ -473,9 +557,105 @@ const reopen = async (m) => {
 
 const toggle = (m) => { m._collapsed = !m._collapsed; };
 
+const toggleProposalDetails = (proposalId) => {
+    expandedProposalRows.value = {
+        ...expandedProposalRows.value,
+        [proposalId]: !expandedProposalRows.value[proposalId],
+    };
+};
+
+const isProposalExpanded = (proposalId) => !!expandedProposalRows.value[proposalId];
+
+const coverLetterPreview = (text, max = 180) => {
+    if (!text) return 'No cover letter provided.';
+    const clean = String(text).trim();
+    if (clean.length <= max) return clean;
+    return `${clean.slice(0, max)}...`;
+};
+
+const proposalReference = (proposal) => `OZP-${proposal?.id ?? 'N/A'}`;
+
+const proposerEmail = (proposal) => proposal?.user?.email || null;
+const proposerPhone = (proposal) => proposal?.user?.metadata?.phone || null;
+
+const paymentTypeLabel = {
+    fixed: 'Fixed Price',
+    installments: 'Custom Installments',
+    milestone: 'Milestone Based',
+    retainer: 'Monthly Retainer',
+    hourly: 'Hourly',
+};
+
+const parsePaymentTerms = (terms) => {
+    if (!terms) return null;
+    if (typeof terms === 'object') return terms;
+    try {
+        return JSON.parse(terms);
+    } catch {
+        return null;
+    }
+};
+
+const paymentTermsSummary = (proposal) => {
+    const parsed = parsePaymentTerms(proposal.payment_terms);
+    if (!parsed) {
+        return proposal.payment_terms || 'No payment terms provided.';
+    }
+
+    const type = parsed.type || 'custom';
+    if (['installments', 'milestone', 'fixed'].includes(type) && Array.isArray(parsed.installments)) {
+        const split = parsed.installments
+            .map(i => `${i.label}: ${Number(i.percentage || 0).toFixed(2)}%`)
+            .join(' | ');
+        return `${paymentTypeLabel[type] || 'Payment Plan'} - ${split}`;
+    }
+    if (type === 'retainer') {
+        return `Retainer: ${parsed.months || 1} month(s)`;
+    }
+    if (type === 'hourly') {
+        return `Hourly: ${parsed.hourly_rate || 0}/hr, est. ${parsed.estimated_hours || 0} hrs`;
+    }
+    return 'Custom payment terms';
+};
+
+const paymentTermsBreakdown = (proposal) => {
+    const parsed = parsePaymentTerms(proposal.payment_terms);
+    if (!parsed || !Array.isArray(parsed.installments)) {
+        return [];
+    }
+
+    const amount = Number(proposal.amount || 0);
+    return parsed.installments.map((item) => {
+        const pct = Number(item.percentage || 0);
+        return {
+            label: item.label || 'Installment',
+            percentage: pct,
+            amount: (amount * pct) / 100,
+        };
+    });
+};
+
+const shortlistProposal = async (proposal, shortlist = true) => {
+    if (!proposal || !proposal.id || !selectedProjectId.value) return;
+
+    try {
+        await window.axios.post(`/api/projects/${selectedProjectId.value}/expendables/${proposal.id}/shortlist`, {
+            shortlisted: shortlist,
+        });
+        success(shortlist ? 'Proposal shortlisted.' : 'Proposal moved back to pending.');
+        await Promise.all([loadMilestones(), loadProjectContracts()]);
+    } catch (e) {
+        console.error(e);
+        error(e?.response?.data?.message || 'Failed to update shortlist status.');
+    }
+};
+
 const hasPendingContracts = (m) => {
     if (!m || !Array.isArray(m.expendable)) return false;
-    return m.expendable.some(e => (e?.status || 'Pending Approval') === 'Pending Approval');
+    return m.expendable.some(e => {
+        const status = e?.status || 'Pending Approval';
+        return status === 'Pending Approval' || status === 'Shortlisted';
+    });
 };
 
 const hasAnyContracts = (m) => {
@@ -560,17 +740,93 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                     <Link :href="route('admin.pm-payout-calculator.index')" class="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:border-indigo-700 focus:ring active:bg-indigo-700 transition ease-in-out duration-150">
                         Payout Calculator
                     </Link>
+                    <button
+                        v-if="selectedProjectId"
+                        @click="showShareModal = true"
+                        class="inline-flex items-center px-3 py-1 border border-transparent text-xs leading-4 font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:border-emerald-700 focus:ring active:bg-emerald-700 transition ease-in-out duration-150"
+                    >
+                        Share Project
+                    </button>
                 </div>
             </div>
         </template>
 
-        <div class="py-8">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+        <div class="py-8 bg-gray-50 min-h-screen">
+            <div class="max-w-[1600px] mx-auto sm:px-6 lg:px-8 space-y-6">
+
+                <!-- View Switcher -->
+                <div v-if="selectedProjectId" class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-gray-200">
+                        <button
+                            v-for="view in VIEW_MODES"
+                            :key="view.id"
+                            @click="activeView = view.id"
+                            class="flex flex-col items-center justify-center p-4 transition-colors relative"
+                            :class="[
+                                activeView === view.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50 text-gray-600'
+                            ]"
+                        >
+                            <div class="flex items-center gap-2 font-semibold text-lg mb-1">
+                                <component :is="view.icon" class="w-6 h-6" :class="activeView === view.id ? 'text-indigo-600' : 'text-gray-400'" />
+                                {{ view.label }}
+                            </div>
+                            <span class="text-xs text-center" :class="activeView === view.id ? 'text-indigo-500' : 'text-gray-400'">
+                                {{ view.desc }}
+                            </span>
+                            <div v-if="activeView === view.id" class="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600"></div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Project Glance (Planning View Only) -->
+                <section v-if="selectedProjectId && activeView === 'planning'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Latest Context/Updates -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                            <DocumentTextIcon class="w-5 h-5 text-indigo-600" />
+                            Latest Updates & Emails
+                        </h3>
+                        <div v-if="!projectContexts.length" class="text-sm text-gray-500 italic">No recent updates found.</div>
+                        <ul v-else class="space-y-4">
+                            <li v-for="context in projectContexts" :key="context.id" class="border-l-2 border-indigo-200 pl-4 py-1">
+                                <div class="text-sm font-medium text-gray-800">{{ context.summary }}</div>
+                                <div class="text-xs text-gray-500 mt-1 flex justify-between">
+                                    <span>{{ context.user?.name || 'System' }}</span>
+                                    <span>{{ new Date(context.created_at).toLocaleDateString() }}</span>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Upcoming Meetings -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                            <PlayCircleIcon class="w-5 h-5 text-indigo-600" />
+                            Upcoming Meetings
+                        </h3>
+                        <div v-if="!projectMeetings.length" class="text-sm text-gray-500 italic">No upcoming meetings scheduled.</div>
+                        <ul v-else class="space-y-4">
+                            <li v-for="meeting in projectMeetings.slice(0,3)" :key="meeting.id" class="flex items-start gap-3 bg-gray-50 p-3 rounded-lg">
+                                <div class="bg-white border border-gray-200 rounded p-2 text-center min-w-[50px]">
+                                    <div class="text-xs text-red-500 font-bold uppercase">{{ new Date(meeting.start_time).toLocaleDateString(undefined, { month: 'short' }) }}</div>
+                                    <div class="text-lg font-bold text-gray-800 leading-none">{{ new Date(meeting.start_time).getDate() }}</div>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-semibold text-gray-900">{{ meeting.title || 'Project Sync' }}</div>
+                                    <div class="text-xs text-gray-500 mt-1">{{ new Date(meeting.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</div>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </section>
 
                 <!-- Financial Summary Dashboard -->
-                <section v-if="selectedProjectId">
-                    <div class="bg-white rounded-xl p-6 shadow-sm">
-                        <h3 class="text-xl font-semibold text-gray-900 mb-4">Financial Summary</h3>
+                <section v-if="selectedProjectId && activeView === 'financials'">
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                        <div class="flex items-center gap-2 mb-6 border-b pb-4">
+                            <BanknotesIcon class="w-6 h-6 text-indigo-600" />
+                            <h3 class="text-xl font-semibold text-gray-900">Financial Summary</h3>
+                        </div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div class="bg-indigo-50 rounded-lg p-5 shadow-sm flex flex-col justify-between">
                                 <div>
@@ -608,14 +864,14 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                 </div>
                                 <p class="text-xs text-yellow-600 mt-2">Contracts awaiting review and approval.</p>
                             </div>
-                            <div class="bg-blue-50 rounded-lg p-5 shadow-sm flex flex-col justify-between">
+                            <div :class="['rounded-lg p-5 shadow-sm flex flex-col justify-between', (expendableBudget.total_budget - expendableBudget.total_approved_contract_amount) >= 0 ? 'bg-emerald-50' : 'bg-rose-50']">
                                 <div>
-                                    <div class="text-sm font-medium text-blue-700 mb-1">Expendable Remaining</div>
-                                    <div class="text-3xl font-bold text-blue-900">
-                                        {{ fmtBudget(expendableBudget.total_expendable_amount) }}
+                                    <div :class="['text-sm font-medium mb-1', (expendableBudget.total_budget - expendableBudget.total_approved_contract_amount) >= 0 ? 'text-emerald-700' : 'text-rose-700']">Project Profit / Loss</div>
+                                    <div :class="['text-3xl font-bold', (expendableBudget.total_budget - expendableBudget.total_approved_contract_amount) >= 0 ? 'text-emerald-900' : 'text-rose-900']">
+                                        {{ fmtBudget(expendableBudget.total_budget - expendableBudget.total_approved_contract_amount) }}
                                     </div>
                                 </div>
-                                <p class="text-xs text-blue-600 mt-2">Remaining after approved contracts.</p>
+                                <p :class="['text-xs mt-2', (expendableBudget.total_budget - expendableBudget.total_approved_contract_amount) >= 0 ? 'text-emerald-600' : 'text-rose-600']">Total Budget minus Approved Contracts.</p>
                             </div>
                             <div class="bg-teal-50 rounded-lg p-5 shadow-sm flex flex-col justify-between">
                                 <div>
@@ -627,62 +883,181 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                 <p class="text-xs text-teal-600 mt-2">Budget still available to allocate to new milestones.</p>
                             </div>
                         </div>
+                    </div>
+                </section>
 
-                        <!-- Project Progress & Timeline extracted into a reusable component -->
+                <!-- Project Progress Timeline -->
+                <section v-if="selectedProjectId && (activeView === 'execution' || activeView === 'financials')">
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                        <div class="flex items-center gap-2 mb-4">
+                            <PlayCircleIcon class="w-6 h-6 text-indigo-600" />
+                            <h3 class="text-xl font-semibold text-gray-900">Project Progress</h3>
+                        </div>
                         <ProjectProgressTimeline :milestones="milestones" />
                     </div>
                 </section>
 
-                <!-- Project Contracts Section -->
-                <section v-if="selectedProjectId" class="bg-white rounded-xl shadow-sm p-6">
+                <!-- Proposals Section: All pending/rejected contracts (project + milestone level) -->
+                <section v-if="selectedProjectId && activeView === 'proposals'" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <div class="flex items-center justify-between border-b pb-4 mb-4">
-                        <h3 class="text-xl font-semibold text-gray-900">Project Contracts</h3>
+                        <div class="flex items-center gap-2">
+                            <DocumentTextIcon class="w-6 h-6 text-indigo-600" />
+                            <h3 class="text-xl font-semibold text-gray-900">Proposals & Pending Contracts</h3>
+                            <span class="ml-2 text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full" title="Shows all project-level and milestone-level contracts that are pending or rejected">
+                                All proposals across milestones
+                            </span>
+                        </div>
                         <PrimaryButton @click="openProjectExpendableModal" class="flex items-center gap-1">
-                            <PlusIcon class="h-4 w-4" /> Add Contract
+                            <PlusIcon class="h-4 w-4" /> Add Proposal/Contract
                         </PrimaryButton>
                     </div>
-                    <div v-if="!projectContracts.length" class="text-center text-gray-500 text-sm py-4">No project-level contracts found.</div>
-                    <ul v-else class="space-y-2">
-                        <li v-for="e in projectContracts" :key="e.id" class="flex flex-col sm:flex-row items-start sm:items-center justify-between text-sm gap-2 p-3 rounded-lg bg-gray-100 shadow-sm">
-                            <div class="flex items-center gap-2">
-                                <span class="inline-block text-xs px-2 py-0.5 rounded-full font-medium"
-                                      :class="{
-                                          'bg-gray-200 text-gray-700': e.status === 'Pending Approval',
-                                          'bg-green-200 text-green-700': e.status === 'Accepted',
-                                          'bg-red-200 text-red-700': e.status === 'Rejected'
-                                      }">
-                                    {{ e.status || 'Pending Approval' }}
-                                </span>
-                                <span v-if="e.user && e.user.name" class="text-gray-600 text-xs sm:text-sm">{{ e.user.name }}</span>
-                                <div class="flex flex-col">
-                                    <span class="font-medium">{{ e.name }}</span>
-                                    <span v-if="e.payment_terms" class="text-xs text-gray-500 mt-0.5">Terms: {{ e.payment_terms }}</span>
+                    <div v-if="!unifiedContracts.filter(e => e.status !== 'Accepted').length" class="text-center text-gray-500 text-sm py-8">
+                        <DocumentTextIcon class="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                        No pending proposals or contracts found.
+                    </div>
+                    <ul v-else class="space-y-3">
+                        <li v-for="e in unifiedContracts.filter(c => c.status !== 'Accepted')" :key="e.id"
+                            class="p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors">
+                            <!-- Contract Header Row -->
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                <div class="flex items-center gap-3">
+                                    <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase shadow-sm border"
+                                          :class="{
+                                              'bg-amber-50 text-amber-700 border-amber-200': e.status === 'Pending Approval' || !e.status,
+                                              'bg-indigo-50 text-indigo-700 border-indigo-200': e.status === 'Shortlisted',
+                                              'bg-rose-50 text-rose-700 border-rose-200': e.status === 'Rejected'
+                                          }">
+                                        {{ e.status || 'Pending Approval' }}
+                                    </span>
+                                    <div>
+                                        <div class="text-sm font-bold text-gray-900">{{ e.name }}</div>
+                                        <div class="text-[11px] font-semibold text-indigo-600 mt-0.5">{{ proposalReference(e) }}</div>
+                                        <div class="text-xs text-gray-500 mt-0.5 flex flex-wrap gap-2">
+                                            <span v-if="e.user && e.user.name" class="font-medium">{{ e.user.name }}</span>
+                                            <a v-if="proposerEmail(e)" :href="`mailto:${proposerEmail(e)}`" class="text-indigo-600 hover:underline">{{ proposerEmail(e) }}</a>
+                                            <a v-if="proposerPhone(e)" :href="`tel:${proposerPhone(e)}`" class="text-emerald-600 hover:underline">{{ proposerPhone(e) }}</a>
+                                            <span v-if="e.milestone_name" class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded text-[10px] font-semibold">
+                                                📌 {{ e.milestone_name }}
+                                            </span>
+                                            <span v-else class="inline-flex items-center gap-1 bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded text-[10px] font-semibold">
+                                                🏗 Project Level
+                                            </span>
+                                            <span>&bull; {{ paymentTermsSummary(e) }}</span>
+                                        </div>
+                                        <div class="text-xs text-gray-600 mt-1">{{ coverLetterPreview(e.description) }}</div>
+                                    </div>
+                                </div>
+                                <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
+                                    <div class="text-right sm:text-left flex-shrink-0">
+                                        <div class="text-sm font-bold text-gray-900">
+                                            {{ formatCurrency(convertCurrency(parseFloat(e.amount ?? 0), e.currency || currentDisplayCurrency, currentDisplayCurrency), currentDisplayCurrency) }}
+                                        </div>
+                                        <div v-if="e.currency && e.currency?.toUpperCase() !== currentDisplayCurrency?.toUpperCase()" class="text-gray-400 text-[10px] font-medium">
+                                            ({{ formatCurrency(parseFloat(e.amount ?? 0), e.currency) }})
+                                        </div>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <template v-if="e.status === 'Pending Approval' || e.status === 'Shortlisted' || !e.status">
+                                            <button
+                                                v-if="canApproveExpendables || canApproveMilestoneExpendables"
+                                                @click.stop="shortlistProposal(e, e.status !== 'Shortlisted')"
+                                                class="inline-flex items-center justify-center px-2.5 py-1.5 border rounded-md text-xs font-semibold transition-colors"
+                                                :class="e.status === 'Shortlisted'
+                                                    ? 'border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100'
+                                                    : 'border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100'"
+                                                :title="e.status === 'Shortlisted' ? 'Move back to pending' : 'Shortlist proposal'"
+                                            >
+                                                {{ e.status === 'Shortlisted' ? 'Unshortlist' : 'Shortlist' }}
+                                            </button>
+                                            <button v-if="canApproveExpendables || canApproveMilestoneExpendables" @click.stop="approveExpendable(e)" class="inline-flex items-center justify-center p-1.5 border border-emerald-200 rounded-md text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-300 transition-colors" title="Approve">
+                                                <CheckCircleIcon class="h-4 w-4" />
+                                            </button>
+                                            <button v-if="canApproveExpendables || canApproveMilestoneExpendables" @click.stop="rejectExpendable(e)" class="inline-flex items-center justify-center p-1.5 border border-rose-200 rounded-md text-rose-600 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 transition-colors" title="Reject">
+                                                <XCircleIcon class="h-4 w-4" />
+                                            </button>
+                                        </template>
+                                        <button v-if="e.status === 'Rejected'" @click.stop="deleteExpendable(e)" class="inline-flex items-center justify-center p-1.5 border border-gray-200 rounded-md text-gray-500 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-colors" title="Delete">
+                                            <TrashIcon class="h-4 w-4" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-4 mt-2 sm:mt-0">
-                                <div class="text-right">
-                                    <span class="font-semibold">
+
+                            <div class="mt-3">
+                                <button
+                                    @click.stop="toggleProposalDetails(e.id)"
+                                    class="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                                >
+                                    {{ isProposalExpanded(e.id) ? 'Hide full proposal' : 'Open full proposal' }}
+                                </button>
+                            </div>
+
+                            <div v-if="isProposalExpanded(e.id)" class="mt-3 border-t border-gray-200 pt-3 space-y-3">
+                                <div>
+                                    <p class="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-1">Cover Letter</p>
+                                    <p class="text-sm text-gray-700 whitespace-pre-line">{{ e.description || 'No cover letter provided.' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-1">Payment Terms</p>
+                                    <p class="text-sm text-gray-700">{{ paymentTermsSummary(e) }}</p>
+                                    <ul v-if="paymentTermsBreakdown(e).length" class="mt-2 space-y-1">
+                                        <li v-for="(line, idx) in paymentTermsBreakdown(e)" :key="`${e.id}-pay-${idx}`" class="text-xs text-gray-600 flex items-center justify-between bg-gray-50 border border-gray-200 rounded px-2 py-1">
+                                            <span>{{ line.label }} ({{ line.percentage.toFixed(2) }}%)</span>
+                                            <span class="font-semibold text-gray-800">
+                                                {{ formatCurrency(convertCurrency(line.amount, e.currency || currentDisplayCurrency, currentDisplayCurrency), currentDisplayCurrency) }}
+                                            </span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </li>
+                    </ul>
+                </section>
+
+                <!-- Financials: Approved Contracts Only with Bill Management -->
+                <section v-if="selectedProjectId && activeView === 'financials'" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <div class="flex items-center justify-between border-b pb-4 mb-4">
+                        <div class="flex items-center gap-2">
+                            <DocumentTextIcon class="w-6 h-6 text-indigo-600" />
+                            <h3 class="text-xl font-semibold text-gray-900">Approved Contracts & Bills</h3>
+                            <span class="ml-2 text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full" title="Only approved contracts appear here for payment tracking">
+                                Approved only
+                            </span>
+                        </div>
+                    </div>
+                    <div v-if="!projectContracts.filter(e => e.status === 'Accepted').length" class="text-center text-gray-500 text-sm py-8">
+                        <BanknotesIcon class="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                        No approved contracts yet. Approve proposals in the Proposals tab.
+                    </div>
+                    <ul v-else class="space-y-4">
+                        <li v-for="e in projectContracts.filter(c => c.status === 'Accepted')" :key="e.id"
+                            class="rounded-xl border border-emerald-100 bg-emerald-50/30 overflow-hidden">
+                            <!-- Contract Summary Header -->
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 border-b border-emerald-100">
+                                <div class="flex items-center gap-3">
+                                    <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        Approved
+                                    </span>
+                                    <div>
+                                        <div class="text-sm font-bold text-gray-900">{{ e.name }}</div>
+                                        <div class="text-[11px] font-semibold text-indigo-600 mt-0.5">{{ proposalReference(e) }}</div>
+                                        <div class="text-xs text-gray-500 mt-0.5 flex gap-2">
+                                            <span v-if="e.user && e.user.name">{{ e.user.name }}</span>
+                                            <span v-if="e.payment_terms">&bull; Terms: {{ e.payment_terms }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-right flex-shrink-0">
+                                    <div class="text-sm font-bold text-gray-900">
                                         {{ formatCurrency(convertCurrency(parseFloat(e.amount ?? 0), e.currency || currentDisplayCurrency, currentDisplayCurrency), currentDisplayCurrency) }}
-                                    </span>
-                                    <span v-if="e.currency && e.currency?.toUpperCase() !== currentDisplayCurrency?.toUpperCase()" class="text-gray-500 block text-xs">
+                                    </div>
+                                    <div v-if="e.currency && e.currency?.toUpperCase() !== currentDisplayCurrency?.toUpperCase()" class="text-gray-400 text-[10px] font-medium">
                                         ({{ formatCurrency(parseFloat(e.amount ?? 0), e.currency) }})
-                                    </span>
-                                </div>
-                                <div class="flex gap-1.5">
-                                    <template v-if="e.status === 'Pending Approval'">
-                                        <button v-if="canApproveExpendables" @click.stop="approveExpendable(e)" class="p-1 rounded-full text-green-600 hover:bg-green-200 transition-colors" title="Approve">
-                                            <CheckCircleIcon class="h-5 w-5" />
-                                        </button>
-                                        <button v-if="canApproveExpendables" @click.stop="rejectExpendable(e)" class="p-1 rounded-full text-red-600 hover:bg-red-200 transition-colors" title="Reject">
-                                            <XCircleIcon class="h-5 w-5" />
-                                        </button>
-                                    </template>
-                                    <button v-if="e.status === 'Rejected'" @click.stop="deleteExpendable(e)" class="p-1 rounded-full text-red-600 hover:bg-red-200 transition-colors" title="Delete">
-                                        <TrashIcon class="h-5 w-5" />
-                                    </button>
+                                    </div>
                                 </div>
                             </div>
-                            <div v-if="e.status === 'Accepted'" class="w-full mt-2">
+                            <!-- Bill Management -->
+                            <div class="p-4">
                                 <BillManagement 
                                     :expendable="e" 
                                     :transaction-types="transaction_types"
@@ -694,15 +1069,19 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                     </ul>
                 </section>
 
-                <!-- Milestone Section with Tabs -->
-                <section class="bg-white rounded-xl shadow-sm p-6">
+                <!-- Milestone Section: Planning and Execution views only -->
+                <section v-if="selectedProjectId && (activeView === 'planning' || activeView === 'execution')" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b pb-4 mb-4">
                         <div class="flex items-center gap-2">
+                            <ClipboardDocumentListIcon v-if="activeView === 'planning'" class="w-6 h-6 text-indigo-600" />
+                            <PlayCircleIcon v-else-if="activeView === 'execution'" class="w-6 h-6 text-indigo-600" />
+                            <DocumentTextIcon v-else-if="activeView === 'proposals'" class="w-6 h-6 text-indigo-600" />
+                            <BanknotesIcon v-else class="w-6 h-6 text-indigo-600" />
                             <h3 class="text-xl font-semibold text-gray-900">Project Milestones</h3>
                             <button
-                                v-if="selectedProjectId"
+                                v-if="activeView === 'planning'"
                                 @click="showMilestoneFormModal = true"
-                                class="p-1.5 rounded-full text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+                                class="p-1.5 rounded-full text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 ml-2"
                                 title="Add Milestone"
                             >
                                 <PlusIcon class="h-4 w-4" />
@@ -775,8 +1154,8 @@ watch(currentDisplayCurrency, async (newCurrency) => {
 
                                     <!-- Milestone Summary & Toggle -->
                                     <div class="flex items-center gap-4 text-sm text-gray-700">
-                                        <!-- Budget Summary -->
-                                        <div class="hidden sm:flex items-center gap-4">
+                                        <!-- Budget Summary (Planning & Financials Only) -->
+                                        <div v-if="activeView === 'planning' || activeView === 'financials'" class="hidden sm:flex items-center gap-4 border-r pr-4 border-gray-200">
                                             <span class="inline-flex items-center gap-1 text-gray-600">
                                                 <WalletIcon class="h-4 w-4 text-gray-500" />
                                                 Budget: <span class="font-semibold text-gray-800">{{ formatCurrency(milestoneStats(m).budgetAmt, currentDisplayCurrency) }}</span>
@@ -791,15 +1170,15 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                             </span>
                                         </div>
 
-                                        <!-- Budget Edit Icon (Moved here) -->
-                                        <button @click.stop="openBudgetModal(m)" class="p-2 rounded-full text-gray-500 hover:text-blue-500 hover:bg-gray-100 transition-colors" v-if="activeTab === 'active'">
-                                            <PencilSquareIcon v-if="hasMilestoneBudget(m)" class="h-5 w-5" />
-                                            <PlusCircleIcon v-else class="h-5 w-5" />
+                                        <!-- Budget Edit Icon (Planning Only) -->
+                                        <button v-if="activeView === 'planning' && activeTab === 'active'" @click.stop="openBudgetModal(m)" class="p-2 rounded-full text-gray-500 hover:text-blue-500 hover:bg-gray-100 transition-colors">
+                                            <PencilSquareIcon v-if="hasMilestoneBudget(m)" class="h-5 w-5" title="Edit Budget" />
+                                            <PlusCircleIcon v-else class="h-5 w-5" title="Add Budget" />
                                         </button>
 
                                         <!-- Other Actions & Toggle Button Group -->
                                         <div class="flex items-center gap-2">
-                                            <button @click.stop="openReasonsList(m)" class="p-2 rounded-full text-blue-600 hover:bg-blue-100 transition-colors" title="View reasons">
+                                            <button @click.stop="openReasonsList(m)" class="p-2 rounded-full text-blue-600 hover:bg-blue-100 transition-colors" title="View reasons/history">
                                                 <InformationCircleIcon class="h-5 w-5" />
                                             </button>
                                             <button @click.stop="toggle(m)" class="p-2 transition-transform duration-300">
@@ -811,116 +1190,152 @@ watch(currentDisplayCurrency, async (newCurrency) => {
 
                                 <!-- Collapsible Content -->
                                 <div v-show="!m._collapsed" class="border-t border-gray-200 p-5 bg-white rounded-b-xl">
-                                    <!-- Task Stats -->
-                                    <div class="mb-5">
+                                    <!-- Task Stats (Execution & Planning) -->
+                                    <div v-if="activeView === 'planning' || activeView === 'execution'" class="mb-5">
                                         <h5 class="text-sm font-semibold text-gray-800 mb-2">Task Stats</h5>
                                         <div class="flex flex-wrap gap-2 text-xs">
-                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-                                                Total <span class="font-semibold">{{ m.tasks_total_count || 0 }}</span>
+                                            <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 border border-gray-200">
+                                                Total <span class="font-bold text-gray-900">{{ m.tasks_total_count || 0 }}</span>
                                             </span>
-                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 text-slate-700">
-                                                To Do <span class="font-semibold">{{ m.tasks_todo_count || 0 }}</span>
+                                            <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
+                                                To Do <span class="font-bold text-slate-900">{{ m.tasks_todo_count || 0 }}</span>
                                             </span>
-                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-100 text-blue-700">
-                                                In Progress <span class="font-semibold">{{ m.tasks_in_progress_count || 0 }}</span>
+                                            <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 border border-blue-200">
+                                                In Progress <span class="font-bold text-blue-900">{{ m.tasks_in_progress_count || 0 }}</span>
                                             </span>
-                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">
-                                                Paused <span class="font-semibold">{{ m.tasks_paused_count || 0 }}</span>
+                                            <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-yellow-100 text-yellow-700 border border-yellow-200">
+                                                Paused <span class="font-bold text-yellow-900">{{ m.tasks_paused_count || 0 }}</span>
                                             </span>
-                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-700">
-                                                Blocked <span class="font-semibold">{{ m.tasks_blocked_count || 0 }}</span>
+                                            <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 border border-orange-200">
+                                                Blocked <span class="font-bold text-orange-900">{{ m.tasks_blocked_count || 0 }}</span>
                                             </span>
-                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700">
-                                                Done <span class="font-semibold">{{ m.tasks_done_count || 0 }}</span>
-                                            </span>
-                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 text-red-700">
-                                                Archived <span class="font-semibold">{{ m.tasks_archived_count || 0 }}</span>
+                                            <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-100 text-green-700 border border-green-200">
+                                                Done <span class="font-bold text-green-900">{{ m.tasks_done_count || 0 }}</span>
                                             </span>
                                         </div>
                                     </div>
-                                    <div class="flex justify-between items-center mb-4">
-                                        <h4 class="text-lg font-semibold text-gray-800">Contracts</h4>
-                                        <div class="flex items-center gap-2">
-                                            <PrimaryButton @click.stop="openExpendableModal(m)" class="flex items-center gap-1" v-if="activeTab === 'active'">
-                                                <PlusIcon class="h-4 w-4" /> Add Contract
-                                            </PrimaryButton>
-                                        </div>
-                                    </div>
-                                    <div v-if="!m.expendable || !m.expendable.length" class="text-center text-gray-500 text-sm py-4">No contracts found.</div>
-                                    <ul v-else class="space-y-2">
-                                        <li v-for="e in (m.expendable || [])" :key="e.id" class="flex flex-col sm:flex-row items-start sm:items-center justify-between text-sm gap-2 p-3 rounded-lg bg-gray-100 shadow-sm">
-                                            <div class="flex items-center gap-2">
-                                                <span class="inline-block text-xs px-2 py-0.5 rounded-full font-medium"
-                                                      :class="{
-                                                          'bg-gray-200 text-gray-700': e.status === 'Pending Approval',
-                                                          'bg-green-200 text-green-700': e.status === 'Accepted',
-                                                          'bg-red-200 text-red-700': e.status === 'Rejected'
-                                                      }">
-                                                    {{ e.status || 'Pending Approval' }}
-                                                </span>
-                                                <span v-if="e.user && e.user.name" class="text-gray-600 text-xs sm:text-sm">{{ e.user.name }}</span>
-                                                <div class="flex flex-col">
-                                                    <span class="font-medium">{{ e.name }}</span>
-                                                    <span v-if="e.payment_terms" class="text-xs text-gray-500 mt-0.5">Terms: {{ e.payment_terms }}</span>
-                                                </div>
-                                            </div>
-                                            <div class="flex items-center gap-4 mt-2 sm:mt-0">
-                                                <div class="text-right">
-                                                    <span class="font-semibold">
-                                                        {{ formatCurrency(convertCurrency(parseFloat(e.amount ?? 0), e.currency || currentDisplayCurrency, currentDisplayCurrency), currentDisplayCurrency) }}
-                                                    </span>
-                                                    <span v-if="e.currency && e.currency?.toUpperCase() !== currentDisplayCurrency?.toUpperCase()" class="text-gray-500 block text-xs">
-                                                        ({{ formatCurrency(parseFloat(e.amount ?? 0), e.currency) }})
-                                                    </span>
-                                                </div>
-                                                <div class="flex gap-1.5">
-                                                    <!-- Add Tasks: Only for Approved contracts -->
-                                                    <button v-if="e.status === 'Accepted'" @click.stop="onAddTasksClick(m, e)" class="p-1 rounded-full text-indigo-600 hover:bg-indigo-200 transition-colors" title="Add tasks">
-                                                        <PlusIcon class="h-5 w-5" />
-                                                    </button>
-                                                    <!-- Contract Action Buttons -->
-                                                    <template v-if="e.status === 'Pending Approval' && activeTab !== 'approved'">
-                                                        <button v-if="canApproveMilestoneExpendables || canApproveExpendables" @click.stop="approveExpendable(e)" class="p-1 rounded-full text-green-600 hover:bg-green-200 transition-colors" title="Approve">
-                                                            <CheckCircleIcon class="h-5 w-5" />
-                                                        </button>
-                                                        <button v-if="canApproveMilestoneExpendables || canApproveExpendables" @click.stop="rejectExpendable(e)" class="p-1 rounded-full text-red-600 hover:bg-red-200 transition-colors" title="Reject">
-                                                            <XCircleIcon class="h-5 w-5" />
-                                                        </button>
-                                                    </template>
-                                                    <button v-if="e.status === 'Rejected' && activeTab !== 'approved'" @click.stop="deleteExpendable(e)" class="p-1 rounded-full text-red-600 hover:bg-red-200 transition-colors" title="Delete">
-                                                        <TrashIcon class="h-5 w-5" />
-                                                    </button>
-                                                </div>
-                                            </div>
 
-                                            <!-- Bill Management Component -->
-                                            <div v-if="e.status === 'Accepted'" class="w-full mt-2">
-                                                <BillManagement 
-                                                    :expendable="e" 
-                                                    :transaction-types="transaction_types"
-                                                    :can-approve="canApproveMilestoneExpendables || canApproveExpendables"
-                                                    @updated="loadMilestones"
-                                                />
+                                    <!-- Contracts / Proposals: Planning View Only -->
+                                    <template v-if="activeView === 'planning'">
+                                        <div class="flex justify-between items-center mb-4 mt-6">
+                                            <h4 class="text-lg font-semibold text-gray-800">Milestone Contracts</h4>
+                                            <div class="flex items-center gap-2">
+                                                <PrimaryButton @click.stop="openExpendableModal(m)" class="flex items-center gap-1" v-if="activeTab === 'active'">
+                                                    <PlusIcon class="h-4 w-4" /> Add Contract
+                                                </PrimaryButton>
                                             </div>
-                                        </li>
-                                    </ul>
+                                        </div>
+                                        <div v-if="!m.expendable || !m.expendable.length" class="text-center text-gray-500 text-sm py-4">No contracts found.</div>
+                                        <div v-else class="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                                            <ul class="divide-y divide-gray-200">
+                                                <li v-for="e in (m.expendable || [])" :key="e.id"
+                                                    class="p-4 hover:bg-gray-50 transition-colors">
+                                                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                                        <div class="flex items-center gap-3">
+                                                            <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase shadow-sm border"
+                                                                  :class="{
+                                                                      'bg-amber-50 text-amber-700 border-amber-200': e.status === 'Pending Approval' || !e.status,
+                                                                      'bg-indigo-50 text-indigo-700 border-indigo-200': e.status === 'Shortlisted',
+                                                                      'bg-emerald-50 text-emerald-700 border-emerald-200': e.status === 'Accepted',
+                                                                      'bg-rose-50 text-rose-700 border-rose-200': e.status === 'Rejected'
+                                                                  }">
+                                                                {{ e.status || 'Pending Approval' }}
+                                                            </span>
+                                                            <div>
+                                                                <div class="text-sm font-bold text-gray-900">{{ e.name }}</div>
+                                                                <div class="text-xs text-gray-500 mt-0.5 flex gap-2">
+                                                                    <span v-if="e.user && e.user.name">{{ e.user.name }}</span>
+                                                                    <a v-if="proposerEmail(e)" :href="`mailto:${proposerEmail(e)}`" class="text-indigo-600 hover:underline">{{ proposerEmail(e) }}</a>
+                                                                    <a v-if="proposerPhone(e)" :href="`tel:${proposerPhone(e)}`" class="text-emerald-600 hover:underline">{{ proposerPhone(e) }}</a>
+                                                                    <span>&bull; {{ paymentTermsSummary(e) }}</span>
+                                                                </div>
+                                                                <div class="text-xs text-gray-600 mt-1">{{ coverLetterPreview(e.description, 140) }}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
+                                                            <div class="text-right sm:text-left flex-shrink-0">
+                                                                <div class="text-sm font-bold text-gray-900">
+                                                                    {{ formatCurrency(convertCurrency(parseFloat(e.amount ?? 0), e.currency || currentDisplayCurrency, currentDisplayCurrency), currentDisplayCurrency) }}
+                                                                </div>
+                                                                <div v-if="e.currency && e.currency?.toUpperCase() !== currentDisplayCurrency?.toUpperCase()" class="text-gray-400 text-[10px] font-medium">
+                                                                    ({{ formatCurrency(parseFloat(e.amount ?? 0), e.currency) }})
+                                                                </div>
+                                                            </div>
+                                                            <div class="flex gap-2">
+                                                                <!-- Add Tasks: Planning Only, Accepted contracts -->
+                                                                <button v-if="e.status === 'Accepted'" @click.stop="onAddTasksClick(m, e)" class="inline-flex items-center justify-center p-1.5 border border-indigo-200 rounded-md text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 transition-colors" title="Add tasks">
+                                                                    <PlusIcon class="h-4 w-4" />
+                                                                </button>
+                                                                <!-- Contract Action Buttons -->
+                                                                <template v-if="(e.status === 'Pending Approval' || e.status === 'Shortlisted' || !e.status) && activeTab !== 'approved'">
+                                                                    <button
+                                                                        v-if="canApproveMilestoneExpendables || canApproveExpendables"
+                                                                        @click.stop="shortlistProposal(e, e.status !== 'Shortlisted')"
+                                                                        class="inline-flex items-center justify-center px-2 py-1 border rounded-md text-[11px] font-semibold transition-colors"
+                                                                        :class="e.status === 'Shortlisted'
+                                                                            ? 'border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100'
+                                                                            : 'border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100'"
+                                                                    >
+                                                                        {{ e.status === 'Shortlisted' ? 'Unshortlist' : 'Shortlist' }}
+                                                                    </button>
+                                                                    <button v-if="canApproveMilestoneExpendables || canApproveExpendables" @click.stop="approveExpendable(e)" class="inline-flex items-center justify-center p-1.5 border border-emerald-200 rounded-md text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-300 transition-colors" title="Approve">
+                                                                        <CheckCircleIcon class="h-4 w-4" />
+                                                                    </button>
+                                                                    <button v-if="canApproveMilestoneExpendables || canApproveExpendables" @click.stop="rejectExpendable(e)" class="inline-flex items-center justify-center p-1.5 border border-rose-200 rounded-md text-rose-600 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 transition-colors" title="Reject">
+                                                                        <XCircleIcon class="h-4 w-4" />
+                                                                    </button>
+                                                                </template>
+                                                                <button v-if="e.status === 'Rejected' && activeTab !== 'approved'" @click.stop="deleteExpendable(e)" class="inline-flex items-center justify-center p-1.5 border border-gray-200 rounded-md text-gray-500 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-colors" title="Delete">
+                                                                    <TrashIcon class="h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="mt-3 border-t border-gray-100 pt-3">
+                                                        <button
+                                                            @click.stop="toggleProposalDetails(e.id)"
+                                                            class="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                                                        >
+                                                            {{ isProposalExpanded(e.id) ? 'Hide full proposal' : 'Open full proposal' }}
+                                                        </button>
+                                                        <div v-if="isProposalExpanded(e.id)" class="mt-2 space-y-2">
+                                                            <div>
+                                                                <p class="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-1">Cover Letter</p>
+                                                                <p class="text-sm text-gray-700 whitespace-pre-line">{{ e.description || 'No cover letter provided.' }}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p class="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-1">Payment Terms</p>
+                                                                <p class="text-sm text-gray-700">{{ paymentTermsSummary(e) }}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </template>
 
                                     <!-- Milestone-level Action Buttons -->
-                                    <div class="mt-6 pt-4 border-t border-gray-200 flex flex-col items-start gap-2">
+                                    <div v-if="activeView === 'planning' || activeView === 'execution'" class="mt-6 pt-4 border-t border-gray-200 flex flex-col items-start gap-2">
                                         <div class="flex flex-wrap items-center gap-3">
+                                            <!-- PM Button (Planning) -->
                                             <PrimaryButton
-                                                v-if="m.status.toLowerCase() !== 'completed' && activeTab === 'active'"
+                                                v-if="activeView === 'planning' && m.status.toLowerCase() !== 'completed' && activeTab === 'active'"
                                                 @click.stop="markComplete(m)"
                                                 :disabled="hasPendingContracts(m) && hasAnyContracts(m)"
                                                 :title="(hasPendingContracts(m) && hasAnyContracts(m)) ? 'Approve or reject all contracts before completing the milestone.' : ''"
                                             >
-                                                Mark Complete
+                                                Mark Complete (Ready for QA)
                                             </PrimaryButton>
-                                            <PrimaryButton v-else-if="m.status.toLowerCase() === 'completed' && activeTab === 'completed' && canApproveMilestones" @click.stop="approve(m)" class="bg-green-600 hover:bg-green-700">Approve Milestone</PrimaryButton>
-                                            <PrimaryButton v-if="m.status.toLowerCase() === 'completed' && activeTab === 'completed' && canApproveMilestones" @click.stop="rejectMilestone(m)" class="bg-red-600 hover:bg-red-700">Reject Milestone</PrimaryButton>
-                                            <SecondaryButton v-else-if="m.status.toLowerCase() === 'approved' && activeTab === 'approved' && canApproveMilestones" @click.stop="reopen(m)">Reopen Milestone</SecondaryButton>
+
+                                            <!-- QA Buttons (Execution) -->
+                                            <template v-if="activeView === 'execution' && canApproveMilestones">
+                                                <PrimaryButton v-if="m.status.toLowerCase() === 'completed' && activeTab === 'completed'" @click.stop="approve(m)" class="bg-green-600 hover:bg-green-700">Approve Milestone</PrimaryButton>
+                                                <PrimaryButton v-if="m.status.toLowerCase() === 'completed' && activeTab === 'completed'" @click.stop="rejectMilestone(m)" class="bg-red-600 hover:bg-red-700">Reject (Back to Planning)</PrimaryButton>
+                                                <SecondaryButton v-if="m.status.toLowerCase() === 'approved' && activeTab === 'approved'" @click.stop="reopen(m)">Reopen Milestone</SecondaryButton>
+                                            </template>
                                         </div>
-                                        <p v-if="m.status.toLowerCase() !== 'completed' && activeTab === 'active' && hasPendingContracts(m) && hasAnyContracts(m)" class="text-sm text-red-600">
+                                        <p v-if="activeView === 'planning' && m.status.toLowerCase() !== 'completed' && activeTab === 'active' && hasPendingContracts(m) && hasAnyContracts(m)" class="text-sm text-red-600">
                                             You have pending contracts. Approve or reject each contract before marking this milestone complete.
                                         </p>
                                     </div>
@@ -1036,6 +1451,14 @@ watch(currentDisplayCurrency, async (newCurrency) => {
             :milestone="milestoneForDueDateUpdate"
             @close="() => { showUpdateDueDateModal = false; milestoneForDueDateUpdate = null; }"
             @submitted="onDueDateUpdated"
+        />
+
+        <ProjectShareModal
+            :show="showShareModal"
+            :project="selectedProject || {}"
+            :users="users"
+            @close="showShareModal = false"
+            @share-updated="onProjectChange"
         />
     </AuthenticatedLayout>
 </template>

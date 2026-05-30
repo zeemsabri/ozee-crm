@@ -19,6 +19,9 @@ class ProjectExpendable extends Model
     /** @deprecated use App\Enums\ProjectExpendableStatus::Accepted */
     public const STATUS_ACCEPTED = \App\Enums\ProjectExpendableStatus::Accepted->value;
 
+    /** @deprecated use App\Enums\ProjectExpendableStatus::Shortlisted */
+    public const STATUS_SHORTLISTED = \App\Enums\ProjectExpendableStatus::Shortlisted->value;
+
     /** @deprecated use App\Enums\ProjectExpendableStatus::Rejected */
     public const STATUS_REJECTED = \App\Enums\ProjectExpendableStatus::Rejected->value;
 
@@ -100,6 +103,32 @@ class ProjectExpendable extends Model
             ->withProperties(['reason' => $reason, 'status' => \App\Enums\ProjectExpendableStatus::Rejected->value])
             ->event('expendable.rejected')
             ->log("Expendable '{$this->name}' rejected");
+    }
+
+    public function shortlist(?User $causer = null): void
+    {
+        $this->status = \App\Enums\ProjectExpendableStatus::Shortlisted;
+        $this->save();
+
+        activity('project_expendable')
+            ->performedOn($this)
+            ->causedBy($causer ?? auth()->user())
+            ->withProperties(['status' => \App\Enums\ProjectExpendableStatus::Shortlisted->value])
+            ->event('expendable.shortlisted')
+            ->log("Expendable '{$this->name}' shortlisted");
+    }
+
+    public function unshortlist(?User $causer = null): void
+    {
+        $this->status = \App\Enums\ProjectExpendableStatus::PendingApproval;
+        $this->save();
+
+        activity('project_expendable')
+            ->performedOn($this)
+            ->causedBy($causer ?? auth()->user())
+            ->withProperties(['status' => \App\Enums\ProjectExpendableStatus::PendingApproval->value])
+            ->event('expendable.unshortlisted')
+            ->log("Expendable '{$this->name}' moved back to pending");
     }
 
     public function bills()

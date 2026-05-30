@@ -72,7 +72,7 @@ class MilestoneController extends Controller
             ->with([
                 'expendable',
                 'expendable.user' => function ($q) {
-                    $q->select('id', 'name');
+                    $q->select('id', 'name', 'email', 'metadata', 'user_type');
                 },
                 'expendable.bills' => function ($q) {
                     $q->with('transactionType')->latest();

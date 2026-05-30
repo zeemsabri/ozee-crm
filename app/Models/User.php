@@ -143,6 +143,11 @@ class User extends Authenticatable
         return $this->app_role === 'contractor';
     }
 
+    public function isGuest(): bool
+    {
+        return $this->user_type === 'guest';
+    }
+
     /**
      * Get the user's primary role.
      */

@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            \App\Http\Middleware\EnsureNotGuest::class,
         ]);
 
         $middleware->alias([
@@ -34,6 +35,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'client.throttle' => \App\Http\Middleware\ThrottleClientAuth::class,
             'auth.magiclink.external' => \App\Http\Middleware\VerifyExternalMagicLink::class,
             'auth.apikey' => \App\Http\Middleware\AuthenticateWithApiKey::class,
+            'not.guest'   => \App\Http\Middleware\EnsureNotGuest::class,
         ]);
 
         //

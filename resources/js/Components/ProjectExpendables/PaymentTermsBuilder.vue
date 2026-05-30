@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
@@ -42,10 +42,63 @@ const installments = ref([{ label: 'Payment 1', percentage: 100 }]);
 const retainerMonths = ref(1);
 const hourlyRate = ref('');
 const estimatedHours = ref('');
+const syncingFromModel = ref(false);
+
+function buildMilestoneInstallments() {
+    if (props.milestones.length > 0) {
+        const equalShare = +(100 / props.milestones.length).toFixed(2);
+        return props.milestones.map((m, idx) => ({
+            label: m.name || `Milestone ${idx + 1}`,
+            percentage: idx === props.milestones.length - 1
+                ? +(100 - equalShare * (props.milestones.length - 1)).toFixed(2)
+                : equalShare,
+        }));
+    }
+
+    return [
+        { label: 'Milestone 1', percentage: 50 },
+        { label: 'Milestone 2', percentage: 50 },
+    ];
+}
+
+function resetForType(type) {
+    if (type === 'fixed') {
+        installments.value = [{ label: 'Full Payment', percentage: 100 }];
+        return;
+    }
+
+    if (type === 'installments') {
+        installments.value = [
+            { label: 'Kickoff', percentage: 50 },
+            { label: 'Final Delivery', percentage: 50 },
+        ];
+        return;
+    }
+
+    if (type === 'milestone') {
+        installments.value = buildMilestoneInstallments();
+        return;
+    }
+
+    if (type === 'retainer') {
+        retainerMonths.value = 1;
+        return;
+    }
+
+    if (type === 'hourly') {
+        hourlyRate.value = '';
+        estimatedHours.value = '';
+    }
+}
 
 // Parse existing value on mount
 watch(() => props.modelValue, (val) => {
-    if (!val) return;
+    if (!val) {
+        return;
+    }
+
+    syncingFromModel.value = true;
+
     try {
         const parsed = typeof val === 'string' ? JSON.parse(val) : val;
         if (parsed && parsed.type) {
@@ -57,37 +110,20 @@ watch(() => props.modelValue, (val) => {
         }
     } catch (e) {
         // fallback — old free-text value
+    } finally {
+        nextTick(() => {
+            syncingFromModel.value = false;
+        });
     }
 }, { immediate: true });
 
 // When type changes, reset to sensible defaults
-watch(selectedType, (type) => {
-    if (type === 'fixed') {
-        installments.value = [{ label: 'Full Payment', percentage: 100 }];
-    } else if (type === 'installments') {
-        installments.value = [
-            { label: 'Kickoff', percentage: 50 },
-            { label: 'Final Delivery', percentage: 50 },
-        ];
-    } else if (type === 'milestone') {
-        // Auto-populate from milestones
-        if (props.milestones.length > 0) {
-            const equalShare = +(100 / props.milestones.length).toFixed(2);
-            installments.value = props.milestones.map((m, idx) => ({
-                label: m.name || `Milestone ${idx + 1}`,
-                percentage: idx === props.milestones.length - 1
-                    ? +(100 - equalShare * (props.milestones.length - 1)).toFixed(2)
-                    : equalShare,
-            }));
-        } else {
-            installments.value = [{ label: 'Milestone 1', percentage: 100 }];
-        }
-    } else if (type === 'retainer') {
-        retainerMonths.value = 1;
-    } else if (type === 'hourly') {
-        hourlyRate.value = '';
-        estimatedHours.value = '';
+watch(selectedType, (type, prevType) => {
+    if (syncingFromModel.value || type === prevType) {
+        return;
     }
+
+    resetForType(type);
     emitValue();
 });
 
@@ -174,7 +210,6 @@ function distributeEvenly() {
                 value-key="value"
                 label-key="label"
                 class="w-full"
-                @update:modelValue="emitValue"
             />
         </div>
 
@@ -210,7 +245,7 @@ function distributeEvenly() {
                         Distribute Evenly
                     </button>
                     <button
-                        v-if="selectedType === 'installments'"
+                        v-if="selectedType === 'installments' || selectedType === 'milestone'"
                         type="button"
                         @click="addInstallment"
                         class="text-xs px-3 py-1 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white transition"

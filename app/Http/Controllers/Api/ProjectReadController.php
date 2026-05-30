@@ -901,4 +901,22 @@ class ProjectReadController extends Controller
 
         return response()->json($project->googleChatMembers);
     }
+
+    /**
+     * Get contexts (latest emails/updates) for a project.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getProjectContexts(Project $project)
+    {
+        $this->authorize('view', $project);
+
+        $contexts = \App\Models\Context::where('project_id', $project->id)
+            ->with('user')
+            ->orderBy('created_at', 'desc')
+            ->take(3)
+            ->get();
+
+        return response()->json($contexts);
+    }
 }

@@ -300,6 +300,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('projects/{project}/notes/{note}/replies', [ProjectReadController::class, 'getNoteReplies']);
     Route::get('projects/{project}/tasks', [ProjectReadController::class, 'getTasks']);
     Route::get('/projects/{project}/meetings', [ProjectReadController::class, 'getProjectMeetings']);
+    Route::get('/projects/{project}/contexts', [ProjectReadController::class, 'getProjectContexts']);
     Route::get('/user/meetings', [ProjectReadController::class, 'getUserMeetings']);
     Route::get('/user/standups', [ProjectReadController::class, 'getUserStandups']);
 
@@ -369,7 +370,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('projects/{project}/expendables/{expendable}', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'update']);
     Route::post('projects/{project}/expendables/{expendable}/accept', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'accept']);
     Route::post('projects/{project}/expendables/{expendable}/reject', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'reject']);
+    Route::post('projects/{project}/expendables/{expendable}/shortlist', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'shortlist']);
     Route::delete('projects/{project}/expendables/{expendable}', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'destroy']);
+
+    // Project Public Share Routes
+    Route::get('projects/{project}/share', [\App\Http\Controllers\Api\ProjectShareController::class, 'getShareInfo']);
+    Route::get('projects/{project}/share/recipients', [\App\Http\Controllers\Api\ProjectShareController::class, 'recipients']);
+    Route::get('projects/{project}/share/tracking', [\App\Http\Controllers\Api\ProjectShareController::class, 'tracking']);
+    Route::post('projects/{project}/share/token', [\App\Http\Controllers\Api\ProjectShareController::class, 'generateToken']);
+    Route::post('projects/{project}/share/regenerate', [\App\Http\Controllers\Api\ProjectShareController::class, 'regenerateToken']);
+    Route::post('projects/{project}/share/email', [\App\Http\Controllers\Api\ProjectShareController::class, 'sendEmail'])
+        ->middleware('throttle:20,1');
+
     Route::post('projects/{id}/restore', [ProjectActionController::class, 'restore']);
 
     // Project Section Update Routes

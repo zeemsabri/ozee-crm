@@ -30,7 +30,7 @@ class ProjectExpendableController extends Controller
                 ->where('project_id', $project->id)
                 ->whereNotNull('user_id')
                 ->where('status', $acceptedStatus)
-                ->with(['user:id,name,email', 'bills.transactionType'])
+                ->with(['user:id,name,email,metadata,user_type', 'bills.transactionType'])
                 ->latest()
                 ->get();
 
@@ -39,7 +39,7 @@ class ProjectExpendableController extends Controller
 
         if (request('type') === 'project_contracts') {
             $contracts = $project->projectContracts();
-            $contracts->load(['user:id,name,email', 'bills.transactionType']);
+            $contracts->load(['user:id,name,email,metadata,user_type', 'bills.transactionType']);
             return response()->json($contracts);
         }
 
@@ -316,6 +316,49 @@ class ProjectExpendableController extends Controller
         // Soft-validate the target status transition
         app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable', 'status', \App\Enums\ProjectExpendableStatus::Rejected);
         $expendable->reject($data['reason'], $user);
+
+        return response()->json($expendable->fresh());
+    }
+
+    public function shortlist(Request $request, Project $project, ProjectExpendable $expendable)
+    {
+        $user = Auth::user();
+        if (! $this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        if ($expendable->project_id !== $project->id) {
+            return response()->json(['message' => 'Expendable does not belong to this project.'], 400);
+        }
+
+        if ($expendable->status === ProjectExpendable::STATUS_ACCEPTED) {
+            return response()->json(['message' => 'Accepted contracts cannot be shortlisted.'], 422);
+        }
+
+        $data = $request->validate([
+            'shortlisted' => 'nullable|boolean',
+        ]);
+
+        $isMilestone = $expendable->expendable_type === 'App\\Models\\Milestone' || $expendable->expendable_type === 'Milestone';
+        $isUserBound = ! is_null($expendable->user_id);
+        if ($isMilestone && $isUserBound) {
+            if (! ($user->isSuperAdmin() || $user->hasPermission('approve_milestone_expendables'))) {
+                return response()->json(['message' => 'Unauthorized. You do not have permission to shortlist milestone expendables.'], 403);
+            }
+        } else {
+            if (! ($user->isSuperAdmin() || $user->hasPermission('approve_expendables'))) {
+                return response()->json(['message' => 'Unauthorized. You do not have permission to shortlist expendables.'], 403);
+            }
+        }
+
+        $shortlisted = $data['shortlisted'] ?? true;
+        if ($shortlisted) {
+            app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable', 'status', \App\Enums\ProjectExpendableStatus::Shortlisted);
+            $expendable->shortlist($user);
+        } else {
+            app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable', 'status', \App\Enums\ProjectExpendableStatus::PendingApproval);
+            $expendable->unshortlist($user);
+        }
 
         return response()->json($expendable->fresh());
     }

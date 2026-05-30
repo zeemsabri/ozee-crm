@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Email;
 use App\Models\NoticeBoard;
+use App\Models\Project;
 use App\Models\User;
 use App\Models\UserInteraction;
 use Carbon\Carbon;
@@ -92,5 +93,39 @@ class EmailTrackingController extends Controller
 
             return new Response($pixel, 200, ['Content-Type' => 'image/gif']);
         }
+    }
+
+    /**
+     * Track email opens for project invite emails.
+     */
+    public function project(int $id, ?string $email = null)
+    {
+        try {
+            $project = Project::find($id);
+            $user    = $email ? User::withTrashed()->where('email', $email)->first() : null;
+
+            if ($project && $user) {
+                UserInteraction::updateOrCreate(
+                    [
+                        'user_id'           => $user->id,
+                        'interactable_id'   => $project->id,
+                        'interactable_type' => Project::class,
+                        'interaction_type'  => 'email_open',
+                    ],
+                    ['updated_at' => now()]
+                );
+            }
+        } catch (\Exception $e) {
+            Log::error('Error tracking project email open: '.$e->getMessage(), ['project_id' => $id]);
+        }
+
+        $pixel = base64_decode('R0lGODlhAQABAJAAAP8AAAAAACH5BAQUAAAALAAAAAABAAEAAAICRAEAOw==');
+
+        return new Response($pixel, 200, [
+            'Content-Type'  => 'image/gif',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma'        => 'no-cache',
+            'Expires'       => '0',
+        ]);
     }
 }
