@@ -911,107 +911,183 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                             <PlusIcon class="h-4 w-4" /> Add Proposal/Contract
                         </PrimaryButton>
                     </div>
-                    <div v-if="!unifiedContracts.filter(e => e.status !== 'Accepted').length" class="text-center text-gray-500 text-sm py-8">
-                        <DocumentTextIcon class="h-10 w-10 mx-auto mb-2 text-gray-300" />
-                        No pending proposals or contracts found.
+                    <div v-if="!unifiedContracts.filter(e => e.status !== 'Accepted').length" class="flex flex-col items-center justify-center py-16 text-center">
+                        <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                            <DocumentTextIcon class="h-8 w-8 text-gray-300" />
+                        </div>
+                        <p class="text-base font-medium text-gray-500">No proposals yet</p>
+                        <p class="text-sm text-gray-400 mt-1">Add a proposal or contract to get started.</p>
                     </div>
-                    <ul v-else class="space-y-3">
-                        <li v-for="e in unifiedContracts.filter(c => c.status !== 'Accepted')" :key="e.id"
-                            class="p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors">
-                            <!-- Contract Header Row -->
-                            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                                <div class="flex items-center gap-3">
-                                    <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase shadow-sm border"
-                                          :class="{
-                                              'bg-amber-50 text-amber-700 border-amber-200': e.status === 'Pending Approval' || !e.status,
-                                              'bg-indigo-50 text-indigo-700 border-indigo-200': e.status === 'Shortlisted',
-                                              'bg-rose-50 text-rose-700 border-rose-200': e.status === 'Rejected'
-                                          }">
-                                        {{ e.status || 'Pending Approval' }}
-                                    </span>
-                                    <div>
-                                        <div class="text-sm font-bold text-gray-900">{{ e.name }}</div>
-                                        <div class="text-[11px] font-semibold text-indigo-600 mt-0.5">{{ proposalReference(e) }}</div>
-                                        <div class="text-xs text-gray-500 mt-0.5 flex flex-wrap gap-2">
-                                            <span v-if="e.user && e.user.name" class="font-medium">{{ e.user.name }}</span>
-                                            <a v-if="proposerEmail(e)" :href="`mailto:${proposerEmail(e)}`" class="text-indigo-600 hover:underline">{{ proposerEmail(e) }}</a>
-                                            <a v-if="proposerPhone(e)" :href="`tel:${proposerPhone(e)}`" class="text-emerald-600 hover:underline">{{ proposerPhone(e) }}</a>
-                                            <span v-if="e.milestone_name" class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded text-[10px] font-semibold">
-                                                📌 {{ e.milestone_name }}
-                                            </span>
-                                            <span v-else class="inline-flex items-center gap-1 bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded text-[10px] font-semibold">
-                                                🏗 Project Level
-                                            </span>
-                                            <span>&bull; {{ paymentTermsSummary(e) }}</span>
+                    <div v-else class="space-y-3">
+                        <div
+                            v-for="e in unifiedContracts.filter(c => c.status !== 'Accepted')"
+                            :key="e.id"
+                            class="group relative rounded-xl border bg-white overflow-hidden transition-all duration-200 hover:shadow-md"
+                            :class="{
+                                'border-amber-200': e.status === 'Pending Approval' || !e.status,
+                                'border-indigo-200': e.status === 'Shortlisted',
+                                'border-rose-200': e.status === 'Rejected',
+                            }"
+                        >
+                            <!-- Colored left accent bar -->
+                            <div class="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl"
+                                :class="{
+                                    'bg-amber-400': e.status === 'Pending Approval' || !e.status,
+                                    'bg-indigo-500': e.status === 'Shortlisted',
+                                    'bg-rose-400': e.status === 'Rejected',
+                                }"
+                            ></div>
+
+                            <div class="pl-5 pr-4 py-4">
+                                <!-- Top row: avatar + name/ref + amount + actions -->
+                                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                    <div class="flex items-center gap-3 min-w-0 flex-1">
+                                        <!-- Proposer Avatar / Initials -->
+                                        <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm select-none"
+                                            :class="{
+                                                'bg-amber-100 text-amber-700': e.status === 'Pending Approval' || !e.status,
+                                                'bg-indigo-100 text-indigo-700': e.status === 'Shortlisted',
+                                                'bg-rose-100 text-rose-600': e.status === 'Rejected',
+                                            }"
+                                        >
+                                            {{ (e.user?.name || e.name || '?').charAt(0).toUpperCase() }}
                                         </div>
-                                        <div class="text-xs text-gray-600 mt-1">{{ coverLetterPreview(e.description) }}</div>
+
+                                        <div class="min-w-0">
+                                            <div class="flex items-center flex-wrap gap-2">
+                                                <span class="text-sm font-bold text-gray-900 leading-tight">{{ e.name }}</span>
+                                                <span class="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full border"
+                                                    :class="{
+                                                        'bg-amber-50 text-amber-700 border-amber-200': e.status === 'Pending Approval' || !e.status,
+                                                        'bg-indigo-50 text-indigo-700 border-indigo-200': e.status === 'Shortlisted',
+                                                        'bg-rose-50 text-rose-600 border-rose-200': e.status === 'Rejected',
+                                                    }"
+                                                >
+                                                    {{ e.status || 'Pending Approval' }}
+                                                </span>
+                                            </div>
+                                            <div class="flex items-center flex-wrap gap-x-2 gap-y-1 mt-1">
+                                                <span class="text-[11px] font-semibold text-indigo-500">{{ proposalReference(e) }}</span>
+                                                <span v-if="e.user && e.user.name" class="text-[11px] text-gray-500 font-medium">{{ e.user.name }}</span>
+                                                <a v-if="proposerEmail(e)" :href="`mailto:${proposerEmail(e)}`" class="text-[11px] text-indigo-500 hover:underline truncate max-w-[180px]">{{ proposerEmail(e) }}</a>
+                                                <a v-if="proposerPhone(e)" :href="`tel:${proposerPhone(e)}`" class="text-[11px] text-emerald-600 hover:underline">{{ proposerPhone(e) }}</a>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
-                                    <div class="text-right sm:text-left flex-shrink-0">
-                                        <div class="text-sm font-bold text-gray-900">
-                                            {{ formatCurrency(convertCurrency(parseFloat(e.amount ?? 0), e.currency || currentDisplayCurrency, currentDisplayCurrency), currentDisplayCurrency) }}
+
+                                    <!-- Amount + Actions -->
+                                    <div class="flex items-center gap-3 flex-shrink-0 self-start sm:self-center">
+                                        <div class="text-right">
+                                            <div class="text-base font-bold text-gray-900 leading-tight">
+                                                {{ formatCurrency(convertCurrency(parseFloat(e.amount ?? 0), e.currency || currentDisplayCurrency, currentDisplayCurrency), currentDisplayCurrency) }}
+                                            </div>
+                                            <div v-if="e.currency && e.currency?.toUpperCase() !== currentDisplayCurrency?.toUpperCase()" class="text-[10px] text-gray-400 font-medium">
+                                                {{ formatCurrency(parseFloat(e.amount ?? 0), e.currency) }}
+                                            </div>
                                         </div>
-                                        <div v-if="e.currency && e.currency?.toUpperCase() !== currentDisplayCurrency?.toUpperCase()" class="text-gray-400 text-[10px] font-medium">
-                                            ({{ formatCurrency(parseFloat(e.amount ?? 0), e.currency) }})
-                                        </div>
-                                    </div>
-                                    <div class="flex gap-2">
-                                        <template v-if="e.status === 'Pending Approval' || e.status === 'Shortlisted' || !e.status">
+
+                                        <div class="flex items-center gap-1.5">
+                                            <template v-if="e.status === 'Pending Approval' || e.status === 'Shortlisted' || !e.status">
+                                                <button
+                                                    v-if="canApproveExpendables || canApproveMilestoneExpendables"
+                                                    @click.stop="shortlistProposal(e, e.status !== 'Shortlisted')"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all duration-150"
+                                                    :class="e.status === 'Shortlisted'
+                                                        ? 'border-slate-300 text-slate-600 bg-slate-50 hover:bg-slate-100'
+                                                        : 'border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100'"
+                                                    :title="e.status === 'Shortlisted' ? 'Move back to pending' : 'Shortlist proposal'"
+                                                >
+                                                    <Square2StackIcon class="h-3.5 w-3.5" />
+                                                    {{ e.status === 'Shortlisted' ? 'Unshortlist' : 'Shortlist' }}
+                                                </button>
+                                                <button
+                                                    v-if="canApproveExpendables || canApproveMilestoneExpendables"
+                                                    @click.stop="approveExpendable(e)"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 text-xs font-semibold transition-all duration-150"
+                                                    title="Approve"
+                                                >
+                                                    <CheckCircleIcon class="h-3.5 w-3.5" />
+                                                    Approve
+                                                </button>
+                                                <button
+                                                    v-if="canApproveExpendables || canApproveMilestoneExpendables"
+                                                    @click.stop="rejectExpendable(e)"
+                                                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100 transition-all duration-150"
+                                                    title="Reject"
+                                                >
+                                                    <XCircleIcon class="h-4 w-4" />
+                                                </button>
+                                            </template>
                                             <button
-                                                v-if="canApproveExpendables || canApproveMilestoneExpendables"
-                                                @click.stop="shortlistProposal(e, e.status !== 'Shortlisted')"
-                                                class="inline-flex items-center justify-center px-2.5 py-1.5 border rounded-md text-xs font-semibold transition-colors"
-                                                :class="e.status === 'Shortlisted'
-                                                    ? 'border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100'
-                                                    : 'border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100'"
-                                                :title="e.status === 'Shortlisted' ? 'Move back to pending' : 'Shortlist proposal'"
+                                                v-if="e.status === 'Rejected'"
+                                                @click.stop="deleteExpendable(e)"
+                                                class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-all duration-150"
+                                                title="Delete"
                                             >
-                                                {{ e.status === 'Shortlisted' ? 'Unshortlist' : 'Shortlist' }}
+                                                <TrashIcon class="h-4 w-4" />
                                             </button>
-                                            <button v-if="canApproveExpendables || canApproveMilestoneExpendables" @click.stop="approveExpendable(e)" class="inline-flex items-center justify-center p-1.5 border border-emerald-200 rounded-md text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-300 transition-colors" title="Approve">
-                                                <CheckCircleIcon class="h-4 w-4" />
-                                            </button>
-                                            <button v-if="canApproveExpendables || canApproveMilestoneExpendables" @click.stop="rejectExpendable(e)" class="inline-flex items-center justify-center p-1.5 border border-rose-200 rounded-md text-rose-600 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 transition-colors" title="Reject">
-                                                <XCircleIcon class="h-4 w-4" />
-                                            </button>
-                                        </template>
-                                        <button v-if="e.status === 'Rejected'" @click.stop="deleteExpendable(e)" class="inline-flex items-center justify-center p-1.5 border border-gray-200 rounded-md text-gray-500 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-colors" title="Delete">
-                                            <TrashIcon class="h-4 w-4" />
-                                        </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Meta row: scope tag + payment terms -->
+                                <div class="mt-3 flex flex-wrap items-center gap-2">
+                                    <span v-if="e.milestone_name" class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full text-[10px] font-semibold">
+                                        📌 {{ e.milestone_name }}
+                                    </span>
+                                    <span v-else class="inline-flex items-center gap-1 bg-gray-100 text-gray-500 border border-gray-200 px-2 py-0.5 rounded-full text-[10px] font-semibold">
+                                        🏗 Project Level
+                                    </span>
+                                    <span class="text-[11px] text-gray-400">•</span>
+                                    <span class="text-[11px] text-gray-500">{{ paymentTermsSummary(e) }}</span>
+                                </div>
+
+                                <!-- Cover letter preview -->
+                                <p v-if="e.description" class="mt-2 text-xs text-gray-500 leading-relaxed line-clamp-2">
+                                    {{ coverLetterPreview(e.description) }}
+                                </p>
+
+                                <!-- Expand toggle -->
+                                <div class="mt-3 pt-2.5 border-t border-gray-100">
+                                    <button
+                                        @click.stop="toggleProposalDetails(e.id)"
+                                        class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+                                    >
+                                        <ChevronDownIcon class="h-3.5 w-3.5 transition-transform duration-200" :class="isProposalExpanded(e.id) ? 'rotate-180' : ''" />
+                                        {{ isProposalExpanded(e.id) ? 'Hide details' : 'View full proposal' }}
+                                    </button>
+                                </div>
+
+                                <!-- Expanded Details -->
+                                <div v-if="isProposalExpanded(e.id)" class="mt-3 space-y-4">
+                                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                                        <p class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-2">Cover Letter</p>
+                                        <p class="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{{ e.description || 'No cover letter provided.' }}</p>
+                                    </div>
+                                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                                        <p class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-2">Payment Terms</p>
+                                        <p class="text-sm text-gray-600 mb-2">{{ paymentTermsSummary(e) }}</p>
+                                        <div v-if="paymentTermsBreakdown(e).length" class="space-y-1.5">
+                                            <div
+                                                v-for="(line, idx) in paymentTermsBreakdown(e)"
+                                                :key="`${e.id}-pay-${idx}`"
+                                                class="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2"
+                                            >
+                                                <div class="flex items-center gap-2">
+                                                    <span class="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center flex-shrink-0">{{ idx + 1 }}</span>
+                                                    <span class="text-xs text-gray-600">{{ line.label }}</span>
+                                                    <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{{ line.percentage.toFixed(1) }}%</span>
+                                                </div>
+                                                <span class="text-xs font-bold text-gray-800">
+                                                    {{ formatCurrency(convertCurrency(line.amount, e.currency || currentDisplayCurrency, currentDisplayCurrency), currentDisplayCurrency) }}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-
-                            <div class="mt-3">
-                                <button
-                                    @click.stop="toggleProposalDetails(e.id)"
-                                    class="text-xs font-medium text-indigo-600 hover:text-indigo-700"
-                                >
-                                    {{ isProposalExpanded(e.id) ? 'Hide full proposal' : 'Open full proposal' }}
-                                </button>
-                            </div>
-
-                            <div v-if="isProposalExpanded(e.id)" class="mt-3 border-t border-gray-200 pt-3 space-y-3">
-                                <div>
-                                    <p class="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-1">Cover Letter</p>
-                                    <p class="text-sm text-gray-700 whitespace-pre-line">{{ e.description || 'No cover letter provided.' }}</p>
-                                </div>
-                                <div>
-                                    <p class="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-1">Payment Terms</p>
-                                    <p class="text-sm text-gray-700">{{ paymentTermsSummary(e) }}</p>
-                                    <ul v-if="paymentTermsBreakdown(e).length" class="mt-2 space-y-1">
-                                        <li v-for="(line, idx) in paymentTermsBreakdown(e)" :key="`${e.id}-pay-${idx}`" class="text-xs text-gray-600 flex items-center justify-between bg-gray-50 border border-gray-200 rounded px-2 py-1">
-                                            <span>{{ line.label }} ({{ line.percentage.toFixed(2) }}%)</span>
-                                            <span class="font-semibold text-gray-800">
-                                                {{ formatCurrency(convertCurrency(line.amount, e.currency || currentDisplayCurrency, currentDisplayCurrency), currentDisplayCurrency) }}
-                                            </span>
-                                        </li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </li>
-                    </ul>
+                        </div>
+                    </div>
                 </section>
 
                 <!-- Financials: Approved Contracts Only with Bill Management -->
