@@ -127,7 +127,7 @@ const tabs = [
     { id: 'active', label: 'Active Milestones' },
     { id: 'completed', label: 'Completed' },
     { id: 'approved', label: 'Approved' },
-    { id: 'invoices', label: 'Sales Invoices' },
+    // { id: 'invoices', label: 'Sales Invoices' },
 ];
 
 const VIEW_MODES = [
@@ -415,9 +415,9 @@ const onProjectChange = async () => {
         return;
     }
     await Promise.all([
-        loadMilestones(), 
-        loadUsers(), 
-        loadProjectBudget(), 
+        loadMilestones(),
+        loadUsers(),
+        loadProjectBudget(),
         loadProjectContracts(),
         loadProjectContexts(),
         loadProjectMeetings()
@@ -1101,48 +1101,86 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                             </span>
                         </div>
                     </div>
-                    <div v-if="!projectContracts.filter(e => e.status === 'Accepted').length" class="text-center text-gray-500 text-sm py-8">
-                        <BanknotesIcon class="h-10 w-10 mx-auto mb-2 text-gray-300" />
-                        No approved contracts yet. Approve proposals in the Proposals tab.
+                    <div v-if="!projectContracts.filter(e => e.status === 'Accepted').length" class="flex flex-col items-center justify-center py-16 text-center">
+                        <div class="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
+                            <BanknotesIcon class="h-8 w-8 text-emerald-300" />
+                        </div>
+                        <p class="text-base font-medium text-gray-500">No approved contracts yet</p>
+                        <p class="text-sm text-gray-400 mt-1">Approve proposals in the Proposals tab to track payments here.</p>
                     </div>
-                    <ul v-else class="space-y-4">
-                        <li v-for="e in projectContracts.filter(c => c.status === 'Accepted')" :key="e.id"
-                            class="rounded-xl border border-emerald-100 bg-emerald-50/30 overflow-hidden">
-                            <!-- Contract Summary Header -->
-                            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 border-b border-emerald-100">
-                                <div class="flex items-center gap-3">
-                                    <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                        Approved
-                                    </span>
-                                    <div>
-                                        <div class="text-sm font-bold text-gray-900">{{ e.name }}</div>
-                                        <div class="text-[11px] font-semibold text-indigo-600 mt-0.5">{{ proposalReference(e) }}</div>
-                                        <div class="text-xs text-gray-500 mt-0.5 flex gap-2">
-                                            <span v-if="e.user && e.user.name">{{ e.user.name }}</span>
-                                            <span v-if="e.payment_terms">&bull; Terms: {{ e.payment_terms }}</span>
+                    <div v-else class="space-y-4">
+                        <div
+                            v-for="e in projectContracts.filter(c => c.status === 'Accepted')"
+                            :key="e.id"
+                            class="relative rounded-xl border border-emerald-200 bg-white overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200"
+                        >
+                            <!-- Emerald left accent bar -->
+                            <div class="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500 rounded-l-xl"></div>
+
+                            <!-- Contract Header -->
+                            <div class="pl-5 pr-5 pt-4 pb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-emerald-100">
+                                <div class="flex items-center gap-3 min-w-0 flex-1">
+                                    <!-- Contractor Avatar -->
+                                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold select-none shadow-sm">
+                                        {{ (e.user?.name || e.name || '?').charAt(0).toUpperCase() }}
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="flex items-center flex-wrap gap-2">
+                                            <span class="text-sm font-bold text-gray-900 leading-tight">{{ e.name }}</span>
+                                            <span class="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                Approved
+                                            </span>
                                         </div>
+                                        <div class="flex items-center flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
+                                            <span class="text-[11px] font-semibold text-indigo-500">{{ proposalReference(e) }}</span>
+                                            <span v-if="e.user && e.user.name" class="text-[11px] text-gray-500">{{ e.user.name }}</span>
+                                            <a v-if="proposerEmail(e)" :href="`mailto:${proposerEmail(e)}`" class="text-[11px] text-indigo-400 hover:underline truncate max-w-[180px]">{{ proposerEmail(e) }}</a>
+                                        </div>
+                                        <div v-if="e.payment_terms" class="text-[11px] text-gray-400 mt-0.5">{{ paymentTermsSummary(e) }}</div>
                                     </div>
                                 </div>
-                                <div class="text-right flex-shrink-0">
-                                    <div class="text-sm font-bold text-gray-900">
+
+                                <!-- Contract Amount + Balance -->
+                                <div class="flex-shrink-0 text-right">
+                                    <div class="text-lg font-bold text-gray-900 leading-tight">
                                         {{ formatCurrency(convertCurrency(parseFloat(e.amount ?? 0), e.currency || currentDisplayCurrency, currentDisplayCurrency), currentDisplayCurrency) }}
                                     </div>
-                                    <div v-if="e.currency && e.currency?.toUpperCase() !== currentDisplayCurrency?.toUpperCase()" class="text-gray-400 text-[10px] font-medium">
-                                        ({{ formatCurrency(parseFloat(e.amount ?? 0), e.currency) }})
+                                    <div v-if="e.currency && e.currency?.toUpperCase() !== currentDisplayCurrency?.toUpperCase()" class="text-[10px] text-gray-400">
+                                        {{ formatCurrency(parseFloat(e.amount ?? 0), e.currency) }}
+                                    </div>
+                                    <div v-if="e.balance != null" class="text-[11px] mt-0.5" :class="parseFloat(e.balance) > 0 ? 'text-amber-600 font-semibold' : 'text-emerald-600 font-semibold'">
+                                        {{ parseFloat(e.balance) > 0 ? `${formatCurrency(e.balance, e.currency)} remaining` : 'Fully paid' }}
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Budget Progress Bar -->
+                            <div v-if="e.balance != null && parseFloat(e.amount ?? 0) > 0" class="px-5 pt-3 pb-1">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Payment Progress</span>
+                                    <span class="text-[10px] font-semibold text-emerald-600">
+                                        {{ Math.min(100, Math.round(((parseFloat(e.amount ?? 0) - parseFloat(e.balance ?? 0)) / parseFloat(e.amount ?? 0)) * 100)) }}% paid
+                                    </span>
+                                </div>
+                                <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                        class="h-1.5 rounded-full bg-emerald-500 transition-all duration-500"
+                                        :style="{ width: Math.min(100, Math.round(((parseFloat(e.amount ?? 0) - parseFloat(e.balance ?? 0)) / parseFloat(e.amount ?? 0)) * 100)) + '%' }"
+                                    ></div>
+                                </div>
+                            </div>
+
                             <!-- Bill Management -->
-                            <div class="p-4">
-                                <BillManagement 
-                                    :expendable="e" 
+                            <div class="px-5 pb-4 pt-2">
+                                <BillManagement
+                                    :expendable="e"
                                     :transaction-types="transaction_types"
                                     :can-approve="canApproveExpendables"
                                     @updated="loadProjectContracts"
                                 />
                             </div>
-                        </li>
-                    </ul>
+                        </div>
+                    </div>
                 </section>
 
                 <!-- Milestone Section: Planning and Execution views only -->
@@ -1191,8 +1229,8 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                             <p>No milestones found for this project in the selected tab.</p>
                         </div>
                         <div v-else-if="activeTab === 'invoices' && selectedProjectId">
-                            <InvoicesSection 
-                                :project="{ id: selectedProjectId }" 
+                            <InvoicesSection
+                                :project="{ id: selectedProjectId }"
                                 :can-approve="canApproveMilestoneExpendables || canApproveExpendables"
                             />
                         </div>

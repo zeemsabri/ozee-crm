@@ -334,77 +334,103 @@ const formatStatus = (status) => {
             </PrimaryButton>
         </div>
 
-        <div v-if="!expendable.bills?.length" class="text-sm text-gray-500 italic">
-            No bills recorded for this contract.
+        <div v-if="!expendable.bills?.length" class="flex flex-col items-center justify-center py-8 text-center">
+            <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+                <svg class="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>
+            </div>
+            <p class="text-sm font-medium text-gray-500">No bills recorded</p>
+            <p class="text-xs text-gray-400 mt-0.5">Create a bill to start tracking payments for this contract.</p>
         </div>
 
-        <div v-else class="border border-gray-200 rounded-lg overflow-hidden bg-white">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                        <th scope="col" class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100 bg-white">
-                    <tr v-for="bill in expendable.bills" :key="bill.id" class="hover:bg-gray-50 transition-colors">
-                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+        <div v-else class="space-y-2 mt-1">
+            <div
+                v-for="bill in expendable.bills"
+                :key="bill.id"
+                class="group relative flex flex-col sm:flex-row items-start sm:items-center gap-3 rounded-xl border bg-white px-4 py-3 hover:shadow-sm transition-all duration-150"
+                :class="{
+                    'border-amber-200 bg-amber-50/30': bill.status === 'pending_approval',
+                    'border-emerald-200 bg-emerald-50/20': bill.status === 'approved',
+                    'border-blue-200 bg-blue-50/20': bill.status === 'paid',
+                    'border-rose-200 bg-rose-50/20': bill.status === 'voided',
+                    'border-gray-200': !['pending_approval','approved','paid','voided'].includes(bill.status),
+                }"
+            >
+                <!-- Left status stripe -->
+                <div class="absolute left-0 top-0 bottom-0 w-0.5 rounded-l-xl"
+                    :class="{
+                        'bg-amber-400': bill.status === 'pending_approval',
+                        'bg-emerald-500': bill.status === 'approved',
+                        'bg-blue-500': bill.status === 'paid',
+                        'bg-rose-400': bill.status === 'voided',
+                        'bg-gray-300': !['pending_approval','approved','paid','voided'].includes(bill.status),
+                    }"
+                ></div>
+
+                <!-- Date + Type -->
+                <div class="flex-1 min-w-0 pl-2">
+                    <div class="flex items-center flex-wrap gap-2">
+                        <span class="text-xs font-semibold text-gray-700">
                             {{ new Date(bill.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) }}
-                        </td>
-                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                            {{ bill.transaction_type?.name || 'N/A' }}
-                        </td>
-                        <td class="px-4 py-3 whitespace-nowrap text-sm font-bold text-gray-900">
-                            {{ formatCurrency(bill.amount, bill.currency || expendable.currency) }}
-                        </td>
-                        <td class="px-4 py-3 whitespace-nowrap text-sm">
-                            <span :class="['inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase shadow-sm border', getStatusClass(bill.status)]">
-                                {{ formatStatus(bill.status) }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3 whitespace-nowrap text-right text-sm">
-                            <div class="flex justify-end gap-3 items-center">
-                                <button 
-                                    v-if="bill.status === 'pending_approval' && canApprove"
-                                    @click="approveBill(bill.id)"
-                                    :disabled="processing"
-                                    class="text-emerald-600 hover:text-emerald-900 font-semibold transition-colors"
-                                >
-                                    Approve
-                                </button>
-                                <Link
-                                    :href="route('admin.financials.bills.show', { id: bill.id })"
-                                    class="text-indigo-600 hover:text-indigo-900 font-semibold transition-colors"
-                                >
-                                    View
-                                </Link>
-                                <button
-                                    v-if="bill.status === 'pending_approval' && canApprove && !expendable.user?.xero_contact_id"
-                                    @click="openXeroSyncModal"
-                                    :disabled="processing"
-                                    class="text-indigo-600 hover:text-indigo-900 font-semibold transition-colors"
-                                >
-                                    Link Xero
-                                </button>
-                                <button 
-                                    v-if="bill.status === 'approved' && canApprove"
-                                    @click="voidBill(bill.id)"
-                                    :disabled="processing"
-                                    class="text-rose-600 hover:text-rose-900 font-semibold transition-colors"
-                                >
-                                    Void
-                                </button>
-                                <span v-if="bill.xero_invoice_id" title="Synced to Xero" class="text-blue-500">
-                                    <svg class="w-4 h-4 inline" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"></path><path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"></path></svg>
-                                </span>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+                        </span>
+                        <span v-if="bill.transaction_type?.name" class="text-[10px] bg-gray-100 text-gray-500 border border-gray-200 px-1.5 py-0.5 rounded-full font-medium">
+                            {{ bill.transaction_type.name }}
+                        </span>
+                        <span
+                            :class="['text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full border', getStatusClass(bill.status)]"
+                        >
+                            {{ formatStatus(bill.status) }}
+                        </span>
+                        <!-- Xero synced indicator -->
+                        <span v-if="bill.xero_invoice_id" title="Synced to Xero" class="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">
+                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/><path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/></svg>
+                            Xero
+                        </span>
+                    </div>
+                    <div v-if="bill.payment_details?.notes" class="text-[11px] text-gray-400 mt-0.5 truncate">{{ bill.payment_details.notes }}</div>
+                </div>
+
+                <!-- Amount -->
+                <div class="flex-shrink-0 text-right">
+                    <div class="text-sm font-bold text-gray-900">{{ formatCurrency(bill.amount, bill.currency || expendable.currency) }}</div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex-shrink-0 flex items-center gap-1.5">
+                    <button
+                        v-if="bill.status === 'pending_approval' && canApprove"
+                        @click="approveBill(bill.id)"
+                        :disabled="processing"
+                        class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 text-xs font-semibold transition-all disabled:opacity-50"
+                    >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        Approve
+                    </button>
+                    <button
+                        v-if="bill.status === 'pending_approval' && canApprove && !expendable.user?.xero_contact_id"
+                        @click="openXeroSyncModal"
+                        :disabled="processing"
+                        class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 text-xs font-semibold transition-all disabled:opacity-50"
+                    >
+                        Link Xero
+                    </button>
+                    <Link
+                        :href="route('admin.financials.bills.show', { id: bill.id })"
+                        class="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 transition-all"
+                        title="View bill"
+                    >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                    </Link>
+                    <button
+                        v-if="bill.status === 'approved' && canApprove"
+                        @click="voidBill(bill.id)"
+                        :disabled="processing"
+                        class="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 text-gray-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-all disabled:opacity-50"
+                        title="Void bill"
+                    >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Create Bill Modal -->
