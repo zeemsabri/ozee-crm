@@ -135,4 +135,14 @@ class ProjectExpendable extends Model
     {
         return $this->hasMany(Bill::class, 'project_expendable_id');
     }
+
+    /**
+     * Accessor for expendable number (OZX + id).
+     *
+     * @return string
+     */
+    public function getExpendableNumberAttribute(): string
+    {
+        return 'OZX' . $this->id;
+    }
 }

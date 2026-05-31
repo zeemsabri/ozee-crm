@@ -71,4 +71,14 @@ class Bill extends Model
     {
         return $this->morphOne(ApprovalInstance::class, 'approvable');
     }
+
+    /**
+     * Accessor for bill number (OZB + id).
+     *
+     * @return string
+     */
+    public function getBillNumberAttribute(): string
+    {
+        return 'OZB' . $this->id;
+    }
 }

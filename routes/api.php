@@ -160,16 +160,17 @@ Route::post('/public/lead/{firefly}', [\App\Http\Controllers\Api\PublicLeadApiCo
 // Authenticated API Routes (behind auth:sanctum middleware for internal users)
 Route::middleware('auth:sanctum')->group(function () {
     // Financial Routes
-    Route::get('admin/financial-pending-counts', [BillController::class, 'pendingCounts'])->name('api.admin.financial-counts');
-    Route::get('admin/bills', [BillController::class, 'all'])->name('api.admin.bills.all');
+    Route::get('admin/financial-pending-counts', [BillController::class, 'pendingCounts'])->middleware('permission:view_project_bills')->name('api.admin.financial-counts');
+    Route::get('admin/bills', [BillController::class, 'all'])->middleware('permission:view_project_bills')->name('api.admin.bills.all');
     Route::get('admin/invoices', [InvoiceController::class, 'all'])->name('api.admin.invoices.all');
     Route::get('xero/accounts', [XeroAccountController::class, 'index'])->name('api.xero.accounts');
     Route::get('xero/items', [XeroAccountController::class, 'items'])->name('api.xero.items');
     
-    Route::get('projects/{project}/bills', [BillController::class, 'index'])->name('api.bills.index');
-    Route::post('projects/{project}/bills', [BillController::class, 'store'])->name('api.bills.store');
-    Route::post('bills/{bill}/approve', [BillController::class, 'approve'])->name('api.bills.approve');
-    Route::post('bills/{bill}/void', [BillController::class, 'void'])->name('api.bills.void');
+    Route::get('projects/{project}/bills', [BillController::class, 'index'])->middleware('permission:view_project_bills')->name('api.bills.index');
+    Route::post('projects/{project}/bills', [BillController::class, 'store'])->middleware('permission:create_project_bills')->name('api.bills.store');
+    Route::put('projects/{project}/bills/{bill}', [BillController::class, 'update'])->middleware('permission:edit_project_bills')->name('api.bills.update');
+    Route::post('bills/{bill}/approve', [BillController::class, 'approve'])->middleware('permission:approve_project_bills')->name('api.bills.approve');
+    Route::post('bills/{bill}/void', [BillController::class, 'void'])->middleware('permission:void_project_bills')->name('api.bills.void');
 
     Route::get('projects/{project}/invoices', [InvoiceController::class, 'index'])->name('api.invoices.index');
     Route::post('projects/{project}/invoices', [InvoiceController::class, 'store'])->name('api.invoices.store');
@@ -231,6 +232,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Tag Management Routes
     Route::get('/tags/search', [\App\Http\Controllers\TagController::class, 'search']);
+    Route::get('/global-search', [\App\Http\Controllers\GlobalSearchController::class, 'search']);
 
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy']);
 
@@ -616,11 +618,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('transaction-types/search', [\App\Http\Controllers\Api\TransactionTypeController::class, 'search']);
 
     // Bill Management Routes
-    Route::get('projects/{project}/bills', [\App\Http\Controllers\Api\BillController::class, 'index']);
-    Route::post('projects/{project}/bills', [\App\Http\Controllers\Api\BillController::class, 'store']);
-    Route::put('projects/{project}/bills/{bill}', [\App\Http\Controllers\Api\BillController::class, 'update'])->name('api.bills.update');
-    Route::post('projects/{project}/bills/{bill}/approve', [\App\Http\Controllers\Api\BillController::class, 'approve']);
-    Route::post('projects/{project}/bills/{bill}/void', [\App\Http\Controllers\Api\BillController::class, 'void']);
+    Route::get('projects/{project}/bills', [\App\Http\Controllers\Api\BillController::class, 'index'])->middleware('permission:view_project_bills');
+    Route::post('projects/{project}/bills', [\App\Http\Controllers\Api\BillController::class, 'store'])->middleware('permission:create_project_bills');
+    Route::put('projects/{project}/bills/{bill}', [\App\Http\Controllers\Api\BillController::class, 'update'])->middleware('permission:edit_project_bills')->name('api.bills.update');
+    Route::post('projects/{project}/bills/{bill}/approve', [\App\Http\Controllers\Api\BillController::class, 'approve'])->middleware('permission:approve_project_bills');
+    Route::post('projects/{project}/bills/{bill}/void', [\App\Http\Controllers\Api\BillController::class, 'void'])->middleware('permission:void_project_bills');
 
     // Invoice Management Routes (Basic)
     Route::get('projects/{project}/invoices', [\App\Http\Controllers\Api\InvoiceController::class, 'index']);

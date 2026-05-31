@@ -8,6 +8,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
+import { usePermissions } from '@/Directives/permissions';
 import { success, error } from '@/Utils/notification';
 import axios from 'axios';
 
@@ -23,7 +24,10 @@ const props = defineProps({
 });
 
 const bill = computed(() => props.bill);
-const canEdit = computed(() => bill.value?.status === 'pending_approval');
+const { canDo } = usePermissions(() => bill.value?.project_id);
+const canEditBillPermission = canDo('edit_project_bills');
+const canApproveBillPermission = canDo('approve_project_bills');
+const canEdit = computed(() => bill.value?.status === 'pending_approval' && canEditBillPermission.value);
 const xeroAccounts = ref([]);
 const xeroTaxTypeOptions = [
     { value: 'BASEXCLUDED', label: 'BAS Excluded' },
@@ -102,6 +106,7 @@ const currentPendingStep = computed(() => {
 
 const canApproveBill = computed(() => {
     if (bill.value?.status !== 'pending_approval') return false;
+    if (!canApproveBillPermission.value) return false;
     const step = currentPendingStep.value;
     if (!step) {
         // No active flow step — show button only when there's no instance (super admin path)
@@ -122,6 +127,10 @@ const approveForm = ref({
 
 const approveBill = async () => {
     if (!confirm('Approve this bill?')) return;
+    if (!canApproveBillPermission.value) {
+        error('You do not have permission to approve bills.');
+        return;
+    }
     approveProcessing.value = true;
     try {
         await axios.post(route('api.bills.approve', { bill: bill.value.id }), {

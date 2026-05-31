@@ -31,6 +31,11 @@ class FinancialPermissionSeeder extends Seeder
                 'approve_project_bills' => 'Approve project bills',
                 'void_project_bills' => 'Void approved project bills',
                 'link_xero_contractors' => 'Link project contractors to Xero',
+                'view_project_invoices' => 'View project invoices and invoice details',
+                'create_project_invoices' => 'Create new project invoices',
+                'edit_project_invoices' => 'Edit invoice details before approval',
+                'approve_project_invoices' => 'Approve project invoices',
+                'void_project_invoices' => 'Void approved project invoices',
             ],
         ];
 
@@ -79,6 +84,11 @@ class FinancialPermissionSeeder extends Seeder
             'edit_project_bills',
             'approve_project_bills',
             'link_xero_contractors',
+            'view_project_invoices',
+            'create_project_invoices',
+            'edit_project_invoices',
+            'approve_project_invoices',
+            'void_project_invoices',
         ];
 
         $employeePermissions = [

@@ -11,6 +11,7 @@ import Modal from '@/Components/Modal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
+import { usePermissions } from '@/Directives/permissions';
 
 const bills = ref([]);
 const projects = ref([]);
@@ -26,6 +27,12 @@ const xeroCandidates = ref([]);
 const selectedXeroContactId = ref('');
 const xeroSyncContractor = ref(null);
 const approvalConfigByBillId = ref({});
+const { canDo } = usePermissions();
+const canViewBills = canDo('view_project_bills');
+const canCreateBills = canDo('create_project_bills');
+const canApproveBills = canDo('approve_project_bills');
+const canVoidBills = canDo('void_project_bills');
+const canLinkXeroContractors = canDo('link_xero_contractors');
 
 const form = useForm({
     project_id: '',
@@ -89,6 +96,7 @@ const currentPendingStep = (bill) => {
 };
 
 const canApproveBill = (bill) => {
+    if (!canApproveBills.value) return false;
     if (bill.status !== 'pending_approval') return false;
     const step = currentPendingStep(bill);
     if (!step) {
@@ -268,6 +276,10 @@ const submitBill = () => {
 
 const approveBill = async (bill) => {
     if (!await confirmPrompt('Approve this bill for Xero sync?')) return;
+    if (!canApproveBills.value) {
+        error('You do not have permission to approve bills.');
+        return;
+    }
     try {
         const approvalConfig = getApprovalConfig(bill);
         if (!approvalConfig.xero_account_code) {
@@ -294,6 +306,10 @@ const approveBill = async (bill) => {
 
 const voidBill = async (bill) => {
     if (!await confirmPrompt('Void this bill?')) return;
+    if (!canVoidBills.value) {
+        error('You do not have permission to void bills.');
+        return;
+    }
     try {
         await axios.post(route('api.bills.void', { bill: bill.id }));
         success('Bill voided.');
@@ -326,6 +342,11 @@ const fetchXeroCandidates = async () => {
 };
 
 const openXeroSyncModal = async (contractor) => {
+    if (!canLinkXeroContractors.value) {
+        error('You do not have permission to link contractors to Xero.');
+        return;
+    }
+
     xeroSyncContractor.value = contractor;
     xeroCandidates.value = [];
     selectedXeroContactId.value = '';
@@ -416,7 +437,7 @@ const getStatusClass = (status) => {
                         <option value="approved">Approved</option>
                         <option value="void">Void</option>
                     </select>
-                    <PrimaryButton @click="openCreateModal">
+                    <PrimaryButton v-if="canCreateBills" @click="openCreateModal">
                         Create Bill
                     </PrimaryButton>
                 </div>
@@ -427,6 +448,7 @@ const getStatusClass = (status) => {
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
                 <div class="bg-white overflow-hidden shadow sm:rounded-lg border border-gray-200">
                     <div v-if="loading" class="p-12 text-center text-gray-500">Loading bills...</div>
+                    <div v-else-if="!canViewBills" class="p-12 text-center text-gray-500">You do not have permission to view bills.</div>
                     <div v-else-if="!bills.length" class="p-12 text-center text-gray-500">No bills found.</div>
                     <table v-else class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
@@ -460,16 +482,16 @@ const getStatusClass = (status) => {
                                 </td>
                                 <td class="px-6 py-4 text-right text-sm font-medium">
                                     <div class="flex justify-end gap-2">
-                                        <Link :href="route('admin.financials.bills.show', { id: bill.id })" class="text-indigo-600 hover:text-indigo-900">View</Link>
+                                        <Link v-if="canViewBills" :href="route('admin.financials.bills.show', { id: bill.id })" class="text-indigo-600 hover:text-indigo-900">View</Link>
                                         <button
-                                            v-if="!bill.contractor?.xero_contact_id"
+                                            v-if="canLinkXeroContractors && !bill.contractor?.xero_contact_id"
                                             @click="openXeroSyncModal(bill.contractor)"
                                             class="text-indigo-600 hover:text-indigo-900"
                                         >
                                             Link Xero
                                         </button>
                                         <button v-if="canApproveBill(bill)" @click="approveBill(bill)" class="text-green-600 hover:text-green-900">Approve</button>
-                                        <button v-if="bill.status === 'approved'" @click="voidBill(bill)" class="text-red-600 hover:text-red-900">Void</button>
+                                        <button v-if="bill.status === 'approved' && canVoidBills" @click="voidBill(bill)" class="text-red-600 hover:text-red-900">Void</button>
                                     </div>
                                     <div v-if="bill.status === 'pending_approval' && pendingApproverLabel(bill)" class="mt-1 text-xs text-amber-700">
                                         {{ pendingApproverLabel(bill) }}

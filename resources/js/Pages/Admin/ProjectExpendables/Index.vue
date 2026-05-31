@@ -107,6 +107,10 @@ const props = defineProps({
     transaction_types: {
         type: Array,
         default: () => [],
+    },
+    initial_project_id: {
+        type: [String, Number],
+        default: null
     }
 });
 
@@ -131,11 +135,23 @@ const tabs = [
 ];
 
 const VIEW_MODES = [
-    { id: 'proposals', label: 'Proposals', icon: DocumentTextIcon, desc: 'Review, shortlist, and approve bids & contracts' },
-    { id: 'planning', label: 'Planning', icon: ClipboardDocumentListIcon, desc: 'Structure milestones, define budgets, and tasks' },
-    { id: 'execution', label: 'Execution & QA', icon: PlayCircleIcon, desc: 'Track progress, review tasks, and QA milestones' },
-    { id: 'financials', label: 'Financials', icon: BanknotesIcon, desc: 'Manage budgets, bills, and project finances' },
+    { id: 'proposals', label: 'Proposals', icon: DocumentTextIcon, desc: 'Review, shortlist, and approve bids & contracts', permission: 'view_project_expendables_proposals' },
+    { id: 'planning', label: 'Planning', icon: ClipboardDocumentListIcon, desc: 'Structure milestones, define budgets, and tasks', permission: 'view_project_expendables_planning' },
+    { id: 'execution', label: 'Execution & QA', icon: PlayCircleIcon, desc: 'Track progress, review tasks, and QA milestones', permission: 'view_project_expendables_execution' },
+    { id: 'financials', label: 'Financials', icon: BanknotesIcon, desc: 'Manage budgets, bills, and project finances', permission: 'view_project_expendables_financials' },
 ];
+
+const availableViewModes = computed(() => VIEW_MODES.filter((view) => canDo(view.permission)));
+
+watch(availableViewModes, (views) => {
+    if (views.length === 0) {
+        return;
+    }
+
+    if (!views.some((view) => view.id === activeView.value)) {
+        activeView.value = views[0].id;
+    }
+}, { immediate: true });
 
 // -- Computed Properties --
 // Milestone ordering and counts
@@ -692,6 +708,11 @@ onMounted(async () => {
     if (storedCurrency) currentDisplayCurrency.value = storedCurrency;
     await fetchCurrencyRates();
     await loadProjects();
+    
+    if (props.initial_project_id) {
+        selectedProjectId.value = Number(props.initial_project_id);
+    }
+    
     if (selectedProjectId.value) {
         await onProjectChange();
     }
@@ -758,7 +779,7 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                 <div v-if="selectedProjectId" class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-6">
                     <div class="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-gray-200">
                         <button
-                            v-for="view in VIEW_MODES"
+                            v-for="view in availableViewModes"
                             :key="view.id"
                             @click="activeView = view.id"
                             class="flex flex-col items-center justify-center p-4 transition-colors relative"
@@ -779,7 +800,7 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                 </div>
 
                 <!-- Project Glance (Planning View Only) -->
-                <section v-if="selectedProjectId && activeView === 'planning'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <section v-if="selectedProjectId && activeView === 'planning' && canDo('view_project_expendables_planning').value" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- Latest Context/Updates -->
                     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                         <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -821,7 +842,7 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                 </section>
 
                 <!-- Financial Summary Dashboard -->
-                <section v-if="selectedProjectId && activeView === 'financials'">
+                <section v-if="selectedProjectId && activeView === 'financials' && canDo('view_project_expendables_financials').value">
                     <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                         <div class="flex items-center gap-2 mb-6 border-b pb-4">
                             <BanknotesIcon class="w-6 h-6 text-indigo-600" />
@@ -898,7 +919,7 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                 </section>
 
                 <!-- Proposals Section: All pending/rejected contracts (project + milestone level) -->
-                <section v-if="selectedProjectId && activeView === 'proposals'" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <section v-if="selectedProjectId && activeView === 'proposals' && canDo('view_project_expendables_proposals').value" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <div class="flex items-center justify-between border-b pb-4 mb-4">
                         <div class="flex items-center gap-2">
                             <DocumentTextIcon class="w-6 h-6 text-indigo-600" />
@@ -1091,7 +1112,7 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                 </section>
 
                 <!-- Financials: Approved Contracts Only with Bill Management -->
-                <section v-if="selectedProjectId && activeView === 'financials'" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <section v-if="selectedProjectId && activeView === 'financials' && canDo('view_project_expendables_financials').value" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <div class="flex items-center justify-between border-b pb-4 mb-4">
                         <div class="flex items-center gap-2">
                             <DocumentTextIcon class="w-6 h-6 text-indigo-600" />
@@ -1184,7 +1205,7 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                 </section>
 
                 <!-- Milestone Section: Planning and Execution views only -->
-                <section v-if="selectedProjectId && (activeView === 'planning' || activeView === 'execution')" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <section v-if="selectedProjectId && (activeView === 'planning' || activeView === 'execution') && (canDo('view_project_expendables_planning').value || canDo('view_project_expendables_execution').value)" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b pb-4 mb-4">
                         <div class="flex items-center gap-2">
                             <ClipboardDocumentListIcon v-if="activeView === 'planning'" class="w-6 h-6 text-indigo-600" />

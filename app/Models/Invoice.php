@@ -54,4 +54,14 @@ class Invoice extends Model
     {
         return $this->morphMany(FileAttachment::class, 'fileable');
     }
+
+    /**
+     * Accessor for invoice number (OZI + id).
+     *
+     * @return string
+     */
+    public function getInvoiceNumberAttribute(): string
+    {
+        return 'OZI' . $this->id;
+    }
 }

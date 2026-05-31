@@ -768,4 +768,14 @@ class Project extends Model
     {
         return ($this->integrations ?? [])[$key] ?? $default;
     }
+
+    /**
+     * Accessor for project number (OZP + id).
+     *
+     * @return string
+     */
+    public function getProjectNumberAttribute(): string
+    {
+        return 'OZP' . $this->id;
+    }
 }

@@ -12,6 +12,7 @@ import { Bell, MessageSquare, Plus, Award } from 'lucide-vue-next'; // Using luc
 import AdminDropdown from '@/Components/Layout/AdminDropdown.vue';
 import UserDropdown from '@/Components/Layout/UserDropdown.vue';
 import BonusDropdown from '@/Components/Layout/BonusDropdown.vue';
+import GlobalSearch from '@/Components/GlobalSearch.vue';
 import { totalChatUnreadCount } from '@/Utils/chat-state';
 import { requestDesktopNotificationPermission } from '@/Utils/browser-notifications';
 
@@ -96,13 +97,17 @@ onMounted(async () => {
 <template>
     <nav class="bg-white z-[49] relative w-full shadow-sm border-b border-gray-100">
         <!-- Main Header Bar -->
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="w-full px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 justify-between items-center">
-                <!-- Logo -->
-                <div class="flex-shrink-0 flex items-center">
+                <!-- Logo & Search -->
+                <div class="flex-shrink-0 flex items-center flex-1">
                     <Link :href="route('dashboard')">
                         <ApplicationLogo class="block h-14 w-auto fill-current text-gray-800" />
                     </Link>
+                    
+                    <div class="hidden md:flex ml-8 flex-1 max-w-2xl">
+                        <GlobalSearch />
+                    </div>
                 </div>
 
                 <!-- Desktop User Actions & Notifications -->
@@ -202,7 +207,7 @@ onMounted(async () => {
 
         <!-- Action & Navigation Bar -->
         <div class="hidden border-t border-gray-100 bg-gray-50 py-2 lg:block">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="w-full px-4 sm:px-6 lg:px-8">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-2 overflow-x-auto no-scrollbar">
                         <NavLink :href="route('dashboard')" :active="route().current('dashboard')">
