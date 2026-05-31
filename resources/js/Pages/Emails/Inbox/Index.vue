@@ -1,6 +1,6 @@
 <script setup>
 import { reactive, onMounted, computed, watch, ref } from 'vue';
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import RightSidebar from '@/Components/RightSidebar.vue';
 import EmailFilters from '@/Pages/Emails/Inbox/Components/EmailFilters.vue';
@@ -13,7 +13,7 @@ import EmailActionContent from '@/Pages/Emails/Inbox/Components/EmailActionConte
 import ReceivedEmailActionContent from '@/Pages/Emails/Inbox/Components/ReceivedEmailActionContent.vue';
 import CustomEmailApprovalContent from '@/Pages/Emails/Inbox/Components/CustomEmailApprovalContent.vue';
 import { usePermissions, usePermissionStore } from '@/Directives/permissions.js';
-import { fetchEmails as fetchEmailsApi, markAsRead as markAsReadApi } from '@/Services/api-service.js';
+import { fetchEmails as fetchEmailsApi, getEmailDetails as getEmailDetailsApi, markAsRead as markAsReadApi } from '@/Services/api-service.js';
 import axios from 'axios';
 import {
     StarIcon,
@@ -65,6 +65,7 @@ const inboxState = reactive({
 
 const showAdvancedFilters = ref(false);
 const notifications = ref(null);
+const openEmailHandled = ref(false);
 
 // Use the permissions hook to check for user capabilities
 const { canDo } = usePermissions();
@@ -208,9 +209,37 @@ const showNotification = (notification) => {
     }, 5000);
 };
 
+const handleOpenEmailFromQuery = async () => {
+    if (openEmailHandled.value) {
+        return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const openEmailId = Number(params.get('open_email'));
+
+    if (!openEmailId || Number.isNaN(openEmailId)) {
+        return;
+    }
+
+    openEmailHandled.value = true;
+
+    try {
+        const email = await getEmailDetailsApi(openEmailId);
+        await handleViewEmail(email);
+
+        params.delete('open_email');
+        const queryString = params.toString();
+        const cleanUrl = `${window.location.pathname}${queryString ? `?${queryString}` : ''}`;
+        window.history.replaceState({}, '', cleanUrl);
+    } catch (error) {
+        console.error('Failed to open email from query parameter:', error);
+    }
+};
+
 onMounted(() => {
     usePermissionStore().fetchGlobalPermissions();
     fetchCounts();
+    handleOpenEmailFromQuery();
 });
 
 const handleEditEmail = (email) => {

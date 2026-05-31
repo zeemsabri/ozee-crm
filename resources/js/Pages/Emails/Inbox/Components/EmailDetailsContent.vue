@@ -178,13 +178,15 @@ const getSanitizedBody = computed(() => {
 });
 
 const getRecipientEmail = computed(() => {
-
-    if (!props.email || !props.email.sender?.name) {
+    const emailData = localEmail.value || props.email;
+    if (!emailData || !emailData.sender?.name) {
         return 'Unknown';
     }
-    if(props.email.type === 'sent') {
-        return props.email.recipient_email;
+    if (emailData.type === 'sent') {
+        return emailData.recipient_email;
     }
+
+    return 'Unknown';
 });
 
 const handleTasksSubmitted = () => {
@@ -294,13 +296,13 @@ const formatContextMeta = (meta) => {
             </div>
             <h2 class="text-xl font-semibold text-gray-800">{{ localEmail.subject }}</h2>
             <div class="text-sm text-gray-600 mt-1">
-                From: {{ props.email?.sender?.name || 'Unknown' }}
+                From: {{ localEmail?.sender?.name || props.email?.sender?.name || 'Unknown' }}
             </div>
-            <div v-if="props.email.type === 'sent'" class="text-sm text-gray-600 mt-1">
+            <div v-if="(localEmail?.type || props.email?.type) === 'sent'" class="text-sm text-gray-600 mt-1">
                 To: {{ getRecipientEmail }}
             </div>
             <div class="text-sm text-gray-600 mt-1">
-                Date: {{ new Date(props.email?.created_at).toLocaleString() }}
+                Date: {{ new Date(localEmail?.created_at || props.email?.created_at).toLocaleString() }}
             </div>
         </div>
 
@@ -375,13 +377,13 @@ const formatContextMeta = (meta) => {
             </div>
             <div v-if="isApprovalPending && canApproveEmails" class="flex space-x-2">
                 <button
-                    @click="$emit('edit', props.email)"
+                    @click="$emit('edit', localEmail || props.email)"
                     class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                     {{ approveButtonText }}
                 </button>
                 <button
-                    @click="$emit('reject', props.email)"
+                    @click="$emit('reject', localEmail || props.email)"
                     class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                 >
                     Reject

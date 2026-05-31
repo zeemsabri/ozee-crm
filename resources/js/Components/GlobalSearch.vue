@@ -1,8 +1,9 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { Search, Loader2 } from 'lucide-vue-next';
-import { Link } from '@inertiajs/vue3';
 import debounce from 'lodash/debounce';
+import { openTaskDetailSidebar } from '@/Utils/sidebar';
+import { openEmailDetailSidebar } from '@/Utils/email-sidebar';
 
 const query = ref('');
 const results = ref({});
@@ -57,6 +58,35 @@ const hasResults = () => {
 const formatCategoryName = (key) => {
     return key.charAt(0).toUpperCase() + key.slice(1);
 };
+
+const handleResultClick = (item, category, event) => {
+    if (category === 'tasks') {
+        event.preventDefault();
+
+        if (item.project_id) {
+            openTaskDetailSidebar(item.id, item.project_id);
+            showDropdown.value = false;
+            return;
+        }
+
+        if (item.url) {
+            window.location.href = item.url;
+        }
+        return;
+    }
+
+    if (category === 'emails') {
+        event.preventDefault();
+        openEmailDetailSidebar(item.id, {
+            subject: item.subject,
+            type: item.type,
+            created_at: item.created_at,
+            sender: item.sender,
+            recipient_email: item.recipient_email,
+        });
+        showDropdown.value = false;
+    }
+};
 </script>
 
 <template>
@@ -94,7 +124,11 @@ const formatCategoryName = (key) => {
                         </div>
                         <ul class="divide-y divide-gray-100">
                             <li v-for="item in items" :key="item.id">
-                                <a :href="item.url" class="block px-4 py-2 hover:bg-indigo-50 transition duration-150 ease-in-out text-sm text-gray-700">
+                                <a
+                                    :href="item.url"
+                                    @click="handleResultClick(item, category, $event)"
+                                    class="block px-4 py-2 hover:bg-indigo-50 transition duration-150 ease-in-out text-sm text-gray-700"
+                                >
                                     {{ item.title }}
                                 </a>
                             </li>

@@ -8,7 +8,10 @@ use App\Models\Invoice;
 use App\Models\Project;
 use App\Models\ProjectExpendable;
 use App\Models\Task;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class GlobalSearchController extends Controller
 {
@@ -16,6 +19,8 @@ class GlobalSearchController extends Controller
     {
         $query = $request->input('q');
         $user = $request->user();
+        $accessibleProjectIds = $this->getAccessibleProjectIds($user);
+        $hasGlobalProjectAccess = $accessibleProjectIds === null;
 
         if (!$query) {
             return response()->json([]);
@@ -25,6 +30,15 @@ class GlobalSearchController extends Controller
 
         // 1. Search Tasks (Prefix: OZ)
         $tasksQuery = Task::query();
+        if (!$hasGlobalProjectAccess) {
+            if ($accessibleProjectIds->isEmpty()) {
+                $tasksQuery->whereRaw('1 = 0');
+            } else {
+                $tasksQuery->whereHas('milestone', function ($milestoneQuery) use ($accessibleProjectIds) {
+                    $milestoneQuery->whereIn('project_id', $accessibleProjectIds->all());
+                });
+            }
+        }
         if (preg_match('/^#?OZ(\d+)$/i', $query, $matches)) {
             $tasksQuery->where('id', $matches[1]);
         } else {
@@ -33,13 +47,18 @@ class GlobalSearchController extends Controller
                   ->orWhere('id', 'like', "%{$query}%");
             });
         }
-        $tasks = $tasksQuery->limit(5)->get();
+        $tasks = $tasksQuery->with('milestone')->limit(5)->get();
         if ($tasks->isNotEmpty()) {
-            $results['tasks'] = $tasks->map(fn($t) => ['id' => $t->id, 'title' => "{$t->task_number} - {$t->name}", 'url' => route('tasks.show', $t->id)]);
+            $results['tasks'] = $tasks->map(fn($t) => [
+                'id' => $t->id,
+                'title' => "{$t->task_number} - {$t->name}",
+                'project_id' => $t->project_id,
+                'url' => route('projects.show', $t->project_id),
+            ]);
         }
 
         // 2. Search Emails (Prefix: OZE)
-        if ($user->hasPermission('view_emails') || true) {
+        {
             $emailsQuery = Email::query();
             if (preg_match('/^#?OZE(\d+)$/i', $query, $matches)) {
                 $emailsQuery->where('id', $matches[1]);
@@ -49,15 +68,48 @@ class GlobalSearchController extends Controller
                       ->orWhere('id', 'like', "%{$query}%");
                 });
             }
-            $emails = $emailsQuery->limit(5)->get();
+
+            if (!$hasGlobalProjectAccess) {
+                $emailsQuery->where(function ($q) use ($accessibleProjectIds, $user) {
+                    if ($accessibleProjectIds->isNotEmpty()) {
+                        $q->whereHas('conversation', function ($conversationQuery) use ($accessibleProjectIds) {
+                            $conversationQuery->whereIn('project_id', $accessibleProjectIds->all());
+                        });
+                    }
+
+                    // Keep sender-owned emails eligible for policy filtering.
+                    $q->orWhere('sender_id', $user->id);
+                });
+            }
+
+            $emails = $emailsQuery
+                ->with(['sender', 'conversation'])
+                ->limit(50)
+                ->get()
+                ->filter(fn($email) => $user->can('approveOrView', $email))
+                ->take(5)
+                ->values();
+
             if ($emails->isNotEmpty()) {
-                $results['emails'] = $emails->map(fn($e) => ['id' => $e->id, 'title' => "{$e->email_number} - {$e->subject}", 'url' => route('emails.show', $e->id ?? 0)]);
+                $results['emails'] = $emails->map(fn($e) => [
+                    'id' => $e->id,
+                    'title' => "{$e->email_number} - {$e->subject}",
+                    'subject' => $e->subject,
+                    'type' => $e->type,
+                    'created_at' => $e->created_at,
+                    'sender' => $e->sender,
+                    'recipient_email' => $e->recipient_email,
+                    'url' => route('inbox', ['open_email' => $e->id]),
+                ]);
             }
         }
 
         // 3. Search Projects (Prefix: OZP)
-        if ($user->hasPermission('view_projects') || $user->hasPermission('manage_projects')) {
+        if ($hasGlobalProjectAccess || $accessibleProjectIds->isNotEmpty()) {
             $projectsQuery = Project::query();
+            if (!$hasGlobalProjectAccess) {
+                $projectsQuery->whereIn('id', $accessibleProjectIds->all());
+            }
             if (preg_match('/^#?OZP(\d+)$/i', $query, $matches)) {
                 $projectsQuery->where('id', $matches[1]);
             } else {
@@ -75,6 +127,13 @@ class GlobalSearchController extends Controller
         // 4. Search Proposals / ProjectExpendable (Prefix: OZX)
         if ($user->hasPermission('view_project_expendable') || $user->hasPermission('view_project_expendables_proposals')) {
             $proposalsQuery = ProjectExpendable::query();
+            if (!$hasGlobalProjectAccess) {
+                if ($accessibleProjectIds->isEmpty()) {
+                    $proposalsQuery->whereRaw('1 = 0');
+                } else {
+                    $proposalsQuery->whereIn('project_id', $accessibleProjectIds->all());
+                }
+            }
             if (preg_match('/^#?OZX(\d+)$/i', $query, $matches)) {
                 $proposalsQuery->where('id', $matches[1]);
             } else {
@@ -92,6 +151,13 @@ class GlobalSearchController extends Controller
         // 5. Search Bills (Prefix: OZB)
         if ($user->hasPermission('view_project_bills')) {
             $billsQuery = Bill::query();
+            if (!$hasGlobalProjectAccess) {
+                if ($accessibleProjectIds->isEmpty()) {
+                    $billsQuery->whereRaw('1 = 0');
+                } else {
+                    $billsQuery->whereIn('project_id', $accessibleProjectIds->all());
+                }
+            }
             if (preg_match('/^#?OZB(\d+)$/i', $query, $matches)) {
                 $billsQuery->where('id', $matches[1]);
             } else {
@@ -109,6 +175,13 @@ class GlobalSearchController extends Controller
         // 6. Search Invoices (Prefix: OZI)
         if ($user->hasPermission('view_project_invoices')) {
             $invoicesQuery = Invoice::query();
+            if (!$hasGlobalProjectAccess) {
+                if ($accessibleProjectIds->isEmpty()) {
+                    $invoicesQuery->whereRaw('1 = 0');
+                } else {
+                    $invoicesQuery->whereIn('project_id', $accessibleProjectIds->all());
+                }
+            }
             if (preg_match('/^#?OZI(\d+)$/i', $query, $matches)) {
                 $invoicesQuery->where('id', $matches[1]);
             } else {
@@ -200,5 +273,43 @@ class GlobalSearchController extends Controller
         }
 
         return response()->json($results);
+    }
+
+    /**
+     * Resolve project IDs accessible to the user based on ProjectPolicy::view semantics.
+     *
+     * Returns null when user has global project visibility.
+     */
+    private function getAccessibleProjectIds(User $user): ?Collection
+    {
+        if ($user->hasPermission('view_all_projects')) {
+            return null;
+        }
+
+        if ($user->hasPermission('view_projects') && !$user->isContractor()) {
+            return null;
+        }
+
+        $projectIdsWithProjectViewPermission = DB::table('project_user as pu')
+            ->join('role_permission as rp', 'pu.role_id', '=', 'rp.role_id')
+            ->join('permissions as p', 'rp.permission_id', '=', 'p.id')
+            ->where('pu.user_id', $user->id)
+            ->where('p.slug', 'view_projects')
+            ->pluck('pu.project_id');
+
+        if ($user->isContractor() && $user->hasPermission('view_projects')) {
+            $assignedProjectIds = DB::table('project_user')
+                ->where('user_id', $user->id)
+                ->pluck('project_id');
+
+            return $projectIdsWithProjectViewPermission
+                ->merge($assignedProjectIds)
+                ->unique()
+                ->values();
+        }
+
+        return $projectIdsWithProjectViewPermission
+            ->unique()
+            ->values();
     }
 }

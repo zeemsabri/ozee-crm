@@ -22,6 +22,7 @@ import LeftSidebar from '@/Components/LeftSidebar.vue';
 import TopNavigation from '@/Components/Layout/TopNavigation.vue';
 import MobileNavigation from '@/Components/Layout/MobileNavigation.vue';
 import TaskSidebar from '@/Components/Layout/TaskSidebar.vue';
+import EmailSidebar from '@/Components/Layout/EmailSidebar.vue';
 import NoticeboardModal from "@/Components/Notices/NoticeboardModal.vue";
 import { useNotices } from '@/Utils/useNotices.js';
 import PromptOrchestrator from '@/Components/Prompts/PromptOrchestrator.vue';
@@ -283,6 +284,8 @@ onBeforeUnmount(() => {
             @task-updated="handleTaskUpdated"
             @task-deleted="handleTaskDeleted"
         />
+
+        <EmailSidebar />
 
         <CommunicationSidebar />
 
