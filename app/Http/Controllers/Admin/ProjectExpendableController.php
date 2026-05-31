@@ -14,6 +14,7 @@ class ProjectExpendableController extends Controller
     {
         return Inertia::render('Admin/ProjectExpendables/Index', [
             'transaction_types' => TransactionType::orderBy('name')->get(),
+            'initial_project_id' => $request->input('project_id'),
         ]);
     }
 }
