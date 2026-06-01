@@ -10,10 +10,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class XeroPaymentServiceCatalog
 {
-    public function __construct(private readonly XeroTokenService $xeroTokenService)
+    public function __construct(
+        private readonly XeroTokenService $xeroTokenService,
+        private readonly XeroAuthService $xeroAuthService
+    )
     {
     }
 
@@ -45,14 +49,20 @@ class XeroPaymentServiceCatalog
     {
         $connection ??= $this->xeroTokenService->getActiveConnection();
 
-        $response = Http::withToken($connection->access_token)
-            ->withHeaders([
-                'Xero-tenant-id' => $connection->selected_tenant_id,
-                'Accept' => 'application/json',
-            ])
-            ->get('https://api.xero.com/api.xro/2.0/PaymentServices')
-            ->throw()
-            ->json();
+        try {
+            $response = $this->fetchRemotePaymentServices($connection);
+        } catch (RuntimeException $exception) {
+            if ($this->isPaymentServicesUnavailable($exception)) {
+                Log::warning('Xero PaymentServices endpoint is unavailable for this app; returning cached services.', [
+                    'xero_connection_id' => $connection->id,
+                    'error' => $exception->getMessage(),
+                ]);
+
+                return $this->getCachedActiveServices($connection->id);
+            }
+
+            throw $exception;
+        }
 
         $now = now();
         $normalized = collect(data_get($response, 'PaymentServices', []))
@@ -93,8 +103,59 @@ class XeroPaymentServiceCatalog
             ]);
         });
 
+        return $this->getCachedActiveServices($connection->id);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fetchRemotePaymentServices(XeroConnection $connection): array
+    {
+        $request = function (XeroConnection $activeConnection) {
+            return Http::withToken($activeConnection->access_token)
+                ->withHeaders([
+                    'Xero-tenant-id' => $activeConnection->selected_tenant_id,
+                    'Accept' => 'application/json',
+                ])
+                ->get('https://api.xero.com/api.xro/2.0/PaymentServices');
+        };
+
+        $response = $request($connection);
+
+        if ($response->status() === 401) {
+            $connection = $this->xeroAuthService->refreshConnection($connection->fresh(['tenants']) ?? $connection);
+            $response = $request($connection);
+        }
+
+        if (in_array($response->status(), [401, 403], true)) {
+            $detail = (string) data_get($response->json(), 'Detail', '');
+            $title = (string) data_get($response->json(), 'Title', '');
+
+            if (
+                Str::contains($detail, 'AuthorizationUnsuccessful', true)
+                || Str::contains($title, 'Unauthorized', true)
+            ) {
+                throw new RuntimeException(
+                    'Xero PaymentServices API is unavailable for this app. This endpoint requires Xero payment-service partner certification.'
+                );
+            }
+        }
+
+        return $response->throw()->json();
+    }
+
+    private function isPaymentServicesUnavailable(RuntimeException $exception): bool
+    {
+        return Str::contains($exception->getMessage(), 'PaymentServices API is unavailable for this app', true);
+    }
+
+    /**
+     * @return array<int, array{id: string, name: string, status: string, provider: string|null, last_synced_at: string|null}>
+     */
+    private function getCachedActiveServices(int $connectionId): array
+    {
         $activeServices = XeroPaymentService::query()
-            ->where('xero_connection_id', $connection->id)
+            ->where('xero_connection_id', $connectionId)
             ->where('status', 'ACTIVE')
             ->orderByRaw('COALESCE(name, payment_service_id) asc')
             ->get();

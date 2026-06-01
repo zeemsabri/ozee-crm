@@ -30,9 +30,6 @@ const editProcessing = ref(false);
 const editableLineItems = ref([]);
 const projectServicesForEdit = ref([]);
 const loadingEditServices = ref(false);
-const paymentServices = ref([]);
-const loadingPaymentServices = ref(false);
-const editablePaymentServiceIds = ref([]);
 
 const taxTypeOptions = [
     { value: 'OUTPUT', label: 'OUTPUT - GST on Income (10%)' },
@@ -67,16 +64,6 @@ const calculatedSubtotal = computed(() => {
 
 const canEditInvoice = computed(() => {
     return Boolean(invoiceData.value?.can_edit_invoice && invoiceData.value?.can_financially_edit_invoice);
-});
-
-const selectedPaymentServiceNames = computed(() => {
-    const selectedIds = Array.isArray(invoiceData.value?.xero_payment_service_ids)
-        ? invoiceData.value.xero_payment_service_ids
-        : [];
-
-    const labelsById = new Map(paymentServices.value.map((service) => [service.id, service.name]));
-
-    return selectedIds.map((id) => labelsById.get(id) || id);
 });
 
 const buildMilestoneKey = (service, milestone, index) => `${service?.project_service_id ?? service?.id ?? 'service'}-${index}-${milestone.label}-${milestone.percentage}-${milestone.due_date ?? ''}`;
@@ -187,19 +174,6 @@ const fetchProjectServicesForEdit = async () => {
     }
 };
 
-const fetchPaymentServices = async () => {
-    loadingPaymentServices.value = true;
-    try {
-        const { data } = await axios.get('/api/xero/payment-services');
-        paymentServices.value = data.payment_services || [];
-    } catch (err) {
-        paymentServices.value = [];
-        error(err.response?.data?.message || 'Failed to load payment methods.');
-    } finally {
-        loadingPaymentServices.value = false;
-    }
-};
-
 const getStatusLabel = (status) => {
     switch ((status || '').toLowerCase()) {
         case 'pending_approval': return 'Awaiting Approval';
@@ -244,7 +218,7 @@ const syncInvoiceAndNotes = async () => {
 
 const startEditInvoice = async () => {
     if (!canEditInvoice.value) return;
-    await Promise.all([fetchProjectServicesForEdit(), fetchPaymentServices()]);
+    await fetchProjectServicesForEdit();
 
     editableLineItems.value = (invoiceData.value.invoice_items || []).map((item) => ({
         id: item.id,
@@ -258,16 +232,12 @@ const startEditInvoice = async () => {
         tax_type: item.tax_type || 'OUTPUT',
         milestone_percentage: Number(item.milestone_percentage || 0),
     }));
-    editablePaymentServiceIds.value = Array.isArray(invoiceData.value.xero_payment_service_ids)
-        ? [...invoiceData.value.xero_payment_service_ids]
-        : [];
     isEditMode.value = true;
 };
 
 const cancelEditInvoice = () => {
     isEditMode.value = false;
     editableLineItems.value = [];
-    editablePaymentServiceIds.value = [];
 };
 
 const saveInvoiceEdits = async () => {
@@ -287,7 +257,6 @@ const saveInvoiceEdits = async () => {
     editProcessing.value = true;
     try {
         const payload = {
-            xero_payment_service_ids: editablePaymentServiceIds.value,
             line_items: editableLineItems.value.map((item) => ({
                 id: item.id,
                 project_service_id: item.project_service_id,
@@ -305,7 +274,6 @@ const saveInvoiceEdits = async () => {
         invoiceData.value = data;
         isEditMode.value = false;
         editableLineItems.value = [];
-        editablePaymentServiceIds.value = [];
         success('Invoice updated successfully.');
         await fetchNotes();
     } catch (err) {
@@ -520,7 +488,6 @@ const printInvoice = () => {
 
 onMounted(() => {
     document.addEventListener('click', handleDocumentClick);
-    fetchPaymentServices();
     syncInvoiceAndNotes();
 });
 
@@ -705,13 +672,6 @@ onBeforeUnmount(() => {
                                                 <span class="text-slate-500">Currency</span>
                                                 <span class="font-semibold text-slate-700">{{ invoiceData.currency || 'AUD' }}</span>
                                             </div>
-                                            <div class="pt-1">
-                                                <span class="text-slate-500">Payment Methods</span>
-                                                <p v-if="selectedPaymentServiceNames.length" class="mt-1 text-[11px] font-medium text-slate-700">
-                                                    {{ selectedPaymentServiceNames.join(', ') }}
-                                                </p>
-                                                <p v-else class="mt-1 text-[11px] text-slate-400">None selected</p>
-                                            </div>
                                         </div>
                                         <div class="mt-4 pt-3 border-t border-slate-200 flex justify-between items-baseline">
                                             <span class="text-xs text-slate-400">Amount Due</span>
@@ -733,23 +693,6 @@ onBeforeUnmount(() => {
                                         >
                                             Add Service
                                         </button>
-                                    </div>
-
-                                    <div v-if="isEditMode" class="mb-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
-                                        <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Payment Methods (Xero Pay Now)</label>
-                                        <select
-                                            v-model="editablePaymentServiceIds"
-                                            multiple
-                                            :disabled="loadingPaymentServices"
-                                            class="block min-h-24 w-full rounded border-slate-300 text-xs"
-                                        >
-                                            <option v-for="service in paymentServices" :key="service.id" :value="service.id">
-                                                {{ service.name }}
-                                            </option>
-                                        </select>
-                                        <p class="mt-1 text-[11px] text-slate-500">
-                                            {{ loadingPaymentServices ? 'Loading payment methods...' : 'Select one or more methods to include Pay Now options in Xero.' }}
-                                        </p>
                                     </div>
 
                                     <table class="min-w-full text-sm">

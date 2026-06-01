@@ -29,8 +29,6 @@ const existingProjectInvoices = ref([]);
 const existingStatusFilter = ref('');
 const existingServiceFilter = ref('');
 const existingMilestoneFilter = ref('');
-const paymentServices = ref([]);
-const loadingPaymentServices = ref(false);
 
 const taxTypeOptions = [
     { value: 'OUTPUT', label: 'OUTPUT - GST on Income (10%)' },
@@ -57,18 +55,8 @@ const form = useForm({
     client_id: '',
     total_amount: '',
     xero_branding_theme_id: '',
-    xero_payment_service_ids: [],
     attachments: [],
     line_items: [],
-});
-
-const paymentServiceError = computed(() => {
-    if (form.errors.xero_payment_service_ids) {
-        return form.errors.xero_payment_service_ids;
-    }
-
-    const nestedKey = Object.keys(form.errors).find((key) => key.startsWith('xero_payment_service_ids.'));
-    return nestedKey ? form.errors[nestedKey] : '';
 });
 
 const lineItems = ref([emptyLineItem()]);
@@ -356,19 +344,6 @@ const fetchBrandingThemes = async () => {
     }
 };
 
-const fetchPaymentServices = async () => {
-    loadingPaymentServices.value = true;
-    try {
-        const { data } = await axios.get('/api/xero/payment-services');
-        paymentServices.value = data.payment_services || [];
-    } catch (err) {
-        paymentServices.value = [];
-        console.error('Failed to fetch payment services', err);
-    } finally {
-        loadingPaymentServices.value = false;
-    }
-};
-
 const fetchProjects = async () => {
     try {
         const { data } = await axios.get('/api/projects-for-email');
@@ -393,7 +368,6 @@ const openCreateModal = () => {
     form.reset();
     form.clearErrors();
     form.xero_branding_theme_id = defaultBrandingThemeId.value;
-    form.xero_payment_service_ids = [];
     form.attachments = [];
     projectServices.value = [];
     lineItems.value = [emptyLineItem()];
@@ -451,9 +425,6 @@ const submitInvoice = async () => {
         if (form.xero_branding_theme_id) {
             formData.append('xero_branding_theme_id', form.xero_branding_theme_id);
         }
-        (form.xero_payment_service_ids || []).forEach((serviceId, index) => {
-            formData.append(`xero_payment_service_ids[${index}]`, serviceId);
-        });
         form.line_items.forEach((item, index) => {
             Object.entries(item).forEach(([key, val]) => {
                 formData.append(`line_items[${index}][${key}]`, val);
@@ -481,10 +452,6 @@ const submitInvoice = async () => {
         if (validationErrors.client_id?.[0]) {
             form.setError('client_id', validationErrors.client_id[0]);
         }
-        if (validationErrors.xero_payment_service_ids?.[0]) {
-            form.setError('xero_payment_service_ids', validationErrors.xero_payment_service_ids[0]);
-        }
-
         const lineItemError = validationErrors.line_items?.[0]
             || validationErrors['line_items.0.milestone_key']?.[0]
             || validationErrors['line_items.0.project_service_id']?.[0];
@@ -614,7 +581,6 @@ onMounted(() => {
     fetchInvoices();
     fetchProjects();
     fetchBrandingThemes();
-    fetchPaymentServices();
 });
 
 const getStatusClass = (status) => {
@@ -747,25 +713,6 @@ const getStatusClass = (status) => {
                                 </option>
                             </select>
                             <InputError :message="form.errors.xero_branding_theme_id" />
-                        </div>
-
-                        <div>
-                            <InputLabel for="xero_payment_service_ids" value="Payment Methods (Xero Pay Now)" />
-                            <select
-                                id="xero_payment_service_ids"
-                                v-model="form.xero_payment_service_ids"
-                                multiple
-                                :disabled="loadingPaymentServices"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 min-h-28"
-                            >
-                                <option v-for="service in paymentServices" :key="service.id" :value="service.id">
-                                    {{ service.name }}
-                                </option>
-                            </select>
-                            <p class="mt-1 text-xs text-gray-500">
-                                {{ loadingPaymentServices ? 'Loading payment methods...' : 'Select one or more methods to include Pay Now options in Xero.' }}
-                            </p>
-                            <InputError :message="paymentServiceError" />
                         </div>
 
                         <div>

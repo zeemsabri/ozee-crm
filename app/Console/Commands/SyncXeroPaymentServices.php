@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Services\XeroPaymentServiceCatalog;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 
 class SyncXeroPaymentServices extends Command
 {
@@ -24,6 +25,12 @@ class SyncXeroPaymentServices extends Command
 
             return self::SUCCESS;
         } catch (\Throwable $e) {
+            if (Str::contains($e->getMessage(), 'PaymentServices API is unavailable for this app', true)) {
+                $this->warn($e->getMessage());
+
+                return self::SUCCESS;
+            }
+
             $this->error('Failed to sync Xero payment services: '.$e->getMessage());
 
             return self::FAILURE;
