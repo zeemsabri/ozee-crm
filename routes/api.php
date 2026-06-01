@@ -68,6 +68,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\XeroWebhookController;
 use App\Http\Controllers\Api\XeroAccountController;
@@ -828,7 +829,10 @@ Route::middleware('auth:sanctum')->group(function () {
 // === Client-Specific API Routes (Protected by Magic Link Token) ===
 // These routes will be used by the Vue client dashboard, authenticated via magic link.
 // Client Dashboard API Routes (protected by magiclink middleware)
-Route::prefix('client-api')->middleware(['auth.magiclink'])->group(function () {
+Route::prefix('client-api')
+    ->middleware(['auth.magiclink'])
+    ->withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
+    ->group(function () {
 
     Route::get('project/{project}', [ProjectClientReader::class, 'getProject']);
     Route::get('project/{project}/wireframes', [ProjectClientReader::class, 'getWireframes']);
