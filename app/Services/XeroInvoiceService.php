@@ -63,6 +63,19 @@ class XeroInvoiceService
             $payload['BrandingThemeID'] = $invoice->xero_branding_theme_id;
         }
 
+        $paymentServiceIds = collect($invoice->xero_payment_service_ids ?? [])
+            ->filter(fn ($id) => filled($id))
+            ->map(fn ($id) => trim((string) $id))
+            ->filter(fn ($id) => $id !== '')
+            ->unique()
+            ->values();
+
+        if ($paymentServiceIds->isNotEmpty()) {
+            $payload['PaymentServices'] = $paymentServiceIds
+                ->map(fn (string $id) => ['PaymentServiceID' => $id])
+                ->all();
+        }
+
         $response = Http::withToken($credentials['access_token'])
             ->withHeaders([
                 'Xero-tenant-id' => $credentials['tenant_id'],

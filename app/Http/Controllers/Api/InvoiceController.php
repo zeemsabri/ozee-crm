@@ -62,6 +62,8 @@ class InvoiceController extends Controller
             'client_id' => 'required|exists:clients,id',
             'total_amount' => 'nullable|numeric|min:0',
             'xero_branding_theme_id' => 'nullable|string',
+            'xero_payment_service_ids' => 'nullable|array',
+            'xero_payment_service_ids.*' => 'nullable|string|max:255|distinct',
             'attachments' => 'nullable|array',
             'attachments.*' => 'file|max:20480',
             'line_items' => 'nullable|array',
@@ -121,6 +123,10 @@ class InvoiceController extends Controller
                 'status' => 'pending_approval',
                 'currency' => $currency,
                 'xero_branding_theme_id' => $validated['xero_branding_theme_id'] ?? null,
+                'xero_payment_service_ids' => collect($validated['xero_payment_service_ids'] ?? [])
+                    ->filter(fn ($id) => filled($id))
+                    ->values()
+                    ->all(),
             ]);
 
             if ($request->hasFile('attachments')) {
@@ -321,6 +327,8 @@ class InvoiceController extends Controller
 
         $validated = $request->validate([
             'line_items' => 'required|array|min:1',
+            'xero_payment_service_ids' => 'nullable|array',
+            'xero_payment_service_ids.*' => 'nullable|string|max:255|distinct',
             'line_items.*.id' => 'nullable|integer|exists:invoice_items,id',
             'line_items.*.project_service_id' => 'required|integer|exists:project_services,id',
             'line_items.*.milestone_key' => 'required|string|max:255',
@@ -415,6 +423,14 @@ class InvoiceController extends Controller
             }
 
             $invoice->total_amount = (float) $invoice->invoiceItems()->sum(DB::raw('quantity * unit_price'));
+
+            if (array_key_exists('xero_payment_service_ids', $validated)) {
+                $invoice->xero_payment_service_ids = collect($validated['xero_payment_service_ids'] ?? [])
+                    ->filter(fn ($id) => filled($id))
+                    ->values()
+                    ->all();
+            }
+
             $invoice->save();
 
             $this->recordReviewAction(

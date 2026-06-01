@@ -435,12 +435,12 @@ class TaskController extends Controller
         ]);
 
         $created = [];
-        $defaultTaskType = TaskType::firstOrCreate(['name' => 'New']);
+        $defaultTaskType = TaskType::firstOrCreate(['name' => 'New', 'created_by_user_id' => Auth::id()]);
 
         foreach ($validated['tasks'] as $item) {
             $projectId = $item['project_id'];
             $project = \App\Models\Project::findOrFail($projectId);
-            
+
             $milestoneId = $item['milestone_id'] ?? null;
             if (!$milestoneId) {
                 $milestoneId = $project->supportMilestone()->id;
@@ -455,6 +455,7 @@ class TaskController extends Controller
                 'task_type_id' => $defaultTaskType->id,
                 'milestone_id' => $milestoneId,
                 'assigned_to_user_id' => $item['assigned_to_user_id'] ?? Auth::id(),
+                'created_by_user_id' => Auth::id(),
             ]);
 
             $task->load(['assignedTo', 'taskType', 'milestone.project']);

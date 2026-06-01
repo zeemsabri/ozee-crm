@@ -32,8 +32,8 @@ class ProjectReadController extends Controller
 
         // Select only required columns to minimize payload
         $selectColumns = [
-            'projects.id', 'projects.name', 'projects.description', 
-            'projects.status', 'projects.source', 'projects.client_id', 
+            'projects.id', 'projects.name', 'projects.description',
+            'projects.status', 'projects.source', 'projects.client_id',
             'projects.deleted_at'
         ];
 
@@ -48,7 +48,7 @@ class ProjectReadController extends Controller
             $projects = $query->with([
                 'clients' => function ($query) {
                     $query->select('clients.id', 'clients.name');
-                }, 
+                },
                 'users' => function ($query) {
                     $query->select('users.id', 'users.name')->withPivot('role_id');
                 }
@@ -65,7 +65,7 @@ class ProjectReadController extends Controller
             $projects = $query->with([
                 'clients' => function ($query) {
                     $query->select('clients.id', 'clients.name');
-                }, 
+                },
                 'users' => function ($query) {
                     $query->select('users.id', 'users.name')->withPivot('role_id');
                 }

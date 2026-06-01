@@ -71,6 +71,7 @@ use Illuminate\Support\Str;
 use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\XeroWebhookController;
 use App\Http\Controllers\Api\XeroAccountController;
+use App\Http\Controllers\Api\XeroPaymentServiceController;
 
 Route::post('/telegram/wh', [TelegramWebhookController::class, 'handle']);
 Route::post('/telegram/test-telegram', [TelegramWebhookController::class, 'send']);
@@ -165,6 +166,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('admin/invoices', [InvoiceController::class, 'all'])->name('api.admin.invoices.all');
     Route::get('xero/accounts', [XeroAccountController::class, 'index'])->name('api.xero.accounts');
     Route::get('xero/items', [XeroAccountController::class, 'items'])->name('api.xero.items');
+    Route::get('xero/payment-services', [XeroPaymentServiceController::class, 'index'])->name('api.xero.payment-services.index');
+    Route::post('xero/payment-services/refresh', [XeroPaymentServiceController::class, 'refresh'])->name('api.xero.payment-services.refresh');
     
     Route::get('projects/{project}/bills', [BillController::class, 'index'])->middleware('permission:view_project_bills')->name('api.bills.index');
     Route::post('projects/{project}/bills', [BillController::class, 'store'])->middleware('permission:create_project_bills')->name('api.bills.store');

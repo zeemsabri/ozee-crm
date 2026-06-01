@@ -62,6 +62,11 @@ class XeroConnection extends Model
         return $this->hasMany(XeroTenant::class);
     }
 
+    public function paymentServices(): HasMany
+    {
+        return $this->hasMany(XeroPaymentService::class, 'xero_connection_id');
+    }
+
     public function isConnected(): bool
     {
         return $this->status === 'connected'

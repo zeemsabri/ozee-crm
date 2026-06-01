@@ -70,7 +70,7 @@ class PublicProjectController extends Controller
             'id'              => $m->id,
             'name'            => (string) $m->name,
             'description'     => $m->description ? (string) $m->description : null,
-            'status'          => (string) $m->status,
+            'status'          => $m->status instanceof \BackedEnum ? $m->status->value : (string) $m->status,
             'completion_date' => $m->completion_date?->format('d M Y'),
         ])->values();
 
@@ -83,7 +83,7 @@ class PublicProjectController extends Controller
                 'milestone_id' => $d->milestone_id,
                 'name' => (string) $d->name,
                 'description' => $d->description ? (string) $d->description : null,
-                'status' => (string) $d->status,
+                'status' => $d->status instanceof \BackedEnum ? $d->status->value : (string) $d->status,
                 'due_date' => $d->due_date?->format('d M Y'),
                 'checklist' => $this->sanitizeChecklist($d->details),
             ])

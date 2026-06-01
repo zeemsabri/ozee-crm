@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Client;
+use App\Models\Invoice;
 use App\Models\Permission;
 use App\Models\Project;
 use App\Models\ProjectService;
@@ -80,6 +81,7 @@ class InvoiceLineItemInvoicingTest extends TestCase
 
         $response = $this->postJson("/api/projects/{$project->id}/invoices", [
             'client_id' => $client->id,
+            'xero_payment_service_ids' => ['ps-stripe-1', 'ps-paypal-1'],
             'line_items' => [
                 [
                     'project_service_id' => $serviceOne->id,
@@ -112,6 +114,9 @@ class InvoiceLineItemInvoicingTest extends TestCase
             'total_amount' => '800.00',
             'status' => 'pending_approval',
         ]);
+
+        $storedInvoice = Invoice::query()->findOrFail($invoiceId);
+        $this->assertSame(['ps-stripe-1', 'ps-paypal-1'], $storedInvoice->xero_payment_service_ids);
 
         $this->assertDatabaseHas('invoice_items', [
             'invoice_id' => $invoiceId,
@@ -157,6 +162,9 @@ class InvoiceLineItemInvoicingTest extends TestCase
             return $request->url() === 'https://api.xero.com/api.xro/2.0/Invoices'
                 && $payload['Type'] === 'ACCREC'
                 && count($payload['LineItems']) === 2
+                && count($payload['PaymentServices']) === 2
+                && $payload['PaymentServices'][0]['PaymentServiceID'] === 'ps-stripe-1'
+                && $payload['PaymentServices'][1]['PaymentServiceID'] === 'ps-paypal-1'
                 && $payload['LineItems'][0]['Description'] === 'Website Design - Payment 1 - 30%'
                 && $payload['LineItems'][0]['UnitAmount'] === 300.0
                 && $payload['LineItems'][0]['AccountCode'] === '200'

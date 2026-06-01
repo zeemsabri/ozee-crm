@@ -44,7 +44,8 @@ class GlobalSearchController extends Controller
         } else {
             $tasksQuery->where(function($q) use ($query) {
                 $q->where('name', 'like', "%{$query}%")
-                  ->orWhere('id', 'like', "%{$query}%");
+                  ->orWhere('id', 'like', "%{$query}%")
+                  ->orWhereRaw("CONCAT('OZ', id) LIKE ?", ["%{$query}%"]);
             });
         }
         $tasks = $tasksQuery->with('milestone')->limit(5)->get();
@@ -65,7 +66,8 @@ class GlobalSearchController extends Controller
             } else {
                 $emailsQuery->where(function($q) use ($query) {
                     $q->where('subject', 'like', "%{$query}%")
-                      ->orWhere('id', 'like', "%{$query}%");
+                      ->orWhere('id', 'like', "%{$query}%")
+                      ->orWhereRaw("CONCAT('OZE', id) LIKE ?", ["%{$query}%"]);
                 });
             }
 
@@ -83,7 +85,7 @@ class GlobalSearchController extends Controller
             }
 
             $emails = $emailsQuery
-                ->with(['sender', 'conversation'])
+                ->with(['sender', 'conversation.project'])
                 ->limit(50)
                 ->get()
                 ->filter(fn($email) => $user->can('approveOrView', $email))
@@ -91,16 +93,20 @@ class GlobalSearchController extends Controller
                 ->values();
 
             if ($emails->isNotEmpty()) {
-                $results['emails'] = $emails->map(fn($e) => [
-                    'id' => $e->id,
-                    'title' => "{$e->email_number} - {$e->subject}",
-                    'subject' => $e->subject,
-                    'type' => $e->type,
-                    'created_at' => $e->created_at,
-                    'sender' => $e->sender,
-                    'recipient_email' => $e->recipient_email,
-                    'url' => route('inbox', ['open_email' => $e->id]),
-                ]);
+                $results['emails'] = $emails->map(function($e) {
+                    $projectName = $e->conversation?->project?->name;
+                    $titlePrefix = $projectName ? "[{$projectName}] " : '';
+                    return [
+                        'id' => $e->id,
+                        'title' => "{$e->email_number} - {$titlePrefix}{$e->subject}",
+                        'subject' => $e->subject,
+                        'type' => $e->type,
+                        'created_at' => $e->created_at,
+                        'sender' => $e->sender,
+                        'recipient_email' => $e->recipient_email,
+                        'url' => route('inbox', ['open_email' => $e->id]),
+                    ];
+                });
             }
         }
 
@@ -115,7 +121,8 @@ class GlobalSearchController extends Controller
             } else {
                 $projectsQuery->where(function($q) use ($query) {
                     $q->where('name', 'like', "%{$query}%")
-                      ->orWhere('id', 'like', "%{$query}%");
+                      ->orWhere('id', 'like', "%{$query}%")
+                      ->orWhereRaw("CONCAT('OZP', id) LIKE ?", ["%{$query}%"]);
                 });
             }
             $projects = $projectsQuery->limit(5)->get();
@@ -139,7 +146,8 @@ class GlobalSearchController extends Controller
             } else {
                 $proposalsQuery->where(function($q) use ($query) {
                     $q->where('name', 'like', "%{$query}%")
-                      ->orWhere('id', 'like', "%{$query}%");
+                      ->orWhere('id', 'like', "%{$query}%")
+                      ->orWhereRaw("CONCAT('OZX', id) LIKE ?", ["%{$query}%"]);
                 });
             }
             $proposals = $proposalsQuery->limit(5)->get();
@@ -163,7 +171,8 @@ class GlobalSearchController extends Controller
             } else {
                 $billsQuery->where(function($q) use ($query) {
                     $q->where('reference_number', 'like', "%{$query}%")
-                      ->orWhere('id', 'like', "%{$query}%");
+                      ->orWhere('id', 'like', "%{$query}%")
+                      ->orWhereRaw("CONCAT('OZB', id) LIKE ?", ["%{$query}%"]);
                 });
             }
             $bills = $billsQuery->limit(5)->get();
@@ -187,7 +196,8 @@ class GlobalSearchController extends Controller
             } else {
                 $invoicesQuery->where(function($q) use ($query) {
                     $q->where('invoice_number', 'like', "%{$query}%")
-                      ->orWhere('id', 'like', "%{$query}%");
+                      ->orWhere('id', 'like', "%{$query}%")
+                      ->orWhereRaw("CONCAT('OZI', id) LIKE ?", ["%{$query}%"]);
                 });
             }
             $invoices = $invoicesQuery->limit(5)->get();

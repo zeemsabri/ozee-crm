@@ -19,10 +19,12 @@ class Invoice extends Model
         'invoice_number',
         'currency',
         'xero_branding_theme_id',
+        'xero_payment_service_ids',
     ];
 
     protected $casts = [
         'total_amount' => 'decimal:2',
+        'xero_payment_service_ids' => 'array',
     ];
 
     public function client()

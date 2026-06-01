@@ -12,6 +12,7 @@ Schedule::command(\App\Console\Commands\FetchEmails::class)->everyMinute();
 //
 Schedule::job(new \App\Jobs\FetchCurrencyRatesJob)->daily();
 Schedule::job(new \App\Jobs\XeroPaymentSyncJob)->daily();
+Schedule::command('xero:refresh-payment-services')->everySixHours();
 
 Schedule::command('queue:work --stop-when-empty')->everyMinute();
 
