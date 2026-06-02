@@ -92,6 +92,7 @@ class ProjectClientReader extends Controller
             $milestoneIds = $project->milestones()->where('name', Project::SUPPORT)->pluck('id')->toArray();
 
             $tasks = \App\Models\Task::whereIn('milestone_id', $milestoneIds)
+                ->where('creator_type', Client::class)
                 ->with(['notes' => function ($query) {
                     $query->orderBy('created_at', 'asc'); // Order notes chronologically
                 }])
