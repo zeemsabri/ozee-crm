@@ -108,8 +108,8 @@ class LiveStatusController extends Controller
      */
     private function getActivityInsights(Carbon $startUtc, Carbon $endUtc, string $viewerTimezone): array
     {
-        $versionExpression = "JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.extension_version'))";
-        $eventCountExpression = "COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.event_count')) AS UNSIGNED), 1)";
+        $versionExpression = "JSON_UNQUOTE(JSON_EXTRACT(user_activities.metadata, '$.extension_version'))";
+        $eventCountExpression = "COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(user_activities.metadata, '$.event_count')) AS UNSIGNED), 1)";
 
         $summaries = UserActivity::query()
             ->join('users', 'users.id', '=', 'user_activities.user_id')
@@ -119,7 +119,7 @@ class LiveStatusController extends Controller
             ->selectRaw('users.name as user_name')
             ->selectRaw('users.is_online as user_is_online')
             ->selectRaw('COUNT(*) as session_count')
-            ->selectRaw('SUM(duration) as total_duration')
+            ->selectRaw('SUM(user_activities.duration) as total_duration')
             ->selectRaw("SUM({$eventCountExpression}) as activity_count")
             ->selectRaw('MIN(user_activities.recorded_at) as first_activity_at')
             ->selectRaw('MAX(user_activities.recorded_at) as last_activity_at')
