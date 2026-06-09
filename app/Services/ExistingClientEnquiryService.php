@@ -574,16 +574,22 @@ class ExistingClientEnquiryService
                     'name' => (string) $detail['service_id']
                 ]);
 
+                $fallbackPaymentBreakdown = is_array($crmService->default_payment_breakdown ?? null)
+                    ? $crmService->default_payment_breakdown
+                    : null;
+
                 $payload = [
                     'project_id' => $project->id,
                     'enquiry_id' => $detail['enquiry_id'] ?? (string) Str::uuid(),
                     'crm_service_id' => $crmService->id,
-                    'description' => $detail['description'] ?? null,
-                    'amount' => $detail['amount'] ?? 0,
-                    'currency' => $detail['currency'] ?? $project->currency,
-                    'frequency' => $detail['frequency'] ?? 'one_off',
+                    'description' => filled($detail['description'] ?? null) ? $detail['description'] : ($crmService->default_description ?? null),
+                    'amount' => is_numeric($detail['amount'] ?? null)
+                        ? $detail['amount']
+                        : (is_numeric($crmService->default_amount ?? null) ? (float) $crmService->default_amount : 0),
+                    'currency' => $detail['currency'] ?? ($crmService->default_currency ?? $project->currency),
+                    'frequency' => $detail['frequency'] ?? ($crmService->default_frequency ?? 'one_off'),
                     'start_date' => $detail['start_date'] ?? null,
-                    'payment_breakdown' => $detail['payment_breakdown'] ?? null,
+                    'payment_breakdown' => $detail['payment_breakdown'] ?? $fallbackPaymentBreakdown,
                     'status' => $detail['status'] ?? 'active',
                     'service_tracking_type' => $detail['service_tracking_type'] ?? self::TRACKING_OPERATIONAL,
                     'show_on_leads_board' => (bool) ($detail['show_on_leads_board'] ?? false),
@@ -591,7 +597,9 @@ class ExistingClientEnquiryService
                     'enquiry_created_at' => $detail['enquiry_created_at'] ?? null,
                     'enquiry_updated_at' => $detail['enquiry_updated_at'] ?? null,
                     'enquiry_meta' => is_array($detail['enquiry_meta'] ?? null) ? $detail['enquiry_meta'] : [],
-                    'xero_account_code' => $detail['xero_account_code'] ?? ($existing?->xero_account_code),
+                    'xero_account_code' => $detail['xero_account_code']
+                        ?? ($existing?->xero_account_code)
+                        ?? ($crmService->default_xero_account_code ?? null),
                 ];
 
                 if ($existing) {

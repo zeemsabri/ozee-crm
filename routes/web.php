@@ -488,6 +488,7 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         Route::get('/financials/bills/{id}', [\App\Http\Controllers\Admin\FinancialController::class, 'showBill'])->middleware('permission:view_project_bills')->name('financials.bills.show');
         Route::get('/financials/invoices', [\App\Http\Controllers\Admin\FinancialController::class, 'invoices'])->name('financials.invoices');
         Route::get('/financials/invoices/{id}', [\App\Http\Controllers\Admin\FinancialController::class, 'showInvoice'])->name('financials.invoices.show');
+        Route::get('/financials/project-services', [\App\Http\Controllers\Admin\FinancialController::class, 'projectServices'])->name('financials.project-services');
 
     });
 

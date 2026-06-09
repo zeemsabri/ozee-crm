@@ -61,7 +61,15 @@ const fetchCrmServices = async () => {
         const response = await window.axios.get('/api/crm-services');
         internalDepartmentOptions.value = response.data.map(service => ({
             value: service.name,
-            label: service.name
+            label: service.name,
+            defaults: {
+                amount: service.default_amount,
+                currency: service.default_currency,
+                frequency: service.default_frequency,
+                payment_breakdown: Array.isArray(service.default_payment_breakdown) ? service.default_payment_breakdown : null,
+                description: service.default_description,
+                xero_account_code: service.default_xero_account_code,
+            }
         }));
     } catch (error) {
         console.error('Failed to fetch CRM services:', error);
@@ -172,11 +180,42 @@ const addNewDepartment = () => {
     if (trimmedName && !internalDepartmentOptions.value.some(option => option.label.toLowerCase() === trimmedName.toLowerCase())) {
         internalDepartmentOptions.value.push({
             value: trimmedName, // Using the name as value for new custom options
-            label: trimmedName
+            label: trimmedName,
+            defaults: null,
         });
         newDepartmentName.value = ''; // Clear the input
         showAddDepartmentInput.value = false; // Hide the input after adding
     }
+};
+
+const getServiceDefaults = (serviceId) => {
+    return internalDepartmentOptions.value.find(option => option.value === serviceId)?.defaults || null;
+};
+
+const buildDefaultServiceDetail = (serviceId) => {
+    const defaults = getServiceDefaults(serviceId);
+
+    return {
+        service_id: serviceId,
+        amount: defaults?.amount ?? '',
+        frequency: defaults?.frequency || 'one_off',
+        start_date: '',
+        description: defaults?.description || '',
+        payment_breakdown: Array.isArray(defaults?.payment_breakdown) && defaults.payment_breakdown.length
+            ? defaults.payment_breakdown.map((payment, index) => ({
+                label: payment?.label || `Payment ${index + 1}`,
+                percentage: Number.parseInt(payment?.percentage, 10) || 0,
+                due_date: payment?.due_date || null,
+            }))
+            : [{ label: 'Payment 1', percentage: 100, due_date: null }],
+        currency: defaults?.currency || formData.currency,
+        xero_account_code: defaults?.xero_account_code || null,
+        service_tracking_type: 'operational_service',
+        show_on_leads_board: false,
+        enquiry_status: null,
+        enquiry_id: null,
+        enquiry_meta: {},
+    };
 };
 
 // Fetch services and payment data
@@ -284,22 +323,7 @@ const handleServiceSelection = (serviceId, isSelected) => {
     if (isSelected) {
         // Add service to service_details if it doesn't exist
         if (!formData.service_details.some(detail => detail.service_id === serviceId)) {
-            formData.service_details.push({
-                service_id: serviceId,
-                amount: '',
-                frequency: 'one_off',
-                start_date: '',
-                description: '',
-                payment_breakdown: [
-                    { label: 'Payment 1', percentage: 100, due_date: null } // Default to 100% for new service
-                ],
-                currency: formData.currency, // Default to overall project currency
-                service_tracking_type: 'operational_service',
-                show_on_leads_board: false,
-                enquiry_status: null,
-                enquiry_id: null,
-                enquiry_meta: {},
-            });
+            formData.service_details.push(buildDefaultServiceDetail(serviceId));
         }
         // Expand the newly selected service
         expandedServices[serviceId] = true;
@@ -318,22 +342,7 @@ const getServiceDetail = (serviceId) => {
     // Find existing detail or create a new one
     let detail = formData.service_details.find(detail => detail.service_id === serviceId);
     if (!detail) {
-        detail = {
-            service_id: serviceId,
-            amount: '',
-            frequency: 'one_off',
-            start_date: '',
-            description: '',
-            payment_breakdown: [
-                { label: 'Payment 1', percentage: 100, due_date: null } // Default for new detail
-            ],
-            currency: formData.currency, // Default to overall project currency
-            service_tracking_type: 'operational_service',
-            show_on_leads_board: false,
-            enquiry_status: null,
-            enquiry_id: null,
-            enquiry_meta: {},
-        };
+        detail = buildDefaultServiceDetail(serviceId);
         formData.service_details.push(detail);
     } else if (detail.payment_breakdown && !Array.isArray(detail.payment_breakdown)) {
         // Convert legacy format to new array format

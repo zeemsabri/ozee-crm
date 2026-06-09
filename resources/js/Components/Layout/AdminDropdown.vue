@@ -217,6 +217,7 @@ onMounted(() => {
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.financials.dashboard')" :active="route().current('admin.financials.dashboard')" class="!px-2 !py-1.5 font-bold text-indigo-600 italic">Financial Dashboard</DropdownLink>
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.financials.bills')" :active="route().current('admin.financials.bills')" class="!px-2 !py-1.5">Contractor Bills</DropdownLink>
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.financials.invoices')" :active="route().current('admin.financials.invoices')" class="!px-2 !py-1.5">Sales Invoices</DropdownLink>
+                                <DropdownLink v-permission="'manage_roles'" :href="route('admin.financials.project-services')" :active="route().current('admin.financials.project-services')" class="!px-2 !py-1.5">Project Services</DropdownLink>
                                 <hr class="my-1 border-gray-100" />
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.roles.index')" class="!px-2 !py-1.5">Manage Roles</DropdownLink>
                                 <DropdownLink v-permission="'assign_permissions'" :href="route('admin.permissions.index')" class="!px-2 !py-1.5">Manage Permissions</DropdownLink>

@@ -47,6 +47,11 @@ class FinancialController extends Controller
         return Inertia::render('Admin/Financials/Invoices');
     }
 
+    public function projectServices(): Response
+    {
+        return Inertia::render('Admin/Financials/ProjectServices');
+    }
+
     public function showInvoice(int $id): Response
     {
         $invoice = \App\Models\Invoice::with(['client', 'project', 'invoiceItems.projectService', 'comments.user', 'files'])->findOrFail($id);
