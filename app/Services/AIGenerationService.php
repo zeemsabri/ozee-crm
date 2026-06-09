@@ -39,7 +39,7 @@ class AIGenerationService
             throw new \RuntimeException('Gemini API key is not configured.');
         }
 
-        $model = $prompt->model_name ?: config('services.gemini.model', 'gemini-2.5-flash-preview-05-20');
+        $model = $prompt->model_name ?: config('services.gemini.model', 'gemini-flash-latest');
         $system = $this->renderTemplate($prompt->system_prompt_text ?? '', $variables);
 
         $system = $system.' '.json_encode($prompt->response_json_template);
