@@ -11,6 +11,7 @@ import Modal from '@/Components/Modal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 import { usePermissions } from '@/Directives/permissions';
 
 const bills = ref([]);
@@ -154,7 +155,9 @@ const fetchBills = async () => {
 const fetchProjects = async () => {
     try {
         const { data } = await axios.get('/api/projects-for-email');
-        projects.value = data.projects;
+        projects.value = [...(data.projects || [])].sort((a, b) =>
+            String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { sensitivity: 'base' })
+        );
     } catch (err) {
         console.error('Failed to fetch projects', err);
     }
@@ -534,16 +537,14 @@ const getStatusClass = (status) => {
                 <div class="space-y-4">
                     <div>
                         <InputLabel for="bill_project_id" value="Project" />
-                        <select 
-                            id="bill_project_id" 
-                            v-model="form.project_id" 
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                            <option value="">Select Project</option>
-                            <option v-for="project in projects" :key="project.id" :value="project.id">
-                                {{ project.name }}
-                            </option>
-                        </select>
+                        <SelectDropdown
+                            id="bill_project_id"
+                            v-model="form.project_id"
+                            :options="projects"
+                            value-key="id"
+                            label-key="name"
+                            placeholder="Select Project"
+                        />
                         <InputError :message="form.errors.project_id" />
                     </div>
 
