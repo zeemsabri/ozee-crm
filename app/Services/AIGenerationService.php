@@ -70,8 +70,6 @@ class AIGenerationService
 
         $response = Http::post($url, $payload);
 
-        Log::info('GEMINI RESPONSE', json_decode($response->body(), true));
-
         if ($response->failed()) {
             throw new \RuntimeException('Failed to communicate with Gemini API. Status: '.$response->status().' Body: '.$response->body());
         }
