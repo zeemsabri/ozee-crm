@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Client;
 use App\Models\Invoice;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -13,7 +15,10 @@ class XeroInvoiceService
 {
     private const INVOICES_URL = 'https://api.xero.com/api.xro/2.0/Invoices';
 
-    public function __construct(private readonly XeroTokenService $xeroTokenService) {}
+    public function __construct(
+        private readonly XeroTokenService $xeroTokenService,
+        private readonly XeroContactSyncService $xeroContactSyncService,
+    ) {}
 
     /**
      * Create a Sales Invoice in Xero for the given invoice.
@@ -25,13 +30,10 @@ class XeroInvoiceService
 
         $invoice->loadMissing(['client', 'project', 'invoiceItems.projectService']);
         
-        $xeroContactId = $invoice->client->xero_contact_id;
-        if (!$xeroContactId) {
-             throw new RuntimeException("Client {$invoice->client->name} is not linked to Xero.");
-        }
+           $xeroContactId = $this->resolveClientContactId($invoice->client);
 
         $lineItems = $invoice->invoiceItems->isNotEmpty()
-            ? $this->buildLineItemsFromInvoiceItems($invoice)
+            ? $this->buildLineItemsFromInvoiceItems($invoice, $credentials)
             : [[
                 'Description' => "Invoice for Project: {$invoice->project->name}",
                 'Quantity' => 1.0,
@@ -98,6 +100,47 @@ class XeroInvoiceService
         ];
     }
 
+    private function resolveClientContactId(Client $client): string
+    {
+        $existingContactId = trim((string) $client->xero_contact_id);
+        if ($this->isGuid($existingContactId)) {
+            return $existingContactId;
+        }
+
+        $candidate = collect($this->xeroContactSyncService->getContactCandidatesForClient($client))
+            ->first(function (array $contact): bool {
+                return $this->isGuid((string) ($contact['contact_id'] ?? ''));
+            });
+
+        if (! $candidate) {
+            $candidate = $this->xeroContactSyncService->createContactForClient($client);
+        }
+
+        $resolvedContactId = trim((string) ($candidate['contact_id'] ?? ''));
+        if (! $this->isGuid($resolvedContactId)) {
+            throw new RuntimeException("Client {$client->name} is not linked to a valid Xero contact.");
+        }
+
+        $client->forceFill([
+            'xero_contact_id' => $resolvedContactId,
+            'xero_contact_name' => (string) ($candidate['name'] ?? $client->xero_contact_name),
+            'xero_contact_email' => (string) ($candidate['email'] ?? $client->xero_contact_email),
+            'xero_synced_at' => now(),
+        ])->save();
+
+        return $resolvedContactId;
+    }
+
+    private function isGuid(?string $value): bool
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return false;
+        }
+
+        return (bool) preg_match('/^[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}$/', $value);
+    }
+
     public function sendSalesInvoiceEmail(string $xeroInvoiceId): void
     {
         $credentials = $this->xeroTokenService->getRuntimeCredentials();
@@ -130,13 +173,23 @@ class XeroInvoiceService
         }
     }
 
-    protected function buildLineItemsFromInvoiceItems(Invoice $invoice): array
+    protected function buildLineItemsFromInvoiceItems(Invoice $invoice, array $credentials): array
     {
-        return $invoice->invoiceItems->map(function ($item) use ($invoice) {
+        return $invoice->invoiceItems->map(function ($item) use ($invoice, $credentials) {
             $projectService = $item->projectService;
             $crmService = $projectService->crmService;
             $description = trim((string) ($item->description ?? ''));
             $serviceName = $crmService ? $crmService->name : 'Unknown Service';
+            $accountCode = filled($projectService->xero_account_code ?? null)
+                ? (string) $projectService->xero_account_code
+                : '200';
+            $taxType = filled($item->tax_type ?? null)
+                ? (string) $item->tax_type
+                : 'OUTPUT';
+            $projectTrackingOption = trim((string) ($invoice->project->name ?? ''));
+            if ($projectTrackingOption === '') {
+                $projectTrackingOption = 'Project '.$invoice->project_id;
+            }
 
             $lineItem = [
                 'Description' => $description !== ''
@@ -144,22 +197,51 @@ class XeroInvoiceService
                     : "{$serviceName} - {$item->label}",
                 'Quantity' => (float) $item->quantity,
                 'UnitAmount' => (float) $item->unit_price,
-                'AccountCode' => $projectService->xero_account_code ?? '200',
-                'TaxType' => $item->tax_type ?? 'OUTPUT',
+                'AccountCode' => $accountCode,
+                'TaxType' => $taxType,
                 'Tracking' => [
                     [
                         'Name' => 'Project',
-                        'Option' => $invoice->project->name,
+                        'Option' => $projectTrackingOption,
                     ],
                 ],
             ];
 
-            if ($crmService && $crmService->xero_item_code) {
-                $lineItem['ItemCode'] = $crmService->xero_item_code;
+            $itemCode = trim((string) ($crmService?->xero_item_code ?? ''));
+            if ($itemCode !== '' && $this->isValidItemCodeForTenant($itemCode, $credentials)) {
+                $lineItem['ItemCode'] = $itemCode;
             }
 
             return $lineItem;
         })->values()->all();
+    }
+
+    /**
+     * @param  array{access_token:string, tenant_id:string, tenant_name:?string}  $credentials
+     */
+    private function isValidItemCodeForTenant(string $itemCode, array $credentials): bool
+    {
+        $cacheKey = sprintf('xero.items.codes.%s', $credentials['tenant_id']);
+
+        $codes = Cache::remember($cacheKey, now()->addMinutes(10), function () use ($credentials): array {
+            $response = Http::withToken($credentials['access_token'])
+                ->withHeaders([
+                    'Xero-tenant-id' => $credentials['tenant_id'],
+                    'Accept' => 'application/json',
+                ])
+                ->get('https://api.xero.com/api.xro/2.0/Items')
+                ->throw()
+                ->json();
+
+            return collect(data_get($response, 'Items', []))
+                ->pluck('Code')
+                ->filter()
+                ->map(fn ($code) => strtoupper((string) $code))
+                ->values()
+                ->all();
+        });
+
+        return in_array(strtoupper($itemCode), $codes, true);
     }
 
     public function getInvoiceHistory(string $xeroInvoiceId): array

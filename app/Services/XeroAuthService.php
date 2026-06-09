@@ -147,6 +147,10 @@ class XeroAuthService
                 throw new RuntimeException('The selected Xero tenant does not belong to the active connection.');
             }
 
+            if (! $this->canUseTenantForAccounting($connection->access_token, $tenant->tenant_id)) {
+                throw new RuntimeException('The selected Xero organization is not accessible for accounting API calls. Please choose another tenant.');
+            }
+
             $connection->tenants()->update(['is_selected' => false]);
             $tenant->forceFill(['is_selected' => true])->save();
 
@@ -159,6 +163,26 @@ class XeroAuthService
 
             return $connection->fresh(['connectedBy', 'tenants']);
         });
+    }
+
+    private function canUseTenantForAccounting(?string $accessToken, string $tenantId): bool
+    {
+        if (! filled($accessToken) || ! filled($tenantId)) {
+            return false;
+        }
+
+        try {
+            $response = Http::withToken($accessToken)
+                ->acceptJson()
+                ->withHeaders([
+                    'Xero-tenant-id' => $tenantId,
+                ])
+                ->get('https://api.xero.com/api.xro/2.0/Organisation');
+
+            return $response->successful();
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     public function disconnect(): void
