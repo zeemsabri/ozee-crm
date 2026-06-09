@@ -166,7 +166,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('admin/bills', [BillController::class, 'all'])->middleware('permission:view_project_bills')->name('api.admin.bills.all');
     Route::get('admin/invoices', [InvoiceController::class, 'all'])->name('api.admin.invoices.all');
     Route::get('xero/accounts', [XeroAccountController::class, 'index'])->name('api.xero.accounts');
+    Route::post('xero/accounts', [XeroAccountController::class, 'storeAccount'])->name('api.xero.accounts.store');
     Route::get('xero/items', [XeroAccountController::class, 'items'])->name('api.xero.items');
+    Route::post('xero/items', [XeroAccountController::class, 'storeItem'])->name('api.xero.items.store');
     Route::get('xero/payment-services', [XeroPaymentServiceController::class, 'index'])->name('api.xero.payment-services.index');
     Route::post('xero/payment-services/refresh', [XeroPaymentServiceController::class, 'refresh'])->name('api.xero.payment-services.refresh');
     
@@ -615,6 +617,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('crm-services', [\App\Http\Controllers\Api\CrmServiceController::class, 'index']);
     Route::post('crm-services', [\App\Http\Controllers\Api\CrmServiceController::class, 'store']);
     Route::put('crm-services/{crmService}', [\App\Http\Controllers\Api\CrmServiceController::class, 'update']);
+    Route::post('crm-services/{crmService}/merge', [\App\Http\Controllers\Api\CrmServiceController::class, 'merge']);
 
     // Transaction Types Routes (index, store, update, search)
     Route::get('transaction-types', [\App\Http\Controllers\Api\TransactionTypeController::class, 'index']);

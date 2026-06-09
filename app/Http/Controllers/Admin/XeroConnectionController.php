@@ -35,10 +35,92 @@ class XeroConnectionController extends Controller
             }
         }
 
+        $transactionTypes = \App\Models\TransactionType::query()
+            ->withCount(['transactions', 'bills'])
+            ->with([
+                'transactions' => fn ($query) => $query
+                    ->select(['id', 'transaction_type_id', 'project_id'])
+                    ->with(['project:id,name'])
+                    ->latest('id'),
+                'bills' => fn ($query) => $query
+                    ->select(['id', 'transaction_type_id', 'project_id'])
+                    ->with(['project:id,name'])
+                    ->latest('id'),
+            ])
+            ->orderBy('name')
+            ->get()
+            ->map(function ($type) {
+                $projectNames = $type->transactions
+                    ->pluck('project.name')
+                    ->merge($type->bills->pluck('project.name'))
+                    ->filter()
+                    ->unique()
+                    ->values();
+
+                return [
+                    'id' => $type->id,
+                    'name' => $type->name,
+                    'slug' => $type->slug,
+                    'xero_account_code' => $type->xero_account_code,
+                    'transactions_count' => $type->transactions_count,
+                    'bills_count' => $type->bills_count,
+                    'usage_projects' => $projectNames,
+                    'transaction_usages' => $type->transactions
+                        ->take(5)
+                        ->map(fn ($transaction) => [
+                            'id' => $transaction->id,
+                            'project_name' => $transaction->project?->name,
+                        ])
+                        ->values(),
+                    'bill_usages' => $type->bills
+                        ->take(5)
+                        ->map(fn ($bill) => [
+                            'id' => $bill->id,
+                            'project_name' => $bill->project?->name,
+                        ])
+                        ->values(),
+                ];
+            })
+            ->values();
+
+        $crmServices = \App\Models\CrmService::query()
+            ->withCount('projectServices')
+            ->with([
+                'projectServices' => fn ($query) => $query
+                    ->select(['id', 'crm_service_id', 'project_id'])
+                    ->with(['project:id,name'])
+                    ->latest('id'),
+            ])
+            ->orderBy('name')
+            ->get()
+            ->map(function ($service) {
+                $projectNames = $service->projectServices
+                    ->pluck('project.name')
+                    ->filter()
+                    ->unique()
+                    ->values();
+
+                return [
+                    'id' => $service->id,
+                    'name' => $service->name,
+                    'xero_item_code' => $service->xero_item_code,
+                    'project_services_count' => $service->project_services_count,
+                    'usage_projects' => $projectNames,
+                    'project_service_usages' => $service->projectServices
+                        ->take(5)
+                        ->map(fn ($projectService) => [
+                            'id' => $projectService->id,
+                            'project_name' => $projectService->project?->name,
+                        ])
+                        ->values(),
+                ];
+            })
+            ->values();
+
         return Inertia::render('Admin/Xero/Index', [
             'connection' => $connection,
-            'transaction_types' => \App\Models\TransactionType::orderBy('name')->get(),
-            'crm_services' => \App\Models\CrmService::orderBy('name')->get(),
+            'transaction_types' => $transactionTypes,
+            'crm_services' => $crmServices,
             'branding_themes' => $brandingThemes,
         ]);
     }
