@@ -515,7 +515,8 @@ class InvoiceController extends Controller
     public function all(Request $request)
     {
         $user = Auth::user();
-        if (!$user->isSuperAdmin()) {
+
+        if (!$user->isSuperAdmin() && !$user->hasPermission('view_project_invoices')) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 

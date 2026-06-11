@@ -36,6 +36,7 @@ class FinancialPermissionSeeder extends Seeder
                 'edit_project_invoices' => 'Edit invoice details before approval',
                 'approve_project_invoices' => 'Approve project invoices',
                 'void_project_invoices' => 'Void approved project invoices',
+                'configure_xero_settings' => 'Configure Xero settings',
             ],
         ];
 

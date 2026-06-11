@@ -18,7 +18,7 @@ class XeroConnectionController extends Controller
 
     public function index(Request $request): Response
     {
-        $this->ensureSuperAdmin($request);
+        $this->ensureUserHasAccess($request);
 
         $connection = XeroConnection::query()
             ->with(['connectedBy:id,name,email', 'tenants'])
@@ -127,7 +127,6 @@ class XeroConnectionController extends Controller
 
     public function brandingThemes(Request $request): JsonResponse
     {
-        $this->ensureSuperAdmin($request);
 
         $connection = XeroConnection::query()
             ->where('provider', XeroConnection::PROVIDER)
@@ -177,7 +176,6 @@ class XeroConnectionController extends Controller
 
     public function status(Request $request): JsonResponse
     {
-        $this->ensureSuperAdmin($request);
 
         $connection = XeroConnection::query()
             ->where('provider', XeroConnection::PROVIDER)
@@ -246,5 +244,10 @@ class XeroConnectionController extends Controller
     private function ensureSuperAdmin(Request $request): void
     {
         abort_unless($request->user()?->isSuperAdmin(), 403);
+    }
+
+    private function ensureUserHasAccess(Request $request): void
+    {
+        abort_unless($request->user()?->hasPermission('configure_xero_settings'), 403);
     }
 }
