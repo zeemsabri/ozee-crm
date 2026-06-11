@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed, ref, onMounted, watch } from 'vue';
 import axios from 'axios';
+import { usePermissions } from '@/Directives/permissions';
 import { formatCurrency } from '@/Utils/currency';
 import { success, error, confirmPrompt } from '@/Utils/notification';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -13,6 +14,11 @@ import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import MentionInput from '@/Components/ProjectTasks/MentionInput.vue';
+
+const { canDo } = usePermissions();
+const canCreateInvoice = canDo('create_project_invoices');
+const canApproveInvoice = canDo('approve_project_invoices');
+const canVoidInvoice = canDo('void_project_invoices');
 
 const invoices = ref([]);
 const projects = ref([]);
@@ -347,7 +353,7 @@ const fetchBrandingThemes = async () => {
 
 const fetchProjects = async () => {
     try {
-        const { data } = await axios.get('/api/projects-for-email');
+        const { data } = await axios.get('/api/projects-for-invoicing');
         projects.value = [...(data.projects || [])].sort((a, b) =>
             String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { sensitivity: 'base' })
         );
@@ -614,7 +620,7 @@ const getStatusClass = (status) => {
                         <option value="rejected">Rejected</option>
                         <option value="voided">Voided</option>
                     </select>
-                    <PrimaryButton @click="openCreateModal">
+                    <PrimaryButton v-if="canCreateInvoice" @click="openCreateModal">
                         Create Invoice
                     </PrimaryButton>
                 </div>
@@ -656,8 +662,8 @@ const getStatusClass = (status) => {
                                 <td class="px-6 py-4 text-right text-sm font-medium">
                                     <div class="flex justify-end gap-2 items-center">
                                         <Link :href="route('admin.financials.invoices.show', { id: invoice.id })" class="text-indigo-600 hover:text-indigo-900 font-semibold">View</Link>
-                                        <button v-if="invoice.status === 'pending_approval'" @click="openReviewModal(invoice)" class="text-indigo-600 hover:text-indigo-900">Review</button>
-                                        <button v-if="invoice.status === 'authorised'" @click="voidInvoice(invoice)" class="text-red-600 hover:text-red-900">Void</button>
+                                        <button v-if="invoice.status === 'pending_approval' && canApproveInvoice" @click="openReviewModal(invoice)" class="text-indigo-600 hover:text-indigo-900">Review</button>
+                                        <button v-if="invoice.status === 'authorised' && canVoidInvoice" @click="voidInvoice(invoice)" class="text-red-600 hover:text-red-900">Void</button>
                                     </div>
                                 </td>
                             </tr>

@@ -638,6 +638,32 @@ class ProjectReadController extends Controller
     }
 
     /**
+     * Get all projects with clients for the invoice creation modal.
+     * Returns all projects regardless of project assignment, for users with
+     * the global create_project_invoices permission (or super-admin).
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getProjectsForInvoicing()
+    {
+        $projects = Project::with('clients:id,name')
+            ->orderBy('name')
+            ->get()
+            ->map(function ($project) {
+                return [
+                    'id' => $project->id,
+                    'name' => $project->name,
+                    'status' => $project->status,
+                    'clients' => $project->clients
+                        ? $project->clients->map(fn($c) => ['id' => $c->id, 'name' => $c->name])->toArray()
+                        : [],
+                ];
+            });
+
+        return response()->json(['projects' => $projects]);
+    }
+
+    /**
      * Get simplified projects data for dashboard.
      * Returns only id, name, and status fields.
      *

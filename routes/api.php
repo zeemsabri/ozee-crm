@@ -164,7 +164,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Financial Routes
     Route::get('admin/financial-pending-counts', [BillController::class, 'pendingCounts'])->middleware('permission:view_project_bills')->name('api.admin.financial-counts');
     Route::get('admin/bills', [BillController::class, 'all'])->middleware('permission:view_project_bills')->name('api.admin.bills.all');
-    Route::get('admin/invoices', [InvoiceController::class, 'all'])->name('api.admin.invoices.all');
+    Route::get('admin/invoices', [InvoiceController::class, 'all'])->middleware('permission:view_project_invoices')->name('api.admin.invoices.all');
     Route::get('xero/accounts', [XeroAccountController::class, 'index'])->name('api.xero.accounts');
     Route::post('xero/accounts', [XeroAccountController::class, 'storeAccount'])->name('api.xero.accounts.store');
     Route::get('xero/items', [XeroAccountController::class, 'items'])->name('api.xero.items');
@@ -178,16 +178,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('bills/{bill}/approve', [BillController::class, 'approve'])->middleware('permission:approve_project_bills')->name('api.bills.approve');
     Route::post('bills/{bill}/void', [BillController::class, 'void'])->middleware('permission:void_project_bills')->name('api.bills.void');
 
-    Route::get('projects/{project}/invoices', [InvoiceController::class, 'index'])->name('api.invoices.index');
-    Route::post('projects/{project}/invoices', [InvoiceController::class, 'store'])->name('api.invoices.store');
-    Route::put('projects/{project}/invoices/{invoice}', [InvoiceController::class, 'update'])->name('api.invoices.update');
-    Route::get('projects/{project}/invoices/{invoice}', [InvoiceController::class, 'show'])->name('api.invoices.show');
-    Route::get('projects/{project}/invoices/{invoice}/notes', [InvoiceController::class, 'notes'])->name('api.invoices.notes');
-    Route::post('projects/{project}/invoices/{invoice}/notes', [InvoiceController::class, 'addNote'])->name('api.invoices.addNote');
-    Route::post('projects/{project}/invoices/{invoice}/approve', [InvoiceController::class, 'approve'])->name('api.invoices.approve');
-    Route::post('projects/{project}/invoices/{invoice}/reject', [InvoiceController::class, 'reject'])->name('api.invoices.reject');
-    Route::post('projects/{project}/invoices/{invoice}/comment', [InvoiceController::class, 'comment'])->name('api.invoices.comment');
-    Route::post('invoices/{invoice}/void', [InvoiceController::class, 'void'])->name('api.invoices.void');
+    Route::get('projects/{project}/invoices', [InvoiceController::class, 'index'])->middleware('permission:view_project_invoices')->name('api.invoices.index');
+    Route::post('projects/{project}/invoices', [InvoiceController::class, 'store'])->middleware('permission:create_project_invoices')->name('api.invoices.store');
+    Route::put('projects/{project}/invoices/{invoice}', [InvoiceController::class, 'update'])->middleware('permission:edit_project_invoices')->name('api.invoices.update');
+    Route::get('projects/{project}/invoices/{invoice}', [InvoiceController::class, 'show'])->middleware('permission:view_project_invoices')->name('api.invoices.show');
+    Route::get('projects/{project}/invoices/{invoice}/notes', [InvoiceController::class, 'notes'])->middleware('permission:view_project_invoices')->name('api.invoices.notes');
+    Route::post('projects/{project}/invoices/{invoice}/notes', [InvoiceController::class, 'addNote'])->middleware('permission:view_project_invoices')->name('api.invoices.addNote');
+    Route::post('projects/{project}/invoices/{invoice}/approve', [InvoiceController::class, 'approve'])->middleware('permission:approve_project_invoices')->name('api.invoices.approve');
+    Route::post('projects/{project}/invoices/{invoice}/reject', [InvoiceController::class, 'reject'])->middleware('permission:approve_project_invoices')->name('api.invoices.reject');
+    Route::post('projects/{project}/invoices/{invoice}/comment', [InvoiceController::class, 'comment'])->middleware('permission:view_project_invoices')->name('api.invoices.comment');
+    Route::post('invoices/{invoice}/void', [InvoiceController::class, 'void'])->middleware('permission:void_project_invoices')->name('api.invoices.void');
 
     Route::get('/user', function (Request $request) {
         return $request->user();
@@ -303,6 +303,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('projects/{project}', [ProjectReadController::class, 'show']);
     Route::get('projects-simplified', [ProjectReadController::class, 'getProjectsSimplified']);
     Route::get('projects-for-email', [ProjectReadController::class, 'getProjectsForEmailComposer']);
+    Route::get('projects-for-invoicing', [ProjectReadController::class, 'getProjectsForInvoicing'])->middleware('permission:create_project_invoices');
     Route::get('projects/{project}/notes', [ProjectReadController::class, 'getNotes']); // Handles general project notes
     Route::get('projects/{project}/standups', [ProjectReadController::class, 'getNotes']); // Standups are also notes, filtered by type
     Route::get('projects/{project}/notes/{note}/replies', [ProjectReadController::class, 'getNoteReplies']);
