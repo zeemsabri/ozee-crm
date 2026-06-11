@@ -16,6 +16,8 @@ Schedule::command('xero:refresh-payment-services')->everySixHours();
 
 Schedule::command('queue:work --stop-when-empty')->everyMinute();
 
+Schedule::command('queue:work --queue=emails --stop-when-empty')->everyMinute();
+
 Schedule::command('points:calculate-streak')->weeklyOn(7);
 //
 // Schedule::command('leads:process-new')->everyFourHours();
