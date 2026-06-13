@@ -53,24 +53,64 @@ const displayedLineItems = computed(() => {
     return isEditMode.value ? editableLineItems.value : (invoiceData.value.invoice_items || []);
 });
 
-const calculatedTotal = computed(() => {
+const normalizedLineAmountType = computed(() => {
+    const normalized = String(invoiceData.value?.line_amount_type || '').trim().toUpperCase();
+    if (normalized === 'INCLUSIVE') {
+        return 'Inclusive';
+    }
+    if (normalized === 'NOTAX') {
+        return 'NoTax';
+    }
+
+    return 'Exclusive';
+});
+
+const lineItemsBaseAmount = computed(() => {
     return displayedLineItems.value.reduce((sum, item) => {
         return sum + (Number(item.quantity || 1) * Number(item.unit_price || 0));
     }, 0);
 });
 
 const calculatedTax = computed(() => {
+    if (normalizedLineAmountType.value === 'NoTax') {
+        return 0;
+    }
+
     return displayedLineItems.value.reduce((sum, item) => {
         if (item.tax_type === 'OUTPUT') {
             const itemTotal = Number(item.quantity || 1) * Number(item.unit_price || 0);
-            return sum + (itemTotal / 11);
+            if (normalizedLineAmountType.value === 'Inclusive') {
+                return sum + (itemTotal / 11);
+            }
+
+            return sum + (itemTotal * 0.1);
         }
         return sum;
     }, 0);
 });
 
 const calculatedSubtotal = computed(() => {
-    return calculatedTotal.value - calculatedTax.value;
+    if (normalizedLineAmountType.value === 'Inclusive') {
+        return lineItemsBaseAmount.value - calculatedTax.value;
+    }
+
+    return lineItemsBaseAmount.value;
+});
+
+const calculatedTotal = computed(() => {
+    if (normalizedLineAmountType.value === 'Inclusive') {
+        return lineItemsBaseAmount.value;
+    }
+
+    return lineItemsBaseAmount.value + calculatedTax.value;
+});
+
+const gstLabel = computed(() => {
+    if (normalizedLineAmountType.value === 'NoTax') {
+        return 'GST (No Tax)';
+    }
+
+    return 'GST 10%';
 });
 
 const canEditInvoice = computed(() => {
@@ -819,16 +859,16 @@ onBeforeUnmount(() => {
                                             <span>{{ formatCurrency(calculatedSubtotal, invoiceData.currency || 'AUD') }}</span>
                                         </div>
                                         <div class="flex justify-between text-slate-500 pb-3 border-b border-slate-100">
-                                            <span>GST 10%</span>
+                                            <span>{{ gstLabel }}</span>
                                             <span>{{ formatCurrency(calculatedTax, invoiceData.currency || 'AUD') }}</span>
                                         </div>
                                         <div class="flex justify-between font-bold text-slate-800 text-base">
                                             <span>Total</span>
-                                            <span>{{ formatCurrency(invoiceData.total_amount || invoiceData.amount, invoiceData.currency || 'AUD') }}</span>
+                                            <span>{{ formatCurrency(calculatedTotal, invoiceData.currency || 'AUD') }}</span>
                                         </div>
                                         <div class="flex justify-between items-center bg-[#f0fafe] border border-[#b3e8f9] rounded-lg p-3 mt-2">
                                             <span class="font-bold text-[#00b7e5] text-sm">Amount Due</span>
-                                            <span class="font-black text-lg text-[#00708a]">{{ formatCurrency(invoiceData.total_amount || invoiceData.amount, invoiceData.currency || 'AUD') }}</span>
+                                            <span class="font-black text-lg text-[#00708a]">{{ formatCurrency(calculatedTotal, invoiceData.currency || 'AUD') }}</span>
                                         </div>
                                     </div>
                                 </div>
