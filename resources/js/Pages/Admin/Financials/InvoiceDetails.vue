@@ -32,11 +32,22 @@ const projectServicesForEdit = ref([]);
 const loadingEditServices = ref(false);
 
 const taxTypeOptions = [
-    { value: 'OUTPUT', label: 'OUTPUT - GST on Income (10%)' },
-    { value: 'NONE', label: 'NONE - No Tax' },
-    { value: 'EXEMPTOUTPUT', label: 'EXEMPTOUTPUT - Exempt Income' },
-    { value: 'INPUT', label: 'INPUT - GST on Expenses' },
+    { value: 'OUTPUT', label: 'GST on Income' },
+    { value: 'BASEXCLUDED', label: 'BAS Excluded' },
+    { value: 'EXEMPTOUTPUT', label: 'GST Free Income' },
 ];
+
+const normalizeInvoiceTaxType = (taxType) => {
+    const normalized = String(taxType || '').trim().toUpperCase();
+    if (normalized === 'EXEMPTOUTPUT') {
+        return 'EXEMPTOUTPUT';
+    }
+    if (normalized === 'BASEXCLUDED' || normalized === 'NONE') {
+        return 'BASEXCLUDED';
+    }
+
+    return 'OUTPUT';
+};
 
 const displayedLineItems = computed(() => {
     return isEditMode.value ? editableLineItems.value : (invoiceData.value.invoice_items || []);
@@ -98,9 +109,7 @@ const applyMilestoneSelection = (lineItem, service, milestone) => {
     if (!lineItem.description) {
         lineItem.description = getServiceLabel(service);
     }
-    if (!lineItem.tax_type) {
-        lineItem.tax_type = 'OUTPUT';
-    }
+    lineItem.tax_type = normalizeInvoiceTaxType(lineItem.tax_type);
 };
 
 const syncEditableLineByService = (lineItem) => {
@@ -229,7 +238,7 @@ const startEditInvoice = async () => {
         description: item.description || '',
         quantity: Number(item.quantity || 1),
         unit_price: Number(item.unit_price || 0),
-        tax_type: item.tax_type || 'OUTPUT',
+        tax_type: normalizeInvoiceTaxType(item.tax_type),
         milestone_percentage: Number(item.milestone_percentage || 0),
     }));
     isEditMode.value = true;

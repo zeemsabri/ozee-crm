@@ -18,6 +18,7 @@ class Invoice extends Model
         'xero_invoice_id',
         'invoice_number',
         'currency',
+        'line_amount_type',
         'xero_branding_theme_id',
         'xero_payment_service_ids',
     ];

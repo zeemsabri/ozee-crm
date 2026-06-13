@@ -28,6 +28,12 @@ class InvoiceController extends Controller
 {
     use HandlesImageUploads, HasProjectPermissions;
 
+    private const ALLOWED_LINE_AMOUNT_TYPES = [
+        'Exclusive',
+        'Inclusive',
+        'NoTax',
+    ];
+
     public function __construct(
         private readonly XeroInvoiceService $xeroInvoiceService,
         private readonly XeroAttachmentService $xeroAttachmentService
@@ -61,6 +67,7 @@ class InvoiceController extends Controller
         $validated = $request->validate([
             'client_id' => 'required|exists:clients,id',
             'total_amount' => 'nullable|numeric|min:0',
+            'line_amount_type' => 'nullable|string|in:' . implode(',', self::ALLOWED_LINE_AMOUNT_TYPES),
             'xero_branding_theme_id' => 'nullable|string',
             'xero_payment_service_ids' => 'nullable|array',
             'xero_payment_service_ids.*' => 'nullable|string|max:255|distinct',
@@ -114,6 +121,8 @@ class InvoiceController extends Controller
 
         try {
             return DB::transaction(function () use ($project, $validated, $lineItems, $request, $currency) {
+            $lineAmountType = $this->normalizeLineAmountType($validated['line_amount_type'] ?? null);
+
             $invoice = Invoice::create([
                 'project_id' => $project->id,
                 'client_id' => $validated['client_id'],
@@ -122,6 +131,7 @@ class InvoiceController extends Controller
                     : (float) ($validated['total_amount'] ?? 0),
                 'status' => 'pending_approval',
                 'currency' => $currency,
+                'line_amount_type' => $lineAmountType,
                 'xero_branding_theme_id' => $validated['xero_branding_theme_id'] ?? null,
                 'xero_payment_service_ids' => collect($validated['xero_payment_service_ids'] ?? [])
                     ->filter(fn ($id) => filled($id))
@@ -137,7 +147,7 @@ class InvoiceController extends Controller
             }
 
             if ($lineItems->isNotEmpty()) {
-                $this->createInvoiceItems($invoice, $project, $lineItems->all());
+                $this->createInvoiceItems($invoice, $project, $lineItems->all(), $lineAmountType);
                 $invoice->total_amount = $invoice->invoiceItems()->sum(DB::raw('quantity * unit_price'));
                 $invoice->save();
             }
@@ -327,6 +337,7 @@ class InvoiceController extends Controller
 
         $validated = $request->validate([
             'line_items' => 'required|array|min:1',
+            'line_amount_type' => 'nullable|string|in:' . implode(',', self::ALLOWED_LINE_AMOUNT_TYPES),
             'xero_payment_service_ids' => 'nullable|array',
             'xero_payment_service_ids.*' => 'nullable|string|max:255|distinct',
             'line_items.*.id' => 'nullable|integer|exists:invoice_items,id',
@@ -341,6 +352,12 @@ class InvoiceController extends Controller
         ]);
 
         return DB::transaction(function () use ($invoice, $validated, $user, $project) {
+            $lineAmountType = array_key_exists('line_amount_type', $validated)
+                ? $this->normalizeLineAmountType($validated['line_amount_type'])
+                : $this->normalizeLineAmountType($invoice->line_amount_type);
+
+            $invoice->line_amount_type = $lineAmountType;
+
             $currentItems = $invoice->invoiceItems()->get()->keyBy('id');
             $incomingItems = collect($validated['line_items']);
 
@@ -411,7 +428,9 @@ class InvoiceController extends Controller
                     'description' => $lineItem['description'] ?? null,
                     'quantity' => (float) $lineItem['quantity'],
                     'unit_price' => (float) $lineItem['unit_price'],
-                    'tax_type' => $lineItem['tax_type'] ?? 'OUTPUT',
+                    'tax_type' => $lineAmountType === 'NoTax'
+                        ? 'BASEXCLUDED'
+                        : $this->normalizeInvoiceTaxType($lineItem['tax_type'] ?? null),
                 ];
 
                 if ($model) {
@@ -529,10 +548,10 @@ class InvoiceController extends Controller
         return response()->json($query->latest()->paginate(20));
     }
 
-    protected function createInvoiceItems(Invoice $invoice, Project $project, array $lineItems): void
+    protected function createInvoiceItems(Invoice $invoice, Project $project, array $lineItems, string $lineAmountType): void
     {
         $seenMilestones = [];
-        $normalizedItems = collect($lineItems)->map(function (array $lineItem) use ($project, &$seenMilestones) {
+        $normalizedItems = collect($lineItems)->map(function (array $lineItem) use ($project, &$seenMilestones, $lineAmountType) {
             $projectService = ProjectService::query()->whereKey($lineItem['project_service_id'])->firstOrFail();
 
             if ((int) $projectService->project_id !== (int) $project->id) {
@@ -581,7 +600,9 @@ class InvoiceController extends Controller
                 'description' => $lineItem['description'] ?? null,
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
-                'tax_type' => $lineItem['tax_type'] ?? 'OUTPUT',
+                'tax_type' => $lineAmountType === 'NoTax'
+                    ? 'BASEXCLUDED'
+                    : $this->normalizeInvoiceTaxType($lineItem['tax_type'] ?? null),
             ];
         });
 
@@ -612,6 +633,26 @@ class InvoiceController extends Controller
     protected function canFinanciallyEditInvoice(Invoice $invoice): bool
     {
         return in_array($invoice->status, ['pending_approval', 'rejected', 'draft'], true);
+    }
+
+    protected function normalizeLineAmountType(?string $lineAmountType): string
+    {
+        return match (strtoupper(trim((string) $lineAmountType))) {
+            'INCLUSIVE' => 'Inclusive',
+            'NOTAX' => 'NoTax',
+            default => 'Exclusive',
+        };
+    }
+
+    protected function normalizeInvoiceTaxType(?string $taxType): string
+    {
+        $normalized = strtoupper(trim((string) $taxType));
+
+        return match ($normalized) {
+            'EXEMPTOUTPUT' => 'EXEMPTOUTPUT',
+            'BASEXCLUDED', 'NONE' => 'BASEXCLUDED',
+            default => 'OUTPUT',
+        };
     }
 
     protected function recordReviewAction(Invoice $invoice, Project $project, User $user, string $action, ?string $content): void

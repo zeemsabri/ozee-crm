@@ -15,6 +15,12 @@ class XeroInvoiceService
 {
     private const INVOICES_URL = 'https://api.xero.com/api.xro/2.0/Invoices';
 
+    private const ALLOWED_LINE_AMOUNT_TYPES = [
+        'Exclusive',
+        'Inclusive',
+        'NoTax',
+    ];
+
     public function __construct(
         private readonly XeroTokenService $xeroTokenService,
         private readonly XeroContactSyncService $xeroContactSyncService,
@@ -52,7 +58,7 @@ class XeroInvoiceService
             ],
             'Date' => $invoice->created_at->format('Y-m-d'),
             'DueDate' => $invoice->created_at->copy()->addDays(30)->format('Y-m-d'),
-            'LineAmountTypes' => 'Exclusive',
+            'LineAmountTypes' => $this->normalizeLineAmountType($invoice->line_amount_type),
             'Status' => 'AUTHORISED',
             'LineItems' => $lineItems,
         ];
@@ -183,9 +189,7 @@ class XeroInvoiceService
             $accountCode = filled($projectService->xero_account_code ?? null)
                 ? (string) $projectService->xero_account_code
                 : '200';
-            $taxType = filled($item->tax_type ?? null)
-                ? (string) $item->tax_type
-                : 'OUTPUT';
+            $taxType = $this->normalizeInvoiceTaxType($item->tax_type ?? null);
             $projectTrackingOption = trim((string) ($invoice->project->name ?? ''));
             if ($projectTrackingOption === '') {
                 $projectTrackingOption = 'Project '.$invoice->project_id;
@@ -315,6 +319,7 @@ class XeroInvoiceService
             $invoice->status = $this->mapSalesInvoiceStatus($xeroInvoice);
             $invoice->invoice_number = (string) data_get($xeroInvoice, 'InvoiceNumber', $invoice->invoice_number);
             $invoice->total_amount = (float) data_get($xeroInvoice, 'Total', $invoice->total_amount);
+            $invoice->line_amount_type = $this->normalizeLineAmountType(data_get($xeroInvoice, 'LineAmountTypes', $invoice->line_amount_type));
 
             $currencyCode = data_get($xeroInvoice, 'CurrencyCode');
             if (is_string($currencyCode) && $currencyCode !== '') {
@@ -351,7 +356,7 @@ class XeroInvoiceService
 
                 $taxType = data_get($xeroLineItem, 'TaxType');
                 if (is_string($taxType) && $taxType !== '') {
-                    $localItem->tax_type = $taxType;
+                    $localItem->tax_type = $this->normalizeInvoiceTaxType($taxType);
                 }
 
                 $description = data_get($xeroLineItem, 'Description');
@@ -418,6 +423,32 @@ class XeroInvoiceService
             'PAID' => 'paid',
             'VOIDED', 'DELETED' => 'voided',
             default => strtolower($status),
+        };
+    }
+
+    private function normalizeLineAmountType(?string $lineAmountType): string
+    {
+        $normalized = ucfirst(strtolower(trim((string) $lineAmountType)));
+
+        if (in_array($normalized, self::ALLOWED_LINE_AMOUNT_TYPES, true)) {
+            return $normalized;
+        }
+
+        if (strtoupper(trim((string) $lineAmountType)) === 'NOTAX') {
+            return 'NoTax';
+        }
+
+        return 'Exclusive';
+    }
+
+    private function normalizeInvoiceTaxType(?string $taxType): string
+    {
+        $normalized = strtoupper(trim((string) $taxType));
+
+        return match ($normalized) {
+            'EXEMPTOUTPUT' => 'EXEMPTOUTPUT',
+            'BASEXCLUDED', 'NONE' => 'BASEXCLUDED',
+            default => 'OUTPUT',
         };
     }
 }

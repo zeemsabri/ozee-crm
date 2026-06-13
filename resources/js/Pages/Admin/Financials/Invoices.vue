@@ -37,11 +37,16 @@ const existingStatusFilter = ref('');
 const existingServiceFilter = ref('');
 const existingMilestoneFilter = ref('');
 
-const taxTypeOptions = [
-    { value: 'OUTPUT', label: 'OUTPUT - GST on Income (10%)' },
-    { value: 'NONE', label: 'NONE - No Tax' },
-    { value: 'EXEMPTOUTPUT', label: 'EXEMPTOUTPUT - Exempt Income' },
-    { value: 'INPUT', label: 'INPUT - GST on Expenses' },
+const lineAmountTypeOptions = [
+    { value: 'Exclusive', label: 'Tax exclusive' },
+    { value: 'Inclusive', label: 'Tax inclusive' },
+    { value: 'NoTax', label: 'No Tax' },
+];
+
+const taxRateOptions = [
+    { value: 'OUTPUT', label: 'GST on Income' },
+    { value: 'BASEXCLUDED', label: 'BAS Excluded' },
+    { value: 'EXEMPTOUTPUT', label: 'GST Free Income' },
 ];
 
 const buildMilestoneKey = (service, milestone, index) => `${service?.project_service_id ?? service?.id ?? 'service'}-${index}-${milestone.label}-${milestone.percentage}-${milestone.due_date ?? ''}`;
@@ -61,6 +66,7 @@ const form = useForm({
     project_id: '',
     client_id: '',
     total_amount: '',
+    line_amount_type: 'Exclusive',
     xero_branding_theme_id: '',
     attachments: [],
     line_items: [],
@@ -243,6 +249,27 @@ const clearExistingFilters = () => {
     existingMilestoneFilter.value = '';
 };
 
+const getNormalizedTaxType = (taxType) => {
+    const candidate = String(taxType || '').trim().toUpperCase();
+    if (candidate === 'NONE') {
+        return 'BASEXCLUDED';
+    }
+    if (candidate === 'OUTPUT' || candidate === 'BASEXCLUDED' || candidate === 'EXEMPTOUTPUT') {
+        return candidate;
+    }
+
+    return 'OUTPUT';
+};
+
+const syncLineTaxTypeForMode = (item) => {
+    if (form.line_amount_type === 'NoTax') {
+        item.tax_type = 'BASEXCLUDED';
+        return;
+    }
+
+    item.tax_type = getNormalizedTaxType(item.tax_type);
+};
+
 const syncLineItem = (item) => {
     const service = getServiceById(item.project_service_id);
     if (!service) {
@@ -266,9 +293,7 @@ const syncLineItem = (item) => {
     }
     item.milestone_percentage = milestone.percentage;
     item.unit_price = ((Number(service.amount || 0) * Number(milestone.percentage || 0)) / 100).toFixed(2);
-    if (!item.tax_type) {
-        item.tax_type = 'OUTPUT';
-    }
+    syncLineTaxTypeForMode(item);
 };
 
 const syncMilestoneSelection = (item) => {
@@ -373,9 +398,14 @@ watch(() => form.project_id, (newId) => {
     clearExistingFilters();
 });
 
+watch(() => form.line_amount_type, () => {
+    lineItems.value.forEach((item) => syncLineTaxTypeForMode(item));
+});
+
 const openCreateModal = () => {
     form.reset();
     form.clearErrors();
+    form.line_amount_type = 'Exclusive';
     form.xero_branding_theme_id = defaultBrandingThemeId.value;
     form.attachments = [];
     projectServices.value = [];
@@ -386,12 +416,15 @@ const openCreateModal = () => {
 };
 
 const addLineItem = () => {
-    lineItems.value.push(emptyLineItem());
+    const item = emptyLineItem();
+    syncLineTaxTypeForMode(item);
+    lineItems.value.push(item);
 };
 
 const removeLineItem = (index) => {
     if (lineItems.value.length === 1) {
         lineItems.value[0] = emptyLineItem();
+        syncLineTaxTypeForMode(lineItems.value[0]);
         return;
     }
 
@@ -408,6 +441,9 @@ const submitInvoice = async () => {
     form.clearErrors();
     form.client_id = selectedClientId.value || form.client_id;
     form.total_amount = totalAmount.value;
+    form.line_amount_type = lineAmountTypeOptions.some((option) => option.value === form.line_amount_type)
+        ? form.line_amount_type
+        : 'Exclusive';
     form.line_items = lineItems.value
         .filter(item => item.project_service_id && item.milestone_key)
         .map(item => ({
@@ -418,7 +454,7 @@ const submitInvoice = async () => {
             quantity: Number(item.quantity || 1),
             unit_price: Number(item.unit_price || 0),
             milestone_percentage: Number(item.milestone_percentage || 0),
-            tax_type: item.tax_type || 'OUTPUT',
+            tax_type: form.line_amount_type === 'NoTax' ? 'BASEXCLUDED' : getNormalizedTaxType(item.tax_type),
         }));
     
     if (form.line_items.length === 0) {
@@ -431,6 +467,7 @@ const submitInvoice = async () => {
         formData.append('project_id', Number(form.project_id));
         formData.append('client_id', Number(form.client_id));
         formData.append('total_amount', form.total_amount);
+        formData.append('line_amount_type', form.line_amount_type);
         if (form.xero_branding_theme_id) {
             formData.append('xero_branding_theme_id', form.xero_branding_theme_id);
         }
@@ -706,7 +743,7 @@ const getStatusClass = (status) => {
                         <InputError :message="form.errors.client_id" />
                     </div>
 
-                    <div v-if="selectedProject" class="grid gap-4 sm:grid-cols-2">
+                    <div v-if="selectedProject" class="grid gap-4 sm:grid-cols-3">
                         <div>
                             <InputLabel for="xero_branding_theme_id" value="Branding Theme" />
                             <select 
@@ -720,6 +757,20 @@ const getStatusClass = (status) => {
                                 </option>
                             </select>
                             <InputError :message="form.errors.xero_branding_theme_id" />
+                        </div>
+
+                        <div>
+                            <InputLabel for="line_amount_type" value="Tax Treatment" />
+                            <select
+                                id="line_amount_type"
+                                v-model="form.line_amount_type"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            >
+                                <option v-for="mode in lineAmountTypeOptions" :key="mode.value" :value="mode.value">
+                                    {{ mode.label }}
+                                </option>
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">Matches Xero: Tax exclusive, Tax inclusive, or No Tax.</p>
                         </div>
 
                         <div>
@@ -791,17 +842,19 @@ const getStatusClass = (status) => {
                                     </div>
 
                                     <div>
-                                        <InputLabel :for="`line_tax_${index}`" value="Tax Type" />
+                                        <InputLabel :for="`line_tax_${index}`" value="Tax Rate" />
                                         <select
                                             :id="`line_tax_${index}`"
                                             v-model="item.tax_type"
+                                            :disabled="form.line_amount_type === 'NoTax'"
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                         >
-                                            <option v-for="taxType in taxTypeOptions" :key="taxType.value" :value="taxType.value">
+                                            <option v-for="taxType in taxRateOptions" :key="taxType.value" :value="taxType.value">
                                                 {{ taxType.label }}
                                             </option>
                                         </select>
-                                        <p class="mt-1 text-xs text-gray-500">This sends the selected Xero tax code exactly as shown.</p>
+                                        <p v-if="form.line_amount_type === 'NoTax'" class="mt-1 text-xs text-gray-500">No Tax selected, so tax rate is locked to BAS Excluded.</p>
+                                        <p v-else class="mt-1 text-xs text-gray-500">Tax rates match Xero labels to avoid selection mismatch.</p>
                                     </div>
 
                                     <div>
