@@ -199,6 +199,8 @@ class ExternalEmailController extends Controller
         $replyTo = $validated['reply_to'] ?? $emailApp->smtp_reply_to;
 
         $hourlyLimit = max(1, (int) ($emailApp->hourly_send_limit ?: 100));
+
+// Count both queued and attempted logs in the last hour to determine your starting baseline
         $alreadyQueuedInLastHour = ExternalEmailLog::query()
             ->where('email_app_id', $emailApp->id)
             ->where('status', 'queued')
@@ -216,8 +218,17 @@ class ExternalEmailController extends Controller
 
         foreach ($recipients as $index => $recipient) {
             $position = $positionBase + $index;
-            $delaySeconds = (int) floor(($position * 3600) / $hourlyLimit);
-            $scheduledFor = now()->addSeconds($delaySeconds);
+
+            // FIX: If the current position is still within the hourly allowed limit,
+            // do not delay it. Only delay if it exceeds the limit.
+            if ($position < $hourlyLimit) {
+                $scheduledFor = now();
+            } else {
+                // Calculate the delay only for the overflow volume
+                $overflowPosition = $position - $hourlyLimit;
+                $delaySeconds = (int) floor((($overflowPosition + 1) * 3600) / $hourlyLimit);
+                $scheduledFor = now()->addSeconds($delaySeconds);
+            }
 
             $perRecipientPayload = $validated;
             $perRecipientPayload['to'] = $recipient;
@@ -242,9 +253,13 @@ class ExternalEmailController extends Controller
                 null,
             );
 
-            SendExternalEmailJob::dispatch($log->id, $emailApp->id)
-                ->delay($scheduledFor)
+            $job = SendExternalEmailJob::dispatch($log->id, $emailApp->id)
                 ->onQueue('emails');
+
+            // Only apply the delay to the job if it's actually scheduled for the future
+            if ($scheduledFor->isFuture()) {
+                $job->delay($scheduledFor);
+            }
 
             $logIds[] = $log->id;
         }
