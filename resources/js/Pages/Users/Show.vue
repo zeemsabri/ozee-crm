@@ -14,10 +14,13 @@ import ReceivedEmailActionContent from '@/Pages/Emails/Inbox/Components/Received
 import axios from 'axios';
 import UserMetadataWidget from './Components/UserMetadataWidget.vue';
 import UserNotesWidget from './Components/UserNotesWidget.vue';
+import { usePermissionStore } from '@/Directives/permissions.js';
 
 const props = defineProps({ id: { type: Number, required: true } });
 const page = usePage();
 const authUser = computed(() => page.props.auth.user);
+const permissionStore = usePermissionStore();
+const canEditUsers = computed(() => permissionStore.hasPermission('edit_users'));
 
 // user details
 const loading = ref(false);
@@ -199,7 +202,7 @@ onMounted(async () => {
               <section class="space-y-6">
                 <UserMetadataWidget 
                   :userId="props.id" 
-                  :canManageKeys="authUser?.app_role === 'super-admin' || authUser?.app_role === 'manager'" 
+                  :canManageKeys="canEditUsers" 
                 />
                 
                 <UserNotesWidget 

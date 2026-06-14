@@ -21,7 +21,9 @@ class UserWidgetController extends Controller
 
     public function updateMetadata(Request $request, User $user)
     {
-        $this->authorize('update', $user);
+        if (!Auth::user()->hasPermission('edit_users')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
 
         $validated = $request->validate([
             'metadata' => 'required|array'
@@ -62,8 +64,8 @@ class UserWidgetController extends Controller
 
     public function addKey(Request $request)
     {
-        // Only super-admin or manager can add keys
-        if (!Auth::user()->isSuperAdmin() && !Auth::user()->isManager()) {
+        // Only users with edit_users permission can add keys
+        if (!Auth::user()->hasPermission('edit_users')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
