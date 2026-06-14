@@ -90,6 +90,8 @@ class ProjectActionController extends Controller
 
             $project = Project::create($projectData);
 
+            $milestone = $project->supportMilestone();
+
             if ($request->has('user_ids') && is_array($request->user_ids)) {
                 $userIds = [];
                 foreach ($request->user_ids as $userData) {
@@ -819,8 +821,8 @@ class ProjectActionController extends Controller
                 'timezone' => $validated['timezone'] ?? null,
                 'project_tier_id' => $validated['project_tier_id'] ?? ProjectTier::first()?->id,
                 'profit_margin_percentage' => $validated['profit_margin_percentage'] ?? null,
-                'integrations' => array_key_exists('integrations', $validated) && is_array($validated['integrations']) 
-                    ? array_merge($project->integrations ?? [], $validated['integrations']) 
+                'integrations' => array_key_exists('integrations', $validated) && is_array($validated['integrations'])
+                    ? array_merge($project->integrations ?? [], $validated['integrations'])
                     : $project->integrations,
             ];
 
