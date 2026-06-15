@@ -26,6 +26,7 @@ class RunScheduler extends Command
         $limit = (int) $this->option('limit');
         $count = 0;
         $dispatched = 0;
+        Log::info("Running scheduler at {$now->toDateTimeString()} with limit $limit");
 
         Schedule::query()
             ->active()
@@ -54,6 +55,7 @@ class RunScheduler extends Command
 
                     try {
                         RunScheduledItem::dispatch($schedule->id);
+                        Log::info("Running scheduler at {$now->toDateTimeString()} for $schedule->id");
                         $dispatched++;
                     } finally {
                         // Release lock early; the job itself will update last_run_at

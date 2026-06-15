@@ -20,4 +20,5 @@ enum EmailStatus: string
     case Pending = 'pending';
     case Approved = 'approved';
     case AutoSend = 'auto_send';
+    case Delayed = 'delayed';
 }

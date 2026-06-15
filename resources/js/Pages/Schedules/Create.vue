@@ -20,6 +20,7 @@ const props = defineProps({
   schedulableTypes: { type: Array, required: true },
   tasks: { type: Array, required: true },
   workflows: { type: Array, required: true },
+  emails: { type: Array, default: () => [] },
 });
 
 const form = useForm({
@@ -43,6 +44,9 @@ const typeOptions = computed(() => props.schedulableTypes);
 const itemOptions = computed(() => {
   if (String(form.scheduled_item_type).toLowerCase().includes('task')) {
     return props.tasks.map(t => ({ id: t.id, name: t.name || `Task #${t.id}` }));
+  }
+  if (String(form.scheduled_item_type).toLowerCase().includes('email')) {
+    return props.emails.map(e => ({ id: e.id, name: e.name || `Email #${e.id}` }));
   }
   return props.workflows.map(w => ({ id: w.id, name: w.name || `Workflow #${w.id}` }));
 });

@@ -65,6 +65,7 @@ class ClientController extends Controller
                 'phone' => 'nullable|string|max:50',
                 'address' => 'nullable|string',
                 'notes' => 'nullable|string',
+                'timezone' => 'nullable|string|timezone|max:100',
             ]);
 
             $client = Client::create($validated);
@@ -121,6 +122,7 @@ class ClientController extends Controller
                 'phone' => 'nullable|string|max:50',
                 'address' => 'nullable|string',
                 'notes' => 'nullable|string',
+                'timezone' => 'nullable|string|timezone|max:100',
             ]);
 
             $client->update($validated);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Schedule;
+use App\Models\Email;
 use App\Models\Task;
 use App\Models\Workflow;
 use Carbon\Carbon;
@@ -64,15 +65,28 @@ class ScheduleController extends Controller
             'schedulableTypes' => [
                 ['label' => 'Task', 'value' => 'task'],
                 ['label' => 'Workflow', 'value' => 'workflow'],
+                ['label' => 'Email', 'value' => 'email'],
             ],
             'tasks' => Task::query()->select('id', 'name')->orderByDesc('id')->limit(50)->get(),
             'workflows' => Workflow::query()->select('id', 'name')->orderByDesc('id')->limit(50)->get(),
+            'emails' => Email::query()->select('id', 'subject as name')->orderByDesc('id')->limit(50)->get(),
         ]);
     }
 
     public function edit(Request $request, Schedule $schedule): InertiaResponse
     {
         $userTz = $this->getUserTimezone();
+
+        $emails = Email::query()->select('id', 'subject as name')->orderByDesc('id')->limit(50)->get();
+        if ($schedule->scheduled_item_type === Email::class) {
+            $currentEmail = Email::find($schedule->scheduled_item_id);
+            if ($currentEmail && !$emails->contains('id', $currentEmail->id)) {
+                $emails->prepend((object)[
+                    'id' => $currentEmail->id,
+                    'name' => $currentEmail->subject ?? "Email #{$currentEmail->id}"
+                ]);
+            }
+        }
 
         return Inertia::render('Schedules/Edit', [
             'schedule' => [
@@ -90,9 +104,11 @@ class ScheduleController extends Controller
             'schedulableTypes' => [
                 ['label' => 'Task', 'value' => 'task'],
                 ['label' => 'Workflow', 'value' => 'workflow'],
+                ['label' => 'Email', 'value' => 'email'],
             ],
             'tasks' => Task::query()->select('id', 'name')->orderByDesc('id')->limit(50)->get(),
             'workflows' => Workflow::query()->select('id', 'name')->orderByDesc('id')->limit(50)->get(),
+            'emails' => $emails,
         ]);
     }
 
@@ -240,6 +256,7 @@ class ScheduleController extends Controller
         return match ($t) {
             'task', 'app\\models\\task' => Task::class,
             'workflow', 'app\\models\\workflow' => Workflow::class,
+            'email', 'app\\models\\email' => Email::class,
             default => $type, // assume FQCN already
         };
     }
@@ -251,6 +268,9 @@ class ScheduleController extends Controller
         }
         if ($model instanceof Workflow) {
             return (string) ($model->name ?? ("Workflow #{$model->id}"));
+        }
+        if ($model instanceof Email) {
+            return (string) ($model->subject ?? ("Email #{$model->id}"));
         }
 
         return method_exists($model, 'getName') ? (string) $model->getName() : class_basename($model).' #'.$model->id;

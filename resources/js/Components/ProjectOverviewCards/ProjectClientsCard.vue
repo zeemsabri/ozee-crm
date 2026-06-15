@@ -1,6 +1,6 @@
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue';
-import { UserGroupIcon, EnvelopeIcon, PhoneIcon, GlobeAltIcon } from '@heroicons/vue/20/solid';
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
+import { UserGroupIcon, EnvelopeIcon, PhoneIcon, GlobeAltIcon, ClockIcon } from '@heroicons/vue/20/solid';
 
 const props = defineProps({
     projectId: {
@@ -16,6 +16,21 @@ const props = defineProps({
 const clients = ref([]);
 const loading = ref(true);
 const error = ref(null);
+const nowTick = ref(Date.now());
+let clockInterval = null;
+
+const formatCurrentTimeInTimezone = (timezone) => {
+    if (!timezone) return '';
+    try {
+        return new Date(nowTick.value).toLocaleString(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+            timeZone: timezone,
+        });
+    } catch (e) {
+        return '';
+    }
+};
 
 const fetchClients = async () => {
     loading.value = true;
@@ -39,6 +54,19 @@ const fetchClients = async () => {
 
 onMounted(() => {
     fetchClients();
+    clockInterval = setInterval(() => {
+        nowTick.value = Date.now();
+    }, 30000);
+});
+
+watch(() => props.projectId, () => {
+    fetchClients();
+});
+
+onUnmounted(() => {
+    if (clockInterval) {
+        clearInterval(clockInterval);
+    }
 });
 
 // Watch for changes in permission prop to re-fetch if permissions are granted dynamically
@@ -81,6 +109,10 @@ watch(() => props.canViewClientContacts, () => {
                                      <PhoneIcon class="h-3 w-3"/>
                                      <span>{{ client.phone }}</span>
                                 </span>
+                            </p>
+                            <p v-if="client.timezone" class="text-xs text-gray-500 mt-1 flex items-center">
+                                <ClockIcon class="h-3 w-3 mr-1" />
+                                {{ client.timezone }} · {{ formatCurrentTimeInTimezone(client.timezone) }}
                             </p>
                         </div>
                         <a v-if="client.website" :href="client.website" target="_blank" class="text-indigo-600 hover:text-indigo-800 transition-colors">

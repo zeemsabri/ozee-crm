@@ -77,9 +77,9 @@ class Schedule extends Model
             return false;
         }
 
-        // One-time schedules are due exactly at start_at (minute precision)
+        // One-time schedules are due if start_at has passed and they haven't run yet
         if ($this->is_onetime) {
-            return $this->start_at && $this->start_at->copy()->startOfMinute()->equalTo($asOf);
+            return $this->start_at && $this->start_at->copy()->startOfMinute()->lte($asOf) && !$this->last_run_at;
         }
 
         try {
@@ -107,7 +107,7 @@ class Schedule extends Model
                     return null;
                 }
 
-                return $this->start_at->isFuture() ? $this->start_at->copy() : null;
+                return $this->start_at->copy();
             }
 
             $cron = new CronExpression($this->recurrence_pattern);

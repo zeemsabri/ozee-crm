@@ -60,7 +60,7 @@ trait HandlesEmailCreation
             'to' => $emails,
             'subject' => $validated['subject'],
             'body' => $greeting.'<br/>'.$validated['body'],
-            'status' => EmailStatus::Draft,
+            'status' => $validated['status'] ?? EmailStatus::Draft,
             'type' => 'sent',
         ]);
 
@@ -164,7 +164,7 @@ trait HandlesEmailCreation
             'to' => $emails,
             'subject' => $validated['subject'],
             'body' => $greeting.'<br/>'.$validated['body'],
-            'status' => EmailStatus::Draft,
+            'status' => $validated['status'] ?? EmailStatus::Draft,
             'type' => 'sent',
         ]);
 

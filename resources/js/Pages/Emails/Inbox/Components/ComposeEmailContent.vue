@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, watch, computed, ref, onMounted } from 'vue';
+import { reactive, watch, computed, ref, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -11,6 +11,8 @@ import RepeatableDynamicField from '@/Components/RepeatableDynamicField.vue';
 import { useForm } from '@inertiajs/vue3';
 import { useEmailTemplate } from '@/Composables/useEmailTemplate';
 import Modal from '@/Components/Modal.vue';
+import SchedulePickerModal from '@/Components/Scheduler/SchedulePickerModal.vue';
+import { useEmbeddedScheduler } from '@/Composables/useEmbeddedScheduler.js';
 
 const props = defineProps({
     projectId: [Number, String],
@@ -37,6 +39,11 @@ const clientsError = ref('');
 const templates = ref([]);
 const sourceModelsData = ref({});
 const loadingSourceModels = ref(false);
+const projectTimezone = ref('');
+const nowTick = ref(Date.now());
+let clockInterval = null;
+
+const { showScheduleModal, scheduleDraft, open, close, onSaveDraft, attachAfterCreate } = useEmbeddedScheduler();
 
 // State for the Insert Link/List modals (removed as they were for standard emails)
 // State for preview
@@ -45,6 +52,63 @@ const previewLoading = ref(false);
 
 const selectedTemplate = computed(() => {
     return templates.value.find(template => template.id === form.template_id);
+});
+
+const selectedClient = computed(() => {
+    const firstClientId = form.client_ids?.[0];
+    if (!firstClientId) return null;
+    return projectClients.value.find((client) => client.id === firstClientId) || null;
+});
+
+const projectCurrentTime = computed(() => {
+    if (!projectTimezone.value) return null;
+    try {
+        return new Date(nowTick.value).toLocaleString(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+            timeZone: projectTimezone.value,
+        });
+    } catch (e) {
+        return null;
+    }
+});
+
+const selectedClientCurrentTime = computed(() => {
+    if (!selectedClient.value?.timezone) return null;
+    try {
+        return new Date(nowTick.value).toLocaleString(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+            timeZone: selectedClient.value.timezone,
+        });
+    } catch (e) {
+        return null;
+    }
+});
+
+const scheduleSummary = computed(() => {
+    const d = scheduleDraft.value;
+    if (!d) return null;
+    const time = d.time || '00:00';
+    switch (d.mode) {
+        case 'once':
+            return `One-time at ${String(d.start_at || '').replace('T', ' ')}`;
+        case 'daily':
+            return `Daily at ${time}`;
+        case 'weekly': {
+            const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const label = (d.days_of_week || []).map(i => names[i]).join(', ');
+            return `Weekly on ${label || '—'} at ${time}`;
+        }
+        case 'monthly':
+            if (d.day_of_month) return `Monthly on day ${d.day_of_month} at ${time}`;
+            return `Monthly by weekday at ${time}`;
+        case 'yearly':
+            return `Yearly at ${time}`;
+        case 'cron':
+            return `Custom cron: ${d.cron || '* * * * *'}`;
+    }
+    return null;
 });
 
 const inputPlaceholders = computed(() => {
@@ -97,6 +161,20 @@ const fetchProjectClients = async (projectId) => {
         clientsError.value = e.response?.data?.message || 'Failed to load client data.';
     } finally {
         loadingClients.value = false;
+    }
+};
+
+const fetchProjectTimezone = async (projectId) => {
+    if (!projectId) {
+        projectTimezone.value = '';
+        return;
+    }
+    try {
+        const response = await axios.get(`/api/projects/${projectId}/sections/basic`);
+        projectTimezone.value = response.data?.timezone || '';
+    } catch (error) {
+        projectTimezone.value = '';
+        console.error('Failed to fetch project timezone:', error);
     }
 };
 
@@ -189,7 +267,7 @@ const submitForm = async () => {
         subject: form.subject,
         body: null, // Always null for template-based emails
         composition_type: 'template',
-        status: 'pending_approval',
+        status: scheduleDraft.value ? 'delayed' : 'draft',
     };
 
     if (form.client_ids.length > 0) {
@@ -204,8 +282,22 @@ const submitForm = async () => {
     }
 
     try {
-        await axios.post(apiEndpoint, payload);
+        const response = await axios.post(apiEndpoint, payload);
+        const emailId = response?.data?.id;
+
+        if (emailId && scheduleDraft.value) {
+            if (!scheduleDraft.value.name) {
+                scheduleDraft.value.name = `Delayed email: ${form.subject || `Email #${emailId}`}`;
+            }
+            const schedule = await attachAfterCreate('App\\Models\\Email', emailId);
+            if (!schedule) {
+                // Fallback to draft if scheduling failed to avoid a stuck delayed email.
+                await axios.post(`/api/emails/${emailId}/update`, { status: 'draft' });
+            }
+        }
+
         form.reset();
+        projectTimezone.value = '';
         emit('submitted');
     } catch (error) {
         console.error('Email submission error:', error);
@@ -219,6 +311,7 @@ watch(() => form.project_id, (newProjectId) => {
     form.template_id = null;
     form.template_data = {};
     fetchProjectClients(newProjectId);
+    fetchProjectTimezone(newProjectId);
 }, { immediate: true });
 
 watch(() => form.template_id, (newTemplateId) => {
@@ -248,6 +341,15 @@ onMounted(() => {
     fetchTemplates();
     if (!props.projectId) {
         fetchProjects();
+    }
+    clockInterval = setInterval(() => {
+        nowTick.value = Date.now();
+    }, 30000);
+});
+
+onUnmounted(() => {
+    if (clockInterval) {
+        clearInterval(clockInterval);
     }
 });
 </script>
@@ -290,6 +392,34 @@ onMounted(() => {
                         class="mt-1 block w-full"
                     />
                     <InputError :message="form.errors.client_ids" class="mt-2" />
+
+                    <div v-if="projectTimezone && projectCurrentTime" class="mt-3 p-3 rounded-md bg-blue-50 border border-blue-100 text-sm text-blue-900">
+                        <div><span class="font-semibold">Project timezone:</span> {{ projectTimezone }}</div>
+                        <div><span class="font-semibold">Current time:</span> {{ projectCurrentTime }}</div>
+                    </div>
+                    <div v-if="selectedClient?.timezone && selectedClientCurrentTime" class="mt-2 p-3 rounded-md bg-emerald-50 border border-emerald-100 text-sm text-emerald-900">
+                        <div><span class="font-semibold">Primary client timezone:</span> {{ selectedClient.timezone }}</div>
+                        <div><span class="font-semibold">Current time:</span> {{ selectedClientCurrentTime }}</div>
+                    </div>
+                </div>
+
+                <div v-if="form.project_id" class="rounded-lg border border-gray-200 p-3">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-semibold text-gray-800">Send Later</p>
+                            <p v-if="scheduleSummary" class="text-xs text-gray-600 mt-1">{{ scheduleSummary }}</p>
+                            <p v-else class="text-xs text-gray-500 mt-1">No schedule attached.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="open" class="px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 rounded-md hover:bg-indigo-100">
+                                {{ scheduleSummary ? 'Edit Schedule' : 'Add Schedule' }}
+                            </button>
+                            <button v-if="scheduleDraft" type="button" @click="scheduleDraft = null" class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-gray-500 mt-2">When a schedule is set, this email is saved with status delayed.</p>
                 </div>
 
                 <!-- Template Selection (now mandatory) -->
@@ -403,4 +533,5 @@ onMounted(() => {
             </div>
         </form>
     </div>
+    <SchedulePickerModal :show="showScheduleModal" title="Schedule Email" @close="close" @save="onSaveDraft" />
 </template>

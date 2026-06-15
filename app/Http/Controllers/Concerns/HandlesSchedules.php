@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Concerns;
 
 use App\Models\Schedule;
+use App\Models\Email;
 use App\Models\Task;
 use App\Models\Workflow;
 use Carbon\Carbon;
@@ -17,6 +18,7 @@ trait HandlesSchedules
         return match ($t) {
             'task', 'app\\models\\task' => Task::class,
             'workflow', 'app\\models\\workflow' => Workflow::class,
+            'email', 'app\\models\\email' => Email::class,
             default => $type,
         };
     }

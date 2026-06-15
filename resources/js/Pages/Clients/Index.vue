@@ -11,6 +11,7 @@ import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
+import TimezoneSelect from '@/Components/TimezoneSelect.vue';
 import { showSuccessNotification, showErrorNotification } from '@/Utils/notification';
 
 // Access user from Inertia props
@@ -37,6 +38,7 @@ const clientForm = reactive({
     phone: '',
     address: '',
     notes: '',
+    timezone: '',
 });
 
 // State for client being deleted
@@ -92,6 +94,7 @@ const openCreateModal = () => {
     clientForm.phone = '';
     clientForm.address = '';
     clientForm.notes = '';
+    clientForm.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
     errors.value = {};
     generalError.value = '';
     showCreateModal.value = true;
@@ -128,6 +131,7 @@ const openEditModal = (client) => {
     clientForm.phone = client.phone;
     clientForm.address = client.address;
     clientForm.notes = client.notes;
+    clientForm.timezone = client.timezone || '';
     errors.value = {};
     generalError.value = '';
     showEditModal.value = true;
@@ -403,6 +407,7 @@ onMounted(() => {
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="text-sm text-gray-900">{{ client.email }}</div>
                                             <div class="text-xs text-gray-500">{{ client.phone || 'No phone number' }}</div>
+                                            <div v-if="client.timezone" class="text-xs text-gray-500">{{ client.timezone }}</div>
                                         </td>
                                         <td class="px-6 py-4">
                                             <div v-if="client.xero_contact_id" class="flex flex-col">
@@ -508,6 +513,11 @@ onMounted(() => {
                         <textarea id="notes" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="clientForm.notes"></textarea>
                         <InputError :message="errors.notes ? errors.notes[0] : ''" class="mt-2" />
                     </div>
+                    <div class="mb-4">
+                        <InputLabel for="timezone" value="Timezone" />
+                        <TimezoneSelect id="timezone" v-model="clientForm.timezone" class="mt-1 block w-full" />
+                        <InputError :message="errors.timezone ? errors.timezone[0] : ''" class="mt-2" />
+                    </div>
                     <div class="mt-6 flex justify-end">
                         <SecondaryButton @click="showCreateModal = false">Cancel</SecondaryButton>
                         <PrimaryButton class="ms-3" type="submit">Create Client</PrimaryButton>
@@ -545,6 +555,11 @@ onMounted(() => {
                         <InputLabel for="edit_notes" value="Notes" />
                         <textarea id="edit_notes" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="clientForm.notes"></textarea>
                         <InputError :message="errors.notes ? errors.notes[0] : ''" class="mt-2" />
+                    </div>
+                    <div class="mb-4">
+                        <InputLabel for="edit_timezone" value="Timezone" />
+                        <TimezoneSelect id="edit_timezone" v-model="clientForm.timezone" class="mt-1 block w-full" />
+                        <InputError :message="errors.timezone ? errors.timezone[0] : ''" class="mt-2" />
                     </div>
                     <div class="mt-6 flex justify-end">
                         <SecondaryButton @click="showEditModal = false">Cancel</SecondaryButton>

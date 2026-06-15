@@ -6,8 +6,10 @@ use App\Models\Client;
 use App\Models\Email;
 use App\Models\Kudo;
 use App\Models\Project;
+use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\Workflow;
 use App\Observers\EmailObserver;
 use App\Observers\KudoObserver;
 use App\Observers\TransactionObserver;
@@ -16,6 +18,7 @@ use App\Policies\EmailPolicy;
 use App\Policies\ProjectPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -42,6 +45,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Relation::morphMap([
+            'task' => Task::class,
+            'workflow' => Workflow::class,
+            'email' => Email::class,
+            'Task' => Task::class,
+            'Workflow' => Workflow::class,
+            'Email' => Email::class,
+        ]);
+
         Broadcast::routes(['middleware' => ['web', 'auth:web,sanctum']]);
         require base_path('routes/channels.php');
 

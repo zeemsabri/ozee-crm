@@ -134,7 +134,7 @@ class EmailController extends Controller
                 'template_data' => 'nullable|array',
                 'custom_greeting_name' => 'string|nullable',
                 'greeting_name' => 'string|nullable',
-                'status' => 'sometimes|in:draft,pending_approval',
+                'status' => 'sometimes|in:draft,pending_approval,delayed',
             ]);
 
             if (array_key_exists('status', $validated)) {
@@ -183,6 +183,7 @@ class EmailController extends Controller
                 'subject' => 'required|string|max:255',
                 'template_id' => 'required|exists:email_templates,id',
                 'template_data' => 'nullable|array',
+                'status' => 'sometimes|in:draft,pending_approval,delayed',
             ]);
 
             $clientIds = $validated['client_ids'];
@@ -230,7 +231,7 @@ class EmailController extends Controller
                     'subject' => $validated['subject'],
                     'template_id' => $validated['template_id'],
                     'template_data' => json_encode($validated['template_data'] ?? []),
-                    'status' => Email::STATUS_DRAFT,
+                    'status' => $validated['status'] ?? Email::STATUS_DRAFT,
                     'type' => \App\Enums\EmailType::Sent, // Set type to sent for outgoing emails
                 ]);
 
@@ -292,7 +293,7 @@ class EmailController extends Controller
             $validated = $request->validate([
                 'subject' => 'sometimes|required|string|max:255',
                 'body' => 'sometimes|required|string',
-                'status' => 'sometimes|required|in:draft,pending_approval', // Can transition back to draft or to pending
+                'status' => 'sometimes|required|in:draft,pending_approval,delayed', // Can transition back to draft, delayed, or to pending
                 'rejection_reason' => 'nullable|string', // Admin might clear this on re-submit
             ]);
 

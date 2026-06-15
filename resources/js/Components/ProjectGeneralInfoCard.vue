@@ -87,6 +87,8 @@ const clientsError = ref('');
 const meetings = ref([]);
 const loadingMeetings = ref(false);
 const userTimezone = ref('');
+const nowTick = ref(Date.now());
+let projectClockInterval = null;
 
 // Set up permission checking functions
 const { canDo } = usePermissions(props.projectId);
@@ -127,6 +129,21 @@ const formatMeetingTime = (timeString) => {
         return new Date(timeString).toLocaleString();
     }
 };
+
+const projectTimezone = computed(() => props.project?.timezone || null);
+
+const projectCurrentTime = computed(() => {
+    if (!projectTimezone.value) return null;
+    try {
+        return new Date(nowTick.value).toLocaleString(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+            timeZone: projectTimezone.value,
+        });
+    } catch (error) {
+        return null;
+    }
+});
 
 // Fetch resources for the project
 const fetchResources = async () => {
@@ -216,10 +233,16 @@ onMounted(() => {
     fetchResources();
     detectUserTimezone();
     fetchMeetings();
+    projectClockInterval = setInterval(() => {
+        nowTick.value = Date.now();
+    }, 30000);
     document.addEventListener('click', handleClickOutside);
 });
 
 onBeforeUnmount(() => {
+    if (projectClockInterval) {
+        clearInterval(projectClockInterval);
+    }
     document.removeEventListener('click', handleClickOutside);
 });
 
@@ -335,6 +358,10 @@ const sendMagicLink = async () => {
                     </span>
                     <span class="text-gray-600">|</span>
                     <span class="text-gray-600 font-medium">{{ project.project_type || 'N/A' }}</span>
+                    <template v-if="projectTimezone && projectCurrentTime">
+                        <span class="text-gray-600">|</span>
+                        <span class="text-gray-600 font-medium">{{ projectTimezone }} · {{ projectCurrentTime }}</span>
+                    </template>
                     <span class="text-gray-600">|</span>
                     <div class="flex items-center gap-2">
                         <a v-if="project.website" :href="project.website" target="_blank"

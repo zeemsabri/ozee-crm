@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Traits\HasCategories;
 use App\Models\Traits\Taggable;
+use App\Models\Schedule;
 use App\Services\PointsService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -294,6 +295,21 @@ class Email extends Model
                 'ui' => 'morph_type',
             ],
         ];
+    }
+
+    /**
+     * Execute this email when triggered by a schedule.
+     */
+    public function runScheduled(Schedule $schedule): void
+    {
+        $this->refresh();
+
+        // For delayed emails, scheduling only unlocks them back to draft.
+        if ($this->status === \App\Enums\EmailStatus::Delayed) {
+            $this->update([
+                'status' => \App\Enums\EmailStatus::Draft,
+            ]);
+        }
     }
 
     /**
