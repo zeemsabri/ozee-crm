@@ -15,6 +15,7 @@ import {
 import TaskDetailSidebar from '@/Components/ProjectTasks/TaskDetailSidebar.vue';
 import MentionInput from '@/Components/ProjectTasks/MentionInput.vue';
 import { formatMentions } from '@/Utils/mentions';
+import { openEmailDetailSidebar } from '@/Utils/email-sidebar';
 
 const reportData = ref([]);
 const projectsList = ref([]);
@@ -26,6 +27,36 @@ const selectedProjectIds = ref([]);
 const dateStart = ref('');
 const dateEnd = ref('');
 const highlightDate = ref('');
+const activeOnly = ref(true);
+
+const loadingMoreMessages = ref({});
+const noMoreMessages = ref({});
+
+const loadMoreMessages = async (project) => {
+    if (loadingMoreMessages.value[project.id]) return;
+    loadingMoreMessages.value[project.id] = true;
+    try {
+        const oldestMessage = project.messages?.[0];
+        const beforeId = oldestMessage ? oldestMessage.id : null;
+        const res = await window.axios.get(`/api/productivity/projects/${project.id}/messages`, {
+            params: { before_id: beforeId }
+        });
+        if (res.data && res.data.length > 0) {
+            project.messages = [...res.data.reverse(), ...(project.messages || [])];
+        } else {
+            noMoreMessages.value[project.id] = true;
+        }
+    } catch (e) {
+        console.error(e);
+    } finally {
+        loadingMoreMessages.value[project.id] = false;
+    }
+};
+
+const openProjectChat = (projectId, event) => {
+    if (event) event.stopPropagation();
+    window.dispatchEvent(new CustomEvent('open-project-chat', { detail: { projectId } }));
+};
 
 // UI State
 const expandedProjects = ref({});
@@ -234,7 +265,12 @@ const fetchReport = async () => {
     loading.value = true;
     try {
         const res = await window.axios.get('/api/productivity/project-report', {
-            params: { project_ids: selectedProjectIds.value.join(','), date_start: dateStart.value, date_end: dateEnd.value }
+            params: { 
+                project_ids: selectedProjectIds.value.join(','), 
+                date_start: dateStart.value, 
+                date_end: dateEnd.value,
+                active_only: activeOnly.value ? 'true' : 'false'
+            }
         });
         reportData.value = res.data.reportData;
         projectsList.value = res.data.projects;
@@ -361,7 +397,7 @@ onMounted(() => {
 
                 <!-- 1. FILTERS -->
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 print:hidden">
-                    <div class="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
+                    <div class="grid grid-cols-1 md:grid-cols-6 gap-6 items-end">
                         <div class="md:col-span-2">
                             <label class="text-[10px] font-bold text-gray-400 uppercase mb-2 block tracking-widest">Selected Projects</label>
                             <MultiSelectDropdown v-model="selectedProjectIds" :options="projectsList" :is-multi="true" placeholder="Analyze All Projects" />
@@ -377,6 +413,12 @@ onMounted(() => {
                         <div>
                             <label class="text-[10px] font-black text-indigo-600 uppercase mb-2 block flex items-center gap-1"><SparklesIcon class="h-3 w-3" /> Focus Date</label>
                             <input type="date" v-model="highlightDate" class="w-full rounded-xl border-indigo-200 bg-indigo-50 text-indigo-900 font-bold text-sm focus:ring-indigo-500" />
+                        </div>
+                        <div class="flex items-center pb-2">
+                            <label class="inline-flex items-center cursor-pointer">
+                                <input type="checkbox" v-model="activeOnly" @change="fetchReport" class="rounded-lg border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 h-4 w-4" />
+                                <span class="ml-2 text-xs font-bold text-gray-600 uppercase tracking-wider">Active Services Only</span>
+                            </label>
                         </div>
                     </div>
                     <div class="mt-6 flex bg-gray-100 p-1 rounded-xl w-full max-w-md mx-auto">
@@ -469,6 +511,9 @@ onMounted(() => {
                                 </div>
                             </div>
                             <div class="flex items-center gap-3">
+                                <button @click="openProjectChat(project.id, $event)" class="px-4 py-2 border border-sky-200 text-sky-600 rounded-xl text-xs font-bold hover:bg-sky-50 transition flex items-center gap-2">
+                                    <ChatBubbleLeftRightIcon class="h-3.5 w-3.5" /> Chat
+                                </button>
                                 <button @click="exportSingleProjectForAI(project, $event)" class="px-4 py-2 border border-indigo-200 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-50 transition flex items-center gap-2">
                                     <SparklesIcon class="h-3.5 w-3.5" /> {{ exportProjectSuccess[project.id] ? 'Copied!' : 'Export JSON' }}
                                 </button>
@@ -488,7 +533,7 @@ onMounted(() => {
                                     </select>
                                 </div>
                                 <nav class="flex space-x-1 p-1 bg-gray-100 rounded-xl overflow-x-auto scrollbar-hide">
-                                    <button v-for="tab in ['today', 'todo', 'done', 'notes', 'standups', 'meetings', 'summary', 'emails']" :key="tab" @click="setTab(project.id, tab)"
+                                    <button v-for="tab in ['today', 'todo', 'done', 'notes', 'standups', 'meetings', 'summary', 'emails', 'messages']" :key="tab" @click="setTab(project.id, tab)"
                                             :class="activeTabs[project.id] === tab ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'"
                                             class="py-1.5 px-4 rounded-lg text-[10px] font-black uppercase transition whitespace-nowrap">
                                         {{ tab }}
@@ -624,7 +669,7 @@ onMounted(() => {
                                         <!-- Highlighted Emails -->
                                         <div v-if="getHighlightedItems(project.emails, 'created_at').length" class="space-y-3">
                                             <h5 class="text-[10px] font-black tracking-widest text-purple-500 uppercase flex items-center gap-1"><EnvelopeIcon class="h-3 w-3" /> Today's Comms</h5>
-                                            <div v-for="email in getHighlightedItems(project.emails, 'created_at')" :key="email.id" class="p-4 bg-purple-50/30 border border-purple-100 rounded-xl">
+                                            <div v-for="email in getHighlightedItems(project.emails, 'created_at')" :key="email.id" @click="openEmailDetailSidebar(email.id, email)" class="p-4 bg-purple-50/30 border border-purple-100 rounded-xl cursor-pointer hover:bg-purple-100/40 transition">
                                                 <div class="flex items-center justify-between mb-2">
                                                     <p class="text-sm font-bold text-gray-800">{{ email.subject }}</p>
                                                     <p class="text-[10px] text-gray-500 font-bold uppercase">{{ email.sender }}</p>
@@ -725,15 +770,14 @@ onMounted(() => {
                                             </button>
                                         </div>
                                     </div>
-                                </div>
-
-                                <!-- EMAILS -->
+                                </div>                                <!-- EMAILS -->
                                 <div v-show="activeTabs[project.id] === 'emails'" class="space-y-8">
                                     <div v-for="(group, title) in {'Highlighted (Focus Date)': getHighlightedItems(filterBySelectedUser(project.emails, project.id, 'sender'), 'created_at'), 'Archive': getArchivedItems(filterBySelectedUser(project.emails, project.id, 'sender'), 'created_at')}" :key="title">
                                         <div v-if="group.length > 0" class="space-y-6">
                                             <h5 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 border-b border-gray-100 pb-2">{{ title }}</h5>
                                             <div v-for="email in group" :key="email.id"
-                                         class="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm" :class="isHighlighted(email.created_at) ? 'ring-2 ring-purple-100 border-purple-200' : ''">
+                                                 @click="openEmailDetailSidebar(email.id, email)"
+                                                 class="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm cursor-pointer hover:border-purple-300 transition" :class="isHighlighted(email.created_at) ? 'ring-2 ring-purple-100 border-purple-200' : ''">
                                         <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
                                             <div class="flex items-center gap-4">
                                                 <div :class="email.type === 'Received' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'" class="p-3 rounded-2xl shadow-inner"><EnvelopeIcon class="h-6 w-6" /></div>
@@ -753,6 +797,32 @@ onMounted(() => {
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+
+                                <!-- MESSAGES -->
+                                <div v-show="activeTabs[project.id] === 'messages'" class="space-y-8">
+                                    <div class="flex justify-between items-center mb-4">
+                                        <h5 class="text-[10px] font-black tracking-widest text-sky-500 uppercase flex items-center gap-1">
+                                            <ChatBubbleLeftRightIcon class="h-3.5 w-3.5" /> Project Messages
+                                        </h5>
+                                        <button v-if="project.messages?.length && !noMoreMessages[project.id]" 
+                                                @click="loadMoreMessages(project)"
+                                                :disabled="loadingMoreMessages[project.id]"
+                                                class="px-3 py-1 bg-sky-50 text-sky-600 border border-sky-200 rounded-xl text-xs font-bold hover:bg-sky-100 transition disabled:opacity-50">
+                                            {{ loadingMoreMessages[project.id] ? 'Loading...' : 'Load More' }}
+                                        </button>
+                                    </div>
+                                    
+                                    <div v-if="project.messages?.length" class="space-y-3 max-h-[500px] overflow-y-auto p-2 border border-gray-100 rounded-[2rem] bg-white">
+                                        <div v-for="msg in project.messages" :key="msg.id" class="p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-white transition flex flex-col gap-1">
+                                            <div class="flex justify-between items-center text-[10px] text-gray-400 font-bold">
+                                                <span class="text-sky-600 uppercase">{{ msg.user }}</span>
+                                                <span>{{ formatDate(msg.created_at) }}</span>
+                                            </div>
+                                            <p class="text-sm text-gray-700 font-medium whitespace-pre-wrap">{{ msg.message }}</p>
+                                        </div>
+                                    </div>
+                                    <p v-else class="text-center text-gray-400 text-xs italic">No messages found.</p>
                                 </div>
                             </div>
                         </div>

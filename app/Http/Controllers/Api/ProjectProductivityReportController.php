@@ -21,7 +21,11 @@ class ProjectProductivityReportController extends Controller
 
     public function index(Request $request)
     {
-        $filters = $request->only(['project_ids', 'date_start', 'date_end']);
+        $filters = $request->only(['project_ids', 'date_start', 'date_end', 'active_only']);
+
+        if (!isset($filters['active_only'])) {
+            $filters['active_only'] = 'true';
+        }
 
         if (empty($filters['date_start'])) {
             $filters['date_start'] = Carbon::now()->startOfMonth()->toDateString();
@@ -40,6 +44,11 @@ class ProjectProductivityReportController extends Controller
 
         $projects = Project::query()
             ->when(!empty($projectIds), fn($q) => $q->whereIn('id', $projectIds))
+            ->when($filters['active_only'] === 'true', function($q) {
+                $q->whereHas('projectServices', function($sq) {
+                    $sq->where('status', 'active');
+                });
+            })
             ->orderBy('name')
             ->get();
 
@@ -77,6 +86,13 @@ class ProjectProductivityReportController extends Controller
                 ->whereBetween('created_at', [$startDate, $endDate])
                 ->with(['contexts', 'sender'])
                 ->latest()
+                ->get();
+
+            // 4. Chat messages
+            $chatMessages = \App\Models\ChatMessage::where('project_id', $project->id)
+                ->with(['user', 'client'])
+                ->latest()
+                ->limit(10)
                 ->get();
 
             return [
@@ -124,13 +140,29 @@ class ProjectProductivityReportController extends Controller
                         'contexts' => $email->contexts,
                     ];
                 }),
+                'messages' => $chatMessages->map(function($msg) {
+                    $userName = $msg->user?->name ?? ($msg->client?->name ?? ($msg->meta_data['telegram_from']['first_name'] ?? 'System'));
+                    return [
+                        'id' => $msg->id,
+                        'message' => $msg->message,
+                        'user' => $userName,
+                        'created_at' => $msg->created_at->toDateTimeString(),
+                        'source' => $msg->source,
+                    ];
+                })->reverse()->values(),
                 'data' => $project->data,
                 'has_activity' => $projectNotes->isNotEmpty() || $tasks->isNotEmpty() || $emails->isNotEmpty()
             ];
         });
 
         // Get all projects for filters
-        $allProjects = Project::select('id', 'name')->orderBy('name')->get()->map(fn($p) => [
+        $allProjectsQuery = Project::query();
+        if ($filters['active_only'] === 'true') {
+            $allProjectsQuery->whereHas('projectServices', function($sq) {
+                $sq->where('status', 'active');
+            });
+        }
+        $allProjects = $allProjectsQuery->select('id', 'name')->orderBy('name')->get()->map(fn($p) => [
             'value' => $p->id,
             'label' => $p->name
         ]);
@@ -140,5 +172,31 @@ class ProjectProductivityReportController extends Controller
             'reportData' => $report,
             'filters' => $filters
         ]);
+    }
+
+    public function messages(Request $request, Project $project)
+    {
+        $beforeId = $request->input('before_id');
+        $limit = $request->input('limit', 10);
+
+        $messages = \App\Models\ChatMessage::where('project_id', $project->id)
+            ->with(['user', 'client'])
+            ->when($beforeId, function($q) use ($beforeId) {
+                $q->where('id', '<', $beforeId);
+            })
+            ->latest()
+            ->limit($limit)
+            ->get();
+
+        return response()->json($messages->map(function($msg) {
+            $userName = $msg->user?->name ?? ($msg->client?->name ?? ($msg->meta_data['telegram_from']['first_name'] ?? 'System'));
+            return [
+                'id' => $msg->id,
+                'message' => $msg->message,
+                'user' => $userName,
+                'created_at' => $msg->created_at->toDateTimeString(),
+                'source' => $msg->source,
+            ];
+        }));
     }
 }
