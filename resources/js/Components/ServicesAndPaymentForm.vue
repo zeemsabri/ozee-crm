@@ -319,7 +319,11 @@ const updateServicesAndPayment = async () => {
 };
 
 // Handle service selection
-const handleServiceSelection = (serviceId, isSelected) => {
+const handleServiceSelection = (serviceId, checkedValue) => {
+    const isSelected = Array.isArray(checkedValue)
+        ? checkedValue.includes(serviceId)
+        : !!checkedValue;
+
     if (isSelected) {
         // Add service to service_details if it doesn't exist
         if (!formData.service_details.some(detail => detail.service_id === serviceId)) {

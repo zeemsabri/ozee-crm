@@ -199,10 +199,19 @@ class ExistingClientEnquiryControllerTest extends TestCase
         ]);
 
         foreach ($normalized as $detail) {
+            $crmServiceId = DB::table('crm_services')->where('name', $detail['service_id'])->value('id');
+            if (!$crmServiceId) {
+                $crmServiceId = DB::table('crm_services')->insertGetId([
+                    'name' => $detail['service_id'],
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
             DB::table('project_services')->insert([
                 'project_id' => $projectId,
                 'enquiry_id' => $detail['enquiry_id'] ?? (string) Str::uuid(),
-                'service_id' => $detail['service_id'],
+                'crm_service_id' => $crmServiceId,
                 'description' => $detail['description'] ?? null,
                 'amount' => $detail['amount'] ?? 0,
                 'currency' => $detail['currency'] ?? 'USD',
@@ -223,5 +232,62 @@ class ExistingClientEnquiryControllerTest extends TestCase
         }
 
         return $projectId;
+    }
+
+    public function test_unchecking_services_updates_status_to_inactive(): void
+    {
+        $user = $this->createManagerUser();
+        Sanctum::actingAs($user);
+
+        $projectId = $this->createProjectWithServices([
+            [
+                'enquiry_id' => 'enquiry-1',
+                'service_id' => 'SEO Services',
+                'service_tracking_type' => 'operational_service',
+            ],
+            [
+                'enquiry_id' => 'enquiry-2',
+                'service_id' => 'Web Design',
+                'service_tracking_type' => 'operational_service',
+            ],
+        ]);
+
+        $project = \App\Models\Project::findOrFail($projectId);
+
+        // Put request to update services: we only send SEO Services, unchecking Web Design.
+        $response = $this->putJson("/api/projects/{$projectId}/sections/services-payment", [
+            'services' => ['SEO Services'],
+            'service_details' => [
+                [
+                    'enquiry_id' => 'enquiry-1',
+                    'service_id' => 'SEO Services',
+                    'amount' => 1000,
+                    'frequency' => 'one_off',
+                    'service_tracking_type' => 'operational_service',
+                ]
+            ],
+            'total_amount' => 1000,
+            'payment_type' => 'one_off',
+        ]);
+
+        $response->assertOk();
+
+        // Verify in DB that Web Design is now 'inactive' instead of being deleted
+        $this->assertDatabaseHas('project_services', [
+            'project_id' => $projectId,
+            'enquiry_id' => 'enquiry-2',
+            'status' => 'inactive',
+        ]);
+
+        // Verify SEO Services is still 'active'
+        $this->assertDatabaseHas('project_services', [
+            'project_id' => $projectId,
+            'enquiry_id' => 'enquiry-1',
+            'status' => 'active',
+        ]);
+
+        // Verify that the services array column on Project only contains active services
+        $project->refresh();
+        $this->assertEquals(['SEO Services'], $project->services);
     }
 }

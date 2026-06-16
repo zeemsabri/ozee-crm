@@ -46,6 +46,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Relation::morphMap([
+            'App\Models\Task' => Task::class,
+            'App\Models\Workflow' => Workflow::class,
+            'App\Models\Email' => Email::class,
             'task' => Task::class,
             'workflow' => Workflow::class,
             'email' => Email::class,

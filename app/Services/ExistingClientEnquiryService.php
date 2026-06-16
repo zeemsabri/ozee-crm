@@ -88,6 +88,7 @@ class ExistingClientEnquiryService
     public function syncServices(array $services, array $serviceDetails): array
     {
         $detailServices = collect($serviceDetails)
+            ->filter(fn ($detail) => ($detail['status'] ?? 'active') !== 'inactive')
             ->pluck('service_id')
             ->filter()
             ->map(fn ($serviceId) => (string) $serviceId)
@@ -562,9 +563,9 @@ class ExistingClientEnquiryService
             $incomingEnquiryIds = collect($normalized)->pluck('enquiry_id')->filter()->all();
 
             if ($incomingEnquiryIds === []) {
-                $project->projectServices()->delete();
+                $project->projectServices()->update(['status' => 'inactive']);
             } else {
-                $project->projectServices()->whereNotIn('enquiry_id', $incomingEnquiryIds)->delete();
+                $project->projectServices()->whereNotIn('enquiry_id', $incomingEnquiryIds)->update(['status' => 'inactive']);
             }
 
             foreach ($normalized as $detail) {
@@ -609,9 +610,15 @@ class ExistingClientEnquiryService
                 }
             }
 
-            $project->services = $this->syncServices($project->services ?? [], $normalized);
-            // Keep the legacy JSON column in sync during phase-1 rollout.
-            $project->service_details = $normalized;
+            // Sync services using only active ones from DB
+            $activeDetails = $project->projectServices()
+                ->where('status', 'active')
+                ->with('crmService')
+                ->get();
+            $project->services = $activeDetails->map(fn($s) => $s->crmService?->name)->filter()->unique()->values()->all();
+
+            // Keep the legacy JSON column in sync with ALL services from DB (active and inactive)
+            $project->service_details = $this->projectServiceDetails($project);
             $project->save();
         });
 
