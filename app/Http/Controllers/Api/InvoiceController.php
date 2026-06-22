@@ -94,15 +94,23 @@ class InvoiceController extends Controller
 
         $currency = null;
         if ($lineItems->isNotEmpty()) {
-            $serviceIds = collect($lineItems)->pluck('project_service_id')->unique();
-            $services = ProjectService::whereIn('id', $serviceIds)->get();
-            $currencies = $services->pluck('currency')->filter()->unique();
+            $serviceIds = collect($lineItems)->pluck('project_service_id')->unique()->values();
+            $services = ProjectService::whereIn('id', $serviceIds)->where('project_id', $project->id)->get();
 
-            if ($currencies->count() === 0 || $services->count() !== $currencies->count()) {
+            if ($services->count() !== $serviceIds->count()) {
+                throw ValidationException::withMessages([
+                    'line_items' => 'One or more selected services are invalid for this project.',
+                ]);
+            }
+
+            $missingCurrency = $services->filter(fn ($s) => blank($s->currency));
+            if ($missingCurrency->isNotEmpty()) {
                 throw ValidationException::withMessages([
                     'line_items' => 'One or more selected services do not have a currency defined. Cannot create invoice.',
                 ]);
             }
+
+            $currencies = $services->map(fn ($s) => strtoupper($s->currency))->unique();
             if ($currencies->count() > 1) {
                 throw ValidationException::withMessages([
                     'line_items' => 'Selected services have different currencies. All line items in an invoice must share the same currency.',

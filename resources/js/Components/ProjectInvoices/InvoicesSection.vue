@@ -57,9 +57,48 @@ const totalAmount = computed(() => lineItems.value.reduce((sum, item) => {
     return sum + (Number(item.quantity || 1) * Number(item.unit_price || 0));
 }, 0).toFixed(2));
 
+const normalizeCurrencyCode = (code) => {
+    const val = String(code || '').trim().toUpperCase();
+    return val || null;
+};
+
+const getServiceCurrency = (projectServiceId) => {
+    const service = getServiceById(projectServiceId);
+    return normalizeCurrencyCode(service?.currency);
+};
+
+const getLineDisplayCurrency = (item) => getServiceCurrency(item.project_service_id) || props.project.currency || 'AUD';
+
+const selectedLineCurrencies = computed(() => {
+    return lineItems.value
+        .filter(item => item.project_service_id)
+        .map(item => getServiceCurrency(item.project_service_id))
+        .filter(Boolean);
+});
+
+const selectedLinesMissingCurrency = computed(() => {
+    return lineItems.value
+        .filter(item => item.project_service_id)
+        .some(item => !getServiceCurrency(item.project_service_id));
+});
+
+const hasMixedLineCurrencies = computed(() => {
+    const unique = new Set(selectedLineCurrencies.value);
+    return unique.size > 1;
+});
+
+const selectedInvoiceCurrency = computed(() => {
+    const currencies = [...new Set(selectedLineCurrencies.value)];
+    return currencies.length === 1 ? currencies[0] : null;
+});
+
 const getServiceLabel = (service) => service.service_id || 'Service';
 
-const getServiceById = (projectServiceId) => projectServices.value.find(service => String(service.project_service_id) === String(projectServiceId));
+const getServiceById = (projectServiceId) =>
+    projectServices.value.find(service =>
+        String(service.project_service_id) === String(projectServiceId) ||
+        String(service.id) === String(projectServiceId)
+    );
 
 const existingInvoiceMilestones = computed(() => {
     return invoices.value.flatMap((invoice) => {
@@ -316,6 +355,14 @@ const submitInvoice = async () => {
             tax_type: item.tax_type || 'OUTPUT',
         }));
 
+    if (selectedLinesMissingCurrency.value) {
+        return error('One or more selected services do not have a currency defined. Cannot create invoice.');
+    }
+
+    if (hasMixedLineCurrencies.value) {
+        return error('Selected services have different currencies. Xero invoices can only contain one currency.');
+    }
+
     createProcessing.value = true;
     try {
         await axios.post(`/api/projects/${props.project.id}/invoices`, {
@@ -517,7 +564,7 @@ const formatStatus = (status) => {
                                     <div>
                                         <InputLabel value="Unit Price" />
                                         <div class="mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700">
-                                            {{ formatCurrency(Number(item.unit_price || 0), props.project.currency || 'AUD') }}
+                                            {{ formatCurrency(Number(item.unit_price || 0), getLineDisplayCurrency(item)) }}
                                         </div>
                                     </div>
                                 </div>
@@ -530,9 +577,17 @@ const formatStatus = (status) => {
                                 </div>
                             </div>
 
+                            <div v-if="selectedLinesMissingCurrency" class="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+                                One or more selected services do not have a currency defined. Cannot create invoice.
+                            </div>
+                            <div v-else-if="hasMixedLineCurrencies" class="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+                                Selected services have different currencies. Xero invoices can only contain one currency.
+                            </div>
+
                             <div class="flex items-center justify-between rounded-lg bg-gray-100 px-4 py-3">
                                 <span class="text-sm font-medium text-gray-700">Estimated Total</span>
-                                <span class="text-base font-semibold text-gray-900">{{ formatCurrency(Number(totalAmount), props.project.currency || 'AUD') }}</span>
+                                <span v-if="hasMixedLineCurrencies" class="text-base font-semibold text-amber-700">Multiple currencies selected</span>
+                                <span v-else class="text-base font-semibold text-gray-900">{{ formatCurrency(Number(totalAmount), selectedInvoiceCurrency || props.project.currency || 'AUD') }}</span>
                             </div>
                         </div>
 
@@ -611,7 +666,7 @@ const formatStatus = (status) => {
 
                 <div class="mt-6 flex justify-end gap-3">
                     <SecondaryButton @click="showCreateModal = false">Cancel</SecondaryButton>
-                    <PrimaryButton @click="submitInvoice" :disabled="createProcessing">
+                    <PrimaryButton @click="submitInvoice" :disabled="createProcessing || selectedLinesMissingCurrency || hasMixedLineCurrencies">
                         Create Invoice
                     </PrimaryButton>
                 </div>

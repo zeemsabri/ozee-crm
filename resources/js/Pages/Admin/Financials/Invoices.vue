@@ -90,6 +90,41 @@ const totalAmount = computed(() => lineItems.value.reduce((sum, item) => {
     return sum + (quantity * unitPrice);
 }, 0).toFixed(2));
 
+const normalizeCurrencyCode = (code) => {
+    const val = String(code || '').trim().toUpperCase();
+    return val || null;
+};
+
+const getServiceCurrency = (projectServiceId) => {
+    const service = getServiceById(projectServiceId);
+    return normalizeCurrencyCode(service?.currency);
+};
+
+const getLineDisplayCurrency = (item) => getServiceCurrency(item.project_service_id) || selectedProject.value?.currency || 'AUD';
+
+const selectedLineCurrencies = computed(() => {
+    return lineItems.value
+        .filter(item => item.project_service_id)
+        .map(item => getServiceCurrency(item.project_service_id))
+        .filter(Boolean);
+});
+
+const selectedLinesMissingCurrency = computed(() => {
+    return lineItems.value
+        .filter(item => item.project_service_id)
+        .some(item => !getServiceCurrency(item.project_service_id));
+});
+
+const hasMixedLineCurrencies = computed(() => {
+    const unique = new Set(selectedLineCurrencies.value);
+    return unique.size > 1;
+});
+
+const selectedInvoiceCurrency = computed(() => {
+    const currencies = [...new Set(selectedLineCurrencies.value)];
+    return currencies.length === 1 ? currencies[0] : null;
+});
+
 const getServiceLabel = (service) => service.service_id || service.service_name || 'Service';
 
 const getMilestoneOptions = (service) => {
@@ -459,6 +494,14 @@ const submitInvoice = async () => {
     
     if (form.line_items.length === 0) {
         return error('Please add at least one valid invoice line item.');
+    }
+
+    if (selectedLinesMissingCurrency.value) {
+        return error('One or more selected services do not have a currency defined. Cannot create invoice.');
+    }
+
+    if (hasMixedLineCurrencies.value) {
+        return error('Selected services have different currencies. Xero invoices can only contain one currency.');
     }
 
     createProcessing.value = true;
@@ -860,7 +903,7 @@ const getStatusClass = (status) => {
                                     <div>
                                         <InputLabel value="Unit Price" />
                                         <div class="mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700">
-                                            {{ formatCurrency(Number(item.unit_price || 0), selectedProject?.currency || 'AUD') }}
+                                            {{ formatCurrency(Number(item.unit_price || 0), getLineDisplayCurrency(item)) }}
                                         </div>
                                     </div>
                                 </div>
@@ -884,9 +927,17 @@ const getStatusClass = (status) => {
                                 </div>
                             </div>
 
+                            <div v-if="selectedLinesMissingCurrency" class="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+                                One or more selected services do not have a currency defined. Cannot create invoice.
+                            </div>
+                            <div v-else-if="hasMixedLineCurrencies" class="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+                                Selected services have different currencies. Xero invoices can only contain one currency.
+                            </div>
+
                             <div class="flex items-center justify-between rounded-lg bg-gray-100 px-4 py-3">
                                 <span class="text-sm font-medium text-gray-700">Estimated Total</span>
-                                <span class="text-base font-semibold text-gray-900">{{ formatCurrency(Number(totalAmount), selectedProject?.currency || 'AUD') }}</span>
+                                <span v-if="hasMixedLineCurrencies" class="text-base font-semibold text-amber-700">Multiple currencies selected</span>
+                                <span v-else class="text-base font-semibold text-gray-900">{{ formatCurrency(Number(totalAmount), selectedInvoiceCurrency || selectedProject?.currency || 'AUD') }}</span>
                             </div>
                         </div>
 
@@ -967,7 +1018,7 @@ const getStatusClass = (status) => {
 
                 <div class="mt-6 flex justify-end gap-3">
                     <SecondaryButton @click="showCreateModal = false">Cancel</SecondaryButton>
-                    <PrimaryButton @click="submitInvoice" :disabled="createProcessing">
+                    <PrimaryButton @click="submitInvoice" :disabled="createProcessing || selectedLinesMissingCurrency || hasMixedLineCurrencies">
                         Create Invoice
                     </PrimaryButton>
                 </div>
