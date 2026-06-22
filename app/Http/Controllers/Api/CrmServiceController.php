@@ -53,18 +53,35 @@ class CrmServiceController extends Controller
             'default_xero_account_code' => 'nullable|string|max:50',
         ]);
 
-        $crmService->update([
-            'name' => $validated['name'] ?? $crmService->name,
-            'xero_item_code' => $validated['xero_item_code'] ?? null,
-            'default_amount' => $validated['default_amount'] ?? $crmService->default_amount,
-            'default_currency' => $validated['default_currency'] ?? $crmService->default_currency,
-            'default_frequency' => $validated['default_frequency'] ?? $crmService->default_frequency,
-            'default_payment_breakdown' => $validated['default_payment_breakdown'] ?? $crmService->default_payment_breakdown,
-            'default_description' => $validated['default_description'] ?? $crmService->default_description,
-            'default_xero_account_code' => $validated['default_xero_account_code'] ?? $crmService->default_xero_account_code,
-        ]);
+        $crmService->update($validated);
 
         return response()->json($crmService);
+    }
+
+    public function bulkUpdate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'exists:crm_services,id',
+            'default_xero_account_code' => 'nullable|string|max:50',
+            'xero_item_code' => 'nullable|string|max:50',
+        ]);
+
+        $updateData = [];
+        if ($request->has('default_xero_account_code')) {
+            $updateData['default_xero_account_code'] = $validated['default_xero_account_code'];
+        }
+        if ($request->has('xero_item_code')) {
+            $updateData['xero_item_code'] = $validated['xero_item_code'];
+        }
+
+        if (!empty($updateData)) {
+            CrmService::whereIn('id', $validated['ids'])->update($updateData);
+        }
+
+        return response()->json([
+            'message' => 'CRM services updated successfully.',
+        ]);
     }
 
     public function merge(Request $request, CrmService $crmService): JsonResponse

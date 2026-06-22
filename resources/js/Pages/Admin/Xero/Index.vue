@@ -347,15 +347,59 @@
                             </PrimaryButton>
                         </div>
 
+                        <!-- Bulk Actions Toolbar -->
+                        <div
+                            v-if="selectedServiceIds.length > 0"
+                            class="mb-4 flex flex-col gap-4 rounded-lg bg-indigo-50 p-4 border border-indigo-100 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                            <span class="text-sm font-medium text-indigo-900">
+                                {{ selectedServiceIds.length }} CRM service{{ selectedServiceIds.length === 1 ? '' : 's' }} selected
+                            </span>
+                            <div class="flex flex-wrap items-center gap-3">
+                                <div class="w-64">
+                                    <SelectDropdown
+                                        v-model="bulkAccountCode"
+                                        :options="xeroRevenueAccountOptions"
+                                        placeholder="Select bulk account"
+                                        class="w-full"
+                                    />
+                                </div>
+                                <PrimaryButton
+                                    @click="applyBulkAccountUpdate"
+                                    :disabled="bulkSavingAccount"
+                                    class="!bg-indigo-600 hover:!bg-indigo-700"
+                                >
+                                    {{ bulkSavingAccount ? 'Updating...' : 'Bulk Update Account' }}
+                                </PrimaryButton>
+                                <button
+                                    @click="selectedServiceIds = []"
+                                    class="text-sm text-gray-600 hover:text-gray-950"
+                                >
+                                    Clear Selection
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
                                     <tr>
+                                        <th class="w-10 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                            <input
+                                                type="checkbox"
+                                                :checked="isAllServicesSelected"
+                                                @change="toggleSelectAllServices"
+                                                class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                        </th>
                                         <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                                             CRM Service
                                         </th>
                                         <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                                             Xero Item
+                                        </th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                            Xero Revenue Account
                                         </th>
                                         <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                                             Usage
@@ -369,7 +413,15 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-200 bg-white">
-                                    <tr v-for="(service, serviceIndex) in crmServiceRows" :key="service?.id ?? `service-${serviceIndex}`">
+                                    <tr v-for="(service, serviceIndex) in crmServiceRows" :key="service?.id ?? `service-${serviceIndex}`" :class="{'bg-indigo-50/30': selectedServiceIds.includes(service.id)}">
+                                        <td class="px-4 py-4 text-sm text-gray-500">
+                                            <input
+                                                type="checkbox"
+                                                v-model="selectedServiceIds"
+                                                :value="service.id"
+                                                class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                        </td>
                                         <td class="px-4 py-4 text-sm text-gray-900">
                                             <div v-if="editingCrmServiceId !== service.id">
                                                 <button
@@ -410,6 +462,14 @@
                                                 v-model="crmServiceForms[service.id].xero_item_code"
                                                 :options="xeroItemOptions"
                                                 placeholder="Select item"
+                                                class="w-full"
+                                            />
+                                        </td>
+                                        <td class="px-4 py-4 text-sm text-gray-500">
+                                            <SelectDropdown
+                                                v-model="crmServiceForms[service.id].default_xero_account_code"
+                                                :options="xeroRevenueAccountOptions"
+                                                placeholder="Select account"
                                                 class="w-full"
                                             />
                                         </td>
@@ -462,7 +522,7 @@
                                                     @click="createXeroItemForService(service.id)"
                                                     :disabled="creatingItemForServiceId === service.id"
                                                     class="text-emerald-600 hover:text-emerald-800 disabled:opacity-50"
-                                                >
+                                                 >
                                                     {{ creatingItemForServiceId === service.id ? 'Creating...' : 'Create in Xero' }}
                                                 </button>
                                                 <button
@@ -575,6 +635,7 @@ const disconnect = () => {
 };
 
 const xeroAccounts = ref([]);
+const xeroRevenueAccounts = ref([]);
 const xeroItems = ref([]);
 const bulkSaving = ref(false);
 const creatingAccountForTypeId = ref(null);
@@ -583,6 +644,57 @@ const openTransactionUsageId = ref(null);
 const openServiceUsageId = ref(null);
 const editingCrmServiceId = ref(null);
 const mergeMode = ref(false);
+
+const selectedServiceIds = ref([]);
+const bulkAccountCode = ref('');
+const bulkSavingAccount = ref(false);
+
+const isAllServicesSelected = computed(() => {
+    return safeCrmServices.value.length > 0 && selectedServiceIds.value.length === safeCrmServices.value.length;
+});
+
+const toggleSelectAllServices = () => {
+    if (isAllServicesSelected.value) {
+        selectedServiceIds.value = [];
+    } else {
+        selectedServiceIds.value = safeCrmServices.value.map((s) => s.id);
+    }
+};
+
+const applyBulkAccountUpdate = async () => {
+    if (selectedServiceIds.value.length === 0) {
+        notifyError('Please select at least one service to update.');
+        return;
+    }
+
+    bulkSavingAccount.value = true;
+    try {
+        await axios.put('/api/crm-services/bulk', {
+            ids: selectedServiceIds.value,
+            default_xero_account_code: bulkAccountCode.value || null,
+        });
+
+        notifySuccess(`Successfully updated ${selectedServiceIds.value.length} services.`);
+        
+        selectedServiceIds.value.forEach((id) => {
+            if (crmServiceForms[id]) {
+                crmServiceForms[id].default_xero_account_code = bulkAccountCode.value;
+                crmServiceInitial[id].default_xero_account_code = bulkAccountCode.value;
+            }
+            const service = safeCrmServices.value.find((s) => s.id === id);
+            if (service) {
+                service.default_xero_account_code = bulkAccountCode.value;
+            }
+        });
+        
+        selectedServiceIds.value = [];
+        bulkAccountCode.value = '';
+    } catch (error) {
+        notifyError(error.response?.data?.message || 'Failed to bulk update services.');
+    } finally {
+        bulkSavingAccount.value = false;
+    }
+};
 
 const transactionTypeForms = reactive({});
 const crmServiceForms = reactive({});
@@ -614,6 +726,16 @@ const brandingThemeOptions = computed(() => {
 
 const xeroAccountOptions = computed(() => {
     const accountOptions = xeroAccounts.value
+        .filter((account) => account && account.code)
+        .map((account) => ({
+            value: account.code,
+            label: `${account.code} - ${account.name || 'Unnamed account'}`,
+        }));
+    return [{ value: '', label: 'No account mapping' }, ...accountOptions];
+});
+
+const xeroRevenueAccountOptions = computed(() => {
+    const accountOptions = xeroRevenueAccounts.value
         .filter((account) => account && account.code)
         .map((account) => ({
             value: account.code,
@@ -655,11 +777,13 @@ const hydrateForms = () => {
         crmServiceForms[service.id] = {
             name: service.name || '',
             xero_item_code: service.xero_item_code || '',
+            default_xero_account_code: service.default_xero_account_code || '',
             processing: false,
         };
         crmServiceInitial[service.id] = {
             name: service.name || '',
             xero_item_code: service.xero_item_code || '',
+            default_xero_account_code: service.default_xero_account_code || '',
         };
         mergeTargets[service.id] = '';
     });
@@ -684,7 +808,9 @@ const hasCrmServiceChanges = (serviceId) => {
         return false;
     }
 
-    return form.name.trim() !== initial.name.trim() || (form.xero_item_code || '') !== (initial.xero_item_code || '');
+    return form.name.trim() !== initial.name.trim() ||
+           (form.xero_item_code || '') !== (initial.xero_item_code || '') ||
+           (form.default_xero_account_code || '') !== (initial.default_xero_account_code || '');
 };
 
 const hasPendingChanges = computed(() => {
@@ -742,17 +868,20 @@ const saveCrmMapping = async (serviceId, silent = false) => {
         await axios.put(`/api/crm-services/${serviceId}`, {
             name: form.name.trim(),
             xero_item_code: form.xero_item_code || null,
+            default_xero_account_code: form.default_xero_account_code || null,
         });
 
         crmServiceInitial[serviceId] = {
             name: form.name,
             xero_item_code: form.xero_item_code || '',
+            default_xero_account_code: form.default_xero_account_code || '',
         };
 
         const match = safeCrmServices.value.find((service) => service.id === serviceId);
         if (match) {
             match.name = form.name.trim();
             match.xero_item_code = form.xero_item_code || '';
+            match.default_xero_account_code = form.default_xero_account_code || '';
         }
 
         if (!silent) {
@@ -909,11 +1038,19 @@ const fetchXeroAccounts = async () => {
     }
 
     try {
-        const { data } = await axios.get(route('api.xero.accounts'));
+        const { data } = await axios.get(route('api.xero.accounts', { category: 'expense' }));
         xeroAccounts.value = Array.isArray(data) ? data : [];
     } catch (error) {
-        console.error('Failed to fetch Xero accounts', error);
+        console.error('Failed to fetch Xero expense accounts', error);
         xeroAccounts.value = [];
+    }
+
+    try {
+        const { data } = await axios.get(route('api.xero.accounts', { category: 'revenue' }));
+        xeroRevenueAccounts.value = Array.isArray(data) ? data : [];
+    } catch (error) {
+        console.error('Failed to fetch Xero revenue accounts', error);
+        xeroRevenueAccounts.value = [];
     }
 };
 

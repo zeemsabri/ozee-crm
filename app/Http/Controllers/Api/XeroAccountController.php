@@ -15,7 +15,7 @@ class XeroAccountController extends Controller
     {
     }
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         $credentials = $this->xeroTokenService->getRuntimeCredentials();
 
@@ -28,7 +28,14 @@ class XeroAccountController extends Controller
             ->throw()
             ->json();
 
-        $allowedTypes = ['EXPENSE', 'OVERHEADS', 'DIRECTCOSTS'];
+        $category = $request->query('category');
+        if ($category === 'revenue') {
+            $allowedTypes = ['REVENUE', 'SALES', 'OTHERINCOME'];
+        } elseif ($category === 'expense') {
+            $allowedTypes = ['EXPENSE', 'OVERHEADS', 'DIRECTCOSTS'];
+        } else {
+            $allowedTypes = ['EXPENSE', 'OVERHEADS', 'DIRECTCOSTS'];
+        }
 
         $accounts = collect(data_get($response, 'Accounts', []))
             ->filter(function (array $account) use ($allowedTypes) {
@@ -80,7 +87,7 @@ class XeroAccountController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'nullable|string|max:20',
-            'type' => 'nullable|in:EXPENSE,OVERHEADS,DIRECTCOSTS',
+            'type' => 'nullable|in:EXPENSE,OVERHEADS,DIRECTCOSTS,REVENUE,SALES,OTHERINCOME',
         ]);
 
         $credentials = $this->xeroTokenService->getRuntimeCredentials();

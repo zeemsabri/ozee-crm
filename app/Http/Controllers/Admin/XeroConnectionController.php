@@ -104,6 +104,7 @@ class XeroConnectionController extends Controller
                     'id' => $service->id,
                     'name' => $service->name,
                     'xero_item_code' => $service->xero_item_code,
+                    'default_xero_account_code' => $service->default_xero_account_code,
                     'project_services_count' => $service->project_services_count,
                     'usage_projects' => $projectNames,
                     'project_service_usages' => $service->projectServices

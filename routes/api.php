@@ -621,6 +621,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // CRM Services Routes
     Route::get('crm-services', [\App\Http\Controllers\Api\CrmServiceController::class, 'index']);
     Route::post('crm-services', [\App\Http\Controllers\Api\CrmServiceController::class, 'store']);
+    Route::put('crm-services/bulk', [\App\Http\Controllers\Api\CrmServiceController::class, 'bulkUpdate']);
     Route::put('crm-services/{crmService}', [\App\Http\Controllers\Api\CrmServiceController::class, 'update']);
     Route::post('crm-services/{crmService}/merge', [\App\Http\Controllers\Api\CrmServiceController::class, 'merge']);
 
