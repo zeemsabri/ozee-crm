@@ -24,7 +24,8 @@ class XeroInvoiceService
     public function __construct(
         private readonly XeroTokenService $xeroTokenService,
         private readonly XeroContactSyncService $xeroContactSyncService,
-    ) {}
+    ) {
+    }
 
     /**
      * Create a Sales Invoice in Xero for the given invoice.
@@ -35,21 +36,25 @@ class XeroInvoiceService
         $credentials = $this->xeroTokenService->getRuntimeCredentials();
 
         $invoice->loadMissing(['client', 'project', 'invoiceItems.projectService']);
-        
-           $xeroContactId = $this->resolveClientContactId($invoice->client);
+
+        $xeroContactId = $this->resolveClientContactId($invoice->client);
 
         $lineItems = $invoice->invoiceItems->isNotEmpty()
             ? $this->buildLineItemsFromInvoiceItems($invoice, $credentials)
-            : [[
-                'Description' => "Invoice for Project: {$invoice->project->name}",
-                'Quantity' => 1.0,
-                'UnitAmount' => (float) $invoice->total_amount,
-                'AccountCode' => '200',
-                'Tracking' => [[
-                    'Name' => 'Project',
-                    'Option' => $invoice->project->name,
-                ]],
-            ]];
+            : [
+                [
+                    'Description' => "Invoice for Project: {$invoice->project->name}",
+                    'Quantity' => 1.0,
+                    'UnitAmount' => (float) $invoice->total_amount,
+                    'AccountCode' => '200',
+                    'Tracking' => [
+                        [
+                            'Name' => 'Project',
+                            'Option' => $invoice->project->name,
+                        ]
+                    ],
+                ]
+            ];
 
         $payload = [
             'Type' => 'ACCREC',
@@ -72,15 +77,15 @@ class XeroInvoiceService
         }
 
         $paymentServiceIds = collect($invoice->xero_payment_service_ids ?? [])
-            ->filter(fn ($id) => filled($id))
-            ->map(fn ($id) => trim((string) $id))
-            ->filter(fn ($id) => $id !== '')
+            ->filter(fn($id) => filled($id))
+            ->map(fn($id) => trim((string) $id))
+            ->filter(fn($id) => $id !== '')
             ->unique()
             ->values();
 
         if ($paymentServiceIds->isNotEmpty()) {
             $payload['PaymentServices'] = $paymentServiceIds
-                ->map(fn (string $id) => ['PaymentServiceID' => $id])
+                ->map(fn(string $id) => ['PaymentServiceID' => $id])
                 ->all();
         }
 
@@ -118,12 +123,12 @@ class XeroInvoiceService
                 return $this->isGuid((string) ($contact['contact_id'] ?? ''));
             });
 
-        if (! $candidate) {
+        if (!$candidate) {
             $candidate = $this->xeroContactSyncService->createContactForClient($client);
         }
 
         $resolvedContactId = trim((string) ($candidate['contact_id'] ?? ''));
-        if (! $this->isGuid($resolvedContactId)) {
+        if (!$this->isGuid($resolvedContactId)) {
             throw new RuntimeException("Client {$client->name} is not linked to a valid Xero contact.");
         }
 
@@ -159,9 +164,9 @@ class XeroInvoiceService
             ])
             ->retry(
                 3,
-                fn (int $attempt): int => $attempt * 500,
+                fn(int $attempt): int => $attempt * 500,
                 function ($exception): bool {
-                    if (! $exception instanceof RequestException) {
+                    if (!$exception instanceof RequestException) {
                         return false;
                     }
 
@@ -186,13 +191,15 @@ class XeroInvoiceService
             $crmService = $projectService->crmService;
             $description = trim((string) ($item->description ?? ''));
             $serviceName = $crmService ? $crmService->name : 'Unknown Service';
-            $accountCode = filled($projectService->xero_account_code ?? null)
+            $accountCode = filled($projectService?->xero_account_code ?? null)
                 ? (string) $projectService->xero_account_code
-                : '200';
+                : (filled($crmService?->default_xero_account_code ?? null)
+                    ? (string) $crmService->default_xero_account_code
+                    : '201');
             $taxType = $this->normalizeInvoiceTaxType($item->tax_type ?? null);
             $projectTrackingOption = trim((string) ($invoice->project->name ?? ''));
             if ($projectTrackingOption === '') {
-                $projectTrackingOption = 'Project '.$invoice->project_id;
+                $projectTrackingOption = 'Project ' . $invoice->project_id;
             }
 
             $lineItem = [
@@ -240,7 +247,7 @@ class XeroInvoiceService
             return collect(data_get($response, 'Items', []))
                 ->pluck('Code')
                 ->filter()
-                ->map(fn ($code) => strtoupper((string) $code))
+                ->map(fn($code) => strtoupper((string) $code))
                 ->values()
                 ->all();
         });
@@ -309,7 +316,7 @@ class XeroInvoiceService
 
     public function syncLocalInvoiceFromXero(Invoice $invoice): Invoice
     {
-        if (! $invoice->xero_invoice_id) {
+        if (!$invoice->xero_invoice_id) {
             return $invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user', 'files']) ?? $invoice;
         }
 
@@ -329,7 +336,7 @@ class XeroInvoiceService
             $invoice->save();
 
             $xeroLineItems = collect(data_get($xeroInvoice, 'LineItems', []))
-                ->filter(fn ($lineItem) => is_array($lineItem))
+                ->filter(fn($lineItem) => is_array($lineItem))
                 ->values();
 
             if ($xeroLineItems->isEmpty()) {
@@ -340,7 +347,7 @@ class XeroInvoiceService
 
             foreach ($localItems as $index => $localItem) {
                 $xeroLineItem = $xeroLineItems->get($index);
-                if (! is_array($xeroLineItem)) {
+                if (!is_array($xeroLineItem)) {
                     break;
                 }
 
@@ -390,7 +397,7 @@ class XeroInvoiceService
             ->json();
 
         $invoice = data_get($response, 'Invoices.0');
-        if (! is_array($invoice)) {
+        if (!is_array($invoice)) {
             throw new RuntimeException('Failed to fetch invoice from Xero.');
         }
 
