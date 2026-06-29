@@ -544,6 +544,34 @@ class InvoiceController extends Controller
         return response()->json($invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user']));
     }
 
+    public function stats(Request $request)
+    {
+        $user = Auth::user();
+
+        if (!$user->isSuperAdmin() && !$user->hasPermission('view_project_invoices')) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        return response()->json([
+            'total' => [
+                'count' => Invoice::count(),
+                'amount' => Invoice::sum('total_amount'),
+            ],
+            'pending_approval' => [
+                'count' => Invoice::where('status', 'pending_approval')->count(),
+                'amount' => Invoice::where('status', 'pending_approval')->sum('total_amount'),
+            ],
+            'authorised' => [
+                'count' => Invoice::where('status', 'authorised')->count(),
+                'amount' => Invoice::where('status', 'authorised')->sum('total_amount'),
+            ],
+            'paid' => [
+                'count' => Invoice::where('status', 'paid')->count(),
+                'amount' => Invoice::where('status', 'paid')->sum('total_amount'),
+            ],
+        ]);
+    }
+
     public function all(Request $request)
     {
         $user = Auth::user();
@@ -552,10 +580,46 @@ class InvoiceController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $query = Invoice::with(['project', 'client', 'invoiceItems.projectService', 'comments.user']);
+        $query = Invoice::with(['project', 'client', 'invoiceItems.projectService.crmService', 'comments.user']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
+        }
+
+        if ($request->filled('project_id')) {
+            $query->where('project_id', $request->project_id);
+        }
+
+        if ($request->filled('service_id')) {
+            $query->whereHas('invoiceItems.projectService', function ($q) use ($request) {
+                $q->where('crm_service_id', $request->service_id);
+            });
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $numericSearch = preg_replace('/[^0-9]/', '', $search);
+            $query->where(function ($q) use ($search, $numericSearch) {
+                $q->where('invoice_number', 'like', "%{$search}%")
+                  ->orWhere('total_amount', 'like', "%{$search}%")
+                  ->orWhereHas('project', function ($pq) use ($search) {
+                      $pq->where('name', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('client', function ($cq) use ($search) {
+                      $cq->where('name', 'like', "%{$search}%");
+                  });
+                if ($numericSearch !== '') {
+                    $q->orWhere('id', $numericSearch);
+                }
+            });
         }
 
         return response()->json($query->latest()->paginate(20));

@@ -14,6 +14,7 @@ import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import MentionInput from '@/Components/ProjectTasks/MentionInput.vue';
+import Dropdown from '@/Components/Dropdown.vue';
 
 const { canDo } = usePermissions();
 const canCreateInvoice = canDo('create_project_invoices');
@@ -26,6 +27,13 @@ const projectServices = ref([]);
 const loading = ref(true);
 const loadingServices = ref(false);
 const filterStatus = ref('');
+const filterSearch = ref('');
+const filterProjectId = ref('');
+const filterServiceId = ref('');
+const filterDateFrom = ref('');
+const filterDateTo = ref('');
+const crmServices = ref([]);
+const stats = ref(null);
 const showCreateModal = ref(false);
 const showReviewModal = ref(false);
 const selectedInvoice = ref(null);
@@ -383,7 +391,15 @@ const fetchProjectInvoices = async (projectId) => {
 const fetchInvoices = async () => {
     loading.value = true;
     try {
-        const { data } = await axios.get('/api/admin/invoices', { params: { status: filterStatus.value } });
+        const params = {
+            status: filterStatus.value,
+            search: filterSearch.value,
+            project_id: filterProjectId.value,
+            service_id: filterServiceId.value,
+            date_from: filterDateFrom.value,
+            date_to: filterDateTo.value,
+        };
+        const { data } = await axios.get('/api/admin/invoices', { params });
         invoices.value = data.data; // Paginated data
     } catch (err) {
         error('Failed to load invoices.');
@@ -391,6 +407,45 @@ const fetchInvoices = async () => {
         loading.value = false;
     }
 };
+
+const fetchCrmServices = async () => {
+    try {
+        const { data } = await axios.get('/api/crm-services');
+        crmServices.value = data || [];
+    } catch (err) {
+        console.error('Failed to fetch CRM services', err);
+    }
+};
+
+const fetchStats = async () => {
+    try {
+        const { data } = await axios.get('/api/admin/invoices/stats');
+        stats.value = data;
+    } catch (err) {
+        console.error('Failed to fetch stats', err);
+    }
+};
+
+const clearMainFilters = () => {
+    filterSearch.value = '';
+    filterProjectId.value = '';
+    filterServiceId.value = '';
+    filterDateFrom.value = '';
+    filterDateTo.value = '';
+    filterStatus.value = '';
+};
+
+watch([filterStatus, filterProjectId, filterServiceId, filterDateFrom, filterDateTo], () => {
+    fetchInvoices();
+});
+
+let searchTimeout;
+watch(filterSearch, () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        fetchInvoices();
+    }, 400);
+});
 
 const brandingThemes = ref([]);
 const defaultBrandingThemeId = ref('');
@@ -526,6 +581,7 @@ const submitInvoice = async () => {
         success('Invoice created successfully.');
         await fetchInvoices();
         await fetchProjectInvoices(form.project_id);
+        await fetchStats();
     } catch (err) {
         const validationErrors = err.response?.data?.errors || {};
         if (validationErrors.project_id?.[0]) {
@@ -592,6 +648,7 @@ const approveInvoice = async (invoice, fromModal = false) => {
             closeReviewModal();
         }
         fetchInvoices();
+        fetchStats();
     } catch (err) {
         error(err.response?.data?.message || 'Approval failed.');
     } finally {
@@ -614,6 +671,7 @@ const rejectInvoice = async (invoice) => {
         success('Invoice rejected.');
         closeReviewModal();
         fetchInvoices();
+        fetchStats();
     } catch (err) {
         error(err.response?.data?.message || 'Rejection failed.');
     } finally {
@@ -654,6 +712,7 @@ const voidInvoice = async (invoice) => {
         await axios.post(route('api.invoices.void', { invoice: invoice.id }));
         success('Invoice voided.');
         fetchInvoices();
+        fetchStats();
     } catch (err) {
         error(err.response?.data?.message || 'Voiding failed.');
     }
@@ -663,6 +722,8 @@ onMounted(() => {
     fetchInvoices();
     fetchProjects();
     fetchBrandingThemes();
+    fetchCrmServices();
+    fetchStats();
 });
 
 const getStatusClass = (status) => {
@@ -685,29 +746,136 @@ const getStatusClass = (status) => {
         <template #header>
             <div class="flex justify-between items-center">
                 <h2 class="font-semibold text-xl text-gray-800 leading-tight">Sales Invoices</h2>
-                <div class="flex gap-4 items-center">
-                    <select v-model="filterStatus" @change="fetchInvoices" class="rounded-md border-gray-300 shadow-sm text-sm">
-                        <option value="">All Statuses</option>
-                        <option value="pending_approval">Pending Approval</option>
-                        <option value="authorised">Authorised (Synced)</option>
-                        <option value="rejected">Rejected</option>
-                        <option value="voided">Voided</option>
-                    </select>
-                    <PrimaryButton v-if="canCreateInvoice" @click="openCreateModal">
-                        Create Invoice
-                    </PrimaryButton>
-                </div>
+                <PrimaryButton v-if="canCreateInvoice" @click="openCreateModal">
+                    Create Invoice
+                </PrimaryButton>
             </div>
         </template>
 
         <div class="py-12">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <div class="bg-white overflow-hidden shadow sm:rounded-lg border border-gray-200">
+                <!-- Stats Dashboard Grid -->
+                <div v-if="stats" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                        <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Invoices</div>
+                        <div class="mt-2 flex items-baseline justify-between">
+                            <div class="text-2xl font-bold text-gray-900">{{ stats.total.count }}</div>
+                            <div class="text-sm font-semibold text-gray-600">{{ formatCurrency(stats.total.amount) }}</div>
+                        </div>
+                    </div>
+                    <div class="bg-white border border-amber-200 rounded-lg p-5 shadow-sm border-l-4 border-l-amber-500">
+                        <div class="text-xs font-semibold text-amber-600 uppercase tracking-wider">Pending Approval</div>
+                        <div class="mt-2 flex items-baseline justify-between">
+                            <div class="text-2xl font-bold text-amber-950">{{ stats.pending_approval.count }}</div>
+                            <div class="text-sm font-semibold text-amber-700">{{ formatCurrency(stats.pending_approval.amount) }}</div>
+                        </div>
+                    </div>
+                    <div class="bg-white border border-emerald-200 rounded-lg p-5 shadow-sm border-l-4 border-l-emerald-500">
+                        <div class="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Synced (Authorised)</div>
+                        <div class="mt-2 flex items-baseline justify-between">
+                            <div class="text-2xl font-bold text-emerald-950">{{ stats.authorised.count }}</div>
+                            <div class="text-sm font-semibold text-emerald-700">{{ formatCurrency(stats.authorised.amount) }}</div>
+                        </div>
+                    </div>
+                    <div class="bg-white border border-blue-200 rounded-lg p-5 shadow-sm border-l-4 border-l-blue-500">
+                        <div class="text-xs font-semibold text-blue-600 uppercase tracking-wider">Paid (from Xero)</div>
+                        <div class="mt-2 flex items-baseline justify-between">
+                            <div class="text-2xl font-bold text-blue-950">{{ stats.paid.count }}</div>
+                            <div class="text-sm font-semibold text-blue-700">{{ formatCurrency(stats.paid.amount) }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Filters Row -->
+                <div class="bg-white border border-gray-200 rounded-lg p-4 mb-6 shadow-sm">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4">
+                        <!-- Search Input -->
+                        <div class="lg:col-span-2">
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Search</label>
+                            <input
+                                v-model="filterSearch"
+                                type="text"
+                                class="w-full rounded-md border-gray-300 shadow-sm text-sm"
+                                placeholder="Search project, client, number, amount..."
+                            />
+                        </div>
+
+                        <!-- Status Filter -->
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Status</label>
+                            <select v-model="filterStatus" class="w-full rounded-md border-gray-300 shadow-sm text-sm">
+                                <option value="">All Statuses</option>
+                                <option value="pending_approval">Pending Approval</option>
+                                <option value="authorised">Authorised (Synced)</option>
+                                <option value="paid">Paid</option>
+                                <option value="rejected">Rejected</option>
+                                <option value="voided">Voided</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Project Filter -->
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Project</label>
+                            <SelectDropdown
+                                v-model="filterProjectId"
+                                :options="projects"
+                                value-key="id"
+                                label-key="name"
+                                placeholder="All Projects"
+                            />
+                        </div>
+
+                        <!-- Service Filter -->
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Service</label>
+                            <SelectDropdown
+                                v-model="filterServiceId"
+                                :options="crmServices"
+                                value-key="id"
+                                label-key="name"
+                                placeholder="All Services"
+                            />
+                        </div>
+
+                        <!-- From Date -->
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">From Date</label>
+                            <input
+                                v-model="filterDateFrom"
+                                type="date"
+                                class="w-full rounded-md border-gray-300 shadow-sm text-sm"
+                            />
+                        </div>
+
+                        <!-- To Date -->
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">To Date</label>
+                            <input
+                                v-model="filterDateTo"
+                                type="date"
+                                class="w-full rounded-md border-gray-300 shadow-sm text-sm"
+                            />
+                        </div>
+                    </div>
+                    
+                    <!-- Clear Filters Button -->
+                    <div v-if="filterSearch || filterProjectId || filterServiceId || filterDateFrom || filterDateTo || filterStatus" class="mt-3 flex justify-end">
+                        <button
+                            @click="clearMainFilters"
+                            class="text-xs font-medium text-indigo-600 hover:text-indigo-900 flex items-center gap-1"
+                        >
+                            Clear Filters
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white shadow sm:rounded-lg border border-gray-200">
                     <div v-if="loading" class="p-12 text-center text-gray-500">Loading invoices...</div>
                     <div v-else-if="!invoices.length" class="p-12 text-center text-gray-500">No invoices found.</div>
                     <table v-else class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project / Client</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
@@ -717,6 +885,9 @@ const getStatusClass = (status) => {
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             <tr v-for="invoice in invoices" :key="invoice.id">
+                                <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
+                                    {{ invoice.created_at ? new Date(invoice.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '---' }}
+                                </td>
                                 <td class="px-6 py-4">
                                     <div class="text-sm font-medium text-gray-900">{{ invoice.project?.name }}</div>
                                     <div class="text-xs text-gray-500">{{ invoice.client?.name }}</div>
@@ -733,10 +904,46 @@ const getStatusClass = (status) => {
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 text-right text-sm font-medium">
-                                    <div class="flex justify-end gap-2 items-center">
-                                        <Link :href="route('admin.financials.invoices.show', { id: invoice.id })" class="text-indigo-600 hover:text-indigo-900 font-semibold">View</Link>
-                                        <button v-if="invoice.status === 'pending_approval' && canApproveInvoice" @click="openReviewModal(invoice)" class="text-indigo-600 hover:text-indigo-900">Review</button>
-                                        <button v-if="invoice.status === 'authorised' && canVoidInvoice" @click="voidInvoice(invoice)" class="text-red-600 hover:text-red-900">Void</button>
+                                    <div class="flex justify-end">
+                                        <Dropdown align="right" width="48">
+                                            <template #trigger>
+                                                <button class="text-gray-500 hover:text-gray-700 focus:outline-none p-1 rounded-full hover:bg-gray-100">
+                                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"></path>
+                                                    </svg>
+                                                </button>
+                                            </template>
+                                            <template #content>
+                                                <Link
+                                                    :href="route('admin.financials.invoices.show', { id: invoice.id })"
+                                                    class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 transition duration-150 ease-in-out hover:bg-gray-100 focus:bg-gray-100 focus:outline-none font-semibold"
+                                                >
+                                                    View Details
+                                                </Link>
+                                                <a
+                                                    v-if="invoice.xero_invoice_id"
+                                                    :href="`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${invoice.xero_invoice_id}`"
+                                                    target="_blank"
+                                                    class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 transition duration-150 ease-in-out hover:bg-gray-100 focus:bg-gray-100 focus:outline-none font-semibold"
+                                                >
+                                                    Open in Xero ↗
+                                                </a>
+                                                <button
+                                                    v-if="invoice.status === 'pending_approval' && canApproveInvoice"
+                                                    @click="openReviewModal(invoice)"
+                                                    class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 transition duration-150 ease-in-out hover:bg-gray-100 focus:bg-gray-100 focus:outline-none font-semibold"
+                                                >
+                                                    Review
+                                                </button>
+                                                <button
+                                                    v-if="invoice.status === 'authorised' && canVoidInvoice"
+                                                    @click="voidInvoice(invoice)"
+                                                    class="block w-full px-4 py-2 text-start text-sm leading-5 text-red-600 transition duration-150 ease-in-out hover:bg-gray-100 focus:bg-gray-100 focus:outline-none font-semibold"
+                                                >
+                                                    Void
+                                                </button>
+                                            </template>
+                                        </Dropdown>
                                     </div>
                                 </td>
                             </tr>

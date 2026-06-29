@@ -164,6 +164,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Financial Routes
     Route::get('admin/financial-pending-counts', [BillController::class, 'pendingCounts'])->middleware('permission:view_project_bills')->name('api.admin.financial-counts');
     Route::get('admin/bills', [BillController::class, 'all'])->middleware('permission:view_project_bills')->name('api.admin.bills.all');
+    Route::get('admin/invoices/stats', [InvoiceController::class, 'stats'])->middleware('permission:view_project_invoices')->name('api.admin.invoices.stats');
     Route::get('admin/invoices', [InvoiceController::class, 'all'])->middleware('permission:view_project_invoices')->name('api.admin.invoices.all');
     Route::get('xero/accounts', [XeroAccountController::class, 'index'])->name('api.xero.accounts');
     Route::post('xero/accounts', [XeroAccountController::class, 'storeAccount'])->name('api.xero.accounts.store');
