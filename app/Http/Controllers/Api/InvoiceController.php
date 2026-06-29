@@ -544,47 +544,13 @@ class InvoiceController extends Controller
         return response()->json($invoice->fresh(['client', 'invoiceItems.projectService', 'comments.user']));
     }
 
-    public function stats(Request $request)
+    /**
+     * Build a shared base query applying all common filters (search, project, service, dates).
+     * Does NOT apply status filtering — callers handle that separately.
+     */
+    private function buildBaseFilterQuery(Request $request)
     {
-        $user = Auth::user();
-
-        if (!$user->isSuperAdmin() && !$user->hasPermission('view_project_invoices')) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
-        }
-
-        return response()->json([
-            'total' => [
-                'count' => Invoice::count(),
-                'amount' => Invoice::sum('total_amount'),
-            ],
-            'pending_approval' => [
-                'count' => Invoice::where('status', 'pending_approval')->count(),
-                'amount' => Invoice::where('status', 'pending_approval')->sum('total_amount'),
-            ],
-            'authorised' => [
-                'count' => Invoice::where('status', 'authorised')->count(),
-                'amount' => Invoice::where('status', 'authorised')->sum('total_amount'),
-            ],
-            'paid' => [
-                'count' => Invoice::where('status', 'paid')->count(),
-                'amount' => Invoice::where('status', 'paid')->sum('total_amount'),
-            ],
-        ]);
-    }
-
-    public function all(Request $request)
-    {
-        $user = Auth::user();
-
-        if (!$user->isSuperAdmin() && !$user->hasPermission('view_project_invoices')) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
-        }
-
-        $query = Invoice::with(['project', 'client', 'invoiceItems.projectService.crmService', 'comments.user']);
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
+        $query = Invoice::query();
 
         if ($request->filled('project_id')) {
             $query->where('project_id', $request->project_id);
@@ -620,6 +586,97 @@ class InvoiceController extends Controller
                     $q->orWhere('id', $numericSearch);
                 }
             });
+        }
+
+        return $query;
+    }
+
+    public function stats(Request $request)
+    {
+        $user = Auth::user();
+
+        if (!$user->isSuperAdmin() && !$user->hasPermission('view_project_invoices')) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        // Build a filter-aware base query (excludes status — we slice per card below)
+        $base = $this->buildBaseFilterQuery($request);
+
+        // Determine which statuses are in scope based on the status filter
+        $statusFilter = $request->input('status', '');
+        $excludeByDefault = ['voided', 'rejected'];
+
+        // Helper: clone the base query, optionally restrict to a specific status,
+        // and also honour the "exclude by default" logic.
+        $sliceQuery = function (string $sliceStatus) use ($base, $statusFilter, $excludeByDefault) {
+            $q = clone $base;
+            $q->where('status', $sliceStatus);
+
+            // When no status filter is active, exclude voided/rejected
+            if ($statusFilter === '' && in_array($sliceStatus, $excludeByDefault)) {
+                return $q->whereRaw('0 = 1'); // force empty
+            }
+
+            // When a specific status filter is active and it doesn't match, return empty
+            if ($statusFilter !== '' && $statusFilter !== 'all' && $statusFilter !== $sliceStatus) {
+                return $q->whereRaw('0 = 1');
+            }
+
+            return $q;
+        };
+
+        // "Total" card reflects exactly the same rows as the table
+        $totalQuery = clone $base;
+        if ($statusFilter === '') {
+            $totalQuery->whereNotIn('status', $excludeByDefault);
+        } elseif ($statusFilter !== 'all') {
+            $totalQuery->where('status', $statusFilter);
+        }
+
+        return response()->json([
+            'total' => [
+                'count'  => (clone $totalQuery)->count(),
+                'amount' => (clone $totalQuery)->sum('total_amount'),
+            ],
+            'pending_approval' => [
+                'count'  => $sliceQuery('pending_approval')->count(),
+                'amount' => $sliceQuery('pending_approval')->sum('total_amount'),
+            ],
+            'authorised' => [
+                'count'  => $sliceQuery('authorised')->count(),
+                'amount' => $sliceQuery('authorised')->sum('total_amount'),
+            ],
+            'paid' => [
+                'count'  => $sliceQuery('paid')->count(),
+                'amount' => $sliceQuery('paid')->sum('total_amount'),
+            ],
+        ]);
+    }
+
+    public function all(Request $request)
+    {
+        $user = Auth::user();
+
+        if (!$user->isSuperAdmin() && !$user->hasPermission('view_project_invoices')) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $query = Invoice::with(['project', 'client', 'invoiceItems.projectService.crmService', 'comments.user']);
+
+        // Apply the shared base filters (search, project, service, dates)
+        $baseFilters = $this->buildBaseFilterQuery($request);
+        $query->mergeConstraintsFrom($baseFilters);
+
+        $statusFilter = $request->input('status', '');
+
+        if ($statusFilter === 'all') {
+            // No status restriction — show everything
+        } elseif ($statusFilter !== '') {
+            // Specific status requested
+            $query->where('status', $statusFilter);
+        } else {
+            // Default: exclude voided and rejected
+            $query->whereNotIn('status', ['voided', 'rejected']);
         }
 
         return response()->json($query->latest()->paginate(20));

@@ -419,7 +419,15 @@ const fetchCrmServices = async () => {
 
 const fetchStats = async () => {
     try {
-        const { data } = await axios.get('/api/admin/invoices/stats');
+        const params = {
+            status: filterStatus.value,
+            search: filterSearch.value,
+            project_id: filterProjectId.value,
+            service_id: filterServiceId.value,
+            date_from: filterDateFrom.value,
+            date_to: filterDateTo.value,
+        };
+        const { data } = await axios.get('/api/admin/invoices/stats', { params });
         stats.value = data;
     } catch (err) {
         console.error('Failed to fetch stats', err);
@@ -437,6 +445,7 @@ const clearMainFilters = () => {
 
 watch([filterStatus, filterProjectId, filterServiceId, filterDateFrom, filterDateTo], () => {
     fetchInvoices();
+    fetchStats();
 });
 
 let searchTimeout;
@@ -444,6 +453,7 @@ watch(filterSearch, () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
         fetchInvoices();
+        fetchStats();
     }, 400);
 });
 
@@ -804,12 +814,13 @@ const getStatusClass = (status) => {
                         <div>
                             <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Status</label>
                             <select v-model="filterStatus" class="w-full rounded-md border-gray-300 shadow-sm text-sm">
-                                <option value="">All Statuses</option>
+                                <option value="">Active (Excl. Voided / Rejected)</option>
                                 <option value="pending_approval">Pending Approval</option>
                                 <option value="authorised">Authorised (Synced)</option>
                                 <option value="paid">Paid</option>
                                 <option value="rejected">Rejected</option>
                                 <option value="voided">Voided</option>
+                                <option value="all">All Statuses</option>
                             </select>
                         </div>
                         
