@@ -76,13 +76,7 @@ const lineItems = ref([emptyLineItem()]);
 
 const selectedProject = computed(() => projects.value.find(p => p.id === parseInt(form.project_id, 10)) || null);
 
-const selectedClientId = computed(() => {
-    if (!selectedProject.value) {
-        return '';
-    }
 
-    return selectedProject.value.clients?.[0]?.id || selectedProject.value.client_id || '';
-});
 
 const totalAmount = computed(() => lineItems.value.reduce((sum, item) => {
     const quantity = Number(item.quantity || 1);
@@ -474,7 +468,6 @@ const submitInvoice = async () => {
     if (!form.project_id) return error('Please select a project.');
 
     form.clearErrors();
-    form.client_id = selectedClientId.value || form.client_id;
     form.total_amount = totalAmount.value;
     form.line_amount_type = lineAmountTypeOptions.some((option) => option.value === form.line_amount_type)
         ? form.line_amount_type
