@@ -28,6 +28,7 @@ const actionsMenuRef = ref(null);
 const isEditMode = ref(false);
 const editProcessing = ref(false);
 const editableLineItems = ref([]);
+const editableClientId = ref('');
 const projectServicesForEdit = ref([]);
 const loadingEditServices = ref(false);
 
@@ -281,12 +282,14 @@ const startEditInvoice = async () => {
         tax_type: normalizeInvoiceTaxType(item.tax_type),
         milestone_percentage: Number(item.milestone_percentage || 0),
     }));
+    editableClientId.value = invoiceData.value.client_id || '';
     isEditMode.value = true;
 };
 
 const cancelEditInvoice = () => {
     isEditMode.value = false;
     editableLineItems.value = [];
+    editableClientId.value = '';
 };
 
 const saveInvoiceEdits = async () => {
@@ -306,6 +309,7 @@ const saveInvoiceEdits = async () => {
     editProcessing.value = true;
     try {
         const payload = {
+            client_id: editableClientId.value || undefined,
             line_items: editableLineItems.value.map((item) => ({
                 id: item.id,
                 project_service_id: item.project_service_id,
@@ -704,9 +708,27 @@ onBeforeUnmount(() => {
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8 py-8 border-b border-slate-100">
                                     <div>
                                         <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">To</p>
-                                        <h3 class="text-base font-bold text-slate-900">{{ invoiceData.client?.name || '—' }}</h3>
-                                        <p class="text-sm text-slate-500 mt-0.5" v-if="invoiceData.client?.email">{{ invoiceData.client.email }}</p>
-                                        <p class="text-sm text-slate-400 mt-1 whitespace-pre-line" v-if="invoiceData.client?.address">{{ invoiceData.client.address }}</p>
+                                        <template v-if="!isEditMode">
+                                            <h3 class="text-base font-bold text-slate-900">{{ invoiceData.client?.name || '—' }}</h3>
+                                            <p class="text-sm text-slate-500 mt-0.5" v-if="invoiceData.client?.email">{{ invoiceData.client.email }}</p>
+                                            <p class="text-sm text-slate-400 mt-1 whitespace-pre-line" v-if="invoiceData.client?.address">{{ invoiceData.client.address }}</p>
+                                        </template>
+                                        <template v-else>
+                                            <label class="block text-xs font-semibold text-slate-600 mb-1">Change Client</label>
+                                            <select
+                                                v-model="editableClientId"
+                                                class="w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                            >
+                                                <option
+                                                    v-for="client in (invoiceData.project?.clients || [])"
+                                                    :key="client.id"
+                                                    :value="client.id"
+                                                >
+                                                    {{ client.name }}
+                                                </option>
+                                            </select>
+                                            <p class="text-[11px] text-slate-400 mt-1">Currently: {{ invoiceData.client?.name || '—' }}</p>
+                                        </template>
                                     </div>
                                     <div class="bg-slate-50 rounded-xl p-5 border border-slate-100">
                                         <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Summary</p>

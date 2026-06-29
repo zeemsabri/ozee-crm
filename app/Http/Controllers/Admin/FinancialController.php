@@ -54,7 +54,7 @@ class FinancialController extends Controller
 
     public function showInvoice(int $id): Response
     {
-        $invoice = \App\Models\Invoice::with(['client', 'project', 'invoiceItems.projectService', 'comments.user', 'files'])->findOrFail($id);
+        $invoice = \App\Models\Invoice::with(['client', 'project.clients', 'invoiceItems.projectService', 'comments.user', 'files'])->findOrFail($id);
         return Inertia::render('Admin/Financials/InvoiceDetails', [
             'invoice' => $invoice,
         ]);

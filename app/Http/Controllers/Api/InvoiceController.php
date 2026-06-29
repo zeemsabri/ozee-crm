@@ -176,8 +176,8 @@ class InvoiceController extends Controller
     public function approve(Request $request, Project $project, Invoice $invoice)
     {
         $user = Auth::user();
-        if (!$user->isSuperAdmin()) {
-            return response()->json(['message' => 'Only Super Admins can approve invoices.'], 403);
+        if (!$user->isSuperAdmin() && !$user->hasPermission('approve_project_invoices')) {
+            return response()->json(['message' => 'You do not have permission to approve invoices.'], 403);
         }
 
         $this->ensureProjectInvoice($project, $invoice);
@@ -247,8 +247,8 @@ class InvoiceController extends Controller
     public function reject(Request $request, Project $project, Invoice $invoice)
     {
         $user = Auth::user();
-        if (!$user->isSuperAdmin()) {
-            return response()->json(['message' => 'Only Super Admins can reject invoices.'], 403);
+        if (!$user->isSuperAdmin() && !$user->hasPermission('approve_project_invoices')) {
+            return response()->json(['message' => 'You do not have permission to reject invoices.'], 403);
         }
 
         $this->ensureProjectInvoice($project, $invoice);
@@ -274,8 +274,8 @@ class InvoiceController extends Controller
     public function comment(Request $request, Project $project, Invoice $invoice)
     {
         $user = Auth::user();
-        if (!$user->isSuperAdmin()) {
-            return response()->json(['message' => 'Only Super Admins can comment on invoices.'], 403);
+        if (!$user->isSuperAdmin() && !$user->hasPermission('approve_project_invoices')) {
+            return response()->json(['message' => 'You do not have permission to comment on invoices.'], 403);
         }
 
         $this->ensureProjectInvoice($project, $invoice);
@@ -318,7 +318,7 @@ class InvoiceController extends Controller
             }
         }
 
-        $invoice->load(['client', 'invoiceItems.projectService', 'comments.user', 'files']);
+        $invoice->load(['client', 'project.clients', 'invoiceItems.projectService', 'comments.user', 'files']);
         $invoice->setAttribute('can_edit_invoice', $this->canEditInvoice($user, $project));
         $invoice->setAttribute('can_financially_edit_invoice', $this->canFinanciallyEditInvoice($invoice));
 
@@ -344,6 +344,7 @@ class InvoiceController extends Controller
         }
 
         $validated = $request->validate([
+            'client_id' => 'nullable|exists:clients,id',
             'line_items' => 'required|array|min:1',
             'line_amount_type' => 'nullable|string|in:' . implode(',', self::ALLOWED_LINE_AMOUNT_TYPES),
             'xero_payment_service_ids' => 'nullable|array',
@@ -458,6 +459,10 @@ class InvoiceController extends Controller
                     ->all();
             }
 
+            if (filled($validated['client_id'] ?? null)) {
+                $invoice->client_id = (int) $validated['client_id'];
+            }
+
             $invoice->save();
 
             $this->recordReviewAction(
@@ -468,7 +473,7 @@ class InvoiceController extends Controller
                 'Invoice line items updated from CRM.'
             );
 
-            $invoice->load(['client', 'invoiceItems.projectService', 'comments.user', 'files']);
+            $invoice->load(['client', 'project.clients', 'invoiceItems.projectService', 'comments.user', 'files']);
             $invoice->setAttribute('can_edit_invoice', $this->canEditInvoice($user, $project));
             $invoice->setAttribute('can_financially_edit_invoice', $this->canFinanciallyEditInvoice($invoice));
 
@@ -500,8 +505,8 @@ class InvoiceController extends Controller
     public function addNote(Request $request, Project $project, Invoice $invoice)
     {
         $user = Auth::user();
-        if (!$user->isSuperAdmin()) {
-            return response()->json(['message' => 'Only Super Admins can add notes to invoices.'], 403);
+        if (!$user->isSuperAdmin() && !$user->hasPermission('approve_project_invoices')) {
+            return response()->json(['message' => 'You do not have permission to add notes to invoices.'], 403);
         }
 
         $this->ensureProjectInvoice($project, $invoice);
@@ -525,8 +530,8 @@ class InvoiceController extends Controller
     public function void(Invoice $invoice)
     {
         $user = Auth::user();
-        if (!$user->isSuperAdmin()) {
-            return response()->json(['message' => 'Only Super Admins can void invoices.'], 403);
+        if (!$user->isSuperAdmin() && !$user->hasPermission('void_project_invoices')) {
+            return response()->json(['message' => 'You do not have permission to void invoices.'], 403);
         }
 
         if ($invoice->status === 'voided') {
