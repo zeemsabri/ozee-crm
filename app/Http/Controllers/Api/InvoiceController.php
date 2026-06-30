@@ -545,13 +545,11 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Build a shared base query applying all common filters (search, project, service, dates).
-     * Does NOT apply status filtering — callers handle that separately.
+     * Apply all common non-status filters (search, project, service, dates)
+     * directly onto the provided query builder. Returns the same query.
      */
-    private function buildBaseFilterQuery(Request $request)
+    private function applyBaseFilters($query, Request $request)
     {
-        $query = Invoice::query();
-
         if ($request->filled('project_id')) {
             $query->where('project_id', $request->project_id);
         }
@@ -599,25 +597,20 @@ class InvoiceController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        // Build a filter-aware base query (excludes status — we slice per card below)
-        $base = $this->buildBaseFilterQuery($request);
-
-        // Determine which statuses are in scope based on the status filter
         $statusFilter = $request->input('status', '');
         $excludeByDefault = ['voided', 'rejected'];
 
-        // Helper: clone the base query, optionally restrict to a specific status,
-        // and also honour the "exclude by default" logic.
-        $sliceQuery = function (string $sliceStatus) use ($base, $statusFilter, $excludeByDefault) {
-            $q = clone $base;
+        // Helper: build a fresh filtered query for a specific status card.
+        $sliceQuery = function (string $sliceStatus) use ($request, $statusFilter, $excludeByDefault) {
+            $q = $this->applyBaseFilters(Invoice::query(), $request);
             $q->where('status', $sliceStatus);
 
-            // When no status filter is active, exclude voided/rejected
+            // When default view, voided/rejected cards are empty
             if ($statusFilter === '' && in_array($sliceStatus, $excludeByDefault)) {
-                return $q->whereRaw('0 = 1'); // force empty
+                return $q->whereRaw('0 = 1');
             }
 
-            // When a specific status filter is active and it doesn't match, return empty
+            // When a specific status is chosen and it doesn't match this card, zero it out
             if ($statusFilter !== '' && $statusFilter !== 'all' && $statusFilter !== $sliceStatus) {
                 return $q->whereRaw('0 = 1');
             }
@@ -625,8 +618,8 @@ class InvoiceController extends Controller
             return $q;
         };
 
-        // "Total" card reflects exactly the same rows as the table
-        $totalQuery = clone $base;
+        // "Total" card — same scope as the table rows
+        $totalQuery = $this->applyBaseFilters(Invoice::query(), $request);
         if ($statusFilter === '') {
             $totalQuery->whereNotIn('status', $excludeByDefault);
         } elseif ($statusFilter !== 'all') {
@@ -663,9 +656,8 @@ class InvoiceController extends Controller
 
         $query = Invoice::with(['project', 'client', 'invoiceItems.projectService.crmService', 'comments.user']);
 
-        // Apply the shared base filters (search, project, service, dates)
-        $baseFilters = $this->buildBaseFilterQuery($request);
-        $query->mergeConstraintsFrom($baseFilters);
+        // Apply shared non-status filters directly onto $query
+        $this->applyBaseFilters($query, $request);
 
         $statusFilter = $request->input('status', '');
 
