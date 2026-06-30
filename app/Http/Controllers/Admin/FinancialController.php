@@ -59,4 +59,9 @@ class FinancialController extends Controller
             'invoice' => $invoice,
         ]);
     }
+
+    public function xeroSync(): Response
+    {
+        return Inertia::render('Admin/Financials/XeroInvoiceSync');
+    }
 }

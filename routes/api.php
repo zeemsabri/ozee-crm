@@ -73,6 +73,7 @@ use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\XeroWebhookController;
 use App\Http\Controllers\Api\XeroAccountController;
 use App\Http\Controllers\Api\XeroPaymentServiceController;
+use App\Http\Controllers\Api\XeroReverseSyncController;
 
 Route::post('/telegram/wh', [TelegramWebhookController::class, 'handle']);
 Route::post('/telegram/test-telegram', [TelegramWebhookController::class, 'send']);
@@ -172,6 +173,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('xero/items', [XeroAccountController::class, 'storeItem'])->name('api.xero.items.store');
     Route::get('xero/payment-services', [XeroPaymentServiceController::class, 'index'])->name('api.xero.payment-services.index');
     Route::post('xero/payment-services/refresh', [XeroPaymentServiceController::class, 'refresh'])->name('api.xero.payment-services.refresh');
+    Route::get('admin/xero/invoices', [XeroReverseSyncController::class, 'listXeroInvoices'])->middleware('permission:create_project_invoices')->name('api.admin.xero.invoices');
+    Route::get('admin/xero/invoices/{xero_invoice_id}', [XeroReverseSyncController::class, 'showXeroInvoice'])->middleware('permission:create_project_invoices')->name('api.admin.xero.invoices.show');
+    Route::post('admin/xero/invoices/sync', [XeroReverseSyncController::class, 'syncInvoice'])->middleware('permission:create_project_invoices')->name('api.admin.xero.invoices.sync');
+    Route::post('admin/xero/contacts/create-client', [XeroReverseSyncController::class, 'createClientFromXeroContact'])->middleware('permission:create_clients');
+    Route::get('projects/{project}/services-quick-list', [XeroReverseSyncController::class, 'getProjectServices'])->middleware('permission:view_project_invoices');
+    Route::post('projects/{project}/services/quick-add', [XeroReverseSyncController::class, 'quickAddProjectService'])->middleware('permission:create_project_invoices')->name('api.projects.services.quick-add');
     
     Route::get('projects/{project}/bills', [BillController::class, 'index'])->middleware('permission:view_project_bills')->name('api.bills.index');
     Route::post('projects/{project}/bills', [BillController::class, 'store'])->middleware('permission:create_project_bills')->name('api.bills.store');

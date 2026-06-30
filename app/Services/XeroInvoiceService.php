@@ -383,7 +383,7 @@ class XeroInvoiceService
     /**
      * @return array<string, mixed>
      */
-    private function getSalesInvoiceFromXero(string $xeroInvoiceId): array
+    public function getSalesInvoiceFromXero(string $xeroInvoiceId): array
     {
         $credentials = $this->xeroTokenService->getRuntimeCredentials();
 
@@ -409,9 +409,33 @@ class XeroInvoiceService
     }
 
     /**
+     * Fetch recent sales invoices from Xero.
+     *
+     * @return array
+     */
+    public function getRecentInvoicesFromXero(): array
+    {
+        $credentials = $this->xeroTokenService->getRuntimeCredentials();
+
+        $response = Http::withToken($credentials['access_token'])
+            ->withHeaders([
+                'Xero-tenant-id' => $credentials['tenant_id'],
+                'Accept' => 'application/json',
+            ])
+            ->get(self::INVOICES_URL, [
+                'where' => 'Type=="ACCREC"',
+                'order' => 'Date DESC',
+            ])
+            ->throw()
+            ->json();
+
+        return data_get($response, 'Invoices', []);
+    }
+
+    /**
      * @param array<string, mixed> $xeroInvoice
      */
-    private function mapSalesInvoiceStatus(array $xeroInvoice): string
+    public function mapSalesInvoiceStatus(array $xeroInvoice): string
     {
         $status = strtoupper((string) data_get($xeroInvoice, 'Status', ''));
 
@@ -433,7 +457,7 @@ class XeroInvoiceService
         };
     }
 
-    private function normalizeLineAmountType(?string $lineAmountType): string
+    public function normalizeLineAmountType(?string $lineAmountType): string
     {
         $normalized = ucfirst(strtolower(trim((string) $lineAmountType)));
 
@@ -448,7 +472,7 @@ class XeroInvoiceService
         return 'Exclusive';
     }
 
-    private function normalizeInvoiceTaxType(?string $taxType): string
+    public function normalizeInvoiceTaxType(?string $taxType): string
     {
         $normalized = strtoupper(trim((string) $taxType));
 

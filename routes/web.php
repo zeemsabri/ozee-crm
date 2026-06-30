@@ -489,6 +489,7 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         Route::get('/financials/invoices', [\App\Http\Controllers\Admin\FinancialController::class, 'invoices'])->middleware('permission:view_project_invoices')->name('financials.invoices');
         Route::get('/financials/invoices/{id}', [\App\Http\Controllers\Admin\FinancialController::class, 'showInvoice'])->middleware('permission:view_project_invoices')->name('financials.invoices.show');
         Route::get('/financials/project-services', [\App\Http\Controllers\Admin\FinancialController::class, 'projectServices'])->name('financials.project-services');
+        Route::get('/financials/invoices-xero-sync', [\App\Http\Controllers\Admin\FinancialController::class, 'xeroSync'])->middleware('permission:create_project_invoices')->name('financials.invoices.xero-sync');
 
     });
 
