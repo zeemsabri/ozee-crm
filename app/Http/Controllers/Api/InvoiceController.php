@@ -597,7 +597,7 @@ class InvoiceController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $statusFilter = $request->input('status', '');
+        $statusFilter = $request->input('status') ?? '';
         $excludeByDefault = ['voided', 'rejected'];
 
         // Helper: build a fresh filtered query for a specific status card.
@@ -659,7 +659,7 @@ class InvoiceController extends Controller
         // Apply shared non-status filters directly onto $query
         $this->applyBaseFilters($query, $request);
 
-        $statusFilter = $request->input('status', '');
+        $statusFilter = $request->input('status') ?? '';
 
         if ($statusFilter === 'all') {
             // No status restriction — show everything
