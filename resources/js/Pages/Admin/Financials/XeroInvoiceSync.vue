@@ -6,12 +6,21 @@ import axios from 'axios';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { success, error } from '@/Utils/notification';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
 
 const invoices = ref([]);
 const projects = ref([]);
 const crmServices = ref([]);
 const clients = ref([]);
 const loading = ref(true);
+const filterStatus = ref('unsynced'); // 'unsynced' or 'all'
+
+const filteredInvoices = computed(() => {
+    if (filterStatus.value === 'unsynced') {
+        return invoices.value.filter(inv => !inv.is_already_synced);
+    }
+    return invoices.value;
+});
 
 // Selected invoice for detailed view
 const activeInvoice = ref(null);
@@ -189,9 +198,14 @@ const performSync = async () => {
         const { data } = await axios.post('/api/admin/xero/invoices/sync', payload);
 
         success(data.message || 'Invoice synced successfully.');
-        activeInvoice.value.is_already_synced = true;
+        
+        // Update the invoice in the local state instead of refetching everything
+        const idx = invoices.value.findIndex(inv => inv.xero_invoice_id === activeInvoice.value.xero_invoice_id);
+        if (idx !== -1) {
+            invoices.value[idx].is_already_synced = true;
+        }
+        
         activeInvoice.value = null; // Back to list
-        fetchInitialData();
     } catch (e) {
         error(e?.response?.data?.message || 'Sync failed.');
     } finally {
@@ -225,7 +239,7 @@ onMounted(fetchInitialData);
         </template>
 
         <div class="py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <div class="w-full px-4 sm:px-6 lg:px-8">
                 
                 <!-- Main Listing View -->
                 <div v-if="!activeInvoice" class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
@@ -239,7 +253,48 @@ onMounted(fetchInitialData);
                         </div>
 
                         <div v-else class="space-y-6">
-                            <div class="overflow-x-auto">
+                            <!-- Filter Tabs & Actions -->
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-4 border-b border-gray-100">
+                                <div class="flex items-center space-x-2">
+                                    <button
+                                        type="button"
+                                        @click="filterStatus = 'unsynced'"
+                                        :class="[
+                                            'px-3 py-1.5 text-xs font-semibold rounded-md transition-colors',
+                                            filterStatus === 'unsynced'
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        ]"
+                                    >
+                                        Unsynced Only ({{ invoices.filter(inv => !inv.is_already_synced).length }})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="filterStatus = 'all'"
+                                        :class="[
+                                            'px-3 py-1.5 text-xs font-semibold rounded-md transition-colors',
+                                            filterStatus === 'all'
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        ]"
+                                    >
+                                        All Invoices ({{ invoices.length }})
+                                    </button>
+                                </div>
+                                <button
+                                    type="button"
+                                    @click="fetchInitialData"
+                                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-semibold rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+                                >
+                                    Refresh from Xero
+                                </button>
+                            </div>
+
+                            <div v-if="filteredInvoices.length === 0" class="text-center py-12 text-gray-500">
+                                No invoices found matching the current filter.
+                            </div>
+
+                            <div v-else class="overflow-x-auto">
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
@@ -252,7 +307,7 @@ onMounted(fetchInitialData);
                                         </tr>
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200">
-                                        <tr v-for="inv in invoices" :key="inv.xero_invoice_id" :class="{'bg-gray-50 opacity-75': inv.is_already_synced}">
+                                        <tr v-for="inv in filteredInvoices" :key="inv.xero_invoice_id" :class="{'bg-gray-50 opacity-75': inv.is_already_synced}">
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <div class="text-sm font-semibold text-indigo-600">{{ inv.invoice_number || 'N/A' }}</div>
                                                 <div class="text-xs text-gray-400 font-mono">{{ inv.xero_invoice_id }}</div>
@@ -363,15 +418,13 @@ onMounted(fetchInitialData);
                             <div class="flex items-end gap-3 pt-2">
                                 <div class="flex-1">
                                     <label class="block text-xs font-semibold text-gray-700">Link to CRM Client</label>
-                                    <select 
+                                    <SelectDropdown 
                                         v-model="syncForm.client_id"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                    >
-                                        <option value="">-- Choose Client --</option>
-                                        <option v-for="c in clients" :key="c.id" :value="c.id">
-                                            {{ c.name }}
-                                        </option>
-                                    </select>
+                                        :options="clients"
+                                        value-key="id"
+                                        label-key="name"
+                                        placeholder="-- Choose Client --"
+                                    />
                                 </div>
                                 <button 
                                     v-if="!activeInvoice.suggested_client"
@@ -390,16 +443,14 @@ onMounted(fetchInitialData);
                             <h3 class="text-sm font-bold text-gray-900 border-b border-gray-100 pb-2">2. Match Target CRM Project</h3>
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700">Select Project</label>
-                                <select 
-                                    :value="syncForm.project_id"
-                                    @change="handleProjectSelect($event.target.value)"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                >
-                                    <option value="">-- Select Project --</option>
-                                    <option v-for="proj in projects" :key="proj.id" :value="proj.id">
-                                        {{ proj.name }}
-                                    </option>
-                                </select>
+                                <SelectDropdown 
+                                    :model-value="syncForm.project_id"
+                                    @update:model-value="handleProjectSelect"
+                                    :options="projects"
+                                    value-key="id"
+                                    label-key="name"
+                                    placeholder="-- Select Project --"
+                                />
                             </div>
                         </div>
 
