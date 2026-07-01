@@ -239,6 +239,17 @@ trait HandlesTemplatedEmails
                 throw new Exception('Recipient client not found for email ID: '.$email->id);
             }
 
+            // Combine names for multiple recipients if applicable
+            $toEmails = is_array($email->to) ? $email->to : (empty($email->to) ? [] : [$email->to]);
+            if (count($toEmails) > 1) {
+                $clients = Client::whereIn('email', $toEmails)->get();
+                if ($clients->count() > 1) {
+                    $combinedName = $clients->pluck('name')->join(' & ');
+                    $recipientClient = clone $recipientClient;
+                    $recipientClient->name = $combinedName;
+                }
+            }
+
             $template = EmailTemplate::with('placeholders')->findOrFail($email->template_id);
             $templateData = json_decode($email->template_data, true) ?? [];
 

@@ -77,27 +77,34 @@ const { processedHtmlBody } = useEmailTemplate(editorBodyContent);
 
 // Computed property for the dynamic greeting (for display in editor only)
 const greetingText = computed(() => {
-    if (localFormData.client_ids && localFormData.client_ids.length > 0) {
-        const firstClientId = localFormData.client_ids[0];
-        const firstClient = projectClients.value.find(client => client.id === firstClientId); // Use .value for ref
+    if (greetingType.value === 'custom') {
+        return `Hi ${customGreetingName.value.trim() || 'there'},`;
+    }
 
-        if (firstClient) {
-            const nameParts = firstClient.name.split(' ').filter(part => part.length > 0);
+    if (localFormData.client_ids && localFormData.client_ids.length > 0) {
+        const names = localFormData.client_ids.map(id => {
+            const client = projectClients.value.find(c => c.id === id);
+            if (!client) return null;
+            const nameParts = client.name.split(' ').filter(part => part.length > 0);
             const firstName = nameParts.length > 0 ? nameParts[0] : '';
             const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
-
             switch (greetingType.value) {
                 case 'full_name':
-                    return `Hi ${firstClient.name},`;
+                    return client.name;
                 case 'first_name':
-                    return `Hi ${firstName},`;
+                    return firstName;
                 case 'last_name':
-                    return `Hi ${lastName},`;
-                case 'custom':
-                    return `Hi ${customGreetingName.value.trim() || 'there'},`;
+                    return lastName;
                 default:
-                    return `Hi ${firstClient.name},`;
+                    return client.name;
             }
+        }).filter(Boolean);
+
+        if (names.length > 0) {
+            if (names.length === 1) {
+                return `Hi ${names[0]},`;
+            }
+            return `Hi ${names.join(' & ')},`;
         }
     }
     return 'Hi there,'; // Default greeting if no client is selected or found

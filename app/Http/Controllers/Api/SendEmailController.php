@@ -34,12 +34,25 @@ class SendEmailController extends Controller
         $validatedData = $request->validate([
             'template_id' => 'required|exists:email_templates,id',
             'client_id' => 'required|exists:clients,id',
+            'client_ids' => 'nullable|array',
+            'client_ids.*' => 'exists:clients,id',
             'template_data' => 'nullable|array',
         ]);
         //
         //        try {
         $template = EmailTemplate::with('placeholders')->findOrFail($validatedData['template_id']);
         $recipientClient = Client::findOrFail($validatedData['client_id']);
+        
+        $clientIds = $validatedData['client_ids'] ?? [];
+        if (count($clientIds) > 1) {
+            $clients = Client::whereIn('id', $clientIds)->get();
+            if ($clients->count() > 1) {
+                $combinedName = $clients->pluck('name')->join(' & ');
+                $recipientClient = clone $recipientClient;
+                $recipientClient->name = $combinedName;
+            }
+        }
+
         $templateData = $validatedData['template_data'] ?? [];
         // Populate placeholders for the subject and body
         $subject = $this->populateAllPlaceholders(

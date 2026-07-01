@@ -106,10 +106,12 @@ const fetchPreview = async () => {
     try {
         const firstClient = emailForm.client_ids[0];
         const clientId = typeof firstClient === 'object' ? firstClient.id : firstClient;
+        const clientIds = emailForm.client_ids.map(c => typeof c === 'object' ? c.id : c);
 
         const response = await window.axios.post(`/api/projects/${emailForm.project_id}/email-preview`, {
             template_id: emailForm.template_id,
             client_id: clientId,
+            client_ids: clientIds,
             template_data: emailForm.template_data,
         });
         previewContent.value = response.data.body_html;

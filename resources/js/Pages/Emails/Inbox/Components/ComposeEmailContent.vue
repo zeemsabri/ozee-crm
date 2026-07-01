@@ -238,6 +238,7 @@ const fetchPreview = async () => {
         const payload = {
             template_id: form.template_id,
             client_id: form.client_ids[0],
+            client_ids: form.client_ids,
             template_data: form.template_data,
         };
         const response = await axios.post(`/api/projects/${form.project_id}/email-preview`, payload);

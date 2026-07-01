@@ -116,48 +116,61 @@ const { processedHtmlBody } = useEmailTemplate(editorBodyContent);
 
 // Greeting text (display only)
 const greetingText = computed(() => {
-  // Determine name from first selected recipient (client or lead)
+  if (greetingType.value === 'custom') {
+    return `Hi ${customGreetingName.value.trim() || 'there'},`;
+  }
+
   if (recipientMode.value === 'leads' && form.lead_ids && form.lead_ids.length > 0) {
-    const firstLeadId = form.lead_ids[0];
-    const firstLead = leads.value.find(l => l.id === firstLeadId);
-    if (firstLead) {
-      const fullName = (firstLead.first_name ? firstLead.first_name + ' ' : '') + (firstLead.last_name || '');
+    const names = form.lead_ids.map(id => {
+      const lead = leads.value.find(l => l.id === id);
+      if (!lead) return null;
+      const fullName = (lead.first_name ? lead.first_name + ' ' : '') + (lead.last_name || '');
       const nameParts = fullName.trim().split(' ').filter(Boolean);
       const firstName = nameParts[0] || '';
       const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
-      const displayName = fullName.trim() || firstLead.company || 'there';
+      const displayName = fullName.trim() || lead.company || 'there';
       switch (greetingType.value) {
         case 'full_name':
-          return `Hi ${displayName},`;
+          return displayName;
         case 'first_name':
-          return `Hi ${firstName || displayName},`;
+          return firstName || displayName;
         case 'last_name':
-          return `Hi ${lastName || displayName},`;
-        case 'custom':
-          return `Hi ${customGreetingName.value.trim() || 'there'},`;
+          return lastName || displayName;
         default:
-          return `Hi ${displayName},`;
+          return displayName;
       }
+    }).filter(Boolean);
+
+    if (names.length > 0) {
+      if (names.length === 1) {
+        return `Hi ${names[0]},`;
+      }
+      return `Hi ${names.join(' & ')},`;
     }
   } else if (form.client_ids && form.client_ids.length > 0) {
-    const firstClientId = form.client_ids[0];
-    const firstClient = projectClients.value.find(c => c.id === firstClientId);
-    if (firstClient) {
-      const nameParts = firstClient.name.split(' ').filter(Boolean);
+    const names = form.client_ids.map(id => {
+      const client = projectClients.value.find(c => c.id === id);
+      if (!client) return null;
+      const nameParts = client.name.split(' ').filter(Boolean);
       const firstName = nameParts[0] || '';
       const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
       switch (greetingType.value) {
         case 'full_name':
-          return `Hi ${firstClient.name},`;
+          return client.name;
         case 'first_name':
-          return `Hi ${firstName},`;
+          return firstName;
         case 'last_name':
-          return `Hi ${lastName},`;
-        case 'custom':
-          return `Hi ${customGreetingName.value.trim() || 'there'},`;
+          return lastName;
         default:
-          return `Hi ${firstClient.name},`;
+          return client.name;
       }
+    }).filter(Boolean);
+
+    if (names.length > 0) {
+      if (names.length === 1) {
+        return `Hi ${names[0]},`;
+      }
+      return `Hi ${names.join(' & ')},`;
     }
   }
   return 'Hi there,';
