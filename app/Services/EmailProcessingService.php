@@ -83,12 +83,23 @@ class EmailProcessingService
         $finalRenderedBody = $this->renderHtmlTemplate($data, $template);
         $recipient = $email->conversation?->conversable ?? null;
 
-        if ($recipient && ! empty($recipient->email)) {
-            $this->gmailService->sendEmail(
-                $recipient->email,
-                $subject,
-                $finalRenderedBody
-            );
+        $recipients = [];
+        if (! empty($email->to)) {
+            $recipients = is_array($email->to) ? $email->to : [$email->to];
+        } elseif ($recipient && ! empty($recipient->email)) {
+            $recipients = [$recipient->email];
+        }
+
+        if (! empty($recipients)) {
+            foreach ($recipients as $recipientEmail) {
+                if (! empty($recipientEmail)) {
+                    $this->gmailService->sendEmail(
+                        $recipientEmail,
+                        $subject,
+                        $finalRenderedBody
+                    );
+                }
+            }
 
             // Update email status after sending
             $email->update([

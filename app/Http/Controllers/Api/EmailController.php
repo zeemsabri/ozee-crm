@@ -393,22 +393,24 @@ class EmailController extends Controller
             $isFullHtmlDoc = is_string($renderedBody) && (str_contains($renderedBody, '<html') || str_contains($renderedBody, '<!DOCTYPE'));
             $finalRenderedBody = $isFullHtmlDoc ? $renderedBody : $this->renderHtmlTemplate($data, $template);
 
-            // Resolve recipient(s): if a client is associated, use it; otherwise fall back to Email.to
-            $recipient = $email->conversation->conversable;
+            // Resolve recipient(s)
             $recipients = [];
-            if ($recipient && ! empty($recipient->email)) {
+            if (! empty($email->to)) {
+                $recipients = is_array($email->to) ? $email->to : [$email->to];
+            } elseif ($recipient && ! empty($recipient->email)) {
                 $recipients = [$recipient->email];
-            } else {
-                $recipients = is_array($email->to) ? $email->to : (empty($email->to) ? [] : [$email->to]);
             }
 
             if ($statusEnum === \App\Enums\EmailStatus::PendingApproval && ! empty($recipients)) {
-                // Send to first recipient for now (extend to multiple later if required)
-                $this->gmailService->sendEmail(
-                    $recipients[0],
-                    $subject,
-                    $finalRenderedBody
-                );
+                foreach ($recipients as $recipientEmail) {
+                    if (! empty($recipientEmail)) {
+                        $this->gmailService->sendEmail(
+                            $recipientEmail,
+                            $subject,
+                            $finalRenderedBody
+                        );
+                    }
+                }
             }
 
             app(\App\Services\ValueSetValidator::class)->validate('Email', 'status', \App\Enums\EmailStatus::Sent);
