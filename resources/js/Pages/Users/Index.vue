@@ -196,6 +196,7 @@ const isManager = computed(() => {
 
 const canDeleteUsers = canDo('delete_users');
 const canCreateUsers = canDo('create_users');
+const canEditUsers = canDo('edit_users');
 
 // --- Fetch Users ---
 const fetchUsers = async () => {
@@ -757,7 +758,7 @@ const getAvatarColor = (name) => {
                                         <PrimaryButton as="a" :href="`/users/${userItem.id}`" title="View User">View</PrimaryButton>
                                         
                                         <button
-                                            v-if="isSuperAdmin || isManager"
+                                            v-if="isSuperAdmin || canEditUsers"
                                             @click="generateTelegramLinkCode(userItem)"
                                             class="p-2 rounded-full text-gray-400 hover:text-sky-600 hover:bg-sky-50 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors"
                                             title="Generate Telegram Link Code">
@@ -765,7 +766,7 @@ const getAvatarColor = (name) => {
                                         </button>
 
                                         <button
-                                            v-if="isSuperAdmin || isManager"
+                                            v-if="isSuperAdmin || canEditUsers"
                                             @click="generateApiKey(userItem)"
                                             class="p-2 rounded-full text-gray-400 hover:text-amber-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors"
                                             title="Generate API Key">
@@ -773,7 +774,7 @@ const getAvatarColor = (name) => {
                                         </button>
 
                                         <button
-                                            v-if="(isSuperAdmin || isManager )"
+                                            v-if="isSuperAdmin || canEditUsers"
                                             @click="openEditModal(userItem)"
                                             class="p-2 rounded-full text-gray-400 hover:text-indigo-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
                                             title="Edit User">

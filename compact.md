@@ -29,3 +29,25 @@ This restores the default filter behavior (excluding `voided` and `rejected` sta
   Schedule::command('xero:sync-invoices')->hourly();
   ```
 
+
+## Remaining Roles/Permissions Migration Checklist (isManager -> Permissions)
+
+The following locations still need to be updated gradually:
+
+### Phase 2: Email Management
+- [ ] **EmailPolicy.php** (Line 65): Edit emails authorization check.
+- [ ] **EmailController.php** (Lines 447, 478, 523, 606, 632, 1124): Check `! $user->isSuperAdmin() && ! $user->isManager()` before executing email-related actions.
+
+### Phase 3: Project & Workspace Management
+- [ ] **WorkspaceController.php** (Lines 32, 298): Checking for global manager.
+- [ ] **ProjectController.php** (Lines 38, 202, 1665): Project access and status check.
+- [ ] **ProjectReadController.php** (Lines 40, 731): Project read/details check.
+- [ ] **ProjectSectionController.php** (Line 612): Section checks.
+- [ ] **HasProjectPermissions.php** (Line 20): Check if user is Super Admin or Manager.
+
+### Phase 4: Tasks, Permissions, API, Availability, & Client Enquiries
+- [ ] **TaskController.php** (Line 78): Task detail read.
+- [ ] **PermissionController.php** (Line 83): Modify permission assignments.
+- [ ] **ExistingClientEnquiryController.php** (Line 230): Enquiries filtering.
+- [ ] **AvailabilityController.php** (Lines 55, 92, 190, 208, 353, 372).
+- [ ] **ExternalApiController.php** (Lines 109, 135, 176, 238, 389, 414, 446).

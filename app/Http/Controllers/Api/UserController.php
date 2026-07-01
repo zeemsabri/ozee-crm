@@ -96,7 +96,7 @@ class UserController extends Controller
             $users = $query->orderBy('name')->get();
             
             // If the requester is an admin, they might need the API keys
-            if ($user->isSuperAdmin() || $user->isManager()) {
+            if ($user->isSuperAdmin() || $user->hasPermission('edit_users')) {
                 $users->makeVisible(['api_key']);
             }
         } else {
@@ -227,7 +227,7 @@ class UserController extends Controller
     {
         $this->authorize('view', $user);
 
-        if (Auth::user()->isSuperAdmin() || Auth::user()->isManager() || Auth::user()->id === $user->id) {
+        if (Auth::user()->isSuperAdmin() || Auth::user()->hasPermission('edit_users') || Auth::user()->id === $user->id) {
             $user->makeVisible(['api_key']);
         }
 
