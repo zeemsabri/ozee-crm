@@ -31,17 +31,11 @@ class ClientController extends Controller
     {
         $user = Auth::user();
 
-        // Check if user has permission to view clients
-        if ($user->hasPermission('view_clients') || $user->hasPermission('manage_project_clients')) {
-            // Admins, Managers, Employees can see all clients
-            $clients = Client::with(['xeroSyncedBy:id,name', 'telegramAccount'])->get();
-        } elseif ($user->isContractor()) {
-            // Contractors can see clients associated with their assigned projects
-            // even without the explicit 'view_clients' permission
-            $clients = $user->clients;
-        } else {
+        if (! $user->hasPermission('view_clients')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
+
+        $clients = Client::with(['xeroSyncedBy:id,name', 'telegramAccount'])->get();
 
         return ClientResource::collection($clients);
     }
@@ -90,17 +84,11 @@ class ClientController extends Controller
     {
         $user = Auth::user();
 
-        // Check if user has permission to view clients
-        if ($user->hasPermission('view_clients')) {
-            return new ClientResource($client);
-        } elseif ($user->isContractor()) {
-            // Contractors can only view clients associated with their projects
-            if ($user->clients->contains('id', $client->id)) {
-                return new ClientResource($client);
-            }
+        if (! $user->hasPermission('view_clients')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        return response()->json(['message' => 'Unauthorized'], 403);
+        return new ClientResource($client);
     }
 
     /**
@@ -171,15 +159,7 @@ class ClientController extends Controller
     {
         $user = Auth::user();
 
-        // Check if user has permission to view clients
-        if ($user->hasPermission('view_clients')) {
-            // Allow access for users with view_clients permission
-        } elseif ($user->isContractor()) {
-            // Contractors can only access emails of clients associated with their projects
-            if (! $user->clients->contains('id', $client->id)) {
-                return response()->json(['message' => 'Unauthorized'], 403);
-            }
-        } else {
+        if (! $user->hasPermission('view_clients')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -198,14 +178,8 @@ class ClientController extends Controller
     public function emails(Client $client, Request $request)
     {
         $user = Auth::user();
-        // Permission check similar to show/details
-        if ($user->hasPermission('view_clients')) {
-            // ok
-        } elseif ($user->isContractor()) {
-            if (! $user->clients->contains('id', $client->id)) {
-                return response()->json(['message' => 'Unauthorized'], 403);
-            }
-        } else {
+
+        if (! $user->hasPermission('view_clients')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -245,14 +219,7 @@ class ClientController extends Controller
     {
         $user = Auth::user();
 
-        // Permission check (mirrors show/getEmail)
-        if ($user->hasPermission('view_clients')) {
-            // ok
-        } elseif ($user->isContractor()) {
-            if (! $user->clients->contains('id', $client->id)) {
-                return response()->json(['message' => 'Unauthorized'], 403);
-            }
-        } else {
+        if (! $user->hasPermission('view_clients')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 

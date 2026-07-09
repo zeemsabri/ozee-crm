@@ -150,7 +150,7 @@ function fetchAppLogs(page = 1) {
 
     logsLoading.value = true;
 
-    window.axios.get(route('admin.email-apps.logs', { emailApp: selectedAppForLogs.value.id }), {
+    window.axios.get(route('admin.email-apps.logs', selectedAppForLogs.value.id), {
         params: {
             page,
             per_page: appLogsPagination.value.per_page,
@@ -409,7 +409,7 @@ function statusBadgeClass(status) {
             v-if="showEditModal"
             :show="showEditModal"
             title="Edit Email App"
-            :api-endpoint="route('admin.email-apps.update', { emailApp: form.id })"
+            :api-endpoint="route('admin.email-apps.update', form.id)"
             http-method="put"
             :form-data="form"
             submit-button-text="Update"
