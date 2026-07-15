@@ -46,7 +46,7 @@ class PermissionDeniedException extends Exception
     /**
      * Render the exception as an HTTP response.
      */
-    public function render(): JsonResponse
+    public function render($request)
     {
         $response = [
             'message' => $this->getMessage(),
@@ -58,6 +58,14 @@ class PermissionDeniedException extends Exception
             $response['project_id'] = $this->projectId;
         }
 
-        return response()->json($response, $this->getCode());
+        if ($request->expectsJson() || $request->is('api/*')) {
+            return response()->json($response, $this->getCode());
+        }
+
+        if ($request->header('X-Inertia') && ! $request->isMethod('GET')) {
+            return back()->withErrors(['error' => $this->getMessage()]);
+        }
+
+        abort($this->getCode(), $this->getMessage());
     }
 }

@@ -9,9 +9,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-
 class RoleController extends Controller
 {
+
     /**
      * Display a listing of the resource.
      */
@@ -127,6 +127,10 @@ class RoleController extends Controller
 
             DB::commit();
 
+            if ($request->header('X-Inertia')) {
+                return back()->with('success', 'Role updated successfully.');
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Role updated successfully.',
@@ -134,6 +138,10 @@ class RoleController extends Controller
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
+
+            if ($request->header('X-Inertia')) {
+                return back()->withErrors(['error' => 'Error updating role: '.$e->getMessage()]);
+            }
 
             return response()->json([
                 'success' => false,
@@ -156,11 +164,19 @@ class RoleController extends Controller
 
             $role->delete();
 
+            if (request()->header('X-Inertia')) {
+                return redirect()->route('admin.roles.index')->with('success', 'Role deleted successfully.');
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Role deleted successfully.',
             ], 200);
         } catch (\Exception $e) {
+            if (request()->header('X-Inertia')) {
+                return back()->withErrors(['error' => 'Error deleting role: '.$e->getMessage()]);
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error deleting role: '.$e->getMessage(),
@@ -188,6 +204,10 @@ class RoleController extends Controller
 
             DB::commit();
 
+            if ($request->header('X-Inertia')) {
+                return back()->with('success', 'Role permissions updated successfully.');
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Role permissions updated successfully.',
@@ -195,6 +215,10 @@ class RoleController extends Controller
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
+
+            if ($request->header('X-Inertia')) {
+                return back()->withErrors(['error' => 'Error updating role permissions: '.$e->getMessage()]);
+            }
 
             return response()->json([
                 'success' => false,
