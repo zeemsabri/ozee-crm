@@ -145,4 +145,9 @@ class ProjectExpendable extends Model
     {
         return 'OZX' . $this->id;
     }
+
+    public function files()
+    {
+        return $this->morphMany(FileAttachment::class, 'fileable');
+    }
 }

@@ -38,6 +38,8 @@ const proposalDescription = ref('');
 const proposalAmount = ref('');
 const proposalCurrency = ref('USD');
 const paymentTerms = ref('');
+const proposalDocument = ref(null);
+const documentInput = ref(null);
 const sessionToken = ref(localStorage.getItem('project_session_' + props.project.token) || '');
 
 const currencies = ['PKR', 'AUD', 'USD', 'EUR', 'GBP', 'INR'];
@@ -191,6 +193,19 @@ async function trackPublicEvent(eventName) {
     }
 }
 
+function handleDocumentChange(event) {
+    const file = event.target.files[0];
+    if (file && file.type === 'application/pdf') {
+        proposalDocument.value = file;
+    } else {
+        proposalDocument.value = null;
+        if (documentInput.value) {
+            documentInput.value.value = '';
+        }
+        setError('Please select a valid PDF file.');
+    }
+}
+
 async function submitProposal() {
     if (proposalScope.value === 'milestone' && !selectedMilestoneId.value) {
         return setError('Please select a milestone.');
@@ -203,18 +218,30 @@ async function submitProposal() {
     successMsg.value = '';
     loading.value = true;
     try {
-        await axios.post(`/projects/public/${props.project.token}/proposals`, {
-            session_token: sessionToken.value,
-            proposal_scope: proposalScope.value,
-            milestone_id: selectedMilestoneId.value,
-            description: proposalDescription.value,
-            amount: proposalAmount.value,
-            currency: proposalCurrency.value,
-            payment_terms: paymentTerms.value || null,
+        const formData = new FormData();
+        formData.append('session_token', sessionToken.value);
+        formData.append('proposal_scope', proposalScope.value);
+        if (selectedMilestoneId.value) {
+            formData.append('milestone_id', selectedMilestoneId.value);
+        }
+        formData.append('description', proposalDescription.value);
+        formData.append('amount', proposalAmount.value);
+        formData.append('currency', proposalCurrency.value);
+        if (paymentTerms.value) {
+            formData.append('payment_terms', paymentTerms.value);
+        }
+        if (proposalDocument.value) {
+            formData.append('document', proposalDocument.value);
+        }
+
+        await axios.post(`/projects/public/${props.project.token}/proposals`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
         });
         await trackPublicEvent('proposal_submitted');
-        step.value = 'proposal';
-        successMsg.value = 'Proposal submitted. You can edit the details below and submit another proposal for this project.';
+        step.value = 'confirmation';
+        successMsg.value = 'Proposal submitted successfully!';
     } catch (e) {
         const errors = e.response?.data?.errors;
         if (errors) {
@@ -427,13 +454,8 @@ const companyWebsite = computed(() => props.branding?.company?.website || null);
                     Public submissions can be sent for a milestone or for the whole project. Include your proposed payment terms so the internal team can review your structure.
                 </div>
 
-                <!-- Error -->
                 <div v-if="errorMsg" class="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
                     {{ errorMsg }}
-                </div>
-
-                <div v-if="successMsg && step === 'proposal'" class="mb-4 p-3 bg-green-50 border border-green-200 rounded text-green-700 text-sm">
-                    {{ successMsg }}
                 </div>
 
                 <!-- Step: Email -->
@@ -591,6 +613,23 @@ const companyWebsite = computed(() => props.branding?.company?.website || null);
                         <p class="text-xs text-gray-400 mt-1">Optional, but recommended for faster approval.</p>
                     </div>
 
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Supporting Document (Optional PDF)</label>
+                        <input
+                            type="file"
+                            accept=".pdf"
+                            ref="documentInput"
+                            @change="handleDocumentChange"
+                            class="w-full text-sm text-gray-500
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-full file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-blue-50 file:text-blue-700
+                                hover:file:bg-blue-100"
+                        />
+                        <p class="text-xs text-gray-400 mt-1">Upload an optional PDF document to support your proposal.</p>
+                    </div>
+
                     <button
                         @click="submitProposal"
                         :disabled="loading"
@@ -599,6 +638,28 @@ const companyWebsite = computed(() => props.branding?.company?.website || null);
                         {{ loading ? 'Submitting…' : 'Submit Proposal' }}
                     </button>
                 </div>
+            </div>
+
+            <!-- Confirmation Step -->
+            <div
+                v-if="step === 'confirmation'"
+                class="bg-white/95 rounded-2xl shadow-lg border border-white/70 p-8 text-center max-w-lg mx-auto"
+            >
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800 mb-2">Proposal Submitted</h2>
+                <p class="text-gray-600 mb-6">
+                    Thank you! Your proposal has been sent successfully. We will review it and get back to you shortly.
+                </p>
+                <button
+                    @click="step = 'proposal'; successMsg = ''; errorMsg = '';"
+                    class="bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2 px-6 rounded-lg transition"
+                >
+                    Edit Proposal
+                </button>
             </div>
 
         </main>

@@ -314,6 +314,7 @@ class PublicProjectController extends Controller
             'amount'         => 'required|numeric|min:1',
             'currency'       => 'required|string|in:PKR,AUD,USD,EUR,GBP,INR',
             'payment_terms'  => 'nullable|string|max:10000',
+            'document'       => 'nullable|file|mimes:pdf|max:10240',
         ]);
 
         if ($validator->fails()) {
@@ -350,7 +351,7 @@ class PublicProjectController extends Controller
             $expendableType = \App\Models\Milestone::class;
         }
 
-        ProjectExpendable::create([
+        $expendable = ProjectExpendable::create([
             'name'             => $proposalScope === 'project'
                 ? 'Whole Project Proposal from '.$guestUser->name
                 : 'Milestone Proposal from '.$guestUser->name,
@@ -365,6 +366,19 @@ class PublicProjectController extends Controller
             'expendable_id'    => $expendableId,
             'expendable_type'  => $expendableType,
         ]);
+
+        if ($request->hasFile('document')) {
+            $file = $request->file('document');
+            $objectPath = \Illuminate\Support\Facades\Storage::disk('gcs')->putFile('proposals', $file);
+
+            $expendable->files()->create([
+                'project_id' => $project->id,
+                'filename' => $file->getClientOriginalName(),
+                'mime_type' => $file->getMimeType(),
+                'file_size' => $file->getSize(),
+                'path' => $objectPath,
+            ]);
+        }
 
         $this->trackInteraction($guestUser->id, $project->id, 'proposal_submitted');
 
