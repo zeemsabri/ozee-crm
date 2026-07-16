@@ -351,21 +351,45 @@ class PublicProjectController extends Controller
             $expendableType = \App\Models\Milestone::class;
         }
 
-        $expendable = ProjectExpendable::create([
+        $expendable = ProjectExpendable::query()
+            ->where('project_id', $project->id)
+            ->where('user_id', $guestUser->id)
+            ->where('status', '!=', \App\Enums\ProjectExpendableStatus::Accepted->value)
+            ->latest()
+            ->first();
+
+        $attributes = [
             'name'             => $proposalScope === 'project'
                 ? 'Whole Project Proposal from '.$guestUser->name
                 : 'Milestone Proposal from '.$guestUser->name,
             'description'      => $request->description,
-            'project_id'       => $project->id,
-            'user_id'          => $guestUser->id,
             'currency'         => $request->currency,
             'amount'           => $request->amount,
             'balance'          => $request->amount,
             'payment_terms'    => $request->payment_terms,
-            'status'           => 'Pending Approval',
             'expendable_id'    => $expendableId,
             'expendable_type'  => $expendableType,
-        ]);
+        ];
+
+        if ($expendable) {
+            // Temporarily set the auth user so Spatie Activity Log records the guest user as the causer
+            // if they are an eloquent model. The OTP service returns a User model.
+            $originalUser = auth()->user();
+            auth()->setUser($guestUser);
+            
+            $expendable->update($attributes);
+            
+            if ($originalUser) {
+                auth()->setUser($originalUser);
+            } else {
+                auth()->logout();
+            }
+        } else {
+            $attributes['project_id'] = $project->id;
+            $attributes['user_id'] = $guestUser->id;
+            $attributes['status'] = 'Pending Approval';
+            $expendable = ProjectExpendable::create($attributes);
+        }
 
         if ($request->hasFile('document')) {
             $file = $request->file('document');

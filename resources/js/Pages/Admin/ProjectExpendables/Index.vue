@@ -702,6 +702,33 @@ const daysRemainingText = (dateStr) => {
     return `${diff} day${diff === 1 ? '' : 's'} remaining`;
 };
 
+// History log formatting
+const presentableActivityAttributes = (attributes) => {
+    if (!attributes) return [];
+    
+    // Internal fields that aren't useful to end users
+    const ignoredKeys = ['project_id', 'user_id', 'expendable_id', 'expendable_type', 'balance', 'name'];
+    
+    // Human-readable labels
+    const friendlyNames = {
+        amount: 'Amount',
+        currency: 'Currency',
+        status: 'Status',
+        description: 'Description / Cover Letter',
+        payment_terms: 'Payment Terms'
+    };
+
+    return Object.entries(attributes)
+        .filter(([key, val]) => !ignoredKeys.includes(key) && val !== null && val !== '')
+        .map(([key, val]) => {
+            return {
+                key,
+                label: friendlyNames[key] || key.charAt(0).toUpperCase() + key.slice(1).replace('_', ' '),
+                value: val
+            };
+        });
+};
+
 // -- Lifecycle Hooks --
 onMounted(async () => {
     const storedCurrency = localStorage.getItem('displayCurrency');
@@ -1104,6 +1131,48 @@ watch(currentDisplayCurrency, async (newCurrency) => {
                                                 </span>
                                             </div>
                                         </div>
+                                    </div>
+                                    
+                                    <!-- Attached Documents -->
+                                    <div v-if="e.files && e.files.length" class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                                        <p class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-2">Attached Documents</p>
+                                        <div class="space-y-2">
+                                            <a
+                                                v-for="file in e.files"
+                                                :key="file.id"
+                                                :href="`/api/files/${file.id}/download`"
+                                                target="_blank"
+                                                class="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 hover:underline bg-white p-2 rounded-lg border border-gray-200"
+                                            >
+                                                <DocumentTextIcon class="h-5 w-5" />
+                                                <span>{{ file.filename }}</span>
+                                                <span class="text-xs text-gray-400 ml-auto">{{ (file.file_size / 1024).toFixed(1) }} KB</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- History -->
+                                    <div v-if="e.activities && e.activities.length" class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                                        <p class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-2">History & Versions</p>
+                                        <ul class="space-y-3">
+                                            <li v-for="activity in e.activities" :key="activity.id" class="text-xs text-gray-600 flex items-start gap-2">
+                                                <span class="w-1.5 h-1.5 mt-1.5 rounded-full bg-gray-300 flex-shrink-0"></span>
+                                                <div>
+                                                    <span class="font-semibold text-gray-800">{{ activity.causer?.name || (activity.description === 'created' ? (e.user?.name || 'Proposer') : 'System') }}</span>
+                                                    <span class="text-gray-500"> {{ activity.description }} this proposal</span>
+                                                    <span class="text-gray-400 ml-1">on {{ new Date(activity.created_at).toLocaleString() }}</span>
+                                                    
+                                                    <div v-if="presentableActivityAttributes(activity.properties?.attributes).length" class="mt-2 space-y-1 bg-white border border-gray-100 rounded p-3 text-[11px] text-gray-600 shadow-sm">
+                                                        <div v-for="attr in presentableActivityAttributes(activity.properties?.attributes)" :key="attr.key" class="grid grid-cols-3 gap-2 border-b border-gray-50 last:border-0 pb-1 last:pb-0">
+                                                            <div class="font-semibold text-gray-700 col-span-1 truncate" :title="attr.label">{{ attr.label }}</div>
+                                                            <div class="col-span-2 text-gray-500 truncate" :title="String(attr.value)">
+                                                                {{ String(attr.value).length > 80 ? String(attr.value).substring(0, 80) + '...' : attr.value }}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                        </ul>
                                     </div>
                                 </div>
                             </div>

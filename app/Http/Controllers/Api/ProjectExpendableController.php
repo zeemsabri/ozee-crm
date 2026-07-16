@@ -39,7 +39,7 @@ class ProjectExpendableController extends Controller
 
         if (request('type') === 'project_contracts') {
             $contracts = $project->projectContracts();
-            $contracts->load(['user:id,name,email,metadata,user_type', 'bills.transactionType']);
+            $contracts->load(['user:id,name,email,metadata,user_type', 'bills.transactionType', 'files', 'activities.causer']);
             return response()->json($contracts);
         }
 

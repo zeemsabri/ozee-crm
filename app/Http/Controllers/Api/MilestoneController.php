@@ -71,6 +71,8 @@ class MilestoneController extends Controller
         $milestones = $project->milestones()
             ->with([
                 'expendable',
+                'expendable.files',
+                'expendable.activities.causer',
                 'expendable.user' => function ($q) {
                     $q->select('id', 'name', 'email', 'metadata', 'user_type');
                 },
