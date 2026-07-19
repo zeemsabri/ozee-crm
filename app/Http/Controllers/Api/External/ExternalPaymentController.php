@@ -354,14 +354,25 @@ class ExternalPaymentController extends Controller
      *  ]
      * }
      */
-    public function getActivities($appId)
+    public function getActivities(Request $request, $appId)
     {
         try {
             $config = StripeConfiguration::where('app_id', $appId)->firstOrFail();
 
-            $activities = Activity::causedBy($config)
-                ->latest()
-                ->paginate(50);
+            $search = $request->query('search');
+
+            $query = Activity::causedBy($config);
+
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('id', 'LIKE', "%{$search}%")
+                      ->orWhere('description', 'LIKE', "%{$search}%")
+                      ->orWhere('properties->parent_email', 'LIKE', "%{$search}%")
+                      ->orWhere('properties->parent_name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $activities = $query->latest()->paginate(50);
 
             return response()->json([
                 'success' => true,
