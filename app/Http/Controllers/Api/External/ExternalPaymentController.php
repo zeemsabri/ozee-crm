@@ -372,7 +372,8 @@ class ExternalPaymentController extends Controller
                       ->orWhere('properties->metadata->parent_email', 'LIKE', "%{$search}%")
                       ->orWhere('properties->metadata->parent_name', 'LIKE', "%{$search}%")
                       ->orWhere('properties->user->email', 'LIKE', "%{$search}%")
-                      ->orWhere('properties->user->name', 'LIKE', "%{$search}%");
+                      ->orWhere('properties->user->name', 'LIKE', "%{$search}%")
+                      ->orWhere('properties', 'LIKE', "%{$search}%"); // Catch-all for line_items and children names
                 });
             }
 
