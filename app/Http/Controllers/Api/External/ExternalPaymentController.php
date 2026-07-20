@@ -310,17 +310,81 @@ class ExternalPaymentController extends Controller
      */
     public function getStatus($activityId)
     {
-
         try {
             $activity = Activity::findOrFail($activityId);
+            $status = $activity->getExtraProperty('status');
+            $sessionId = $activity->getExtraProperty('session_id');
+            $appId = $activity->getExtraProperty('app_id');
+            $checkoutUrl = null;
+
+            if ($status === 'pending' && $sessionId && $appId) {
+                try {
+                    $config = StripeConfiguration::where('app_id', $appId)->firstOrFail();
+                    \Stripe\Stripe::setApiKey($config->stripe_secret_key);
+                    $session = \Stripe\Checkout\Session::retrieve($sessionId);
+
+                    $checkoutUrl = $session->url;
+
+                    if ($session->status === 'expired' || $session->status === 'canceled') {
+                        // Generate new session
+                        $sessionPayload = [
+                            'payment_method_types' => ['card'],
+                            'mode' => $session->mode,
+                            'success_url' => $session->success_url,
+                            'cancel_url' => $session->cancel_url,
+                            'metadata' => $session->metadata ? $session->metadata->toArray() : [],
+                        ];
+
+                        if (isset($session->customer_email)) {
+                            $sessionPayload['customer_email'] = $session->customer_email;
+                        }
+
+                        if ($session->mode !== 'setup') {
+                            $sessionPayload['line_items'] = $activity->getExtraProperty('line_items');
+                        }
+
+                        if (isset($session->allow_promotion_codes)) {
+                            $sessionPayload['allow_promotion_codes'] = $session->allow_promotion_codes;
+                        }
+
+                        $newSession = $this->stripeService->createCheckoutSession($config, $sessionPayload);
+
+                        // Update activity with new session ID
+                        $properties = $activity->properties->toArray();
+                        $properties['session_id'] = $newSession->id;
+                        $activity->properties = $properties;
+                        $activity->save();
+
+                        $sessionId = $newSession->id;
+                        $checkoutUrl = $newSession->url;
+                        
+                        Log::info("Regenerated expired Stripe session for activity {$activityId}", [
+                            'old_session' => $session->id,
+                            'new_session' => $newSession->id
+                        ]);
+                    } elseif ($session->payment_status === 'paid' || $session->status === 'complete') {
+                        // If for some reason webhook failed but it's paid, update local status
+                        if ($status !== 'complete' && $status !== 'paid' && $status !== 'succeeded') {
+                            $properties = $activity->properties->toArray();
+                            $properties['status'] = 'complete';
+                            $activity->properties = $properties;
+                            $activity->save();
+                            $status = 'complete';
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::error("Failed to check or regenerate Stripe session for activity {$activityId}: " . $e->getMessage());
+                }
+            }
 
             return response()->json([
                 'success' => true,
                 'data' => [
                     'id' => $activity->id,
-                    'status' => $activity->getExtraProperty('status'),
+                    'status' => $status,
                     'completed_at' => $activity->getExtraProperty('completed_at'),
-                    'session_id' => $activity->getExtraProperty('session_id'),
+                    'session_id' => $sessionId,
+                    'checkout_url' => $checkoutUrl,
                 ]
             ]);
         } catch (\Exception $e) {
