@@ -179,8 +179,8 @@ const fetchBills = async () => {
 
 const fetchProjects = async () => {
     try {
-        const { data } = await axios.get('/api/projects-for-email');
-        projects.value = [...(data.projects || [])].sort((a, b) =>
+        const { data } = await axios.get('/api/projects-simplified');
+        projects.value = [...(data || [])].sort((a, b) =>
             String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { sensitivity: 'base' })
         );
     } catch (err) {
