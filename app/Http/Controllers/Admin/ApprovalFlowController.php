@@ -180,7 +180,7 @@ class ApprovalFlowController extends Controller
 
     private function resyncPendingInstances(ApprovalFlow $flow): void
     {
-        // Only re-sync instances where no steps have been acted on yet
+        // 1. Only re-sync instances where no steps have been acted on yet
         $instances = ApprovalInstance::query()
             ->where('approval_flow_id', $flow->id)
             ->whereIn('status', ['pending', 'in_progress'])
@@ -194,6 +194,7 @@ class ApprovalFlowController extends Controller
         }
 
         DB::transaction(function () use ($instances, $flow, $freshSteps) {
+            // Re-sync existing instances
             foreach ($instances as $instance) {
                 $instance->steps()->delete();
 
@@ -211,6 +212,60 @@ class ApprovalFlowController extends Controller
                 $instance->current_step_order = $freshSteps->first()->step_order;
                 $instance->status = 'in_progress';
                 $instance->save();
+            }
+
+            // 2. Assign this flow to bills/invoices that have NO flow yet and are pending
+            $modelClass = $flow->approvable_type;
+            if (class_exists($modelClass)) {
+                $query = $modelClass::query()->doesntHave('approvalInstance');
+
+                // If this is a project-specific flow, only assign to items of this project
+                if ($flow->project_id) {
+                    $query->where('project_id', $flow->project_id);
+                }
+
+                if ($modelClass === \App\Models\Bill::class) {
+                    $query->where('status', \App\Enums\BillStatus::PendingApproval);
+                } elseif ($modelClass === \App\Models\Invoice::class) {
+                    $query->where('status', 'pending_approval');
+                }
+
+                $unassignedModels = $query->get();
+
+                foreach ($unassignedModels as $model) {
+                    // Check if THIS flow is the one that SHOULD be assigned (e.g., if this is default global, 
+                    // make sure they don't have a project-specific flow available instead)
+                    $resolvedFlow = ApprovalFlow::query()
+                        ->where('approvable_type', $modelClass)
+                        ->where('is_active', true)
+                        ->where(function ($q) use ($model) {
+                            $q->where('project_id', $model->project_id)
+                                ->orWhere(function ($inner) {
+                                    $inner->whereNull('project_id')->where('is_default', true);
+                                });
+                        })
+                        ->orderByRaw('project_id is null')
+                        ->first();
+
+                    if ($resolvedFlow && $resolvedFlow->id === $flow->id) {
+                        $instance = $model->approvalInstance()->create([
+                            'approval_flow_id' => $flow->id,
+                            'current_step_order' => $freshSteps->first()->step_order,
+                            'status' => 'in_progress',
+                        ]);
+
+                        foreach ($freshSteps as $step) {
+                            $instance->steps()->create([
+                                'step_order' => $step->step_order,
+                                'approver_type' => $step->approver_type,
+                                'approver_role_id' => $step->approver_role_id,
+                                'approver_user_id' => $step->approver_user_id,
+                                'label' => $step->label,
+                                'status' => 'pending',
+                            ]);
+                        }
+                    }
+                }
             }
         });
     }
