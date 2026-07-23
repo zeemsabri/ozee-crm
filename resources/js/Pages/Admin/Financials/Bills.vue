@@ -19,7 +19,10 @@ const projects = ref([]);
 const expendables = ref([]);
 const transactionTypes = ref([]);
 const loading = ref(true);
-const filterStatus = ref('');
+const filterStatus = ref('all');
+const filterProject = ref('');
+const searchQuery = ref('');
+const searchDebounce = ref(null);
 const showCreateModal = ref(false);
 const showXeroSyncModal = ref(false);
 const xeroSyncLoading = ref(false);
@@ -33,6 +36,8 @@ const canViewBills = canDo('view_project_bills');
 const canCreateBills = canDo('create_project_bills');
 const canApproveBills = canDo('approve_project_bills');
 const canVoidBills = canDo('void_project_bills');
+const canDeleteBills = canDo('delete_project_bills');
+const canRestoreBills = canDo('restore_project_bills');
 const canLinkXeroContractors = canDo('link_xero_contractors');
 
 const form = useForm({
@@ -137,10 +142,30 @@ const xeroCandidateOptions = computed(() => {
     }));
 });
 
+const projectOptions = computed(() => {
+    return [
+        { id: '', name: 'All Projects' },
+        ...projects.value
+    ];
+});
+
+const expendableOptions = computed(() => {
+    return expendables.value.map(exp => ({
+        id: exp.id,
+        label: `${exp.name} (${exp.expendable_type?.replace('App\\Models\\', '') || 'Project'}) - Rem: ${formatCurrency(exp.balance, exp.currency)}`
+    }));
+});
+
 const fetchBills = async () => {
     loading.value = true;
     try {
-        const { data } = await axios.get('/api/admin/bills', { params: { status: filterStatus.value } });
+        const { data } = await axios.get('/api/admin/bills', { 
+            params: { 
+                status: filterStatus.value,
+                project_id: filterProject.value,
+                search: searchQuery.value
+            } 
+        });
         bills.value = data.data; // Paginated data
         bills.value.forEach((bill) => {
             getApprovalConfig(bill);
@@ -322,6 +347,36 @@ const voidBill = async (bill) => {
     }
 };
 
+const deleteBill = async (bill) => {
+    if (!await confirmPrompt('Are you sure you want to delete this bill?')) return;
+    if (!canDeleteBills.value) {
+        error('You do not have permission to delete bills.');
+        return;
+    }
+    try {
+        await axios.delete(route('api.bills.destroy', { bill: bill.id }));
+        success('Bill deleted.');
+        fetchBills();
+    } catch (err) {
+        error(err.response?.data?.message || 'Failed to delete bill.');
+    }
+};
+
+const restoreBill = async (bill) => {
+    if (!await confirmPrompt('Restore this deleted bill?')) return;
+    if (!canRestoreBills.value) {
+        error('You do not have permission to restore bills.');
+        return;
+    }
+    try {
+        await axios.post(route('api.bills.restore', { bill: bill.id }));
+        success('Bill restored.');
+        fetchBills();
+    } catch (err) {
+        error(err.response?.data?.message || 'Failed to restore bill.');
+    }
+};
+
 const fetchXeroCandidates = async () => {
     if (!xeroSyncContractor.value?.id) {
         return;
@@ -410,13 +465,21 @@ const createXeroContactForContractor = async () => {
     }
 };
 
+const handleSearch = () => {
+    if (searchDebounce.value) clearTimeout(searchDebounce.value);
+    searchDebounce.value = setTimeout(() => {
+        fetchBills();
+    }, 400);
+};
+
 onMounted(() => {
     fetchBills();
     fetchProjects();
     fetchTransactionTypes();
 });
 
-const getStatusClass = (status) => {
+const getStatusClass = (status, bill) => {
+    if (bill && bill.deleted_at) return 'bg-red-200 text-red-900';
     switch (status.toLowerCase()) {
         case 'approved': return 'bg-green-100 text-green-800';
         case 'pending_approval': return 'bg-amber-100 text-amber-800';
@@ -434,12 +497,6 @@ const getStatusClass = (status) => {
             <div class="flex justify-between items-center">
                 <h2 class="font-semibold text-xl text-gray-800 leading-tight">Contractor Bills</h2>
                 <div class="flex gap-4 items-center">
-                    <select v-model="filterStatus" @change="fetchBills" class="rounded-md border-gray-300 shadow-sm text-sm">
-                        <option value="">All Statuses</option>
-                        <option value="pending_approval">Pending Approval</option>
-                        <option value="approved">Approved</option>
-                        <option value="void">Void</option>
-                    </select>
                     <PrimaryButton v-if="canCreateBills" @click="openCreateModal">
                         Create Bill
                     </PrimaryButton>
@@ -448,7 +505,69 @@ const getStatusClass = (status) => {
         </template>
 
         <div class="py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                <!-- Filters & Tabs -->
+                <div class="bg-white p-4 shadow sm:rounded-lg border border-gray-200">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <!-- Tabs -->
+                        <div class="flex gap-2 overflow-x-auto pb-2 md:pb-0">
+                            <button
+                                @click="filterStatus = 'all'; fetchBills()"
+                                :class="['px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap', filterStatus === 'all' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100']"
+                            >
+                                All
+                            </button>
+                            <button
+                                @click="filterStatus = 'pending_approval'; fetchBills()"
+                                :class="['px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap', filterStatus === 'pending_approval' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100']"
+                            >
+                                Pending Approval
+                            </button>
+                            <button
+                                @click="filterStatus = 'approved'; fetchBills()"
+                                :class="['px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap', filterStatus === 'approved' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100']"
+                            >
+                                Approved
+                            </button>
+                            <button
+                                @click="filterStatus = 'void'; fetchBills()"
+                                :class="['px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap', filterStatus === 'void' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100']"
+                            >
+                                Void
+                            </button>
+                            <button
+                                @click="filterStatus = 'deleted'; fetchBills()"
+                                :class="['px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap', filterStatus === 'deleted' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100']"
+                            >
+                                Deleted
+                            </button>
+                        </div>
+                        
+                        <!-- Search & Project Filter -->
+                        <div class="flex gap-4 items-center">
+                            <div class="min-w-[240px]">
+                                <SelectDropdown
+                                    v-model="filterProject"
+                                    :options="projectOptions"
+                                    valueKey="id"
+                                    labelKey="name"
+                                    placeholder="All Projects"
+                                    @change="fetchBills"
+                                />
+                            </div>
+                            
+                            <TextInput
+                                v-model="searchQuery"
+                                @input="handleSearch"
+                                type="text"
+                                placeholder="Search by amount, name..."
+                                class="block w-full text-sm"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bills List -->
                 <div class="bg-white overflow-hidden shadow sm:rounded-lg border border-gray-200">
                     <div v-if="loading" class="p-12 text-center text-gray-500">Loading bills...</div>
                     <div v-else-if="!canViewBills" class="p-12 text-center text-gray-500">You do not have permission to view bills.</div>
@@ -479,27 +598,32 @@ const getStatusClass = (status) => {
                                     {{ formatCurrency(bill.amount, bill.currency || bill.project?.currency) }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <span :class="['px-2 py-1 text-xs font-bold rounded-full', getStatusClass(bill.status)]">
+                                    <span v-if="bill.deleted_at" class="px-2 py-1 text-xs font-bold rounded-full bg-red-200 text-red-900 mr-2">
+                                        DELETED
+                                    </span>
+                                    <span :class="['px-2 py-1 text-xs font-bold rounded-full', getStatusClass(bill.status, bill)]">
                                         {{ bill.status.toUpperCase() }}
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 text-right text-sm font-medium">
                                     <div class="flex justify-end gap-2">
-                                        <Link v-if="canViewBills" :href="route('admin.financials.bills.show', { id: bill.id })" class="text-indigo-600 hover:text-indigo-900">View</Link>
+                                        <Link v-if="canViewBills && !bill.deleted_at" :href="route('admin.financials.bills.show', { id: bill.id })" class="text-indigo-600 hover:text-indigo-900">View</Link>
                                         <button
-                                            v-if="canLinkXeroContractors && !bill.contractor?.xero_contact_id"
+                                            v-if="canLinkXeroContractors && !bill.contractor?.xero_contact_id && !bill.deleted_at"
                                             @click="openXeroSyncModal(bill.contractor)"
                                             class="text-indigo-600 hover:text-indigo-900"
                                         >
                                             Link Xero
                                         </button>
-                                        <button v-if="canApproveBill(bill)" @click="approveBill(bill)" class="text-green-600 hover:text-green-900">Approve</button>
-                                        <button v-if="bill.status === 'approved' && canVoidBills" @click="voidBill(bill)" class="text-red-600 hover:text-red-900">Void</button>
+                                        <button v-if="canApproveBill(bill) && !bill.deleted_at" @click="approveBill(bill)" class="text-green-600 hover:text-green-900">Approve</button>
+                                        <button v-if="bill.status === 'approved' && canVoidBills && !bill.deleted_at" @click="voidBill(bill)" class="text-red-600 hover:text-red-900">Void</button>
+                                        <button v-if="bill.status === 'pending_approval' && canDeleteBills && !bill.deleted_at" @click="deleteBill(bill)" class="text-red-600 hover:text-red-900">Delete</button>
+                                        <button v-if="bill.deleted_at && canRestoreBills" @click="restoreBill(bill)" class="text-green-600 hover:text-green-900">Restore</button>
                                     </div>
-                                    <div v-if="bill.status === 'pending_approval' && pendingApproverLabel(bill)" class="mt-1 text-xs text-amber-700">
+                                    <div v-if="bill.status === 'pending_approval' && pendingApproverLabel(bill) && !bill.deleted_at" class="mt-1 text-xs text-amber-700">
                                         {{ pendingApproverLabel(bill) }}
                                     </div>
-                                    <div v-if="bill.status === 'pending_approval'" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div v-if="bill.status === 'pending_approval' && !bill.deleted_at" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         <TextInput
                                             :id="`approve_xero_account_${bill.id}`"
                                             v-model="getApprovalConfig(bill).xero_account_code"
@@ -508,15 +632,16 @@ const getStatusClass = (status) => {
                                             placeholder="Xero account code"
                                             class="w-full"
                                         />
-                                        <select
-                                            :id="`approve_xero_tax_${bill.id}`"
-                                            v-model="getApprovalConfig(bill).xero_tax_type"
-                                            class="rounded-md border-gray-300 shadow-sm text-sm"
-                                        >
-                                            <option v-for="option in xeroTaxTypeOptions" :key="option.value" :value="option.value">
-                                                {{ option.label }}
-                                            </option>
-                                        </select>
+                                        <div class="w-full">
+                                            <SelectDropdown
+                                                :id="`approve_xero_tax_${bill.id}`"
+                                                v-model="getApprovalConfig(bill).xero_tax_type"
+                                                :options="xeroTaxTypeOptions"
+                                                valueKey="value"
+                                                labelKey="label"
+                                                placeholder="Select Tax Type"
+                                            />
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
@@ -550,31 +675,27 @@ const getStatusClass = (status) => {
 
                     <div v-if="form.project_id">
                         <InputLabel for="project_expendable_id" value="Contract (Expendable)" />
-                        <select 
-                            id="project_expendable_id" 
-                            v-model="form.project_expendable_id" 
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                            <option value="">Select Contract</option>
-                            <option v-for="exp in expendables" :key="exp.id" :value="exp.id">
-                                {{ exp.name }} ({{ exp.expendable_type?.replace('App\\Models\\', '') || 'Project' }}) - Rem: {{ formatCurrency(exp.balance, exp.currency) }}
-                            </option>
-                        </select>
+                        <SelectDropdown
+                            id="project_expendable_id"
+                            v-model="form.project_expendable_id"
+                            :options="expendableOptions"
+                            valueKey="id"
+                            labelKey="label"
+                            placeholder="Select Contract"
+                        />
                         <InputError :message="form.errors.project_expendable_id" />
                     </div>
 
                     <div>
                         <InputLabel for="bill_transaction_type" value="Transaction Type" />
-                        <select
+                        <SelectDropdown
                             id="bill_transaction_type"
                             v-model="form.transaction_type_id"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                            <option value="">Select Transaction Type</option>
-                            <option v-for="type in transactionTypes" :key="type.id" :value="type.id">
-                                {{ type.name }}
-                            </option>
-                        </select>
+                            :options="transactionTypes"
+                            valueKey="id"
+                            labelKey="name"
+                            placeholder="Select Transaction Type"
+                        />
                         <InputError :message="form.errors.transaction_type_id" />
                     </div>
 
@@ -594,15 +715,14 @@ const getStatusClass = (status) => {
 
                     <div>
                         <InputLabel for="bill_xero_tax_type" value="Xero Tax Type" />
-                        <select
+                        <SelectDropdown
                             id="bill_xero_tax_type"
                             v-model="form.xero_tax_type"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                            <option v-for="option in xeroTaxTypeOptions" :key="option.value" :value="option.value">
-                                {{ option.label }}
-                            </option>
-                        </select>
+                            :options="xeroTaxTypeOptions"
+                            valueKey="value"
+                            labelKey="label"
+                            placeholder="Select Tax Type"
+                        />
                         <InputError :message="form.errors.xero_tax_type" />
                     </div>
 
@@ -657,15 +777,18 @@ const getStatusClass = (status) => {
 
                         <div>
                             <InputLabel for="bill_payment_method" value="Payment Method" />
-                            <select
+                            <SelectDropdown
                                 id="bill_payment_method"
                                 v-model="form.payment_details.payment_method"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            >
-                                <option value="bank_transfer">Bank Transfer</option>
-                                <option value="paypal">PayPal</option>
-                                <option value="other">Other</option>
-                            </select>
+                                :options="[
+                                    { value: 'bank_transfer', label: 'Bank Transfer' },
+                                    { value: 'paypal', label: 'PayPal' },
+                                    { value: 'other', label: 'Other' }
+                                ]"
+                                valueKey="value"
+                                labelKey="label"
+                                placeholder="Select Payment Method"
+                            />
                             <InputError :message="form.errors['payment_details.payment_method']" />
                         </div>
 
@@ -772,16 +895,17 @@ const getStatusClass = (status) => {
                 <div class="space-y-4">
                     <div>
                         <InputLabel for="xero_contact_candidate" value="Existing Xero Contact" />
-                        <select
+                        <SelectDropdown
                             id="xero_contact_candidate"
                             v-model="selectedXeroContactId"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                            <option value="">Auto-select if single match</option>
-                            <option v-for="option in xeroCandidateOptions" :key="option.value" :value="option.value">
-                                {{ option.label }}
-                            </option>
-                        </select>
+                            :options="[
+                                { value: '', label: 'Auto-select if single match' },
+                                ...xeroCandidateOptions
+                            ]"
+                            valueKey="value"
+                            labelKey="label"
+                            placeholder="Select Xero Contact"
+                        />
                     </div>
                 </div>
 

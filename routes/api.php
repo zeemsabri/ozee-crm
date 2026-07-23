@@ -185,6 +185,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('projects/{project}/bills/{bill}', [BillController::class, 'update'])->middleware('permission:edit_project_bills')->name('api.bills.update');
     Route::post('bills/{bill}/approve', [BillController::class, 'approve'])->middleware('permission:approve_project_bills')->name('api.bills.approve');
     Route::post('bills/{bill}/void', [BillController::class, 'void'])->middleware('permission:void_project_bills')->name('api.bills.void');
+    Route::delete('bills/{bill}', [BillController::class, 'destroy'])->middleware('permission:delete_project_bills')->name('api.bills.destroy');
+    Route::post('bills/{bill}/restore', [BillController::class, 'restore'])->middleware('permission:restore_project_bills')->name('api.bills.restore');
 
     Route::get('projects/{project}/invoices', [InvoiceController::class, 'index'])->middleware('permission:view_project_invoices')->name('api.invoices.index');
     Route::post('projects/{project}/invoices', [InvoiceController::class, 'store'])->middleware('permission:create_project_invoices')->name('api.invoices.store');

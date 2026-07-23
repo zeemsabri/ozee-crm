@@ -441,7 +441,7 @@ class BillController extends Controller
     {
         $user = Auth::user();
 
-        $query = Bill::with([
+        $query = Bill::withTrashed()->with([
             'project', 'contractor', 'expendable', 'transactionType', 'paymentDetail',
             'approvalInstance' => fn($q) => $q->with([
                 'steps.approverRole:id,name',
@@ -450,11 +450,75 @@ class BillController extends Controller
             ]),
         ]);
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        if ($request->filled('status') && $request->status !== 'all') {
+            if ($request->status === 'deleted') {
+                $query->onlyTrashed();
+            } else {
+                $query->where('status', $request->status)->whereNull('deleted_at');
+            }
+        } else {
+            $query->whereNull('deleted_at');
+        }
+
+        if ($request->filled('project_id')) {
+            $query->where('project_id', $request->project_id);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                // If it's a numeric search, it might be an amount
+                if (is_numeric($search)) {
+                    $q->where('amount', 'like', "%{$search}%");
+                }
+                
+                $q->orWhereHas('contractor', function ($q2) use ($search) {
+                    $q2->where('name', 'like', "%{$search}%");
+                })->orWhereHas('project', function ($q3) use ($search) {
+                    $q3->where('name', 'like', "%{$search}%");
+                })->orWhere('reference_number', 'like', "%{$search}%");
+            });
         }
 
         return response()->json($query->latest()->paginate(20));
+    }
+
+    public function destroy(Bill $bill)
+    {
+        $user = Auth::user();
+        if (! $this->canAccessProject($user, $bill->project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        if (! $user->isSuperAdmin() && ! $user->hasPermission('delete_project_bills')) {
+            return response()->json(['message' => 'Only authorized users can delete bills.'], 403);
+        }
+
+        if ($bill->status !== BillStatus::PendingApproval) {
+            return response()->json(['message' => 'Only pending bills can be deleted. Approved bills must be voided.'], 400);
+        }
+
+        $bill->delete();
+
+        return response()->json(['message' => 'Bill deleted successfully.']);
+    }
+
+    public function restore($id)
+    {
+        $user = Auth::user();
+        $bill = Bill::withTrashed()->findOrFail($id);
+        
+        if (! $this->canAccessProject($user, $bill->project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        if (! $user->isSuperAdmin() && ! $user->hasPermission('restore_project_bills')) {
+            return response()->json(['message' => 'Only authorized users can restore bills.'], 403);
+        }
+
+        $bill->restore();
+
+        return response()->json(['message' => 'Bill restored successfully.']);
     }
 
     public function pendingCounts()
