@@ -314,6 +314,28 @@ const handleAttachmentUpload = (e, billId) => {
         });
 };
 
+const formatPaymentTerms = (terms) => {
+    if (!terms) return '';
+    let parsed = terms;
+    if (typeof terms === 'string') {
+        try {
+            parsed = JSON.parse(terms);
+        } catch (e) {
+            return terms; // Return as-is if it's plain text
+        }
+    }
+    
+    if (parsed && typeof parsed === 'object') {
+        if (parsed.type === 'installments' && Array.isArray(parsed.installments)) {
+            return parsed.installments.map((inst, index) => `${index + 1}. ${inst.label} (${inst.percentage}%)`).join('\n');
+        }
+        // Fallback for other JSON formats
+        return JSON.stringify(parsed, null, 2);
+    }
+    
+    return terms;
+};
+
 const submitBill = () => {
     if (!form.project_expendable_id) return error('Please select a contract.');
     if (!form.project_id) return error('Please select a project.');
@@ -736,11 +758,13 @@ const getStatusClass = (status, bill) => {
         </div>
 
         <!-- Create Bill Modal -->
-        <Modal :show="showCreateModal" @close="showCreateModal = false">
+        <Modal :show="showCreateModal" @close="showCreateModal = false" maxWidth="4xl">
             <div class="p-6">
                 <h3 class="text-lg font-semibold mb-4">Create Contractor Bill</h3>
                 
-                <div class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Form Column -->
+                    <div :class="selectedExpendable ? 'md:col-span-2' : 'md:col-span-3'" class="space-y-4">
                     <div>
                         <InputLabel for="bill_project_id" value="Project" />
                         <SelectDropdown
@@ -972,9 +996,44 @@ const getStatusClass = (status, bill) => {
                         />
                         <InputError :message="form.errors.document" />
                     </div>
+                    </div> <!-- THIS IS THE MISSING CLOSING DIV FOR FORM COLUMN -->
+                    
+                    <!-- Contract Stats Column -->
+                    <div v-if="selectedExpendable" class="md:col-span-1">
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 sticky top-4">
+                            <h4 class="text-md font-semibold text-gray-900 mb-4">Contract Details</h4>
+                            
+                            <dl class="space-y-3 text-sm">
+                                <div>
+                                    <dt class="text-gray-500 font-medium">Original Amount</dt>
+                                    <dd class="text-gray-900 mt-1">{{ formatCurrency(selectedExpendable.amount, selectedExpendable.currency) }}</dd>
+                                </div>
+                                
+                                <div>
+                                    <dt class="text-gray-500 font-medium">Remaining Balance</dt>
+                                    <dd class="text-gray-900 mt-1 font-semibold">{{ formatCurrency(selectedExpendable.balance, selectedExpendable.currency) }}</dd>
+                                </div>
+                                
+                                <div>
+                                    <dt class="text-gray-500 font-medium">Utilized (Paid/Pending)</dt>
+                                    <dd class="text-gray-900 mt-1">{{ formatCurrency(selectedExpendable.amount - selectedExpendable.balance, selectedExpendable.currency) }}</dd>
+                                </div>
+                                
+                                <div v-if="selectedExpendable.payment_terms">
+                                    <dt class="text-gray-500 font-medium mt-4">Payment Terms</dt>
+                                    <dd class="text-gray-900 mt-1 whitespace-pre-wrap text-xs bg-white p-2 rounded border border-gray-100">{{ formatPaymentTerms(selectedExpendable.payment_terms) }}</dd>
+                                </div>
+                                
+                                <div v-if="selectedExpendable.description">
+                                    <dt class="text-gray-500 font-medium mt-4">Description</dt>
+                                    <dd class="text-gray-900 mt-1 whitespace-pre-wrap text-xs">{{ selectedExpendable.description }}</dd>
+                                </div>
+                            </dl>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="mt-6 flex justify-end gap-3">
+                <div class="mt-6 flex justify-end gap-3 pt-4 border-t border-gray-200">
                     <SecondaryButton @click="showCreateModal = false">Cancel</SecondaryButton>
                     <PrimaryButton @click="submitBill" :disabled="form.processing">
                         Create Bill
