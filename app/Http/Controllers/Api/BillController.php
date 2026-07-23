@@ -64,6 +64,7 @@ class BillController extends Controller
         }
 
         $validated = $request->validate([
+            'document' => 'nullable|file|mimes:pdf|max:10240',
             'contractor_id' => 'required|exists:users,id',
             'project_expendable_id' => 'required|exists:project_expendables,id',
             'transaction_type_id' => 'required|exists:transaction_types,id',
@@ -201,6 +202,19 @@ class BillController extends Controller
         });
 
         $this->initializeBillApprovalInstance($bill, $project->id);
+
+        if ($request->hasFile('document')) {
+            $file = $request->file('document');
+            $objectPath = \Illuminate\Support\Facades\Storage::disk('gcs')->putFile('bills', $file);
+
+            $bill->files()->create([
+                'project_id' => $project->id,
+                'filename' => $file->getClientOriginalName(),
+                'mime_type' => $file->getMimeType(),
+                'file_size' => $file->getSize(),
+                'path' => $objectPath,
+            ]);
+        }
 
         if ($request->header('X-Inertia')) {
             return back();
@@ -481,6 +495,38 @@ class BillController extends Controller
         }
 
         return response()->json($query->latest()->paginate(20));
+    }
+
+    public function uploadAttachment(Request $request, Bill $bill)
+    {
+        $user = Auth::user();
+        if (! $this->canAccessProject($user, $bill->project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        if (! $user->isSuperAdmin() && ! $user->hasPermission('edit_project_bills')) {
+            return response()->json(['message' => 'Only authorized users can upload attachments to bills.'], 403);
+        }
+
+        $request->validate([
+            'document' => 'required|file|mimes:pdf|max:10240',
+        ]);
+
+        $file = $request->file('document');
+        $objectPath = \Illuminate\Support\Facades\Storage::disk('gcs')->putFile('bills', $file);
+
+        $attachment = $bill->files()->create([
+            'project_id' => $bill->project_id,
+            'filename' => $file->getClientOriginalName(),
+            'mime_type' => $file->getMimeType(),
+            'file_size' => $file->getSize(),
+            'path' => $objectPath,
+        ]);
+
+        return response()->json([
+            'message' => 'Attachment uploaded successfully.',
+            'attachment' => $attachment
+        ]);
     }
 
     public function destroy(Bill $bill)

@@ -61,6 +61,14 @@ const form = useForm({
         iban: '',
         notes: '',
     },
+    document: null,
+});
+
+const xeroAccounts = ref([]);
+const showTransactionTypeModal = ref(false);
+const newTransactionType = useForm({
+    name: '',
+    xero_account_code: '',
 });
 
 const xeroTaxTypeOptions = [
@@ -81,16 +89,12 @@ const selectedTransactionType = computed(() => {
 });
 
 const xeroAccountOptions = computed(() => {
-    return transactionTypes.value
-        .filter((item) => item.xero_account_code)
-        .map((item) => ({
-            value: item.xero_account_code,
-            label: `${item.name} (${item.xero_account_code})`,
+    return xeroAccounts.value
+        .filter((account) => account && account.code)
+        .map((account) => ({
+            value: account.code,
+            label: `${account.code} - ${account.name || 'Unnamed account'}`,
         }));
-});
-
-const suggestedXeroAccountCodes = computed(() => {
-    return [...new Set(xeroAccountOptions.value.map((option) => option.value))];
 });
 
 const authUser = computed(() => usePage().props.auth?.user);
@@ -197,6 +201,42 @@ const fetchTransactionTypes = async () => {
     }
 };
 
+const fetchXeroAccounts = async () => {
+    try {
+        const { data } = await axios.get(route('api.xero.accounts', { category: 'expense' }));
+        xeroAccounts.value = Array.isArray(data) ? data : [];
+    } catch (err) {
+        console.error('Failed to fetch Xero expense accounts', err);
+        xeroAccounts.value = [];
+    }
+};
+
+const submitNewTransactionType = () => {
+    newTransactionType.processing = true;
+    newTransactionType.clearErrors();
+    axios.post('/api/transaction-types', {
+        name: newTransactionType.name,
+        xero_account_code: newTransactionType.xero_account_code
+    }).then((res) => {
+        showTransactionTypeModal.value = false;
+        success('Transaction type created successfully.');
+        fetchTransactionTypes().then(() => {
+            if (res.data && res.data.id) {
+                form.transaction_type_id = res.data.id;
+            }
+        });
+        newTransactionType.reset();
+    }).catch((err) => {
+        if (err.response?.status === 422 && err.response?.data?.errors) {
+            newTransactionType.setError(err.response.data.errors);
+        } else {
+            error(err.response?.data?.message || 'Failed to create transaction type.');
+        }
+    }).finally(() => {
+        newTransactionType.processing = false;
+    });
+};
+
 watch(() => form.project_id, async (newId) => {
     if (!newId) {
         expendables.value = [];
@@ -247,7 +287,31 @@ const openCreateModal = () => {
     form.reference_number = '';
     form.due_date = '';
     form.currency = '';
+    form.document = null;
     showCreateModal.value = true;
+};
+
+const handleAttachmentUpload = (e, billId) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('document', file);
+
+    const config = {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    };
+
+    axios.post(`/api/bills/${billId}/attachments`, formData, config)
+        .then(() => {
+            success('Attachment uploaded successfully.');
+            fetchBills(); // Refresh list to show the link
+        })
+        .catch((err) => {
+            error(err.response?.data?.message || 'Failed to upload attachment.');
+        });
 };
 
 const submitBill = () => {
@@ -258,31 +322,37 @@ const submitBill = () => {
 
     form.clearErrors();
 
-    const payload = {
-        project_expendable_id: form.project_expendable_id,
-        contractor_id: form.contractor_id,
-        transaction_type_id: form.transaction_type_id,
-        xero_account_code: form.xero_account_code || selectedTransactionType.value?.xero_account_code || '',
-        xero_tax_type: form.xero_tax_type,
-        reference_number: form.reference_number,
-        due_date: form.due_date,
-        currency: form.currency || 'AUD',
-        amount: form.amount,
-        payment_details: {
-            payment_method: form.payment_details.payment_method,
-            account_name: form.payment_details.account_name,
-            account_number: form.payment_details.account_number,
-            bank_name: form.payment_details.bank_name,
-            bsb: form.payment_details.bsb,
-            swift_code: form.payment_details.swift_code,
-            iban: form.payment_details.iban,
-            notes: form.payment_details.notes,
-        },
-    };
+    const formData = new FormData();
+    formData.append('project_expendable_id', form.project_expendable_id);
+    formData.append('contractor_id', form.contractor_id);
+    formData.append('transaction_type_id', form.transaction_type_id);
+    formData.append('xero_account_code', form.xero_account_code || selectedTransactionType.value?.xero_account_code || '');
+    formData.append('xero_tax_type', form.xero_tax_type);
+    if (form.reference_number) formData.append('reference_number', form.reference_number);
+    if (form.due_date) formData.append('due_date', form.due_date);
+    formData.append('currency', form.currency || 'AUD');
+    formData.append('amount', form.amount);
+    
+    // Add payment details recursively or as stringified JSON.
+    // Our backend expects payment_details as an array. With FormData, we can append it as indexed fields.
+    formData.append('payment_details[payment_method]', form.payment_details.payment_method);
+    if (form.payment_details.account_name) formData.append('payment_details[account_name]', form.payment_details.account_name);
+    if (form.payment_details.account_number) formData.append('payment_details[account_number]', form.payment_details.account_number);
+    if (form.payment_details.bank_name) formData.append('payment_details[bank_name]', form.payment_details.bank_name);
+    if (form.payment_details.bsb) formData.append('payment_details[bsb]', form.payment_details.bsb);
+    if (form.payment_details.swift_code) formData.append('payment_details[swift_code]', form.payment_details.swift_code);
+    if (form.payment_details.iban) formData.append('payment_details[iban]', form.payment_details.iban);
+    if (form.payment_details.notes) formData.append('payment_details[notes]', form.payment_details.notes);
+
+    if (form.document) {
+        formData.append('document', form.document);
+    }
 
     form.processing = true;
 
-    axios.post(`/api/projects/${form.project_id}/bills`, payload)
+    axios.post(`/api/projects/${form.project_id}/bills`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    })
         .then(() => {
             showCreateModal.value = false;
             success('Bill created successfully.');
@@ -476,6 +546,7 @@ onMounted(() => {
     fetchBills();
     fetchProjects();
     fetchTransactionTypes();
+    fetchXeroAccounts();
 });
 
 const getStatusClass = (status, bill) => {
@@ -568,7 +639,7 @@ const getStatusClass = (status, bill) => {
                 </div>
 
                 <!-- Bills List -->
-                <div class="bg-white overflow-hidden shadow sm:rounded-lg border border-gray-200">
+                <div class="bg-white overflow-visible shadow sm:rounded-lg border border-gray-200">
                     <div v-if="loading" class="p-12 text-center text-gray-500">Loading bills...</div>
                     <div v-else-if="!canViewBills" class="p-12 text-center text-gray-500">You do not have permission to view bills.</div>
                     <div v-else-if="!bills.length" class="p-12 text-center text-gray-500">No bills found.</div>
@@ -619,18 +690,28 @@ const getStatusClass = (status, bill) => {
                                         <button v-if="bill.status === 'approved' && canVoidBills && !bill.deleted_at" @click="voidBill(bill)" class="text-red-600 hover:text-red-900">Void</button>
                                         <button v-if="bill.status === 'pending_approval' && canDeleteBills && !bill.deleted_at" @click="deleteBill(bill)" class="text-red-600 hover:text-red-900">Delete</button>
                                         <button v-if="bill.deleted_at && canRestoreBills" @click="restoreBill(bill)" class="text-green-600 hover:text-green-900">Restore</button>
+                                        
+                                        <template v-if="bill.files && bill.files.length > 0">
+                                            <a :href="bill.files[0].path_url" target="_blank" class="text-blue-600 hover:text-blue-900 ml-2">View PDF</a>
+                                        </template>
+                                        <template v-else>
+                                            <label class="text-blue-600 hover:text-blue-900 ml-2 cursor-pointer">
+                                                Upload PDF
+                                                <input type="file" class="hidden" accept=".pdf" @change="(e) => handleAttachmentUpload(e, bill.id)" />
+                                            </label>
+                                        </template>
                                     </div>
                                     <div v-if="bill.status === 'pending_approval' && pendingApproverLabel(bill) && !bill.deleted_at" class="mt-1 text-xs text-amber-700">
                                         {{ pendingApproverLabel(bill) }}
                                     </div>
                                     <div v-if="bill.status === 'pending_approval' && !bill.deleted_at" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        <TextInput
+                                        <SelectDropdown
                                             :id="`approve_xero_account_${bill.id}`"
                                             v-model="getApprovalConfig(bill).xero_account_code"
-                                            type="text"
-                                            list="xero-account-codes"
-                                            placeholder="Xero account code"
-                                            class="w-full"
+                                            :options="xeroAccountOptions"
+                                            valueKey="value"
+                                            labelKey="label"
+                                            placeholder="Xero Account"
                                         />
                                         <div class="w-full">
                                             <SelectDropdown
@@ -687,7 +768,16 @@ const getStatusClass = (status, bill) => {
                     </div>
 
                     <div>
-                        <InputLabel for="bill_transaction_type" value="Transaction Type" />
+                        <div class="flex justify-between items-center mb-1">
+                            <InputLabel for="bill_transaction_type" value="Transaction Type" class="mb-0" />
+                            <button
+                                type="button"
+                                @click="showTransactionTypeModal = true"
+                                class="text-xs text-indigo-600 hover:text-indigo-900 focus:outline-none"
+                            >
+                                + New Type
+                            </button>
+                        </div>
                         <SelectDropdown
                             id="bill_transaction_type"
                             v-model="form.transaction_type_id"
@@ -701,15 +791,14 @@ const getStatusClass = (status, bill) => {
 
                     <div>
                         <InputLabel for="bill_xero_account_code" value="Xero Account" />
-                        <TextInput
+                        <SelectDropdown
                             id="bill_xero_account_code"
                             v-model="form.xero_account_code"
-                            type="text"
-                            list="xero-account-codes"
-                            placeholder="e.g. 400"
-                            class="mt-1 block w-full"
+                            :options="xeroAccountOptions"
+                            valueKey="value"
+                            labelKey="label"
+                            placeholder="Select Xero Account (Optional)"
                         />
-                        <p class="mt-1 text-xs text-gray-500">Enter account code manually or pick from known mapped account codes.</p>
                         <InputError :message="form.errors.xero_account_code" />
                     </div>
 
@@ -870,6 +959,19 @@ const getStatusClass = (status, bill) => {
                             <InputError :message="form.errors['payment_details.notes']" />
                         </div>
                     </div>
+
+                    <!-- Add a divider for attachments -->
+                    <div class="col-span-1 md:col-span-2 pt-4 border-t border-gray-200 mt-2">
+                        <InputLabel for="bill_document" value="Bill Attachment (PDF)" />
+                        <input
+                            type="file"
+                            id="bill_document"
+                            accept=".pdf"
+                            @change="(e) => form.document = e.target.files[0]"
+                            class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                        />
+                        <InputError :message="form.errors.document" />
+                    </div>
                 </div>
 
                 <div class="mt-6 flex justify-end gap-3">
@@ -919,6 +1021,47 @@ const getStatusClass = (status, bill) => {
                     </SecondaryButton>
                     <PrimaryButton @click="syncContractorWithXero" :disabled="xeroSyncLoading">
                         Link Selected
+                    </PrimaryButton>
+                </div>
+            </div>
+        </Modal>
+
+        <!-- New Transaction Type Modal -->
+        <Modal :show="showTransactionTypeModal" @close="showTransactionTypeModal = false" maxWidth="md">
+            <div class="p-6">
+                <h3 class="text-lg font-semibold mb-4">Create Transaction Type</h3>
+                
+                <div class="space-y-4">
+                    <div>
+                        <InputLabel for="tt_name" value="Name" />
+                        <TextInput
+                            id="tt_name"
+                            v-model="newTransactionType.name"
+                            type="text"
+                            class="mt-1 block w-full"
+                            placeholder="e.g. Software Subscriptions"
+                        />
+                        <InputError :message="newTransactionType.errors.name" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="tt_xero_account" value="Xero Account" />
+                        <SelectDropdown
+                            id="tt_xero_account"
+                            v-model="newTransactionType.xero_account_code"
+                            :options="xeroAccountOptions"
+                            valueKey="value"
+                            labelKey="label"
+                            placeholder="Select Xero Account (Optional)"
+                        />
+                        <InputError :message="newTransactionType.errors.xero_account_code" />
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <SecondaryButton @click="showTransactionTypeModal = false">Cancel</SecondaryButton>
+                    <PrimaryButton @click="submitNewTransactionType" :disabled="newTransactionType.processing">
+                        Create
                     </PrimaryButton>
                 </div>
             </div>
