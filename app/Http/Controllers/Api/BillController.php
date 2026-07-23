@@ -49,7 +49,7 @@ class BillController extends Controller
         }
 
         $bills = Bill::where('project_id', $project->id)
-            ->with(['contractor', 'expendable', 'transactionType', 'approvalInstance.steps'])
+            ->with(['contractor', 'expendable', 'transactionType', 'approvalInstance.steps', 'files'])
             ->latest()
             ->get();
 
@@ -456,7 +456,7 @@ class BillController extends Controller
         $user = Auth::user();
 
         $query = Bill::withTrashed()->with([
-            'project', 'contractor', 'expendable', 'transactionType', 'paymentDetail',
+            'project', 'contractor', 'expendable', 'transactionType', 'paymentDetail', 'files',
             'approvalInstance' => fn($q) => $q->with([
                 'steps.approverRole:id,name',
                 'steps.approverUser:id,name',
