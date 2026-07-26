@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\EmailApp;
@@ -8,7 +8,6 @@ use App\Models\EmailTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Inertia\Inertia;
 
 class EmailAppController extends Controller
 {
@@ -45,12 +44,7 @@ class EmailAppController extends Controller
                 ];
             });
 
-        $templates = EmailTemplate::select('id', 'name', 'slug')->orderBy('name')->get();
-
-        return Inertia::render('Admin/EmailApps/Index', [
-            'apps' => $apps,
-            'templates' => $templates,
-        ]);
+        return response()->json($apps);
     }
 
     public function store(Request $request)
@@ -60,14 +54,15 @@ class EmailAppController extends Controller
         $app = EmailApp::create($this->payloadFromValidated($validated));
         $app->templates()->sync($validated['template_ids'] ?? []);
 
-        if ($request->wantsJson() || $request->ajax()) {
-            return response()->json([
-                'message' => 'Email app created successfully.',
-                'emailApp' => $app->load('templates:id,name'),
-            ], 201);
-        }
+        return response()->json([
+            'message' => 'Email app created successfully.',
+            'emailApp' => $app->load('templates:id,name'),
+        ], 201);
+    }
 
-        return back()->with('success', 'Email app created successfully.');
+    public function show(EmailApp $emailApp)
+    {
+        return response()->json($emailApp->load('templates:id,name'));
     }
 
     public function update(Request $request, EmailApp $emailApp)
@@ -91,27 +86,19 @@ class EmailAppController extends Controller
         $emailApp->update($payload);
         $emailApp->templates()->sync($validated['template_ids'] ?? []);
 
-        if ($request->wantsJson() || $request->ajax()) {
-            return response()->json([
-                'message' => 'Email app updated successfully.',
-                'emailApp' => $emailApp->load('templates:id,name'),
-            ]);
-        }
-
-        return back()->with('success', 'Email app updated successfully.');
+        return response()->json([
+            'message' => 'Email app updated successfully.',
+            'emailApp' => $emailApp->load('templates:id,name'),
+        ]);
     }
 
-    public function destroy(Request $request, EmailApp $emailApp)
+    public function destroy(EmailApp $emailApp)
     {
         $emailApp->delete();
 
-        if ($request->wantsJson() || $request->ajax()) {
-            return response()->json([
-                'message' => 'Email app deleted successfully.',
-            ]);
-        }
-
-        return back()->with('success', 'Email app deleted successfully.');
+        return response()->json([
+            'message' => 'Email app deleted successfully.',
+        ]);
     }
 
     public function logs(Request $request, EmailApp $emailApp)

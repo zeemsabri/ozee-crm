@@ -545,6 +545,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Project Tier Management Routes
     Route::apiResource('project-tiers', \App\Http\Controllers\Api\ProjectTierController::class);
 
+    // Email App Management Routes
+    Route::apiResource('email-apps', \App\Http\Controllers\Api\EmailAppController::class)->names('api.email-apps');
+    Route::get('email-apps/{emailApp}/logs', [\App\Http\Controllers\Api\EmailAppController::class, 'logs'])->name('api.email-apps.logs');
+
     // Task Management Routes
     // Polymorphic schedule creation for existing items
     Route::post('schedules', [ScheduleApiController::class, 'store'])->name('api.schedules.store');

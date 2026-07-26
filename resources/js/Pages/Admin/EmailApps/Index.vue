@@ -108,7 +108,7 @@ function confirmDelete(app) {
 }
 
 function deleteApp() {
-    window.axios.delete(route('admin.email-apps.destroy', appToDelete.value.id))
+    window.axios.delete(route('api.email-apps.destroy', appToDelete.value.id))
         .then(() => {
             showDeleteModal.value = false;
             appToDelete.value = null;
@@ -150,7 +150,7 @@ function fetchAppLogs(page = 1) {
 
     logsLoading.value = true;
 
-    window.axios.get(route('admin.email-apps.logs', selectedAppForLogs.value.id), {
+    window.axios.get(route('api.email-apps.logs', selectedAppForLogs.value.id), {
         params: {
             page,
             per_page: appLogsPagination.value.per_page,
@@ -270,7 +270,7 @@ function statusBadgeClass(status) {
         <BaseFormModal
             :show="showCreateModal"
             title="Create Email App"
-            :api-endpoint="route('admin.email-apps.store')"
+            :api-endpoint="route('api.email-apps.store')"
             http-method="post"
             :form-data="form"
             submit-button-text="Create"
@@ -409,7 +409,7 @@ function statusBadgeClass(status) {
             v-if="showEditModal"
             :show="showEditModal"
             title="Edit Email App"
-            :api-endpoint="route('admin.email-apps.update', form.id)"
+            :api-endpoint="route('api.email-apps.update', form.id)"
             http-method="put"
             :form-data="form"
             submit-button-text="Update"
