@@ -95,7 +95,7 @@ const selectedLabel = computed(() => {
     }
 
     const selectedOption = props.options.find(option =>
-        option[props.valueKey] === props.modelValue
+        option[props.valueKey] == props.modelValue
     );
 
     return selectedOption ? selectedOption[props.labelKey] : props.placeholder;
