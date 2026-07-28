@@ -13,6 +13,7 @@ import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SelectDropdown from '@/Components/SelectDropdown.vue';
 import { usePermissions } from '@/Directives/permissions';
+import RightSidebar from '@/Components/RightSidebar.vue';
 
 const bills = ref([]);
 const projects = ref([]);
@@ -28,6 +29,19 @@ const showXeroSyncModal = ref(false);
 const xeroSyncLoading = ref(false);
 const xeroSyncError = ref('');
 const xeroCandidates = ref([]);
+
+const selectedBillForHistory = ref(null);
+const showHistorySidebar = ref(false);
+
+const openHistorySidebar = (bill) => {
+    selectedBillForHistory.value = bill;
+    showHistorySidebar.value = true;
+};
+
+const formatDate = (dateStr) => {
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleDateString();
+};
 const selectedXeroContactId = ref('');
 const xeroSyncContractor = ref(null);
 const approvalConfigByBillId = ref({});
@@ -701,6 +715,7 @@ const getStatusClass = (status, bill) => {
                                 <td class="px-6 py-4 text-right text-sm font-medium">
                                     <div class="flex justify-end gap-2">
                                         <Link v-if="canViewBills && !bill.deleted_at" :href="route('admin.financials.bills.show', { id: bill.id })" class="text-indigo-600 hover:text-indigo-900">View</Link>
+                                        <button v-if="!bill.deleted_at" @click="openHistorySidebar(bill)" class="text-indigo-600 hover:text-indigo-900 ml-1">Payments</button>
                                         <button
                                             v-if="canLinkXeroContractors && !bill.contractor?.xero_contact_id && !bill.deleted_at"
                                             @click="openXeroSyncModal(bill.contractor)"
@@ -1125,5 +1140,68 @@ const getStatusClass = (status, bill) => {
                 </div>
             </div>
         </Modal>
+
+        <RightSidebar v-model:show="showHistorySidebar" :title="`Payment History - Bill #${selectedBillForHistory?.id}`">
+            <template #content>
+                <div v-if="selectedBillForHistory" class="space-y-6">
+                    <!-- Bill Details Summary -->
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <h4 class="text-md font-semibold text-gray-900 mb-2">Bill Summary</h4>
+                        <dl class="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <dt class="text-gray-500 font-medium">Contractor</dt>
+                                <dd class="text-gray-900 mt-0.5">{{ selectedBillForHistory.contractor?.name || 'N/A' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Project</dt>
+                                <dd class="text-gray-900 mt-0.5">{{ selectedBillForHistory.project?.name || 'N/A' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Amount</dt>
+                                <dd class="text-gray-900 mt-0.5 font-semibold">{{ formatCurrency(selectedBillForHistory.amount, selectedBillForHistory.currency) }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Status</dt>
+                                <dd class="text-gray-900 mt-0.5">
+                                    <span :class="['px-2 py-0.5 text-xs font-bold rounded-full', getStatusClass(selectedBillForHistory.status, selectedBillForHistory)]">
+                                        {{ selectedBillForHistory.status.toUpperCase() }}
+                                    </span>
+                                </dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                    <!-- Transaction History -->
+                    <div>
+                        <h4 class="text-md font-semibold text-gray-900 mb-3">Linked Transactions</h4>
+                        <div v-if="selectedBillForHistory.transactions && selectedBillForHistory.transactions.length" class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Recorded By</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <tr v-for="tx in selectedBillForHistory.transactions" :key="tx.id">
+                                        <td class="px-3 py-2 whitespace-nowrap text-gray-500">{{ formatDate(tx.created_at) }}</td>
+                                        <td class="px-3 py-2 text-gray-900">{{ tx.description || '—' }}</td>
+                                        <td class="px-3 py-2 whitespace-nowrap text-gray-500">{{ tx.transaction_type?.name || '—' }}</td>
+                                        <td class="px-3 py-2 whitespace-nowrap font-medium text-gray-900">{{ formatCurrency(tx.amount, tx.currency) }}</td>
+                                        <td class="px-3 py-2 whitespace-nowrap text-gray-500">{{ tx.user?.name || '—' }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div v-else class="text-center py-6 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                            No transactions linked to this bill.
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </RightSidebar>
     </AuthenticatedLayout>
 </template>

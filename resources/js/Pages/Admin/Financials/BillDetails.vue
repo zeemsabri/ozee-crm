@@ -11,6 +11,9 @@ import InputError from '@/Components/InputError.vue';
 import { usePermissions } from '@/Directives/permissions';
 import { success, error } from '@/Utils/notification';
 import axios from 'axios';
+import SelectDropdown from '@/Components/SelectDropdown.vue';
+import BasicPropertyInput from '@/Components/BasicPropertyInput.vue';
+import Modal from '@/Components/Modal.vue';
 
 const props = defineProps({
     bill: {
@@ -187,6 +190,132 @@ const fetchXeroAccounts = async () => {
         xeroAccounts.value = Array.isArray(data) ? data : [];
     } catch {
         xeroAccounts.value = [];
+    }
+};
+
+const showLinkModal = ref(false);
+const users = ref([]);
+const clients = ref([]);
+const createLoading = ref(false);
+const formErrors = ref({});
+const linkFormMode = ref('new'); // 'new' or 'existing'
+const existingTransactions = ref([]);
+const selectedTransactionId = ref('');
+
+const currencyOptions = [
+    { value: 'PKR', label: 'PKR' },
+    { value: 'AUD', label: 'AUD' },
+    { value: 'INR', label: 'INR' },
+    { value: 'USD', label: 'USD' },
+    { value: 'EUR', label: 'EUR' },
+    { value: 'GBP', label: 'GBP' },
+];
+
+const transactionForm = ref({
+    description: `Payment for Bill #${bill.value.id}`,
+    amount: bill.value.amount || '',
+    currency: bill.value.currency || 'AUD',
+    type: 'expense',
+    transaction_type: bill.value.transaction_type ? { id: bill.value.transaction_type_id, name: bill.value.transaction_type.name } : null,
+    user_id: bill.value.contractor_id || null,
+    hours_spent: '',
+    bill_id: bill.value.id,
+    bank_transaction_id: '',
+});
+
+const userOptions = computed(() => {
+    return users.value.map(user => ({
+        value: user.id,
+        label: user.name || 'Unknown User'
+    }));
+});
+
+const fetchProjectData = async () => {
+    if (!bill.value?.project_id) return;
+    try {
+        const { data } = await axios.get(`/api/projects/${bill.value.project_id}/sections/clients-users`);
+        users.value = data.users || [];
+        clients.value = data.clients || [];
+    } catch (err) {
+        console.error(err);
+    }
+};
+
+const fetchUnlinkedTransactions = async () => {
+    try {
+        const { data } = await axios.get('/api/admin/transactions', {
+            params: {
+                project_id: bill.value.project_id,
+                status: 'unpaid',
+                type: 'expense'
+            }
+        });
+        existingTransactions.value = data.data || [];
+    } catch (err) {
+        console.error(err);
+    }
+};
+
+const openLinkModal = () => {
+    showLinkModal.value = true;
+    fetchProjectData();
+    fetchUnlinkedTransactions();
+};
+
+const saveNewTransaction = async () => {
+    formErrors.value = {};
+    createLoading.value = true;
+    try {
+        let txType = transactionForm.value.transaction_type;
+        if (txType && typeof txType === 'object') {
+            txType = txType.value ?? txType.id ?? txType.name;
+        }
+
+        const payload = {
+            ...transactionForm.value,
+            transaction_type: txType,
+            amount: Number(transactionForm.value.amount),
+        };
+        await axios.post(`/api/projects/${bill.value.project_id}/transactions`, payload);
+        success('Transaction created and linked to bill successfully');
+        showLinkModal.value = false;
+        window.location.reload();
+    } catch (err) {
+        if (err.response?.status === 422) {
+            formErrors.value = err.response.data.errors;
+        } else {
+            error(err.response?.data?.message || 'Failed to create transaction');
+        }
+    } finally {
+        createLoading.value = false;
+    }
+};
+
+const linkExistingTransaction = async () => {
+    if (!selectedTransactionId.value) return;
+    createLoading.value = true;
+    try {
+        await axios.post(`/api/transactions/${selectedTransactionId.value}/link-bill`, {
+            bill_id: bill.value.id
+        });
+        success('Transaction linked to bill successfully');
+        showLinkModal.value = false;
+        window.location.reload();
+    } catch (err) {
+        error(err.response?.data?.message || 'Failed to link transaction');
+    } finally {
+        createLoading.value = false;
+    }
+};
+
+const unlinkTransaction = async (txId) => {
+    if (!confirm('Are you sure you want to unlink this transaction from the bill?')) return;
+    try {
+        await axios.post(`/api/transactions/${txId}/unlink-bill`);
+        success('Transaction unlinked successfully');
+        window.location.reload();
+    } catch (err) {
+        error(err.response?.data?.message || 'Failed to unlink transaction');
     }
 };
 
@@ -430,7 +559,171 @@ onMounted(() => {
                         </div>
                     </div>
                 </div>
+
+                <!-- Transactions Card -->
+                <div class="bg-white shadow sm:rounded-lg border border-gray-200 p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Linked Transactions (Payments)</h3>
+                        <PrimaryButton @click="openLinkModal" v-if="bill.status === 'approved' || bill.status === 'partial_paid' || bill.status === 'paid'">
+                            Add Payment / Link Transaction
+                        </PrimaryButton>
+                    </div>
+
+                    <div v-if="bill.transactions?.length" class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 bg-white">
+                                <tr v-for="tx in bill.transactions" :key="tx.id">
+                                    <td class="px-4 py-2 text-sm">{{ new Date(tx.created_at).toLocaleDateString('en-AU') }}</td>
+                                    <td class="px-4 py-2 text-sm">{{ tx.description }}</td>
+                                    <td class="px-4 py-2 text-sm">{{ tx.user?.name || '—' }}</td>
+                                    <td class="px-4 py-2 text-sm">{{ tx.transaction_type?.name || '—' }}</td>
+                                    <td class="px-4 py-2 text-sm font-semibold">{{ formatCurrency(tx.amount, tx.currency) }}</td>
+                                    <td class="px-4 py-2 text-sm">
+                                        <button @click="unlinkTransaction(tx.id)" class="text-red-600 hover:text-red-900 font-semibold">
+                                            Unlink
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div v-else class="text-sm text-gray-500">No transactions linked to this bill.</div>
+                </div>
             </div>
         </div>
+
+        <!-- Link Transaction Modal -->
+        <Modal :show="showLinkModal" @close="showLinkModal = false" maxWidth="2xl">
+            <div class="p-6">
+                <h3 class="text-lg font-medium text-gray-900 border-b pb-3 mb-4">Add Payment for Bill #{{ bill.id }}</h3>
+
+                <div class="flex gap-4 mb-6">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" value="new" v-model="linkFormMode" class="text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-sm font-medium text-gray-700">Create New Transaction</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" value="existing" v-model="linkFormMode" class="text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-sm font-medium text-gray-700">Link Existing Transaction</span>
+                    </label>
+                </div>
+
+                <div v-if="linkFormMode === 'new'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="md:col-span-2">
+                        <InputLabel for="bank_transaction_id" value="Bank Transaction ID (Optional)" />
+                        <TextInput
+                            id="bank_transaction_id"
+                            v-model="transactionForm.bank_transaction_id"
+                            type="text"
+                            class="mt-1 block w-full"
+                            placeholder="Enter bank reference ID for reconciliation"
+                        />
+                        <InputError :message="formErrors.bank_transaction_id?.[0]" class="mt-2" />
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <InputLabel for="description" value="Description" />
+                        <TextInput
+                            id="description"
+                            v-model="transactionForm.description"
+                            type="text"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError :message="formErrors.description?.[0]" class="mt-2" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="amount" value="Amount" />
+                        <TextInput
+                            id="amount"
+                            v-model="transactionForm.amount"
+                            type="number"
+                            step="0.01"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError :message="formErrors.amount?.[0]" class="mt-2" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="currency" value="Currency" />
+                        <SelectDropdown
+                            id="currency"
+                            v-model="transactionForm.currency"
+                            :options="currencyOptions"
+                            :disabled="true"
+                        />
+                        <InputError :message="formErrors.currency?.[0]" class="mt-2" />
+                    </div>
+
+                    <div>
+                        <BasicPropertyInput
+                            v-model="transactionForm.transaction_type"
+                            label="Transaction Type"
+                            placeholder="Select or add transaction type"
+                            :required="true"
+                            search-url="/api/transaction-types/search"
+                            :disabled="true"
+                        />
+                        <InputError :message="formErrors.transaction_type_id?.[0]" class="mt-2" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="user_id" value="User (Contractor)" />
+                        <SelectDropdown
+                            id="user_id"
+                            v-model="transactionForm.user_id"
+                            :options="userOptions"
+                            placeholder="Select user"
+                            :disabled="true"
+                        />
+                        <InputError :message="formErrors.user_id?.[0]" class="mt-2" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="hours_spent" value="Hours Spent (Optional)" />
+                        <TextInput
+                            id="hours_spent"
+                            v-model="transactionForm.hours_spent"
+                            type="number"
+                            step="0.1"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError :message="formErrors.hours_spent?.[0]" class="mt-2" />
+                    </div>
+                </div>
+
+                <div v-else class="space-y-4">
+                    <div v-if="!existingTransactions.length" class="text-sm text-gray-500">
+                        No unpaid expense transactions found for this project to link.
+                    </div>
+                    <div v-else class="max-h-60 overflow-y-auto">
+                        <InputLabel for="existing_tx" value="Select Unpaid Expense Transaction" />
+                        <select id="existing_tx" v-model="selectedTransactionId" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                            <option value="">Select a transaction...</option>
+                            <option v-for="tx in existingTransactions" :key="tx.id" :value="tx.id">
+                                {{ new Date(tx.created_at).toLocaleDateString('en-AU') }} - {{ tx.description }} - {{ formatCurrency(tx.amount, tx.currency) }}
+                            </option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3 border-t pt-4">
+                    <SecondaryButton :disabled="createLoading" @click="showLinkModal = false">Cancel</SecondaryButton>
+                    <PrimaryButton :disabled="createLoading" @click="linkFormMode === 'new' ? saveNewTransaction() : linkExistingTransaction()">
+                        {{ createLoading ? 'Saving...' : (linkFormMode === 'new' ? 'Create & Link' : 'Link Transaction') }}
+                    </PrimaryButton>
+                </div>
+            </div>
+        </Modal>
     </AuthenticatedLayout>
 </template>

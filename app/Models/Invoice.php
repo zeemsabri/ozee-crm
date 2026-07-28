@@ -67,4 +67,40 @@ class Invoice extends Model
     {
         return 'OZI' . $this->id;
     }
+
+    public function recalculateStatus(): void
+    {
+        if (!in_array($this->status, ['approved', 'sent', 'paid', 'partial_paid'])) {
+            return;
+        }
+
+        $totalPaid = 0;
+        $invoiceCurrency = $this->currency ?? 'AUD';
+        $conversionService = app(\App\Services\CurrencyConversionService::class);
+
+        foreach ($this->transactions()->where('is_paid', true)->get() as $tx) {
+            $txCurrency = $tx->currency ?? 'AUD';
+            try {
+                $totalPaid += $conversionService->convert(
+                    (float) $tx->amount,
+                    $txCurrency,
+                    $invoiceCurrency
+                );
+            } catch (\Exception $e) {
+                $totalPaid += (float) $tx->amount;
+            }
+        }
+
+        $invoiceAmount = (float) $this->total_amount;
+
+        if (round($totalPaid, 2) >= round($invoiceAmount, 2)) {
+            $this->status = 'paid';
+        } elseif (round($totalPaid, 2) > 0) {
+            $this->status = 'partial_paid';
+        } else {
+            $this->status = 'approved';
+        }
+
+        $this->save();
+    }
 }

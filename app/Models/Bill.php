@@ -92,4 +92,40 @@ class Bill extends Model
     {
         return 'OZB' . $this->id;
     }
+
+    public function recalculateStatus(): void
+    {
+        if (!in_array($this->status, [BillStatus::Approved, BillStatus::Paid, BillStatus::PartialPaid])) {
+            return;
+        }
+
+        $totalPaid = 0;
+        $billCurrency = $this->currency ?? 'AUD';
+        $conversionService = app(\App\Services\CurrencyConversionService::class);
+
+        foreach ($this->transactions()->where('is_paid', true)->get() as $tx) {
+            $txCurrency = $tx->currency ?? 'AUD';
+            try {
+                $totalPaid += $conversionService->convert(
+                    (float) $tx->amount,
+                    $txCurrency,
+                    $billCurrency
+                );
+            } catch (\Exception $e) {
+                $totalPaid += (float) $tx->amount;
+            }
+        }
+
+        $billAmount = (float) $this->amount;
+
+        if (round($totalPaid, 2) >= round($billAmount, 2)) {
+            $this->status = BillStatus::Paid;
+        } elseif (round($totalPaid, 2) > 0) {
+            $this->status = BillStatus::PartialPaid;
+        } else {
+            $this->status = BillStatus::Approved;
+        }
+
+        $this->save();
+    }
 }

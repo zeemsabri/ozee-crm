@@ -165,6 +165,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Financial Routes
     Route::get('admin/financial-pending-counts', [BillController::class, 'pendingCounts'])->middleware('permission:view_project_bills')->name('api.admin.financial-counts');
     Route::get('admin/bills', [BillController::class, 'all'])->middleware('permission:view_project_bills')->name('api.admin.bills.all');
+    Route::get('admin/transactions', [\App\Http\Controllers\Api\TransactionsController::class, 'all'])->middleware('permission:view_project_transactions')->name('api.admin.transactions.all');
+    Route::get('admin/bank-transactions', [\App\Http\Controllers\Api\TransactionsController::class, 'bankTransactions'])->middleware('permission:view_project_transactions')->name('api.admin.bank-transactions');
     Route::get('admin/invoices/stats', [InvoiceController::class, 'stats'])->middleware('permission:view_project_invoices')->name('api.admin.invoices.stats');
     Route::get('admin/invoices', [InvoiceController::class, 'all'])->middleware('permission:view_project_invoices')->name('api.admin.invoices.all');
     Route::get('xero/accounts', [XeroAccountController::class, 'index'])->name('api.xero.accounts');
@@ -370,6 +372,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('projects/{project}/detach-google-chat-members', [ProjectActionController::class, 'detachGoogleChatMembers'])->name('projects.detach-google-chat-members');
     Route::post('projects/{project}/transactions', [\App\Http\Controllers\Api\TransactionsController::class, 'addTransactions'])->middleware('process.basic:transaction_type,App\\Models\\TransactionType');
     Route::patch('projects/{project}/transactions/{transaction}/process-payment', [\App\Http\Controllers\Api\TransactionsController::class, 'processPayment']);
+    Route::post('transactions/{transaction}/link-bill', [\App\Http\Controllers\Api\TransactionsController::class, 'linkBill'])->middleware('permission:manage_projects');
+    Route::post('transactions/{transaction}/unlink-bill', [\App\Http\Controllers\Api\TransactionsController::class, 'unlinkBill'])->middleware('permission:manage_projects');
+    Route::post('transactions/{transaction}/link-invoice', [\App\Http\Controllers\Api\TransactionsController::class, 'linkInvoice'])->middleware('permission:manage_projects');
+    Route::post('transactions/{transaction}/unlink-invoice', [\App\Http\Controllers\Api\TransactionsController::class, 'unlinkInvoice'])->middleware('permission:manage_projects');
+    Route::delete('transactions/{transaction}', [\App\Http\Controllers\Api\TransactionsController::class, 'destroy'])->middleware('permission:manage_projects');
+    Route::post('transactions/{id}/restore', [\App\Http\Controllers\Api\TransactionsController::class, 'restore'])->middleware('permission:manage_projects');
+    Route::post('transactions/{transaction}/attachments', [\App\Http\Controllers\Api\TransactionsController::class, 'uploadAttachment'])->middleware('permission:manage_projects');
     Route::post('projects/{project}/notes', [ProjectActionController::class, 'addNotes']);
     Route::post('projects/{project}/notes/{note}/reply', [ProjectActionController::class, 'replyToNote']);
     Route::post('projects/{project}/document', [ProjectActionController::class, 'uploadDocuments'])->name('singleDocument');

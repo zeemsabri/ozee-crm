@@ -486,6 +486,7 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         Route::get('/financials', [\App\Http\Controllers\Admin\FinancialController::class, 'dashboard'])->name('financials.dashboard');
         Route::get('/financials/bills', [\App\Http\Controllers\Admin\FinancialController::class, 'bills'])->middleware('permission:view_project_bills')->name('financials.bills');
         Route::get('/financials/bills/{id}', [\App\Http\Controllers\Admin\FinancialController::class, 'showBill'])->middleware('permission:view_project_bills')->name('financials.bills.show');
+        Route::get('/financials/transactions', [\App\Http\Controllers\Admin\FinancialController::class, 'transactions'])->middleware('permission:view_project_transactions')->name('financials.transactions');
         Route::get('/financials/invoices', [\App\Http\Controllers\Admin\FinancialController::class, 'invoices'])->middleware('permission:view_project_invoices')->name('financials.invoices');
         Route::get('/financials/invoices/{id}', [\App\Http\Controllers\Admin\FinancialController::class, 'showInvoice'])->middleware('permission:view_project_invoices')->name('financials.invoices.show');
         Route::get('/financials/project-services', [\App\Http\Controllers\Admin\FinancialController::class, 'projectServices'])->name('financials.project-services');

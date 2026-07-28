@@ -44,6 +44,13 @@ watch(() => props.modelValue, (val) => {
     selectedItem.value = null;
     return;
   }
+  if (typeof val === 'object') {
+    selectedItem.value = {
+      value: val.value ?? val.id,
+      label: val.label ?? val.name
+    };
+    return;
+  }
   if (typeof val === 'string' && val.startsWith('new_')) {
     // Keep it as a pseudo option
     const parts = val.split('_');

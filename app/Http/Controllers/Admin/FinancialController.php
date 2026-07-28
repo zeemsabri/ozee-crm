@@ -19,6 +19,11 @@ class FinancialController extends Controller
         return Inertia::render('Admin/Financials/Bills');
     }
 
+    public function transactions(): Response
+    {
+        return Inertia::render('Admin/Financials/Transactions');
+    }
+
     public function showBill(int $id): Response
     {
         $bill = \App\Models\Bill::with([
@@ -30,6 +35,8 @@ class FinancialController extends Controller
             'approvalInstance.steps.actedBy',
             'approvalInstance.steps.approverRole',
             'approvalInstance.steps.approverUser',
+            'transactions.user',
+            'transactions.transactionType',
         ])->findOrFail($id);
         $transactionTypes = \App\Models\TransactionType::query()
             ->select(['id', 'name', 'xero_account_code'])

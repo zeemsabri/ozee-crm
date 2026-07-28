@@ -6,9 +6,11 @@ use App\Http\Controllers\Api\Concerns\HasFinancialCalculations;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+use Illuminate\Database\Eloquent\SoftDeletes;
+
 class Transaction extends Model
 {
-    use HasFactory, HasFinancialCalculations;
+    use HasFactory, HasFinancialCalculations, SoftDeletes;
 
     protected $fillable = [
         'project_id',
@@ -23,6 +25,8 @@ class Transaction extends Model
         'payment_date',
         'transaction_type_id',
         'bill_id',
+        'invoice_id',
+        'bank_transaction_id',
         'xero_payment_id',
     ];
 
@@ -56,5 +60,15 @@ class Transaction extends Model
     public function bill()
     {
         return $this->belongsTo(Bill::class);
+    }
+
+    public function invoice()
+    {
+        return $this->belongsTo(Invoice::class);
+    }
+
+    public function files()
+    {
+        return $this->morphMany(FileAttachment::class, 'fileable');
     }
 }
