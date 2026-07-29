@@ -167,6 +167,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('admin/bills', [BillController::class, 'all'])->middleware('permission:view_project_bills')->name('api.admin.bills.all');
     Route::get('admin/transactions', [\App\Http\Controllers\Api\TransactionsController::class, 'all'])->middleware('permission:view_project_transactions')->name('api.admin.transactions.all');
     Route::get('admin/bank-transactions', [\App\Http\Controllers\Api\TransactionsController::class, 'bankTransactions'])->middleware('permission:view_project_transactions')->name('api.admin.bank-transactions');
+    Route::get('admin/bank-transactions/{id}', [\App\Http\Controllers\Api\TransactionsController::class, 'showBankTransaction'])->middleware('permission:view_project_transactions')->name('api.admin.bank-transactions.show');
     Route::get('admin/invoices/stats', [InvoiceController::class, 'stats'])->middleware('permission:view_project_invoices')->name('api.admin.invoices.stats');
     Route::get('admin/invoices', [InvoiceController::class, 'all'])->middleware('permission:view_project_invoices')->name('api.admin.invoices.all');
     Route::get('xero/accounts', [XeroAccountController::class, 'index'])->name('api.xero.accounts');

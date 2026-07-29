@@ -382,26 +382,51 @@ class TransactionsController extends Controller // Assuming your controller is n
                 'from_created_at' => $request->query('from_created_at', now()->subMonths(3)->format('Y-m-d')),
             ];
             
-            // Note: Add any date or search filters supported by Airwallex API here.
-
+            $conversionService = app(\App\Services\CurrencyConversionService::class);
             $data = $airwallexService->getTransactions($params);
             $items = $data['items'] ?? [];
             
+            // Filter by type (default to expense / outgoing)
+            $type = $request->query('type', 'expense');
+            if ($type === 'expense') {
+                $items = array_filter($items, fn($item) => ($item['amount'] ?? 0) < 0);
+            } elseif ($type === 'income') {
+                $items = array_filter($items, fn($item) => ($item['amount'] ?? 0) > 0);
+            }
+            
+            $items = array_values($items);
+
             if (!empty($items)) {
                 $bankTxIds = collect($items)->pluck('id')->filter()->toArray();
                 $localTransactions = \App\Models\Transaction::whereIn('bank_transaction_id', $bankTxIds)
                     ->with(['bill', 'invoice', 'project'])
                     ->get()
-                    ->keyBy('bank_transaction_id');
+                    ->groupBy('bank_transaction_id');
                 
                 foreach ($items as &$item) {
-                    $localTx = $localTransactions->get($item['id']);
-                    $item['is_linked'] = !empty($localTx);
-                    $item['local_transaction'] = $localTx;
+                    $txs = $localTransactions->get($item['id'], collect());
+                    $bankCurrency = $item['currency'] ?? 'AUD';
+                    $bankAmount = abs((float)($item['amount'] ?? 0));
+                    
+                    $totalLinkedBankCurrency = 0;
+                    foreach ($txs as $tx) {
+                        try {
+                            $totalLinkedBankCurrency += $conversionService->convert(
+                                (float)$tx->amount,
+                                $tx->currency ?? 'AUD',
+                                $bankCurrency
+                            );
+                        } catch (\Exception $e) {
+                            $totalLinkedBankCurrency += (float)$tx->amount;
+                        }
+                    }
+                    
+                    $item['remaining_amount'] = max(0, $bankAmount - $totalLinkedBankCurrency);
+                    $item['is_linked'] = $item['remaining_amount'] <= 0.01 && $txs->isNotEmpty();
+                    $item['local_transactions'] = $txs;
                 }
             }
             
-            // Typically the API returns { "items": [...], "has_more": true }
             return response()->json([
                 'data' => $items,
                 'meta' => [
@@ -412,6 +437,46 @@ class TransactionsController extends Controller // Assuming your controller is n
             Log::error('Error fetching bank transactions', ['error' => $e->getMessage()]);
             return response()->json([
                 'message' => 'Failed to fetch bank transactions',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function showBankTransaction(string $id, AirwallexService $airwallexService)
+    {
+        try {
+            $data = $airwallexService->getTransaction($id);
+            
+            $conversionService = app(\App\Services\CurrencyConversionService::class);
+            $txs = \App\Models\Transaction::where('bank_transaction_id', $id)
+                ->with(['bill', 'invoice', 'project'])
+                ->get();
+                
+            $bankCurrency = $data['currency'] ?? 'AUD';
+            $bankAmount = abs((float)($data['amount'] ?? 0));
+            
+            $totalLinkedBankCurrency = 0;
+            foreach ($txs as $tx) {
+                try {
+                    $totalLinkedBankCurrency += $conversionService->convert(
+                        (float)$tx->amount,
+                        $tx->currency ?? 'AUD',
+                        $bankCurrency
+                    );
+                } catch (\Exception $e) {
+                    $totalLinkedBankCurrency += (float)$tx->amount;
+                }
+            }
+            
+            $data['remaining_amount'] = max(0, $bankAmount - $totalLinkedBankCurrency);
+            $data['is_linked'] = $data['remaining_amount'] <= 0.01 && $txs->isNotEmpty();
+            $data['local_transactions'] = $txs;
+            
+            return response()->json($data);
+        } catch (\Exception $e) {
+            Log::error('Error fetching bank transaction details', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json([
+                'message' => 'Failed to fetch bank transaction details',
                 'error' => $e->getMessage()
             ], 500);
         }
