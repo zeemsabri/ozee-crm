@@ -26,11 +26,31 @@ const pagination = ref({
 const activeTab = ref('system'); // 'system' or 'bank'
 const bankTransactions = ref([]);
 const bankFilter = ref('unreconciled'); // 'unreconciled', 'reconciled', 'all'
+const bankTypeFilter = ref('expense'); // 'expense' or 'income'
 const selectedBankTx = ref(null);
 
 const selectedLinkedDoc = ref(null);
 const linkedDocType = ref(''); // 'bill' or 'invoice'
 const showLinkedDocSidebar = ref(false);
+
+const selectedBankTxDetails = ref(null);
+const loadingBankTxDetails = ref(false);
+const showBankTxDetailsSidebar = ref(false);
+
+const openBankTxDetailsSidebar = async (btxId) => {
+    showBankTxDetailsSidebar.value = true;
+    loadingBankTxDetails.value = true;
+    selectedBankTxDetails.value = null;
+    try {
+        const { data } = await axios.get(`/api/admin/bank-transactions/${btxId}`);
+        selectedBankTxDetails.value = data;
+    } catch (err) {
+        error('Failed to load bank transaction details.');
+        showBankTxDetailsSidebar.value = false;
+    } finally {
+        loadingBankTxDetails.value = false;
+    }
+};
 
 const openLinkedDocSidebar = (doc, type) => {
     selectedLinkedDoc.value = doc;
@@ -109,6 +129,9 @@ const transactionForm = ref({
     bill_id: null,
     invoice_id: null,
     bank_transaction_id: '',
+    conversion_rate: 1,
+    _bank_amount: '',
+    _bank_currency: '',
 });
 
 const currencyOptions = [
@@ -242,7 +265,7 @@ const fetchBankTransactions = async (page = 1) => {
     bankLoading.value = true;
     try {
         const { data } = await axios.get('/api/admin/bank-transactions', {
-            params: { per_page: 50, page }
+            params: { per_page: 50, page, type: bankTypeFilter.value }
         });
         bankTransactions.value = data.data || [];
         bankPagination.value = {
@@ -256,6 +279,10 @@ const fetchBankTransactions = async (page = 1) => {
         bankLoading.value = false;
     }
 };
+
+watch(bankTypeFilter, () => {
+    fetchBankTransactions(1);
+});
 
 watch(activeTab, (val) => {
     if (val === 'bank' && bankTransactions.value.length === 0) {
@@ -387,16 +414,21 @@ watch(() => transactionForm.value.bill_id, (newBillId) => {
     if (newBillId) {
         const selectedBill = bills.value.find(b => b.id === newBillId);
         if (selectedBill) {
-            if (!transactionForm.value.bank_transaction_id) {
-                transactionForm.value.amount = selectedBill.amount;
-                transactionForm.value.currency = selectedBill.currency || 'AUD';
-            }
             transactionForm.value.user_id = selectedBill.contractor_id;
             if (selectedBill.transaction_type) {
                 transactionForm.value.transaction_type = {
                     id: selectedBill.transaction_type_id,
                     name: selectedBill.transaction_type.name
                 };
+            }
+            if (transactionForm.value.bank_transaction_id) {
+                transactionForm.value.currency = selectedBill.currency || 'AUD';
+                const defaultRate = convertCurrency(1, transactionForm.value._bank_currency, transactionForm.value.currency);
+                transactionForm.value.conversion_rate = defaultRate;
+                transactionForm.value.amount = Number((transactionForm.value._bank_amount * defaultRate).toFixed(2));
+            } else {
+                transactionForm.value.amount = selectedBill.amount;
+                transactionForm.value.currency = selectedBill.currency || 'AUD';
             }
         }
     }
@@ -406,11 +438,16 @@ watch(() => transactionForm.value.invoice_id, (newInvoiceId) => {
     if (newInvoiceId) {
         const selectedInvoice = invoices.value.find(i => i.id === newInvoiceId);
         if (selectedInvoice) {
-            if (!transactionForm.value.bank_transaction_id) {
+            transactionForm.value.client_id = selectedInvoice.client_id;
+            if (transactionForm.value.bank_transaction_id) {
+                transactionForm.value.currency = selectedInvoice.currency || 'AUD';
+                const defaultRate = convertCurrency(1, transactionForm.value._bank_currency, transactionForm.value.currency);
+                transactionForm.value.conversion_rate = defaultRate;
+                transactionForm.value.amount = Number((transactionForm.value._bank_amount * defaultRate).toFixed(2));
+            } else {
                 transactionForm.value.amount = selectedInvoice.total_amount;
                 transactionForm.value.currency = selectedInvoice.currency || 'AUD';
             }
-            transactionForm.value.client_id = selectedInvoice.client_id;
         }
     }
 });
@@ -455,10 +492,11 @@ const submitAttachment = async () => {
 // Document linking helpers
 const openBankLinkModal = (btx, type) => {
     selectedBankTx.value = btx;
+    const remainingAmount = btx.remaining_amount !== undefined ? btx.remaining_amount : Math.abs(btx.amount);
     transactionForm.value = {
         project_id: '',
         description: btx.merchant_name || btx.description || btx.reference || '',
-        amount: Math.abs(btx.amount), // Amount might be negative for expenses
+        amount: remainingAmount,
         currency: btx.currency || 'AUD',
         type: type,
         transaction_type: null,
@@ -468,10 +506,23 @@ const openBankLinkModal = (btx, type) => {
         bill_id: null,
         invoice_id: null,
         bank_transaction_id: btx.id || btx.reference_id || '',
-        _bank_amount: Math.abs(btx.amount),
+        conversion_rate: 1,
+        _bank_amount: remainingAmount,
         _bank_currency: btx.currency || 'AUD'
     };
     showCreateModal.value = true;
+};
+
+const calculateAmountFromRate = () => {
+    if (transactionForm.value._bank_amount && transactionForm.value.conversion_rate) {
+        transactionForm.value.amount = Number((transactionForm.value._bank_amount * transactionForm.value.conversion_rate).toFixed(2));
+    }
+};
+
+const calculateRateFromAmount = () => {
+    if (transactionForm.value._bank_amount && transactionForm.value.amount) {
+        transactionForm.value.conversion_rate = Number((transactionForm.value.amount / transactionForm.value._bank_amount).toFixed(6));
+    }
 };
 
 const openLinkDocModal = async (tx) => {
@@ -829,7 +880,7 @@ const formatDate = (dateStr) => {
                 <!-- Bank Transactions Tab -->
                 <div v-else-if="activeTab === 'bank'" class="space-y-6">
                     <!-- Bank Filter -->
-                    <div class="bg-white p-4 shadow sm:rounded-lg border border-gray-200 flex justify-between items-center">
+                    <div class="bg-white p-4 shadow sm:rounded-lg border border-gray-200 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                         <div class="flex space-x-2">
                             <button 
                                 @click="bankFilter = 'unreconciled'"
@@ -850,6 +901,21 @@ const formatDate = (dateStr) => {
                                 All
                             </button>
                         </div>
+                        <div class="flex space-x-2 items-center">
+                            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Type:</span>
+                            <button 
+                                @click="bankTypeFilter = 'expense'"
+                                :class="[bankTypeFilter === 'expense' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200', 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors']"
+                            >
+                                Outgoing (Expenses)
+                            </button>
+                            <button 
+                                @click="bankTypeFilter = 'income'"
+                                :class="[bankTypeFilter === 'income' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200', 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors']"
+                            >
+                                Incoming (Incomes)
+                            </button>
+                        </div>
                     </div>
 
                     <div class="bg-white overflow-x-auto shadow sm:rounded-lg border border-gray-200">
@@ -862,53 +928,68 @@ const formatDate = (dateStr) => {
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Currency</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Net / Fee</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type / Src</th>
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank Ref</th>
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    <tr v-for="(btx, idx) in filteredBankTransactions" :key="idx">
+                                    <tr v-for="(btx, idx) in filteredBankTransactions" :key="idx" class="hover:bg-gray-50 cursor-pointer" @click="openBankTxDetailsSidebar(btx.id)">
                                         <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {{ formatDate(btx.created_at || btx.date) }}
                                         </td>
-                                        <td class="px-4 py-4 text-sm text-gray-900">
+                                        <td class="px-4 py-4 text-sm text-gray-900 font-medium hover:text-indigo-600">
                                             {{ btx.merchant_name || btx.description || btx.reference || 'N/A' }}
                                         </td>
                                         <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                                             {{ formatCurrency(btx.amount, btx.currency || 'AUD') }}
+                                            <span v-if="btx.remaining_amount !== undefined && btx.remaining_amount < Math.abs(btx.amount)" class="block text-xs font-normal text-gray-500">
+                                                (Rem: {{ formatCurrency(btx.remaining_amount, btx.currency || 'AUD') }})
+                                            </span>
                                         </td>
                                         <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {{ btx.currency || 'AUD' }}
+                                            {{ formatCurrency(btx.net, btx.currency || 'AUD') }} /
+                                            <span class="text-xs text-red-500">{{ formatCurrency(btx.fee, btx.currency || 'AUD') }}</span>
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                            <span :class="[btx.status === 'SETTLED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800', 'px-2 py-0.5 rounded-full text-xs font-semibold']">
+                                                {{ btx.status || 'PENDING' }}
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <span class="block font-medium">{{ btx.transaction_type }}</span>
+                                            <span class="block text-xs text-gray-400">{{ btx.source_type }}</span>
                                         </td>
                                         <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {{ btx.id || btx.reference_id || 'N/A' }}
                                         </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900" @click.stop>
                                             <div v-if="btx.is_linked" class="flex items-center space-x-2">
                                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                                     Linked
                                                 </span>
                                                 <button 
-                                                    v-if="btx.local_transaction?.bill" 
-                                                    @click="openLinkedDocSidebar(btx.local_transaction.bill, 'bill')" 
+                                                    v-if="btx.local_transactions?.[0]?.bill" 
+                                                    @click="openLinkedDocSidebar(btx.local_transactions[0].bill, 'bill')" 
                                                     class="text-indigo-600 hover:text-indigo-900 text-xs"
                                                 >
                                                     View Bill
                                                 </button>
                                                 <button 
-                                                    v-else-if="btx.local_transaction?.invoice" 
-                                                    @click="openLinkedDocSidebar(btx.local_transaction.invoice, 'invoice')" 
+                                                    v-else-if="btx.local_transactions?.[0]?.invoice" 
+                                                    @click="openLinkedDocSidebar(btx.local_transactions[0].invoice, 'invoice')" 
                                                     class="text-indigo-600 hover:text-indigo-900 text-xs"
                                                 >
                                                     View Invoice
                                                 </button>
                                             </div>
                                             <div v-else class="flex space-x-2">
-                                                <PrimaryButton type="button" @click="openBankLinkModal(btx, 'expense')" class="text-xs px-2 py-1">
+                                                <PrimaryButton type="button" @click="openBankLinkModal(btx, 'expense')" class="text-xs px-2 py-1" :disabled="btx.remaining_amount <= 0">
                                                     Link Bill
                                                 </PrimaryButton>
-                                                <SecondaryButton type="button" @click="openBankLinkModal(btx, 'income')" class="text-xs px-2 py-1">
+                                                <SecondaryButton type="button" @click="openBankLinkModal(btx, 'income')" class="text-xs px-2 py-1" :disabled="btx.remaining_amount <= 0">
                                                     Link Invoice
                                                 </SecondaryButton>
                                             </div>
@@ -1034,6 +1115,31 @@ const formatDate = (dateStr) => {
                         <InputError :message="formErrors.bank_transaction_id?.[0]" class="mt-2" />
                     </div>
 
+                    <!-- Bank Transaction Details & Conversion Rate Edit -->
+                    <div v-if="transactionForm.bank_transaction_id" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 border border-dashed border-indigo-200 p-4 rounded-md bg-indigo-50/30">
+                        <div>
+                            <InputLabel for="bank_amount_display" :value="'Bank Amount (' + transactionForm._bank_currency + ')'" />
+                            <TextInput
+                                id="bank_amount_display"
+                                :value="transactionForm._bank_amount"
+                                type="text"
+                                class="mt-1 block w-full bg-gray-50 text-gray-500"
+                                disabled
+                            />
+                        </div>
+                        <div>
+                            <InputLabel for="conversion_rate" value="Conversion Rate (1 Bank Unit = ?)" />
+                            <TextInput
+                                id="conversion_rate"
+                                v-model="transactionForm.conversion_rate"
+                                type="number"
+                                step="0.000001"
+                                class="mt-1 block w-full bg-white font-medium border-indigo-300 focus:border-indigo-500"
+                                @input="calculateAmountFromRate"
+                            />
+                        </div>
+                    </div>
+
                     <div class="md:col-span-2">
                         <InputLabel for="description" value="Description" />
                         <TextInput
@@ -1046,20 +1152,16 @@ const formatDate = (dateStr) => {
                     </div>
 
                     <div>
-                        <InputLabel for="amount" value="Amount" />
+                        <InputLabel for="amount" :value="'Amount (' + transactionForm.currency + ')'" />
                         <TextInput
                             id="amount"
                             v-model="transactionForm.amount"
                             type="number"
                             step="0.01"
                             class="mt-1 block w-full"
-                            :disabled="!!transactionForm.bank_transaction_id"
+                            @input="calculateRateFromAmount"
                         />
                         <InputError :message="formErrors.amount?.[0]" class="mt-2" />
-                        
-                        <p v-if="transactionForm.bank_transaction_id && selectedDocumentCurrency && transactionForm.currency !== selectedDocumentCurrency" class="text-sm text-gray-500 mt-1">
-                            ≈ {{ formatCurrency(convertCurrency(transactionForm.amount, transactionForm.currency, selectedDocumentCurrency), selectedDocumentCurrency) }}
-                        </p>
                     </div>
 
                     <div>
@@ -1204,6 +1306,103 @@ const formatDate = (dateStr) => {
                     <div class="border-t pt-4">
                         <h4 class="text-md font-semibold text-gray-900 mb-2">Internal Notes / Info</h4>
                         <p class="text-sm text-gray-600">Created: {{ formatDate(selectedLinkedDoc.created_at) }}</p>
+                    </div>
+                </div>
+            </template>
+        </RightSidebar>
+
+        <RightSidebar v-model:show="showBankTxDetailsSidebar" :title="`Bank Transaction Details`">
+            <template #content>
+                <div v-if="loadingBankTxDetails" class="p-12 text-center text-gray-500">
+                    Loading bank transaction details...
+                </div>
+                <div v-else-if="selectedBankTxDetails" class="space-y-6">
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <h4 class="text-md font-semibold text-gray-900 mb-4">Airwallex Core Data</h4>
+                        <dl class="grid grid-cols-2 gap-4 text-sm">
+                            <div class="col-span-2">
+                                <dt class="text-gray-500 font-medium">Description</dt>
+                                <dd class="text-gray-900 mt-0.5 font-medium text-base">{{ selectedBankTxDetails.description || '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">ID</dt>
+                                <dd class="text-gray-900 mt-0.5 select-all">{{ selectedBankTxDetails.id }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Status</dt>
+                                <dd class="text-gray-900 mt-0.5">
+                                    <span :class="[selectedBankTxDetails.status === 'SETTLED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800', 'px-2 py-0.5 rounded-full text-xs font-semibold']">
+                                        {{ selectedBankTxDetails.status }}
+                                    </span>
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Amount</dt>
+                                <dd class="text-gray-900 mt-0.5 font-bold text-lg text-indigo-900">
+                                    {{ formatCurrency(selectedBankTxDetails.amount, selectedBankTxDetails.currency) }}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Net Outflow</dt>
+                                <dd class="text-gray-900 mt-0.5">{{ formatCurrency(selectedBankTxDetails.net, selectedBankTxDetails.currency) }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Fee</dt>
+                                <dd class="text-gray-900 mt-0.5 text-red-600 font-medium">{{ formatCurrency(selectedBankTxDetails.fee, selectedBankTxDetails.currency) }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Remaining Bal</dt>
+                                <dd class="text-gray-900 mt-0.5 font-semibold text-green-700">
+                                    {{ formatCurrency(selectedBankTxDetails.remaining_amount, selectedBankTxDetails.currency) }}
+                                </dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                    <div class="border-t pt-4">
+                        <h4 class="text-md font-semibold text-gray-900 mb-4">Metadata</h4>
+                        <dl class="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <dt class="text-gray-500 font-medium">Transaction Type</dt>
+                                <dd class="text-gray-900 mt-0.5">{{ selectedBankTxDetails.transaction_type }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Source Type</dt>
+                                <dd class="text-gray-900 mt-0.5">{{ selectedBankTxDetails.source_type }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Source ID</dt>
+                                <dd class="text-gray-900 mt-0.5 text-xs select-all">{{ selectedBankTxDetails.source_id || '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Created At</dt>
+                                <dd class="text-gray-900 mt-0.5">{{ formatDate(selectedBankTxDetails.created_at) }}</dd>
+                            </div>
+                            <div class="col-span-2">
+                                <dt class="text-gray-500 font-medium">Settled At</dt>
+                                <dd class="text-gray-900 mt-0.5">{{ formatDate(selectedBankTxDetails.settled_at) }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                    <div class="border-t pt-4">
+                        <h4 class="text-md font-semibold text-gray-900 mb-4">Linked Bills / Invoices</h4>
+                        <div v-if="selectedBankTxDetails.local_transactions && selectedBankTxDetails.local_transactions.length" class="space-y-3">
+                            <div v-for="tx in selectedBankTxDetails.local_transactions" :key="tx.id" class="p-3 bg-gray-50 border rounded-md text-sm">
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="font-medium text-gray-800">{{ tx.project?.name }}</span>
+                                    <span class="font-semibold text-indigo-700">{{ formatCurrency(tx.amount, tx.currency) }}</span>
+                                </div>
+                                <div class="text-xs text-gray-500 space-y-1">
+                                    <div v-if="tx.bill">Linked Bill: <span class="font-medium">#{{ tx.bill.id }}</span> ({{ tx.bill.description }})</div>
+                                    <div v-if="tx.invoice">Linked Invoice: <span class="font-medium">#{{ tx.invoice.id }}</span> ({{ tx.invoice.description }})</div>
+                                    <div>Linked On: {{ formatDate(tx.created_at) }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else class="text-center py-6 text-gray-400 bg-gray-50 border border-dashed rounded-md">
+                            No local records currently linked.
+                        </div>
                     </div>
                 </div>
             </template>
