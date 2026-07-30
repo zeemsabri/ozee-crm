@@ -33,6 +33,7 @@ const activeTab = ref('system'); // 'system' or 'bank'
 const bankTransactions = ref([]);
 const bankFilter = ref('unreconciled'); // 'unreconciled', 'reconciled', 'all'
 const bankTypeFilter = ref('expense'); // 'expense' or 'income'
+const bankStatusFilter = ref('all'); // 'all', 'SETTLED', 'PENDING'
 const selectedBankTx = ref(null);
 
 const selectedLinkedDoc = ref(null);
@@ -296,7 +297,7 @@ const fetchBankTransactions = async (page = 1) => {
     bankLoading.value = true;
     try {
         const { data } = await axios.get('/api/admin/bank-transactions', {
-            params: { per_page: 50, page, type: bankTypeFilter.value }
+            params: { per_page: 50, page, type: bankTypeFilter.value, status: bankStatusFilter.value }
         });
         bankTransactions.value = data.data || [];
         bankPagination.value = {
@@ -311,7 +312,7 @@ const fetchBankTransactions = async (page = 1) => {
     }
 };
 
-watch(bankTypeFilter, () => {
+watch([bankTypeFilter, bankStatusFilter], () => {
     fetchBankTransactions(1);
 });
 
@@ -1007,6 +1008,27 @@ const formatDate = (dateStr) => {
                                 :class="[bankTypeFilter === 'income' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200', 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors']"
                             >
                                 Incoming (Incomes)
+                            </button>
+                        </div>
+                        <div class="flex space-x-2 items-center border-l border-gray-200 pl-4 hidden md:flex">
+                            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Status:</span>
+                            <button 
+                                @click="bankStatusFilter = 'all'"
+                                :class="[bankStatusFilter === 'all' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200', 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors']"
+                            >
+                                All
+                            </button>
+                            <button 
+                                @click="bankStatusFilter = 'SETTLED'"
+                                :class="[bankStatusFilter === 'SETTLED' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200', 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors']"
+                            >
+                                Settled
+                            </button>
+                            <button 
+                                @click="bankStatusFilter = 'PENDING'"
+                                :class="[bankStatusFilter === 'PENDING' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200', 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors']"
+                            >
+                                Pending
                             </button>
                         </div>
                     </div>

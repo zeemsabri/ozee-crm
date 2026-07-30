@@ -590,6 +590,10 @@ class TransactionsController extends Controller // Assuming your controller is n
                 'from_created_at' => $request->query('from_created_at', now()->subMonths(3)->format('Y-m-d')),
             ];
 
+            if ($request->filled('status') && $request->status !== 'all') {
+                $params['status'] = $request->status;
+            }
+
             $conversionService = app(\App\Services\CurrencyConversionService::class);
             $data = $airwallexService->getTransactions($params);
             $items = $data['items'] ?? [];
