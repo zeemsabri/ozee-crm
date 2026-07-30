@@ -218,6 +218,75 @@
                     </div>
                 </section>
 
+                <section v-if="connection && connection.status === 'connected'" class="overflow-hidden rounded-lg bg-white shadow-sm sm:rounded-lg">
+                    <div class="border-b border-gray-200 px-6 py-5">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900">Airwallex Bank Mappings</h3>
+                                <p class="mt-1 text-sm text-gray-500">
+                                    Map your Airwallex currency wallets to specific Xero Bank Accounts.
+                                </p>
+                            </div>
+                            <PrimaryButton
+                                :disabled="airwallexMappingForm.processing"
+                                @click="saveAirwallexMappings"
+                            >
+                                {{ airwallexMappingForm.processing ? 'Saving...' : 'Save Bank Mappings' }}
+                            </PrimaryButton>
+                        </div>
+                    </div>
+
+                    <div class="px-6 py-6">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 w-1/2">
+                                            Xero Bank Account
+                                        </th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 w-1/2">
+                                            Airwallex Currency
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200 bg-white">
+                                    <tr v-for="account in xeroBankAccounts" :key="account.xeroAccountId">
+                                        <td class="px-4 py-4 text-sm text-gray-900">
+                                            <div class="font-medium">
+                                                {{ account.name }}
+                                                <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                                                    {{ account.currencyCode }}
+                                                </span>
+                                            </div>
+                                            <div class="mt-1 text-xs text-gray-500">
+                                                {{ account.bankAccountNumber }}
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-4 text-sm text-gray-500">
+                                            <div class="flex flex-col gap-1">
+                                                <SelectDropdown
+                                                    v-model="bankMappings[account.xeroAccountId]"
+                                                    :options="airwallexCurrencyOptions"
+                                                    placeholder="Select Airwallex Currency"
+                                                    class="w-full max-w-xs"
+                                                />
+                                                <span v-if="bankMappings[account.xeroAccountId] && account.currencyCode !== bankMappings[account.xeroAccountId]" class="text-xs text-amber-600 font-medium">
+                                                    Warning: Currency mismatch. Expected {{ bankMappings[account.xeroAccountId] }}.
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="xeroBankAccounts.length === 0">
+                                        <td colspan="2" class="px-4 py-8 text-center text-sm text-gray-500">
+                                            No bank accounts found in Xero.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
                 <section v-if="connection" class="overflow-hidden rounded-lg bg-white shadow-sm sm:rounded-lg">
                     <div class="border-b border-gray-200 px-6 py-5">
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -572,6 +641,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    airwallex_bank_mappings: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const transaction_types = ref(Array.isArray(props.transaction_types) ? props.transaction_types.filter(Boolean) : []);
@@ -600,6 +673,76 @@ const tenantForm = useForm({
 });
 
 const disconnectForm = useForm({});
+
+const xeroBankAccounts = ref([]);
+const bankMappings = ref({});
+
+const airwallexCurrencies = ['AUD', 'USD', 'GBP', 'EUR', 'CAD', 'SGD', 'HKD', 'NZD', 'JPY'];
+const airwallexCurrencyOptions = computed(() => {
+    return [
+        { value: '', label: 'No Airwallex mapping' },
+        ...airwallexCurrencies.map(c => ({ value: c, label: c }))
+    ];
+});
+
+const airwallexMappingForm = useForm({
+    mappings: []
+});
+
+const saveAirwallexMappings = () => {
+    const mappingsToSave = [];
+
+    xeroBankAccounts.value.forEach(acc => {
+        const currency = bankMappings.value[acc.xeroAccountId];
+        if (currency) {
+            mappingsToSave.push({
+                airwallex_currency: currency,
+                xero_account_id: acc.xeroAccountId,
+                xero_account_name: acc.name,
+                xero_currency_code: acc.currencyCode,
+            });
+        }
+    });
+
+    airwallexMappingForm.transform(() => ({ mappings: mappingsToSave }))
+        .post(route('admin.xero.save-bank-mappings'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                notifySuccess('Airwallex bank mappings saved successfully.');
+            },
+            onError: (errors) => {
+                const firstKey = Object.keys(errors)[0];
+                if (firstKey && errors[firstKey]) {
+                    notifyError(errors[firstKey]);
+                } else {
+                    notifyError('Failed to save Airwallex bank mappings.');
+                }
+            },
+        });
+};
+
+onMounted(() => {
+    if (props.connection && props.connection.status === 'connected') {
+        axios.get(route('admin.xero.bank-accounts'))
+            .then(res => {
+                xeroBankAccounts.value = res.data.accounts || [];
+                
+                // Initialize mappings from props
+                const existingMappings = props.airwallex_bank_mappings || [];
+                xeroBankAccounts.value.forEach(acc => {
+                    const found = existingMappings.find(m => m.xero_account_id === acc.xeroAccountId);
+                    if (found) {
+                        bankMappings.value[acc.xeroAccountId] = found.airwallex_currency;
+                    } else {
+                        bankMappings.value[acc.xeroAccountId] = '';
+                    }
+                });
+            })
+            .catch(err => {
+                console.error('Failed to fetch bank accounts:', err);
+            });
+    }
+});
 
 const tenants = computed(() => props.connection?.tenants ?? []);
 const scopes = computed(() => (props.connection?.scope ? props.connection.scope.split(' ').filter(Boolean) : []));

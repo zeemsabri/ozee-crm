@@ -17,6 +17,7 @@ class Transaction extends Model
         'description',
         'amount',
         'currency',
+        'exchange_rate',
         'user_id',
         'client_id',
         'hours_spent',
@@ -33,6 +34,7 @@ class Transaction extends Model
     protected $casts = [
         'amount' => 'decimal:2',
         'currency' => 'string',
+        'exchange_rate' => 'decimal:6',
         'hours_spent' => 'decimal:2',
         'type' => 'string',
     ];

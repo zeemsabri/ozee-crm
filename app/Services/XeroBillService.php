@@ -198,4 +198,116 @@ class XeroBillService
             'amount_due' => (float) data_get($invoice, 'AmountDue'),
         ];
     }
+
+    /**
+     * Construct the JSON payload for Xero POST /Payments.
+     */
+    public function buildPaymentPayload(array $billData, array $transactionData, string $xeroAccountId): array
+    {
+        $payload = [
+            'Invoice' => [
+                'InvoiceID' => $billData['xero_invoice_id'],
+            ],
+            'Account' => [
+                'AccountID' => $xeroAccountId,
+            ],
+            'Date' => $transactionData['payment_date'] ?? $transactionData['settled_at'],
+            'Amount' => abs((float) ($billData['payment_amount'] ?? $billData['amount'])),
+            'Reference' => $transactionData['id'] ?? $transactionData['source_id'] ?? 'Payment',
+        ];
+
+        // Exchange Rate Logic: Condition B (Cross-Currency)
+        if ($billData['currency'] !== $transactionData['funding_currency']) {
+            $clientRate = (float) ($transactionData['client_rate'] ?? 0);
+            if ($clientRate > 0) {
+                // Rate = 1 / client_rate rounded to 6 decimal places
+                $payload['CurrencyRate'] = round(1.0 / $clientRate, 6);
+            } else {
+                $fundingAmount = abs((float)($transactionData['funding_amount'] ?? $transactionData['amount'] ?? 0));
+                $targetAmount = abs((float)($transactionData['target_amount'] ?? $billData['amount'] ?? 0));
+                if ($fundingAmount > 0 && $targetAmount > 0) {
+                    $payload['CurrencyRate'] = round($fundingAmount / $targetAmount, 6);
+                }
+            }
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Send a payment to Xero to mark a Bill as paid.
+     */
+    public function syncPaymentToXero(Bill $bill, Transaction $transaction, array $airwallexData): array
+    {
+        \Log::info("syncPaymentToXero started for bill {$bill->id} and transaction {$transaction->id}");
+        $credentials = $this->xeroTokenService->getRuntimeCredentials();
+
+
+        // Get Xero Bank Account ID corresponding to the funding currency
+        $fundingCurrency = $airwallexData['funding_currency'] ?? $airwallexData['currency'] ?? $transaction->currency;
+        $mapping = \App\Models\AirwallexXeroBankMapping::where('xero_connection_id', $credentials['tenant_id']) // wait, or connection id?
+            ->where('airwallex_currency', $fundingCurrency)
+            ->first();
+
+        // If connection ID is foreign key in DB, we should fetch it via connection relationship
+        $connection = \App\Models\XeroConnection::where('selected_tenant_id', $credentials['tenant_id'])->first();
+        if ($connection) {
+            $mapping = \App\Models\AirwallexXeroBankMapping::where('xero_connection_id', $connection->id)
+                ->where('airwallex_currency', $fundingCurrency)
+                ->first();
+        }
+
+        if (!$mapping) {
+            throw new RuntimeException("No Xero bank mapping found for funding currency: {$fundingCurrency}");
+        }
+
+        // Inject the local description so it can be used as the payment reference
+        $airwallexData['local_description'] = $transaction->description;
+
+        $statusInfo = $this->getInvoiceStatus($bill->xero_invoice_id);
+        $amountDue = $statusInfo['amount_due'] ?? 0;
+
+        $paymentAmount = min(abs((float) $bill->amount), abs((float) $transaction->amount), $amountDue);
+
+        if ($paymentAmount <= 0) {
+            \Log::info("Payment amount is <= 0 or invoice already paid in Xero. Skipping payment.");
+            return [];
+        }
+
+        $billData = [
+            'xero_invoice_id' => $bill->xero_invoice_id,
+            'currency' => $bill->currency,
+            'amount' => $bill->amount,
+            'payment_amount' => $paymentAmount,
+        ];
+
+        $paymentDateStr = is_string($transaction->payment_date) 
+            ? date('Y-m-d', strtotime($transaction->payment_date)) 
+            : ($transaction->payment_date ? $transaction->payment_date->format('Y-m-d') : now()->format('Y-m-d'));
+
+        $transactionData = array_merge([
+            'payment_date' => $paymentDateStr,
+            'funding_currency' => $fundingCurrency,
+        ], $airwallexData);
+
+        $payload = $this->buildPaymentPayload($billData, $transactionData, $mapping->xero_account_id);
+
+        \Log::info("Sending payment to Xero. URL: https://api.xero.com/api.xro/2.0/Payments, Payload: ", $payload);
+
+        try {
+            $response = Http::withToken($credentials['access_token'])
+                ->withHeaders([
+                    'Xero-tenant-id' => $credentials['tenant_id'],
+                    'Accept' => 'application/json',
+                ])
+                ->post('https://api.xero.com/api.xro/2.0/Payments', $payload)
+                ->throw()
+                ->json();
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            \Log::error("Xero Payment API Error Response: " . $e->response->body());
+            throw $e;
+        }
+
+        return $response;
+    }
 }

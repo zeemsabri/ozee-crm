@@ -10,8 +10,8 @@ use Exception;
 class AirwallexService
 {
     protected string $baseUrl;
-    protected string $clientId;
-    protected string $apiKey;
+    protected ?string $clientId;
+    protected ?string $apiKey;
     protected string $tokenCacheKey = 'airwallex_bearer_token';
 
     public function __construct()
@@ -30,6 +30,10 @@ class AirwallexService
      */
     public function authenticate(): string
     {
+        if (empty($this->clientId) || empty($this->apiKey)) {
+            throw new Exception('Airwallex Client ID or API Key is not configured in config/services.php.');
+        }
+
         if (Cache::has($this->tokenCacheKey)) {
             return Cache::get($this->tokenCacheKey);
         }

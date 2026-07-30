@@ -22,6 +22,8 @@ class Bill extends Model
             ->dontSubmitEmptyLogs();
     }
 
+    protected $appends = ['paid_amount', 'remaining_amount'];
+
     protected $fillable = [
         'contractor_id',
         'project_id',
@@ -127,5 +129,37 @@ class Bill extends Model
         }
 
         $this->save();
+    }
+
+    /**
+     * Get the total amount paid towards this bill.
+     */
+    public function getPaidAmountAttribute(): float
+    {
+        $totalPaid = 0;
+        $billCurrency = $this->currency ?? 'AUD';
+        $conversionService = app(\App\Services\CurrencyConversionService::class);
+
+        foreach ($this->transactions()->where('is_paid', true)->get() as $tx) {
+            $txCurrency = $tx->currency ?? 'AUD';
+            try {
+                $totalPaid += $conversionService->convert(
+                    (float) $tx->amount,
+                    $txCurrency,
+                    $billCurrency
+                );
+            } catch (\Exception $e) {
+                $totalPaid += (float) $tx->amount;
+            }
+        }
+        return $totalPaid;
+    }
+
+    /**
+     * Get the remaining unpaid amount for this bill.
+     */
+    public function getRemainingAmountAttribute(): float
+    {
+        return max(0, (float) $this->amount - $this->paid_amount);
     }
 }

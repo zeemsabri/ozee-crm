@@ -118,11 +118,16 @@ class XeroConnectionController extends Controller
             })
             ->values();
 
+        $airwallexBankMappings = $connection 
+            ? \App\Models\AirwallexXeroBankMapping::where('xero_connection_id', $connection->id)->get()
+            : collect([]);
+
         return Inertia::render('Admin/Xero/Index', [
             'connection' => $connection,
             'transaction_types' => $transactionTypes,
             'crm_services' => $crmServices,
             'branding_themes' => $brandingThemes,
+            'airwallex_bank_mappings' => $airwallexBankMappings,
         ]);
     }
 
@@ -240,6 +245,79 @@ class XeroConnectionController extends Controller
         $this->xeroAuthService->disconnect();
 
         return back()->with('success', 'Xero connection disconnected successfully.');
+    }
+
+    public function bankAccounts(Request $request, \App\Services\XeroTokenService $xeroTokenService): JsonResponse
+    {
+        $this->ensureUserHasAccess($request);
+
+        try {
+            $credentials = $xeroTokenService->getRuntimeCredentials();
+
+            $response = \Illuminate\Support\Facades\Http::withToken($credentials['access_token'])
+                ->withHeaders([
+                    'Xero-tenant-id' => $credentials['tenant_id'],
+                    'Accept' => 'application/json',
+                ])
+                ->get('https://api.xero.com/api.xro/2.0/Accounts', [
+                    'where' => 'Type=="BANK"'
+                ]);
+
+            if (! $response->successful()) {
+                throw new \RuntimeException('Xero API Error: ' . $response->status());
+            }
+
+            $accounts = collect($response->json('Accounts'))->map(function ($account) {
+                return [
+                    'xeroAccountId' => $account['AccountID'],
+                    'name' => $account['Name'],
+                    'currencyCode' => $account['CurrencyCode'],
+                    'bankAccountNumber' => $account['BankAccountNumber'] ?? 'No Account Number',
+                ];
+            });
+
+            return response()->json(['accounts' => $accounts]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to fetch Xero bank accounts: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch Xero bank accounts', 'accounts' => []], 500);
+        }
+    }
+
+    public function saveBankMappings(Request $request): RedirectResponse
+    {
+        $this->ensureUserHasAccess($request);
+
+        $validated = $request->validate([
+            'mappings' => 'array',
+            'mappings.*.airwallex_currency' => 'required|string|size:3',
+            'mappings.*.xero_account_id' => 'required|uuid',
+            'mappings.*.xero_account_name' => 'required|string|max:255',
+            'mappings.*.xero_currency_code' => 'required|string|size:3',
+        ]);
+
+        $connection = XeroConnection::query()
+            ->where('provider', XeroConnection::PROVIDER)
+            ->firstOrFail();
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($connection, $validated) {
+            \App\Models\AirwallexXeroBankMapping::where('xero_connection_id', $connection->id)->delete();
+            
+            if (empty($validated['mappings'])) {
+                return;
+            }
+
+            $insertData = collect($validated['mappings'])->map(function ($mapping) use ($connection) {
+                return array_merge($mapping, [
+                    'xero_connection_id' => $connection->id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            })->toArray();
+
+            \App\Models\AirwallexXeroBankMapping::insert($insertData);
+        });
+
+        return back()->with('success', 'Airwallex bank mappings saved successfully.');
     }
 
     private function ensureSuperAdmin(Request $request): void

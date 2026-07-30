@@ -13,6 +13,27 @@ use App\Services\AirwallexService;
 
 class TransactionsController extends Controller // Assuming your controller is named TransactionController
 {
+    public function outstandingDocs(Request $request)
+    {
+        $user = auth()->user();
+        if (!$user->isSuperAdmin() && !$user->hasPermission('view_project_transactions')) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $bills = \App\Models\Bill::whereIn('status', [\App\Enums\BillStatus::Approved, \App\Enums\BillStatus::PartialPaid])
+            ->with(['project:id,name', 'contractor:id,name'])
+            ->get();
+
+        $invoices = \App\Models\Invoice::whereIn('status', ['authorised', 'sent', 'partial_paid'])
+            ->with(['project:id,name', 'client:id,name'])
+            ->get();
+
+        return response()->json([
+            'bills' => $bills,
+            'invoices' => $invoices,
+        ]);
+    }
+
     /**
      * Add a single transaction (income or expense) to a project.
      *
@@ -38,11 +59,69 @@ class TransactionsController extends Controller // Assuming your controller is n
             'bill_id' => 'nullable|exists:bills,id',
             'invoice_id' => 'nullable|exists:invoices,id',
             'bank_transaction_id' => 'nullable|string|max:255',
+            'conversion_rate' => 'nullable|numeric|min:0.000001',
         ];
 
         // Validate the incoming request data against the defined rules
         // If validation fails, Laravel automatically sends a 422 Unprocessable Entity response.
         $validated = $request->validate($validationRules);
+
+        // --- VALIDATION: BILL REMAINING AMOUNT ---
+        if (!empty($validated['bill_id'])) {
+            $bill = \App\Models\Bill::find($validated['bill_id']);
+            if ($bill) {
+                $remainingAmount = $this->getBillRemainingAmount($bill);
+                $conversionService = app(\App\Services\CurrencyConversionService::class);
+                try {
+                    $convertedNewAmount = $conversionService->convert(
+                        (float) $validated['amount'],
+                        $validated['currency'],
+                        $bill->currency ?? 'AUD'
+                    );
+                } catch (\Exception $e) {
+                    $convertedNewAmount = (float) $validated['amount'];
+                }
+
+                if (round($convertedNewAmount, 2) > round($remainingAmount, 2)) {
+                    return response()->json([
+                        'message' => 'The given data was invalid.',
+                        'errors' => ['amount' => ['The transaction amount exceeds the remaining unpaid amount of the bill.']]
+                    ], 422);
+                }
+            }
+        }
+
+        // --- VALIDATION: BANK TRANSACTION REMAINING AMOUNT ---
+        if (!empty($validated['bank_transaction_id'])) {
+            $airwallexService = app(\App\Services\AirwallexService::class);
+            try {
+                $bankData = $this->getBankTransactionData($validated['bank_transaction_id'], $airwallexService);
+
+                $conversionService = app(\App\Services\CurrencyConversionService::class);
+                try {
+                    if (!empty($validated['conversion_rate']) && $validated['conversion_rate'] > 0) {
+                        $convertedNewAmount = (float) $validated['amount'] / (float) $validated['conversion_rate'];
+                    } else {
+                        $convertedNewAmount = $conversionService->convert(
+                            (float) $validated['amount'],
+                            $validated['currency'],
+                            $bankData['currency'] ?? 'AUD'
+                        );
+                    }
+                } catch (\Exception $e) {
+                    $convertedNewAmount = (float) $validated['amount'];
+                }
+
+                if (round($convertedNewAmount, 2) > round($bankData['remaining_amount'], 2)) {
+                    return response()->json([
+                        'message' => 'The given data was invalid.',
+                        'errors' => ['amount' => ['The transaction amount exceeds the remaining unlinked amount of the bank transaction.']]
+                    ], 422);
+                }
+            } catch (\Exception $e) {
+                \Log::warning("Could not validate bank transaction amount: " . $e->getMessage());
+            }
+        }
 
         // Create a single transaction record in the database
         // The create method on the relationship automatically sets the project_id.
@@ -58,17 +137,27 @@ class TransactionsController extends Controller // Assuming your controller is n
             'bill_id' => $validated['bill_id'] ?? null,
             'invoice_id' => $validated['invoice_id'] ?? null,
             'bank_transaction_id' => $validated['bank_transaction_id'] ?? null,
+            'exchange_rate' => $validated['conversion_rate'] ?? null,
             'is_paid' => !empty($validated['bill_id']) || !empty($validated['invoice_id']),
             'payment_date' => (!empty($validated['bill_id']) || !empty($validated['invoice_id'])) ? now() : null,
         ]);
 
         if ($transaction->bill_id) {
+            try {
+                $airwallexService = app(\App\Services\AirwallexService::class);
+                $xeroBillService = app(\App\Services\XeroBillService::class);
+                $this->syncLinkedBillPayment($transaction, $airwallexService, $xeroBillService);
+            } catch (\Exception $e) {
+                \Log::error("Failed to sync Xero payment after adding transaction: " . $e->getMessage());
+            }
             $transaction->bill->recalculateStatus();
         }
 
         if ($transaction->invoice_id) {
             $transaction->invoice->recalculateStatus();
         }
+
+        $transaction->load(['bill.contractor', 'bill.project', 'bill.transactions', 'invoice.client', 'invoice.project', 'invoice.transactions', 'project']);
 
         // Return the newly created transaction as a JSON response with a 201 Created status
         return response()->json($transaction, 201);
@@ -176,8 +265,12 @@ class TransactionsController extends Controller // Assuming your controller is n
             'user',
             'client',
             'transactionType',
-            'bill',
-            'invoice',
+            'bill.contractor',
+            'bill.project',
+            'bill.transactions',
+            'invoice.client',
+            'invoice.project',
+            'invoice.transactions',
             'files'
         ]);
 
@@ -229,13 +322,123 @@ class TransactionsController extends Controller // Assuming your controller is n
         return response()->json($query->paginate(20));
     }
 
-    public function linkBill(Request $request, Transaction $transaction)
+    /**
+     * Helper to sync a linked bill payment to Xero.
+     */
+    private function syncLinkedBillPayment(Transaction $transaction, AirwallexService $airwallexService, \App\Services\XeroBillService $xeroBillService): ?string
     {
+//        \Log::info("syncLinkedBillPayment started for transaction {$transaction->id}");
+        $bill = $transaction->bill;
+        if (!$bill || !$bill->xero_invoice_id) {
+            \Log::info("syncLinkedBillPayment early return: No bill or xero_invoice_id for transaction {$transaction->id}");
+            return null;
+        }
+
+        $airwallexData = [];
+        if ($transaction->bank_transaction_id) {
+            try {
+                $airwallexData = $airwallexService->getTransaction($transaction->bank_transaction_id);
+
+                // If it is a PAYOUT, search for related conversions to consolidate
+                if (($airwallexData['transaction_type'] ?? '') === 'PAYOUT') {
+                    $payoutTime = strtotime($airwallexData['created_at']);
+                    $nearTxs = $airwallexService->getTransactions([
+                        'from_created_at' => date('Y-m-d', $payoutTime - 86400),
+                        'page_size' => 50
+                    ]);
+                    $nearItems = $nearTxs['items'] ?? [];
+
+                    $buy = null;
+                    $sell = null;
+                    foreach ($nearItems as $item) {
+                        if (($item['transaction_type'] ?? '') === 'CONVERSION_BUY') {
+                            $buyCurrency = $item['currency'] ?? '';
+                            $buyAmount = abs((float)($item['amount'] ?? 0));
+                            $payoutCurrency = $airwallexData['currency'] ?? '';
+                            $payoutAmount = abs((float)($airwallexData['amount'] ?? 0));
+                            $buyTime = strtotime($item['created_at']);
+
+                            if ($buyCurrency === $payoutCurrency &&
+                                abs($buyAmount - $payoutAmount) < 0.01 &&
+                                abs($payoutTime - $buyTime) <= 60) {
+                                $buy = $item;
+                                break;
+                            }
+                        }
+                    }
+
+                    if ($buy) {
+                        foreach ($nearItems as $item) {
+                            if (($item['transaction_type'] ?? '') === 'CONVERSION_SELL' && ($item['source_id'] ?? '') === ($buy['source_id'] ?? '')) {
+                                $sell = $item;
+                                break;
+                            }
+                        }
+                    }
+
+                    if ($buy && $sell) {
+                        $airwallexData['is_consolidated'] = true;
+                        $airwallexData['funding_amount'] = abs((float)($sell['amount'] ?? 0));
+                        $airwallexData['funding_currency'] = $sell['currency'] ?? '';
+                        $airwallexData['client_rate'] = $buy['client_rate'] ?? $buy['details']['client_rate'] ?? $sell['client_rate'] ?? $sell['details']['client_rate'] ?? null;
+                        $airwallexData['currency_pair'] = $buy['currency_pair'] ?? $buy['details']['currency_pair'] ?? $sell['currency_pair'] ?? $sell['details']['currency_pair'] ?? '';
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning("Failed to fetch Airwallex consolidation details: " . $e->getMessage());
+            }
+        }
+
+        try {
+//            \Log::info("syncLinkedBillPayment calling xeroBillService->syncPaymentToXero for transaction {$transaction->id}");
+            $response = $xeroBillService->syncPaymentToXero($bill, $transaction, $airwallexData);
+            $xeroPaymentId = data_get($response, 'Payments.0.PaymentID');
+            if ($xeroPaymentId) {
+                $transaction->update([
+                    'xero_payment_id' => $xeroPaymentId,
+                ]);
+                return $xeroPaymentId;
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed to sync payment to Xero during linking: " . $e->getMessage());
+        }
+
+        return null;
+    }
+
+    public function linkBill(Request $request, Transaction $transaction, \App\Services\AirwallexService $airwallexService, \App\Services\XeroBillService $xeroBillService)
+    {
+        \Log::info("linkBill method hit for transaction ID: {$transaction->id}");
+
         $validated = $request->validate([
             'bill_id' => 'required|exists:bills,id',
         ]);
 
         $bill = \App\Models\Bill::findOrFail($validated['bill_id']);
+
+        // --- VALIDATION: BILL REMAINING AMOUNT ---
+        $remainingAmount = $this->getBillRemainingAmount($bill);
+        $conversionService = app(\App\Services\CurrencyConversionService::class);
+        try {
+            if ($transaction->exchange_rate && $transaction->exchange_rate > 0) {
+                $convertedTxAmount = (float) $transaction->amount / (float) $transaction->exchange_rate;
+            } else {
+                $convertedTxAmount = $conversionService->convert(
+                    (float) $transaction->amount,
+                    $transaction->currency,
+                    $bill->currency ?? 'AUD'
+                );
+            }
+        } catch (\Exception $e) {
+            $convertedTxAmount = (float) $transaction->amount;
+        }
+
+        if (round($convertedTxAmount, 2) > round($remainingAmount, 2)) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => ['bill_id' => ['The transaction amount exceeds the remaining unpaid amount of the selected bill.']]
+            ], 422);
+        }
 
         $transaction->update([
             'bill_id' => $bill->id,
@@ -243,11 +446,15 @@ class TransactionsController extends Controller // Assuming your controller is n
             'payment_date' => $transaction->payment_date ?: now(),
         ]);
 
+        $xeroPaymentId = $this->syncLinkedBillPayment($transaction, $airwallexService, $xeroBillService);
+        $xeroSyncMessage = $xeroPaymentId ? 'Payment registered in Xero successfully.' : 'Payment registration failed or skipped.';
+
         $bill->recalculateStatus();
 
         return response()->json([
             'message' => 'Transaction linked to bill successfully.',
-            'transaction' => $transaction->load('bill')
+            'xero_sync' => $xeroSyncMessage,
+            'transaction' => $transaction->load(['bill.contractor', 'bill.project', 'bill.transactions'])
         ]);
     }
 
@@ -287,7 +494,7 @@ class TransactionsController extends Controller // Assuming your controller is n
 
         return response()->json([
             'message' => 'Transaction linked to invoice successfully.',
-            'transaction' => $transaction->load('invoice')
+            'transaction' => $transaction->load(['invoice.client', 'invoice.project', 'invoice.transactions'])
         ]);
     }
 
@@ -381,11 +588,65 @@ class TransactionsController extends Controller // Assuming your controller is n
                 'page_size' => $request->query('per_page', 50),
                 'from_created_at' => $request->query('from_created_at', now()->subMonths(3)->format('Y-m-d')),
             ];
-            
+
             $conversionService = app(\App\Services\CurrencyConversionService::class);
             $data = $airwallexService->getTransactions($params);
             $items = $data['items'] ?? [];
-            
+
+            // 1. Group CONVERSION_BUY and CONVERSION_SELL transactions by source_id
+            $conversionPairs = [];
+            foreach ($items as $item) {
+                $txType = $item['transaction_type'] ?? '';
+                if (($txType === 'CONVERSION_BUY' || $txType === 'CONVERSION_SELL') && !empty($item['source_id'])) {
+                    $conversionPairs[$item['source_id']][$txType] = $item;
+                }
+            }
+
+            // 2. Match PAYOUTs with conversion pairs and consolidate
+            $matchedIdsToRemove = [];
+            foreach ($items as &$item) {
+                $txType = $item['transaction_type'] ?? '';
+                if ($txType === 'PAYOUT') {
+                    foreach ($conversionPairs as $sourceId => $pair) {
+                        $buy = $pair['CONVERSION_BUY'] ?? null;
+                        $sell = $pair['CONVERSION_SELL'] ?? null;
+                        if ($buy && $sell) {
+                            $buyCurrency = $buy['currency'] ?? '';
+                            $buyAmount = abs((float)($buy['amount'] ?? 0));
+                            $payoutCurrency = $item['currency'] ?? '';
+                            $payoutAmount = abs((float)($item['amount'] ?? 0));
+
+                            $payoutTime = strtotime($item['created_at']);
+                            $buyTime = strtotime($buy['created_at']);
+                            $timeDiff = abs($payoutTime - $buyTime);
+
+                            if ($buyCurrency === $payoutCurrency &&
+                                abs($buyAmount - $payoutAmount) < 0.01 &&
+                                $timeDiff <= 60) {
+
+                                $item['is_consolidated'] = true;
+                                $item['funding_amount'] = abs((float)($sell['amount'] ?? 0));
+                                $item['funding_currency'] = $sell['currency'] ?? '';
+                                $item['client_rate'] = $buy['client_rate'] ?? $buy['details']['client_rate'] ?? $sell['client_rate'] ?? $sell['details']['client_rate'] ?? null;
+                                $item['currency_pair'] = $buy['currency_pair'] ?? $buy['details']['currency_pair'] ?? $sell['currency_pair'] ?? $sell['details']['currency_pair'] ?? '';
+
+                                $matchedIdsToRemove[] = $buy['id'];
+                                $matchedIdsToRemove[] = $sell['id'];
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            unset($item);
+
+            // 3. Remove raw conversions that were consolidated
+            if (!empty($matchedIdsToRemove)) {
+                $items = array_filter($items, function($item) use ($matchedIdsToRemove) {
+                    return !in_array($item['id'] ?? '', $matchedIdsToRemove);
+                });
+            }
+
             // Filter by type (default to expense / outgoing)
             $type = $request->query('type', 'expense');
             if ($type === 'expense') {
@@ -393,40 +654,44 @@ class TransactionsController extends Controller // Assuming your controller is n
             } elseif ($type === 'income') {
                 $items = array_filter($items, fn($item) => ($item['amount'] ?? 0) > 0);
             }
-            
+
             $items = array_values($items);
 
             if (!empty($items)) {
                 $bankTxIds = collect($items)->pluck('id')->filter()->toArray();
                 $localTransactions = \App\Models\Transaction::whereIn('bank_transaction_id', $bankTxIds)
-                    ->with(['bill', 'invoice', 'project'])
+                ->with(['bill.contractor', 'bill.project', 'bill.transactions', 'invoice.client', 'invoice.project', 'invoice.transactions', 'project'])
                     ->get()
                     ->groupBy('bank_transaction_id');
-                
+
                 foreach ($items as &$item) {
                     $txs = $localTransactions->get($item['id'], collect());
                     $bankCurrency = $item['currency'] ?? 'AUD';
                     $bankAmount = abs((float)($item['amount'] ?? 0));
-                    
+
                     $totalLinkedBankCurrency = 0;
                     foreach ($txs as $tx) {
                         try {
-                            $totalLinkedBankCurrency += $conversionService->convert(
-                                (float)$tx->amount,
-                                $tx->currency ?? 'AUD',
-                                $bankCurrency
-                            );
+                            if ($tx->exchange_rate && $tx->exchange_rate > 0) {
+                                $totalLinkedBankCurrency += (float)$tx->amount / (float)$tx->exchange_rate;
+                            } else {
+                                $totalLinkedBankCurrency += $conversionService->convert(
+                                    (float)$tx->amount,
+                                    $tx->currency ?? 'AUD',
+                                    $bankCurrency
+                                );
+                            }
                         } catch (\Exception $e) {
                             $totalLinkedBankCurrency += (float)$tx->amount;
                         }
                     }
-                    
+
                     $item['remaining_amount'] = max(0, $bankAmount - $totalLinkedBankCurrency);
                     $item['is_linked'] = $item['remaining_amount'] <= 0.01 && $txs->isNotEmpty();
                     $item['local_transactions'] = $txs;
                 }
             }
-            
+
             return response()->json([
                 'data' => $items,
                 'meta' => [
@@ -445,33 +710,7 @@ class TransactionsController extends Controller // Assuming your controller is n
     public function showBankTransaction(string $id, AirwallexService $airwallexService)
     {
         try {
-            $data = $airwallexService->getTransaction($id);
-            
-            $conversionService = app(\App\Services\CurrencyConversionService::class);
-            $txs = \App\Models\Transaction::where('bank_transaction_id', $id)
-                ->with(['bill', 'invoice', 'project'])
-                ->get();
-                
-            $bankCurrency = $data['currency'] ?? 'AUD';
-            $bankAmount = abs((float)($data['amount'] ?? 0));
-            
-            $totalLinkedBankCurrency = 0;
-            foreach ($txs as $tx) {
-                try {
-                    $totalLinkedBankCurrency += $conversionService->convert(
-                        (float)$tx->amount,
-                        $tx->currency ?? 'AUD',
-                        $bankCurrency
-                    );
-                } catch (\Exception $e) {
-                    $totalLinkedBankCurrency += (float)$tx->amount;
-                }
-            }
-            
-            $data['remaining_amount'] = max(0, $bankAmount - $totalLinkedBankCurrency);
-            $data['is_linked'] = $data['remaining_amount'] <= 0.01 && $txs->isNotEmpty();
-            $data['local_transactions'] = $txs;
-            
+            $data = $this->getBankTransactionData($id, $airwallexService);
             return response()->json($data);
         } catch (\Exception $e) {
             Log::error('Error fetching bank transaction details', ['id' => $id, 'error' => $e->getMessage()]);
@@ -480,5 +719,118 @@ class TransactionsController extends Controller // Assuming your controller is n
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Helper to get fully populated bank transaction data including remaining linked amount.
+     */
+    private function getBankTransactionData(string $id, AirwallexService $airwallexService): array
+    {
+        $data = $airwallexService->getTransaction($id);
+
+            // If it is a PAYOUT, search for related conversions to consolidate
+            if (($data['transaction_type'] ?? '') === 'PAYOUT') {
+                try {
+                    $payoutTime = strtotime($data['created_at']);
+                    $nearTxs = $airwallexService->getTransactions([
+                        'from_created_at' => date('Y-m-d', $payoutTime - 86400), // Check within previous day
+                        'page_size' => 50
+                    ]);
+                    $nearItems = $nearTxs['items'] ?? [];
+
+                    $buy = null;
+                    $sell = null;
+                    foreach ($nearItems as $item) {
+                        $txType = $item['transaction_type'] ?? '';
+                        if ($txType === 'CONVERSION_BUY') {
+                            $buyCurrency = $item['currency'] ?? '';
+                            $buyAmount = abs((float)($item['amount'] ?? 0));
+                            $payoutCurrency = $data['currency'] ?? '';
+                            $payoutAmount = abs((float)($data['amount'] ?? 0));
+                            $buyTime = strtotime($item['created_at']);
+
+                            if ($buyCurrency === $payoutCurrency &&
+                                abs($buyAmount - $payoutAmount) < 0.01 &&
+                                abs($payoutTime - $buyTime) <= 60) {
+                                $buy = $item;
+                                break;
+                            }
+                        }
+                    }
+
+                    if ($buy) {
+                        foreach ($nearItems as $item) {
+                            if (($item['transaction_type'] ?? '') === 'CONVERSION_SELL' && ($item['source_id'] ?? '') === ($buy['source_id'] ?? '')) {
+                                $sell = $item;
+                                break;
+                            }
+                        }
+                    }
+
+                    if ($buy && $sell) {
+                        $data['is_consolidated'] = true;
+                        $data['funding_amount'] = abs((float)($sell['amount'] ?? 0));
+                        $data['funding_currency'] = $sell['currency'] ?? '';
+                        $data['client_rate'] = $buy['client_rate'] ?? $buy['details']['client_rate'] ?? $sell['client_rate'] ?? $sell['details']['client_rate'] ?? null;
+                        $data['currency_pair'] = $buy['currency_pair'] ?? $buy['details']['currency_pair'] ?? $sell['currency_pair'] ?? $sell['details']['currency_pair'] ?? '';
+                    }
+                } catch (\Exception $ex) {
+                    // Fail silently, just fall back to raw transaction details
+                    Log::warning('Failed to fetch conversion details for payout consolidation', ['id' => $id, 'error' => $ex->getMessage()]);
+                }
+            }
+
+            $conversionService = app(\App\Services\CurrencyConversionService::class);
+            $txs = \App\Models\Transaction::where('bank_transaction_id', $id)
+                ->with(['bill.contractor', 'bill.project', 'bill.transactions', 'invoice.client', 'invoice.project', 'invoice.transactions', 'project'])
+                ->get();
+
+            $bankCurrency = $data['currency'] ?? 'AUD';
+            $bankAmount = abs((float)($data['amount'] ?? 0));
+
+            $totalLinkedBankCurrency = 0;
+            foreach ($txs as $tx) {
+                try {
+                    if ($tx->exchange_rate && $tx->exchange_rate > 0) {
+                        $totalLinkedBankCurrency += (float)$tx->amount / (float)$tx->exchange_rate;
+                    } else {
+                        $totalLinkedBankCurrency += $conversionService->convert(
+                            (float)$tx->amount,
+                            $tx->currency ?? 'AUD',
+                            $bankCurrency
+                        );
+                    }
+                } catch (\Exception $e) {
+                    $totalLinkedBankCurrency += (float)$tx->amount;
+                }
+            }
+
+            $data['remaining_amount'] = max(0, $bankAmount - $totalLinkedBankCurrency);
+            $data['is_linked'] = $data['remaining_amount'] <= 0.01 && $txs->isNotEmpty();
+            $data['local_transactions'] = $txs;
+
+            return $data;
+    }
+
+    private function getBillRemainingAmount(\App\Models\Bill $bill): float
+    {
+        $totalPaid = 0;
+        $billCurrency = $bill->currency ?? 'AUD';
+        $conversionService = app(\App\Services\CurrencyConversionService::class);
+
+        foreach ($bill->transactions()->where('is_paid', true)->get() as $tx) {
+            $txCurrency = $tx->currency ?? 'AUD';
+            try {
+                $totalPaid += $conversionService->convert(
+                    (float) $tx->amount,
+                    $txCurrency,
+                    $billCurrency
+                );
+            } catch (\Exception $e) {
+                $totalPaid += (float) $tx->amount;
+            }
+        }
+
+        return max(0, (float) $bill->amount - $totalPaid);
     }
 }

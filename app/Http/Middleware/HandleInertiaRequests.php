@@ -74,6 +74,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'chrome_extension_link' => config('services.chrome_extension'),
             'telegramBotName' => env('TELEGRAM_BOT_NAME', 'ozee_web_bot'),
+            'default_currency' => env('DEFAULT_CURRENCY', 'AUD'),
         ];
     }
 }
