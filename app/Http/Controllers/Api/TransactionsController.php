@@ -585,6 +585,7 @@ class TransactionsController extends Controller // Assuming your controller is n
     {
         try {
             $params = [
+                'page_num' => max(0, (int)$request->query('page', 1) - 1),
                 'page_size' => $request->query('per_page', 50),
                 'from_created_at' => $request->query('from_created_at', now()->subMonths(3)->format('Y-m-d')),
             ];

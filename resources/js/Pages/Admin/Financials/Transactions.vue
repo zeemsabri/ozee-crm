@@ -650,6 +650,7 @@ const submitLinkDoc = async () => {
         success('Transaction linked successfully');
         showLinkDocModal.value = false;
         fetchTransactions(pagination.value.current_page);
+        fetchBankTransactions(bankPagination.value?.current_page || 1);
     } catch (err) {
         error(err.response?.data?.message || 'Failed to link transaction');
     } finally {
@@ -668,6 +669,7 @@ const handleUnlink = async (tx) => {
         await axios.post(endpoint);
         success('Transaction unlinked successfully');
         fetchTransactions(pagination.value.current_page);
+        fetchBankTransactions(bankPagination.value?.current_page || 1);
     } catch (err) {
         error(err.response?.data?.message || 'Failed to unlink transaction');
     }
@@ -679,6 +681,7 @@ const handleDelete = async (tx) => {
         await axios.delete(`/api/transactions/${tx.id}`);
         success('Transaction soft deleted');
         fetchTransactions(pagination.value.current_page);
+        fetchBankTransactions(bankPagination.value?.current_page || 1);
     } catch (err) {
         error(err.response?.data?.message || 'Failed to delete transaction');
     }
@@ -689,6 +692,7 @@ const handleRestore = async (tx) => {
         await axios.post(`/api/transactions/${tx.id}/restore`);
         success('Transaction restored successfully');
         fetchTransactions(pagination.value.current_page);
+        fetchBankTransactions(bankPagination.value?.current_page || 1);
     } catch (err) {
         error(err.response?.data?.message || 'Failed to restore transaction');
     }
