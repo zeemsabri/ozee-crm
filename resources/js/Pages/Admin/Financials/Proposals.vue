@@ -418,7 +418,7 @@ const paymentTermsSummary = (terms) => {
                                                     </template>
                                                     <template #content>
                                                         <button
-                                                            v-if="proposal.status === 'Pending Approval' || proposal.status === 'Shortlisted'"
+                                                            v-if="proposal.status === 'Pending Approval' || proposal.status === 'Shortlisted' || proposal.status === 'Rejected'"
                                                             @click="approveProposal(proposal)"
                                                             class="block w-full px-4 py-2 text-start text-sm leading-5 text-green-700 hover:bg-green-50 font-semibold"
                                                         >
@@ -432,7 +432,7 @@ const paymentTermsSummary = (terms) => {
                                                             Reject
                                                         </button>
                                                         <button
-                                                            v-if="proposal.status === 'Pending Approval'"
+                                                            v-if="proposal.status === 'Pending Approval' || proposal.status === 'Rejected'"
                                                             @click="shortlistProposal(proposal, true)"
                                                             class="block w-full px-4 py-2 text-start text-sm leading-5 text-indigo-700 hover:bg-indigo-50 font-semibold"
                                                         >
@@ -445,7 +445,14 @@ const paymentTermsSummary = (terms) => {
                                                         >
                                                             Move to Pending
                                                         </button>
-                                                        <span v-if="proposal.status === 'Accepted' || proposal.status === 'Rejected'" class="block px-4 py-2 text-start text-xs text-gray-400 font-semibold italic">
+                                                        <button
+                                                            v-if="proposal.status === 'Rejected'"
+                                                            @click="shortlistProposal(proposal, false)"
+                                                            class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 hover:bg-gray-50 font-semibold"
+                                                        >
+                                                            Move to Pending
+                                                        </button>
+                                                        <span v-if="proposal.status === 'Accepted'" class="block px-4 py-2 text-start text-xs text-gray-400 font-semibold italic">
                                                             No Actions Available
                                                         </span>
                                                     </template>
