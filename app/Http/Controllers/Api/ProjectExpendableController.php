@@ -160,6 +160,10 @@ class ProjectExpendableController extends Controller
             $updates['user_id'] = $validated['user_id'];
         }
 
+        if (!is_null($expendable->user_id)) {
+            $updates['status'] = \App\Enums\ProjectExpendableStatus::PendingApproval->value;
+        }
+
         // Guard: If editing a milestone budget (user_id is null and expendable_type is Milestone),
         // ensure the new budget is not less than the sum of already approved contracts for that milestone.
         $isMilestoneBudget = (is_null($expendable->user_id)) && (
@@ -392,5 +396,118 @@ class ProjectExpendableController extends Controller
         $expendable->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    private function applyBaseFilters($query, Request $request)
+    {
+        if ($request->filled('project_id')) {
+            $query->where('project_id', $request->project_id);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $numericSearch = preg_replace('/[^0-9]/', '', $search);
+            $query->where(function ($q) use ($search, $numericSearch) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('amount', 'like', "%{$search}%")
+                  ->orWhereHas('project', function ($pq) use ($search) {
+                      $pq->where('name', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('user', function ($uq) use ($search) {
+                      $uq->where('name', 'like', "%{$search}%")
+                         ->orWhere('email', 'like', "%{$search}%");
+                  });
+                if ($numericSearch !== '') {
+                    $q->orWhere('id', $numericSearch);
+                }
+            });
+        }
+
+        return $query;
+    }
+
+    public function stats(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user->isSuperAdmin() && !$user->hasPermission('view_project_expendables_proposals')) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $statusFilter = $request->input('status') ?? '';
+
+        $sliceQuery = function (string $sliceStatus) use ($request, $statusFilter) {
+            $q = ProjectExpendable::query()->whereNotNull('user_id');
+            $this->applyBaseFilters($q, $request);
+            $q->where('status', $sliceStatus);
+
+            if ($statusFilter !== '' && $statusFilter !== 'all' && $statusFilter !== $sliceStatus) {
+                return $q->whereRaw('0 = 1');
+            }
+
+            return $q;
+        };
+
+        $totalQuery = ProjectExpendable::query()->whereNotNull('user_id');
+        $this->applyBaseFilters($totalQuery, $request);
+        if ($statusFilter !== '' && $statusFilter !== 'all') {
+            $totalQuery->where('status', $statusFilter);
+        }
+
+        return response()->json([
+            'total' => [
+                'count'  => (clone $totalQuery)->count(),
+                'amount' => (clone $totalQuery)->sum('amount'),
+            ],
+            'pending' => [
+                'count'  => $sliceQuery(\App\Enums\ProjectExpendableStatus::PendingApproval->value)->count(),
+                'amount' => $sliceQuery(\App\Enums\ProjectExpendableStatus::PendingApproval->value)->sum('amount'),
+            ],
+            'shortlisted' => [
+                'count'  => $sliceQuery(\App\Enums\ProjectExpendableStatus::Shortlisted->value)->count(),
+                'amount' => $sliceQuery(\App\Enums\ProjectExpendableStatus::Shortlisted->value)->sum('amount'),
+            ],
+            'accepted' => [
+                'count'  => $sliceQuery(\App\Enums\ProjectExpendableStatus::Accepted->value)->count(),
+                'amount' => $sliceQuery(\App\Enums\ProjectExpendableStatus::Accepted->value)->sum('amount'),
+            ],
+            'rejected' => [
+                'count'  => $sliceQuery(\App\Enums\ProjectExpendableStatus::Rejected->value)->count(),
+                'amount' => $sliceQuery(\App\Enums\ProjectExpendableStatus::Rejected->value)->sum('amount'),
+            ],
+        ]);
+    }
+
+    public function all(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user->isSuperAdmin() && !$user->hasPermission('view_project_expendables_proposals')) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $query = ProjectExpendable::query()
+            ->whereNotNull('user_id')
+            ->with(['project', 'user:id,name,email,metadata,user_type', 'expendable', 'files', 'activities.causer']);
+
+        $this->applyBaseFilters($query, $request);
+
+        $statusFilter = $request->input('status') ?? '';
+
+        if ($statusFilter === 'all') {
+            // No status restriction
+        } elseif ($statusFilter !== '') {
+            $query->where('status', $statusFilter);
+        } else {
+            // Default: show everything for proposals page (or we can show all)
+        }
+
+        return response()->json($query->latest()->paginate(20));
     }
 }

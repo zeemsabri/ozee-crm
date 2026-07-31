@@ -71,4 +71,9 @@ class FinancialController extends Controller
     {
         return Inertia::render('Admin/Financials/XeroInvoiceSync');
     }
+
+    public function proposals(): Response
+    {
+        return Inertia::render('Admin/Financials/Proposals');
+    }
 }

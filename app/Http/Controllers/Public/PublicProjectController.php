@@ -377,6 +377,7 @@ class PublicProjectController extends Controller
             $originalUser = auth()->user();
             auth()->setUser($guestUser);
             
+            $attributes['status'] = \App\Enums\ProjectExpendableStatus::PendingApproval->value;
             $expendable->update($attributes);
             
             if ($originalUser) {

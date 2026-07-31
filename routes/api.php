@@ -171,6 +171,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('admin/bank-transactions/{id}', [\App\Http\Controllers\Api\TransactionsController::class, 'showBankTransaction'])->middleware('permission:view_project_transactions')->name('api.admin.bank-transactions.show');
     Route::get('admin/invoices/stats', [InvoiceController::class, 'stats'])->middleware('permission:view_project_invoices')->name('api.admin.invoices.stats');
     Route::get('admin/invoices', [InvoiceController::class, 'all'])->middleware('permission:view_project_invoices')->name('api.admin.invoices.all');
+    Route::get('admin/proposals/stats', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'stats'])->middleware('permission:view_project_expendables_proposals')->name('api.admin.proposals.stats');
+    Route::get('admin/proposals', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'all'])->middleware('permission:view_project_expendables_proposals')->name('api.admin.proposals.all');
+
     Route::get('xero/accounts', [XeroAccountController::class, 'index'])->name('api.xero.accounts');
     Route::post('xero/accounts', [XeroAccountController::class, 'storeAccount'])->name('api.xero.accounts.store');
     Route::get('xero/items', [XeroAccountController::class, 'items'])->name('api.xero.items');
