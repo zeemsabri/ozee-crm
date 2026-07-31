@@ -677,7 +677,7 @@ const disconnectForm = useForm({});
 const xeroBankAccounts = ref([]);
 const bankMappings = ref({});
 
-const airwallexCurrencies = ['AUD', 'USD', 'GBP', 'EUR', 'CAD', 'SGD', 'HKD', 'NZD', 'JPY'];
+const airwallexCurrencies = ['AUD', 'USD', 'GBP', 'EUR', 'CAD', 'SGD', 'HKD', 'NZD', 'JPY', 'PKR', 'INR', 'AED', 'CNY', 'PHP', 'MYR', 'IDR', 'THB', 'VND', 'ZAR'];
 const airwallexCurrencyOptions = computed(() => {
     return [
         { value: '', label: 'No Airwallex mapping' },
