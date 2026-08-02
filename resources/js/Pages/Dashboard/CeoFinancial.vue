@@ -1,5 +1,5 @@
 <template>
-    <AppLayout title="CEO Financial Dashboard">
+    <AuthenticatedLayout title="CEO Financial Dashboard">
         <template #header>
             <div class="flex justify-between items-center">
                 <h2 class="font-semibold text-xl text-gray-800 leading-tight">
@@ -109,13 +109,13 @@
         <div v-if="$page.props.flash.error" class="fixed bottom-4 right-4 bg-red-50 text-red-800 p-4 rounded-lg shadow-lg border border-red-200 z-50">
             {{ $page.props.flash.error }}
         </div>
-    </AppLayout>
+    </AuthenticatedLayout>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useForm, router } from '@inertiajs/vue3';
-import AppLayout from '@/Layouts/AppLayout.vue';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import LiveFxTicker from '@/Components/Financial/LiveFxTicker.vue';
 import ProjectHealthCard from '@/Components/Financial/ProjectHealthCard.vue';
 import CashManagementTimeline from '@/Components/Financial/CashManagementTimeline.vue';
