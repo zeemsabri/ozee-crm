@@ -83,8 +83,10 @@ class AuthenticatedSessionController extends Controller
         if ($request->wantsJson() || $request->isXmlHttpRequest()) {
             $rememberService = app(RememberDeviceService::class);
             $otpService = app(GenericOtpService::class);
+            
+            $otpEnabled = env('OTP_ENABLED', true);
 
-            if (!$rememberService->isDeviceRemembered($user, $request)) {
+            if ($otpEnabled && !$rememberService->isDeviceRemembered($user, $request)) {
                 // Log them out temporarily until OTP is verified
                 Auth::guard('web')->logout();
                 $request->session()->invalidate();
