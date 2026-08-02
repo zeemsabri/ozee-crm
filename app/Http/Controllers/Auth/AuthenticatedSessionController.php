@@ -84,7 +84,7 @@ class AuthenticatedSessionController extends Controller
             $rememberService = app(RememberDeviceService::class);
             $otpService = app(GenericOtpService::class);
             
-            $otpEnabled = env('OTP_ENABLED', true);
+            $otpEnabled = filter_var(config('services.otp_enabled'), FILTER_VALIDATE_BOOLEAN);
 
             if ($otpEnabled && !$rememberService->isDeviceRemembered($user, $request)) {
                 // Log them out temporarily until OTP is verified

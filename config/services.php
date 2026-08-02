@@ -72,6 +72,8 @@ return [
         'client_id' => env('AIR_WALLEX_CLIENT_ID'),
         'api_key' => env('AIR_WALLEX_KEY'),
         'base_url' => env('AIR_WALLED_END_POINT', 'https://api.airwallex.com'),
-    ]
+    ],
+
+    'otp_enabled' => env('OTP_ENABLED', true),
 
 ];
