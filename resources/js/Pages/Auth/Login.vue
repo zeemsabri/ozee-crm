@@ -5,7 +5,7 @@ import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, Link } from '@inertiajs/vue3'; // Keep Head and Link for Inertia components
+import { Head, Link, usePage } from '@inertiajs/vue3'; // Keep Head, Link, and usePage for Inertia components
 
 import { ref, reactive, onMounted } from 'vue'; // Import ref, reactive, onMounted for reactive state
 import axios from 'axios'; // Import axios for making HTTP requests
@@ -54,10 +54,10 @@ const submit = async () => {
     generalError.value = ''; // Clear previous general error
 
     try {
-        // Send a POST request to your Laravel API login endpoint
+        // Send a POST request to your Laravel login endpoint
         // Include the remember flag from the form
         // Axios will handle sending Content-Type: application/json
-        const response = await axios.post('/api/login', form);
+        const response = await axios.post('/login', form);
 
         // Extract token and user data from the successful API response
         const token = response.data.token;
@@ -89,6 +89,15 @@ const submit = async () => {
             if (error.response.status === 422) {
                 // Validation errors (e.g., email format, password strength)
                 errors.value = error.response.data.errors;
+            } else if (error.response.status === 419) {
+                // CSRF token mismatch / session expired
+                generalError.value = 'Your session has expired. A new security token has been loaded. Please try logging in again.';
+                // Fetch a fresh CSRF cookie automatically
+                try {
+                    await axios.get('/sanctum/csrf-cookie');
+                } catch (csrfError) {
+                    console.error('Failed to refresh CSRF token:', csrfError);
+                }
             } else if (error.response.data.message) {
                 // General error message from Laravel (e.g., "These credentials do not match our records.")
                 generalError.value = error.response.data.message;

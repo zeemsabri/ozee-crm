@@ -7,15 +7,9 @@ window.axios = axios;
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 window.axios.defaults.withCredentials = true; // IMPORTANT for Sanctum SPA authentication with cookies/sessions
 
-// Ensure that Laravel's CSRF token from the meta tag is picked up for POST/PUT/DELETE
-// This helps with XSRF-TOKEN header and CSRF token cookie exchange.
-let token = document.head.querySelector('meta[name="csrf-token"]');
-
-if (token) {
-    window.axios.defaults.headers.common['X-CSRF-TOKEN'] = token.content;
-} else {
-    console.error('CSRF token not found: https://laravel.com/docs/csrf#csrf-x-csrf-token');
-}
+// Axios will automatically send the X-XSRF-TOKEN header using the value of the XSRF-TOKEN cookie.
+// We do not need to manually set the X-CSRF-TOKEN header from the meta tag, as doing so uses a static token
+// that becomes stale when sessions/tokens are regenerated dynamically (e.g. on failed logins or bypass).
 
 // Initialize Laravel Echo with Reverb
 window.Pusher = Pusher;
