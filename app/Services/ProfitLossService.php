@@ -37,12 +37,6 @@ class ProfitLossService
                 }
             },
             'bills.transactions',
-            'expendable' => function ($query) use ($startDate, $endDate) {
-                if ($startDate && $endDate) {
-                    $query->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
-                }
-            },
-            'expendable.bills'
         ])->get();
 
         $projectHealthCards = [];
@@ -63,10 +57,15 @@ class ProfitLossService
                 $bills = $bills->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
             }
             
-            $expendables = $project->expendable;
+            $expendablesQuery = ProjectExpendable::with('bills')
+                ->where('project_id', $project->id)
+                ->whereNotNull('user_id');
+                
             if ($startDate && $endDate) {
-                $expendables = $expendables->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
+                $expendablesQuery->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
             }
+            
+            $expendables = $expendablesQuery->get();
 
             $baseCurrency = config('services.default_currency', 'AUD');
 
