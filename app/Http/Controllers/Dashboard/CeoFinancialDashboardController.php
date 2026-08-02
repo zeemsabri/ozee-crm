@@ -14,7 +14,7 @@ class CeoFinancialDashboardController extends Controller
     public function index(Request $request)
     {
         // Require permission
-        if (! $request->user()->hasPermissionTo('view-ceo-dashboard')) {
+        if (! $request->user()->hasPermission('view-ceo-dashboard')) {
             abort(403, 'Unauthorized action.');
         }
 

@@ -175,6 +175,7 @@ onMounted(() => {
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Reports</h4>
                             <div class="space-y-1">
                                 <DropdownLink v-permission="'manage_projects'" :href="route('admin.productivity.index')" :active="route().current('admin.productivity.index')" class="!px-2 !py-1.5">Productivity Report</DropdownLink>
+                                <DropdownLink v-permission="'view-ceo-dashboard'" :href="route('dashboard.ceo-financial')" :active="route().current('dashboard.ceo-financial')" class="!px-2 !py-1.5">Profit and Loss</DropdownLink>
                                 <DropdownLink v-permission="'manage_projects'" :href="route('admin.project-time-cost.index')" :active="route().current('admin.project-time-cost.index')" class="!px-2 !py-1.5">Project Time & Cost Report</DropdownLink>
                                 <DropdownLink v-permission="'manage_projects'" :href="route('admin.productivity-projects.index')" :active="route().current('admin.productivity-projects.index')" class="!px-2 !py-1.5">Project Activity Report</DropdownLink>
                                 <DropdownLink v-permission="'manage_projects'" :href="route('admin.activity-report.index')" :active="route().current('admin.activity-report.index')" class="!px-2 !py-1.5">Activity Report</DropdownLink>
@@ -212,7 +213,7 @@ onMounted(() => {
 
                         <!-- Permissions/Finance Category -->
                         <div>
-                            <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Finance & Access</h4>
+                            <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Finance</h4>
                             <div class="space-y-1">
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.financials.dashboard')" :active="route().current('admin.financials.dashboard')" class="!px-2 !py-1.5 font-bold text-indigo-600 italic">Financial Dashboard</DropdownLink>
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.financials.bills')" :active="route().current('admin.financials.bills')" class="!px-2 !py-1.5">Contractor Bills</DropdownLink>
@@ -220,7 +221,10 @@ onMounted(() => {
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.financials.invoices')" :active="route().current('admin.financials.invoices')" class="!px-2 !py-1.5">Sales Invoices</DropdownLink>
                                 <DropdownLink v-permission="'view_project_expendables_proposals'" :href="route('admin.financials.proposals')" :active="route().current('admin.financials.proposals')" class="!px-2 !py-1.5">Proposals</DropdownLink>
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.financials.project-services')" :active="route().current('admin.financials.project-services')" class="!px-2 !py-1.5">Project Services</DropdownLink>
-                                <hr class="my-1 border-gray-100" />
+                            </div>
+
+                            <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mt-6 mb-3">Access</h4>
+                            <div class="space-y-1">
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.roles.index')" class="!px-2 !py-1.5">Manage Roles</DropdownLink>
                                 <DropdownLink v-permission="'assign_permissions'" :href="route('admin.permissions.index')" class="!px-2 !py-1.5">Manage Permissions</DropdownLink>
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.email-apps.index')" :active="route().current('admin.email-apps.index')" class="!px-2 !py-1.5">Email Apps</DropdownLink>
