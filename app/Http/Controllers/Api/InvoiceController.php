@@ -69,6 +69,7 @@ class InvoiceController extends Controller
             'total_amount' => 'nullable|numeric|min:0',
             'line_amount_type' => 'nullable|string|in:' . implode(',', self::ALLOWED_LINE_AMOUNT_TYPES),
             'xero_branding_theme_id' => 'nullable|string',
+            'due_date' => 'nullable|date',
             'xero_payment_service_ids' => 'nullable|array',
             'xero_payment_service_ids.*' => 'nullable|string|max:255|distinct',
             'attachments' => 'nullable|array',
@@ -139,6 +140,7 @@ class InvoiceController extends Controller
                     : (float) ($validated['total_amount'] ?? 0),
                 'status' => 'pending_approval',
                 'currency' => $currency,
+                'due_date' => $validated['due_date'] ?? null,
                 'line_amount_type' => $lineAmountType,
                 'xero_branding_theme_id' => $validated['xero_branding_theme_id'] ?? null,
                 'xero_payment_service_ids' => collect($validated['xero_payment_service_ids'] ?? [])

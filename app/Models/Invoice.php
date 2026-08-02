@@ -15,6 +15,7 @@ class Invoice extends Model
         'project_id',
         'total_amount',
         'status',
+        'due_date',
         'xero_invoice_id',
         'invoice_number',
         'currency',
@@ -25,6 +26,7 @@ class Invoice extends Model
 
     protected $casts = [
         'total_amount' => 'decimal:2',
+        'due_date' => 'date',
         'xero_payment_service_ids' => 'array',
     ];
 

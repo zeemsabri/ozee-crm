@@ -62,7 +62,7 @@ class XeroInvoiceService
                 'ContactID' => $xeroContactId,
             ],
             'Date' => $invoice->created_at->format('Y-m-d'),
-            'DueDate' => $invoice->created_at->copy()->addDays(30)->format('Y-m-d'),
+            'DueDate' => $invoice->due_date ? $invoice->due_date->format('Y-m-d') : $invoice->created_at->format('Y-m-d'),
             'LineAmountTypes' => $this->normalizeLineAmountType($invoice->line_amount_type),
             'Status' => 'AUTHORISED',
             'LineItems' => $lineItems,

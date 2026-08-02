@@ -76,6 +76,7 @@ const form = useForm({
     total_amount: '',
     line_amount_type: 'Exclusive',
     xero_branding_theme_id: '',
+    due_date: new Date().toISOString().split('T')[0],
     attachments: [],
     line_items: [],
 });
@@ -501,6 +502,7 @@ const openCreateModal = () => {
     form.clearErrors();
     form.line_amount_type = 'Exclusive';
     form.xero_branding_theme_id = defaultBrandingThemeId.value;
+    form.due_date = new Date().toISOString().split('T')[0];
     form.attachments = [];
     projectServices.value = [];
     lineItems.value = [emptyLineItem()];
@@ -569,6 +571,9 @@ const submitInvoice = async () => {
         formData.append('client_id', Number(form.client_id));
         formData.append('total_amount', form.total_amount);
         formData.append('line_amount_type', form.line_amount_type);
+        if (form.due_date) {
+            formData.append('due_date', form.due_date);
+        }
         if (form.xero_branding_theme_id) {
             formData.append('xero_branding_theme_id', form.xero_branding_theme_id);
         }
@@ -1016,6 +1021,17 @@ const getStatusClass = (status) => {
                                 </option>
                             </select>
                             <InputError :message="form.errors.xero_branding_theme_id" />
+                        </div>
+
+                        <div>
+                            <InputLabel for="due_date" value="Due Date" />
+                            <TextInput
+                                id="due_date"
+                                type="date"
+                                class="mt-1 block w-full"
+                                v-model="form.due_date"
+                            />
+                            <InputError :message="form.errors.due_date" />
                         </div>
 
                         <div>
