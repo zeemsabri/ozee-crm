@@ -37,7 +37,7 @@ class CeoFinancialDashboardController extends Controller
         });
 
         // Also fetch active team members for the instruction modal assignee dropdown
-        $users = \App\Models\User::where('is_active', true)->get(['id', 'name']);
+        $users = \App\Models\User::get(['id', 'name']);
 
         return \Inertia\Inertia::render('Dashboard/CeoFinancial', [
             'dashboardData' => $dashboardData,

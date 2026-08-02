@@ -32,7 +32,7 @@ const formatRate = (rate) => {
 
 <style scoped>
 .animate-marquee {
-    animation: marquee 20s linear infinite;
+    animation: marquee 45s linear infinite;
 }
 
 @keyframes marquee {

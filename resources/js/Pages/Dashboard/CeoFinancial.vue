@@ -103,10 +103,10 @@
         />
         
         <!-- Flash Messages -->
-        <div v-if="$page.props.flash.success" class="fixed bottom-4 right-4 bg-green-50 text-green-800 p-4 rounded-lg shadow-lg border border-green-200 z-50">
+        <div v-if="$page.props.flash?.success" class="fixed bottom-4 right-4 bg-green-50 text-green-800 p-4 rounded-lg shadow-lg border border-green-200 z-50">
             {{ $page.props.flash.success }}
         </div>
-        <div v-if="$page.props.flash.error" class="fixed bottom-4 right-4 bg-red-50 text-red-800 p-4 rounded-lg shadow-lg border border-red-200 z-50">
+        <div v-if="$page.props.flash?.error" class="fixed bottom-4 right-4 bg-red-50 text-red-800 p-4 rounded-lg shadow-lg border border-red-200 z-50">
             {{ $page.props.flash.error }}
         </div>
     </AuthenticatedLayout>
