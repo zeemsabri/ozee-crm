@@ -49,14 +49,17 @@ class ProfitLossService
                 $expendables = $expendables->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
             }
 
-            $projectInvoicedAud = $this->calculateTotalInAud($invoices, 'total_amount', 'currency');
-            $projectBillsAud = $this->calculateTotalInAud($bills, 'amount', 'currency');
+            $baseCurrency = config('services.default_currency', 'AUD');
+
+            $projectInvoicedAud = $this->calculateTotalInBase($invoices, 'total_amount', 'currency', $baseCurrency);
+            $projectBillsAud = $this->calculateTotalInBase($bills, 'amount', 'currency', $baseCurrency);
             
             // For expendables not covered by bills
-            $projectExpendableAud = $this->calculateTotalInAud(
+            $projectExpendableAud = $this->calculateTotalInBase(
                 $expendables->filter(fn($e) => $e->bills->isEmpty() && $e->status->value === \App\Enums\ProjectExpendableStatus::Accepted->value), 
                 'amount', 
-                'currency'
+                'currency',
+                $baseCurrency
             );
 
             $projectTotalCostsAud = $projectBillsAud + $projectExpendableAud;
@@ -68,7 +71,7 @@ class ProfitLossService
                 if ($invoicePaidTx->isNotEmpty()) {
                     $paidAmount = 0.0;
                     foreach ($invoicePaidTx as $tx) {
-                        $amountAud = $this->convertSafe((float)$tx->amount, $tx->currency ?? 'AUD', 'AUD');
+                        $amountAud = $this->convertSafe((float)$tx->amount, $tx->currency ?? $baseCurrency, $baseCurrency);
                         $paidAmount += $amountAud;
                         $projectCashInAud += $amountAud;
                     }
@@ -89,7 +92,7 @@ class ProfitLossService
                 if ($billPaidTx->isNotEmpty()) {
                     $paidAmount = 0.0;
                     foreach ($billPaidTx as $tx) {
-                        $amountAud = $this->convertSafe((float)$tx->amount, $tx->currency ?? 'AUD', 'AUD');
+                        $amountAud = $this->convertSafe((float)$tx->amount, $tx->currency ?? $baseCurrency, $baseCurrency);
                         $paidAmount += $amountAud;
                         $projectCashOutAud += $amountAud;
                     }
@@ -131,6 +134,8 @@ class ProfitLossService
             }
         }
 
+        $baseCurrency = config('services.default_currency', 'AUD');
+        
         return [
             'overview' => [
                 'total_invoiced_revenue_aud' => round($totalInvoicedRevenueAud, 2),
@@ -139,6 +144,7 @@ class ProfitLossService
                 'total_cash_revenue_aud' => round($totalCashRevenueAud, 2),
                 'total_cash_expenses_aud' => round($totalCashExpensesAud, 2),
                 'net_cash_profit_aud' => round($totalCashRevenueAud - $totalCashExpensesAud, 2),
+                'base_currency' => $baseCurrency,
             ],
             'projects' => $projectHealthCards,
             'paid_activities' => collect($paidInvoicesAndBills)->sortByDesc('date')->values()->toArray(),
@@ -152,19 +158,21 @@ class ProfitLossService
      */
     public function getCashManagementTimeline(): array
     {
+        $baseCurrency = config('services.default_currency', 'AUD');
+
         $upcomingBills = Bill::with(['project', 'contractor'])
             ->whereIn('status', [\App\Enums\BillStatus::Approved, \App\Enums\BillStatus::PartialPaid])
             ->whereNotNull('due_date')
             ->orderBy('due_date', 'asc')
             ->get()
-            ->map(function ($bill) {
+            ->map(function ($bill) use ($baseCurrency) {
                 return [
                     'type' => 'bill',
                     'id' => $bill->id,
                     'project' => $bill->project->name ?? 'Unknown',
                     'amount' => $bill->amount,
                     'currency' => $bill->currency,
-                    'amount_aud' => round($this->convertSafe((float)$bill->amount, $bill->currency ?? 'AUD', 'AUD'), 2),
+                    'amount_aud' => round($this->convertSafe((float)$bill->amount, $bill->currency ?? $baseCurrency, $baseCurrency), 2),
                     'due_date' => $bill->due_date->format('Y-m-d'),
                     'status' => $bill->status->value,
                 ];
@@ -173,7 +181,7 @@ class ProfitLossService
         $expectedInvoices = Invoice::with(['project', 'client'])
             ->whereIn('status', ['authorised', 'sent', 'partial_paid']) // based on mapSalesInvoiceStatus
             ->get()
-            ->map(function ($invoice) {
+            ->map(function ($invoice) use ($baseCurrency) {
                 // Since user requested due_date is added to invoices, we check if it exists.
                 // If not, we fallback to created_at + 30 days or +5 days as mentioned in the note,
                 // "new invoice generated should be paid immidiately so we can safely consider it late after 5 days"
@@ -189,7 +197,7 @@ class ProfitLossService
                     'project' => $invoice->project->name ?? 'Unknown',
                     'amount' => $invoice->total_amount,
                     'currency' => $invoice->currency,
-                    'amount_aud' => round($this->convertSafe((float)$invoice->total_amount, $invoice->currency ?? 'AUD', 'AUD'), 2),
+                    'amount_aud' => round($this->convertSafe((float)$invoice->total_amount, $invoice->currency ?? $baseCurrency, $baseCurrency), 2),
                     'due_date' => $dueDate->format('Y-m-d'),
                     'days_since_generation' => $daysSinceGeneration,
                     'status' => $invoice->status,
@@ -204,13 +212,13 @@ class ProfitLossService
         ];
     }
 
-    private function calculateTotalInAud(Collection $items, string $amountField, string $currencyField): float
+    private function calculateTotalInBase(Collection $items, string $amountField, string $currencyField, string $baseCurrency): float
     {
         $total = 0.0;
         foreach ($items as $item) {
             $amount = (float) $item->{$amountField};
-            $currency = $item->{$currencyField} ?? 'AUD';
-            $total += $this->convertSafe($amount, $currency, 'AUD');
+            $currency = $item->{$currencyField} ?? $baseCurrency;
+            $total += $this->convertSafe($amount, $currency, $baseCurrency);
         }
         return $total;
     }

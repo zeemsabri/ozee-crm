@@ -74,6 +74,8 @@ return [
         'base_url' => env('AIR_WALLED_END_POINT', 'https://api.airwallex.com'),
     ],
 
+    'default_currency' => env('DEFAULT_CURRENCY', 'AUD'),
+
     'otp_enabled' => env('OTP_ENABLED', true),
 
 ];

@@ -37,7 +37,7 @@
                             </div>
                             <div class="text-right">
                                 <p class="text-sm font-bold" :class="item.type === 'invoice' ? 'text-emerald-700' : 'text-rose-700'">
-                                    {{ item.type === 'invoice' ? '+' : '-' }}A$ {{ formatCurrency(item.amount_aud) }}
+                                    {{ item.type === 'invoice' ? '+' : '-' }}{{ baseCurrency }} {{ formatCurrency(item.amount_aud) }}
                                 </p>
                                 <p class="text-xs text-gray-500 mt-0.5">({{ item.currency }} {{ formatCurrency(item.amount) }})</p>
                             </div>
@@ -69,6 +69,10 @@ const props = defineProps({
     data: {
         type: Object,
         required: true
+    },
+    baseCurrency: {
+        type: String,
+        default: 'AUD'
     }
 });
 

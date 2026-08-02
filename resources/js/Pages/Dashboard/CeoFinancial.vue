@@ -34,16 +34,16 @@
                     <div class="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-3 gap-6 border-b border-slate-700">
                         <div class="border-b md:border-b-0 md:border-r border-slate-700 pb-6 md:pb-0 pr-0 md:pr-6">
                             <p class="text-slate-400 text-sm font-medium mb-1 uppercase tracking-wider">Total Invoiced (Accrual)</p>
-                            <p class="text-3xl font-bold text-white">A$ {{ formatCurrency(dashboardData.overview.total_invoiced_revenue_aud) }}</p>
+                            <p class="text-3xl font-bold text-white">{{ dashboardData.overview.base_currency }} {{ formatCurrency(dashboardData.overview.total_invoiced_revenue_aud) }}</p>
                         </div>
                         <div class="border-b md:border-b-0 md:border-r border-slate-700 pb-6 md:pb-0 px-0 md:px-6">
                             <p class="text-slate-400 text-sm font-medium mb-1 uppercase tracking-wider">Total Bills Logged (Accrual)</p>
-                            <p class="text-3xl font-bold text-white">A$ {{ formatCurrency(dashboardData.overview.total_bills_logged_aud) }}</p>
+                            <p class="text-3xl font-bold text-white">{{ dashboardData.overview.base_currency }} {{ formatCurrency(dashboardData.overview.total_bills_logged_aud) }}</p>
                         </div>
                         <div class="pl-0 md:pl-6">
                             <p class="text-slate-400 text-sm font-medium mb-1 uppercase tracking-wider">Net Profit (Accrual)</p>
                             <p class="text-3xl font-bold" :class="dashboardData.overview.net_accrual_profit_aud >= 0 ? 'text-emerald-400' : 'text-rose-400'">
-                                A$ {{ formatCurrency(dashboardData.overview.net_accrual_profit_aud) }}
+                                {{ dashboardData.overview.base_currency }} {{ formatCurrency(dashboardData.overview.net_accrual_profit_aud) }}
                             </p>
                         </div>
                     </div>
@@ -51,16 +51,16 @@
                     <div class="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-900/50">
                         <div class="border-b md:border-b-0 md:border-r border-slate-700 pb-6 md:pb-0 pr-0 md:pr-6">
                             <p class="text-slate-400 text-sm font-medium mb-1 uppercase tracking-wider">Total Received (Cash In)</p>
-                            <p class="text-3xl font-bold text-white">A$ {{ formatCurrency(dashboardData.overview.total_cash_revenue_aud) }}</p>
+                            <p class="text-3xl font-bold text-white">{{ dashboardData.overview.base_currency }} {{ formatCurrency(dashboardData.overview.total_cash_revenue_aud) }}</p>
                         </div>
                         <div class="border-b md:border-b-0 md:border-r border-slate-700 pb-6 md:pb-0 px-0 md:px-6">
                             <p class="text-slate-400 text-sm font-medium mb-1 uppercase tracking-wider">Total Paid (Cash Out)</p>
-                            <p class="text-3xl font-bold text-white">A$ {{ formatCurrency(dashboardData.overview.total_cash_expenses_aud) }}</p>
+                            <p class="text-3xl font-bold text-white">{{ dashboardData.overview.base_currency }} {{ formatCurrency(dashboardData.overview.total_cash_expenses_aud) }}</p>
                         </div>
                         <div class="pl-0 md:pl-6">
                             <p class="text-slate-400 text-sm font-medium mb-1 uppercase tracking-wider">Net Cash Movement</p>
                             <p class="text-3xl font-bold" :class="dashboardData.overview.net_cash_profit_aud >= 0 ? 'text-emerald-400' : 'text-rose-400'">
-                                A$ {{ formatCurrency(dashboardData.overview.net_cash_profit_aud) }}
+                                {{ dashboardData.overview.base_currency }} {{ formatCurrency(dashboardData.overview.net_cash_profit_aud) }}
                             </p>
                         </div>
                     </div>
@@ -109,13 +109,14 @@
                             v-for="projectData in dashboardData.projects" 
                             :key="projectData.project.id" 
                             :data="projectData" 
+                            :base-currency="dashboardData.overview.base_currency"
                         />
                     </div>
                 </div>
 
                 <!-- Cash Flow Tab -->
                 <div v-show="activeTab === 'cashflow'">
-                    <CashManagementTimeline :data="timelineData" @addInstruction="openInstructionModal" />
+                    <CashManagementTimeline :data="timelineData" :base-currency="dashboardData.overview.base_currency" @addInstruction="openInstructionModal" />
                 </div>
 
                 <!-- Activities List Tab -->
@@ -131,7 +132,7 @@
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
-                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Paid (AUD)</th>
+                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Paid ({{ dashboardData.overview.base_currency }})</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
@@ -147,7 +148,7 @@
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ activity.reference }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-right"
                                         :class="activity.type === 'invoice' ? 'text-emerald-600' : 'text-rose-600'">
-                                        {{ activity.type === 'invoice' ? '+' : '-' }} A$ {{ formatCurrency(activity.amount_aud) }}
+                                        {{ activity.type === 'invoice' ? '+' : '-' }} {{ dashboardData.overview.base_currency }} {{ formatCurrency(activity.amount_aud) }}
                                     </td>
                                 </tr>
                             </tbody>

@@ -19,7 +19,7 @@
                 <p class="text-sm text-gray-500 font-medium mb-1">Accrual Net Profit</p>
                 <div class="flex items-end justify-between">
                     <p class="text-2xl font-bold" :class="data.net_profit_aud >= 0 ? 'text-emerald-600' : 'text-rose-600'">
-                        A$ {{ formatCurrency(data.net_profit_aud) }}
+                        {{ baseCurrency }} {{ formatCurrency(data.net_profit_aud) }}
                     </p>
                     <div class="flex flex-col items-end">
                         <span class="text-xs font-semibold px-2 py-1 rounded" :class="data.margin_percent >= 20 ? 'bg-emerald-100 text-emerald-800' : (data.margin_percent > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')">
@@ -32,11 +32,11 @@
             <!-- Invoiced vs Costs (Accrual) -->
             <div>
                 <p class="text-xs text-gray-500 mb-1">Total Invoiced (Accrual)</p>
-                <p class="text-lg font-semibold text-gray-900">A$ {{ formatCurrency(data.invoiced_aud) }}</p>
+                <p class="text-lg font-semibold text-gray-900">{{ baseCurrency }} {{ formatCurrency(data.invoiced_aud) }}</p>
             </div>
             <div>
                 <p class="text-xs text-gray-500 mb-1">Total Costs (Accrual)</p>
-                <p class="text-lg font-semibold text-gray-900">A$ {{ formatCurrency(data.costs_aud) }}</p>
+                <p class="text-lg font-semibold text-gray-900">{{ baseCurrency }} {{ formatCurrency(data.costs_aud) }}</p>
             </div>
             
             <div class="col-span-2 border-t border-gray-100 my-1"></div>
@@ -44,11 +44,11 @@
             <!-- Cash In vs Cash Out -->
             <div>
                 <p class="text-xs text-gray-400 mb-1">Cash Received</p>
-                <p class="text-sm font-medium text-gray-700">A$ {{ formatCurrency(data.cash_in_aud) }}</p>
+                <p class="text-sm font-medium text-gray-700">{{ baseCurrency }} {{ formatCurrency(data.cash_in_aud) }}</p>
             </div>
             <div>
                 <p class="text-xs text-gray-400 mb-1">Cash Paid Out</p>
-                <p class="text-sm font-medium text-gray-700">A$ {{ formatCurrency(data.cash_out_aud) }}</p>
+                <p class="text-sm font-medium text-gray-700">{{ baseCurrency }} {{ formatCurrency(data.cash_out_aud) }}</p>
             </div>
         </div>
     </div>
@@ -59,6 +59,10 @@ const props = defineProps({
     data: {
         type: Object,
         required: true
+    },
+    baseCurrency: {
+        type: String,
+        default: 'AUD'
     }
 });
 
