@@ -31,6 +31,7 @@ class ProfitLossService
         $totalBillsLoggedAud = 0.0;
         $totalCashRevenueAud = 0.0;
         $totalCashExpensesAud = 0.0;
+        $paidInvoicesAndBills = [];
 
         foreach ($projects as $project) {
             $invoices = $project->invoices;
@@ -63,15 +64,43 @@ class ProfitLossService
             // Cash basis
             $projectCashInAud = 0.0;
             foreach ($invoices as $invoice) {
-                foreach ($invoice->transactions->where('is_paid', true) as $tx) {
-                    $projectCashInAud += $this->convertSafe((float)$tx->amount, $tx->currency ?? 'AUD', 'AUD');
+                $invoicePaidTx = $invoice->transactions->where('is_paid', true);
+                if ($invoicePaidTx->isNotEmpty()) {
+                    $paidAmount = 0.0;
+                    foreach ($invoicePaidTx as $tx) {
+                        $amountAud = $this->convertSafe((float)$tx->amount, $tx->currency ?? 'AUD', 'AUD');
+                        $paidAmount += $amountAud;
+                        $projectCashInAud += $amountAud;
+                    }
+                    $paidInvoicesAndBills[] = [
+                        'type' => 'invoice',
+                        'id' => $invoice->id,
+                        'reference' => $invoice->invoice_number,
+                        'project_name' => $project->name,
+                        'amount_aud' => round($paidAmount, 2),
+                        'date' => $invoice->created_at->format('Y-m-d'),
+                    ];
                 }
             }
             
             $projectCashOutAud = 0.0;
             foreach ($bills as $bill) {
-                foreach ($bill->transactions->where('is_paid', true) as $tx) {
-                    $projectCashOutAud += $this->convertSafe((float)$tx->amount, $tx->currency ?? 'AUD', 'AUD');
+                $billPaidTx = $bill->transactions->where('is_paid', true);
+                if ($billPaidTx->isNotEmpty()) {
+                    $paidAmount = 0.0;
+                    foreach ($billPaidTx as $tx) {
+                        $amountAud = $this->convertSafe((float)$tx->amount, $tx->currency ?? 'AUD', 'AUD');
+                        $paidAmount += $amountAud;
+                        $projectCashOutAud += $amountAud;
+                    }
+                    $paidInvoicesAndBills[] = [
+                        'type' => 'bill',
+                        'id' => $bill->id,
+                        'reference' => 'Bill #' . $bill->id,
+                        'project_name' => $project->name,
+                        'amount_aud' => round($paidAmount, 2),
+                        'date' => $bill->created_at->format('Y-m-d'),
+                    ];
                 }
             }
 
@@ -112,6 +141,7 @@ class ProfitLossService
                 'net_cash_profit_aud' => round($totalCashRevenueAud - $totalCashExpensesAud, 2),
             ],
             'projects' => $projectHealthCards,
+            'paid_activities' => collect($paidInvoicesAndBills)->sortByDesc('date')->values()->toArray(),
         ];
     }
 
