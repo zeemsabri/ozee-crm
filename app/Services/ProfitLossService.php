@@ -59,6 +59,7 @@ class ProfitLossService
             
             $expendablesQuery = ProjectExpendable::with('bills')
                 ->where('project_id', $project->id)
+                ->where('expendable_type', 'App\Models\Milestone')
                 ->whereNotNull('user_id');
                 
             if ($startDate && $endDate) {
