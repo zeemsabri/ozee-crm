@@ -24,7 +24,7 @@ class ProfitLossService
      */
     public function getDashboardData(?Carbon $startDate = null, ?Carbon $endDate = null): array
     {
-        $projects = Project::with(['invoices.transactions', 'bills.transactions', 'expendables'])->get();
+        $projects = Project::with(['invoices.transactions', 'bills.transactions', 'expendable'])->get();
 
         $projectHealthCards = [];
         $totalInvoicedRevenueAud = 0.0;
@@ -43,7 +43,7 @@ class ProfitLossService
                 $bills = $bills->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
             }
             
-            $expendables = $project->expendables;
+            $expendables = $project->expendable;
             if ($startDate && $endDate) {
                 $expendables = $expendables->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
             }

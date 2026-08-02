@@ -431,7 +431,17 @@ onMounted(async () => {
                         </div>
 
                         <div>
-                            <div class="px-1 pb-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Access & Finance</div>
+                            <div class="px-1 pb-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Finance</div>
+                            <div class="space-y-1 mb-4">
+                                <ResponsiveNavLink v-permission="'manage_roles'" :href="route('admin.financials.dashboard')" :active="route().current('admin.financials.dashboard')" @click="closeMobileMenu" class="font-bold text-indigo-600 italic">Financial Dashboard</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_roles'" :href="route('admin.financials.bills')" :active="route().current('admin.financials.bills')" @click="closeMobileMenu">Contractor Bills</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'view_project_transactions'" :href="route('admin.financials.transactions')" :active="route().current('admin.financials.transactions')" @click="closeMobileMenu">Project Transactions</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_roles'" :href="route('admin.financials.invoices')" :active="route().current('admin.financials.invoices')" @click="closeMobileMenu">Sales Invoices</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'view_project_expendables_proposals'" :href="route('admin.financials.proposals')" :active="route().current('admin.financials.proposals')" @click="closeMobileMenu">Proposals</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_roles'" :href="route('admin.financials.project-services')" :active="route().current('admin.financials.project-services')" @click="closeMobileMenu">Project Services</ResponsiveNavLink>
+                            </div>
+
+                            <div class="px-1 pb-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Access</div>
                             <div class="space-y-1">
                                 <ResponsiveNavLink v-permission="'manage_roles'" :href="route('admin.roles.index')" @click="closeMobileMenu">Manage Roles</ResponsiveNavLink>
                                 <ResponsiveNavLink v-permission="'assign_permissions'" :href="route('admin.permissions.index')" @click="closeMobileMenu">Manage Permissions</ResponsiveNavLink>

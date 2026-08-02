@@ -149,6 +149,16 @@ class Project extends Model
         return $this->hasMany(Transaction::class);
     }
 
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    public function bills()
+    {
+        return $this->hasMany(Bill::class);
+    }
+
     public function projectServices()
     {
         return $this->hasMany(ProjectService::class);
