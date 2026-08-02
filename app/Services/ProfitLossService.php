@@ -24,7 +24,26 @@ class ProfitLossService
      */
     public function getDashboardData(?Carbon $startDate = null, ?Carbon $endDate = null): array
     {
-        $projects = Project::with(['invoices.transactions', 'bills.transactions', 'expendable'])->get();
+        $projects = Project::with([
+            'invoices' => function ($query) use ($startDate, $endDate) {
+                if ($startDate && $endDate) {
+                    $query->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
+                }
+            },
+            'invoices.transactions',
+            'bills' => function ($query) use ($startDate, $endDate) {
+                if ($startDate && $endDate) {
+                    $query->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
+                }
+            },
+            'bills.transactions',
+            'expendable' => function ($query) use ($startDate, $endDate) {
+                if ($startDate && $endDate) {
+                    $query->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
+                }
+            },
+            'expendable.bills'
+        ])->get();
 
         $projectHealthCards = [];
         $totalInvoicedRevenueAud = 0.0;
@@ -71,7 +90,7 @@ class ProfitLossService
                 if ($invoicePaidTx->isNotEmpty()) {
                     $paidAmount = 0.0;
                     foreach ($invoicePaidTx as $tx) {
-                        $amountAud = $this->convertSafe((float)$tx->amount, $tx->currency ?? $baseCurrency, $baseCurrency);
+                        $amountAud = $this->convertToAud((float)$tx->amount, $tx->currency ?? $baseCurrency, $tx);
                         $paidAmount += $amountAud;
                         $projectCashInAud += $amountAud;
                     }
@@ -92,7 +111,7 @@ class ProfitLossService
                 if ($billPaidTx->isNotEmpty()) {
                     $paidAmount = 0.0;
                     foreach ($billPaidTx as $tx) {
-                        $amountAud = $this->convertSafe((float)$tx->amount, $tx->currency ?? $baseCurrency, $baseCurrency);
+                        $amountAud = $this->convertToAud((float)$tx->amount, $tx->currency ?? $baseCurrency, $tx);
                         $paidAmount += $amountAud;
                         $projectCashOutAud += $amountAud;
                     }
@@ -172,7 +191,7 @@ class ProfitLossService
                     'project' => $bill->project->name ?? 'Unknown',
                     'amount' => $bill->amount,
                     'currency' => $bill->currency,
-                    'amount_aud' => round($this->convertSafe((float)$bill->amount, $bill->currency ?? $baseCurrency, $baseCurrency), 2),
+                    'amount_aud' => round($this->convertToAud((float)$bill->amount, $bill->currency ?? $baseCurrency, $bill), 2),
                     'due_date' => $bill->due_date->format('Y-m-d'),
                     'status' => $bill->status->value,
                 ];
@@ -197,7 +216,7 @@ class ProfitLossService
                     'project' => $invoice->project->name ?? 'Unknown',
                     'amount' => $invoice->total_amount,
                     'currency' => $invoice->currency,
-                    'amount_aud' => round($this->convertSafe((float)$invoice->total_amount, $invoice->currency ?? $baseCurrency, $baseCurrency), 2),
+                    'amount_aud' => round($this->convertToAud((float)$invoice->total_amount, $invoice->currency ?? $baseCurrency, $invoice), 2),
                     'due_date' => $dueDate->format('Y-m-d'),
                     'days_since_generation' => $daysSinceGeneration,
                     'status' => $invoice->status,
@@ -218,9 +237,43 @@ class ProfitLossService
         foreach ($items as $item) {
             $amount = (float) $item->{$amountField};
             $currency = $item->{$currencyField} ?? $baseCurrency;
-            $total += $this->convertSafe($amount, $currency, $baseCurrency);
+            $total += $this->convertToAud($amount, $currency, $item);
         }
         return $total;
+    }
+
+    /**
+     * Convert an amount to AUD using historical rate if available, or fallback.
+     */
+    private function convertToAud(float $amount, string $currency, $record = null): float
+    {
+        $currency = strtoupper($currency);
+        if ($currency === 'AUD') {
+            return $amount;
+        }
+
+        // a) The historical rate locked on the record's transaction date.
+        if ($record instanceof \App\Models\Transaction) {
+            if ($record->exchange_rate && $record->exchange_rate > 0) {
+                $targetCurrency = 'AUD';
+                if ($record->bill) {
+                    $targetCurrency = $record->bill->currency ?? 'AUD';
+                } elseif ($record->invoice) {
+                    $targetCurrency = $record->invoice->currency ?? 'AUD';
+                }
+
+                $targetAmount = $amount / (float) $record->exchange_rate;
+
+                if (strtoupper($targetCurrency) === 'AUD') {
+                    return $targetAmount;
+                }
+
+                return $this->convertSafe($targetAmount, $targetCurrency, 'AUD');
+            }
+        }
+
+        // b) Fallback: $amount * (1 / rate_to_usd_for_item_currency) * rate_to_usd_for_aud
+        return $this->convertSafe($amount, $currency, 'AUD');
     }
 
     private function convertSafe(float $amount, string $fromCurrency, string $toCurrency): float
