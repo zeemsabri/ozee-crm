@@ -171,11 +171,30 @@ const clearSearch = () => {
 </script>
 
 <template>
+    <!-- Floating expand button for mobile when collapsed -->
+    <button
+        v-if="isCollapsed"
+        @click="toggleCollapse"
+        class="fixed left-0 top-1/2 -translate-y-1/2 z-50 bg-gray-800 text-white p-2 rounded-r-md border-y border-r border-gray-700 hover:bg-gray-700 shadow-lg lg:hidden transition-all duration-200"
+        title="Expand Projects Sidebar"
+    >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+    </button>
+
+    <!-- Mobile Backdrop Overlay when expanded -->
+    <div
+        v-if="!isCollapsed"
+        class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden"
+        @click="toggleCollapse"
+    />
+
     <div
         :class="{
             'w-64': !isCollapsed,
-            'w-16': isCollapsed,
-            'min-w-16': true, /* ensure min width for collapse button */
+            'w-0 lg:w-16': isCollapsed,
+            'fixed lg:relative inset-y-0 left-0 z-50 lg:z-auto': true,
             'bg-gray-800 text-white flex flex-col transition-all duration-300 ease-in-out shrink-0 h-screen overflow-hidden': true,
         }"
     >

@@ -282,6 +282,10 @@ onMounted(async () => {
             class="fixed inset-x-0 bottom-0 top-16 z-50 overflow-y-auto border-t border-gray-100 bg-white shadow-xl transition duration-200 lg:hidden"
         >
             <div class="space-y-6 px-4 py-4">
+                <!-- Mobile Search -->
+                <div class="lg:hidden px-1">
+                    <GlobalSearch class="!ml-0 !max-w-none" />
+                </div>
                 <div class="rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-sm">
                     <div class="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Browse</div>
                     <div class="space-y-1">
