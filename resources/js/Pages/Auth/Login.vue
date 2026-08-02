@@ -36,6 +36,17 @@ const errors = ref({}); // To store validation errors from Laravel (e.g., { emai
 const generalError = ref(''); // To store a general error message (e.g., "Invalid credentials")
 const loading = ref(false); // To manage button loading state
 
+// Reactive state for OTP flow
+const requiresOtp = ref(false);
+const otpForm = reactive({
+    identifier: '',
+    otp: '',
+    remember: false,
+});
+const otpErrors = ref({});
+const otpLoading = ref(false);
+const otpGeneralError = ref('');
+
 // Detect and set timezone
 onMounted(() => {
     console.log('Login Mount: Chrome Extension Link =', usePage().props.chrome_extension_link);
@@ -58,6 +69,13 @@ const submit = async () => {
         // Include the remember flag from the form
         // Axios will handle sending Content-Type: application/json
         const response = await axios.post('/login', form);
+
+        if (response.data.requires_otp) {
+            requiresOtp.value = true;
+            otpForm.identifier = response.data.identifier;
+            otpForm.remember = form.remember;
+            return;
+        }
 
         // Extract token and user data from the successful API response
         const token = response.data.token;
@@ -129,6 +147,53 @@ const loginWithBypass = () => {
     form.bypass_extension = true;
     submit();
 };
+
+const submitOtp = async () => {
+    otpLoading.value = true;
+    otpErrors.value = {};
+    otpGeneralError.value = '';
+    
+    try {
+        const response = await axios.post(route('otp.verify'), otpForm);
+        
+        const token = response.data.token;
+        const user = response.data.user;
+
+        localStorage.setItem('authToken', token);
+        localStorage.setItem('userRole', user.role); 
+        localStorage.setItem('userId', user.id);     
+        localStorage.setItem('userEmail', user.email); 
+        localStorage.setItem('remembered', otpForm.remember ? 'true' : 'false');
+
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+        window.location.href = route('dashboard');
+    } catch (error) {
+        if (error.response) {
+            if (error.response.status === 422) {
+                otpErrors.value = error.response.data.errors;
+            } else if (error.response.data.message) {
+                otpGeneralError.value = error.response.data.message;
+            } else {
+                otpGeneralError.value = 'An unexpected API error occurred.';
+            }
+        } else {
+            otpGeneralError.value = 'Network error. Please try again.';
+        }
+    } finally {
+        otpLoading.value = false;
+    }
+};
+
+const resendOtp = async () => {
+    try {
+        await axios.post(route('otp.resend'), { identifier: otpForm.identifier });
+        alert('A new verification code has been sent to your email.');
+    } catch(e) {
+        console.error(e);
+        alert('Failed to resend OTP. Please try again later.');
+    }
+};
 </script>
 
 <template>
@@ -139,7 +204,8 @@ const loginWithBypass = () => {
             {{ status }}
         </div>
 
-        <form @submit.prevent="submit">
+        <div v-if="!requiresOtp">
+            <form @submit.prevent="submit">
             <div>
                 <InputLabel for="email" value="Email" />
 
@@ -232,5 +298,48 @@ const loginWithBypass = () => {
                 <p class="text-[10px] text-gray-400 mt-2">Required for users with mandatory extension policy enabled</p>
             </div>
         </form>
+        </div>
+
+        <div v-else>
+            <form @submit.prevent="submitOtp">
+                <div class="mb-4 text-sm text-gray-600">
+                    We've sent a verification code to your email. Please enter it below.
+                </div>
+                
+                <div>
+                    <InputLabel for="otp" value="Verification Code" />
+                    <TextInput
+                        id="otp"
+                        type="text"
+                        class="mt-1 block w-full text-center text-2xl tracking-widest"
+                        v-model="otpForm.otp"
+                        required
+                        autofocus
+                        autocomplete="one-time-code"
+                    />
+                    <InputError class="mt-2" :message="otpErrors.otp ? otpErrors.otp[0] : ''" />
+                </div>
+                
+                <div class="mt-6 flex items-center justify-between">
+                    <button type="button" @click="resendOtp" class="text-sm text-indigo-600 hover:text-indigo-900 underline focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded-md">
+                        Resend Code
+                    </button>
+                    
+                    <PrimaryButton
+                        :class="{ 'opacity-25': otpLoading }"
+                        :disabled="otpLoading"
+                    >
+                        Verify & Log In
+                    </PrimaryButton>
+                </div>
+                
+                <div v-if="otpGeneralError" class="mt-4 text-sm text-red-600 text-center">
+                    {{ otpGeneralError }}
+                </div>
+                <div class="mt-4 text-center">
+                   <button type="button" @click="requiresOtp = false" class="text-xs text-gray-500 hover:text-gray-800 underline">Back to login</button>
+                </div>
+            </form>
+        </div>
     </GuestLayout>
 </template>

@@ -12,6 +12,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\GenericOtpService;
+use App\Services\RememberDeviceService;
+use App\Mail\GenericOtpMail;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Cookie;
+use Illuminate\Validation\ValidationException;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -75,9 +81,26 @@ class AuthenticatedSessionController extends Controller
         $user->save();
 
         if ($request->wantsJson() || $request->isXmlHttpRequest()) {
-            // Revoke old tokens if you want only one active token per device
-            // auth()->user()->tokens()->delete();
+            $rememberService = app(RememberDeviceService::class);
+            $otpService = app(GenericOtpService::class);
 
+            if (!$rememberService->isDeviceRemembered($user, $request)) {
+                // Generate OTP
+                $otp = $otpService->generate($user->email, 'login');
+                Mail::to($user->email)->send(new GenericOtpMail($otp));
+
+                // Log them out temporarily until OTP is verified
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return response()->json([
+                    'requires_otp' => true,
+                    'identifier' => $user->email,
+                ]);
+            }
+
+            // If device is remembered, proceed with login
             // Create a new token for the authenticated user
             $token = $user->createToken($request->email)->plainTextToken;
 
@@ -207,6 +230,69 @@ class AuthenticatedSessionController extends Controller
 
         return response()->json([
             'message' => 'Token revoked successfully',
+        ]);
+    }
+
+    /**
+     * Verify OTP for login
+     */
+    public function verifyOtp(Request $request): JsonResponse
+    {
+        $request->validate([
+            'identifier' => 'required|email',
+            'otp' => 'required|string',
+            'remember' => 'boolean',
+        ]);
+
+        $otpService = app(GenericOtpService::class);
+        $result = $otpService->verify($request->identifier, $request->otp, 'login');
+
+        if (!$result['success']) {
+            throw ValidationException::withMessages([
+                'otp' => $result['message'],
+            ]);
+        }
+
+        // OTP is valid. Log the user in.
+        $user = \App\Models\User::where('email', $request->identifier)->firstOrFail();
+        Auth::guard('web')->login($user, false);
+
+        $request->session()->regenerate();
+
+        if ($request->boolean('remember')) {
+            $rememberService = app(RememberDeviceService::class);
+            // We'll queue the cookie so it's attached to the response
+            Cookie::queue($rememberService->rememberDevice($user, $request));
+        }
+
+        $user->load(['role.permissions', 'projects']);
+        $token = $user->createToken($user->email)->plainTextToken;
+
+        return response()->json([
+            'user' => $user,
+            'token' => $token,
+            'role' => $user->role,
+        ]);
+    }
+
+    /**
+     * Resend OTP for login
+     */
+    public function resendOtp(Request $request): JsonResponse
+    {
+        $request->validate([
+            'identifier' => 'required|email',
+        ]);
+
+        // Just ensure user exists
+        $user = \App\Models\User::where('email', $request->identifier)->firstOrFail();
+
+        $otpService = app(GenericOtpService::class);
+        $otp = $otpService->generate($user->email, 'login');
+        Mail::to($user->email)->send(new GenericOtpMail($otp));
+
+        return response()->json([
+            'message' => 'OTP resent successfully.',
         ]);
     }
 }
