@@ -85,14 +85,22 @@ class AuthenticatedSessionController extends Controller
             $otpService = app(GenericOtpService::class);
 
             if (!$rememberService->isDeviceRemembered($user, $request)) {
-                // Generate OTP
-                $otp = $otpService->generate($user->email, 'login');
-                Mail::to($user->email)->send(new GenericOtpMail($otp));
-
                 // Log them out temporarily until OTP is verified
                 Auth::guard('web')->logout();
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
+
+                try {
+                    // Generate OTP
+                    $otp = $otpService->generate($user->email, 'login');
+                    Mail::to($user->email)->send(new GenericOtpMail($otp));
+                } catch (ValidationException $e) {
+                    // If it's a cooldown exception, we just proceed and show the OTP screen
+                    // again without generating a new code.
+                    if (!isset($e->errors()['otp'])) {
+                        throw $e;
+                    }
+                }
 
                 return response()->json([
                     'requires_otp' => true,
