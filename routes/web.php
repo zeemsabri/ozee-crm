@@ -510,6 +510,10 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         ]);
     })->name('dashboard');
 
+    // CEO Financial Dashboard Route
+    Route::get('/dashboard/ceo-financial', [\App\Http\Controllers\Dashboard\CeoFinancialDashboardController::class, 'index'])->name('dashboard.ceo-financial');
+    Route::post('/dashboard/ceo-financial/instruction', [\App\Http\Controllers\Dashboard\CeoFinancialDashboardController::class, 'storeInstruction'])->name('dashboard.ceo-financial.instruction');
+
     Route::get('/attendance', function () {
         return Inertia::render('Attendance/Index');
     })->name('attendance.index');
