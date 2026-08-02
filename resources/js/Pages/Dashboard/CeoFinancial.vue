@@ -121,9 +121,40 @@
 
                 <!-- Activities List Tab -->
                 <div v-show="activeTab === 'activities'">
+                    <!-- Sub-tabs to separate Invoices and Bills -->
+                    <div class="mb-6 flex space-x-2 bg-gray-50 p-1.5 rounded-lg border border-gray-150 inline-flex">
+                        <button 
+                            @click="activeActivityTab = 'all'"
+                            :class="[
+                                activeActivityTab === 'all' ? 'bg-white shadow-sm text-gray-800 border border-gray-200' : 'text-gray-500 hover:text-gray-700 border border-transparent',
+                                'px-4 py-2 rounded-md text-xs font-semibold transition-all'
+                            ]"
+                        >
+                            All
+                        </button>
+                        <button 
+                            @click="activeActivityTab = 'invoices'"
+                            :class="[
+                                activeActivityTab === 'invoices' ? 'bg-white shadow-sm text-emerald-700 border border-emerald-100' : 'text-gray-500 hover:text-gray-700 border border-transparent',
+                                'px-4 py-2 rounded-md text-xs font-semibold transition-all'
+                            ]"
+                        >
+                            Invoices (Cash In)
+                        </button>
+                        <button 
+                            @click="activeActivityTab = 'bills'"
+                            :class="[
+                                activeActivityTab === 'bills' ? 'bg-white shadow-sm text-rose-700 border border-rose-100' : 'text-gray-500 hover:text-gray-700 border border-transparent',
+                                'px-4 py-2 rounded-md text-xs font-semibold transition-all'
+                            ]"
+                        >
+                            Bills (Cash Out)
+                        </button>
+                    </div>
+
                     <div class="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-                        <div v-if="dashboardData.paid_activities.length === 0" class="p-12 text-center text-gray-500">
-                            No paid invoices or bills found for the selected date range.
+                        <div v-if="filteredActivities.length === 0" class="p-12 text-center text-gray-500">
+                            No matching activities found for the selected date range.
                         </div>
                         <table v-else class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
@@ -136,7 +167,7 @@
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="(activity, idx) in dashboardData.paid_activities" :key="idx" class="hover:bg-gray-50">
+                                <tr v-for="(activity, idx) in filteredActivities" :key="idx" class="hover:bg-gray-50">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ activity.date }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
@@ -178,7 +209,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useForm, router } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import LiveFxTicker from '@/Components/Financial/LiveFxTicker.vue';
@@ -195,9 +226,21 @@ const props = defineProps({
 });
 
 const activeTab = ref('projects');
+const activeActivityTab = ref('all');
 const showInstructionModal = ref(false);
 const instructionType = ref('');
 const instructionId = ref(null);
+
+const filteredActivities = computed(() => {
+    const list = props.dashboardData.paid_activities || [];
+    if (activeActivityTab.value === 'invoices') {
+        return list.filter(act => act.type === 'invoice');
+    }
+    if (activeActivityTab.value === 'bills') {
+        return list.filter(act => act.type === 'bill');
+    }
+    return list;
+});
 
 const openInstructionModal = (item) => {
     instructionType.value = item.type;
