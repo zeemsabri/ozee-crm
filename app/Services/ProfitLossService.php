@@ -6,6 +6,7 @@ use App\Models\Bill;
 use App\Models\Invoice;
 use App\Models\Project;
 use App\Models\ProjectExpendable;
+use App\Models\Transaction;
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
 
@@ -24,20 +25,7 @@ class ProfitLossService
      */
     public function getDashboardData(?Carbon $startDate = null, ?Carbon $endDate = null): array
     {
-        $projects = Project::with([
-            'invoices' => function ($query) use ($startDate, $endDate) {
-                if ($startDate && $endDate) {
-                    $query->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
-                }
-            },
-            'invoices.transactions',
-            'bills' => function ($query) use ($startDate, $endDate) {
-                if ($startDate && $endDate) {
-                    $query->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
-                }
-            },
-            'bills.transactions',
-        ])->get();
+        $projects = Project::all();
 
         $projectHealthCards = [];
         $totalInvoicedRevenueAud = 0.0;
@@ -46,33 +34,38 @@ class ProfitLossService
         $totalCashExpensesAud = 0.0;
         $paidInvoicesAndBills = [];
 
-        foreach ($projects as $project) {
-            $invoices = $project->invoices;
-            if ($startDate && $endDate) {
-                $invoices = $invoices->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
-            }
+        $baseCurrency = config('services.default_currency', 'AUD');
 
-            $bills = $project->bills;
+        foreach ($projects as $project) {
+            // --- ACCRUAL BASIS ---
+            // Invoices created in period
+            $invoicesQuery = $project->invoices();
             if ($startDate && $endDate) {
-                $bills = $bills->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
+                $invoicesQuery->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
             }
-            
+            $invoices = $invoicesQuery->get();
+
+            // Bills created in period
+            $billsQuery = $project->bills();
+            if ($startDate && $endDate) {
+                $billsQuery->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
+            }
+            $bills = $billsQuery->get();
+
+            // ProjectExpendables created in period (Milestone-level, contractor cost)
             $expendablesQuery = ProjectExpendable::with('bills')
                 ->where('project_id', $project->id)
                 ->where('expendable_type', 'App\Models\Milestone')
                 ->whereNotNull('user_id');
-                
+
             if ($startDate && $endDate) {
                 $expendablesQuery->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
             }
-            
             $expendables = $expendablesQuery->get();
-
-            $baseCurrency = config('services.default_currency', 'AUD');
 
             $projectInvoicedAud = $this->calculateTotalInBase($invoices, 'total_amount', 'currency', $baseCurrency);
             $projectBillsAud = $this->calculateTotalInBase($bills, 'amount', 'currency', $baseCurrency);
-            
+
             // For expendables not covered by bills
             $projectExpendableAud = $this->calculateTotalInBase(
                 $expendables->filter(fn($e) => $e->bills->isEmpty() && $e->status->value === \App\Enums\ProjectExpendableStatus::Accepted->value), 
@@ -82,48 +75,70 @@ class ProfitLossService
             );
 
             $projectTotalCostsAud = $projectBillsAud + $projectExpendableAud;
-            
-            // Cash basis
-            $projectCashInAud = 0.0;
-            foreach ($invoices as $invoice) {
-                $invoicePaidTx = $invoice->transactions->where('is_paid', true);
-                if ($invoicePaidTx->isNotEmpty()) {
-                    $paidAmount = 0.0;
-                    foreach ($invoicePaidTx as $tx) {
-                        $amountAud = $this->convertToAud((float)$tx->amount, $tx->currency ?? $baseCurrency, $tx);
-                        $paidAmount += $amountAud;
-                        $projectCashInAud += $amountAud;
-                    }
-                    $paidInvoicesAndBills[] = [
-                        'type' => 'invoice',
-                        'id' => $invoice->id,
-                        'reference' => $invoice->invoice_number,
-                        'project_name' => $project->name,
-                        'amount_aud' => round($paidAmount, 2),
-                        'date' => $invoice->created_at->format('Y-m-d'),
-                    ];
-                }
+
+            // --- CASH BASIS ---
+            // Cash In (Income Transactions paid/created in period)
+            $cashInQuery = Transaction::with('invoice')
+                ->where('project_id', $project->id)
+                ->where('type', 'income')
+                ->where('is_paid', true);
+
+            if ($startDate && $endDate) {
+                $cashInQuery->where(function($q) use ($startDate, $endDate) {
+                    $q->whereBetween('payment_date', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
+                      ->orWhere(function($sq) use ($startDate, $endDate) {
+                          $sq->whereNull('payment_date')
+                             ->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
+                      });
+                });
             }
-            
+            $cashInTransactions = $cashInQuery->get();
+
+            $projectCashInAud = 0.0;
+            foreach ($cashInTransactions as $tx) {
+                $amountAud = $this->convertToAud((float)$tx->amount, $tx->currency ?? $baseCurrency, $tx);
+                $projectCashInAud += $amountAud;
+
+                $paidInvoicesAndBills[] = [
+                    'type' => 'invoice',
+                    'id' => $tx->invoice_id ?? $tx->id,
+                    'reference' => $tx->invoice->invoice_number ?? $tx->description ?? ('Invoice #' . $tx->invoice_id),
+                    'project_name' => $project->name,
+                    'amount_aud' => round($amountAud, 2),
+                    'date' => $tx->payment_date ? Carbon::parse($tx->payment_date)->format('Y-m-d') : $tx->created_at->format('Y-m-d'),
+                ];
+            }
+
+            // Cash Out (Expense / Bonus Transactions paid/created in period)
+            $cashOutQuery = Transaction::with('bill')
+                ->where('project_id', $project->id)
+                ->whereIn('type', ['expense', 'bonus'])
+                ->where('is_paid', true);
+
+            if ($startDate && $endDate) {
+                $cashOutQuery->where(function($q) use ($startDate, $endDate) {
+                    $q->whereBetween('payment_date', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
+                      ->orWhere(function($sq) use ($startDate, $endDate) {
+                          $sq->whereNull('payment_date')
+                             ->whereBetween('created_at', [$startDate->startOfDay(), $endDate->endOfDay()]);
+                      });
+                });
+            }
+            $cashOutTransactions = $cashOutQuery->get();
+
             $projectCashOutAud = 0.0;
-            foreach ($bills as $bill) {
-                $billPaidTx = $bill->transactions->where('is_paid', true);
-                if ($billPaidTx->isNotEmpty()) {
-                    $paidAmount = 0.0;
-                    foreach ($billPaidTx as $tx) {
-                        $amountAud = $this->convertToAud((float)$tx->amount, $tx->currency ?? $baseCurrency, $tx);
-                        $paidAmount += $amountAud;
-                        $projectCashOutAud += $amountAud;
-                    }
-                    $paidInvoicesAndBills[] = [
-                        'type' => 'bill',
-                        'id' => $bill->id,
-                        'reference' => 'Bill #' . $bill->id,
-                        'project_name' => $project->name,
-                        'amount_aud' => round($paidAmount, 2),
-                        'date' => $bill->created_at->format('Y-m-d'),
-                    ];
-                }
+            foreach ($cashOutTransactions as $tx) {
+                $amountAud = $this->convertToAud((float)$tx->amount, $tx->currency ?? $baseCurrency, $tx);
+                $projectCashOutAud += $amountAud;
+
+                $paidInvoicesAndBills[] = [
+                    'type' => 'bill',
+                    'id' => $tx->bill_id ?? $tx->id,
+                    'reference' => $tx->bill->reference_number ?? $tx->description ?? ('Bill #' . $tx->bill_id),
+                    'project_name' => $project->name,
+                    'amount_aud' => round($amountAud, 2),
+                    'date' => $tx->payment_date ? Carbon::parse($tx->payment_date)->format('Y-m-d') : $tx->created_at->format('Y-m-d'),
+                ];
             }
 
             $totalInvoicedRevenueAud += $projectInvoicedAud;
@@ -131,7 +146,7 @@ class ProfitLossService
             $totalCashRevenueAud += $projectCashInAud;
             $totalCashExpensesAud += $projectCashOutAud;
 
-            if ($projectInvoicedAud > 0 || $projectTotalCostsAud > 0) {
+            if ($projectInvoicedAud > 0 || $projectTotalCostsAud > 0 || $projectCashInAud > 0 || $projectCashOutAud > 0) {
                 $netProfit = $projectInvoicedAud - $projectTotalCostsAud;
                 $margin = $projectInvoicedAud > 0 ? ($netProfit / $projectInvoicedAud) * 100 : 0;
                 
@@ -153,8 +168,6 @@ class ProfitLossService
             }
         }
 
-        $baseCurrency = config('services.default_currency', 'AUD');
-        
         return [
             'overview' => [
                 'total_invoiced_revenue_aud' => round($totalInvoicedRevenueAud, 2),
