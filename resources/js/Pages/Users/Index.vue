@@ -819,16 +819,16 @@ const getAvatarColor = (name) => {
                         <TextInput id="create_email" type="email" class="mt-1 block w-full" v-model="userForm.email" required />
                         <InputError :message="errors.email ? errors.email[0] : ''" class="mt-2" />
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4" v-if="userForm.user_type !== 'supplier'">
                         <InputLabel for="create_password" value="Password" />
                         <TextInput id="create_password" type="password" class="mt-1 block w-full" v-model="userForm.password" required autocomplete="new-password" />
                         <InputError :message="errors.password ? errors.password[0] : ''" class="mt-2" />
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4" v-if="userForm.user_type !== 'supplier'">
                         <InputLabel for="create_password_confirmation" value="Confirm Password" />
                         <TextInput id="create_password_confirmation" type="password" class="mt-1 block w-full" v-model="userForm.password_confirmation" required autocomplete="new-password" />
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4" v-if="userForm.user_type !== 'supplier'">
                         <InputLabel for="create_role" value="Role" />
                         <select id="create_role" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="userForm.role_id" @change="updateRoleString">
                             <option v-for="option in roleOptions" :key="option.value" :value="option.value"
@@ -843,10 +843,11 @@ const getAvatarColor = (name) => {
                         <select id="create_user_type" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="userForm.user_type">
                             <option value="employee">Employee</option>
                             <option value="contractor">Contractor</option>
+                            <option value="supplier">Supplier</option>
                         </select>
                         <InputError :message="errors.user_type ? errors.user_type[0] : ''" class="mt-2" />
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4" v-if="userForm.user_type !== 'supplier'">
                         <InputLabel value="Departments & Responsibilities" />
                         <div class="mt-2 grid grid-cols-1 gap-4">
                             <div v-for="dept in departments" :key="dept.id" class="border rounded-xl p-4 bg-gray-50/50 shadow-sm transition-all hover:bg-white hover:shadow-md">
@@ -872,7 +873,7 @@ const getAvatarColor = (name) => {
                         <TextInput id="create_timezone" type="text" class="mt-1 block w-full" v-model="userForm.timezone" placeholder="e.g., America/New_York" />
                         <InputError :message="errors.timezone ? errors.timezone[0] : ''" class="mt-2" />
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4" v-if="userForm.user_type !== 'supplier'">
                         <label class="flex items-center">
                             <input type="checkbox" v-model="userForm.extension_mandatory" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
                             <span class="ms-2 text-sm text-gray-600">Extension Usage Mandatory</span>
@@ -902,16 +903,16 @@ const getAvatarColor = (name) => {
                         <TextInput id="edit_email" type="email" class="mt-1 block w-full" v-model="userForm.email" required />
                         <InputError :message="errors.email ? errors.email[0] : ''" class="mt-2" />
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4" v-if="userForm.user_type !== 'supplier'">
                         <InputLabel for="edit_password" value="Password (leave blank to keep current)" />
                         <TextInput id="edit_password" type="password" class="mt-1 block w-full" v-model="userForm.password" autocomplete="new-password" />
                         <InputError :message="errors.password ? errors.password[0] : ''" class="mt-2" />
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4" v-if="userForm.user_type !== 'supplier'">
                         <InputLabel for="edit_password_confirmation" value="Confirm Password" />
                         <TextInput id="edit_password_confirmation" type="password" class="mt-1 block w-full" v-model="userForm.password_confirmation" autocomplete="new-password" />
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4" v-if="userForm.user_type !== 'supplier'">
                         <InputLabel for="edit_role" value="Role" />
                         <select id="edit_role" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="userForm.role_id" @change="updateRoleString"
                                 :disabled="!isSuperAdmin && userForm.id === authUser.id">
@@ -927,10 +928,11 @@ const getAvatarColor = (name) => {
                         <select id="edit_user_type" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" v-model="userForm.user_type">
                             <option value="employee">Employee</option>
                             <option value="contractor">Contractor</option>
+                            <option value="supplier">Supplier</option>
                         </select>
                         <InputError :message="errors.user_type ? errors.user_type[0] : ''" class="mt-2" />
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4" v-if="userForm.user_type !== 'supplier'">
                         <InputLabel value="Departments & Responsibilities" />
                         <div class="mt-2 grid grid-cols-1 gap-4">
                             <div v-for="dept in departments" :key="dept.id" class="border rounded-xl p-4 bg-gray-50/50 shadow-sm transition-all hover:bg-white hover:shadow-md">
@@ -956,7 +958,7 @@ const getAvatarColor = (name) => {
                         <TextInput id="edit_timezone" type="text" class="mt-1 block w-full" v-model="userForm.timezone" placeholder="e.g., Europe/London" />
                         <InputError :message="errors.timezone ? errors.timezone[0] : ''" class="mt-2" />
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4" v-if="userForm.user_type !== 'supplier'">
                         <label class="flex items-center">
                             <input type="checkbox" v-model="userForm.extension_mandatory" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
                             <span class="ms-2 text-sm text-gray-600">Extension Usage Mandatory</span>

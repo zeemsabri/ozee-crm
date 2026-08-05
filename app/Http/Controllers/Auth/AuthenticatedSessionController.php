@@ -45,6 +45,16 @@ class AuthenticatedSessionController extends Controller
         // Load the user's role with permissions to ensure they're available immediately after login
         $user = $request->user();
 
+        if ($user->user_type === 'supplier') {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'email' => 'Access denied. Supplier accounts cannot log in.',
+            ]);
+        }
+
         // Check for extension mandatory enforcement
         if ($user->extension_mandatory && !$user->is_online) {
             // Check if user has bypass permission
@@ -139,6 +149,18 @@ class AuthenticatedSessionController extends Controller
         $user = $request->user();
 
         \Illuminate\Support\Facades\Log::info('User logged in: ' . $user->name);
+
+        if ($user->user_type === 'supplier') {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return response()->json([
+                'message' => 'Access denied. Supplier accounts cannot log in.',
+                'errors' => ['email' => ['Access denied. Supplier accounts cannot log in.']]
+            ], 422);
+        }
+
         // Check for extension mandatory enforcement
         if ($user->extension_mandatory && !$user->is_online) {
             // Check if user has bypass permission

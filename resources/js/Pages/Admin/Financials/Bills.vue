@@ -19,6 +19,7 @@ const bills = ref([]);
 const projects = ref([]);
 const expendables = ref([]);
 const transactionTypes = ref([]);
+const suppliers = ref([]);
 const loading = ref(true);
 const filterStatus = ref('all');
 const filterProject = ref('');
@@ -55,6 +56,7 @@ const canRestoreBills = canDo('restore_project_bills');
 const canLinkXeroContractors = canDo('link_xero_contractors');
 
 const form = useForm({
+    bill_type: 'contractor_bill',
     project_id: '',
     project_expendable_id: '',
     contractor_id: '',
@@ -215,6 +217,15 @@ const fetchTransactionTypes = async () => {
     }
 };
 
+const fetchSuppliers = async () => {
+    try {
+        const { data } = await axios.get('/api/users?user_type=supplier');
+        suppliers.value = data || [];
+    } catch (err) {
+        console.error('Failed to fetch suppliers', err);
+    }
+};
+
 const fetchXeroAccounts = async () => {
     try {
         const { data } = await axios.get(route('api.xero.accounts', { category: 'expense' }));
@@ -287,6 +298,7 @@ watch(() => form.transaction_type_id, () => {
 
 const openCreateModal = () => {
     form.reset();
+    form.bill_type = 'contractor_bill';
     form.payment_details = {
         payment_method: 'bank_transfer',
         account_name: '',
@@ -351,17 +363,23 @@ const formatPaymentTerms = (terms) => {
 };
 
 const submitBill = () => {
-    if (!form.project_expendable_id) return error('Please select a contract.');
-    if (!form.project_id) return error('Please select a project.');
-    if (!form.contractor_id) return error('Selected contract does not have a contractor assigned.');
-    if (!form.transaction_type_id) return error('Please select a transaction type.');
+    if (form.bill_type === 'contractor_bill') {
+        if (!form.project_expendable_id) return error('Please select a contract.');
+        if (!form.project_id) return error('Please select a project.');
+        if (!form.contractor_id) return error('Selected contract does not have a contractor assigned.');
+        if (!form.transaction_type_id) return error('Please select a transaction type.');
+    } else {
+        if (!form.project_id) return error('Please select a project.');
+    }
 
     form.clearErrors();
 
     const formData = new FormData();
-    formData.append('project_expendable_id', form.project_expendable_id);
-    formData.append('contractor_id', form.contractor_id);
-    formData.append('transaction_type_id', form.transaction_type_id);
+    formData.append('bill_type', form.bill_type);
+    if (form.project_id) formData.append('project_id', form.project_id);
+    if (form.project_expendable_id) formData.append('project_expendable_id', form.project_expendable_id);
+    if (form.contractor_id) formData.append('contractor_id', form.contractor_id);
+    if (form.transaction_type_id) formData.append('transaction_type_id', form.transaction_type_id);
     formData.append('xero_account_code', form.xero_account_code || selectedTransactionType.value?.xero_account_code || '');
     formData.append('xero_tax_type', form.xero_tax_type);
     if (form.reference_number) formData.append('reference_number', form.reference_number);
@@ -369,16 +387,16 @@ const submitBill = () => {
     formData.append('currency', form.currency || 'AUD');
     formData.append('amount', form.amount);
     
-    // Add payment details recursively or as stringified JSON.
-    // Our backend expects payment_details as an array. With FormData, we can append it as indexed fields.
-    formData.append('payment_details[payment_method]', form.payment_details.payment_method);
-    if (form.payment_details.account_name) formData.append('payment_details[account_name]', form.payment_details.account_name);
-    if (form.payment_details.account_number) formData.append('payment_details[account_number]', form.payment_details.account_number);
-    if (form.payment_details.bank_name) formData.append('payment_details[bank_name]', form.payment_details.bank_name);
-    if (form.payment_details.bsb) formData.append('payment_details[bsb]', form.payment_details.bsb);
-    if (form.payment_details.swift_code) formData.append('payment_details[swift_code]', form.payment_details.swift_code);
-    if (form.payment_details.iban) formData.append('payment_details[iban]', form.payment_details.iban);
-    if (form.payment_details.notes) formData.append('payment_details[notes]', form.payment_details.notes);
+    if (form.bill_type === 'contractor_bill') {
+        formData.append('payment_details[payment_method]', form.payment_details.payment_method);
+        if (form.payment_details.account_name) formData.append('payment_details[account_name]', form.payment_details.account_name);
+        if (form.payment_details.account_number) formData.append('payment_details[account_number]', form.payment_details.account_number);
+        if (form.payment_details.bank_name) formData.append('payment_details[bank_name]', form.payment_details.bank_name);
+        if (form.payment_details.bsb) formData.append('payment_details[bsb]', form.payment_details.bsb);
+        if (form.payment_details.swift_code) formData.append('payment_details[swift_code]', form.payment_details.swift_code);
+        if (form.payment_details.iban) formData.append('payment_details[iban]', form.payment_details.iban);
+        if (form.payment_details.notes) formData.append('payment_details[notes]', form.payment_details.notes);
+    }
 
     if (form.document) {
         formData.append('document', form.document);
@@ -581,6 +599,7 @@ const handleSearch = () => {
 onMounted(() => {
     fetchBills();
     fetchProjects();
+    fetchSuppliers();
     fetchTransactionTypes();
     fetchXeroAccounts();
 });
@@ -775,11 +794,28 @@ const getStatusClass = (status, bill) => {
         <!-- Create Bill Modal -->
         <Modal :show="showCreateModal" @close="showCreateModal = false" maxWidth="4xl">
             <div class="p-6">
-                <h3 class="text-lg font-semibold mb-4">Create Contractor Bill</h3>
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold">Create Bill</h3>
+                    
+                    <div class="flex bg-gray-100 p-1 rounded-lg">
+                        <button 
+                            @click="form.bill_type = 'contractor_bill'"
+                            :class="['px-4 py-1.5 text-sm font-medium rounded-md', form.bill_type === 'contractor_bill' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700']"
+                        >
+                            Contractor Bill
+                        </button>
+                        <button 
+                            @click="form.bill_type = 'general_expense'"
+                            :class="['px-4 py-1.5 text-sm font-medium rounded-md', form.bill_type === 'general_expense' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700']"
+                        >
+                            General Expense
+                        </button>
+                    </div>
+                </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <!-- Form Column -->
-                    <div :class="selectedExpendable ? 'md:col-span-2' : 'md:col-span-3'" class="space-y-4">
+                    <div :class="(form.bill_type === 'contractor_bill' && selectedExpendable) ? 'md:col-span-2' : 'md:col-span-3'" class="space-y-4">
                     <div>
                         <InputLabel for="bill_project_id" value="Project" />
                         <SelectDropdown
@@ -793,7 +829,7 @@ const getStatusClass = (status, bill) => {
                         <InputError :message="form.errors.project_id" />
                     </div>
 
-                    <div v-if="form.project_id">
+                    <div v-if="form.project_id && form.bill_type === 'contractor_bill'">
                         <InputLabel for="project_expendable_id" value="Contract (Expendable)" />
                         <SelectDropdown
                             id="project_expendable_id"
@@ -804,6 +840,19 @@ const getStatusClass = (status, bill) => {
                             placeholder="Select Contract"
                         />
                         <InputError :message="form.errors.project_expendable_id" />
+                    </div>
+
+                    <div v-if="form.bill_type === 'general_expense'">
+                        <InputLabel for="supplier_id" value="Supplier (Optional)" />
+                        <SelectDropdown
+                            id="supplier_id"
+                            v-model="form.contractor_id"
+                            :options="suppliers"
+                            valueKey="id"
+                            labelKey="name"
+                            placeholder="Select Supplier"
+                        />
+                        <InputError :message="form.errors.contractor_id" />
                     </div>
 
                     <div>
@@ -900,7 +949,7 @@ const getStatusClass = (status, bill) => {
                         <InputError :message="form.errors.amount" />
                     </div>
 
-                    <div class="border rounded-md p-4 bg-gray-50 space-y-4">
+                    <div v-if="form.bill_type === 'contractor_bill'" class="border rounded-md p-4 bg-gray-50 space-y-4">
                         <h4 class="text-sm font-semibold text-gray-800">Payment Details (Required)</h4>
 
                         <div>
@@ -1014,7 +1063,7 @@ const getStatusClass = (status, bill) => {
                     </div> <!-- THIS IS THE MISSING CLOSING DIV FOR FORM COLUMN -->
                     
                     <!-- Contract Stats Column -->
-                    <div v-if="selectedExpendable" class="md:col-span-1">
+                    <div v-if="form.bill_type === 'contractor_bill' && selectedExpendable" class="md:col-span-1">
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 sticky top-4">
                             <h4 class="text-md font-semibold text-gray-900 mb-4">Contract Details</h4>
                             

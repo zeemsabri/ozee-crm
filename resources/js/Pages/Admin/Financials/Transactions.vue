@@ -32,8 +32,8 @@ const pagination = ref({
 const activeTab = ref('system'); // 'system' or 'bank'
 const bankTransactions = ref([]);
 const bankFilter = ref('unreconciled'); // 'unreconciled', 'reconciled', 'all'
-const bankTypeFilter = ref('expense'); // 'expense' or 'income'
-const bankStatusFilter = ref('all'); // 'all', 'SETTLED', 'PENDING'
+const bankTypeFilter = ref('bills'); // 'bills', 'expenses', 'other', 'income'
+const bankStatusFilter = ref('SETTLED'); // 'all', 'SETTLED', 'PENDING'
 const selectedBankTx = ref(null);
 
 const selectedLinkedDoc = ref(null);
@@ -218,14 +218,13 @@ const clientOptions = computed(() => {
 });
 
 const billOptions = computed(() => {
-    let filtered = bills.value;
-    if (transactionForm.value.user_id) {
-        filtered = filtered.filter(b => b.contractor_id === transactionForm.value.user_id);
-    }
-    return filtered.map(bill => {
+    return bills.value.map(bill => {
         let label = `OZB${bill.id} - ${bill.amount} ${bill.currency || 'AUD'} (${bill.reference_number || 'No Ref'})`;
         if (!transactionForm.value.project_id && bill.project) {
             label += ` - ${bill.project.name}`;
+        }
+        if (transactionForm.value.user_id && bill.contractor_id !== transactionForm.value.user_id) {
+            label += ` [WARNING: User Mismatch]`;
         }
         return { value: bill.id, label };
     });
@@ -411,7 +410,19 @@ const saveTransaction = async () => {
                 const bankAmount = Math.abs(matchedTx.amount);
                 const conversionRate = Number(transactionForm.value.conversion_rate) || 1;
                 const localAmount = Number(transactionForm.value.amount) || 0;
-                const linkedBankAmount = localAmount / conversionRate;
+                const bankCurrency = matchedTx.currency || 'AUD';
+                const localCurrency = transactionForm.value.currency || 'AUD';
+
+                let linkedBankAmount = localAmount;
+                if (localCurrency !== bankCurrency) {
+                    if (localCurrency === 'PKR' && bankCurrency === 'AUD') {
+                        linkedBankAmount = localAmount / conversionRate;
+                    } else if (localCurrency === 'AUD' && bankCurrency === 'PKR') {
+                        linkedBankAmount = localAmount * conversionRate;
+                    } else {
+                        linkedBankAmount = localAmount / conversionRate;
+                    }
+                }
 
                 matchedTx.remaining_amount = Math.max(0, Number(((matchedTx.remaining_amount !== undefined ? matchedTx.remaining_amount : bankAmount) - linkedBankAmount).toFixed(2)));
                 matchedTx.is_linked = matchedTx.remaining_amount <= 0.01;
@@ -998,16 +1009,28 @@ const formatDate = (dateStr) => {
                         <div class="flex space-x-2 items-center">
                             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Type:</span>
                             <button 
-                                @click="bankTypeFilter = 'expense'"
-                                :class="[bankTypeFilter === 'expense' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200', 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors']"
+                                @click="bankTypeFilter = 'bills'"
+                                :class="[bankTypeFilter === 'bills' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200', 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors']"
+                            >
+                                Outgoing (Bills)
+                            </button>
+                            <button 
+                                @click="bankTypeFilter = 'expenses'"
+                                :class="[bankTypeFilter === 'expenses' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200', 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors']"
                             >
                                 Outgoing (Expenses)
+                            </button>
+                            <button 
+                                @click="bankTypeFilter = 'other'"
+                                :class="[bankTypeFilter === 'other' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200', 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors']"
+                            >
+                                Outgoing (Other)
                             </button>
                             <button 
                                 @click="bankTypeFilter = 'income'"
                                 :class="[bankTypeFilter === 'income' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200', 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors']"
                             >
-                                Incoming (Incomes)
+                                Incoming (Income)
                             </button>
                         </div>
                         <div class="flex space-x-2 items-center border-l border-gray-200 pl-4 hidden md:flex">
@@ -1056,7 +1079,14 @@ const formatDate = (dateStr) => {
                                             {{ formatDate(btx.created_at || btx.date) }}
                                         </td>
                                         <td class="px-4 py-4 text-sm text-gray-900 font-medium hover:text-indigo-600">
-                                            {{ btx.merchant_name || btx.description || btx.reference || 'N/A' }}
+                                            <div>{{ btx.merchant_name || btx.description || btx.reference || 'N/A' }}</div>
+                                            <div v-if="btx.payment_details?.beneficiary?.bank_details?.account_name" class="text-xs text-indigo-600 mt-1 flex items-center font-normal">
+                                                <svg class="h-3.5 w-3.5 mr-1 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                </svg>
+                                                To: {{ btx.payment_details.beneficiary.bank_details.account_name }}
+                                                <span v-if="btx.payment_details.reference" class="text-gray-400 ml-1 font-light font-sans">({{ btx.payment_details.reference }})</span>
+                                            </div>
                                         </td>
                                         <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                                             {{ formatCurrency(btx.amount, btx.currency || 'AUD') }}
@@ -1573,6 +1603,48 @@ const formatDate = (dateStr) => {
                             <div class="col-span-2">
                                 <dt class="text-gray-500 font-medium">Settled At</dt>
                                 <dd class="text-gray-900 mt-0.5">{{ formatDate(selectedBankTxDetails.settled_at) }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                     <div v-if="selectedBankTxDetails.payment_details" class="border-t pt-4">
+                        <h4 class="text-md font-semibold text-gray-900 mb-4">Payment Details (Airwallex)</h4>
+                        <dl class="grid grid-cols-2 gap-4 text-sm bg-indigo-50/50 p-4 rounded-lg border border-indigo-100">
+                            <div class="col-span-2">
+                                <dt class="text-gray-500 font-medium">Beneficiary Name</dt>
+                                <dd class="text-gray-900 mt-0.5 font-semibold text-base">{{ selectedBankTxDetails.payment_details.beneficiary?.bank_details?.account_name || '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Bank Name</dt>
+                                <dd class="text-gray-900 mt-0.5">{{ selectedBankTxDetails.payment_details.beneficiary?.bank_details?.bank_name || '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">IBAN / Account Number</dt>
+                                <dd class="text-gray-900 mt-0.5 text-xs select-all">{{ selectedBankTxDetails.payment_details.beneficiary?.bank_details?.iban || '—' }}</dd>
+                            </div>
+                            <div v-if="selectedBankTxDetails.payment_details.beneficiary?.additional_info?.personal_email">
+                                <dt class="text-gray-500 font-medium">Beneficiary Email</dt>
+                                <dd class="text-gray-900 mt-0.5 text-xs">{{ selectedBankTxDetails.payment_details.beneficiary.additional_info.personal_email }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Payment Status</dt>
+                                <dd class="text-gray-900 mt-0.5">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                                        {{ selectedBankTxDetails.payment_details.status }}
+                                    </span>
+                                </dd>
+                            </div>
+                            <div class="col-span-2" v-if="selectedBankTxDetails.payment_details.reference">
+                                <dt class="text-gray-500 font-medium">Payment Reference</dt>
+                                <dd class="text-gray-900 mt-0.5 italic">"{{ selectedBankTxDetails.payment_details.reference }}"</dd>
+                            </div>
+                            <div v-if="selectedBankTxDetails.payment_details.reason">
+                                <dt class="text-gray-500 font-medium">Payment Reason</dt>
+                                <dd class="text-gray-900 mt-0.5 capitalize">{{ selectedBankTxDetails.payment_details.reason.replace(/_/g, ' ') }}</dd>
+                            </div>
+                            <div v-if="selectedBankTxDetails.payment_details.payment_amount">
+                                <dt class="text-gray-500 font-medium">Amount Paid (Beneficiary)</dt>
+                                <dd class="text-gray-900 mt-0.5 font-semibold text-indigo-900">{{ formatCurrency(selectedBankTxDetails.payment_details.payment_amount, selectedBankTxDetails.payment_details.payment_currency) }}</dd>
                             </div>
                         </dl>
                     </div>

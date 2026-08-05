@@ -74,14 +74,29 @@ class NoticeBoardController extends Controller
             }
         } else {
             if (! empty($validated['user_ids'])) {
-                $recipients = User::whereNull('deleted_at')->whereIn('id', $validated['user_ids'])->get();
+                $recipients = User::whereNull('deleted_at')
+                    ->where(function($query) {
+                        $query->where('user_type', '!=', 'supplier')
+                              ->orWhereNull('user_type');
+                    })
+                    ->whereIn('id', $validated['user_ids'])
+                    ->get();
             } elseif (! empty($validated['project_id'])) {
                 $project = Project::with(['users' => function ($q) {
-                    $q->whereNull('users.deleted_at');
+                    $q->whereNull('users.deleted_at')
+                      ->where(function($query) {
+                          $query->where('users.user_type', '!=', 'supplier')
+                                ->orWhereNull('users.user_type');
+                      });
                 }])->find($validated['project_id']);
                 $recipients = $project ? $project->users : collect();
             } else {
-                $recipients = User::whereNull('deleted_at')->get();
+                $recipients = User::whereNull('deleted_at')
+                    ->where(function($query) {
+                        $query->where('user_type', '!=', 'supplier')
+                              ->orWhereNull('user_type');
+                    })
+                    ->get();
             }
         }
 

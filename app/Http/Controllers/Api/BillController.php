@@ -63,140 +63,155 @@ class BillController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $validated = $request->validate([
+        $isGeneralExpense = $request->input('bill_type') === 'general_expense';
+
+        $rules = [
+            'bill_type' => 'nullable|string|in:contractor_bill,general_expense',
             'document' => 'nullable|file|mimes:pdf|max:10240',
-            'contractor_id' => 'required|exists:users,id',
-            'project_expendable_id' => 'required|exists:project_expendables,id',
-            'transaction_type_id' => 'required|exists:transaction_types,id',
             'xero_account_code' => 'nullable|string|max:50',
             'xero_tax_type' => 'nullable|string|in:' . implode(',', self::ALLOWED_XERO_TAX_TYPES),
             'reference_number' => 'nullable|string|max:255',
             'due_date' => 'nullable|date',
             'currency' => 'nullable|string|max:3',
             'amount' => 'required|numeric|min:0.01',
-            'payment_details' => 'required|array',
-            'payment_details.payment_method' => 'required|string|max:50',
-            'payment_details.account_name' => 'required_if:payment_details.payment_method,bank_local,bank_wire|nullable|string|max:255',
-            'payment_details.account_number' => 'required_if:payment_details.payment_method,bank_local,bank_wire|nullable|string|max:255',
-            'payment_details.bank_name' => 'nullable|string|max:255',
-            'payment_details.bsb' => 'required_if:payment_details.payment_method,bank_local|nullable|string|max:255',
-            'payment_details.swift_code' => 'required_if:payment_details.payment_method,bank_wire|nullable|string|max:255',
-            'payment_details.iban' => 'nullable|string|max:255',
-            'payment_details.paypal_email' => 'required_if:payment_details.payment_method,paypal|nullable|email|max:255',
-            'payment_details.payoneer_email' => 'required_if:payment_details.payment_method,payoneer|nullable|email|max:255',
-            'payment_details.wise_email' => 'required_if:payment_details.payment_method,wise|nullable|email|max:255',
-            'payment_details.wallet_address' => 'required_if:payment_details.payment_method,crypto|nullable|string|max:255',
-            'payment_details.coin_type' => 'required_if:payment_details.payment_method,crypto|nullable|string|max:50',
-            'payment_details.notes' => 'nullable|string|max:1000',
-        ]);
+        ];
 
-        $expendable = ProjectExpendable::findOrFail($validated['project_expendable_id']);
-
-        if ((int) $expendable->project_id !== (int) $project->id) {
-            return response()->json([
-                'message' => 'Selected contract does not belong to this project.',
-                'errors' => [
-                    'project_expendable_id' => ['Selected contract does not belong to this project.'],
-                ],
-            ], 422);
+        if ($isGeneralExpense) {
+            $rules['transaction_type_id'] = 'nullable|exists:transaction_types,id';
+            $rules['contractor_id'] = 'nullable|exists:users,id';
+        } else {
+            $rules['contractor_id'] = 'required|exists:users,id';
+            $rules['project_expendable_id'] = 'required|exists:project_expendables,id';
+            $rules['transaction_type_id'] = 'required|exists:transaction_types,id';
+            $rules['payment_details'] = 'required|array';
+            $rules['payment_details.payment_method'] = 'required|string|max:50';
+            $rules['payment_details.account_name'] = 'required_if:payment_details.payment_method,bank_local,bank_wire|nullable|string|max:255';
+            $rules['payment_details.account_number'] = 'required_if:payment_details.payment_method,bank_local,bank_wire|nullable|string|max:255';
+            $rules['payment_details.bank_name'] = 'nullable|string|max:255';
+            $rules['payment_details.bsb'] = 'required_if:payment_details.payment_method,bank_local|nullable|string|max:255';
+            $rules['payment_details.swift_code'] = 'required_if:payment_details.payment_method,bank_wire|nullable|string|max:255';
+            $rules['payment_details.iban'] = 'nullable|string|max:255';
+            $rules['payment_details.paypal_email'] = 'required_if:payment_details.payment_method,paypal|nullable|email|max:255';
+            $rules['payment_details.payoneer_email'] = 'required_if:payment_details.payment_method,payoneer|nullable|email|max:255';
+            $rules['payment_details.wise_email'] = 'required_if:payment_details.payment_method,wise|nullable|email|max:255';
+            $rules['payment_details.wallet_address'] = 'required_if:payment_details.payment_method,crypto|nullable|string|max:255';
+            $rules['payment_details.coin_type'] = 'required_if:payment_details.payment_method,crypto|nullable|string|max:50';
+            $rules['payment_details.notes'] = 'nullable|string|max:1000';
         }
 
-        if ((int) $expendable->user_id !== (int) $validated['contractor_id']) {
-            return response()->json([
-                'message' => 'Selected contractor does not match the contract owner.',
-                'errors' => [
-                    'contractor_id' => ['Selected contractor does not match the contract owner.'],
-                ],
-            ], 422);
-        }
+        $validated = $request->validate($rules);
 
-        $contractStatus = $expendable->status instanceof \BackedEnum
-            ? $expendable->status->value
-            : (string) $expendable->status;
+        if (!$isGeneralExpense) {
+            $expendable = ProjectExpendable::findOrFail($validated['project_expendable_id']);
 
-        if ($contractStatus !== ProjectExpendableStatus::Accepted->value) {
-            return response()->json([
-                'message' => 'Bills can only be created for accepted contracts.',
-                'errors' => [
-                    'project_expendable_id' => ['Contract must be accepted before bill creation.'],
-                ],
-            ], 422);
-        }
+            if ((int) $expendable->project_id !== (int) $project->id) {
+                return response()->json([
+                    'message' => 'Selected contract does not belong to this project.',
+                    'errors' => [
+                        'project_expendable_id' => ['Selected contract does not belong to this project.'],
+                    ],
+                ], 422);
+            }
 
-        $billCurrency = $validated['currency'] ?? 'AUD';
-        $expendableCurrency = $expendable->currency ?? 'AUD';
+            if ((int) $expendable->user_id !== (int) $validated['contractor_id']) {
+                return response()->json([
+                    'message' => 'Selected contractor does not match the contract owner.',
+                    'errors' => [
+                        'contractor_id' => ['Selected contractor does not match the contract owner.'],
+                    ],
+                ], 422);
+            }
 
-        try {
-            $amountInExpendableCurrency = $this->currencyConversionService->convert(
-                $validated['amount'],
-                $billCurrency,
-                $expendableCurrency
-            );
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to convert currency: ' . $e->getMessage(),
-                'errors' => ['currency' => [$e->getMessage()]],
-            ], 422);
-        }
+            $contractStatus = $expendable->status instanceof \BackedEnum
+                ? $expendable->status->value
+                : (string) $expendable->status;
 
-        $pendingBills = Bill::where('project_expendable_id', $expendable->id)
-            ->where('status', BillStatus::PendingApproval)
-            ->get();
+            if ($contractStatus !== ProjectExpendableStatus::Accepted->value) {
+                return response()->json([
+                    'message' => 'Bills can only be created for accepted contracts.',
+                    'errors' => [
+                        'project_expendable_id' => ['Contract must be accepted before bill creation.'],
+                    ],
+                ], 422);
+            }
 
-        $pendingAmountSumInExpendableCurrency = 0;
-        foreach ($pendingBills as $pendingBill) {
-            $pendingBillCurrency = $pendingBill->currency ?? 'AUD';
+            $billCurrency = $validated['currency'] ?? 'AUD';
+            $expendableCurrency = $expendable->currency ?? 'AUD';
+
             try {
-                $pendingAmountSumInExpendableCurrency += $this->currencyConversionService->convert(
-                    $pendingBill->amount,
-                    $pendingBillCurrency,
+                $amountInExpendableCurrency = $this->currencyConversionService->convert(
+                    $validated['amount'],
+                    $billCurrency,
                     $expendableCurrency
                 );
             } catch (\Exception $e) {
-                // Ignore conversion failure for existing pending bills
+                return response()->json([
+                    'message' => 'Failed to convert currency: ' . $e->getMessage(),
+                    'errors' => ['currency' => [$e->getMessage()]],
+                ], 422);
+            }
+
+            $pendingBills = Bill::where('project_expendable_id', $expendable->id)
+                ->where('status', BillStatus::PendingApproval)
+                ->get();
+
+            $pendingAmountSumInExpendableCurrency = 0;
+            foreach ($pendingBills as $pendingBill) {
+                $pendingBillCurrency = $pendingBill->currency ?? 'AUD';
+                try {
+                    $pendingAmountSumInExpendableCurrency += $this->currencyConversionService->convert(
+                        $pendingBill->amount,
+                        $pendingBillCurrency,
+                        $expendableCurrency
+                    );
+                } catch (\Exception $e) {
+                    // Ignore conversion failure for existing pending bills
+                }
+            }
+
+            if (round(($pendingAmountSumInExpendableCurrency + $amountInExpendableCurrency), 2) > round($expendable->balance, 2)) {
+                $availableForNewBills = max(0, $expendable->balance - $pendingAmountSumInExpendableCurrency);
+                return response()->json([
+                    'message' => 'Bill amount exceeds the remaining balance of the contract.',
+                    'errors' => [
+                        'amount' => ["Remaining balance available for new bills is {$availableForNewBills} {$expendableCurrency} (accounting for pending bills)."]
+                    ]
+                ], 422);
             }
         }
 
-        if (round(($pendingAmountSumInExpendableCurrency + $amountInExpendableCurrency), 2) > round($expendable->balance, 2)) {
-            $availableForNewBills = max(0, $expendable->balance - $pendingAmountSumInExpendableCurrency);
-            return response()->json([
-                'message' => 'Bill amount exceeds the remaining balance of the contract.',
-                'errors' => [
-                    'amount' => ["Remaining balance available for new bills is {$availableForNewBills} {$expendableCurrency} (accounting for pending bills)."]
-                ]
-            ], 422);
-        }
-
-        $bill = DB::transaction(function () use ($project, $validated) {
+        $bill = DB::transaction(function () use ($project, $validated, $isGeneralExpense) {
             $bill = Bill::create([
                 'project_id' => $project->id,
-                'contractor_id' => $validated['contractor_id'],
-                'project_expendable_id' => $validated['project_expendable_id'],
-                'transaction_type_id' => $validated['transaction_type_id'],
+                'contractor_id' => $isGeneralExpense ? ($validated['contractor_id'] ?? null) : $validated['contractor_id'],
+                'project_expendable_id' => $isGeneralExpense ? null : $validated['project_expendable_id'],
+                'transaction_type_id' => $validated['transaction_type_id'] ?? null,
                 'xero_account_code' => $validated['xero_account_code'] ?? null,
                 'xero_tax_type' => $validated['xero_tax_type'] ?? null,
                 'reference_number' => $validated['reference_number'] ?? null,
                 'due_date' => $validated['due_date'] ?? null,
                 'currency' => $validated['currency'] ?? 'AUD',
                 'amount' => $validated['amount'],
-                'status' => BillStatus::PendingApproval,
+                'status' => $isGeneralExpense ? BillStatus::Approved : BillStatus::PendingApproval,
             ]);
 
-            $paymentDetails = $validated['payment_details'];
+            if (!$isGeneralExpense) {
+                $paymentDetails = $validated['payment_details'];
 
-            $bill->paymentDetail()->create([
-                'contractor_id' => $validated['contractor_id'],
-                'payment_method' => $paymentDetails['payment_method'],
-                'details' => [
-                    'account_name' => $paymentDetails['account_name'],
-                    'account_number' => $paymentDetails['account_number'],
-                    'bank_name' => $paymentDetails['bank_name'] ?? null,
-                    'bsb' => $paymentDetails['bsb'] ?? null,
-                    'swift_code' => $paymentDetails['swift_code'] ?? null,
-                    'iban' => $paymentDetails['iban'] ?? null,
-                    'notes' => $paymentDetails['notes'] ?? null,
-                ],
-            ]);
+                $bill->paymentDetail()->create([
+                    'contractor_id' => $validated['contractor_id'],
+                    'payment_method' => $paymentDetails['payment_method'],
+                    'details' => [
+                        'account_name' => $paymentDetails['account_name'] ?? null,
+                        'account_number' => $paymentDetails['account_number'] ?? null,
+                        'bank_name' => $paymentDetails['bank_name'] ?? null,
+                        'bsb' => $paymentDetails['bsb'] ?? null,
+                        'swift_code' => $paymentDetails['swift_code'] ?? null,
+                        'iban' => $paymentDetails['iban'] ?? null,
+                        'notes' => $paymentDetails['notes'] ?? null,
+                    ],
+                ]);
+            }
 
             return $bill;
         });

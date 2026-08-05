@@ -91,6 +91,10 @@ class UserController extends Controller
             $query->whereDoesntHave('telegramAccount');
         }
 
+        if ($request->has('user_type')) {
+            $query->where('user_type', $request->input('user_type'));
+        }
+
         // Filter data based on role
         if ($user->hasPermission('view_users')) {
             $users = $query->orderBy('name')->get();
@@ -165,36 +169,43 @@ class UserController extends Controller
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255|unique:users,email',
-                'password' => 'required|string|min:8|confirmed', // 'confirmed' means password_confirmation must match
-                'role' => 'required|exists:roles,slug',
+                'password' => 'exclude_if:user_type,supplier|required|string|min:8|confirmed', // 'confirmed' means password_confirmation must match
+                'role' => 'exclude_if:user_type,supplier|required|exists:roles,slug',
                 'timezone' => 'nullable|string|max:255',
-                'user_type' => 'required|string|in:employee,contractor,admin',
-                'category_ids' => 'nullable|array',
+                'user_type' => 'required|string|in:employee,contractor,admin,supplier',
+                'category_ids' => 'exclude_if:user_type,supplier|nullable|array',
                 'category_ids.*' => 'integer|exists:categories,id',
-                'extension_mandatory' => 'nullable|boolean',
+                'extension_mandatory' => 'exclude_if:user_type,supplier|nullable|boolean',
             ]);
 
             // Enforce additional role restrictions based on the current user's role.
             // This is a safety check beyond the policy.
             $currentUser = Auth::user();
-            if (! $currentUser->isSuperAdmin()) {
-                // If the current user is not a Super Admin, they cannot create Super Admin or Manager accounts.
-                if ($validated['role'] === 'super-admin' || $validated['role'] === 'manager') {
-                    throw ValidationException::withMessages(['role' => 'Only Super Admins can create Super Admin or Manager accounts.']);
+            $roleId = null;
+
+            if (isset($validated['role'])) {
+                if (! $currentUser->isSuperAdmin()) {
+                    // If the current user is not a Super Admin, they cannot create Super Admin or Manager accounts.
+                    if ($validated['role'] === 'super-admin' || $validated['role'] === 'manager') {
+                        throw ValidationException::withMessages(['role' => 'Only Super Admins can create Super Admin or Manager accounts.']);
+                    }
                 }
+
+                // Find the role by slug
+                $role = \App\Models\Role::where('slug', $validated['role'])->first();
+                if (! $role) {
+                    throw ValidationException::withMessages(['role' => 'Invalid role specified.']);
+                }
+                $roleId = $role->id;
             }
 
-            // Find the role by slug
-            $role = \App\Models\Role::where('slug', $validated['role'])->first();
-            if (! $role) {
-                throw ValidationException::withMessages(['role' => 'Invalid role specified.']);
-            }
+            $password = isset($validated['password']) ? $validated['password'] : \Illuminate\Support\Str::random(16);
 
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
-                'password' => Hash::make($validated['password']), // Hash the password securely
-                'role_id' => $role->id, // Use role_id instead of role
+                'password' => Hash::make($password), // Hash the password securely
+                'role_id' => $roleId, // Use role_id instead of role
                 'timezone' => $request->input('timezone'),
                 'user_type' => $request->input('user_type'),
                 'extension_mandatory' => $request->boolean('extension_mandatory'),
@@ -253,19 +264,19 @@ class UserController extends Controller
             $validated = $request->validate([
                 'name' => 'sometimes|required|string|max:255',
                 'email' => 'sometimes|required|string|email|max:255|unique:users,email,'.$user->id, // Unique check, excluding current user's email
-                'password' => 'nullable|string|min:8|confirmed', // Password is optional; 'confirmed' requires password_confirmation field
-                'role' => 'sometimes|required|exists:roles,slug', // Role can be updated
+                'password' => 'exclude_if:user_type,supplier|nullable|string|min:8|confirmed', // Password is optional; 'confirmed' requires password_confirmation field
+                'role' => 'exclude_if:user_type,supplier|sometimes|required|exists:roles,slug', // Role can be updated
                 'timezone' => 'nullable|string|max:255',
-                'user_type' => 'required|string|in:employee,contractor,admin',
-                'category_ids' => 'nullable|array',
+                'user_type' => 'required|string|in:employee,contractor,admin,supplier',
+                'category_ids' => 'exclude_if:user_type,supplier|nullable|array',
                 'category_ids.*' => 'integer|exists:categories,id',
-                'extension_mandatory' => 'nullable|boolean',
+                'extension_mandatory' => 'exclude_if:user_type,supplier|nullable|boolean',
             ]);
 
             $currentUser = Auth::user();
 
             // Additional server-side validation for role changes, especially for non-Super Admins.
-            if ($request->has('role')) {
+            if ($request->has('role') && isset($validated['role'])) {
                 // Find the role by slug
                 $newRole = \App\Models\Role::where('slug', $validated['role'])->first();
                 if (! $newRole) {
@@ -288,7 +299,7 @@ class UserController extends Controller
             }
 
             // Prevent a user from elevating their OWN role if they are not a Super Admin.
-            if ($currentUser->id === $user->id && $request->has('role') && ! $currentUser->isSuperAdmin() && ($validated['role'] === 'super-admin' || $validated['role'] === 'manager')) {
+            if ($currentUser->id === $user->id && $request->has('role') && isset($validated['role']) && ! $currentUser->isSuperAdmin() && ($validated['role'] === 'super-admin' || $validated['role'] === 'manager')) {
                 throw ValidationException::withMessages(['role' => 'You cannot elevate your own role to Super Admin or Manager.']);
             }
 
@@ -302,11 +313,15 @@ class UserController extends Controller
             }
 
             // If role is being updated, set the role_id
-            if ($request->has('role')) {
+            if ($request->has('role') && isset($validated['role'])) {
                 $newRole = \App\Models\Role::where('slug', $validated['role'])->first();
                 if ($newRole) {
                     $userData['role_id'] = $newRole->id;
                 }
+            }
+
+            if ($request->input('user_type') === 'supplier') {
+                $userData['role_id'] = null;
             }
 
             $user->update($userData);

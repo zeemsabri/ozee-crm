@@ -416,12 +416,32 @@ class TransactionsController extends Controller // Assuming your controller is n
 
         $bill = \App\Models\Bill::findOrFail($validated['bill_id']);
 
+        // Resolve exchange rate if not set but has bank transaction ID
+        if (empty($transaction->exchange_rate) && !empty($transaction->bank_transaction_id)) {
+            try {
+                $bankData = $this->getBankTransactionData($transaction->bank_transaction_id, $airwallexService);
+                if (!empty($bankData['client_rate'])) {
+                    $transaction->exchange_rate = $bankData['client_rate'];
+                } elseif (!empty($bankData['payment_details']['source_amount']) && !empty($bankData['payment_details']['payment_amount'])) {
+                    $transaction->exchange_rate = (float) $bankData['payment_details']['payment_amount'] / (float) $bankData['payment_details']['source_amount'];
+                }
+            } catch (\Exception $ex) {
+                \Log::warning("Could not fetch exchange rate during linkBill for transaction {$transaction->id}: " . $ex->getMessage());
+            }
+        }
+
         // --- VALIDATION: BILL REMAINING AMOUNT ---
         $remainingAmount = $this->getBillRemainingAmount($bill);
         $conversionService = app(\App\Services\CurrencyConversionService::class);
         try {
             if ($transaction->exchange_rate && $transaction->exchange_rate > 0) {
-                $convertedTxAmount = (float) $transaction->amount / (float) $transaction->exchange_rate;
+                if ($transaction->currency === 'AUD' && ($bill->currency ?? 'AUD') === 'PKR') {
+                    $convertedTxAmount = (float) $transaction->amount * (float) $transaction->exchange_rate;
+                } elseif ($transaction->currency === 'PKR' && ($bill->currency ?? 'AUD') === 'AUD') {
+                    $convertedTxAmount = (float) $transaction->amount / (float) $transaction->exchange_rate;
+                } else {
+                    $convertedTxAmount = (float) $transaction->amount * (float) $transaction->exchange_rate;
+                }
             } else {
                 $convertedTxAmount = $conversionService->convert(
                     (float) $transaction->amount,
@@ -444,6 +464,7 @@ class TransactionsController extends Controller // Assuming your controller is n
             'bill_id' => $bill->id,
             'is_paid' => true,
             'payment_date' => $transaction->payment_date ?: now(),
+            'exchange_rate' => $transaction->exchange_rate,
         ]);
 
         $xeroPaymentId = $this->syncLinkedBillPayment($transaction, $airwallexService, $xeroBillService);
@@ -462,16 +483,14 @@ class TransactionsController extends Controller // Assuming your controller is n
     {
         $bill = $transaction->bill;
 
-        $transaction->update([
-            'bill_id' => null,
-        ]);
+        $transaction->delete();
 
         if ($bill) {
             $bill->recalculateStatus();
         }
 
         return response()->json([
-            'message' => 'Transaction unlinked from bill successfully.',
+            'message' => 'Transaction unlinked and deleted successfully.',
             'transaction' => $transaction
         ]);
     }
@@ -502,16 +521,14 @@ class TransactionsController extends Controller // Assuming your controller is n
     {
         $invoice = $transaction->invoice;
 
-        $transaction->update([
-            'invoice_id' => null,
-        ]);
+        $transaction->delete();
 
         if ($invoice) {
             $invoice->recalculateStatus();
         }
 
         return response()->json([
-            'message' => 'Transaction unlinked from invoice successfully.',
+            'message' => 'Transaction unlinked and deleted successfully.',
             'transaction' => $transaction
         ]);
     }
@@ -652,15 +669,45 @@ class TransactionsController extends Controller // Assuming your controller is n
                 });
             }
 
-            // Filter by type (default to expense / outgoing)
-            $type = $request->query('type', 'expense');
-            if ($type === 'expense') {
-                $items = array_filter($items, fn($item) => ($item['amount'] ?? 0) < 0);
+            // Filter by type (default to bills)
+            $type = $request->query('type', 'bills');
+            if ($type === 'bills') {
+                $items = array_filter($items, fn($item) => ($item['amount'] ?? 0) < 0 && ($item['transaction_type'] ?? '') === 'PAYOUT');
+            } elseif ($type === 'expenses') {
+                $items = array_filter($items, fn($item) => ($item['amount'] ?? 0) < 0 && ($item['transaction_type'] ?? '') === 'ISSUING_CAPTURE');
+            } elseif ($type === 'other') {
+                $items = array_filter($items, fn($item) => ($item['amount'] ?? 0) < 0 && ($item['transaction_type'] ?? '') !== 'PAYOUT' && ($item['transaction_type'] ?? '') !== 'ISSUING_CAPTURE');
             } elseif ($type === 'income') {
                 $items = array_filter($items, fn($item) => ($item['amount'] ?? 0) > 0);
             }
 
             $items = array_values($items);
+
+            // Fetch payment details ONLY for PAYOUT transactions from Cache or API
+            foreach ($items as &$item) {
+                if (($item['transaction_type'] ?? '') === 'PAYOUT' && !empty($item['source_id'])) {
+                    $sourceId = $item['source_id'];
+                    $cacheKey = 'airwallex_payment_' . $sourceId;
+
+                    $paymentDetails = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addDays(30), function () use ($airwallexService, $sourceId) {
+                        try {
+                            return $airwallexService->getPayment($sourceId);
+                        } catch (\Exception $e) {
+                            Log::warning("Failed to fetch payment details for source_id: {$sourceId}", ['error' => $e->getMessage()]);
+                            return null;
+                        }
+                    });
+
+                    if ($paymentDetails) {
+                        $item['payment_details'] = $paymentDetails;
+                        // Inherit failed/cancelled status from payment to main transaction
+                        if (in_array($paymentDetails['status'] ?? '', ['CANCELLED', 'FAILED', 'REJECTED'])) {
+                            $item['status'] = 'CANCELLED';
+                        }
+                    }
+                }
+            }
+            unset($item);
 
             if (!empty($items)) {
                 $bankTxIds = collect($items)->pluck('id')->filter()->toArray();
@@ -677,8 +724,16 @@ class TransactionsController extends Controller // Assuming your controller is n
                     $totalLinkedBankCurrency = 0;
                     foreach ($txs as $tx) {
                         try {
-                            if ($tx->exchange_rate && $tx->exchange_rate > 0) {
-                                $totalLinkedBankCurrency += (float)$tx->amount / (float)$tx->exchange_rate;
+                            if ($tx->currency === $bankCurrency) {
+                                $totalLinkedBankCurrency += (float)$tx->amount;
+                            } elseif ($tx->exchange_rate && $tx->exchange_rate > 0) {
+                                if ($tx->currency === 'AUD' && $bankCurrency === 'PKR') {
+                                    $totalLinkedBankCurrency += (float)$tx->amount * (float)$tx->exchange_rate;
+                                } elseif ($tx->currency === 'PKR' && $bankCurrency === 'AUD') {
+                                    $totalLinkedBankCurrency += (float)$tx->amount / (float)$tx->exchange_rate;
+                                } else {
+                                    $totalLinkedBankCurrency += (float)$tx->amount * (float)$tx->exchange_rate;
+                                }
                             } else {
                                 $totalLinkedBankCurrency += $conversionService->convert(
                                     (float)$tx->amount,
@@ -732,6 +787,24 @@ class TransactionsController extends Controller // Assuming your controller is n
     private function getBankTransactionData(string $id, AirwallexService $airwallexService): array
     {
         $data = $airwallexService->getTransaction($id);
+
+        if (($data['amount'] ?? 0) < 0 && !empty($data['source_id'])) {
+            $sourceId = $data['source_id'];
+            $cacheKey = 'airwallex_payment_' . $sourceId;
+
+            $paymentDetails = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addDays(30), function () use ($airwallexService, $sourceId) {
+                try {
+                    return $airwallexService->getPayment($sourceId);
+                } catch (\Exception $e) {
+                    Log::warning("Failed to fetch payment details for source_id: {$sourceId} on single fetch", ['error' => $e->getMessage()]);
+                    return null;
+                }
+            });
+
+            if ($paymentDetails) {
+                $data['payment_details'] = $paymentDetails;
+            }
+        }
 
             // If it is a PAYOUT, search for related conversions to consolidate
             if (($data['transaction_type'] ?? '') === 'PAYOUT') {
@@ -796,8 +869,16 @@ class TransactionsController extends Controller // Assuming your controller is n
             $totalLinkedBankCurrency = 0;
             foreach ($txs as $tx) {
                 try {
-                    if ($tx->exchange_rate && $tx->exchange_rate > 0) {
-                        $totalLinkedBankCurrency += (float)$tx->amount / (float)$tx->exchange_rate;
+                    if ($tx->currency === $bankCurrency) {
+                        $totalLinkedBankCurrency += (float)$tx->amount;
+                    } elseif ($tx->exchange_rate && $tx->exchange_rate > 0) {
+                        if ($tx->currency === 'AUD' && $bankCurrency === 'PKR') {
+                            $totalLinkedBankCurrency += (float)$tx->amount * (float)$tx->exchange_rate;
+                        } elseif ($tx->currency === 'PKR' && $bankCurrency === 'AUD') {
+                            $totalLinkedBankCurrency += (float)$tx->amount / (float)$tx->exchange_rate;
+                        } else {
+                            $totalLinkedBankCurrency += (float)$tx->amount * (float)$tx->exchange_rate;
+                        }
                     } else {
                         $totalLinkedBankCurrency += $conversionService->convert(
                             (float)$tx->amount,
@@ -819,23 +900,6 @@ class TransactionsController extends Controller // Assuming your controller is n
 
     private function getBillRemainingAmount(\App\Models\Bill $bill): float
     {
-        $totalPaid = 0;
-        $billCurrency = $bill->currency ?? 'AUD';
-        $conversionService = app(\App\Services\CurrencyConversionService::class);
-
-        foreach ($bill->transactions()->where('is_paid', true)->get() as $tx) {
-            $txCurrency = $tx->currency ?? 'AUD';
-            try {
-                $totalPaid += $conversionService->convert(
-                    (float) $tx->amount,
-                    $txCurrency,
-                    $billCurrency
-                );
-            } catch (\Exception $e) {
-                $totalPaid += (float) $tx->amount;
-            }
-        }
-
-        return max(0, (float) $bill->amount - $totalPaid);
+        return $bill->remaining_amount;
     }
 }

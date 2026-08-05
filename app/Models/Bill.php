@@ -101,23 +101,7 @@ class Bill extends Model
             return;
         }
 
-        $totalPaid = 0;
-        $billCurrency = $this->currency ?? 'AUD';
-        $conversionService = app(\App\Services\CurrencyConversionService::class);
-
-        foreach ($this->transactions()->where('is_paid', true)->get() as $tx) {
-            $txCurrency = $tx->currency ?? 'AUD';
-            try {
-                $totalPaid += $conversionService->convert(
-                    (float) $tx->amount,
-                    $txCurrency,
-                    $billCurrency
-                );
-            } catch (\Exception $e) {
-                $totalPaid += (float) $tx->amount;
-            }
-        }
-
+        $totalPaid = $this->paid_amount;
         $billAmount = (float) $this->amount;
 
         if (round($totalPaid, 2) >= round($billAmount, 2)) {
@@ -142,14 +126,28 @@ class Bill extends Model
 
         foreach ($this->transactions()->where('is_paid', true)->get() as $tx) {
             $txCurrency = $tx->currency ?? 'AUD';
-            try {
-                $totalPaid += $conversionService->convert(
-                    (float) $tx->amount,
-                    $txCurrency,
-                    $billCurrency
-                );
-            } catch (\Exception $e) {
+            if ($txCurrency === $billCurrency) {
                 $totalPaid += (float) $tx->amount;
+            } else {
+                if ($tx->exchange_rate && $tx->exchange_rate > 0) {
+                    if ($txCurrency === 'AUD' && $billCurrency === 'PKR') {
+                        $totalPaid += (float) $tx->amount * (float) $tx->exchange_rate;
+                    } elseif ($txCurrency === 'PKR' && $billCurrency === 'AUD') {
+                        $totalPaid += (float) $tx->amount / (float) $tx->exchange_rate;
+                    } else {
+                        $totalPaid += (float) $tx->amount * (float) $tx->exchange_rate;
+                    }
+                } else {
+                    try {
+                        $totalPaid += $conversionService->convert(
+                            (float) $tx->amount,
+                            $txCurrency,
+                            $billCurrency
+                        );
+                    } catch (\Exception $e) {
+                        $totalPaid += (float) $tx->amount;
+                    }
+                }
             }
         }
         return $totalPaid;

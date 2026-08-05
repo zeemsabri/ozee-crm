@@ -118,4 +118,35 @@ class AirwallexService
 
         throw new Exception('Failed to fetch Airwallex transaction: ' . $response->body());
     }
+
+    /**
+     * Get a payment by payment_id.
+     *
+     * @param string $id
+     * @return array
+     * @throws Exception
+     */
+    public function getPayment(string $id): array
+    {
+        $token = $this->authenticate();
+
+        $response = Http::withToken($token)
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+            ])
+            ->get($this->baseUrl . '/api/v1/payments/' . $id);
+
+        if ($response->successful()) {
+            return $response->json();
+        }
+
+        Log::error('Airwallex Get Payment Failed', [
+            'id' => $id,
+            'status' => $response->status(),
+            'body' => $response->body(),
+        ]);
+
+        throw new Exception('Failed to fetch Airwallex payment: ' . $response->body());
+    }
 }
+
