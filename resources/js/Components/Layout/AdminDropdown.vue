@@ -175,6 +175,7 @@ onMounted(() => {
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Reports</h4>
                             <div class="space-y-1">
                                 <DropdownLink v-permission="'manage_projects'" :href="route('admin.productivity.index')" :active="route().current('admin.productivity.index')" class="!px-2 !py-1.5">Productivity Report</DropdownLink>
+                                <DropdownLink v-permission="'manage_projects'" :href="route('admin.cto-report.index')" :active="route().current('admin.cto-report.index')" class="!px-2 !py-1.5">CTO Report</DropdownLink>
                                 <DropdownLink v-permission="'view-ceo-dashboard'" :href="route('dashboard.ceo-financial')" :active="route().current('dashboard.ceo-financial')" class="!px-2 !py-1.5">Profit and Loss</DropdownLink>
                                 <DropdownLink v-permission="'manage_projects'" :href="route('admin.project-time-cost.index')" :active="route().current('admin.project-time-cost.index')" class="!px-2 !py-1.5">Project Time & Cost Report</DropdownLink>
                                 <DropdownLink v-permission="'manage_projects'" :href="route('admin.productivity-projects.index')" :active="route().current('admin.productivity-projects.index')" class="!px-2 !py-1.5">Project Activity Report</DropdownLink>

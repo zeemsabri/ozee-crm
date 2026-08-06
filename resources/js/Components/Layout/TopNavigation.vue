@@ -399,6 +399,7 @@ onMounted(async () => {
                             <div class="px-1 pb-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Reports</div>
                             <div class="space-y-1">
                                 <ResponsiveNavLink v-permission="'manage_projects'" :href="route('admin.productivity.index')" :active="route().current('admin.productivity.index')" @click="closeMobileMenu">Productivity Report</ResponsiveNavLink>
+                                <ResponsiveNavLink v-permission="'manage_projects'" :href="route('admin.cto-report.index')" :active="route().current('admin.cto-report.index')" @click="closeMobileMenu">CTO Report</ResponsiveNavLink>
                                 <ResponsiveNavLink v-permission="'view-ceo-dashboard'" :href="route('dashboard.ceo-financial')" :active="route().current('dashboard.ceo-financial')" @click="closeMobileMenu">Profit and Loss</ResponsiveNavLink>
                                 <ResponsiveNavLink v-permission="'manage_projects'" :href="route('admin.project-time-cost.index')" :active="route().current('admin.project-time-cost.index')" @click="closeMobileMenu">Project Time & Cost Report</ResponsiveNavLink>
                                 <ResponsiveNavLink v-permission="'manage_projects'" :href="route('admin.productivity-projects.index')" :active="route().current('admin.productivity-projects.index')" @click="closeMobileMenu">Project Activity Report</ResponsiveNavLink>

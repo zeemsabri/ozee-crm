@@ -292,6 +292,14 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
             ->middleware(['permission:manage_projects'])
             ->name('activity-report.index');
 
+        // CTO Availability & Productivity Report
+        Route::get('/cto-report', [\App\Http\Controllers\Admin\CtoReportController::class, 'index'])
+            ->middleware(['permission:manage_projects'])
+            ->name('cto-report.index');
+        Route::get('/api/cto-report', [\App\Http\Controllers\Admin\CtoReportController::class, 'fetch'])
+            ->middleware(['permission:manage_projects'])
+            ->name('api.cto-report.fetch');
+
         // Media Files Admin Page
         Route::get('/media-files', [\App\Http\Controllers\Admin\MediaFileController::class, 'index'])
             ->middleware(['permission:manage_projects'])
