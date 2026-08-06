@@ -512,9 +512,7 @@ const paymentTermsSummary = (terms) => {
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Scope</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Project</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">User</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Amount</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Paid Gauge</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Bills</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Payment Status</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Status</th>
                                     <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
                                 </tr>
@@ -545,97 +543,81 @@ const paymentTermsSummary = (terms) => {
                                         <td class="px-4 py-3 text-xs text-gray-500">
                                             {{ proposal.user?.name || '---' }}
                                         </td>
-                                        <td class="px-4 py-3 text-xs font-semibold text-gray-900 whitespace-nowrap">
-                                            {{ formatCurrency(proposal.amount, proposal.currency) }}
-                                        </td>
-                                        <!-- Paid Fuel Gauge Column -->
-                                        <td class="px-4 py-3 whitespace-nowrap">
-                                            <div class="group relative z-10 hover:z-50 flex items-center gap-2 cursor-help">
-                                                <div class="w-16 sm:w-20 bg-gray-200 rounded-full h-2 overflow-hidden flex shadow-inner">
-                                                    <div
-                                                        class="h-full rounded-full transition-all duration-500"
-                                                        :class="[
-                                                            getProposalPaymentInfo(proposal).percentage === 0 ? 'bg-gray-300' :
-                                                            getProposalPaymentInfo(proposal).percentage >= 100 ? 'bg-emerald-500' :
-                                                            'bg-gradient-to-r from-amber-400 to-indigo-600'
-                                                        ]"
-                                                        :style="{ width: `${getProposalPaymentInfo(proposal).percentage}%` }"
-                                                    ></div>
+                                        <!-- Unified Payment Status Column -->
+                                        <td class="px-4 py-3 whitespace-nowrap relative">
+                                            <div class="flex flex-col gap-1 w-max">
+                                                <div class="text-xs font-bold text-gray-900 flex items-center justify-between gap-4">
+                                                    <span>{{ formatCurrency(proposal.amount, proposal.currency) }}</span>
+                                                    <span v-if="(proposal.status === 'Accepted' || proposal.status === 'Completed') && proposal.bills && proposal.bills.length" class="text-[10px] text-gray-400 font-medium">
+                                                        {{ proposal.bills.filter(b => b.status === 'paid' || b.status === 'partial_paid').length }}/{{ proposal.bills.length }} Paid
+                                                    </span>
                                                 </div>
-                                                <span class="text-[11px] font-bold" :class="getProposalPaymentInfo(proposal).percentage >= 100 ? 'text-emerald-600' : 'text-gray-700'">
-                                                    {{ getProposalPaymentInfo(proposal).percentage }}%
-                                                </span>
-
-                                                <!-- Hover Tooltip Card -->
-                                                <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-56 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl border border-gray-700">
-                                                    <div class="font-bold text-gray-200 border-b border-gray-700 pb-1 mb-1.5 flex justify-between items-center">
-                                                        <span>Payment Progress</span>
-                                                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-emerald-400 font-bold">{{ getProposalPaymentInfo(proposal).percentage }}%</span>
+                                                
+                                                <div v-if="proposal.status === 'Accepted' || proposal.status === 'Completed'" class="group relative z-10 hover:z-50 flex items-center gap-2 cursor-help mt-0.5">
+                                                    <div class="w-32 bg-gray-200 rounded-full h-1.5 overflow-hidden flex shadow-inner">
+                                                        <div
+                                                            class="h-full rounded-full transition-all duration-500"
+                                                            :class="[
+                                                                getProposalPaymentInfo(proposal).percentage === 0 ? 'bg-gray-300' :
+                                                                getProposalPaymentInfo(proposal).percentage >= 100 ? 'bg-emerald-500' :
+                                                                'bg-gradient-to-r from-amber-400 to-indigo-600'
+                                                            ]"
+                                                            :style="{ width: `${getProposalPaymentInfo(proposal).percentage}%` }"
+                                                        ></div>
                                                     </div>
-                                                    <div class="space-y-1 text-[11px]">
-                                                        <div class="flex justify-between">
-                                                            <span class="text-gray-400">Total:</span>
-                                                            <span class="font-semibold">{{ formatCurrency(getProposalPaymentInfo(proposal).totalAmount, proposal.currency) }}</span>
+                                                    
+                                                    <!-- Combined Tooltip Card -->
+                                                    <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-56 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl border border-gray-700">
+                                                        <div class="font-bold text-gray-200 border-b border-gray-700 pb-1 mb-1.5 flex justify-between items-center">
+                                                            <span>Payment Progress</span>
+                                                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-emerald-400 font-bold">{{ getProposalPaymentInfo(proposal).percentage }}%</span>
                                                         </div>
-                                                        <div class="flex justify-between">
-                                                            <span class="text-gray-400">Paid:</span>
-                                                            <span class="font-semibold text-emerald-400">{{ formatCurrency(getProposalPaymentInfo(proposal).paidAmount, proposal.currency) }}</span>
-                                                        </div>
-                                                        <div class="flex justify-between">
-                                                            <span class="text-gray-400">Remaining:</span>
-                                                            <span class="font-semibold text-amber-400">{{ formatCurrency(getProposalPaymentInfo(proposal).remainingAmount, proposal.currency) }}</span>
-                                                        </div>
-                                                    </div>
-                                                    <!-- Tooltip arrow -->
-                                                    <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap relative">
-                                            <div class="group relative z-10 hover:z-50 flex items-center gap-1.5 cursor-help w-max" v-if="proposal.bills && proposal.bills.length">
-                                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-800">
-                                                    {{ proposal.bills.length }}
-                                                </span>
-                                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-800">
-                                                    {{ proposal.bills.filter(b => b.status === 'approved').length }}
-                                                </span>
-                                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">
-                                                    {{ proposal.bills.filter(b => b.status === 'paid' || b.status === 'partial_paid').length }}
-                                                </span>
-
-                                                <!-- Hover Tooltip Card -->
-                                                <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none absolute bottom-full left-0 mb-2 z-50 w-48 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl border border-gray-700">
-                                                    <div class="font-bold text-gray-200 border-b border-gray-700 pb-1 mb-1.5">
-                                                        Bills Summary
-                                                    </div>
-                                                    <div class="space-y-1.5 text-[11px]">
-                                                        <div class="flex items-center justify-between">
-                                                            <div class="flex items-center gap-1.5">
-                                                                <span class="w-2 h-2 rounded-full bg-gray-400"></span>
-                                                                <span class="text-gray-300">Total Bills:</span>
+                                                        <div class="space-y-1.5 text-[11px] mb-2 border-b border-gray-700 pb-2">
+                                                            <div class="flex justify-between">
+                                                                <span class="text-gray-400">Total:</span>
+                                                                <span class="font-semibold">{{ formatCurrency(getProposalPaymentInfo(proposal).totalAmount, proposal.currency) }}</span>
                                                             </div>
-                                                            <span class="font-semibold text-gray-200">{{ proposal.bills.length }}</span>
-                                                        </div>
-                                                        <div class="flex items-center justify-between">
-                                                            <div class="flex items-center gap-1.5">
-                                                                <span class="w-2 h-2 rounded-full bg-green-400"></span>
-                                                                <span class="text-gray-300">Approved:</span>
+                                                            <div class="flex justify-between">
+                                                                <span class="text-gray-400">Paid:</span>
+                                                                <span class="font-semibold text-emerald-400">{{ formatCurrency(getProposalPaymentInfo(proposal).paidAmount, proposal.currency) }}</span>
                                                             </div>
-                                                            <span class="font-semibold text-green-400">{{ proposal.bills.filter(b => b.status === 'approved').length }}</span>
-                                                        </div>
-                                                        <div class="flex items-center justify-between">
-                                                            <div class="flex items-center gap-1.5">
-                                                                <span class="w-2 h-2 rounded-full bg-blue-400"></span>
-                                                                <span class="text-gray-300">Paid:</span>
+                                                            <div class="flex justify-between">
+                                                                <span class="text-gray-400">Remaining:</span>
+                                                                <span class="font-semibold text-amber-400">{{ formatCurrency(getProposalPaymentInfo(proposal).remainingAmount, proposal.currency) }}</span>
                                                             </div>
-                                                            <span class="font-semibold text-blue-400">{{ proposal.bills.filter(b => b.status === 'paid' || b.status === 'partial_paid').length }}</span>
                                                         </div>
+                                                        <div class="font-bold text-gray-200 border-b border-gray-700 pb-1 mb-1.5">
+                                                            Bills Summary
+                                                        </div>
+                                                        <div class="space-y-1.5 text-[11px]" v-if="proposal.bills && proposal.bills.length">
+                                                            <div class="flex items-center justify-between">
+                                                                <div class="flex items-center gap-1.5">
+                                                                    <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                                                                    <span class="text-gray-300">Total Bills:</span>
+                                                                </div>
+                                                                <span class="font-semibold text-gray-200">{{ proposal.bills.length }}</span>
+                                                            </div>
+                                                            <div class="flex items-center justify-between">
+                                                                <div class="flex items-center gap-1.5">
+                                                                    <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                                                                    <span class="text-gray-300">Approved:</span>
+                                                                </div>
+                                                                <span class="font-semibold text-green-400">{{ proposal.bills.filter(b => b.status === 'approved').length }}</span>
+                                                            </div>
+                                                            <div class="flex items-center justify-between">
+                                                                <div class="flex items-center gap-1.5">
+                                                                    <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                                                                    <span class="text-gray-300">Paid:</span>
+                                                                </div>
+                                                                <span class="font-semibold text-blue-400">{{ proposal.bills.filter(b => b.status === 'paid' || b.status === 'partial_paid').length }}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div v-else class="text-gray-400 text-[10px] italic">No bills assigned</div>
+                                                        <!-- Tooltip arrow -->
+                                                        <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
                                                     </div>
-                                                    <!-- Tooltip arrow -->
-                                                    <div class="absolute top-full left-6 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
                                                 </div>
                                             </div>
-                                            <span v-else class="text-xs text-gray-400 italic">No bills</span>
                                         </td>
                                         <td class="px-4 py-3 whitespace-nowrap">
                                             <span :class="['px-2 py-0.5 text-[11px] font-bold rounded-full', getStatusClass(proposal.status)]">
