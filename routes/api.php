@@ -404,6 +404,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('projects/{project}/expendables/{expendable}', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'update']);
     Route::post('projects/{project}/expendables/{expendable}/accept', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'accept']);
     Route::post('projects/{project}/expendables/{expendable}/reject', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'reject']);
+    Route::post('projects/{project}/expendables/{expendable}/complete', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'complete']);
     Route::post('projects/{project}/expendables/{expendable}/shortlist', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'shortlist']);
     Route::delete('projects/{project}/expendables/{expendable}', [\App\Http\Controllers\Api\ProjectExpendableController::class, 'destroy']);
 

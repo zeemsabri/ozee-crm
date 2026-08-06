@@ -11,4 +11,5 @@ enum ProjectExpendableStatus: string
     case Shortlisted = 'Shortlisted';
     case Accepted = 'Accepted';
     case Rejected = 'Rejected';
+    case Completed = 'Completed';
 }

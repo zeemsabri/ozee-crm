@@ -25,6 +25,9 @@ class ProjectExpendable extends Model
     /** @deprecated use App\Enums\ProjectExpendableStatus::Rejected */
     public const STATUS_REJECTED = \App\Enums\ProjectExpendableStatus::Rejected->value;
 
+    /** @deprecated use App\Enums\ProjectExpendableStatus::Completed */
+    public const STATUS_COMPLETED = \App\Enums\ProjectExpendableStatus::Completed->value;
+
     protected $fillable = [
         'name',
         'description',
@@ -129,6 +132,52 @@ class ProjectExpendable extends Model
             ->withProperties(['status' => \App\Enums\ProjectExpendableStatus::PendingApproval->value])
             ->event('expendable.unshortlisted')
             ->log("Expendable '{$this->name}' moved back to pending");
+    }
+
+    public function complete(string $reason, ?User $causer = null): void
+    {
+        $this->status = \App\Enums\ProjectExpendableStatus::Completed;
+        $this->save();
+
+        activity('project_expendable')
+            ->performedOn($this)
+            ->causedBy($causer ?? auth()->user())
+            ->withProperties(['reason' => $reason, 'status' => \App\Enums\ProjectExpendableStatus::Completed->value])
+            ->event('expendable.completed')
+            ->log("Expendable '{$this->name}' marked as completed");
+    }
+
+    public function checkCompletionStatus(): bool
+    {
+        $statusValue = is_string($this->status) ? $this->status : $this->status->value;
+        if ($statusValue !== \App\Enums\ProjectExpendableStatus::Accepted->value) {
+            return false;
+        }
+
+        $totalAmount = (float) $this->amount;
+        if ($totalAmount <= 0) {
+            return false;
+        }
+
+        $totalPaid = 0.0;
+        foreach ($this->bills as $bill) {
+            $totalPaid += (float) $bill->paid_amount;
+        }
+
+        if (round($totalPaid, 2) >= round($totalAmount, 2)) {
+            $this->status = \App\Enums\ProjectExpendableStatus::Completed;
+            $this->save();
+
+            activity('project_expendable')
+                ->performedOn($this)
+                ->withProperties(['status' => \App\Enums\ProjectExpendableStatus::Completed->value])
+                ->event('expendable.auto_completed')
+                ->log("Expendable '{$this->name}' automatically marked as completed (paid in full).");
+
+            return true;
+        }
+
+        return false;
     }
 
     public function bills()

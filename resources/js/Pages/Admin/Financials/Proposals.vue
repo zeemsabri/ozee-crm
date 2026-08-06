@@ -31,12 +31,22 @@ const canApproveMilestoneExpendables = canDo('approve_milestone_expendables');
 const proposals = ref([]);
 const projects = ref([]);
 const loading = ref(true);
-const filterStatus = ref('');
+const activeTab = ref('active');
+const filterStatus = ref('active');
 const filterSearch = ref('');
 const filterProjectId = ref('');
 const filterDateFrom = ref('');
 const filterDateTo = ref('');
 const stats = ref(null);
+
+const setTab = (tab) => {
+    activeTab.value = tab;
+    if (tab === 'active') filterStatus.value = 'active';
+    else if (tab === 'pending') filterStatus.value = 'Pending Approval';
+    else if (tab === 'completed') filterStatus.value = 'Completed';
+    else if (tab === 'all') filterStatus.value = 'all';
+    else if (tab === 'rejected') filterStatus.value = 'Rejected';
+};
 
 const pagination = ref({ current_page: 1, last_page: 1, total: 0 });
 
@@ -115,7 +125,8 @@ const clearMainFilters = () => {
     filterProjectId.value = '';
     filterDateFrom.value = '';
     filterDateTo.value = '';
-    filterStatus.value = '';
+    activeTab.value = 'active';
+    filterStatus.value = 'active';
 };
 
 const changePage = (page) => {
@@ -155,6 +166,14 @@ const rejectProposal = (proposal) => {
     showReasonModal.value = true;
 };
 
+const completeProposal = (proposal) => {
+    reasonModalTitle.value = 'Complete Proposal';
+    reasonModalMessage.value = `Are you sure you want to mark proposal "${proposal.name}" as completed? Please provide a reason (e.g. project completed or cancelled).`;
+    reasonModalEndpoint.value = `/api/projects/${proposal.project_id}/expendables/${proposal.id}/complete`;
+    reasonModalMethod.value = 'post';
+    showReasonModal.value = true;
+};
+
 const shortlistProposal = async (proposal, shortlist = true) => {
     const actionText = shortlist ? 'shortlist' : 'move back to pending';
     if (!await confirmPrompt(`Are you sure you want to ${actionText} proposal "${proposal.name}"?`)) return;
@@ -185,13 +204,42 @@ onMounted(() => {
 });
 
 const getStatusClass = (status) => {
+    if (!status) return 'bg-gray-100 text-gray-800';
     switch (status.toLowerCase()) {
         case 'accepted': return 'bg-green-100 text-green-800 border border-green-200';
+        case 'completed': return 'bg-blue-100 text-blue-800 border border-blue-200';
         case 'shortlisted': return 'bg-indigo-100 text-indigo-800 border border-indigo-200';
         case 'pending approval': return 'bg-amber-100 text-amber-800 border border-amber-200';
         case 'rejected': return 'bg-red-100 text-red-800 border border-red-200';
         default: return 'bg-gray-100 text-gray-800';
     }
+};
+
+const getProposalPaymentInfo = (proposal) => {
+    const totalAmount = Number(proposal.amount) || 0;
+    let paidAmount = 0;
+    
+    if (proposal.bills && proposal.bills.length) {
+        proposal.bills.forEach(bill => {
+            if (bill.paid_amount != null) {
+                paidAmount += Number(bill.paid_amount);
+            } else if (bill.transactions && bill.transactions.length) {
+                bill.transactions.forEach(tx => {
+                    if (tx.is_paid) paidAmount += Number(tx.amount);
+                });
+            }
+        });
+    }
+    
+    const percentage = totalAmount > 0 ? Math.min(100, Math.round((paidAmount / totalAmount) * 100)) : 0;
+    const remainingAmount = Math.max(0, totalAmount - paidAmount);
+    
+    return {
+        paidAmount,
+        totalAmount,
+        remainingAmount,
+        percentage
+    };
 };
 
 const hasPermissionToApprove = (proposal) => {
@@ -258,37 +306,43 @@ const paymentTermsSummary = (terms) => {
         </template>
 
         <div class="py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <div class="max-w-[100%] px-4 sm:px-6 lg:px-8">
                 <!-- Stats Dashboard Grid -->
-                <div v-if="stats" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-                    <div class="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                <div v-if="stats" class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+                    <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                         <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Proposals</div>
                         <div class="mt-2 flex items-baseline justify-between">
-                            <div class="text-2xl font-bold text-gray-900">{{ stats.total.count }}</div>
+                            <div class="text-xl font-bold text-gray-900">{{ stats.total.count }}</div>
                         </div>
                     </div>
-                    <div class="bg-white border border-amber-200 rounded-lg p-5 shadow-sm border-l-4 border-l-amber-500">
-                        <div class="text-xs font-semibold text-amber-600 uppercase tracking-wider">Pending Approval</div>
+                    <div class="bg-white border border-amber-200 rounded-lg p-4 shadow-sm border-l-4 border-l-amber-500">
+                        <div class="text-xs font-semibold text-amber-600 uppercase tracking-wider">Pending</div>
                         <div class="mt-2 flex items-baseline justify-between">
-                            <div class="text-2xl font-bold text-amber-950">{{ stats.pending.count }}</div>
+                            <div class="text-xl font-bold text-amber-950">{{ stats.pending.count }}</div>
                         </div>
                     </div>
-                    <div class="bg-white border border-indigo-200 rounded-lg p-5 shadow-sm border-l-4 border-l-indigo-500">
+                    <div class="bg-white border border-indigo-200 rounded-lg p-4 shadow-sm border-l-4 border-l-indigo-500">
                         <div class="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Shortlisted</div>
                         <div class="mt-2 flex items-baseline justify-between">
-                            <div class="text-2xl font-bold text-indigo-950">{{ stats.shortlisted.count }}</div>
+                            <div class="text-xl font-bold text-indigo-950">{{ stats.shortlisted.count }}</div>
                         </div>
                     </div>
-                    <div class="bg-white border border-emerald-200 rounded-lg p-5 shadow-sm border-l-4 border-l-emerald-500">
+                    <div class="bg-white border border-emerald-200 rounded-lg p-4 shadow-sm border-l-4 border-l-emerald-500">
                         <div class="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Accepted</div>
                         <div class="mt-2 flex items-baseline justify-between">
-                            <div class="text-2xl font-bold text-emerald-950">{{ stats.accepted.count }}</div>
+                            <div class="text-xl font-bold text-emerald-950">{{ stats.accepted.count }}</div>
                         </div>
                     </div>
-                    <div class="bg-white border border-red-200 rounded-lg p-5 shadow-sm border-l-4 border-l-red-500">
+                    <div class="bg-white border border-blue-200 rounded-lg p-4 shadow-sm border-l-4 border-l-blue-500">
+                        <div class="text-xs font-semibold text-blue-600 uppercase tracking-wider">Completed</div>
+                        <div class="mt-2 flex items-baseline justify-between">
+                            <div class="text-xl font-bold text-blue-950">{{ stats.completed?.count || 0 }}</div>
+                        </div>
+                    </div>
+                    <div class="bg-white border border-red-200 rounded-lg p-4 shadow-sm border-l-4 border-l-red-500">
                         <div class="text-xs font-semibold text-red-600 uppercase tracking-wider">Rejected</div>
                         <div class="mt-2 flex items-baseline justify-between">
-                            <div class="text-2xl font-bold text-red-950">{{ stats.rejected.count }}</div>
+                            <div class="text-xl font-bold text-red-950">{{ stats.rejected.count }}</div>
                         </div>
                     </div>
                 </div>
@@ -309,12 +363,14 @@ const paymentTermsSummary = (terms) => {
 
                         <!-- Status Filter -->
                         <div>
-                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Status</label>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Status Filter</label>
                             <select v-model="filterStatus" class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200">
-                                <option value="">All Statuses</option>
+                                <option value="active">Active Proposals</option>
+                                <option value="all">All Statuses</option>
                                 <option value="Pending Approval">Pending Approval</option>
                                 <option value="Shortlisted">Shortlisted</option>
                                 <option value="Accepted">Accepted</option>
+                                <option value="Completed">Completed</option>
                                 <option value="Rejected">Rejected</option>
                             </select>
                         </div>
@@ -353,7 +409,7 @@ const paymentTermsSummary = (terms) => {
                     </div>
                     
                     <!-- Clear Filters Button -->
-                    <div v-if="filterSearch || filterProjectId || filterDateFrom || filterDateTo || filterStatus" class="mt-3 flex justify-end">
+                    <div v-if="filterSearch || filterProjectId || filterDateFrom || filterDateTo || (filterStatus && filterStatus !== 'active')" class="mt-3 flex justify-end">
                         <button
                             @click="clearMainFilters"
                             class="text-xs font-medium text-indigo-600 hover:text-indigo-900 flex items-center gap-1"
@@ -364,73 +420,229 @@ const paymentTermsSummary = (terms) => {
                 </div>
 
                 <div class="bg-white shadow sm:rounded-lg border border-gray-200">
+                    <!-- Tab Navigation Bar -->
+                    <div class="border-b border-gray-200 bg-gray-50/80 px-4 py-3 flex flex-wrap items-center justify-between gap-3 sm:rounded-t-lg">
+                        <nav class="flex space-x-1 sm:space-x-2" aria-label="Tabs">
+                            <button
+                                @click="setTab('active')"
+                                :class="[
+                                    activeTab === 'active' 
+                                        ? 'bg-indigo-600 text-white font-bold shadow-sm' 
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 font-medium',
+                                    'px-3.5 py-1.5 text-xs sm:text-sm rounded-lg transition-all flex items-center gap-2'
+                                ]"
+                            >
+                                <span>Active Proposals</span>
+                                <span v-if="stats" class="px-2 py-0.5 rounded-full text-[10px]" :class="activeTab === 'active' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700'">
+                                    {{ (stats.pending?.count || 0) + (stats.shortlisted?.count || 0) + (stats.accepted?.count || 0) }}
+                                </span>
+                            </button>
+
+                            <button
+                                @click="setTab('pending')"
+                                :class="[
+                                    activeTab === 'pending' 
+                                        ? 'bg-amber-600 text-white font-bold shadow-sm' 
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 font-medium',
+                                    'px-3.5 py-1.5 text-xs sm:text-sm rounded-lg transition-all flex items-center gap-2'
+                                ]"
+                            >
+                                <span>Pending</span>
+                                <span v-if="stats" class="px-2 py-0.5 rounded-full text-[10px]" :class="activeTab === 'pending' ? 'bg-amber-700 text-white' : 'bg-gray-200 text-gray-700'">
+                                    {{ stats.pending?.count || 0 }}
+                                </span>
+                            </button>
+
+                            <button
+                                @click="setTab('completed')"
+                                :class="[
+                                    activeTab === 'completed' 
+                                        ? 'bg-blue-600 text-white font-bold shadow-sm' 
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 font-medium',
+                                    'px-3.5 py-1.5 text-xs sm:text-sm rounded-lg transition-all flex items-center gap-2'
+                                ]"
+                            >
+                                <span>Completed</span>
+                                <span v-if="stats" class="px-2 py-0.5 rounded-full text-[10px]" :class="activeTab === 'completed' ? 'bg-blue-700 text-white' : 'bg-gray-200 text-gray-700'">
+                                    {{ stats.completed?.count || 0 }}
+                                </span>
+                            </button>
+
+                            <button
+                                @click="setTab('all')"
+                                :class="[
+                                    activeTab === 'all' 
+                                        ? 'bg-gray-800 text-white font-bold shadow-sm' 
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 font-medium',
+                                    'px-3.5 py-1.5 text-xs sm:text-sm rounded-lg transition-all flex items-center gap-2'
+                                ]"
+                            >
+                                <span>All Proposals</span>
+                                <span v-if="stats" class="px-2 py-0.5 rounded-full text-[10px]" :class="activeTab === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-700'">
+                                    {{ stats.total?.count || 0 }}
+                                </span>
+                            </button>
+
+                            <button
+                                @click="setTab('rejected')"
+                                :class="[
+                                    activeTab === 'rejected' 
+                                        ? 'bg-red-600 text-white font-bold shadow-sm' 
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 font-medium',
+                                    'px-3.5 py-1.5 text-xs sm:text-sm rounded-lg transition-all flex items-center gap-2'
+                                ]"
+                            >
+                                <span>Rejected</span>
+                                <span v-if="stats" class="px-2 py-0.5 rounded-full text-[10px]" :class="activeTab === 'rejected' ? 'bg-red-700 text-white' : 'bg-gray-200 text-gray-700'">
+                                    {{ stats.rejected?.count || 0 }}
+                                </span>
+                            </button>
+                        </nav>
+                    </div>
+
                     <div v-if="loading" class="p-12 text-center text-gray-500">Loading proposals...</div>
-                    <div v-else-if="!proposals.length" class="p-12 text-center text-gray-500">No proposals found.</div>
-                    <div v-else>
-                        <table class="min-w-full divide-y divide-gray-200">
+                    <div v-else-if="!proposals.length" class="p-12 text-center text-gray-500">No proposals found in this view.</div>
+                    <div v-else class="w-full overflow-visible">
+                        <table class="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="w-8 px-4 py-3"></th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proposal</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scope</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bills (Total/Appr/Paid)</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th class="w-8 px-3 py-3"></th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Date</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Proposal</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Scope</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Project</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">User</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Amount</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Paid Gauge</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Bills</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 <template v-for="proposal in proposals" :key="proposal.id">
                                     <tr class="hover:bg-gray-50 cursor-pointer" @click="openProposalSidebar(proposal)">
-                                        <td class="px-4 py-4 text-center">
-                                            <ArrowTopRightOnSquareIcon class="w-4 h-4 text-gray-400 hover:text-indigo-600 transition-colors" />
+                                        <td class="px-3 py-3 text-center whitespace-nowrap">
+                                            <ArrowTopRightOnSquareIcon class="w-4 h-4 text-gray-400 hover:text-indigo-600 transition-colors inline-block" />
                                         </td>
-                                        <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
+                                        <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                                             {{ proposal.created_at ? new Date(proposal.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '---' }}
                                         </td>
-                                        <td class="px-6 py-4">
-                                            <div class="text-sm font-medium text-gray-900">{{ proposal.name }}</div>
+                                        <td class="px-4 py-3 text-xs font-medium text-gray-900 min-w-[200px]">
+                                            {{ proposal.name }}
                                         </td>
-                                        <td class="px-6 py-4 text-sm text-gray-500">
-                                            <span v-if="isMilestoneScope(proposal)" class="px-2 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100">
+                                        <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                                            <span v-if="isMilestoneScope(proposal)" class="px-2 py-0.5 rounded text-[11px] bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100">
                                                 Milestone: {{ proposal.expendable?.name || 'Milestone Scope' }}
                                             </span>
-                                            <span v-else class="px-2 py-0.5 rounded text-xs bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
+                                            <span v-else class="px-2 py-0.5 rounded text-[11px] bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
                                                 Project Scope
                                             </span>
                                         </td>
-                                        <td class="px-6 py-4 text-sm text-gray-500">
+                                        <td class="px-4 py-3 text-xs text-gray-500 min-w-[150px]">
                                             {{ proposal.project?.name || '---' }}
                                         </td>
-                                        <td class="px-6 py-4 text-sm text-gray-500">
+                                        <td class="px-4 py-3 text-xs text-gray-500">
                                             {{ proposal.user?.name || '---' }}
                                         </td>
-                                        <td class="px-6 py-4 text-sm font-semibold text-gray-900">
+                                        <td class="px-4 py-3 text-xs font-semibold text-gray-900 whitespace-nowrap">
                                             {{ formatCurrency(proposal.amount, proposal.currency) }}
                                         </td>
-                                        <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
-                                            <div class="flex items-center gap-1.5" v-if="proposal.bills && proposal.bills.length">
-                                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-800" title="Total Bills">
+                                        <!-- Paid Fuel Gauge Column -->
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <div class="group relative z-10 hover:z-50 flex items-center gap-2 cursor-help">
+                                                <div class="w-16 sm:w-20 bg-gray-200 rounded-full h-2 overflow-hidden flex shadow-inner">
+                                                    <div
+                                                        class="h-full rounded-full transition-all duration-500"
+                                                        :class="[
+                                                            getProposalPaymentInfo(proposal).percentage === 0 ? 'bg-gray-300' :
+                                                            getProposalPaymentInfo(proposal).percentage >= 100 ? 'bg-emerald-500' :
+                                                            'bg-gradient-to-r from-amber-400 to-indigo-600'
+                                                        ]"
+                                                        :style="{ width: `${getProposalPaymentInfo(proposal).percentage}%` }"
+                                                    ></div>
+                                                </div>
+                                                <span class="text-[11px] font-bold" :class="getProposalPaymentInfo(proposal).percentage >= 100 ? 'text-emerald-600' : 'text-gray-700'">
+                                                    {{ getProposalPaymentInfo(proposal).percentage }}%
+                                                </span>
+
+                                                <!-- Hover Tooltip Card -->
+                                                <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-56 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl border border-gray-700">
+                                                    <div class="font-bold text-gray-200 border-b border-gray-700 pb-1 mb-1.5 flex justify-between items-center">
+                                                        <span>Payment Progress</span>
+                                                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-emerald-400 font-bold">{{ getProposalPaymentInfo(proposal).percentage }}%</span>
+                                                    </div>
+                                                    <div class="space-y-1 text-[11px]">
+                                                        <div class="flex justify-between">
+                                                            <span class="text-gray-400">Total:</span>
+                                                            <span class="font-semibold">{{ formatCurrency(getProposalPaymentInfo(proposal).totalAmount, proposal.currency) }}</span>
+                                                        </div>
+                                                        <div class="flex justify-between">
+                                                            <span class="text-gray-400">Paid:</span>
+                                                            <span class="font-semibold text-emerald-400">{{ formatCurrency(getProposalPaymentInfo(proposal).paidAmount, proposal.currency) }}</span>
+                                                        </div>
+                                                        <div class="flex justify-between">
+                                                            <span class="text-gray-400">Remaining:</span>
+                                                            <span class="font-semibold text-amber-400">{{ formatCurrency(getProposalPaymentInfo(proposal).remainingAmount, proposal.currency) }}</span>
+                                                        </div>
+                                                    </div>
+                                                    <!-- Tooltip arrow -->
+                                                    <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap relative">
+                                            <div class="group relative z-10 hover:z-50 flex items-center gap-1.5 cursor-help w-max" v-if="proposal.bills && proposal.bills.length">
+                                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-800">
                                                     {{ proposal.bills.length }}
                                                 </span>
-                                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-800" title="Approved Bills">
+                                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-800">
                                                     {{ proposal.bills.filter(b => b.status === 'approved').length }}
                                                 </span>
-                                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800" title="Paid Bills">
+                                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">
                                                     {{ proposal.bills.filter(b => b.status === 'paid' || b.status === 'partial_paid').length }}
                                                 </span>
+
+                                                <!-- Hover Tooltip Card -->
+                                                <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none absolute bottom-full left-0 mb-2 z-50 w-48 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl border border-gray-700">
+                                                    <div class="font-bold text-gray-200 border-b border-gray-700 pb-1 mb-1.5">
+                                                        Bills Summary
+                                                    </div>
+                                                    <div class="space-y-1.5 text-[11px]">
+                                                        <div class="flex items-center justify-between">
+                                                            <div class="flex items-center gap-1.5">
+                                                                <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                                                                <span class="text-gray-300">Total Bills:</span>
+                                                            </div>
+                                                            <span class="font-semibold text-gray-200">{{ proposal.bills.length }}</span>
+                                                        </div>
+                                                        <div class="flex items-center justify-between">
+                                                            <div class="flex items-center gap-1.5">
+                                                                <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                                                                <span class="text-gray-300">Approved:</span>
+                                                            </div>
+                                                            <span class="font-semibold text-green-400">{{ proposal.bills.filter(b => b.status === 'approved').length }}</span>
+                                                        </div>
+                                                        <div class="flex items-center justify-between">
+                                                            <div class="flex items-center gap-1.5">
+                                                                <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                                                                <span class="text-gray-300">Paid:</span>
+                                                            </div>
+                                                            <span class="font-semibold text-blue-400">{{ proposal.bills.filter(b => b.status === 'paid' || b.status === 'partial_paid').length }}</span>
+                                                        </div>
+                                                    </div>
+                                                    <!-- Tooltip arrow -->
+                                                    <div class="absolute top-full left-6 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                                                </div>
                                             </div>
                                             <span v-else class="text-xs text-gray-400 italic">No bills</span>
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <span :class="['px-2 py-1 text-xs font-bold rounded-full', getStatusClass(proposal.status)]">
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <span :class="['px-2 py-0.5 text-[11px] font-bold rounded-full', getStatusClass(proposal.status)]">
                                                 {{ proposal.status }}
                                             </span>
                                         </td>
-                                        <td class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap" @click.stop>
+                                        <td class="px-4 py-3 text-right text-xs font-medium whitespace-nowrap" @click.stop>
                                             <div class="flex justify-end" v-if="hasPermissionToApprove(proposal)">
                                                 <Dropdown align="right" width="48">
                                                     <template #trigger>
@@ -449,11 +661,18 @@ const paymentTermsSummary = (terms) => {
                                                             Accept
                                                         </button>
                                                         <button
-                                                            v-if="proposal.status === 'Pending Approval' || proposal.status === 'Shortlisted'"
+                                                            v-if="(proposal.status === 'Pending Approval' || proposal.status === 'Shortlisted' || proposal.status === 'Accepted') && (!proposal.bills || !proposal.bills.length)"
                                                             @click="rejectProposal(proposal)"
                                                             class="block w-full px-4 py-2 text-start text-sm leading-5 text-red-700 hover:bg-red-50 font-semibold"
                                                         >
                                                             Reject
+                                                        </button>
+                                                        <button
+                                                            v-if="proposal.status === 'Accepted' || proposal.status === 'Pending Approval' || proposal.status === 'Shortlisted'"
+                                                            @click="completeProposal(proposal)"
+                                                            class="block w-full px-4 py-2 text-start text-sm leading-5 text-blue-700 hover:bg-blue-50 font-semibold"
+                                                        >
+                                                            Complete Proposal
                                                         </button>
                                                         <button
                                                             v-if="proposal.status === 'Pending Approval' || proposal.status === 'Rejected'"
@@ -476,8 +695,8 @@ const paymentTermsSummary = (terms) => {
                                                         >
                                                             Move to Pending
                                                         </button>
-                                                        <span v-if="proposal.status === 'Accepted'" class="block px-4 py-2 text-start text-xs text-gray-400 font-semibold italic">
-                                                            No Actions Available
+                                                        <span v-if="proposal.status === 'Completed'" class="block px-4 py-2 text-start text-xs text-gray-400 font-semibold italic">
+                                                            Proposal Completed
                                                         </span>
                                                     </template>
                                                 </Dropdown>
@@ -490,7 +709,7 @@ const paymentTermsSummary = (terms) => {
                         </table>
 
                         <!-- Pagination Footer -->
-                        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between sm:rounded-b-lg">
                             <div class="text-sm text-gray-600">
                                 Total: <span class="font-semibold">{{ pagination.total }}</span> proposals
                             </div>

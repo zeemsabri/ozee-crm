@@ -317,6 +317,12 @@ class ProjectExpendableController extends Controller
             'reason' => 'required|string|max:500',
         ]);
 
+        // If accepting proposal is already accepted and has bills, reject is disallowed (must complete instead)
+        $isAccepted = $expendable->status === \App\Enums\ProjectExpendableStatus::Accepted || $expendable->status->value === \App\Enums\ProjectExpendableStatus::Accepted->value;
+        if ($isAccepted && $expendable->bills()->exists()) {
+            return response()->json(['message' => 'Cannot reject an accepted proposal that has bills assigned to it. If the project is cancelled, please mark the proposal as Completed.'], 422);
+        }
+
         $isMilestone = $expendable->expendable_type === 'App\\Models\\Milestone' || $expendable->expendable_type === 'Milestone';
         $isUserBound = ! is_null($expendable->user_id);
         if ($isMilestone && $isUserBound) {
@@ -341,6 +347,39 @@ class ProjectExpendableController extends Controller
                 \Illuminate\Support\Facades\Log::error('Failed to queue proposal rejection email: ' . $e->getMessage());
             }
         }
+
+        return response()->json($expendable->fresh());
+    }
+
+    public function complete(Request $request, Project $project, ProjectExpendable $expendable)
+    {
+        $user = Auth::user();
+        if (! $this->canAccessProject($user, $project)) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        if ($expendable->project_id !== $project->id) {
+            return response()->json(['message' => 'Expendable does not belong to this project.'], 400);
+        }
+
+        $data = $request->validate([
+            'reason' => 'required|string|max:500',
+        ]);
+
+        $isMilestone = $expendable->expendable_type === 'App\\Models\\Milestone' || $expendable->expendable_type === 'Milestone';
+        $isUserBound = ! is_null($expendable->user_id);
+        if ($isMilestone && $isUserBound) {
+            if (! ($user->isSuperAdmin() || $user->hasPermission('approve_milestone_expendables'))) {
+                return response()->json(['message' => 'Unauthorized. You do not have permission to complete milestone expendables.'], 403);
+            }
+        } else {
+            if (! ($user->isSuperAdmin() || $user->hasPermission('approve_expendables'))) {
+                return response()->json(['message' => 'Unauthorized. You do not have permission to complete expendables.'], 403);
+            }
+        }
+
+        app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable', 'status', \App\Enums\ProjectExpendableStatus::Completed);
+        $expendable->complete($data['reason'], $user);
 
         return response()->json($expendable->fresh());
     }
@@ -464,23 +503,16 @@ class ProjectExpendableController extends Controller
 
         $statusFilter = $request->input('status') ?? '';
 
-        $sliceQuery = function (string $sliceStatus) use ($request, $statusFilter) {
+        $sliceQuery = function (string $sliceStatus) use ($request) {
             $q = ProjectExpendable::query()->whereNotNull('user_id');
             $this->applyBaseFilters($q, $request);
             $q->where('status', $sliceStatus);
-
-            if ($statusFilter !== '' && $statusFilter !== 'all' && $statusFilter !== $sliceStatus) {
-                return $q->whereRaw('0 = 1');
-            }
 
             return $q;
         };
 
         $totalQuery = ProjectExpendable::query()->whereNotNull('user_id');
         $this->applyBaseFilters($totalQuery, $request);
-        if ($statusFilter !== '' && $statusFilter !== 'all') {
-            $totalQuery->where('status', $statusFilter);
-        }
 
         return response()->json([
             'total' => [
@@ -498,6 +530,10 @@ class ProjectExpendableController extends Controller
             'accepted' => [
                 'count'  => $sliceQuery(\App\Enums\ProjectExpendableStatus::Accepted->value)->count(),
                 'amount' => $sliceQuery(\App\Enums\ProjectExpendableStatus::Accepted->value)->sum('amount'),
+            ],
+            'completed' => [
+                'count'  => $sliceQuery(\App\Enums\ProjectExpendableStatus::Completed->value)->count(),
+                'amount' => $sliceQuery(\App\Enums\ProjectExpendableStatus::Completed->value)->sum('amount'),
             ],
             'rejected' => [
                 'count'  => $sliceQuery(\App\Enums\ProjectExpendableStatus::Rejected->value)->count(),
@@ -521,14 +557,30 @@ class ProjectExpendableController extends Controller
 
         $statusFilter = $request->input('status') ?? '';
 
-        if ($statusFilter === 'all') {
+        if ($statusFilter === 'active') {
+            $query->whereIn('status', [
+                \App\Enums\ProjectExpendableStatus::PendingApproval->value,
+                \App\Enums\ProjectExpendableStatus::Shortlisted->value,
+                \App\Enums\ProjectExpendableStatus::Accepted->value,
+            ]);
+        } elseif ($statusFilter === 'all') {
             // No status restriction
         } elseif ($statusFilter !== '') {
             $query->where('status', $statusFilter);
         } else {
-            // Default: show everything for proposals page (or we can show all)
+            // Default to active proposals so list clears up as they complete
+            $query->whereIn('status', [
+                \App\Enums\ProjectExpendableStatus::PendingApproval->value,
+                \App\Enums\ProjectExpendableStatus::Shortlisted->value,
+                \App\Enums\ProjectExpendableStatus::Accepted->value,
+            ]);
         }
 
-        return response()->json($query->latest()->paginate(20));
+        $paginated = $query->latest()->paginate(20);
+        foreach ($paginated->items() as $item) {
+            $item->checkCompletionStatus();
+        }
+
+        return response()->json($paginated);
     }
 }
