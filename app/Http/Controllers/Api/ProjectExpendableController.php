@@ -11,6 +11,9 @@ use App\Models\ProjectExpendable;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\ProposalAcceptedMail;
+use App\Mail\ProposalRejectedMail;
 
 class ProjectExpendableController extends Controller
 {
@@ -287,6 +290,15 @@ class ProjectExpendableController extends Controller
         app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable', 'status', \App\Enums\ProjectExpendableStatus::Accepted);
         $expendable->accept($data['reason'], $user);
 
+        $expendable->loadMissing(['user', 'project']);
+        if ($expendable->user && ! empty($expendable->user->email)) {
+            try {
+                Mail::to($expendable->user->email)->queue(new ProposalAcceptedMail($expendable, $data['reason']));
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to queue proposal acceptance email: ' . $e->getMessage());
+            }
+        }
+
         return response()->json($expendable->fresh());
     }
 
@@ -320,6 +332,15 @@ class ProjectExpendableController extends Controller
         // Soft-validate the target status transition
         app(\App\Services\ValueSetValidator::class)->validate('ProjectExpendable', 'status', \App\Enums\ProjectExpendableStatus::Rejected);
         $expendable->reject($data['reason'], $user);
+
+        $expendable->loadMissing(['user', 'project']);
+        if ($expendable->user && ! empty($expendable->user->email)) {
+            try {
+                Mail::to($expendable->user->email)->queue(new ProposalRejectedMail($expendable, $data['reason']));
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to queue proposal rejection email: ' . $e->getMessage());
+            }
+        }
 
         return response()->json($expendable->fresh());
     }
