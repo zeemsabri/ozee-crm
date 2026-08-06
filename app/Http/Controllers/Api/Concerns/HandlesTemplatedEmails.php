@@ -402,16 +402,19 @@ trait HandlesTemplatedEmails
             ];
         }
 
-        if ($sender && get_class($email->conversation?->conversable) === Lead::class) {
+        if ($sender && ($email->conversation?->conversable_type === \App\Models\Lead::class || ($email->conversation?->conversable && get_class($email->conversation->conversable) === \App\Models\Lead::class))) {
             return [
                 'name' => $sender->name ?? 'Original Sender',
                 'role' => null,
             ];
         }
 
+        $project = $email->conversation?->project;
+        $roleName = $project ? ($this->getProjectRoleName($sender, $project) ?? 'Staff') : 'Staff';
+
         return [
             'name' => $sender?->name ?? 'Original Sender',
-            'role' => $this->getProjectRoleName($sender, $email->conversation->project) ?? 'Staff',
+            'role' => $roleName,
         ];
     }
 

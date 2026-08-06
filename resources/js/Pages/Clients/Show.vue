@@ -466,6 +466,7 @@ onMounted(async () => {
                                                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
                                                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Read Status</th>
                                                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                             </tr>
                                             </thead>
@@ -481,6 +482,12 @@ onMounted(async () => {
                             }">{{ (e.status || 'n/a').replace(/_/g, ' ').toUpperCase() }}</span>
                                                 </td>
                                                 <td class="px-4 py-2 text-sm text-gray-500">{{ e.type }}</td>
+                                                <td class="px-4 py-2 text-sm">
+                                                    <span v-if="e.type === 'sent'" :class="{'text-green-600': e.read_at, 'text-red-600': !e.read_at}">
+                                                        {{ e.read_at ? 'Read' : 'Unread' }}
+                                                    </span>
+                                                    <span v-else class="text-gray-500">N/A</span>
+                                                </td>
                                                 <td class="px-4 py-2 text-sm text-gray-500">{{ new Date(e.created_at).toLocaleString() }}</td>
                                             </tr>
                                             </tbody>
