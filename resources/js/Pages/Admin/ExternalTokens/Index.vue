@@ -10,6 +10,7 @@ import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import BaseFormModal from '@/Components/BaseFormModal.vue';
+import ExternalTokenWizard from '@/Components/ExternalTokenWizard.vue';
 
 const props = defineProps({
     tokens: Array,
@@ -18,6 +19,7 @@ const props = defineProps({
 });
 
 const showCreateModal = ref(false);
+const showWizard = ref(false);
 const showEditModal = ref(false);
 const showDeleteModal = ref(false);
 const tokenToDelete = ref(null);
@@ -134,9 +136,14 @@ const copyToken = (token) => {
                             <h3 class="text-lg font-medium text-gray-900">Manage External Tokens</h3>
                             <p class="text-sm text-gray-500">Tokens for third-party systems to access external endpoints.</p>
                         </div>
-                        <PrimaryButton @click="openCreateModal">
-                            <span class="mr-1">+</span> Create Token
-                        </PrimaryButton>
+                        <div class="flex items-center space-x-2">
+                            <PrimaryButton @click="showWizard = true" class="!bg-gradient-to-r !from-indigo-600 !to-purple-600 hover:!from-indigo-700 hover:!to-purple-700 shadow-sm">
+                                <span class="mr-1">✨</span> Create via Wizard
+                            </PrimaryButton>
+                            <SecondaryButton @click="openCreateModal" class="!border-gray-300">
+                                <span class="mr-1">+</span> Create Token (Advanced)
+                            </SecondaryButton>
+                        </div>
                     </div>
 
                     <div class="overflow-x-auto">
@@ -437,5 +444,13 @@ const copyToken = (token) => {
                 </div>
             </div>
         </Modal>
+
+        <ExternalTokenWizard
+            :show="showWizard"
+            :projects="projects"
+            :email-apps="emailApps"
+            @close="showWizard = false"
+            @submitted="handleSuccess"
+        />
     </AuthenticatedLayout>
 </template>
