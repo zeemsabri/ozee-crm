@@ -24,11 +24,13 @@ class ExternalTokenController extends Controller
 
         $projects = Project::select('id', 'name')->get();
         $emailApps = EmailApp::select('id', 'name', 'is_active')->orderBy('name')->get();
+        $stripeConfigurations = \App\Models\StripeConfiguration::select('id', 'app_name', 'app_id')->orderBy('app_name')->get();
 
         return Inertia::render('Admin/ExternalTokens/Index', [
             'tokens' => $tokens,
             'projects' => $projects,
             'emailApps' => $emailApps,
+            'stripeConfigurations' => $stripeConfigurations,
         ]);
     }
 
@@ -48,7 +50,7 @@ class ExternalTokenController extends Controller
             'whitelist_ips' => 'nullable|array',
         ]);
 
-        MagicLink::create([
+        $token = MagicLink::create([
             'label' => $request->label,
             'email' => $request->email,
             'project_id' => $request->project_id ?: null,
@@ -63,6 +65,14 @@ class ExternalTokenController extends Controller
             ],
             'used' => false,
         ]);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'External token created successfully.',
+                'token' => $token,
+            ]);
+        }
 
         return back()->with('success', 'External token created successfully.');
     }

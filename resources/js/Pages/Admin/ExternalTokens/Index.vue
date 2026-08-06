@@ -16,10 +16,12 @@ const props = defineProps({
     tokens: Array,
     projects: Array,
     emailApps: Array,
+    stripeConfigurations: Array,
 });
 
 const showCreateModal = ref(false);
 const showWizard = ref(false);
+const viewingToken = ref(null);
 const showEditModal = ref(false);
 const showDeleteModal = ref(false);
 const tokenToDelete = ref(null);
@@ -93,6 +95,16 @@ const closeModal = () => {
     showEditModal.value = false;
     editingTokenId.value = null;
     form.reset();
+};
+
+const openSnippets = (token) => {
+    viewingToken.value = token;
+    showWizard.value = true;
+};
+
+const closeWizard = () => {
+    showWizard.value = false;
+    viewingToken.value = null;
 };
 
 const handleSuccess = () => {
@@ -198,6 +210,11 @@ const copyToken = (token) => {
                                     </td>
                                     <td class="px-6 py-4 text-right">
                                         <div class="flex justify-end space-x-2">
+                                            <SecondaryButton title="View Developer Snippets" @click="openSnippets(token)">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                                                </svg>
+                                            </SecondaryButton>
                                             <SecondaryButton title="Edit Settings" @click="openEditModal(token)">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -449,7 +466,9 @@ const copyToken = (token) => {
             :show="showWizard"
             :projects="projects"
             :email-apps="emailApps"
-            @close="showWizard = false"
+            :stripe-configurations="stripeConfigurations"
+            :view-token="viewingToken"
+            @close="closeWizard"
             @submitted="handleSuccess"
         />
     </AuthenticatedLayout>
