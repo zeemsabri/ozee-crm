@@ -494,7 +494,7 @@ class ProjectExpendableController extends Controller
 
         $query = ProjectExpendable::query()
             ->whereNotNull('user_id')
-            ->with(['project', 'user:id,name,email,metadata,user_type', 'expendable', 'files', 'activities.causer']);
+            ->with(['project', 'user:id,name,email,metadata,user_type', 'expendable', 'files', 'activities.causer', 'bills.transactions', 'bills.contractor']);
 
         $this->applyBaseFilters($query, $request);
 

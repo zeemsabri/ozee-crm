@@ -10,11 +10,18 @@ import SelectDropdown from '@/Components/SelectDropdown.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import ReasonModal from '@/Components/ProjectExpendables/ReasonModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import RightSidebar from '@/Components/RightSidebar.vue';
 import { 
     ChevronDownIcon, 
     ChevronUpIcon, 
     DocumentIcon, 
-    ArrowDownTrayIcon 
+    ArrowDownTrayIcon,
+    BanknotesIcon,
+    CalendarIcon,
+    UserIcon,
+    FolderIcon,
+    DocumentTextIcon,
+    ArrowTopRightOnSquareIcon
 } from '@heroicons/vue/24/outline';
 
 const { canDo } = usePermissions();
@@ -39,16 +46,13 @@ const reasonModalMessage = ref('');
 const reasonModalEndpoint = ref('');
 const reasonModalMethod = ref('post');
 
-const expandedRows = ref({});
+const showSidebar = ref(false);
+const selectedProposal = ref(null);
 
-const toggleRow = (id) => {
-    expandedRows.value = {
-        ...expandedRows.value,
-        [id]: !expandedRows.value[id]
-    };
+const openProposalSidebar = (proposal) => {
+    selectedProposal.value = proposal;
+    showSidebar.value = true;
 };
-
-const isRowExpanded = (id) => !!expandedRows.value[id];
 
 const fetchProposals = async (page = 1) => {
     loading.value = true;
@@ -68,6 +72,12 @@ const fetchProposals = async (page = 1) => {
             last_page: data.last_page,
             total: data.total,
         };
+        if (selectedProposal.value) {
+            const updated = data.data.find(p => p.id === selectedProposal.value.id);
+            if (updated) {
+                selectedProposal.value = updated;
+            }
+        }
     } catch (err) {
         error('Failed to load proposals.');
     } finally {
@@ -367,16 +377,16 @@ const paymentTermsSummary = (terms) => {
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bills (Total/Appr/Paid)</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 <template v-for="proposal in proposals" :key="proposal.id">
-                                    <tr class="hover:bg-gray-50 cursor-pointer" @click="toggleRow(proposal.id)">
+                                    <tr class="hover:bg-gray-50 cursor-pointer" @click="openProposalSidebar(proposal)">
                                         <td class="px-4 py-4 text-center">
-                                            <ChevronDownIcon v-if="!isRowExpanded(proposal.id)" class="w-4 h-4 text-gray-400" />
-                                            <ChevronUpIcon v-else class="w-4 h-4 text-gray-400" />
+                                            <ArrowTopRightOnSquareIcon class="w-4 h-4 text-gray-400 hover:text-indigo-600 transition-colors" />
                                         </td>
                                         <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
                                             {{ proposal.created_at ? new Date(proposal.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '---' }}
@@ -400,6 +410,20 @@ const paymentTermsSummary = (terms) => {
                                         </td>
                                         <td class="px-6 py-4 text-sm font-semibold text-gray-900">
                                             {{ formatCurrency(proposal.amount, proposal.currency) }}
+                                        </td>
+                                        <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
+                                            <div class="flex items-center gap-1.5" v-if="proposal.bills && proposal.bills.length">
+                                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-800" title="Total Bills">
+                                                    {{ proposal.bills.length }}
+                                                </span>
+                                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-800" title="Approved Bills">
+                                                    {{ proposal.bills.filter(b => b.status === 'approved').length }}
+                                                </span>
+                                                <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800" title="Paid Bills">
+                                                    {{ proposal.bills.filter(b => b.status === 'paid' || b.status === 'partial_paid').length }}
+                                                </span>
+                                            </div>
+                                            <span v-else class="text-xs text-gray-400 italic">No bills</span>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <span :class="['px-2 py-1 text-xs font-bold rounded-full', getStatusClass(proposal.status)]">
@@ -461,42 +485,6 @@ const paymentTermsSummary = (terms) => {
                                             <div v-else class="text-xs text-gray-400 italic">No Permissions</div>
                                         </td>
                                     </tr>
-                                    <!-- Detailed Accordion Drawer -->
-                                    <tr v-if="isRowExpanded(proposal.id)" class="bg-gray-50">
-                                        <td colspan="9" class="px-8 py-5 border-t border-b border-gray-200">
-                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                                                <div>
-                                                    <h4 class="font-bold text-gray-700 uppercase tracking-wider text-xs mb-2">Proposal Description</h4>
-                                                    <p class="text-gray-600 whitespace-pre-wrap leading-relaxed">{{ proposal.description || 'No description provided.' }}</p>
-                                                </div>
-                                                <div class="space-y-4">
-                                                    <div>
-                                                        <h4 class="font-bold text-gray-700 uppercase tracking-wider text-xs mb-2">Payment Terms</h4>
-                                                        <p class="text-gray-600 bg-white border border-gray-200 rounded p-3 text-xs italic">{{ paymentTermsSummary(proposal.payment_terms) }}</p>
-                                                    </div>
-                                                    <div>
-                                                        <h4 class="font-bold text-gray-700 uppercase tracking-wider text-xs mb-2">Attached Documents</h4>
-                                                        <div v-if="proposal.files && proposal.files.length" class="space-y-2">
-                                                            <div v-for="file in proposal.files" :key="file.id" class="flex items-center justify-between p-2.5 bg-white rounded border border-gray-200">
-                                                                <div class="flex items-center gap-2 min-w-0">
-                                                                    <DocumentIcon class="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                                                                    <span class="text-xs font-medium text-gray-700 truncate max-w-xs" :title="file.filename">{{ file.filename }}</span>
-                                                                </div>
-                                                                <a 
-                                                                    :href="`/api/files/${file.id}/download`" 
-                                                                    target="_blank" 
-                                                                    class="text-indigo-600 hover:text-indigo-900 inline-flex items-center gap-1 text-xs font-semibold"
-                                                                >
-                                                                    <ArrowDownTrayIcon class="w-3.5 h-3.5" /> Download
-                                                                </a>
-                                                            </div>
-                                                        </div>
-                                                        <p v-else class="text-gray-500 text-xs italic">No documents attached.</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
                                 </template>
                             </tbody>
                         </table>
@@ -539,5 +527,191 @@ const paymentTermsSummary = (terms) => {
             @close="showReasonModal = false"
             @submitted="onModalSubmitted"
         />
+
+        <!-- Right Sidebar for Details & Bills -->
+        <RightSidebar
+            :show="showSidebar"
+            @close="showSidebar = false"
+            title="Proposal Details & Financials"
+            :initialWidth="50"
+        >
+            <template #content>
+                <div v-if="selectedProposal" class="p-6 space-y-6">
+                <!-- Proposal Header -->
+                <div class="border-b border-gray-200 pb-6">
+                    <div class="flex justify-between items-start gap-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">{{ selectedProposal.name }}</h3>
+                            <p class="text-sm text-gray-500 mt-1 flex items-center gap-2">
+                                <CalendarIcon class="w-4 h-4" />
+                                Created on {{ selectedProposal.created_at ? new Date(selectedProposal.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '---' }}
+                            </p>
+                        </div>
+                        <span :class="['px-2.5 py-1 text-xs font-bold rounded-full border', getStatusClass(selectedProposal.status)]">
+                            {{ selectedProposal.status }}
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 mt-6 bg-gray-50 rounded-lg p-4">
+                        <div>
+                            <span class="block text-xs font-medium text-gray-500 uppercase tracking-wider">Project</span>
+                            <span class="text-sm font-semibold text-gray-900 flex items-center gap-1.5 mt-1">
+                                <FolderIcon class="w-4 h-4 text-gray-400" />
+                                {{ selectedProposal.project?.name || '---' }}
+                            </span>
+                        </div>
+                        <div>
+                            <span class="block text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted By</span>
+                            <span class="text-sm font-semibold text-gray-900 flex items-center gap-1.5 mt-1">
+                                <UserIcon class="w-4 h-4 text-gray-400" />
+                                {{ selectedProposal.user?.name || '---' }}
+                            </span>
+                        </div>
+                        <div>
+                            <span class="block text-xs font-medium text-gray-500 uppercase tracking-wider">Proposal Amount</span>
+                            <span class="text-base font-bold text-gray-900 flex items-center gap-1.5 mt-1">
+                                <BanknotesIcon class="w-4 h-4 text-emerald-500" />
+                                {{ formatCurrency(selectedProposal.amount, selectedProposal.currency) }}
+                            </span>
+                        </div>
+                        <div>
+                            <span class="block text-xs font-medium text-gray-500 uppercase tracking-wider">Scope Type</span>
+                            <span class="text-sm font-semibold text-gray-900 mt-1 block">
+                                <span v-if="isMilestoneScope(selectedProposal)" class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100">
+                                    Milestone: {{ selectedProposal.expendable?.name || 'Milestone Scope' }}
+                                </span>
+                                <span v-else class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
+                                    Project Scope
+                                </span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Description & Payment Terms -->
+                <div class="space-y-4">
+                    <div>
+                        <h4 class="text-sm font-bold text-gray-800 flex items-center gap-1.5">
+                            <DocumentTextIcon class="w-4 h-4 text-gray-500" />
+                            Proposal Description
+                        </h4>
+                        <div class="mt-2 bg-white border border-gray-200 rounded-lg p-4 text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+                            {{ selectedProposal.description || 'No description provided.' }}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="text-sm font-bold text-gray-800">Payment Terms</h4>
+                        <div class="mt-2 bg-white border border-gray-200 rounded-lg p-3 text-xs italic text-gray-600">
+                            {{ paymentTermsSummary(selectedProposal.payment_terms) }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Attached Documents -->
+                <div>
+                    <h4 class="text-sm font-bold text-gray-800 mb-2">Attached Documents</h4>
+                    <div v-if="selectedProposal.files && selectedProposal.files.length" class="grid grid-cols-1 gap-2">
+                        <div v-for="file in selectedProposal.files" :key="file.id" class="flex items-center justify-between p-2.5 bg-white rounded border border-gray-200 shadow-sm">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <DocumentIcon class="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                                <span class="text-xs font-medium text-gray-700 truncate max-w-xs" :title="file.filename">{{ file.filename }}</span>
+                            </div>
+                            <a
+                                :href="`/api/files/${file.id}/download`"
+                                target="_blank"
+                                class="text-indigo-600 hover:text-indigo-900 inline-flex items-center gap-1 text-xs font-semibold"
+                            >
+                                <ArrowDownTrayIcon class="w-3.5 h-3.5" /> Download
+                            </a>
+                        </div>
+                    </div>
+                    <p v-else class="text-gray-500 text-xs italic">No documents attached.</p>
+                </div>
+
+                <!-- Bills Section -->
+                <div class="border-t border-gray-200 pt-6">
+                    <h4 class="text-md font-bold text-gray-900 mb-4 flex items-center justify-between">
+                        <span>Associated Contractor Bills</span>
+                        <span class="text-xs font-semibold bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full border border-indigo-100">
+                            {{ selectedProposal.bills ? selectedProposal.bills.length : 0 }} Bills Total
+                        </span>
+                    </h4>
+
+                    <!-- Mini Bills Stats -->
+                    <div class="grid grid-cols-3 gap-2 mb-4 text-center">
+                        <div class="bg-amber-50 border border-amber-100 rounded-lg p-2">
+                            <span class="block text-[10px] font-semibold text-amber-600 uppercase tracking-wider">Pending</span>
+                            <span class="text-base font-bold text-amber-950 mt-0.5 block">
+                                {{ selectedProposal.bills ? selectedProposal.bills.filter(b => b.status === 'pending_approval').length : 0 }}
+                            </span>
+                        </div>
+                        <div class="bg-green-50 border border-green-100 rounded-lg p-2">
+                            <span class="block text-[10px] font-semibold text-green-600 uppercase tracking-wider">Approved</span>
+                            <span class="text-base font-bold text-green-950 mt-0.5 block">
+                                {{ selectedProposal.bills ? selectedProposal.bills.filter(b => b.status === 'approved').length : 0 }}
+                            </span>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-100 rounded-lg p-2">
+                            <span class="block text-[10px] font-semibold text-blue-600 uppercase tracking-wider">Paid / Partial</span>
+                            <span class="text-base font-bold text-blue-950 mt-0.5 block">
+                                {{ selectedProposal.bills ? selectedProposal.bills.filter(b => b.status === 'paid' || b.status === 'partial_paid').length : 0 }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Bills List -->
+                    <div v-if="selectedProposal.bills && selectedProposal.bills.length" class="space-y-4">
+                        <div v-for="bill in selectedProposal.bills" :key="bill.id" class="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                            <div class="bg-gray-50 px-4 py-3 flex justify-between items-center border-b border-gray-150">
+                                <div>
+                                    <span class="text-xs font-bold text-gray-700">OZB{{ bill.id }}</span>
+                                    <span class="text-[10px] font-medium text-gray-400 ml-2" v-if="bill.due_date">
+                                        Due: {{ new Date(bill.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) }}
+                                    </span>
+                                </div>
+                                <span :class="['px-2 py-0.5 text-[10px] font-bold rounded-full', bill.status === 'approved' ? 'bg-green-100 text-green-800' : bill.status === 'pending_approval' ? 'bg-amber-100 text-amber-800' : bill.status === 'paid' ? 'bg-blue-100 text-blue-800' : bill.status === 'partial_paid' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-800']">
+                                    {{ bill.status }}
+                                </span>
+                            </div>
+                            <div class="p-4 space-y-3">
+                                <div class="flex justify-between items-center text-sm">
+                                    <div class="text-gray-500">Contractor</div>
+                                    <div class="font-medium text-gray-900">{{ bill.contractor?.name || '---' }}</div>
+                                </div>
+                                <div class="flex justify-between items-center text-sm">
+                                    <div class="text-gray-500">Amount</div>
+                                    <div class="font-semibold text-gray-900">{{ formatCurrency(bill.amount, bill.currency || selectedProposal.currency) }}</div>
+                                </div>
+
+                                <!-- Transactions nested breakdown -->
+                                <div class="mt-3 pt-3 border-t border-gray-100">
+                                    <div class="text-xs font-bold text-gray-700 mb-2">Transactions</div>
+                                    <div v-if="bill.transactions && bill.transactions.length" class="space-y-2">
+                                        <div v-for="tx in bill.transactions" :key="tx.id" class="bg-gray-50 rounded p-2 text-xs border border-gray-100">
+                                            <div class="flex justify-between items-center">
+                                                <span class="font-medium text-gray-800 truncate max-w-[200px]" :title="tx.description">{{ tx.description || 'No description' }}</span>
+                                                <span :class="['px-1.5 py-0.5 rounded-full text-[9px] font-bold', tx.is_paid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800']">
+                                                    {{ tx.is_paid ? 'Paid' : 'Unpaid' }}
+                                                </span>
+                                            </div>
+                                            <div class="flex justify-between items-center mt-1 text-[10px] text-gray-400">
+                                                <span>{{ tx.payment_date ? new Date(tx.payment_date).toLocaleDateString('en-GB') : (tx.created_at ? new Date(tx.created_at).toLocaleDateString('en-GB') : '---') }}</span>
+                                                <span class="font-bold text-gray-700">{{ formatCurrency(tx.amount, tx.currency || bill.currency) }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-else class="text-xs text-gray-400 italic">No transactions recorded for this bill.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p v-else class="text-gray-500 text-xs italic text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                        No bills have been added for this proposal.
+                    </p>
+                </div>
+            </div>
+        </template>
+    </RightSidebar>
     </AuthenticatedLayout>
 </template>
