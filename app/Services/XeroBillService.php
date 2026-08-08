@@ -48,7 +48,7 @@ class XeroBillService
         $this->assertValidAccountCodeForBill($accountCode, $credentials);
 
         $lineItem = [
-            'Description' => "Bill for Project: {$bill->project->name} - Expendable: {$bill->expendable->name}",
+            'Description' => "Bill for Project: {$bill->project->name}" . ($bill->expendable ? " - Expendable: {$bill->expendable->name}" : ""),
             'Quantity' => 1.0,
             'UnitAmount' => (float) $bill->amount,
             'AccountCode' => $accountCode,

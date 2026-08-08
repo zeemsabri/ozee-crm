@@ -68,11 +68,11 @@ class BillController extends Controller
         $rules = [
             'bill_type' => 'nullable|string|in:contractor_bill,general_expense',
             'document' => 'nullable|file|mimes:pdf|max:10240',
-            'xero_account_code' => 'nullable|string|max:50',
+            'xero_account_code' => 'required|string|max:50',
             'xero_tax_type' => 'nullable|string|in:' . implode(',', self::ALLOWED_XERO_TAX_TYPES),
             'reference_number' => 'required|string|max:255',
             'due_date' => 'nullable|date',
-            'currency' => 'nullable|string|max:3',
+            'currency' => 'required|string|max:3',
             'amount' => 'required|numeric|min:0.01',
         ];
 
@@ -192,7 +192,7 @@ class BillController extends Controller
                 'due_date' => $validated['due_date'] ?? null,
                 'currency' => $validated['currency'] ?? 'AUD',
                 'amount' => $validated['amount'],
-                'status' => $isGeneralExpense ? BillStatus::Approved : BillStatus::PendingApproval,
+                'status' => BillStatus::PendingApproval,
             ]);
 
             if (!$isGeneralExpense) {
@@ -250,84 +250,99 @@ class BillController extends Controller
             return response()->json(['message' => 'Bill does not belong to this project.'], 404);
         }
 
-        if (! $user->isSuperAdmin()) {
-            return response()->json(['message' => 'Only Super Admins can edit bills.'], 403);
+        if (! $user->hasPermission('edit_project_bills') && ! $user->isSuperAdmin()) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
         if ($bill->status !== BillStatus::PendingApproval) {
+            if ($bill->status === BillStatus::Approved) {
+                return response()->json(['message' => 'Synced bills cannot be edited, they can only be voided.'], 400);
+            }
+            if ($bill->status === BillStatus::Paid || $bill->status === BillStatus::PartialPaid) {
+                return response()->json(['message' => 'Paid bills cannot be edited.'], 400);
+            }
             return response()->json(['message' => 'Only pending approval bills can be edited.'], 400);
         }
 
-        $validated = $request->validate([
+        $isGeneralExpense = $bill->project_expendable_id === null;
+
+        $rules = [
             'amount' => 'required|numeric|min:0.01',
-            'xero_account_code' => 'nullable|string|max:50',
+            'xero_account_code' => 'required|string|max:50',
             'xero_tax_type' => 'nullable|string|in:' . implode(',', self::ALLOWED_XERO_TAX_TYPES),
-            'reference_number' => 'nullable|string|max:255',
+            'reference_number' => 'required|string|max:255',
             'due_date' => 'nullable|date',
-            'currency' => 'nullable|string|max:3',
-            'payment_details' => 'required|array',
-            'payment_details.payment_method' => 'required|string|max:50',
-            'payment_details.account_name' => 'required_if:payment_details.payment_method,bank_local,bank_wire|nullable|string|max:255',
-            'payment_details.account_number' => 'required_if:payment_details.payment_method,bank_local,bank_wire|nullable|string|max:255',
-            'payment_details.bank_name' => 'nullable|string|max:255',
-            'payment_details.bsb' => 'required_if:payment_details.payment_method,bank_local|nullable|string|max:255',
-            'payment_details.swift_code' => 'required_if:payment_details.payment_method,bank_wire|nullable|string|max:255',
-            'payment_details.iban' => 'nullable|string|max:255',
-            'payment_details.paypal_email' => 'required_if:payment_details.payment_method,paypal|nullable|email|max:255',
-            'payment_details.payoneer_email' => 'required_if:payment_details.payment_method,payoneer|nullable|email|max:255',
-            'payment_details.wise_email' => 'required_if:payment_details.payment_method,wise|nullable|email|max:255',
-            'payment_details.wallet_address' => 'required_if:payment_details.payment_method,crypto|nullable|string|max:255',
-            'payment_details.coin_type' => 'required_if:payment_details.payment_method,crypto|nullable|string|max:50',
-            'payment_details.notes' => 'nullable|string|max:1000',
-        ]);
+            'currency' => 'required|string|max:3',
+        ];
 
-        $expendable = $bill->expendable;
-        $billCurrency = $validated['currency'] ?? 'AUD';
-        $expendableCurrency = $expendable->currency ?? 'AUD';
-
-        try {
-            $amountInExpendableCurrency = $this->currencyConversionService->convert(
-                $validated['amount'],
-                $billCurrency,
-                $expendableCurrency
-            );
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to convert currency: ' . $e->getMessage(),
-                'errors' => ['currency' => [$e->getMessage()]],
-            ], 422);
+        if (!$isGeneralExpense) {
+            $rules['payment_details'] = 'required|array';
+            $rules['payment_details.payment_method'] = 'required|string|max:50';
+            $rules['payment_details.account_name'] = 'required_if:payment_details.payment_method,bank_local,bank_wire|nullable|string|max:255';
+            $rules['payment_details.account_number'] = 'required_if:payment_details.payment_method,bank_local,bank_wire|nullable|string|max:255';
+            $rules['payment_details.bank_name'] = 'nullable|string|max:255';
+            $rules['payment_details.bsb'] = 'required_if:payment_details.payment_method,bank_local|nullable|string|max:255';
+            $rules['payment_details.swift_code'] = 'required_if:payment_details.payment_method,bank_wire|nullable|string|max:255';
+            $rules['payment_details.iban'] = 'nullable|string|max:255';
+            $rules['payment_details.paypal_email'] = 'required_if:payment_details.payment_method,paypal|nullable|email|max:255';
+            $rules['payment_details.payoneer_email'] = 'required_if:payment_details.payment_method,payoneer|nullable|email|max:255';
+            $rules['payment_details.wise_email'] = 'required_if:payment_details.payment_method,wise|nullable|email|max:255';
+            $rules['payment_details.wallet_address'] = 'required_if:payment_details.payment_method,crypto|nullable|string|max:255';
+            $rules['payment_details.coin_type'] = 'required_if:payment_details.payment_method,crypto|nullable|string|max:50';
+            $rules['payment_details.notes'] = 'nullable|string|max:1000';
         }
 
-        $pendingBills = Bill::where('project_expendable_id', $expendable->id)
-            ->where('status', BillStatus::PendingApproval)
-            ->where('id', '!=', $bill->id)
-            ->get();
+        $validated = $request->validate($rules);
 
-        $pendingAmountSumInExpendableCurrency = 0;
-        foreach ($pendingBills as $pendingBill) {
-            $pendingBillCurrency = $pendingBill->currency ?? 'AUD';
+        if (!$isGeneralExpense) {
+            $expendable = $bill->expendable;
+            $billCurrency = $validated['currency'] ?? 'AUD';
+            $expendableCurrency = $expendable->currency ?? 'AUD';
+
             try {
-                $pendingAmountSumInExpendableCurrency += $this->currencyConversionService->convert(
-                    $pendingBill->amount,
-                    $pendingBillCurrency,
+                $amountInExpendableCurrency = $this->currencyConversionService->convert(
+                    $validated['amount'],
+                    $billCurrency,
                     $expendableCurrency
                 );
             } catch (\Exception $e) {
-                // Ignore
+                return response()->json([
+                    'message' => 'Failed to convert currency: ' . $e->getMessage(),
+                    'errors' => ['currency' => [$e->getMessage()]],
+                ], 422);
+            }
+
+            $pendingBills = Bill::where('project_expendable_id', $expendable->id)
+                ->where('status', BillStatus::PendingApproval)
+                ->where('id', '!=', $bill->id)
+                ->get();
+
+            $pendingAmountSumInExpendableCurrency = 0;
+            foreach ($pendingBills as $pendingBill) {
+                $pendingBillCurrency = $pendingBill->currency ?? 'AUD';
+                try {
+                    $pendingAmountSumInExpendableCurrency += $this->currencyConversionService->convert(
+                        $pendingBill->amount,
+                        $pendingBillCurrency,
+                        $expendableCurrency
+                    );
+                } catch (\Exception $e) {
+                    // Ignore
+                }
+            }
+
+            if (round(($pendingAmountSumInExpendableCurrency + $amountInExpendableCurrency), 2) > round($expendable->balance, 2)) {
+                $availableForNewBills = max(0, $expendable->balance - $pendingAmountSumInExpendableCurrency);
+                return response()->json([
+                    'message' => 'Bill amount exceeds the remaining balance of the contract.',
+                    'errors' => [
+                        'amount' => ["Remaining balance available for bills is {$availableForNewBills} {$expendableCurrency}."]
+                    ]
+                ], 422);
             }
         }
 
-        if (round(($pendingAmountSumInExpendableCurrency + $amountInExpendableCurrency), 2) > round($expendable->balance, 2)) {
-            $availableForNewBills = max(0, $expendable->balance - $pendingAmountSumInExpendableCurrency);
-            return response()->json([
-                'message' => 'Bill amount exceeds the remaining balance of the contract.',
-                'errors' => [
-                    'amount' => ["Remaining balance available for bills is {$availableForNewBills} {$expendableCurrency}."]
-                ]
-            ], 422);
-        }
-
-        DB::transaction(function () use ($bill, $validated) {
+        DB::transaction(function () use ($bill, $validated, $isGeneralExpense) {
             $bill->fill([
                 'amount' => $validated['amount'],
                 'xero_account_code' => $validated['xero_account_code'] ?? null,
@@ -338,24 +353,26 @@ class BillController extends Controller
             ]);
             $bill->save();
 
-            $paymentDetails = $validated['payment_details'];
+            if (!$isGeneralExpense && isset($validated['payment_details'])) {
+                $paymentDetails = $validated['payment_details'];
 
-            $bill->paymentDetail()->updateOrCreate(
-                ['bill_id' => $bill->id],
-                [
-                    'contractor_id' => $bill->contractor_id,
-                    'payment_method' => $paymentDetails['payment_method'],
-                    'details' => [
-                        'account_name' => $paymentDetails['account_name'],
-                        'account_number' => $paymentDetails['account_number'],
-                        'bank_name' => $paymentDetails['bank_name'] ?? null,
-                        'bsb' => $paymentDetails['bsb'] ?? null,
-                        'swift_code' => $paymentDetails['swift_code'] ?? null,
-                        'iban' => $paymentDetails['iban'] ?? null,
-                        'notes' => $paymentDetails['notes'] ?? null,
-                    ],
-                ]
-            );
+                $bill->paymentDetail()->updateOrCreate(
+                    ['bill_id' => $bill->id],
+                    [
+                        'contractor_id' => $bill->contractor_id,
+                        'payment_method' => $paymentDetails['payment_method'],
+                        'details' => [
+                            'account_name' => $paymentDetails['account_name'],
+                            'account_number' => $paymentDetails['account_number'],
+                            'bank_name' => $paymentDetails['bank_name'] ?? null,
+                            'bsb' => $paymentDetails['bsb'] ?? null,
+                            'swift_code' => $paymentDetails['swift_code'] ?? null,
+                            'iban' => $paymentDetails['iban'] ?? null,
+                            'notes' => $paymentDetails['notes'] ?? null,
+                        ],
+                    ]
+                );
+            }
         });
 
         return response()->json($bill->fresh(['contractor', 'expendable', 'transactionType', 'paymentDetail', 'approvalInstance.steps']));
@@ -755,21 +772,23 @@ class BillController extends Controller
             $bill->xero_account_code = $resolvedAccountCode;
             $bill->save();
 
-            $billCurrency = $bill->currency ?? 'AUD';
-            $expendableCurrency = $expendable->currency ?? 'AUD';
+            if ($expendable) {
+                $billCurrency = $bill->currency ?? 'AUD';
+                $expendableCurrency = $expendable->currency ?? 'AUD';
 
-            try {
-                $amountInExpendableCurrency = $this->currencyConversionService->convert(
-                    $bill->amount,
-                    $billCurrency,
-                    $expendableCurrency
-                );
-            } catch (\Exception $e) {
-                throw new RuntimeException("Currency conversion failed: " . $e->getMessage());
-            }
+                try {
+                    $amountInExpendableCurrency = $this->currencyConversionService->convert(
+                        $bill->amount,
+                        $billCurrency,
+                        $expendableCurrency
+                    );
+                } catch (\Exception $e) {
+                    throw new RuntimeException("Currency conversion failed: " . $e->getMessage());
+                }
 
-            if ($amountInExpendableCurrency > $expendable->balance) {
-                throw new RuntimeException("Bill amount exceeds remaining balance ({$expendable->balance} {$expendableCurrency}).");
+                if ($amountInExpendableCurrency > $expendable->balance) {
+                    throw new RuntimeException("Bill amount exceeds remaining balance ({$expendable->balance} {$expendableCurrency}).");
+                }
             }
 
             $xeroInvoiceId = $this->xeroBillService->createPurchaseInvoice($bill);
@@ -777,8 +796,10 @@ class BillController extends Controller
             $bill->status = BillStatus::Approved;
             $bill->save();
 
-            $expendable->balance -= $amountInExpendableCurrency;
-            $expendable->save();
+            if ($expendable) {
+                $expendable->balance -= $amountInExpendableCurrency;
+                $expendable->save();
+            }
 
             $this->xeroAttachmentService->uploadAttachments($bill, $xeroInvoiceId);
         });

@@ -20,6 +20,14 @@ const projects = ref([]);
 const expendables = ref([]);
 const transactionTypes = ref([]);
 const suppliers = ref([]);
+const currencyOptions = [
+    { value: 'PKR', label: 'PKR' },
+    { value: 'AUD', label: 'AUD' },
+    { value: 'INR', label: 'INR' },
+    { value: 'USD', label: 'USD' },
+    { value: 'EUR', label: 'EUR' },
+    { value: 'GBP', label: 'GBP' },
+];
 const loading = ref(true);
 const filterStatus = ref('pending_approval');
 const filterProject = ref('');
@@ -420,6 +428,8 @@ const formatPaymentTerms = (terms) => {
 
 const submitBill = () => {
     if (!form.reference_number) return error('Please enter a Reference Number.');
+    if (!form.xero_account_code) return error('Please select a Xero Account.');
+    if (!form.currency) return error('Please select a Currency.');
 
     if (form.bill_type === 'contractor_bill') {
         if (!form.project_expendable_id) return error('Please select a contract.');
@@ -1078,12 +1088,13 @@ const getStatusClass = (status, bill) => {
 
                     <div>
                         <InputLabel for="bill_currency" value="Currency" />
-                        <TextInput
+                        <SelectDropdown
                             id="bill_currency"
                             v-model="form.currency"
-                            type="text"
-                            class="mt-1 block w-full"
-                            placeholder="e.g. AUD"
+                            :options="currencyOptions"
+                            valueKey="value"
+                            labelKey="label"
+                            placeholder="Select Currency"
                         />
                         <InputError :message="form.errors.currency" />
                     </div>
