@@ -24,11 +24,12 @@ const syncStatusOptions = [
 ];
 
 const xeroStatusOptions = [
-    { value: 'active', label: 'Active (Excl. Voided)' },
+    { value: 'active', label: 'Active (Excl. Voided/Deleted)' },
     { value: 'all', label: 'All Xero Statuses' },
     { value: 'PAID', label: 'PAID' },
     { value: 'AUTHORISED', label: 'AUTHORISED' },
     { value: 'VOIDED', label: 'VOIDED' },
+    { value: 'DELETED', label: 'DELETED' },
     { value: 'DRAFT', label: 'DRAFT' },
     { value: 'SUBMITTED', label: 'SUBMITTED' },
 ];
@@ -56,7 +57,7 @@ const filteredInvoices = computed(() => {
         }
 
         // 3. Xero Status Filter
-        if (filterXeroStatus.value === 'active' && inv.status === 'VOIDED') {
+        if (filterXeroStatus.value === 'active' && (inv.status === 'VOIDED' || inv.status === 'DELETED')) {
             return false;
         }
         if (filterXeroStatus.value !== 'all' && filterXeroStatus.value !== 'active') {
@@ -72,8 +73,8 @@ const filteredInvoices = computed(() => {
 const totalCount = computed(() => invoices.value.length);
 const syncedCount = computed(() => invoices.value.filter(inv => inv.is_already_synced).length);
 const unsyncedCount = computed(() => invoices.value.filter(inv => !inv.is_already_synced).length);
-const voidedCount = computed(() => invoices.value.filter(inv => inv.status === 'VOIDED').length);
-const activeCount = computed(() => invoices.value.filter(inv => inv.status !== 'VOIDED').length);
+const voidedCount = computed(() => invoices.value.filter(inv => inv.status === 'VOIDED' || inv.status === 'DELETED').length);
+const activeCount = computed(() => invoices.value.filter(inv => inv.status !== 'VOIDED' && inv.status !== 'DELETED').length);
 
 const clearFilters = () => {
     filterSearch.value = '';
