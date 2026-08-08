@@ -35,6 +35,8 @@ const searchQuery = ref('');
 const searchDebounce = ref(null);
 const showCreateModal = ref(false);
 const showXeroSyncModal = ref(false);
+const showApproveModal = ref(false);
+const billToApprove = ref(null);
 const xeroSyncLoading = ref(false);
 const xeroSyncError = ref('');
 const xeroCandidates = ref([]);
@@ -60,12 +62,12 @@ watch([filterStatus, filterProject], () => {
     fetchBills();
 });
 
-const selectedBillForHistory = ref(null);
-const showHistorySidebar = ref(false);
+const selectedBill = ref(null);
+const showBillSidebar = ref(false);
 
-const openHistorySidebar = (bill) => {
-    selectedBillForHistory.value = bill;
-    showHistorySidebar.value = true;
+const openBillSidebar = (bill) => {
+    selectedBill.value = bill;
+    showBillSidebar.value = true;
 };
 
 const formatDate = (dateStr) => {
@@ -495,8 +497,14 @@ const submitBill = () => {
         });
 };
 
-const approveBill = async (bill) => {
-    if (!await confirmPrompt('Approve this bill for Xero sync?')) return;
+const openApproveModal = (bill) => {
+    billToApprove.value = bill;
+    showApproveModal.value = true;
+};
+
+const confirmApproveBill = async () => {
+    const bill = billToApprove.value;
+    if (!bill) return;
     if (!canApproveBills.value) {
         error('You do not have permission to approve bills.');
         return;
@@ -504,7 +512,7 @@ const approveBill = async (bill) => {
     try {
         const approvalConfig = getApprovalConfig(bill);
         if (!approvalConfig.xero_account_code) {
-            error('Please set Xero Account before approving this bill.');
+            error('Please select a Xero Account before approving this bill.');
             return;
         }
 
@@ -513,10 +521,13 @@ const approveBill = async (bill) => {
             xero_tax_type: approvalConfig.xero_tax_type,
         });
         success('Bill approved.');
+        showApproveModal.value = false;
+        billToApprove.value = null;
         fetchBills();
     } catch (err) {
         const message = err.response?.data?.message || 'Approval failed.';
         if (message.includes('not linked to Xero') && bill?.contractor?.id) {
+            showApproveModal.value = false;
             await openXeroSyncModal(bill.contractor);
             return;
         }
@@ -673,9 +684,7 @@ onMounted(() => {
     fetchXeroAccounts();
 });
 
-const viewBillDetails = (billId) => {
-    router.visit(route('admin.financials.bills.show', { id: billId }));
-};
+// View bill details is now handled by RightSidebar
 
 const getStatusClass = (status, bill) => {
     if (bill && bill.deleted_at) return 'bg-gray-100 text-gray-700 border-gray-200 border';
@@ -815,13 +824,14 @@ const getStatusClass = (status, bill) => {
                                     <th class="w-8 px-3 py-3"></th> <!-- Navigation Indicator -->
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Project / Contract</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contractor</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Information</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                                     <th class="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="bill in bills" :key="bill.id" class="hover:bg-gray-50 cursor-pointer transition-colors" @click="!bill.deleted_at && viewBillDetails(bill.id)">
+                                <tr v-for="bill in bills" :key="bill.id" class="hover:bg-gray-50 cursor-pointer transition-colors" @click="!bill.deleted_at && openBillSidebar(bill)">
                                     <td class="px-3 py-4 text-center">
                                         <svg v-if="!bill.deleted_at" class="w-4 h-4 text-gray-400 hover:text-indigo-600 transition-colors inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
@@ -835,6 +845,17 @@ const getStatusClass = (status, bill) => {
                                         <div class="font-medium text-gray-900">{{ bill.contractor?.name }}</div>
                                         <div v-if="!bill.contractor?.xero_contact_id" class="text-xs text-amber-600 font-semibold mt-1">
                                             Not linked to Xero
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-xs text-gray-500 space-y-1">
+                                        <div v-if="bill.xero_account_code || bill.transaction_type?.xero_account_code">
+                                            <span class="font-semibold text-gray-700">Acc:</span> {{ bill.xero_account_code || bill.transaction_type?.xero_account_code }}
+                                        </div>
+                                        <div v-if="bill.transaction_type?.name">
+                                            <span class="font-semibold text-gray-700">Type:</span> {{ bill.transaction_type.name }}
+                                        </div>
+                                        <div v-if="bill.due_date">
+                                            <span class="font-semibold text-gray-700">Due:</span> {{ formatDate(bill.due_date) }}
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 text-sm font-bold text-gray-900">
@@ -852,8 +873,7 @@ const getStatusClass = (status, bill) => {
                                     </td>
                                     <td class="px-6 py-4 text-right text-sm font-medium" @click.stop>
                                         <div class="flex justify-end gap-2 items-center">
-                                            <Link v-if="canViewBills && !bill.deleted_at" :href="route('admin.financials.bills.show', { id: bill.id })" class="text-indigo-600 hover:text-indigo-900 font-semibold">View</Link>
-                                            <button v-if="!bill.deleted_at" @click="openHistorySidebar(bill)" class="text-indigo-600 hover:text-indigo-900 font-semibold ml-1">Payments</button>
+                                            <button v-if="canViewBills && !bill.deleted_at" @click="openBillSidebar(bill)" class="text-indigo-600 hover:text-indigo-900 font-semibold">View</button>
                                             <button
                                                 v-if="canLinkXeroContractors && !bill.contractor?.xero_contact_id && !bill.deleted_at"
                                                 @click="openXeroSyncModal(bill.contractor)"
@@ -861,7 +881,7 @@ const getStatusClass = (status, bill) => {
                                             >
                                                 Link Xero
                                             </button>
-                                            <button v-if="canApproveBill(bill) && !bill.deleted_at" @click="approveBill(bill)" class="text-emerald-600 hover:text-emerald-900 font-semibold">Approve</button>
+                                            <button v-if="canApproveBill(bill) && !bill.deleted_at" @click="openApproveModal(bill)" class="text-emerald-600 hover:text-emerald-900 font-semibold">Approve</button>
                                             <button v-if="bill.status === 'approved' && canVoidBills && !bill.deleted_at" @click="voidBill(bill)" class="text-rose-600 hover:text-rose-900 font-semibold">Void</button>
                                             <button v-if="bill.status === 'pending_approval' && canDeleteBills && !bill.deleted_at" @click="deleteBill(bill)" class="text-rose-600 hover:text-rose-900 font-semibold">Delete</button>
                                             <button v-if="bill.deleted_at && canRestoreBills" @click="restoreBill(bill)" class="text-emerald-600 hover:text-emerald-900 font-semibold">Restore</button>
@@ -878,26 +898,6 @@ const getStatusClass = (status, bill) => {
                                         </div>
                                         <div v-if="bill.status === 'pending_approval' && pendingApproverLabel(bill) && !bill.deleted_at" class="mt-1 text-xs text-amber-600 font-medium">
                                             {{ pendingApproverLabel(bill) }}
-                                        </div>
-                                        <div v-if="bill.status === 'pending_approval' && !bill.deleted_at" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-[320px] ml-auto">
-                                            <SelectDropdown
-                                                :id="`approve_xero_account_${bill.id}`"
-                                                v-model="getApprovalConfig(bill).xero_account_code"
-                                                :options="xeroAccountOptions"
-                                                valueKey="value"
-                                                labelKey="label"
-                                                placeholder="Xero Account"
-                                            />
-                                            <div class="w-full">
-                                                <SelectDropdown
-                                                    :id="`approve_xero_tax_${bill.id}`"
-                                                    v-model="getApprovalConfig(bill).xero_tax_type"
-                                                    :options="xeroTaxTypeOptions"
-                                                    valueKey="value"
-                                                    labelKey="label"
-                                                    placeholder="Select Tax Type"
-                                                />
-                                            </div>
                                         </div>
                                     </td>
                                 </tr>
@@ -1318,6 +1318,59 @@ const getStatusClass = (status, bill) => {
             </div>
         </Modal>
 
+        <!-- Approve Bill Modal -->
+        <Modal :show="showApproveModal" @close="showApproveModal = false" maxWidth="md">
+            <div class="p-6">
+                <h3 class="text-lg font-semibold mb-4">Approve Bill</h3>
+                <div v-if="billToApprove" class="space-y-4">
+                    <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm text-amber-700">
+                                    Approving this bill will queue it to sync to Xero as a Purchase Invoice.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <InputLabel for="approve_xero_account" value="Xero Account" />
+                        <SelectDropdown
+                            id="approve_xero_account"
+                            v-model="getApprovalConfig(billToApprove).xero_account_code"
+                            :options="xeroAccountOptions"
+                            valueKey="value"
+                            labelKey="label"
+                            placeholder="Select Xero Account"
+                        />
+                    </div>
+                    <div>
+                        <InputLabel for="approve_xero_tax" value="Xero Tax Type" />
+                        <SelectDropdown
+                            id="approve_xero_tax"
+                            v-model="getApprovalConfig(billToApprove).xero_tax_type"
+                            :options="xeroTaxTypeOptions"
+                            valueKey="value"
+                            labelKey="label"
+                            placeholder="Select Tax Type"
+                        />
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <SecondaryButton @click="showApproveModal = false">Cancel</SecondaryButton>
+                    <PrimaryButton @click="confirmApproveBill">
+                        Approve
+                    </PrimaryButton>
+                </div>
+            </div>
+        </Modal>
+
         <!-- New Transaction Type Modal -->
         <Modal :show="showTransactionTypeModal" @close="showTransactionTypeModal = false" maxWidth="md">
             <div class="p-6">
@@ -1359,32 +1412,53 @@ const getStatusClass = (status, bill) => {
             </div>
         </Modal>
 
-        <RightSidebar v-model:show="showHistorySidebar" :title="`Payment History - Bill #${selectedBillForHistory?.id}`">
+        <RightSidebar v-model:show="showBillSidebar" :title="`Bill Details - #${selectedBill?.id}`">
             <template #content>
-                <div v-if="selectedBillForHistory" class="space-y-6">
+                <div v-if="selectedBill" class="space-y-6">
                     <!-- Bill Details Summary -->
                     <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                        <h4 class="text-md font-semibold text-gray-900 mb-2">Bill Summary</h4>
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="text-md font-semibold text-gray-900">Bill Summary</h4>
+                            <Link :href="route('admin.financials.bills.show', { id: selectedBill.id })" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800">
+                                Full Edit & Approval
+                            </Link>
+                        </div>
                         <dl class="grid grid-cols-2 gap-4 text-sm">
                             <div>
                                 <dt class="text-gray-500 font-medium">Contractor</dt>
-                                <dd class="text-gray-900 mt-0.5">{{ selectedBillForHistory.contractor?.name || 'N/A' }}</dd>
+                                <dd class="text-gray-900 mt-0.5">{{ selectedBill.contractor?.name || 'N/A' }}</dd>
                             </div>
                             <div>
                                 <dt class="text-gray-500 font-medium">Project</dt>
-                                <dd class="text-gray-900 mt-0.5">{{ selectedBillForHistory.project?.name || 'N/A' }}</dd>
+                                <dd class="text-gray-900 mt-0.5">{{ selectedBill.project?.name || 'N/A' }}</dd>
                             </div>
                             <div>
                                 <dt class="text-gray-500 font-medium">Amount</dt>
-                                <dd class="text-gray-900 mt-0.5 font-semibold">{{ formatCurrency(selectedBillForHistory.amount, selectedBillForHistory.currency) }}</dd>
+                                <dd class="text-gray-900 mt-0.5 font-semibold">{{ formatCurrency(selectedBill.amount, selectedBill.currency || selectedBill.project?.currency) }}</dd>
                             </div>
                             <div>
                                 <dt class="text-gray-500 font-medium">Status</dt>
                                 <dd class="text-gray-900 mt-0.5">
-                                    <span :class="['px-2 py-0.5 text-xs font-bold rounded-full', getStatusClass(selectedBillForHistory.status, selectedBillForHistory)]">
-                                        {{ selectedBillForHistory.status.toUpperCase() }}
+                                    <span :class="['px-2 py-0.5 text-xs font-bold rounded-full border', getStatusClass(selectedBill.status, selectedBill)]">
+                                        {{ selectedBill.status.toUpperCase() }}
                                     </span>
                                 </dd>
+                            </div>
+                            <div v-if="selectedBill.reference_number">
+                                <dt class="text-gray-500 font-medium">Reference</dt>
+                                <dd class="text-gray-900 mt-0.5">{{ selectedBill.reference_number }}</dd>
+                            </div>
+                            <div v-if="selectedBill.due_date">
+                                <dt class="text-gray-500 font-medium">Due Date</dt>
+                                <dd class="text-gray-900 mt-0.5">{{ formatDate(selectedBill.due_date) }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Transaction Type</dt>
+                                <dd class="text-gray-900 mt-0.5">{{ selectedBill.transaction_type?.name || 'N/A' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-gray-500 font-medium">Xero Account</dt>
+                                <dd class="text-gray-900 mt-0.5">{{ selectedBill.xero_account_code || selectedBill.transaction_type?.xero_account_code || 'N/A' }}</dd>
                             </div>
                         </dl>
                     </div>
@@ -1392,24 +1466,20 @@ const getStatusClass = (status, bill) => {
                     <!-- Transaction History -->
                     <div>
                         <h4 class="text-md font-semibold text-gray-900 mb-3">Linked Transactions</h4>
-                        <div v-if="selectedBillForHistory.transactions && selectedBillForHistory.transactions.length" class="overflow-x-auto">
+                        <div v-if="selectedBill.transactions && selectedBill.transactions.length" class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200 text-sm">
                                 <thead class="bg-gray-50">
                                     <tr>
                                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Recorded By</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    <tr v-for="tx in selectedBillForHistory.transactions" :key="tx.id">
+                                    <tr v-for="tx in selectedBill.transactions" :key="tx.id">
                                         <td class="px-3 py-2 whitespace-nowrap text-gray-500">{{ formatDate(tx.created_at) }}</td>
-                                        <td class="px-3 py-2 text-gray-900">{{ tx.description || '—' }}</td>
-                                        <td class="px-3 py-2 whitespace-nowrap text-gray-500">{{ tx.transaction_type?.name || '—' }}</td>
+                                        <td class="px-3 py-2 text-gray-900 truncate max-w-[120px]">{{ tx.description || '—' }}</td>
                                         <td class="px-3 py-2 whitespace-nowrap font-medium text-gray-900">{{ formatCurrency(tx.amount, tx.currency) }}</td>
-                                        <td class="px-3 py-2 whitespace-nowrap text-gray-500">{{ tx.user?.name || '—' }}</td>
                                     </tr>
                                 </tbody>
                             </table>
