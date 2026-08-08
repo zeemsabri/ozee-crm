@@ -97,6 +97,9 @@ const handleLogoutError = (error) => {
                 <ResponsiveNavLink v-if="canDo('manage_roles')" :href="route('admin.roles.index')" :active="route().current('admin.roles.index')">
                     Manage Roles
                 </ResponsiveNavLink>
+                <ResponsiveNavLink v-if="canDo('view_all_credentials')" :href="route('admin.vault-credentials.index')" :active="route().current('admin.vault-credentials.index')">
+                    Credentials Management
+                </ResponsiveNavLink>
                 <ResponsiveNavLink v-if="canDo('manage_permissions')" :href="route('admin.permissions.index')" :active="route().current('admin.permissions.index')">
                     Manage Permissions
                 </ResponsiveNavLink>

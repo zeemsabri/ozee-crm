@@ -226,6 +226,7 @@ onMounted(() => {
 
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mt-6 mb-3">Access</h4>
                             <div class="space-y-1">
+                                <DropdownLink v-permission="'view_all_credentials'" :href="route('admin.vault-credentials.index')" :active="route().current('admin.vault-credentials.index')" class="!px-2 !py-1.5">Credentials Management</DropdownLink>
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.roles.index')" class="!px-2 !py-1.5">Manage Roles</DropdownLink>
                                 <DropdownLink v-permission="'assign_permissions'" :href="route('admin.permissions.index')" class="!px-2 !py-1.5">Manage Permissions</DropdownLink>
                                 <DropdownLink v-permission="'manage_roles'" :href="route('admin.email-apps.index')" :active="route().current('admin.email-apps.index')" class="!px-2 !py-1.5">Email Apps</DropdownLink>

@@ -501,6 +501,10 @@ Route::middleware(['auth', 'verified'])->group(function () use ($sourceOptions) 
         Route::get('/financials/invoices-xero-sync', [\App\Http\Controllers\Admin\FinancialController::class, 'xeroSync'])->middleware('permission:create_project_invoices')->name('financials.invoices.xero-sync');
         Route::get('/financials/proposals', [\App\Http\Controllers\Admin\FinancialController::class, 'proposals'])->middleware('permission:view_project_expendables_proposals')->name('financials.proposals');
 
+        Route::get('/vault-credentials', function () {
+            return \Inertia\Inertia::render('Admin/VaultCredentials/Index');
+        })->middleware('permission:view_all_credentials')->name('vault-credentials.index');
+
 
     });
 

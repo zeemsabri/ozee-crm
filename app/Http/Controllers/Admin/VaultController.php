@@ -388,6 +388,118 @@ class VaultController extends Controller
         return response()->json(['success' => true]);
     }
 
+    /**
+     * List all vault credentials across all projects.
+     */
+    public function all(Request $request)
+    {
+        $user = Auth::user();
+
+        if (! $this->canViewAllCredentials($user)) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $query = ClientVaultCredential::query()
+            ->with(['project', 'client', 'owner'])
+            ->notExpired();
+
+        // Search filter
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('label', 'like', "%{$search}%")
+                  ->orWhereHas('project', function ($pq) use ($search) {
+                      $pq->where('name', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('client', function ($cq) use ($search) {
+                      $cq->where('name', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('owner', function ($oq) use ($search) {
+                      $oq->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        // Project filter
+        if ($request->filled('project_id')) {
+            $query->where('project_id', $request->project_id);
+        }
+
+        // Client filter
+        if ($request->filled('client_id')) {
+            $query->where('client_id', $request->client_id);
+        }
+
+        // Source filter
+        if ($request->filled('source')) {
+            $query->where('source', $request->source);
+        }
+
+        $credentials = $query->latest()->paginate(20);
+
+        return response()->json($credentials);
+    }
+
+    /**
+     * Get statistics for all credentials.
+     */
+    public function stats(Request $request)
+    {
+        $user = Auth::user();
+
+        if (! $this->canViewAllCredentials($user)) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        // Base query
+        $baseQuery = ClientVaultCredential::query()->notExpired();
+        
+        // Apply filters (search, project_id, client_id)
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $baseQuery->where(function ($q) use ($search) {
+                $q->where('label', 'like', "%{$search}%")
+                  ->orWhereHas('project', function ($pq) use ($search) {
+                      $pq->where('name', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('client', function ($cq) use ($search) {
+                      $cq->where('name', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('owner', function ($oq) use ($search) {
+                      $oq->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        if ($request->filled('project_id')) {
+            $baseQuery->where('project_id', $request->project_id);
+        }
+
+        if ($request->filled('client_id')) {
+            $baseQuery->where('client_id', $request->client_id);
+        }
+
+        // Count queries
+        $totalCount = (clone $baseQuery)->count();
+        $teamCount = (clone $baseQuery)->where('source', ClientVaultCredential::SOURCE_TEAM)->count();
+        $clientCount = (clone $baseQuery)->where('source', ClientVaultCredential::SOURCE_CLIENT)->count();
+        $visibleToClientCount = (clone $baseQuery)->where('is_visible_to_client', true)->count();
+        $expiringSoonCount = (clone $baseQuery)
+            ->whereNotNull('expires_at')
+            ->where('expires_at', '<=', now()->addDays(30))
+            ->count();
+
+        return response()->json([
+            'total' => $totalCount,
+            'team' => $teamCount,
+            'client' => $clientCount,
+            'client_visible' => $visibleToClientCount,
+            'expiring_soon' => $expiringSoonCount,
+        ]);
+    }
+
     private function canViewAllCredentials(User $user): bool
     {
         return $user->hasPermission('view_all_credentials');
@@ -413,15 +525,7 @@ class VaultController extends Controller
 
     private function canRevealPin(ClientVaultCredential $credential, User $user): bool
     {
-        if ($this->canViewAllCredentials($user)) {
-            return true;
-        }
-
-        if ((int) $credential->created_by === (int) $user->id) {
-            return true;
-        }
-
-        return $credential->sharedWithUsers()->where('users.id', $user->id)->exists();
+        return $user->hasPermission('edit_credential');
     }
 
     private function resolvePinForAuthorizedUser(ClientVaultCredential $credential, User $user): ?string

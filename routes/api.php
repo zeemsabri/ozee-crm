@@ -853,6 +853,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stats', [App\Http\Controllers\Api\StandupAnalyticsController::class, 'getStats']);
     });
 
+    Route::get('admin/vault-credentials/stats', [\App\Http\Controllers\Admin\VaultController::class, 'stats'])->middleware('permission:view_all_credentials')->name('api.admin.vault-credentials.stats');
+    Route::get('admin/vault-credentials', [\App\Http\Controllers\Admin\VaultController::class, 'all'])->middleware('permission:view_all_credentials')->name('api.admin.vault-credentials.all');
+
     Route::get('clients/{client}/vault', [\App\Http\Controllers\Admin\VaultController::class, 'index']);
     Route::get('projects/{project}/vault-credentials', [\App\Http\Controllers\Admin\VaultController::class, 'indexByProject']);
     Route::post('projects/{project}/vault-credentials', [\App\Http\Controllers\Admin\VaultController::class, 'storeForProject']);
