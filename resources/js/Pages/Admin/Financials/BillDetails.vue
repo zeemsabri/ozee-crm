@@ -2,7 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, ref } from 'vue';
-import { formatCurrency } from '@/Utils/currency';
+import { formatCurrency, XERO_TAX_CONFIG, extractGstFromTotal } from '@/Utils/currency';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -360,6 +360,50 @@ onMounted(() => {
                                 <div class="flex justify-between gap-4">
                                     <dt class="text-gray-500">Amount</dt>
                                     <dd class="font-medium text-gray-900">{{ formatCurrency(bill.amount, bill.currency || bill.project?.currency || 'AUD') }}</dd>
+                                </div>
+                                <!-- GST Breakdown -->
+                                <div class="rounded-md border border-gray-200 overflow-hidden text-sm">
+                                    <div class="px-3 py-1.5 bg-gray-100 border-b border-gray-200">
+                                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                            Tax Breakdown
+                                            <span class="ml-1 font-normal normal-case text-gray-400">
+                                                ({{ XERO_TAX_CONFIG[bill.xero_tax_type]?.label || bill.xero_tax_type || 'None' }})
+                                            </span>
+                                        </span>
+                                    </div>
+                                    <template v-if="XERO_TAX_CONFIG[bill.xero_tax_type]?.rate > 0">
+                                        <div class="px-3 py-2 border-b border-gray-200 flex justify-between text-gray-600">
+                                            <span>Subtotal (excl. GST)</span>
+                                            <span class="font-medium text-gray-900">
+                                                {{ formatCurrency(
+                                                    parseFloat(bill.amount) / (1 + XERO_TAX_CONFIG[bill.xero_tax_type].rate),
+                                                    bill.currency || bill.project?.currency || 'AUD'
+                                                ) }}
+                                            </span>
+                                        </div>
+                                        <div class="px-3 py-2 border-b border-gray-200 flex justify-between text-gray-600">
+                                            <span>GST ({{ XERO_TAX_CONFIG[bill.xero_tax_type].rate * 100 }}%)</span>
+                                            <span class="font-medium text-gray-900">
+                                                {{ formatCurrency(
+                                                    extractGstFromTotal(bill.amount, bill.xero_tax_type),
+                                                    bill.currency || bill.project?.currency || 'AUD'
+                                                ) }}
+                                            </span>
+                                        </div>
+                                        <div class="px-3 py-2 flex justify-between font-semibold text-gray-900">
+                                            <span>Total (incl. GST)</span>
+                                            <span class="text-indigo-700">{{ formatCurrency(bill.amount, bill.currency || bill.project?.currency || 'AUD') }}</span>
+                                        </div>
+                                    </template>
+                                    <template v-else>
+                                        <div class="px-3 py-2 flex justify-between text-gray-600">
+                                            <span>Amount (No GST)</span>
+                                            <span class="font-semibold text-gray-900">{{ formatCurrency(bill.amount, bill.currency || bill.project?.currency || 'AUD') }}</span>
+                                        </div>
+                                        <div class="px-3 py-2 bg-gray-50 text-xs text-gray-400 italic border-t border-gray-200">
+                                            {{ XERO_TAX_CONFIG[bill.xero_tax_type]?.description || 'No GST applies to this bill.' }}
+                                        </div>
+                                    </template>
                                 </div>
                                 <div class="flex justify-between gap-4">
                                     <dt class="text-gray-500">Reference Number</dt>

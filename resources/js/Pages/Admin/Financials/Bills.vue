@@ -3,7 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm, usePage, router } from '@inertiajs/vue3';
 import { ref, onMounted, watch, computed } from 'vue';
 import axios from 'axios';
-import { formatCurrency } from '@/Utils/currency';
+import { formatCurrency, calculateGst, XERO_TAX_CONFIG } from '@/Utils/currency';
 import { success, error, confirmPrompt } from '@/Utils/notification';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
@@ -111,6 +111,26 @@ const form = useForm({
     document: null,
 });
 
+const billSubtotal = ref('');
+
+const calculatedGst = computed(() => {
+    const st = parseFloat(billSubtotal.value) || 0;
+    return calculateGst(st, form.xero_tax_type);
+});
+
+const calculatedTotal = computed(() => {
+    const st = parseFloat(billSubtotal.value) || 0;
+    return parseFloat((st + calculatedGst.value).toFixed(2));
+});
+
+const selectedTaxTypeDescription = computed(() => {
+    return XERO_TAX_CONFIG[form.xero_tax_type]?.description || '';
+});
+
+watch([billSubtotal, () => form.xero_tax_type], () => {
+    form.amount = calculatedTotal.value || billSubtotal.value;
+});
+
 const xeroAccounts = ref([]);
 const showTransactionTypeModal = ref(false);
 const newTransactionType = useForm({
@@ -118,14 +138,10 @@ const newTransactionType = useForm({
     xero_account_code: '',
 });
 
-const xeroTaxTypeOptions = [
-    { value: 'BASEXCLUDED', label: 'BAS Excluded' },
-    { value: 'EXEMPTEXPENSES', label: 'GST Free Expenses' },
-    { value: 'EXEMPTOUTPUT', label: 'GST Free Income' },
-    { value: 'INPUT', label: 'GST on Expenses' },
-    { value: 'INPUTTAXED', label: 'GST on Imports' },
-    { value: 'OUTPUT', label: 'GST on Income' },
-];
+const xeroTaxTypeOptions = Object.entries(XERO_TAX_CONFIG).map(([value, cfg]) => ({
+    value,
+    label: cfg.label,
+}));
 
 const selectedExpendable = computed(() => {
     return expendables.value.find((item) => String(item.id) === String(form.project_expendable_id)) || null;
@@ -364,6 +380,7 @@ watch(() => form.transaction_type_id, () => {
 
 const openCreateModal = () => {
     form.reset();
+    billSubtotal.value = '';
     form.bill_type = 'contractor_bill';
     form.payment_details = {
         payment_method: 'bank_transfer',
@@ -1052,7 +1069,7 @@ const getStatusClass = (status, bill) => {
                     </div>
 
                     <div>
-                        <InputLabel for="bill_xero_tax_type" value="Xero Tax Type" />
+                        <InputLabel for="bill_xero_tax_type" value="Tax Type" />
                         <SelectDropdown
                             id="bill_xero_tax_type"
                             v-model="form.xero_tax_type"
@@ -1061,6 +1078,7 @@ const getStatusClass = (status, bill) => {
                             labelKey="label"
                             placeholder="Select Tax Type"
                         />
+                        <p v-if="selectedTaxTypeDescription" class="mt-1 text-xs text-gray-500 italic">{{ selectedTaxTypeDescription }}</p>
                         <InputError :message="form.errors.xero_tax_type" />
                     </div>
 
@@ -1100,14 +1118,42 @@ const getStatusClass = (status, bill) => {
                     </div>
 
                     <div>
-                        <InputLabel for="bill_amount" value="Amount" />
+                        <InputLabel for="bill_subtotal" value="Subtotal (excl. GST)" />
                         <TextInput 
-                            id="bill_amount" 
-                            v-model="form.amount" 
+                            id="bill_subtotal" 
+                            v-model="billSubtotal" 
                             type="number" 
                             step="0.01"
                             class="mt-1 block w-full"
+                            placeholder="0.00"
                         />
+                        <!-- GST Breakdown -->
+                        <div v-if="billSubtotal" class="mt-2 text-sm bg-gray-50 rounded-md border border-gray-200 overflow-hidden">
+                            <div class="px-3 py-2 border-b border-gray-200">
+                                <div class="flex justify-between items-center text-gray-600">
+                                    <span>Subtotal</span>
+                                    <span>{{ formatCurrency(parseFloat(billSubtotal) || 0, form.currency || 'AUD') }}</span>
+                                </div>
+                            </div>
+                            <div class="px-3 py-2 border-b border-gray-200">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-600">
+                                        GST
+                                        <span v-if="calculatedGst > 0" class="text-xs text-gray-400 ml-1">({{ XERO_TAX_CONFIG[form.xero_tax_type]?.rate * 100 }}%)</span>
+                                    </span>
+                                    <span v-if="calculatedGst > 0" class="font-medium text-gray-900">
+                                        {{ formatCurrency(calculatedGst, form.currency || 'AUD') }}
+                                    </span>
+                                    <span v-else class="text-xs italic text-gray-400">No GST ({{ XERO_TAX_CONFIG[form.xero_tax_type]?.label || 'N/A' }})</span>
+                                </div>
+                            </div>
+                            <div class="px-3 py-2 bg-white">
+                                <div class="flex justify-between items-center font-semibold text-gray-900">
+                                    <span>Total (sent to Xero)</span>
+                                    <span class="text-indigo-700">{{ formatCurrency(calculatedTotal, form.currency || 'AUD') }}</span>
+                                </div>
+                            </div>
+                        </div>
                         <InputError :message="form.errors.amount" />
                     </div>
 
@@ -1350,7 +1396,7 @@ const getStatusClass = (status, bill) => {
                         />
                     </div>
                     <div>
-                        <InputLabel for="approve_xero_tax" value="Xero Tax Type" />
+                        <InputLabel for="approve_xero_tax" value="Tax Type" />
                         <SelectDropdown
                             id="approve_xero_tax"
                             v-model="getApprovalConfig(billToApprove).xero_tax_type"
@@ -1359,6 +1405,45 @@ const getStatusClass = (status, bill) => {
                             labelKey="label"
                             placeholder="Select Tax Type"
                         />
+                        <p v-if="XERO_TAX_CONFIG[getApprovalConfig(billToApprove).xero_tax_type]?.description" class="mt-1 text-xs text-gray-500 italic">
+                            {{ XERO_TAX_CONFIG[getApprovalConfig(billToApprove).xero_tax_type]?.description }}
+                        </p>
+                    </div>
+
+                    <!-- GST Preview for this bill -->
+                    <div class="text-sm bg-gray-50 rounded-md border border-gray-200 overflow-hidden">
+                        <div class="px-3 py-2 bg-gray-100 border-b border-gray-200">
+                            <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Bill Amount Breakdown</span>
+                        </div>
+                        <div class="px-3 py-2 border-b border-gray-200 flex justify-between text-gray-600">
+                            <span>Bill Total (as entered)</span>
+                            <span class="font-medium text-gray-900">{{ formatCurrency(billToApprove.amount, billToApprove.currency || 'AUD') }}</span>
+                        </div>
+                        <div class="px-3 py-2 border-b border-gray-200 flex justify-between">
+                            <span class="text-gray-600">
+                                GST Component
+                                <span v-if="XERO_TAX_CONFIG[getApprovalConfig(billToApprove).xero_tax_type]?.rate > 0" class="text-xs text-gray-400 ml-1">
+                                    ({{ XERO_TAX_CONFIG[getApprovalConfig(billToApprove).xero_tax_type]?.rate * 100 }}% incl.)
+                                </span>
+                            </span>
+                            <span v-if="XERO_TAX_CONFIG[getApprovalConfig(billToApprove).xero_tax_type]?.rate > 0" class="font-medium text-gray-900">
+                                {{ formatCurrency(
+                                    parseFloat(billToApprove.amount) * XERO_TAX_CONFIG[getApprovalConfig(billToApprove).xero_tax_type].rate / (1 + XERO_TAX_CONFIG[getApprovalConfig(billToApprove).xero_tax_type].rate),
+                                    billToApprove.currency || 'AUD'
+                                ) }}
+                            </span>
+                            <span v-else class="text-xs italic text-gray-400">No GST</span>
+                        </div>
+                        <div class="px-3 py-2 bg-white flex justify-between font-semibold text-gray-900">
+                            <span>Subtotal (excl. GST)</span>
+                            <span v-if="XERO_TAX_CONFIG[getApprovalConfig(billToApprove).xero_tax_type]?.rate > 0" class="text-indigo-700">
+                                {{ formatCurrency(
+                                    parseFloat(billToApprove.amount) / (1 + XERO_TAX_CONFIG[getApprovalConfig(billToApprove).xero_tax_type].rate),
+                                    billToApprove.currency || 'AUD'
+                                ) }}
+                            </span>
+                            <span v-else class="text-indigo-700">{{ formatCurrency(billToApprove.amount, billToApprove.currency || 'AUD') }}</span>
+                        </div>
                     </div>
                 </div>
 
@@ -1433,10 +1518,6 @@ const getStatusClass = (status, bill) => {
                                 <dd class="text-gray-900 mt-0.5">{{ selectedBill.project?.name || 'N/A' }}</dd>
                             </div>
                             <div>
-                                <dt class="text-gray-500 font-medium">Amount</dt>
-                                <dd class="text-gray-900 mt-0.5 font-semibold">{{ formatCurrency(selectedBill.amount, selectedBill.currency || selectedBill.project?.currency) }}</dd>
-                            </div>
-                            <div>
                                 <dt class="text-gray-500 font-medium">Status</dt>
                                 <dd class="text-gray-900 mt-0.5">
                                     <span :class="['px-2 py-0.5 text-xs font-bold rounded-full border', getStatusClass(selectedBill.status, selectedBill)]">
@@ -1461,7 +1542,53 @@ const getStatusClass = (status, bill) => {
                                 <dd class="text-gray-900 mt-0.5">{{ selectedBill.xero_account_code || selectedBill.transaction_type?.xero_account_code || 'N/A' }}</dd>
                             </div>
                         </dl>
+
+                        <!-- GST Breakdown -->
+                        <div class="mt-4 text-sm bg-white rounded-md border border-gray-200 overflow-hidden">
+                            <div class="px-3 py-2 bg-gray-100 border-b border-gray-200">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    Amount Breakdown
+                                    <span class="ml-1 font-normal normal-case text-gray-400">
+                                        ({{ XERO_TAX_CONFIG[selectedBill.xero_tax_type]?.label || selectedBill.xero_tax_type || 'No tax type' }})
+                                    </span>
+                                </span>
+                            </div>
+                            <template v-if="XERO_TAX_CONFIG[selectedBill.xero_tax_type]?.rate > 0">
+                                <div class="px-3 py-2 border-b border-gray-200 flex justify-between text-gray-600">
+                                    <span>Subtotal (excl. GST)</span>
+                                    <span class="font-medium text-gray-900">
+                                        {{ formatCurrency(
+                                            parseFloat(selectedBill.amount) / (1 + XERO_TAX_CONFIG[selectedBill.xero_tax_type].rate),
+                                            selectedBill.currency || selectedBill.project?.currency || 'AUD'
+                                        ) }}
+                                    </span>
+                                </div>
+                                <div class="px-3 py-2 border-b border-gray-200 flex justify-between text-gray-600">
+                                    <span>GST ({{ XERO_TAX_CONFIG[selectedBill.xero_tax_type].rate * 100 }}%)</span>
+                                    <span class="font-medium text-gray-900">
+                                        {{ formatCurrency(
+                                            parseFloat(selectedBill.amount) * XERO_TAX_CONFIG[selectedBill.xero_tax_type].rate / (1 + XERO_TAX_CONFIG[selectedBill.xero_tax_type].rate),
+                                            selectedBill.currency || selectedBill.project?.currency || 'AUD'
+                                        ) }}
+                                    </span>
+                                </div>
+                                <div class="px-3 py-2 flex justify-between font-semibold text-gray-900">
+                                    <span>Total (incl. GST)</span>
+                                    <span class="text-indigo-700">{{ formatCurrency(selectedBill.amount, selectedBill.currency || selectedBill.project?.currency || 'AUD') }}</span>
+                                </div>
+                            </template>
+                            <template v-else>
+                                <div class="px-3 py-2 flex justify-between text-gray-600">
+                                    <span>Amount (No GST)</span>
+                                    <span class="font-semibold text-gray-900">{{ formatCurrency(selectedBill.amount, selectedBill.currency || selectedBill.project?.currency || 'AUD') }}</span>
+                                </div>
+                                <div class="px-3 py-2 bg-gray-50 text-xs text-gray-400 italic border-t border-gray-200">
+                                    {{ XERO_TAX_CONFIG[selectedBill.xero_tax_type]?.description || 'No GST applies to this bill.' }}
+                                </div>
+                            </template>
+                        </div>
                     </div>
+
 
                     <!-- Transaction History -->
                     <div>

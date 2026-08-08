@@ -70,7 +70,7 @@ class XeroBillService
             'DueDate' => $bill->due_date ? $bill->due_date->format('Y-m-d') : $bill->created_at->addDays(14)->format('Y-m-d'),
             'Reference' => $bill->reference_number ?? '',
             'CurrencyCode' => $bill->currency ?? 'AUD',
-            'LineAmountTypes' => 'Exclusive',
+            'LineAmountTypes' => 'Inclusive',
             'Status' => 'AUTHORISED',
             'LineItems' => [$lineItem],
         ];

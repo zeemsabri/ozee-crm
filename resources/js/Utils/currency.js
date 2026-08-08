@@ -94,3 +94,67 @@ export const convertCurrency = (amount, fromCurrency, toCurrency) => {
 
     return Number(convertedAmount.toFixed(2));
 };
+
+/**
+ * Xero Tax Type config map.
+ * rate: GST rate applied on top of the subtotal (0.10 = 10% GST).
+ * inclusive: whether the entered amount is GST-inclusive (true) or exclusive (false).
+ * label: human-friendly label shown in the UI.
+ * description: short explanation for the user.
+ */
+export const XERO_TAX_CONFIG = {
+    INPUT: {
+        label: 'GST on Expenses (10%)',
+        rate: 0.10,
+        description: 'Standard 10% GST — claimable input tax credit.',
+    },
+    OUTPUT: {
+        label: 'GST on Income (10%)',
+        rate: 0.10,
+        description: 'Standard 10% GST on income received.',
+    },
+    INPUTTAXED: {
+        label: 'GST on Imports',
+        rate: 0.10,
+        description: '10% GST on imported goods/services.',
+    },
+    EXEMPTEXPENSES: {
+        label: 'GST Free Expenses',
+        rate: 0,
+        description: 'No GST — expense is GST free (e.g. fresh food, health).',
+    },
+    EXEMPTOUTPUT: {
+        label: 'GST Free Income',
+        rate: 0,
+        description: 'No GST — income is GST free.',
+    },
+    BASEXCLUDED: {
+        label: 'BAS Excluded',
+        rate: 0,
+        description: 'Not reportable on BAS (e.g. wages, bank charges).',
+    },
+};
+
+/**
+ * Calculate GST amount for a given subtotal and Xero tax type.
+ * @param {number} subtotal - Amount EXCLUDING tax.
+ * @param {string} taxType - Xero tax type key.
+ * @returns {number} GST amount.
+ */
+export const calculateGst = (subtotal, taxType) => {
+    const config = XERO_TAX_CONFIG[taxType];
+    if (!config || config.rate === 0) return 0;
+    return parseFloat((parseFloat(subtotal) * config.rate).toFixed(2));
+};
+
+/**
+ * Extract GST from a GST-inclusive total.
+ * @param {number} total - Amount INCLUDING tax.
+ * @param {string} taxType - Xero tax type key.
+ * @returns {number} GST component.
+ */
+export const extractGstFromTotal = (total, taxType) => {
+    const config = XERO_TAX_CONFIG[taxType];
+    if (!config || config.rate === 0) return 0;
+    return parseFloat((parseFloat(total) * config.rate / (1 + config.rate)).toFixed(2));
+};
