@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage, router } from '@inertiajs/vue3';
 import { ref, onMounted, watch, computed } from 'vue';
 import axios from 'axios';
 import { formatCurrency } from '@/Utils/currency';
@@ -21,7 +21,7 @@ const expendables = ref([]);
 const transactionTypes = ref([]);
 const suppliers = ref([]);
 const loading = ref(true);
-const filterStatus = ref('all');
+const filterStatus = ref('pending_approval');
 const filterProject = ref('');
 const searchQuery = ref('');
 const searchDebounce = ref(null);
@@ -30,6 +30,18 @@ const showXeroSyncModal = ref(false);
 const xeroSyncLoading = ref(false);
 const xeroSyncError = ref('');
 const xeroCandidates = ref([]);
+
+const pagination = ref({
+    total: 0,
+    current_page: 1,
+    last_page: 1,
+    per_page: 20,
+});
+
+watch([filterStatus, filterProject], () => {
+    pagination.value.current_page = 1;
+    fetchBills();
+});
 
 const selectedBillForHistory = ref(null);
 const showHistorySidebar = ref(false);
@@ -183,10 +195,17 @@ const fetchBills = async () => {
             params: { 
                 status: filterStatus.value,
                 project_id: filterProject.value,
-                search: searchQuery.value
+                search: searchQuery.value,
+                page: pagination.value.current_page
             } 
         });
-        bills.value = data.data; // Paginated data
+        bills.value = data.data || [];
+        pagination.value = {
+            total: data.total || 0,
+            current_page: data.current_page || 1,
+            last_page: data.last_page || 1,
+            per_page: data.per_page || 20,
+        };
         bills.value.forEach((bill) => {
             getApprovalConfig(bill);
         });
@@ -604,24 +623,28 @@ onMounted(() => {
     fetchXeroAccounts();
 });
 
+const viewBillDetails = (billId) => {
+    router.visit(route('admin.financials.bills.show', { id: billId }));
+};
+
 const getStatusClass = (status, bill) => {
-    if (bill && bill.deleted_at) return 'bg-red-200 text-red-900';
+    if (bill && bill.deleted_at) return 'bg-gray-100 text-gray-700 border-gray-200 border';
     switch (status.toLowerCase()) {
-        case 'approved': return 'bg-green-100 text-green-800';
-        case 'pending_approval': return 'bg-amber-100 text-amber-800';
-        case 'void': return 'bg-red-100 text-red-800';
-        default: return 'bg-gray-100 text-gray-800';
+        case 'approved': return 'bg-emerald-50 text-emerald-700 border-emerald-100 border';
+        case 'pending_approval': return 'bg-amber-50 text-amber-700 border-amber-100 border';
+        case 'void': return 'bg-rose-50 text-rose-700 border-rose-100 border';
+        default: return 'bg-blue-50 text-blue-700 border-blue-100 border';
     }
 };
 </script>
 
 <template>
-    <Head title="Contractor Bills" />
+    <Head title="Bills / Expenses" />
 
     <AuthenticatedLayout>
         <template #header>
             <div class="flex justify-between items-center">
-                <h2 class="font-semibold text-xl text-gray-800 leading-tight">Contractor Bills</h2>
+                <h2 class="font-semibold text-xl text-gray-800 leading-tight">Bills / Expenses</h2>
                 <div class="flex gap-4 items-center">
                     <PrimaryButton v-if="canCreateBills" @click="openCreateModal">
                         Create Bill
@@ -631,162 +654,218 @@ const getStatusClass = (status, bill) => {
         </template>
 
         <div class="py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                <!-- Filters & Tabs -->
-                <div class="bg-white p-4 shadow sm:rounded-lg border border-gray-200">
-                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <!-- Tabs -->
-                        <div class="flex gap-2 overflow-x-auto pb-2 md:pb-0">
-                            <button
-                                @click="filterStatus = 'all'; fetchBills()"
-                                :class="['px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap', filterStatus === 'all' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100']"
-                            >
-                                All
-                            </button>
-                            <button
-                                @click="filterStatus = 'pending_approval'; fetchBills()"
-                                :class="['px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap', filterStatus === 'pending_approval' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100']"
-                            >
-                                Pending Approval
-                            </button>
-                            <button
-                                @click="filterStatus = 'approved'; fetchBills()"
-                                :class="['px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap', filterStatus === 'approved' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100']"
-                            >
-                                Approved
-                            </button>
-                            <button
-                                @click="filterStatus = 'void'; fetchBills()"
-                                :class="['px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap', filterStatus === 'void' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100']"
-                            >
-                                Void
-                            </button>
-                            <button
-                                @click="filterStatus = 'deleted'; fetchBills()"
-                                :class="['px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap', filterStatus === 'deleted' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100']"
-                            >
-                                Deleted
-                            </button>
-                        </div>
-                        
-                        <!-- Search & Project Filter -->
-                        <div class="flex gap-4 items-center">
-                            <div class="min-w-[240px]">
-                                <SelectDropdown
-                                    v-model="filterProject"
-                                    :options="projectOptions"
-                                    valueKey="id"
-                                    labelKey="name"
-                                    placeholder="All Projects"
-                                    @change="fetchBills"
-                                />
-                            </div>
-                            
-                            <TextInput
-                                v-model="searchQuery"
-                                @input="handleSearch"
-                                type="text"
-                                placeholder="Search by amount, name..."
-                                class="block w-full text-sm"
-                            />
+            <div class="max-w-[100%] px-4 sm:px-6 lg:px-8 space-y-6">
+                <!-- Stats Dashboard Grid -->
+                <div v-if="!loading && bills.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                    <!-- Total Count Card -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm border-l-4 border-l-indigo-500">
+                        <div class="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider">Filtered Bills</div>
+                        <div class="mt-2 flex items-baseline justify-between">
+                            <div class="text-xl font-bold text-indigo-950">{{ pagination.total }}</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Bills List -->
-                <div class="bg-white overflow-visible shadow sm:rounded-lg border border-gray-200">
+                <!-- Filters & Search Panel -->
+                <div class="bg-white border border-gray-200 rounded-lg p-4 mb-6 shadow-sm">
+                    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4 items-end">
+                        <!-- Search input -->
+                        <div class="lg:col-span-2">
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Search Bills</label>
+                            <TextInput
+                                v-model="searchQuery"
+                                @input="handleSearch"
+                                type="text"
+                                placeholder="Search by contractor name, amount, ref..."
+                                class="w-full text-sm"
+                            />
+                        </div>
+
+                        <!-- Project selection -->
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Project</label>
+                            <SelectDropdown
+                                v-model="filterProject"
+                                :options="projectOptions"
+                                valueKey="id"
+                                labelKey="name"
+                                placeholder="All Projects"
+                            />
+                        </div>
+
+                        <!-- Status selector buttons -->
+                        <div class="lg:col-span-2">
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Status</label>
+                            <div class="flex bg-gray-50 border border-gray-200 p-1 rounded-lg w-full">
+                                <button
+                                    v-for="st in [
+                                        { value: 'pending_approval', label: 'Pending' },
+                                        { value: 'all', label: 'All' },
+                                        { value: 'approved', label: 'Approved' },
+                                        { value: 'void', label: 'Void' },
+                                        { value: 'deleted', label: 'Deleted' }
+                                    ]"
+                                    :key="st.value"
+                                    @click="filterStatus = st.value"
+                                    :class="[
+                                        'flex-1 text-center py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap',
+                                        filterStatus === st.value
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                    ]"
+                                >
+                                    {{ st.label }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bills List Card -->
+                <div class="bg-white shadow sm:rounded-lg border border-gray-200 overflow-hidden">
                     <div v-if="loading" class="p-12 text-center text-gray-500">Loading bills...</div>
                     <div v-else-if="!canViewBills" class="p-12 text-center text-gray-500">You do not have permission to view bills.</div>
                     <div v-else-if="!bills.length" class="p-12 text-center text-gray-500">No bills found.</div>
-                    <table v-else class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project / Contract</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contractor</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            <tr v-for="bill in bills" :key="bill.id">
-                                <td class="px-6 py-4">
-                                    <div class="text-sm font-medium text-gray-900">{{ bill.project?.name }}</div>
-                                    <div class="text-xs text-gray-500">{{ bill.expendable?.name }}</div>
-                                </td>
-                                <td class="px-6 py-4 text-sm text-gray-500">
-                                    <div>{{ bill.contractor?.name }}</div>
-                                    <div v-if="!bill.contractor?.xero_contact_id" class="text-xs text-amber-700 mt-1">
-                                        Not linked to Xero
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4 text-sm font-semibold text-gray-900">
-                                    {{ formatCurrency(bill.amount, bill.currency || bill.project?.currency) }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span v-if="bill.deleted_at" class="px-2 py-1 text-xs font-bold rounded-full bg-red-200 text-red-900 mr-2">
-                                        DELETED
-                                    </span>
-                                    <span :class="['px-2 py-1 text-xs font-bold rounded-full', getStatusClass(bill.status, bill)]">
-                                        {{ bill.status.toUpperCase() }}
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 text-right text-sm font-medium">
-                                    <div class="flex justify-end gap-2">
-                                        <Link v-if="canViewBills && !bill.deleted_at" :href="route('admin.financials.bills.show', { id: bill.id })" class="text-indigo-600 hover:text-indigo-900">View</Link>
-                                        <button v-if="!bill.deleted_at" @click="openHistorySidebar(bill)" class="text-indigo-600 hover:text-indigo-900 ml-1">Payments</button>
-                                        <button
-                                            v-if="canLinkXeroContractors && !bill.contractor?.xero_contact_id && !bill.deleted_at"
-                                            @click="openXeroSyncModal(bill.contractor)"
-                                            class="text-indigo-600 hover:text-indigo-900"
-                                        >
-                                            Link Xero
-                                        </button>
-                                        <button v-if="canApproveBill(bill) && !bill.deleted_at" @click="approveBill(bill)" class="text-green-600 hover:text-green-900">Approve</button>
-                                        <button v-if="bill.status === 'approved' && canVoidBills && !bill.deleted_at" @click="voidBill(bill)" class="text-red-600 hover:text-red-900">Void</button>
-                                        <button v-if="bill.status === 'pending_approval' && canDeleteBills && !bill.deleted_at" @click="deleteBill(bill)" class="text-red-600 hover:text-red-900">Delete</button>
-                                        <button v-if="bill.deleted_at && canRestoreBills" @click="restoreBill(bill)" class="text-green-600 hover:text-green-900">Restore</button>
-                                        
-                                        <template v-if="bill.files && bill.files.length > 0">
-                                            <a :href="bill.files[0].path_url" target="_blank" class="text-blue-600 hover:text-blue-900 ml-2">View PDF</a>
-                                        </template>
-                                        <template v-else>
-                                            <label class="text-blue-600 hover:text-blue-900 ml-2 cursor-pointer">
-                                                Upload PDF
-                                                <input type="file" class="hidden" accept=".pdf" @change="(e) => handleAttachmentUpload(e, bill.id)" />
-                                            </label>
-                                        </template>
-                                    </div>
-                                    <div v-if="bill.status === 'pending_approval' && pendingApproverLabel(bill) && !bill.deleted_at" class="mt-1 text-xs text-amber-700">
-                                        {{ pendingApproverLabel(bill) }}
-                                    </div>
-                                    <div v-if="bill.status === 'pending_approval' && !bill.deleted_at" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        <SelectDropdown
-                                            :id="`approve_xero_account_${bill.id}`"
-                                            v-model="getApprovalConfig(bill).xero_account_code"
-                                            :options="xeroAccountOptions"
-                                            valueKey="value"
-                                            labelKey="label"
-                                            placeholder="Xero Account"
-                                        />
-                                        <div class="w-full">
+                    <div v-else class="w-full overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="w-8 px-3 py-3"></th> <!-- Navigation Indicator -->
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Project / Contract</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contractor</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr v-for="bill in bills" :key="bill.id" class="hover:bg-gray-50 cursor-pointer transition-colors" @click="!bill.deleted_at && viewBillDetails(bill.id)">
+                                    <td class="px-3 py-4 text-center">
+                                        <svg v-if="!bill.deleted_at" class="w-4 h-4 text-gray-400 hover:text-indigo-600 transition-colors inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                        </svg>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <div class="text-sm font-semibold text-gray-900">{{ bill.project?.name }}</div>
+                                        <div class="text-xs text-gray-500 mt-0.5">{{ bill.expendable?.name }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-500">
+                                        <div class="font-medium text-gray-900">{{ bill.contractor?.name }}</div>
+                                        <div v-if="!bill.contractor?.xero_contact_id" class="text-xs text-amber-600 font-semibold mt-1">
+                                            Not linked to Xero
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm font-bold text-gray-900">
+                                        {{ formatCurrency(bill.amount, bill.currency || bill.project?.currency) }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex flex-col gap-1 items-start">
+                                            <span v-if="bill.deleted_at" class="px-2 py-0.5 rounded text-[11px] font-semibold border bg-rose-50 text-rose-700 border-rose-100">
+                                                DELETED
+                                            </span>
+                                            <span :class="['px-2 py-0.5 rounded text-[11px] font-semibold border', getStatusClass(bill.status, bill)]">
+                                                {{ bill.status.toUpperCase() }}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-right text-sm font-medium" @click.stop>
+                                        <div class="flex justify-end gap-2 items-center">
+                                            <Link v-if="canViewBills && !bill.deleted_at" :href="route('admin.financials.bills.show', { id: bill.id })" class="text-indigo-600 hover:text-indigo-900 font-semibold">View</Link>
+                                            <button v-if="!bill.deleted_at" @click="openHistorySidebar(bill)" class="text-indigo-600 hover:text-indigo-900 font-semibold ml-1">Payments</button>
+                                            <button
+                                                v-if="canLinkXeroContractors && !bill.contractor?.xero_contact_id && !bill.deleted_at"
+                                                @click="openXeroSyncModal(bill.contractor)"
+                                                class="text-indigo-600 hover:text-indigo-900 font-semibold"
+                                            >
+                                                Link Xero
+                                            </button>
+                                            <button v-if="canApproveBill(bill) && !bill.deleted_at" @click="approveBill(bill)" class="text-emerald-600 hover:text-emerald-900 font-semibold">Approve</button>
+                                            <button v-if="bill.status === 'approved' && canVoidBills && !bill.deleted_at" @click="voidBill(bill)" class="text-rose-600 hover:text-rose-900 font-semibold">Void</button>
+                                            <button v-if="bill.status === 'pending_approval' && canDeleteBills && !bill.deleted_at" @click="deleteBill(bill)" class="text-rose-600 hover:text-rose-900 font-semibold">Delete</button>
+                                            <button v-if="bill.deleted_at && canRestoreBills" @click="restoreBill(bill)" class="text-emerald-600 hover:text-emerald-900 font-semibold">Restore</button>
+                                            
+                                            <template v-if="bill.files && bill.files.length > 0">
+                                                <a :href="bill.files[0].path_url" target="_blank" class="text-blue-600 hover:text-blue-900 font-semibold ml-2">View PDF</a>
+                                            </template>
+                                            <template v-else>
+                                                <label class="text-blue-600 hover:text-blue-900 font-semibold ml-2 cursor-pointer">
+                                                    Upload PDF
+                                                    <input type="file" class="hidden" accept=".pdf" @change="(e) => handleAttachmentUpload(e, bill.id)" />
+                                                </label>
+                                            </template>
+                                        </div>
+                                        <div v-if="bill.status === 'pending_approval' && pendingApproverLabel(bill) && !bill.deleted_at" class="mt-1 text-xs text-amber-600 font-medium">
+                                            {{ pendingApproverLabel(bill) }}
+                                        </div>
+                                        <div v-if="bill.status === 'pending_approval' && !bill.deleted_at" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-[320px] ml-auto">
                                             <SelectDropdown
-                                                :id="`approve_xero_tax_${bill.id}`"
-                                                v-model="getApprovalConfig(bill).xero_tax_type"
-                                                :options="xeroTaxTypeOptions"
+                                                :id="`approve_xero_account_${bill.id}`"
+                                                v-model="getApprovalConfig(bill).xero_account_code"
+                                                :options="xeroAccountOptions"
                                                 valueKey="value"
                                                 labelKey="label"
-                                                placeholder="Select Tax Type"
+                                                placeholder="Xero Account"
                                             />
+                                            <div class="w-full">
+                                                <SelectDropdown
+                                                    :id="`approve_xero_tax_${bill.id}`"
+                                                    v-model="getApprovalConfig(bill).xero_tax_type"
+                                                    :options="xeroTaxTypeOptions"
+                                                    valueKey="value"
+                                                    labelKey="label"
+                                                    placeholder="Select Tax Type"
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <datalist id="xero-account-codes">
-                        <option v-for="code in suggestedXeroAccountCodes" :key="code" :value="code" />
-                    </datalist>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination Controls -->
+                    <div v-if="pagination.last_page > 1" class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+                        <div class="flex-1 flex justify-between sm:hidden">
+                            <button :disabled="pagination.current_page === 1" @click="pagination.current_page--; fetchBills()" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50">
+                                Previous
+                            </button>
+                            <button :disabled="pagination.current_page === pagination.last_page" @click="pagination.current_page++; fetchBills()" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50">
+                                Next
+                            </button>
+                        </div>
+                        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                            <div>
+                                <p class="text-sm text-gray-700">
+                                    Showing
+                                    <span class="font-semibold">{{ (pagination.current_page - 1) * pagination.per_page + 1 }}</span>
+                                    to
+                                    <span class="font-semibold">{{ Math.min(pagination.current_page * pagination.per_page, pagination.total) }}</span>
+                                    of
+                                    <span class="font-semibold">{{ pagination.total }}</span>
+                                    results
+                                </p>
+                            </div>
+                            <div>
+                                <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                                    <button :disabled="pagination.current_page === 1" @click="pagination.current_page = 1; fetchBills()" class="relative inline-flex items-center px-2 py-1.5 rounded-l-md border border-gray-300 bg-white text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:opacity-50">
+                                        &laquo; First
+                                    </button>
+                                    <button :disabled="pagination.current_page === 1" @click="pagination.current_page--; fetchBills()" class="relative inline-flex items-center px-2 py-1.5 border border-gray-300 bg-white text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:opacity-50">
+                                        &lsaquo; Prev
+                                    </button>
+                                    <span class="relative inline-flex items-center px-4 py-1.5 border border-gray-300 bg-indigo-50 text-xs font-bold text-indigo-600">
+                                        Page {{ pagination.current_page }} of {{ pagination.last_page }}
+                                    </span>
+                                    <button :disabled="pagination.current_page === pagination.last_page" @click="pagination.current_page++; fetchBills()" class="relative inline-flex items-center px-2 py-1.5 border border-gray-300 bg-white text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:opacity-50">
+                                        Next &rsaquo;
+                                    </button>
+                                    <button :disabled="pagination.current_page === pagination.last_page" @click="pagination.current_page = pagination.last_page; fetchBills()" class="relative inline-flex items-center px-2 py-1.5 rounded-r-md border border-gray-300 bg-white text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:opacity-50">
+                                        Last &raquo;
+                                    </button>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
