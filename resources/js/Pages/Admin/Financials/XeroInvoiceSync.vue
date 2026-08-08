@@ -13,13 +13,76 @@ const projects = ref([]);
 const crmServices = ref([]);
 const clients = ref([]);
 const loading = ref(true);
-const filterStatus = ref('unsynced'); // 'unsynced' or 'all'
+const filterSearch = ref('');
+const filterSyncStatus = ref('unsynced');
+const filterXeroStatus = ref('active');
+
+const syncStatusOptions = [
+    { value: 'all', label: 'All Invoices' },
+    { value: 'synced', label: 'Synced Only' },
+    { value: 'unsynced', label: 'Unsynced Only' },
+];
+
+const xeroStatusOptions = [
+    { value: 'active', label: 'Active (Excl. Voided)' },
+    { value: 'all', label: 'All Xero Statuses' },
+    { value: 'PAID', label: 'PAID' },
+    { value: 'AUTHORISED', label: 'AUTHORISED' },
+    { value: 'VOIDED', label: 'VOIDED' },
+    { value: 'DRAFT', label: 'DRAFT' },
+    { value: 'SUBMITTED', label: 'SUBMITTED' },
+];
 
 const filteredInvoices = computed(() => {
-    if (filterStatus.value === 'unsynced') {
-        return invoices.value.filter(inv => !inv.is_already_synced);
-    }
-    return invoices.value;
+    return invoices.value.filter(inv => {
+        // 1. Search Filter
+        if (filterSearch.value.trim()) {
+            const query = filterSearch.value.toLowerCase();
+            const invNum = (inv.invoice_number || '').toLowerCase();
+            const contactName = (inv.contact_name || '').toLowerCase();
+            const contactEmail = (inv.contact_email || '').toLowerCase();
+            const xeroId = (inv.xero_invoice_id || '').toLowerCase();
+            if (!invNum.includes(query) && !contactName.includes(query) && !contactEmail.includes(query) && !xeroId.includes(query)) {
+                return false;
+            }
+        }
+
+        // 2. Sync Status Filter
+        if (filterSyncStatus.value === 'synced' && !inv.is_already_synced) {
+            return false;
+        }
+        if (filterSyncStatus.value === 'unsynced' && inv.is_already_synced) {
+            return false;
+        }
+
+        // 3. Xero Status Filter
+        if (filterXeroStatus.value === 'active' && inv.status === 'VOIDED') {
+            return false;
+        }
+        if (filterXeroStatus.value !== 'all' && filterXeroStatus.value !== 'active') {
+            if (inv.status !== filterXeroStatus.value) {
+                return false;
+            }
+        }
+
+        return true;
+    });
+});
+
+const totalCount = computed(() => invoices.value.length);
+const syncedCount = computed(() => invoices.value.filter(inv => inv.is_already_synced).length);
+const unsyncedCount = computed(() => invoices.value.filter(inv => !inv.is_already_synced).length);
+const voidedCount = computed(() => invoices.value.filter(inv => inv.status === 'VOIDED').length);
+const activeCount = computed(() => invoices.value.filter(inv => inv.status !== 'VOIDED').length);
+
+const clearFilters = () => {
+    filterSearch.value = '';
+    filterSyncStatus.value = 'unsynced';
+    filterXeroStatus.value = 'active';
+};
+
+const hasActiveFilters = computed(() => {
+    return filterSearch.value !== '' || filterSyncStatus.value !== 'unsynced' || filterXeroStatus.value !== 'active';
 });
 
 // Selected invoice for detailed view
@@ -242,113 +305,198 @@ onMounted(fetchInitialData);
             <div class="w-full px-4 sm:px-6 lg:px-8">
                 
                 <!-- Main Listing View -->
-                <div v-if="!activeInvoice" class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6 bg-white border-b border-gray-200">
-                        <div v-if="loading" class="text-center py-12">
-                            <span class="text-gray-500">Loading invoices from Xero...</span>
+                <div v-if="!activeInvoice">
+                    
+                    <!-- Stats Dashboard Grid -->
+                    <div v-if="!loading && invoices.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+                        <!-- Total Invoices Card -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                            <div class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Total Invoices</div>
+                            <div class="mt-2 flex items-baseline justify-between">
+                                <div class="text-xl font-bold text-gray-900">{{ totalCount }}</div>
+                            </div>
                         </div>
 
-                        <div v-else-if="invoices.length === 0" class="text-center py-12 text-gray-500">
-                            No recent invoices found in Xero.
+                        <!-- Active Invoices Card -->
+                        <div class="bg-white border border-blue-200 rounded-lg p-4 shadow-sm border-l-4 border-l-blue-500">
+                            <div class="text-[10px] font-semibold text-blue-600 uppercase tracking-wider">Active (Excl. Voided)</div>
+                            <div class="mt-2 flex items-baseline justify-between">
+                                <div class="text-xl font-bold text-blue-950">{{ activeCount }}</div>
+                            </div>
                         </div>
 
-                        <div v-else class="space-y-6">
-                            <!-- Filter Tabs & Actions -->
-                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-4 border-b border-gray-100">
-                                <div class="flex items-center space-x-2">
-                                    <button
-                                        type="button"
-                                        @click="filterStatus = 'unsynced'"
-                                        :class="[
-                                            'px-3 py-1.5 text-xs font-semibold rounded-md transition-colors',
-                                            filterStatus === 'unsynced'
-                                                ? 'bg-indigo-600 text-white shadow-sm'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        ]"
-                                    >
-                                        Unsynced Only ({{ invoices.filter(inv => !inv.is_already_synced).length }})
-                                    </button>
-                                    <button
-                                        type="button"
-                                        @click="filterStatus = 'all'"
-                                        :class="[
-                                            'px-3 py-1.5 text-xs font-semibold rounded-md transition-colors',
-                                            filterStatus === 'all'
-                                                ? 'bg-indigo-600 text-white shadow-sm'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        ]"
-                                    >
-                                        All Invoices ({{ invoices.length }})
-                                    </button>
-                                </div>
+                        <!-- Unsynced Invoices Card -->
+                        <div class="bg-white border border-amber-200 rounded-lg p-4 shadow-sm border-l-4 border-l-amber-500">
+                            <div class="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">Unsynced</div>
+                            <div class="mt-2 flex items-baseline justify-between">
+                                <div class="text-xl font-bold text-amber-950">{{ unsyncedCount }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Synced Invoices Card -->
+                        <div class="bg-white border border-emerald-200 rounded-lg p-4 shadow-sm border-l-4 border-l-emerald-500">
+                            <div class="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">Synced</div>
+                            <div class="mt-2 flex items-baseline justify-between">
+                                <div class="text-xl font-bold text-emerald-950">{{ syncedCount }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Voided Invoices Card -->
+                        <div class="bg-white border border-rose-200 rounded-lg p-4 shadow-sm border-l-4 border-l-rose-500">
+                            <div class="text-[10px] font-semibold text-rose-600 uppercase tracking-wider">Voided on Xero</div>
+                            <div class="mt-2 flex items-baseline justify-between">
+                                <div class="text-xl font-bold text-rose-950">{{ voidedCount }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filters Panel -->
+                    <div v-if="!loading && invoices.length > 0" class="bg-white border border-gray-200 rounded-lg p-4 mb-6 shadow-sm">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <!-- Text Input Search -->
+                            <div class="lg:col-span-2">
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Search</label>
+                                <input
+                                    v-model="filterSearch"
+                                    type="text"
+                                    class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200 placeholder-gray-400"
+                                    placeholder="Search invoice number, contact name..."
+                                />
+                            </div>
+
+                            <!-- Sync Status Dropdown -->
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Sync Status</label>
+                                <SelectDropdown
+                                    v-model="filterSyncStatus"
+                                    :options="syncStatusOptions"
+                                    value-key="value"
+                                    label-key="label"
+                                    placeholder="All Statuses"
+                                />
+                            </div>
+
+                            <!-- Xero Status Dropdown -->
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Xero Status</label>
+                                <SelectDropdown
+                                    v-model="filterXeroStatus"
+                                    :options="xeroStatusOptions"
+                                    value-key="value"
+                                    label-key="label"
+                                    placeholder="All Statuses"
+                                />
+                            </div>
+                        </div>
+                        
+                        <!-- Clear Action Button & Refresh -->
+                        <div class="mt-3 flex justify-between items-center border-t border-gray-100 pt-3">
+                            <div>
                                 <button
-                                    type="button"
-                                    @click="fetchInitialData"
-                                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-semibold rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+                                    v-if="hasActiveFilters"
+                                    @click="clearFilters"
+                                    class="text-xs font-semibold text-indigo-600 hover:text-indigo-900 flex items-center gap-1"
                                 >
-                                    Refresh from Xero
+                                    Clear Filters
                                 </button>
                             </div>
+                            <button
+                                type="button"
+                                @click="fetchInitialData"
+                                class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-semibold rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+                            >
+                                <svg class="w-3.5 h-3.5 mr-1.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.75 8.25H12"></path>
+                                </svg>
+                                Refresh from Xero
+                            </button>
+                        </div>
+                    </div>
 
-                            <div v-if="filteredInvoices.length === 0" class="text-center py-12 text-gray-500">
-                                No invoices found matching the current filter.
+                    <!-- Main Listing View Container -->
+                    <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
+                        <div class="p-6 bg-white">
+                            <div v-if="loading" class="text-center py-12">
+                                <span class="text-gray-500 font-medium">Loading invoices from Xero...</span>
                             </div>
 
-                            <div v-else class="overflow-x-auto">
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice ID / Number</th>
-                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact / Client</th>
-                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Dates</th>
-                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Amount</th>
-                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                            <th class="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="bg-white divide-y divide-gray-200">
-                                        <tr v-for="inv in filteredInvoices" :key="inv.xero_invoice_id" :class="{'bg-gray-50 opacity-75': inv.is_already_synced}">
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="text-sm font-semibold text-indigo-600">{{ inv.invoice_number || 'N/A' }}</div>
-                                                <div class="text-xs text-gray-400 font-mono">{{ inv.xero_invoice_id }}</div>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="text-sm font-medium text-gray-900">{{ inv.contact_name }}</div>
-                                                <div v-if="inv.suggested_client" class="text-xs text-green-600 font-medium">
-                                                    Matched client: {{ inv.suggested_client.name }}
-                                                </div>
-                                                <div v-else class="text-xs text-amber-500 font-medium">
-                                                    No CRM client matched
-                                                </div>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                <div>{{ inv.date }}</div>
-                                                <div class="text-xs text-gray-400">Due: {{ inv.due_date }}</div>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                                                {{ inv.total_amount.toFixed(2) }}
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                                <span v-if="inv.is_already_synced" class="px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                                    Synced
-                                                </span>
-                                                <span v-else class="px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-amber-100 text-amber-800">
-                                                    Unsynced
-                                                </span>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <button 
-                                                    v-if="!inv.is_already_synced"
-                                                    @click="openSyncView(inv)"
-                                                    class="inline-flex items-center px-3 py-1.5 border border-indigo-600 text-xs font-semibold rounded-md text-indigo-600 bg-white hover:bg-indigo-50"
-                                                >
-                                                    Map & Replicate Invoice
-                                                </button>
-                                                <span v-else class="text-gray-400 text-xs">Complete</span>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                            <div v-else-if="invoices.length === 0" class="text-center py-12 text-gray-500">
+                                No recent invoices found in Xero.
+                            </div>
+
+                            <div v-else class="space-y-6">
+                                <div v-if="filteredInvoices.length === 0" class="text-center py-12 text-gray-500">
+                                    No invoices found matching the current filter.
+                                </div>
+
+                                <div v-else class="w-full overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
+                                        <thead class="bg-gray-50">
+                                            <tr>
+                                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice ID / Number</th>
+                                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact / Client</th>
+                                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Dates</th>
+                                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Amount</th>
+                                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sync Status</th>
+                                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Xero Status</th>
+                                                <th class="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white divide-y divide-gray-200">
+                                            <tr v-for="inv in filteredInvoices" :key="inv.xero_invoice_id" :class="['hover:bg-gray-50 cursor-pointer transition-colors', {'bg-gray-50 opacity-75': inv.is_already_synced}]" @click="!inv.is_already_synced && openSyncView(inv)">
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="text-sm font-semibold text-indigo-600">{{ inv.invoice_number || 'N/A' }}</div>
+                                                    <div class="text-xs text-gray-400 font-mono">{{ inv.xero_invoice_id }}</div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="text-sm font-medium text-gray-900">{{ inv.contact_name }}</div>
+                                                    <div v-if="inv.suggested_client" class="text-xs text-emerald-600 font-semibold mt-1">
+                                                        Matched client: {{ inv.suggested_client.name }}
+                                                    </div>
+                                                    <div v-else class="text-xs text-amber-500 font-semibold mt-1">
+                                                        No CRM client matched
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    <div>{{ inv.date }}</div>
+                                                    <div class="text-xs text-gray-400">Due: {{ inv.due_date }}</div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                                                    {{ inv.total_amount.toFixed(2) }}
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <span v-if="inv.is_already_synced" class="px-2 py-0.5 rounded text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-100">
+                                                        Synced
+                                                    </span>
+                                                    <span v-else class="px-2 py-0.5 rounded text-[11px] font-semibold border bg-amber-50 text-amber-700 border-amber-100">
+                                                        Unsynced
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <span :class="[
+                                                        'px-2 py-0.5 rounded text-[11px] font-semibold border',
+                                                        inv.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                                        inv.status === 'AUTHORISED' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                                                        inv.status === 'VOIDED' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                                                        'bg-blue-50 text-blue-700 border-blue-100'
+                                                    ]">
+                                                        {{ inv.status }}
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" @click.stop>
+                                                    <button 
+                                                        v-if="!inv.is_already_synced"
+                                                        @click="openSyncView(inv)"
+                                                        class="inline-flex items-center px-3 py-1.5 border border-indigo-600 text-xs font-semibold rounded-md text-indigo-600 bg-white hover:bg-indigo-50 transition-colors"
+                                                    >
+                                                        Map & Replicate
+                                                    </button>
+                                                    <span v-else class="text-gray-400 text-xs font-semibold">Synced</span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>
